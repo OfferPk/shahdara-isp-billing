@@ -38,6 +38,7 @@ import {
   encryptBackupJson, decryptBackupJson, isEncryptedBackupPayload,
   loadKhataDoctorCache, saveKhataDoctorCache
 } from './backup-store.js?v=1.11.0';
+import { saveBranchGuard, ensureBranchGuard, createBranchGuardStamp, recordBranchGuardExport, recordBranchGuardApply } from './branch-guard.js?v=1.11.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.11.0';
 import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate } from './backup-health.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
@@ -376,6 +377,7 @@ let newCustomersView = 'thisMonth';
 let newCustomersMonth = '';
 let selectedPayrollMonth = monthsForHistory()[0];
 let pendingBackupPreview = null;
+let pendingBackupSourceText = '';
 let toastTimer;
 let refreshOwnerCenter = () => {};
 let customerDraftController = null;
@@ -2892,8 +2894,18 @@ function downloadJson(filename, text) {
 // #359: digital payment settings live outside the ledger state — pass them to
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
+// SISP-46: every backup this copy produces carries the Multi-Branch
+// Merge Guard stamp, and producing it advances the guard head — the
+// stamp's parent is always the exact point this copy last exported or
+// applied, which is what lets another copy recognise a true descendant.
+function nextBranchGuardStamp() {
+  const guard = ensureBranchGuard(localStorage);
+  const stamp = createBranchGuardStamp(guard, state);
+  if (stamp) saveBranchGuard(recordBranchGuardExport(guard, stamp), localStorage);
+  return stamp;
+}
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), referralCredits: loadReferralCredits(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), referralCredits: loadReferralCredits(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -2936,7 +2948,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentReferralCredits: loadReferralCredits(), currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentReferralCredits: loadReferralCredits(), currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -3231,8 +3243,9 @@ async function checkAutomaticBackup() {
   })().finally(() => { automaticBackupInFlight = null; });
   return automaticBackupInFlight;
 }
-function renderBackupPreview(preview) {
+function renderBackupPreview(preview, sourceText = '') {
   pendingBackupPreview = preview;
+  pendingBackupSourceText = sourceText;
   const encSection = $('#encryptedRestoreSection');
   if (encSection) encSection.hidden = true;
   const plainSection = $('#plainBackupRestoreSection');
@@ -3262,9 +3275,49 @@ function renderBackupPreview(preview) {
   if (conflicts.length > 25) {
     const more = document.createElement('li'); more.textContent = `${conflicts.length - 25} additional conflicts are preserved in the local preview.`; list.append(more);
   }
+  // SISP-46: surface the Multi-Branch Merge Guard verdict. Silent
+  // verdicts (descendant / own / adopt) leave no trace; legacy and
+  // unguarded backups warn; foreign and diverged lineages explain the
+  // block and reveal the operator's explicit override — ticking it
+  // re-computes this preview with the override armed (core.js stays
+  // the only authority on canApply).
+  const guardNote = $('#jsonBackupBranchGuardNote');
+  const guardVerdict = preview.branchGuard;
+  if (guardNote) {
+    const warnKey = guardVerdict?.status === 'foreign' ? 'bkgrd_foreign_note'
+      : guardVerdict?.status === 'diverged' ? 'bkgrd_diverged_note'
+      : guardVerdict?.status === 'legacy' ? 'bkgrd_legacy_note'
+      : guardVerdict?.status === 'unguarded' ? 'bkgrd_unguarded_note'
+      : null;
+    if (preview.branchGuardOverrideApplied) {
+      guardNote.textContent = t('bkgrd_override_active');
+      guardNote.className = 'backup-checksum-note checksum-unverified';
+      guardNote.hidden = false;
+    } else if (warnKey) {
+      guardNote.textContent = t(warnKey);
+      guardNote.className = `backup-checksum-note ${guardVerdict.blocked ? 'checksum-mismatch' : 'checksum-unverified'}`;
+      guardNote.hidden = false;
+    } else {
+      guardNote.textContent = '';
+      guardNote.hidden = true;
+    }
+  }
+  const guardWrap = $('#branchGuardOverrideWrap');
+  if (guardWrap) guardWrap.hidden = !guardVerdict?.blocked;
+  const guardLabel = $('#branchGuardOverrideLabel');
+  if (guardLabel) guardLabel.textContent = t('bkgrd_override_label');
+  const guardCheckbox = $('#branchGuardOverrideCheckbox');
+  if (guardCheckbox) guardCheckbox.checked = preview.branchGuardOverrideApplied === true;
   $('#applyJsonBackupButton').disabled = !preview.canApply;
   $('#jsonBackupDialog').showModal();
 }
+
+$('#branchGuardOverrideCheckbox')?.addEventListener('change', event => {
+  if (!pendingBackupSourceText) return;
+  const options = backupRestoreOptions();
+  if (event.currentTarget.checked) options.branchGuardOverride = true;
+  renderBackupPreview(previewJsonBackupMerge(state, pendingBackupSourceText, options), pendingBackupSourceText);
+});
 $('#downloadJsonBackupButton').addEventListener('click', () => {
   if (persistenceBlocked) { toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.'); return; }
   const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
@@ -3357,7 +3410,7 @@ $('#importSyncCodeButton')?.addEventListener('click', () => {
     const inspection = inspectBackupFileHeader(text);
     if (!inspection.valid) { toast(`${inspection.error} No local data was changed.`); return; }
     if (inspection.encrypted) { promptEncryptedRestore(text, inspection); return; }
-    renderBackupPreview(previewJsonBackupMerge(state, text, backupRestoreOptions()));
+    renderBackupPreview(previewJsonBackupMerge(state, text, backupRestoreOptions()), text);
   } catch (error) { toast(`${error.message} No local data was changed.`); }
 });
 $('#backupFrequencySelect').addEventListener('change', async event => {
@@ -3397,7 +3450,7 @@ $('#restoreLocalBackupButton').addEventListener('click', async () => {
   if (!id) { toast('Choose a saved backup first.'); return; }
   try {
     const backup = await localBackupStore.getBackup(id);
-    renderBackupPreview(previewJsonBackupMerge(state, backup.backupText, backupRestoreOptions()));
+    renderBackupPreview(previewJsonBackupMerge(state, backup.backupText, backupRestoreOptions()), backup.backupText);
   } catch (error) { toast(`${error.message} No local data was changed.`); }
 });
 // SISP-36: Khata Doctor card in the backup controls. Run is read-only;
@@ -3502,7 +3555,7 @@ $('#unlockEncryptedRestoreBtn')?.addEventListener('click', async () => {
     const decryptedText = await decryptBackupJson(pendingEncryptedBackupText, pass);
     $('#encryptedRestoreSection').hidden = true;
     $('#plainBackupRestoreSection').hidden = false;
-    renderBackupPreview(previewJsonBackupMerge(state, decryptedText, backupRestoreOptions()));
+    renderBackupPreview(previewJsonBackupMerge(state, decryptedText, backupRestoreOptions()), decryptedText);
     toast('🔐 Backup decrypted successfully! Review the safe merge preview.');
   } catch (err) {
     errEl.textContent = err.message || 'Decryption failed: incorrect passphrase.';
@@ -3527,7 +3580,7 @@ $('#jsonBackupFileInput').addEventListener('change', async event => {
       promptEncryptedRestore(text, inspection);
       return;
     }
-    renderBackupPreview(previewJsonBackupMerge(state, text, backupRestoreOptions()));
+    renderBackupPreview(previewJsonBackupMerge(state, text, backupRestoreOptions()), text);
   }
   catch (error) { toast(`${error.message} No local data was changed.`); }
   finally {
@@ -3740,7 +3793,21 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.voidPayments) {
       saveVoidPayments(pendingBackupPreview.voidPayments);
-    }    closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
+    }
+    // SISP-46: fold the applied restore into the branch guard record so
+    // this copy's lineage head advances (an override-applied diverged
+    // backup heals the chain) and the apply is remembered in the event
+    // log. Read fresh: the pre-apply safety snapshot may itself have
+    // advanced the guard via the normal export path.
+    if (pendingBackupPreview.branchGuard) {
+      const guardNow = ensureBranchGuard(localStorage);
+      saveBranchGuard(recordBranchGuardApply(guardNow, pendingBackupPreview.branchGuard.stamp, {
+        status: pendingBackupPreview.branchGuard.status,
+        override: pendingBackupPreview.branchGuardOverrideApplied === true,
+        resultingState: state
+      }), localStorage);
+    }
+    closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
   } catch (error) { toast(`Restore could not be saved: ${error.message}`); }
 });

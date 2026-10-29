@@ -1,6 +1,7 @@
 import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY, canonicalMohalla } from './phase3.js';
 import { createBillPackageSnapshot, validateBillPackageSnapshot } from './package-catalog.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
+import { sanitizeBranchGuard, sanitizeBranchGuardStamp, classifyBranchGuardRestore, fingerprintState } from './branch-guard.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
 import { normalizeTid } from './wallet-reconciliation.js';
 import { sanitizeComplaints } from './complaint-register.js';
@@ -2235,6 +2236,16 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeVoidPayments(options.voidPayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), voidPayments: cleaned };
   }
+  // SISP-46: the Multi-Branch Merge Guard stamp travels in an optional
+  // `settings.branchGuard` section. Unlike the record sections above it
+  // is written whenever the caller supplies a stamp (even for an empty
+  // ledger — the stamp IS the lineage identity, and it must round-trip
+  // onto a fresh device). Readers that predate it ignore the field.
+  // Placed before the checksum stamp so the checksum covers it.
+  if (options && typeof options === 'object' && options.branchGuard && typeof options.branchGuard === 'object') {
+    const stamp = sanitizeBranchGuardStamp(options.branchGuard);
+    if (stamp) document.settings = { ...(document.settings || {}), branchGuard: stamp };
+  }
   document.checksum = computeBackupChecksum(document);  return JSON.stringify(document, null, 2);}
 
 /**
@@ -2260,6 +2271,27 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   // A missing checksum means a legacy backup: it still merges, reported
   // as 'unverified' so the preview can warn.
   const checksum = verifyBackupChecksum(backupText);
+  // SISP-46: Multi-Branch Merge Guard. The incoming backup's lineage
+  // stamp (settings.branchGuard) is classified against this device's
+  // guard record (options.currentBranchGuard). The classification runs
+  // only when the caller supplies that option — older callers keep the
+  // pre-guard behaviour exactly. A blocked verdict (foreign or diverged
+  // lineage) forces canApply false unless the operator armed the
+  // explicit override (options.branchGuardOverride === true); the
+  // merge computation itself is never altered by the guard, and the
+  // existing state is never mutated by a preview.
+  const branchGuardStamp = sanitizeBranchGuardStamp(
+    (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+      ? document.settings.branchGuard
+      : undefined
+  );
+  const hasLocalGuardOption = Boolean(options && typeof options === 'object' && Object.hasOwn(options, 'currentBranchGuard'));
+  const localBranchGuard = hasLocalGuardOption ? sanitizeBranchGuard(options.currentBranchGuard) : null;
+  const branchGuardVerdict = !hasLocalGuardOption
+    ? { status:'not-checked', blocked:false, requiresOverride:false, silent:true }
+    : classifyBranchGuardRestore({ guard: localBranchGuard, stamp: branchGuardStamp, localCustomerCount: Array.isArray(existingState?.customers) ? existingState.customers.length : 0, localFingerprint: fingerprintState(existingState) });
+  const branchGuard = { ...branchGuardVerdict, stamp: branchGuardStamp };
+  const branchGuardOverrideApplied = branchGuard.blocked && options?.branchGuardOverride === true;
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
@@ -2894,5 +2926,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, referralCredits, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, referralCredits, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

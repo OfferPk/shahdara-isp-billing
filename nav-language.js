@@ -1269,6 +1269,14 @@ export const TRANSLATIONS = {
     upt_reason_none: 'No reason recorded',
     upt_currently_offline: 'Currently offline since {datetime}',
     upt_qc_line: '🟢 {month} uptime — Online {online} · Offline {offline} · {days}-day month',
+
+    // SISP-46: Multi-Branch Merge Guard (backup restore warnings)
+    bkgrd_foreign_note: '⛔ Different ledger branch: this backup was exported from another copy of the app (a different phone or branch) whose history this device has never shared. Merging it here could double-count money, so the merge is blocked.',
+    bkgrd_diverged_note: '⛔ Diverged copies: this backup and this device both moved forward from the same older backup, so payments may have been recorded on both sides. The merge is blocked so no collection is ever counted twice.',
+    bkgrd_legacy_note: '⚠️ Older backup: it carries no branch stamp, so its origin cannot be verified. Review the preview carefully before applying.',
+    bkgrd_unguarded_note: '⚠️ This device has no branch record yet, so the origin of this backup cannot be verified. Review the preview carefully before applying.',
+    bkgrd_override_label: 'I understand the risk — merge this backup anyway (existing records still win; nothing is overwritten).',
+    bkgrd_override_active: '⚠️ Branch guard override is ON for this preview. Existing records still win every conflict — check the totals after applying.',
     prof_incident_edit: 'Edit',
     prof_incident_delete: 'Delete',
     prof_incident_audit_title: 'Correction history ({count})',
@@ -2919,6 +2927,14 @@ export const TRANSLATIONS = {
     upt_reason_none: 'کوئی وجہ ریکارڈ نہیں',
     upt_currently_offline: '{datetime} سے اس وقت آف لائن ہے',
     upt_qc_line: '🟢 {month} اپ ٹائم — آن لائن {online} · آف لائن {offline} · مہینہ {days} دن',
+
+    // SISP-46: Multi-Branch Merge Guard (backup restore warnings)
+    bkgrd_foreign_note: '⛔ مختلف کھاتہ برانچ: یہ بیک اپ ایپ کی کسی دوسری کاپی (دوسرے فون یا برانچ) سے آیا ہے جس کی تاریخ اس ڈیوائس سے کبھی نہیں ملی۔ اسے یہاں ملانے سے رقم دُہری گنی جا سکتی ہے، اس لیے مرج روک دیا گیا ہے۔',
+    bkgrd_diverged_note: '⛔ کاپیاں بٹ چکی ہیں: یہ بیک اپ اور یہ ڈیوائس دونوں ایک ہی پرانے بیک اپ سے آگے بڑھے ہیں، اس لیے دونوں طرف ادائیگیاں ریکارڈ ہو سکتی ہیں۔ مرج روک دیا گیا ہے تاکہ کوئی وصولی کبھی دُہری نہ گنی جائے۔',
+    bkgrd_legacy_note: '⚠️ پرانا بیک اپ: اس پر برانچ مہر نہیں، اس لیے اس کا اصل ذریعہ تصدیق نہیں ہو سکتا۔ لاگو کرنے سے پہلے جائزہ غور سے دیکھیں۔',
+    bkgrd_unguarded_note: '⚠️ اس ڈیوائس پر ابھی برانچ ریکارڈ موجود نہیں، اس لیے اس بیک اپ کا ذریعہ تصدیق نہیں ہو سکتا۔ لاگو کرنے سے پہلے جائزہ غور سے دیکھیں۔',
+    bkgrd_override_label: 'میں خطرہ سمجھتا ہوں — پھر بھی یہ بیک اپ ملا دیں (موجودہ ریکارڈ ہی برقرار رہیں گے؛ کچھ بھی اوور رائٹ نہیں ہوگا)۔',
+    bkgrd_override_active: '⚠️ اس جائزے کے لیے برانچ گارڈ اوور رائیڈ فعال ہے۔ ہر ٹکراؤ میں موجودہ ریکارڈ ہی جیتے گا — لاگو کرنے کے بعد کُل رقم ضرور جانچیں۔',
     prof_incident_edit: 'ترمیم کریں',
     prof_incident_delete: 'حذف کریں',
     prof_incident_audit_title: 'تصحیح کی تاریخ ({count})',

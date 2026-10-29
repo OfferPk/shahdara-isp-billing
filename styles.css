@@ -11181,8 +11181,162 @@ html, body {
   width: 95vw;
 }
 
-.daily-closing-toolbar button {
+/* Daily Closing redesign (owner request 2026-10-29): compact header, a
+ * one-row date strip with the target chip inline, the six closing actions
+ * as a 2-column icon+label card grid at the TOP of the dialog (no more
+ * scrolling past the figures to reach them), and NO sticky footer bar —
+ * the ↩ in the header closes, backed by one slim non-sticky Close at the
+ * natural end of the body. Presentation only: every button keeps its id
+ * and its original handler. Tokens only, so dark mode flips for free. */
+.daily-closing-modal .billing-modal-title-group h2 {
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.daily-closing-modal .urdu-subtitle {
+  font-size: 13px;
+}
+
+.daily-closing-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 10px;
+  padding: 6px 10px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.daily-closing-date-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.daily-closing-toolbar .dc-date-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.daily-closing-toolbar .dc-date-input {
+  flex: 0 1 150px;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.daily-closing-toolbar .dc-nav-btn {
+  min-height: 32px;
+  padding: 4px 9px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.dc-attainment-wrap {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+.dc-attainment-badge {
+  background: var(--color-brand-soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  font-size: 10px;
+  padding: 3px 8px;
+}
+
+.daily-closing-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.dc-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 10px;
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elevation-1);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.dc-action-btn:active {
+  transform: scale(0.98);
+}
+
+.dc-action-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  line-height: 1;
+  flex: none;
+  background: var(--color-brand-soft);
+}
+
+.dc-action-icon--brand { background: var(--color-brand-500); }
+.dc-action-icon--whatsapp { background: var(--color-whatsapp); }
+.dc-action-icon--info { background: var(--color-info); }
+.dc-action-icon--pending { background: var(--color-pending); }
+.dc-action-icon--paid { background: var(--color-paid); }
+.dc-action-icon--soft { background: var(--color-brand-soft); }
+
+.dc-action-label {
+  min-width: 0;
+  overflow-wrap: break-word;
+  line-height: 1.25;
+}
+
+.daily-closing-close-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
+.daily-closing-close-btn {
   min-height: 36px;
+  padding: 6px 22px;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+[data-theme="dark"] .daily-closing-modal .dc-action-btn {
+  background: var(--surface-soft);
+  border-color: var(--line);
+  color: var(--ink);
 }
 
 .daily-closing-kpi-grid {
@@ -11245,21 +11399,32 @@ html, body {
     max-height: 100vh;
     border-radius: 0;
   }
+  /* Compact header + one-row date strip on phones: the label gives its
+   * space to the date input (the input keeps its aria-label), and the
+   * target chip stays inside the same slim toolbar strip. */
+  .daily-closing-modal .billing-modal-title-group h2 {
+    font-size: 16px !important;
+  }
+  .daily-closing-modal .urdu-subtitle {
+    font-size: 12px;
+  }
   .daily-closing-toolbar {
-    flex-direction: column;
-    align-items: stretch !important;
+    padding: 6px 8px;
+    gap: 4px 8px;
   }
-  .daily-closing-toolbar > div {
-    width: 100%;
-    justify-content: space-between;
+  .daily-closing-toolbar .dc-date-label {
+    display: none;
   }
-  .daily-closing-toolbar button {
-    flex: 1;
-    min-height: 44px;
+  .daily-closing-toolbar .dc-nav-btn {
+    min-height: 34px;
+    padding: 4px 7px;
   }
-  .daily-closing-modal .billing-modal-footer button {
-    min-height: 44px;
-    width: 100%;
+  .daily-closing-actions {
+    gap: 7px;
+  }
+  .dc-action-btn {
+    min-height: 50px;
+    font-size: 12px;
   }
 }
 

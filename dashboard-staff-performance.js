@@ -1200,7 +1200,16 @@ export function setupStaffPerformanceModal(stateInput = {}, options = {}) {
   function syncButtonLabels(lang) {
     const isUrdu = lang === 'ur' || (typeof document !== 'undefined' && document.documentElement && document.documentElement.getAttribute('lang') === 'ur');
     if (openBtn) openBtn.textContent = isUrdu ? '👥 عملے کی کارکردگی' : '👥 Staff Performance';
-    if (openFromClosingBtn) openFromClosingBtn.textContent = isUrdu ? '👥 عملے کی کارکردگی' : '👥 Staff Performance';
+    if (openFromClosingBtn) {
+      // The closing dialog renders this button as an icon+label card; write
+      // into its label span when present so the card structure survives the
+      // language sync (plain-text buttons keep the flat textContent path).
+      const closingLabel = typeof openFromClosingBtn.querySelector === 'function'
+        ? openFromClosingBtn.querySelector('.dc-action-label')
+        : null;
+      if (closingLabel) closingLabel.textContent = isUrdu ? 'عملے کی کارکردگی' : 'Staff Performance';
+      else openFromClosingBtn.textContent = isUrdu ? '👥 عملے کی کارکردگی' : '👥 Staff Performance';
+    }
     if (csvBtn) csvBtn.textContent = isUrdu ? '📥 CSV برآمد کریں' : '📥 Export CSV';
     if (printA4Btn) printA4Btn.textContent = isUrdu ? '🖨️ اسٹیٹمنٹ پرنٹ کریں (A4)' : '🖨️ Print Statement (A4)';
     if (printSlipBtn) printSlipBtn.textContent = isUrdu ? '🧾 تھرمل سلپ (80mm)' : '🧾 Thermal Slip (80mm)';

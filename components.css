@@ -1120,6 +1120,119 @@ body.field-mode-open { overflow: hidden; }
   border-color: var(--line);
 }
 
+/* Uptime tracking: profile month summary tiles + offline period list.
+   Theme tokens only, so light and dark modes both stay readable. */
+.uptime-month-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.uptime-month-label select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 6px 8px;
+  font: 600 12px 'DM Sans', sans-serif;
+}
+.uptime-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.uptime-stat {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  min-width: 0;
+}
+.uptime-stat > span {
+  display: block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.uptime-stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.uptime-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.uptime-current {
+  margin: 10px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-overdue);
+}
+.uptime-periods-heading {
+  margin: 14px 0 0;
+  font-size: 12px;
+  color: var(--ink);
+}
+.uptime-period-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.uptime-period {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+}
+.uptime-period-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.uptime-period-head strong {
+  font-size: 12px;
+  color: var(--ink);
+}
+.uptime-period-head span {
+  font-size: 10px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.uptime-period-reason {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.qc-uptime-line {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.qc-uptime-line:empty {
+  display: none;
+}
+
 @media (max-width: 620px) {
   .home-kpi-card.ds-stat {
     padding: 10px;

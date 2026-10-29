@@ -33,6 +33,8 @@ import {
   unsettleTicketChargesForPayment
 } from './complaint-tickets.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
+import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
+import { t } from './nav-language.js';
 import {
   getDigitalPaymentsSettings,
   hasConfiguredDigitalPayments,
@@ -904,6 +906,10 @@ export function setupQuickCollectModal({
   // SISP-30: outage concession badge host (null when the host page predates it).
   const concessionBox = typeof document !== 'undefined' ? document.getElementById('quickCollectConcessionBox') : null;
 
+  // Uptime tracking: one-line online/offline summary host for the
+  // selected bill month (null when the host page predates it).
+  const uptimeLine = typeof document !== 'undefined' ? document.getElementById('quickCollectUptimeLine') : null;
+
   // Digital Payment Elements
   const digitalFieldsContainer = document.getElementById('quickCollectDigitalFields');
   const transactionIdInput = document.getElementById('quickCollectTransactionIdInput');
@@ -1032,6 +1038,7 @@ export function setupQuickCollectModal({
   // SISP-30: refresh the concession badge when the operator picks another month.
   monthSelect?.addEventListener('change', () => {
     if (activeCustomerId) renderConcessionBox(activeCustomerId, monthSelect.value);
+    if (activeCustomerId) renderUptimeLine(activeCustomerId, monthSelect.value);
   });
 
   // Populate payment methods select once
@@ -1079,6 +1086,42 @@ export function setupQuickCollectModal({
   // month. The suggested amount is recomputed at click time from fresh
   // complaints, never trusted from markup. After an apply, the amount field
   // is pointed at the net due so the collector collects the conceded amount.
+  // Uptime tracking: compact duration text ("28 days 18 hours") from
+  // the shared upt_dur_* strings.
+  function qcDurationText(totalMinutes) {
+    const parts = splitMinutes(totalMinutes);
+    const pieces = [];
+    if (parts.days) pieces.push(parts.days === 1 ? t('upt_dur_day_1') : t('upt_dur_days', null, { n: parts.days }));
+    if (parts.hours) pieces.push(parts.hours === 1 ? t('upt_dur_hour_1') : t('upt_dur_hours', null, { n: parts.hours }));
+    if (parts.minutes) pieces.push(parts.minutes === 1 ? t('upt_dur_min_1') : t('upt_dur_mins', null, { n: parts.minutes }));
+    return pieces.length ? pieces.join(' ') : t('upt_dur_zero');
+  }
+
+  // Uptime tracking: the month-end online/offline summary the owner
+  // wants in front of the collector while the month's bill is being
+  // paid. Unlike the concession box it needs no bill — it renders for
+  // any customer (including free connections) from their recorded
+  // offline periods and status history alone.
+  function renderUptimeLine(customerId, month) {
+    if (!uptimeLine) return;
+    uptimeLine.textContent = '';
+    try {
+      const state = getState();
+      if (!state || !customerId || !month) return;
+      const customer = state.customers.find(c => c.id === customerId);
+      if (!customer) return;
+      const summary = buildMonthlyUptime(customer, month, new Date());
+      uptimeLine.textContent = t('upt_qc_line', null, {
+        month,
+        online: qcDurationText(summary.onlineMinutes),
+        offline: qcDurationText(summary.offlineMinutes),
+        days: summary.daysInMonth
+      });
+    } catch {
+      uptimeLine.textContent = '';
+    }
+  }
+
   function renderConcessionBox(customerId, month) {
     if (!concessionBox) return;
     concessionBox.innerHTML = '';
@@ -1199,6 +1242,10 @@ export function setupQuickCollectModal({
 
       // SISP-30: concession badge for the target month (refreshes on month change).
       renderConcessionBox(customerId, activeDefaults.targetMonth);
+
+      // Uptime tracking: month-end online/offline one-liner for the
+      // same target month (refreshes on month change too).
+      renderUptimeLine(customerId, activeDefaults.targetMonth);
 
       // Reset digital fields
       if (transactionIdInput) transactionIdInput.value = '';

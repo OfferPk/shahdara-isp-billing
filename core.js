@@ -69,8 +69,30 @@ function parseLocalDateTime(value) {
   return wallClock.getTime() - 5 * 60 * 60 * 1000;
 }
 
+// Uptime tracking: the manual service-status history is an append-only
+// log of { status, at } stamps (Pakistan local datetimes), one per
+// status flip recorded by updateCustomerProfile/addCustomer. Readers
+// tolerate anything malformed by dropping the entry — a corrupt log
+// must never break a save/load or a backup. Capped so a pathological
+// flip-flop history cannot grow the ledger without bound.
+const SERVICE_STATUS_HISTORY_LIMIT = 500;
+function sanitizeServiceStatusHistory(value) {
+  if (!Array.isArray(value)) return [];
+  const entries = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (!['active', 'offline', 'not-set'].includes(entry.status)) continue;
+    const at = typeof entry.at === 'string' ? entry.at.trim() : '';
+    if (parseLocalDateTime(at) === null) continue;
+    entries.push({ status: entry.status, at });
+  }
+  return entries
+    .sort((a, b) => a.at.localeCompare(b.at) || a.status.localeCompare(b.status))
+    .slice(-SERVICE_STATUS_HISTORY_LIMIT);
+}
+
 export function createInitialState(names = INITIAL_NAMES) {
-  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[],inventoryMovements:[],expenses:[],saadAttendanceDays:[],umairWorkdays:[],monthlyClosings:[] };
+  return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', serviceStatusHistory:[], packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[],inventoryMovements:[],expenses:[],saadAttendanceDays:[],umairWorkdays:[],monthlyClosings:[] };
 }
 
 export function readState(storage, key = STORAGE_KEY) {
@@ -125,6 +147,7 @@ export function readState(storage, key = STORAGE_KEY) {
       cnic:customer.cnic ?? '',
       ispProvider:customer.ispProvider ?? '',
       serviceStatus:['active','offline','not-set'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set',
+      serviceStatusHistory:sanitizeServiceStatusHistory(customer.serviceStatusHistory),
       packageSpeed:customer.packageSpeed ?? '',
       monthlyPurchaseCost:customer.monthlyPurchaseCost ?? null,
       monthlySellingAmount,
@@ -318,7 +341,12 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
+  // Uptime tracking: a customer created already Active or Offline gets
+  // the first stamp of its service-status history at creation time, so
+  // an offline span can accrue from day one.
+  const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
+  const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
@@ -614,7 +642,19 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
   if (current.paused === true && fields.paused === false) {
     pauseSkippedMonths = pauseSkippedMonthsOnResume(current, monthKey(referenceDate));
   }
-  return { ...state, customers: state.customers.map(c => c.id === customerId ? { ...c, ...fields, monthlyPriceSchedule, packageHistory, pauseSkippedMonths } : c) };
+  // Uptime tracking: every manual service-status flip is timestamped
+  // into the customer's status history (the choke point — the customer
+  // card buttons, the profile form and every other editor all pass
+  // through here). A save that does not change the status appends
+  // nothing, and legacy records without a history start one on their
+  // first recorded flip.
+  let serviceStatusHistory = sanitizeServiceStatusHistory(current.serviceStatusHistory);
+  if (fields.serviceStatus !== (current.serviceStatus ?? 'not-set')) {
+    serviceStatusHistory = [...serviceStatusHistory, { status: fields.serviceStatus, at: localDateTimeValue(referenceDate) }]
+      .sort((a, b) => a.at.localeCompare(b.at) || a.status.localeCompare(b.status))
+      .slice(-SERVICE_STATUS_HISTORY_LIMIT);
+  }
+  return { ...state, customers: state.customers.map(c => c.id === customerId ? { ...c, ...fields, monthlyPriceSchedule, packageHistory, pauseSkippedMonths, serviceStatusHistory } : c) };
 }
 
 function validateIncident(fields) {
@@ -1993,7 +2033,7 @@ function validateBackupState(source) {
       id:customer.id,
       name:customer.name.trim(),
       addedOn:checkOptionalDate(customer.addedOn ?? null, 'Customer added date'),
-      mohalla:customer.mohalla ?? '', zone:customer.zone ?? '', address:customer.address ?? '', phone:customer.phone ?? '', cnic:customer.cnic ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', packageSpeed:customer.packageSpeed ?? '',
+      mohalla:customer.mohalla ?? '', zone:customer.zone ?? '', address:customer.address ?? '', phone:customer.phone ?? '', cnic:customer.cnic ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', serviceStatusHistory:sanitizeServiceStatusHistory(customer.serviceStatusHistory), packageSpeed:customer.packageSpeed ?? '',
       monthlySellingAmount:customer.monthlySellingAmount ?? null, monthlyPurchaseCost:customer.monthlyPurchaseCost ?? null,
       monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       connectionDate:customer.connectionDate ?? null, expiryDate:customer.expiryDate ?? null, cancellationDate:customer.cancellationDate ?? null,
@@ -2291,6 +2331,12 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     customer.packageHistory = customer.packageHistory ?? [];
     for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
+    // Uptime tracking: service-status history merges by union on
+    // (status, at) — a restore never loses a recorded status flip from
+    // either side, and the same flip is never stored twice.
+    const mergedStatusHistory = sanitizeServiceStatusHistory([...(customer.serviceStatusHistory ?? []), ...(backupCustomer.serviceStatusHistory ?? [])]);
+    const dedupedStatusHistory = [...new Map(mergedStatusHistory.map(entry => [`${entry.status}|${entry.at}`, entry])).values()];
+    if (!sameJson(dedupedStatusHistory, sanitizeServiceStatusHistory(customer.serviceStatusHistory ?? []))) { customer.serviceStatusHistory = dedupedStatusHistory; counts.changes++; }
     // SISP-28: relocation entries merge by entry id (never duplicated, and
     // a differing entry with an id already on this device keeps the local
     // copy — relocation history only ever grows).

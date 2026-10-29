@@ -201,7 +201,7 @@ export const SHAH_FAST_CONNECTOR_PRESETS = {
     angularMismatchDeg: 0.35,
     tensileLoadN: 44.0,
     slippageMm: 0.0,
-    technicianName: 'Muhammad Rizwan (Senior Lineman)',
+    technicianName: 'Sample Technician (Senior Lineman)',
     notes: 'Terminated with precision 10mm cleaver guide. Optimal cam-lock clamping onto 2x3mm drop cable.'
   },
   'PRESET_VANDALA_HEAT_DRIFT': {
@@ -1096,7 +1096,7 @@ export function setupFastConnectorQaModal(options = {}) {
           angularMismatchDeg: angInput ? parseFloat(angInput.value) || 0.4 : 0.4,
           tensileLoadN: tensileInput ? parseFloat(tensileInput.value) || 45.0 : 45.0,
           slippageMm: slipInput ? parseFloat(slipInput.value) || 0.0 : 0.0,
-          technicianName: techInput ? techInput.value : 'Muhammad Rizwan',
+          technicianName: techInput ? techInput.value : 'Sample Technician',
           notes: notesInput ? notesInput.value : ''
         }, options.state);
 

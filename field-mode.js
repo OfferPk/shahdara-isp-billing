@@ -179,8 +179,9 @@ function hasUrduScript(text) {
  * Urdu path additionally matches:
  *   - the customer's saved nameUrdu override, and
  *   - the urdu-names.js transliteration of the Roman name, area and
- *     mohalla — so typing راجہ finds RAJA FAISAL even when no nameUrdu
- *     was ever saved, and typing بریاں finds a Barrian customer.
+ *     mohalla — so typing علی finds a customer whose Roman name
+ *     contains "Ali" even when no nameUrdu was ever saved, and typing
+ *     بریاں finds a Barrian customer.
  * A Roman query can never match Urdu-only text (there is no Urdu->Roman
  * transliterator), but the Roman name field covers the same customer, so
  * typing "Raja" and typing "راجہ" return the same card.

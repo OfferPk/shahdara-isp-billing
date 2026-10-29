@@ -10,7 +10,7 @@ import { answerOwnerCommand } from '../owner-insights.js';
 //               Sep bill 1500 paid 1500 Cash 2026-09-05; Oct bill 1500, paid 1000 Easypaisa 2026-10-06 (500 left)
 //   Ali Raza    10 Mbps · Mohalla A · active  · added 2026-10-01, connected 2026-10-02
 //               Oct bill 1500 paid 1500 JazzCash 2026-10-07
-//   Raja Ali    20 Mbps · Mohalla B · active  · added 2026-09-15
+//   Test Customer 35    20 Mbps · Mohalla B · active  · added 2026-09-15
 //               Sep bill 2000 unpaid; Oct bill 2000 unpaid (4000 outstanding)
 //   Usman Tariq  5 Mbps · Mohalla B · offline · added 2026-10-07, connected 2026-09-20 · no bills
 //   Hassan Raza 20 Mbps · Mohalla A · active  · added 2025-01-10
@@ -20,7 +20,7 @@ import { answerOwnerCommand } from '../owner-insights.js';
 const today = new Date('2026-10-07T12:00:00+05:00');
 
 function fixtureState() {
-  let state = createInitialState(['Ali', 'Ali Raza', 'Raja Ali', 'Usman Tariq', 'Hassan Raza']);
+  let state = createInitialState(['Ali', 'Ali Raza', 'Test Customer 35', 'Usman Tariq', 'Hassan Raza']);
   const profile = {
     'seed-001': { packageSpeed:'10 Mbps', mohalla:'Mohalla A', serviceStatus:'active', addedOn:'2026-10-07', connectionDate:null },
     'seed-002': { packageSpeed:'10 Mbps', mohalla:'Mohalla A', serviceStatus:'active', addedOn:'2026-10-01', connectionDate:'2026-10-02' },
@@ -55,7 +55,7 @@ const BANK = [
   ['Which new customers were added today?', 'new-customers', a => { assert.equal(a.count, 1); assert.deepEqual(names(a.rows), ['Ali']); }],
   ['aaj naye customer kitne aye?', 'new-customers', a => { assert.equal(a.count, 1); }],
   ['How many new customers this month?', 'new-customers', a => { assert.equal(a.count, 2); assert.deepEqual(names(a.rows), ['Ali', 'Ali Raza']); }],
-  ['new customers in September', 'new-customers', a => { assert.equal(a.count, 2); assert.deepEqual(names(a.rows), ['Usman Tariq', 'Raja Ali']); }],
+  ['new customers in September', 'new-customers', a => { assert.equal(a.count, 2); assert.deepEqual(names(a.rows), ['Usman Tariq', 'Test Customer 35']); }],
   ['new customers in last 7 days', 'new-customers', a => { assert.equal(a.count, 2); }],
   // --- who paid / who did not ---
   ['aaj kis kis ne payment di?', 'paid-list', a => { assert.equal(a.total, 1500); assert.equal(a.count, 1); assert.equal(a.rows[0].name, 'Ali Raza'); assert.equal(a.rows[0].method, 'JazzCash'); assert.equal(a.rows[0].date, '2026-10-07'); }],
@@ -64,7 +64,7 @@ const BANK = [
   ['kal kis ne payment di?', 'paid-list', a => { assert.equal(a.total, 1000); assert.equal(a.rows[0].date, '2026-10-06'); }],
   ['آج کس نے ادائیگی کی؟', 'paid-list', a => { assert.equal(a.count, 1); assert.equal(a.rows[0].name, 'Ali Raza'); }],
   ['aaj kis kis ne payment nahi di?', 'pending-list', a => { assert.equal(a.rows.length, 3); assert.equal(a.pendingTotal, 3100); }],
-  ['Who has not paid this month?', 'pending-list', a => { assert.equal(a.rows.length, 3); assert.deepEqual(names(a.rows).sort(), ['Ali', 'Hassan Raza', 'Raja Ali']); }],
+  ['Who has not paid this month?', 'pending-list', a => { assert.equal(a.rows.length, 3); assert.deepEqual(names(a.rows).sort(), ['Ali', 'Hassan Raza', 'Test Customer 35']); }],
   ['آج کس کس نے ادائیگی نہیں کی؟', 'pending-list', a => { assert.equal(a.rows.length, 3); }],
   // --- periods: day / week / ranges / months ---
   ['aj collection kitni hui?', 'daily-collection', a => { assert.equal(a.collection, 1500); assert.equal(a.receiptCount, 1); }],
@@ -102,11 +102,11 @@ const BANK = [
   ['Mohalla B collection this month', 'area-collection', a => { assert.equal(a.areaFilter, 'Mohalla B'); assert.equal(a.rows.length, 0); assert.equal(a.total, 0); }],
   ['Area-wise pending', 'area-pending', a => { assert.equal(a.rows[0].area, 'Mohalla B'); assert.equal(a.rows[0].outstanding, 2000); assert.equal(a.rows[1].area, 'Mohalla A'); assert.equal(a.rows[1].outstanding, 1100); assert.equal(a.rows[1].customers, 2); }],
   // --- outstanding: defaulters, thresholds, totals, aging ---
-  ['sab se zyada baqaya kis ka hai?', 'top-defaulters', a => { assert.equal(a.rows[0].name, 'Raja Ali'); assert.equal(a.rows[0].outstanding, 4000); assert.equal(a.rows.length, 3); }],
-  ['Who has the highest outstanding?', 'top-defaulters', a => { assert.equal(a.rows[0].name, 'Raja Ali'); assert.equal(a.rows[0].outstanding, 4000); }],
+  ['sab se zyada baqaya kis ka hai?', 'top-defaulters', a => { assert.equal(a.rows[0].name, 'Test Customer 35'); assert.equal(a.rows[0].outstanding, 4000); assert.equal(a.rows.length, 3); }],
+  ['Who has the highest outstanding?', 'top-defaulters', a => { assert.equal(a.rows[0].name, 'Test Customer 35'); assert.equal(a.rows[0].outstanding, 4000); }],
   ['Top 2 defaulters', 'top-defaulters', a => { assert.equal(a.rows.length, 2); assert.deepEqual(a.rows.map(row => row.outstanding), [4000, 1800]); }],
   ['Customers above 1000 outstanding', 'threshold-outstanding', a => { assert.equal(a.threshold, 1000); assert.equal(a.rows.length, 2); }],
-  ['customers above 2k outstanding', 'threshold-outstanding', a => { assert.equal(a.threshold, 2000); assert.equal(a.rows.length, 1); assert.equal(a.rows[0].name, 'Raja Ali'); }],
+  ['customers above 2k outstanding', 'threshold-outstanding', a => { assert.equal(a.threshold, 2000); assert.equal(a.rows.length, 1); assert.equal(a.rows[0].name, 'Test Customer 35'); }],
   ['2 hazar se zyada baqaya', 'threshold-outstanding', a => { assert.equal(a.threshold, 2000); assert.equal(a.rows.length, 1); }],
   ['5 hazar se zyada baqaya kis ka hai?', 'threshold-outstanding', a => { assert.equal(a.threshold, 5000); assert.equal(a.rows.length, 0); }],
   ['total baqaya kitna hai?', 'total-outstanding', a => { assert.equal(a.total, 6300); assert.equal(a.customers, 3); }],
@@ -124,7 +124,7 @@ const BANK = [
   // --- single customers: balance, candidates, detail ---
   ['Ali ka balance', 'customer-balance', a => { assert.equal(a.rows.length, 1); assert.equal(a.rows[0].name, 'Ali'); assert.equal(a.rows[0].bill, 1500); assert.equal(a.rows[0].paid, 1000); assert.equal(a.rows[0].remaining, 500); assert.equal(a.rows[0].totalOutstanding, 500); }],
   ['Ali Raza ka balance', 'customer-balance', a => { assert.equal(a.rows[0].remaining, 0); assert.equal(a.rows[0].totalOutstanding, 0); }],
-  ['Raja Ali ka balance kitna hai?', 'customer-balance', a => { assert.equal(a.rows[0].remaining, 2000); assert.equal(a.rows[0].totalOutstanding, 4000); }],
+  ['Test Customer 35 ka balance kitna hai?', 'customer-balance', a => { assert.equal(a.rows[0].remaining, 2000); assert.equal(a.rows[0].totalOutstanding, 4000); }],
   ['Raza ka balance', 'customer-candidates', a => { assert.equal(a.rows.length, 2); assert.deepEqual(names(a.rows).sort(), ['Ali Raza', 'Hassan Raza']); }],
   ['Hasan Raza ka balance', 'customer-balance', a => { assert.equal(a.rows[0].name, 'Hassan Raza'); assert.equal(a.rows[0].totalOutstanding, 1800); }],
   ['Usman Tariq ka balance', 'customer-balance', a => { assert.equal(a.rows[0].bill, null); assert.equal(a.rows[0].totalOutstanding, 0); }],

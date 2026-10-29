@@ -134,7 +134,7 @@ test.describe('Issue 359: Settings & Backup deep test', () => {
     await page.locator('#quickAddPaymentButton').click();
     const modal = page.locator('#quickCollectModal');
     await expect(modal).toBeVisible();
-    await modal.locator('.qc-customer-card', { hasText: 'NAZEER' }).first().click();
+    await modal.locator('.qc-customer-card', { hasText: 'Test Customer 01' }).first().click();
     await page.locator('#quickCollectConfirmBtn').click();
     await expect(page.locator('#quickCollectStepSuccess')).toBeVisible();
     await page.locator('#quickCollectDoneCloseBtn').click();
@@ -284,7 +284,7 @@ test.describe('Issue 359: Settings & Backup deep test', () => {
     await page.locator('#quickAddPaymentButton').click();
     const modal = page.locator('#quickCollectModal');
     await expect(modal).toBeVisible();
-    await modal.locator('.qc-customer-card', { hasText: 'NAZEER' }).first().click();
+    await modal.locator('.qc-customer-card', { hasText: 'Test Customer 01' }).first().click();
     await page.locator('.quick-method-chip[data-method="Easypaisa"]').click();
     const info = page.locator('.qc-owner-info-box');
     await expect(info).toBeVisible({ timeout: 15000 });

@@ -50,7 +50,7 @@ export const DEFAULT_SHAHDARA_FAT_ENCLOSURES = [
     poleNumber: 'POLE-BAR-018',
     gpsCoords: '31.6214, 74.2829',
     ports: [
-      { portNumber: 1, status: 'ACTIVE', customerName: 'Muhammad Rizwan', subscriberId: 'CUST-1042', address: 'House 42, St 3, Baradari', dropLengthMeters: 85, rxPowerDbm: -18.6, connectorPolish: 'SC_APC', notes: 'Stable link' },
+      { portNumber: 1, status: 'ACTIVE', customerName: 'Sample Customer One', subscriberId: 'CUST-1042', address: 'House 42, St 3, Baradari', dropLengthMeters: 85, rxPowerDbm: -18.6, connectorPolish: 'SC_APC', notes: 'Stable link' },
       { portNumber: 2, status: 'ACTIVE', customerName: 'Tariq Mehmood', subscriberId: 'CUST-1055', address: 'Shop 12, Baradari Bazaar', dropLengthMeters: 120, rxPowerDbm: -19.2, connectorPolish: 'SC_APC', notes: 'Giga fiber plan' },
       { portNumber: 3, status: 'ACTIVE', customerName: 'Usman Ghani', subscriberId: 'CUST-1088', address: 'House 19, Gulshan St', dropLengthMeters: 65, rxPowerDbm: -18.2, connectorPolish: 'SC_APC', notes: 'Standard home' },
       { portNumber: 4, status: 'ACTIVE', customerName: 'Haji Rafique', subscriberId: 'CUST-1102', address: 'Al-Rehman Sweet, Main Rd', dropLengthMeters: 140, rxPowerDbm: -19.8, connectorPolish: 'SC_APC', notes: 'Commercial shop' },
@@ -113,7 +113,7 @@ export const DEFAULT_SHAHDARA_FAT_ENCLOSURES = [
       { portNumber: 11, status: 'ACTIVE', customerName: 'Muneeb Ur Rehman', subscriberId: 'CUST-1119', address: 'House 114, Gali 7', dropLengthMeters: 195, rxPowerDbm: -20.2, connectorPolish: 'SC_APC', notes: 'Active' },
       { portNumber: 12, status: 'ACTIVE', customerName: 'Shabbir Hussain', subscriberId: 'CUST-1130', address: 'House 125, Jia Musa', dropLengthMeters: 155, rxPowerDbm: -19.7, connectorPolish: 'SC_APC', notes: 'Active' },
       { portNumber: 13, status: 'ACTIVE', customerName: 'Iftikhar Ahmad', subscriberId: 'CUST-1141', address: 'House 139, St 8', dropLengthMeters: 210, rxPowerDbm: -20.4, connectorPolish: 'SC_APC', notes: 'Active' },
-      { portNumber: 14, status: 'RESERVED', customerName: 'Babar Ali (Survey Approved)', subscriberId: 'CUST-NEW-98', address: 'House 150, Jia Musa', dropLengthMeters: 165, rxPowerDbm: -19.9, connectorPolish: 'SC_APC', notes: 'Awaiting ONT' },
+      { portNumber: 14, status: 'RESERVED', customerName: 'Sample Customer (Survey Approved)', subscriberId: 'CUST-NEW-98', address: 'House 150, Jia Musa', dropLengthMeters: 165, rxPowerDbm: -19.9, connectorPolish: 'SC_APC', notes: 'Awaiting ONT' },
       { portNumber: 15, status: 'FAULTY', customerName: 'Port Adapter Sleeve Broken', subscriberId: '', address: 'N/A', dropLengthMeters: 0, rxPowerDbm: -31.0, connectorPolish: 'SC_APC', notes: 'Dust cover off' },
       { portNumber: 16, status: 'SPARE', customerName: '', subscriberId: '', address: '', dropLengthMeters: 0, rxPowerDbm: 0, connectorPolish: 'SC_APC', notes: 'Last spare port' }
     ]
@@ -132,7 +132,7 @@ export const DEFAULT_SHAHDARA_FAT_ENCLOSURES = [
       { portNumber: 1, status: 'ACTIVE', customerName: 'Kashif Mehmood', subscriberId: 'CUST-1033', address: 'House 5, Begum Kot', dropLengthMeters: 55, rxPowerDbm: -17.2, connectorPolish: 'SC_APC', notes: 'Prime signal' },
       { portNumber: 2, status: 'ACTIVE', customerName: 'Junaid Khan', subscriberId: 'CUST-1048', address: 'House 18, Flyover Rd', dropLengthMeters: 110, rxPowerDbm: -18.0, connectorPolish: 'SC_APC', notes: 'Good' },
       { portNumber: 3, status: 'ACTIVE', customerName: 'Tanveer Ahmad', subscriberId: 'CUST-1060', address: 'Shop 7, Service Rd', dropLengthMeters: 85, rxPowerDbm: -17.6, connectorPolish: 'SC_APC', notes: 'Good' },
-      { portNumber: 4, status: 'ACTIVE', customerName: 'Rizwan Gujjar', subscriberId: 'CUST-1075', address: 'House 40, Begum Kot', dropLengthMeters: 160, rxPowerDbm: -18.8, connectorPolish: 'SC_APC', notes: 'Good' },
+      { portNumber: 4, status: 'ACTIVE', customerName: 'Sample Customer', subscriberId: 'CUST-1075', address: 'House 40, Begum Kot', dropLengthMeters: 160, rxPowerDbm: -18.8, connectorPolish: 'SC_APC', notes: 'Good' },
       { portNumber: 5, status: 'ACTIVE', customerName: 'Sikandar Hayat', subscriberId: 'CUST-1089', address: 'House 52, Gali 3', dropLengthMeters: 140, rxPowerDbm: -18.4, connectorPolish: 'SC_APC', notes: 'Good' },
       { portNumber: 6, status: 'ACTIVE', customerName: 'Amjad Farooq', subscriberId: 'CUST-1103', address: 'House 67, Begum Kot', dropLengthMeters: 195, rxPowerDbm: -19.2, connectorPolish: 'SC_APC', notes: 'Drop cable secured' },
       { portNumber: 7, status: 'SPARE', customerName: '', subscriberId: '', address: '', dropLengthMeters: 0, rxPowerDbm: 0, connectorPolish: 'SC_APC', notes: 'Available for install' },

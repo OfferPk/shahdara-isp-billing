@@ -29,7 +29,7 @@ function present(bill) {
 
 const fullPaidTemplate = `🧾 SHAHDARA ISP — PAYMENT RECEIPT
 
-👤 Customer: TEHMENA
+👤 Customer: Test Customer 03
 🆔 Customer #: 3
 
 💰 Amount Paid: PKR 2,000
@@ -212,7 +212,7 @@ test('receipt draft safely encodes actual customer and payment fields', () => {
 
 test('fully-paid draft exactly matches the approved receipt template and calculates the next fifth from bill month', () => {
   const receipt = {
-    customerName:'TEHMENA', customerNumber:3, amount:2000, date:'2026-10-05', method:'Cash', month:'2026-10',
+    customerName:'Test Customer 03', customerNumber:3, amount:2000, date:'2026-10-05', method:'Cash', month:'2026-10',
     billStatus:'paid', billAmount:2000, balanceDueCents:0, billDueDate:'2026-10-05'
   };
   const original = JSON.stringify(receipt);
@@ -262,7 +262,7 @@ test('late receipt date remains distinct from the package date derived from the 
 });
 
 test('receipt action uses the selected customer phone/name/number and rejects a cross-customer receipt', () => {
-  const customer = { id:'synthetic-owner-3', name:'TEHMENA', customerNumber:3, phone:'+92 300 123 4567' };
+  const customer = { id:'synthetic-owner-3', name:'Test Customer 03', customerNumber:3, phone:'+92 300 123 4567' };
   const receipt = {
     customerId:'synthetic-owner-3', paymentId:'synthetic-payment-3', customerPhone:'+1 202 555 0199',
     customerName:'Wrong Customer', customerNumber:99, amount:2000, date:'2026-10-05', method:'Cash', month:'2026-10', paidBy:'Tanveer',

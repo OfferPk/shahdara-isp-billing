@@ -141,7 +141,7 @@ async function expectFitsAndNoOverflow(page) {
 }
 
 test.describe('Bulk Collect Cash', () => {
-  test('search nazeer finds NAZEER when no fees set; manual amount; Enter adds and returns to search', async ({ page }) => {
+  test('search Test Customer 01 finds Test Customer 01 when no fees set; manual amount; Enter adds and returns to search', async ({ page }) => {
     const errors = trackErrors(page);
     await page.goto('/#/bulk-collect');
     const modal = page.locator('#bulkCollectModal');
@@ -155,10 +155,10 @@ test.describe('Bulk Collect Cash', () => {
 
     const search = page.locator('#bulkCollectSearch');
     await search.click();
-    await search.pressSequentially('nazeer');
+    await search.pressSequentially('Test Customer 01');
     const rows = modal.locator('.bc-row');
     await expect(rows).toHaveCount(1);
-    await expect(rows.first()).toContainText('NAZEER');
+    await expect(rows.first()).toContainText('Test Customer 01');
     await expect(rows.first()).toContainText('#1');
     await expect(rows.first().locator('.bc-badge-nobill')).toHaveText('No bill set');
     const id = await rows.first().getAttribute('data-bulk-row');
@@ -169,7 +169,7 @@ test.describe('Bulk Collect Cash', () => {
       await search.fill(q);
       await expect(modal.locator(`.bc-row[data-bulk-row="${id}"]`)).toHaveCount(1);
     }
-    await search.fill('nazeer');
+    await search.fill('Test Customer 01');
 
     // No due: Add without an amount explains instead of silently doing nothing.
     await addBtnOf(page, id).click();
@@ -186,7 +186,7 @@ test.describe('Bulk Collect Cash', () => {
     await expect(search).toBeFocused();
     await expect(modal.locator(`.bc-row[data-bulk-row="${id}"]`)).toHaveCount(0);
     const item = page.locator('#bulkCollectReviewList .bc-review-item').first();
-    await expect(item.locator('.bc-review-name')).toHaveText('NAZEER');
+    await expect(item.locator('.bc-review-name')).toHaveText('Test Customer 01');
     await expect(item).toContainText('PKR 500');
     await expect(item).toContainText('Cash');
     await expect(item.locator('[data-bulk-remove]')).toBeVisible();

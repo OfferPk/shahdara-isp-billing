@@ -10,13 +10,15 @@ import {
   buildPhase3Analytics, outstandingAtMonthEnd, sixMonths, pktDate, areaLabel, isActiveSubscription, canonicalPackage
 } from '../phase3.js';
 
+const SAMPLE_NAMES = Array.from({ length: 74 }, (_, i) => `Test Customer ${String(i + 1).padStart(2, '0')}`); // synthetic seed names (privacy cleanup: app ships an empty starter list)
+
 const ref = new Date('2026-09-15T10:00:00Z');
 const store = () => { const data=new Map();return {getItem:key=>data.get(key)??null,setItem:(key,value)=>data.set(key,value)}; };
 const editProfile=(state,id,fields,date=ref)=>updateCustomerProfile(state,id,fields,date);
 const directBill=(month,dueAmount,payments=[])=>({id:`bill-${month}`,month,dueAmount,status:'pending',payments,generated:true,priceSnapshot:dueAmount,amountHistory:[]});
 
 test('starter state has no seeded inventory or expenses, and optional zone/subscription values remain unset',()=>{
-  const state=createInitialState();
+  const state=createInitialState(SAMPLE_NAMES);
   assert.equal(state.customers.length,74);
   assert.equal(state.inventoryItems.length,0);assert.equal(state.inventoryMovements.length,0);assert.equal(state.expenses.length,0);
   assert.ok(state.customers.every(customer=>customer.zone===''&&customer.connectionDate===null&&customer.expiryDate===null&&customer.cancellationDate===null&&customer.packageHistory.length===0));
@@ -24,7 +26,7 @@ test('starter state has no seeded inventory or expenses, and optional zone/subsc
 });
 
 test('inventory definitions do not create stock and dated movements transfer actual quantities by status',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=addInventoryItem(state,{name:'ONT model entered by owner',category:'ONU',unit:'piece',minimumStock:'2',unitCost:'100',createdDate:'2026-09-01'});
   const item=state.inventoryItems[0];assert.equal(inventoryBalances(item.id,state).available,0);assert.equal(inventorySummary(state).hasMovements,false);
   state=addStockMovement(state,{itemId:item.id,type:'receive',quantity:'5',date:'2026-09-02',notes:'Recorded delivery'});
@@ -40,7 +42,7 @@ test('inventory definitions do not create stock and dated movements transfer act
 });
 
 test('stock movements reject unsupported, impossible, and undated counts; correction requires a note',()=>{
-  let state=addInventoryItem(createInitialState(),{name:'Router unit',category:'Router',unit:'piece',minimumStock:0,unitCost:null,createdDate:'2026-09-01'});const id=state.inventoryItems[0].id;
+  let state=addInventoryItem(createInitialState(SAMPLE_NAMES),{name:'Router unit',category:'Router',unit:'piece',minimumStock:0,unitCost:null,createdDate:'2026-09-01'});const id=state.inventoryItems[0].id;
   assert.throws(()=>addStockMovement(state,{itemId:id,type:'install',quantity:1,date:'2026-09-01'}),/Insufficient/);
   assert.throws(()=>addStockMovement(state,{itemId:id,type:'receive',quantity:1,date:'2026-02-30'}),/valid Pakistan local date/);
   assert.throws(()=>addStockMovement(state,{itemId:id,type:'correction',quantity:1,date:'2026-09-01',toState:'available'}),/note is required/);
@@ -52,7 +54,7 @@ test('stock movements reject unsupported, impossible, and undated counts; correc
 });
 
 test('inventory summary keeps unit groups separate, tracks all requested material categories, and values available stock only',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   for(const [index,category,unit,cost] of [[0,'ONU','piece',50],[1,'Router','piece',80],[2,'Fiber cable','meter',2],[3,'Connector','piece',3],[4,'Adapter / power supply','piece',15]]) {
     state=addInventoryItem(state,{name:`actual ${category}`,category,unit,minimumStock:0,unitCost:cost,createdDate:'2026-09-01'});
     state=addStockMovement(state,{itemId:state.inventoryItems[index].id,type:'receive',quantity:index+1,date:'2026-09-02'});
@@ -66,7 +68,7 @@ test('inventory summary keeps unit groups separate, tracks all requested materia
 
 test('all requested expense categories accept only actual positive dated amounts and support correction/deletion',()=>{
   assert.deepEqual(EXPENSE_CATEGORIES,['Nayatel bill','Electricity','Salary — Saad','Salary — Umair','Cable','ONU','Routers','Charger','Repairs','OLT','Tools','RADIUS server bill','Other expenses']);
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   for(const [index,category] of EXPENSE_CATEGORIES.entries()) state=addExpense(state,{date:`2026-09-${String(index+1).padStart(2,'0')}`,amount:'10.50',category,notes:'manual entry'});
   assert.equal(state.expenses.length,13);assert.equal(state.expenses.reduce((sum,row)=>sum+row.amount,0),136.5);
   const target=state.expenses[0];state=updateExpense(state,target.id,{date:'2026-10-01',amount:'21',category:'Other expenses',notes:'corrected'});
@@ -81,13 +83,13 @@ test('PKT six-month boundaries and partial current month use Pakistan local cale
   const afterMidnightPkt=new Date('2026-09-30T20:00:00Z');
   assert.equal(pktDate(afterMidnightPkt),'2026-10-01');
   assert.deepEqual(sixMonths(afterMidnightPkt),['2026-05','2026-06','2026-07','2026-08','2026-09','2026-10']);
-  const report=buildPhase3Analytics(createInitialState(),afterMidnightPkt);
+  const report=buildPhase3Analytics(createInitialState(SAMPLE_NAMES),afterMidnightPkt);
   assert.equal(report.currentMonth,'2026-10');assert.equal(report.currentMonthPartial,true);assert.equal(report.months.length,6);
   assert.equal(report.asOf,'2026-10-01');assert.equal(report.hasRevenueRecords,false);assert.equal(report.hasExpenseRecords,false);
 });
 
 test('area summary rolls up the parent area with nested zones and keeps manual online status separate',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=editProfile(state,'seed-001',{zone:'Central',mohalla:'North',address:'Road 1',serviceStatus:'active',monthlySellingAmount:'100',packageSpeed:'10 Mbps',connectionDate:'2026-09-03'});
   state=editProfile(state,'seed-002',{zone:'Central',mohalla:'North',serviceStatus:'offline',monthlySellingAmount:'200',packageSpeed:'15 Mbps'});
   state=editProfile(state,'seed-003',{mohalla:'South',address:'Road 2',serviceStatus:'not-set'});
@@ -101,7 +103,7 @@ test('area summary rolls up the parent area with nested zones and keeps manual o
 });
 
 test('area, mohalla, zone and package keys normalize Unicode, whitespace and case without fuzzy merging',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   const profiles=[
     ['seed-001',' North\u00a0  Park ',' central ','15Mbps',100,100],
     ['seed-002','north park','CENTRAL','15 Mbps',120,120],
@@ -126,7 +128,7 @@ test('area, mohalla, zone and package keys normalize Unicode, whitespace and cas
 });
 
 test('same zone names stay distinct under different parent areas; explicit mohalla remains a separate level',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=editProfile(state,'seed-001',{area:'North District',mohalla:'River Park',zone:'Shared',packageSpeed:'5 Mbps',monthlySellingAmount:'100'});
   state=editProfile(state,'seed-002',{area:'North District',mohalla:'Hill Park',zone:'shared',packageSpeed:'5Mbps',monthlySellingAmount:'100'});
   state=editProfile(state,'seed-003',{area:'South District',mohalla:'',zone:'Shared',packageSpeed:'5 Mbps',monthlySellingAmount:'100'});
@@ -141,7 +143,7 @@ test('same zone names stay distinct under different parent areas; explicit mohal
 });
 
 test('custom package labels trim and case-normalize without merging punctuation-distinct names',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=editProfile(state,'seed-001',{packageSpeed:'  Gold   Plan ',monthlySellingAmount:'100'});
   state=editProfile(state,'seed-002',{packageSpeed:'gold plan',monthlySellingAmount:'100'});
   state=editProfile(state,'seed-003',{packageSpeed:'Gold-Plan',monthlySellingAmount:'100'});
@@ -151,7 +153,7 @@ test('custom package labels trim and case-normalize without merging punctuation-
 });
 
 test('ARPU uses one current PKT bill snapshot per customer divided by active configured subscriptions, including Offline',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=editProfile(state,'seed-001',{packageSpeed:'5Mbps',monthlySellingAmount:'100',serviceStatus:'offline',mohalla:'North'});
   state=editProfile(state,'seed-002',{packageSpeed:'5 Mbps',monthlySellingAmount:'200',serviceStatus:'active',mohalla:'North'});
   state=editProfile(state,'seed-003',{packageSpeed:'10 Mbps',monthlySellingAmount:'300',expiryDate:'2026-09-14',mohalla:'North'});
@@ -176,7 +178,7 @@ test('ARPU uses one current PKT bill snapshot per customer divided by active con
 });
 
 test('duplicate customer references and duplicate same-month bills cannot double count profiles, revenue, ARPU or outstanding',()=>{
-  let state=editProfile(createInitialState(),'seed-001',{mohalla:'North',zone:'Central',packageSpeed:'5 Mbps',monthlySellingAmount:'100',serviceStatus:'offline'});
+  let state=editProfile(createInitialState(SAMPLE_NAMES),'seed-001',{mohalla:'North',zone:'Central',packageSpeed:'5 Mbps',monthlySellingAmount:'100',serviceStatus:'offline'});
   const original=state.customers[0],first={...directBill('2026-09',70),id:'bill-first',createdAt:'2026-09-01T10:00:00'},latest={...directBill('2026-09',90),id:'bill-latest',createdAt:'2026-09-10T10:00:00'};
   state={...state,customers:[{...original,bills:[first,latest]},...state.customers.slice(1),{...original,bills:[first,latest]}]};
   const report=buildPhase3Analytics(state,ref),area=report.areaRows.find(row=>row.level==='area'&&row.area==='Area: North');
@@ -186,7 +188,7 @@ test('duplicate customer references and duplicate same-month bills cannot double
 });
 
 test('missing package, price, area and bill snapshots stay Not set; address is not inferred as an area',()=>{
-  let state=editProfile(createInitialState(),'seed-001',{address:'17 Example Road',packageSpeed:'',monthlySellingAmount:null});
+  let state=editProfile(createInitialState(SAMPLE_NAMES),'seed-001',{address:'17 Example Road',packageSpeed:'',monthlySellingAmount:null});
   const report=buildPhase3Analytics(state,ref),missingPackage=report.packageRows.find(row=>row.package==='Package not set');
   assert.equal(areaLabel(state.customers[0]),'Area not set');assert.equal(report.areaRows.length,0);assert.equal(report.unassignedArea.profiles,74);
   assert.equal(report.currentServiceMonthArpu.billedRevenue,null);assert.equal(report.currentServiceMonthArpu.arpu,null);assert.equal(report.currentServiceMonthArpu.activeSubscriptions,0);
@@ -194,7 +196,7 @@ test('missing package, price, area and bill snapshots stay Not set; address is n
 });
 
 test('current ARPU selects the PKT service month across a Pakistan-local month boundary',()=>{
-  let state=editProfile(createInitialState(),'seed-001',{packageSpeed:'10 Mbps',monthlySellingAmount:'100'});
+  let state=editProfile(createInitialState(SAMPLE_NAMES),'seed-001',{packageSpeed:'10 Mbps',monthlySellingAmount:'100'});
   state={...state,customers:state.customers.map(customer=>customer.id==='seed-001'?{...customer,bills:[directBill('2026-09',90),directBill('2026-10',110)]}:customer)};
   const report=buildPhase3Analytics(state,new Date('2026-09-30T20:00:00Z'));
   assert.equal(report.currentMonth,'2026-10');assert.equal(report.asOf,'2026-10-01');
@@ -202,7 +204,7 @@ test('current ARPU selects the PKT service month across a Pakistan-local month b
 });
 
 test('bill revenue is by immutable service-month snapshot while collections follow actual receipt date',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=editProfile(state,'seed-001',{monthlySellingAmount:'120',packageSpeed:'10 Mbps'});
   state={...state,customers:state.customers.map(customer=>customer.id==='seed-001'?{...customer,bills:[directBill('2026-08',100,[{id:'p-aug',date:'2026-09-05',amount:40,method:'Cash'}])]}:customer)};
   const report=buildPhase3Analytics(state,ref);
@@ -213,7 +215,7 @@ test('bill revenue is by immutable service-month snapshot while collections foll
 });
 
 test('month-end outstanding is an immutable receipt-date snapshot with prepaid credit applied sequentially',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state={...state,customers:state.customers.map(customer=>customer.id==='seed-001'?{...customer,bills:[
     directBill('2026-08',100,[{id:'over',date:'2026-08-31',amount:150,method:'Cash'}]),
     directBill('2026-09',100,[{id:'later',date:'2026-10-05',amount:50,method:'Cash'}]),
@@ -229,7 +231,7 @@ test('month-end outstanding is an immutable receipt-date snapshot with prepaid c
 });
 
 test('package analytics distinguish new subscription, expiry and explicit churn; Offline alone never means churn',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=editProfile(state,'seed-001',{packageSpeed:'5 Mbps',monthlySellingAmount:'100',serviceStatus:'offline',connectionDate:'2026-09-03'});
   state=editProfile(state,'seed-002',{packageSpeed:'5 Mbps',monthlySellingAmount:'120',expiryDate:'2026-09-20'});
   state=editProfile(state,'seed-003',{packageSpeed:'10 Mbps',monthlySellingAmount:'130',cancellationDate:'2026-09-09'});
@@ -242,7 +244,7 @@ test('package analytics distinguish new subscription, expiry and explicit churn;
 });
 
 test('price changes create dated old/new package and rate history without rewriting earlier bill snapshots',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=editProfile(state,'seed-001',{packageSpeed:'5 Mbps',monthlySellingAmount:'100'},new Date('2026-09-01T08:00:00Z'));
   state={...state,customers:state.customers.map(customer=>customer.id==='seed-001'?{...customer,bills:[directBill('2026-09',100)]}:customer)};
   state=editProfile(state,'seed-001',{packageSpeed:'10 Mbps',monthlySellingAmount:'125',packageChangeStaffName:'Operator A'},new Date('2026-09-10T08:00:00Z'));
@@ -252,7 +254,7 @@ test('price changes create dated old/new package and rate history without rewrit
 });
 
 test('next-month forecast includes offline configured subscriptions and excludes expired, cancelled, and archived profiles',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=editProfile(state,'seed-001',{monthlySellingAmount:'100',serviceStatus:'offline'});
   state=editProfile(state,'seed-002',{monthlySellingAmount:'200',expiryDate:'2026-09-30'});
   state=editProfile(state,'seed-003',{monthlySellingAmount:'300',cancellationDate:'2026-09-25'});
@@ -263,7 +265,7 @@ test('next-month forecast includes offline configured subscriptions and excludes
 });
 
 test('cash-versus-expense chart excludes provider estimates and inventory book value from actual cash accounting',()=>{
-  let state=createInitialState();
+  let state=createInitialState(SAMPLE_NAMES);
   state=editProfile(state,'seed-001',{monthlySellingAmount:'100',monthlyPurchaseCost:'70'});
   state=addPayment(state,'seed-001','2026-09',{date:'2026-09-10',amount:'100',method:'Cash'},ref);
   state=addExpense(state,{date:'2026-09-12',amount:'20',category:'Electricity'},ref);
@@ -276,14 +278,14 @@ test('cash-versus-expense chart excludes provider estimates and inventory book v
 });
 
 test('expense and inventory corrections are additive local records and never create purchases by themselves',()=>{
-  let state=createInitialState();state=addInventoryItem(state,{name:'Adapter',category:'Adapter / power supply',unit:'piece',unitCost:'25',minimumStock:0,createdDate:'2026-09-01'});
+  let state=createInitialState(SAMPLE_NAMES);state=addInventoryItem(state,{name:'Adapter',category:'Adapter / power supply',unit:'piece',unitCost:'25',minimumStock:0,createdDate:'2026-09-01'});
   assert.equal(inventorySummary(state).hasMovements,false);assert.equal(state.expenses.length,0);
   state=updateInventoryItem(state,state.inventoryItems[0].id,{unitCost:'30',minimumStock:'3'});
   assert.equal(state.inventoryItems[0].unitCost,30);assert.equal(inventorySummary(state).hasMovements,false);
 });
 
 test('legacy migration adds only blank Phase 3 fields without changing existing bills or starter order',()=>{
-  const storage=store(),raw=JSON.stringify({version:1,nextCustomerNumber:75,customers:[{id:'seed-001',customerNumber:1,name:'NAZEER',mohalla:'',packageSpeed:'',monthlySellingAmount:null,bills:[directBill('2026-08',100)]}]});
+  const storage=store(),raw=JSON.stringify({version:1,nextCustomerNumber:75,customers:[{id:'seed-001',customerNumber:1,name:'Test Customer 01',mohalla:'',packageSpeed:'',monthlySellingAmount:null,bills:[directBill('2026-08',100)]}]});
   storage.setItem('shahdara-isp-billing-v1',raw);const migrated=readState(storage);
   assert.equal(migrated.customers[0].zone,'');assert.equal(migrated.customers[0].connectionDate,null);assert.equal(migrated.customers[0].expiryDate,null);assert.equal(migrated.customers[0].cancellationDate,null);assert.deepEqual(migrated.customers[0].packageHistory,[]);
   assert.deepEqual(migrated.inventoryItems,[]);assert.deepEqual(migrated.inventoryMovements,[]);assert.deepEqual(migrated.expenses,[]);
@@ -291,27 +293,27 @@ test('legacy migration adds only blank Phase 3 fields without changing existing 
 });
 
 test('JSON backup and reviewed merge preserve zones, dates, package history, inventory trail, and expenses',()=>{
-  let source=createInitialState();
+  let source=createInitialState(SAMPLE_NAMES);
   source=editProfile(source,'seed-001',{zone:'West',packageSpeed:'30 Mbps',monthlySellingAmount:'250',connectionDate:'2026-09-02',expiryDate:'2027-09-01',cancellationDate:''});
   source=addInventoryItem(source,{name:'Actual ONU',category:'ONU',unit:'piece',minimumStock:2,unitCost:50,createdDate:'2026-09-01'});
   source=addStockMovement(source,{itemId:source.inventoryItems[0].id,type:'receive',quantity:3,date:'2026-09-03'});
   source=addExpense(source,{date:'2026-09-04',amount:'25',category:'Tools',notes:'local record'});
-  const backup=createJsonBackup(source,ref);const preview=previewJsonBackupMerge(createInitialState(),backup);
+  const backup=createJsonBackup(source,ref);const preview=previewJsonBackupMerge(createInitialState(SAMPLE_NAMES),backup);
   assert.equal(preview.counts.addedInventoryItems,1);assert.equal(preview.counts.addedInventoryMovements,1);assert.equal(preview.counts.addedExpenses,1);
   const customer=preview.state.customers[0];assert.equal(customer.zone,'West');assert.equal(customer.connectionDate,'2026-09-02');assert.equal(customer.packageHistory.length,1);
   assert.equal(preview.state.inventoryItems.length,1);assert.equal(preview.state.inventoryMovements.length,1);assert.equal(preview.state.expenses[0].amount,25);
 });
 
 test('backup validation rejects fabricated or malformed expense and stock data',()=>{
-  const state=createInitialState();
+  const state=createInitialState(SAMPLE_NAMES);
   const invalid=JSON.parse(createJsonBackup(state,ref));invalid.state.expenses=[{id:'bad',date:'2026-09-01',amount:-1,category:'Electricity',notes:''}];
-  assert.throws(()=>previewJsonBackupMerge(createInitialState(),JSON.stringify(invalid)),/Expense amount must be greater than zero/);
+  assert.throws(()=>previewJsonBackupMerge(createInitialState(SAMPLE_NAMES),JSON.stringify(invalid)),/Expense amount must be greater than zero/);
   const badItem=JSON.parse(createJsonBackup(state,ref));badItem.state.inventoryItems=[{id:'x',name:'thing',category:'Not a category',unit:'piece',minimumStock:0,unitCost:1,createdDate:'2026-09-01',notes:''}];
-  assert.throws(()=>previewJsonBackupMerge(createInitialState(),JSON.stringify(badItem)),/invalid inventory category/);
+  assert.throws(()=>previewJsonBackupMerge(createInitialState(SAMPLE_NAMES),JSON.stringify(badItem)),/invalid inventory category/);
 });
 
 test('actual complaints/outages roll into the assigned area and monthly issue counts use recorded report dates only',()=>{
-  let state=createInitialState();state=editProfile(state,'seed-001',{mohalla:'Eastside',zone:'East'});
+  let state=createInitialState(SAMPLE_NAMES);state=editProfile(state,'seed-001',{mohalla:'Eastside',zone:'East'});
   state=addIncident(state,'seed-001',{reportedAt:'2026-09-12T10:00',offlineAt:'2026-09-12T10:00',restoredAt:'2026-09-12T12:00',note:'Manual record'},ref);
   const report=buildPhase3Analytics(state,ref),area=report.areaRows.find(row=>row.level==='area'&&row.area==='Area: Eastside');
   assert.equal(area.complaints,1);assert.equal(report.incidentCount,1);assert.equal(report.networkIssues.find(row=>row.month==='2026-09').count,1);

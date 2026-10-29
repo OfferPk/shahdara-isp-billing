@@ -208,6 +208,61 @@ export function createLocalBackupStore({
   });
 }
 
+// ------------------------------------------------------- SISP-36 doctor --
+// The Khata Doctor's verified-balance cache (qa-khata-doctor.js). It is a
+// NEW key with safe defaults: an absent or unreadable cache simply means
+// "no verified baseline yet" and the doctor reports balances as
+// unverified — the ledger itself is never read from or written to here.
+// The cache is written ONLY by Auto-Repair, after a safety snapshot, and
+// stores per customer the exact ledger-derived balance plus the ledger
+// fingerprint it was derived from.
+export const KHATA_DOCTOR_CACHE_KEY = 'sisp_khata_doctor_v1';
+
+/** Sanitize a stored doctor cache; anything malformed degrades to empty. */
+export function sanitizeKhataDoctorCache(value) {
+  const balances = {};
+  if (value && typeof value === 'object' && value.balances && typeof value.balances === 'object') {
+    for (const [customerId, entry] of Object.entries(value.balances)) {
+      if (!customerId || !entry || typeof entry !== 'object') continue;
+      const balanceCents = Number(entry.balanceCents);
+      if (!Number.isSafeInteger(balanceCents)) continue;
+      balances[customerId] = {
+        balanceCents,
+        fingerprint: typeof entry.fingerprint === 'string' ? entry.fingerprint : ''
+      };
+    }
+  }
+  return {
+    version: 1,
+    updatedAt: typeof value?.updatedAt === 'string' ? value.updatedAt : null,
+    balances
+  };
+}
+
+export function loadKhataDoctorCache(storage) {
+  try {
+    const store = storage || (typeof globalThis !== 'undefined' ? globalThis.localStorage : null);
+    if (!store) return sanitizeKhataDoctorCache(null);
+    const raw = store.getItem(KHATA_DOCTOR_CACHE_KEY);
+    if (!raw) return sanitizeKhataDoctorCache(null);
+    return sanitizeKhataDoctorCache(JSON.parse(raw));
+  } catch {
+    return sanitizeKhataDoctorCache(null);
+  }
+}
+
+/** Persists the doctor cache; never throws. */
+export function saveKhataDoctorCache(cache, storage) {
+  try {
+    const store = storage || (typeof globalThis !== 'undefined' ? globalThis.localStorage : null);
+    if (!store) return false;
+    store.setItem(KHATA_DOCTOR_CACHE_KEY, JSON.stringify(sanitizeKhataDoctorCache(cache)));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const STORAGE_PERSISTENCE_KEY = 'shahdara_storage_persistence_v1';
 export const LAST_BACKUP_TIME_KEY = 'shahdara_last_backup_time_v1';
 

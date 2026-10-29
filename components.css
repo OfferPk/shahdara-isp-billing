@@ -204,6 +204,12 @@
 .profile-downtime-section h4 { margin: 0 0 8px; color: var(--ink); }
 .profile-downtime-section p { margin: 6px 0; font-size: 13px; color: var(--muted); }
 .profile-downtime-section p strong { color: var(--ink); }
+.profile-referral-section { margin-top: 16px; }
+.profile-referral-section h4 { margin: 0 0 8px; color: var(--ink); }
+.profile-referral-section p { margin: 6px 0; font-size: 13px; color: var(--muted); }
+.profile-referral-section p strong { color: var(--ink); }
+.profile-referral-list { margin: 6px 0; padding-inline-start: 18px; font-size: 13px; color: var(--muted); }
+.profile-referral-list li { margin: 3px 0; }
 /* SISP-24: splitter port map — grid cells use theme tokens only, so the
    dialog (billing-modal → var(--modal-surface)) and the grid both render
    correctly in light and dark mode. Weak ports reuse .safety-badge danger. */

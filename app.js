@@ -18,7 +18,8 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, kistSettlementPresentation } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, kistSettlementPresentation, referralBillingSummary } from './profile-ui.js?v=1.11.0';
+import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml } from './receipt.js?v=1.11.0';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
@@ -549,6 +550,15 @@ function save() {
       toast('Ledger is getting large for browser storage — download a JSON backup now so nothing is lost.', { type: 'warning', title: 'Storage getting full', duration: 8000, actionLabel: 'Download JSON backup', onAction: () => { $('#downloadJsonBackupButton')?.click(); } });
     }
   }
+  // SISP-40: keep the hamsaya referral queue in step with the ledger on
+  // every save — a first payment queues the referrer's credit, a voided
+  // trigger payment cancels a still-queued one. Reconcile is idempotent
+  // and the queue lives in its own key; a failure here must never block
+  // the ledger save below.
+  try {
+    const referralSync = reconcileReferralCredits(state, loadReferralCredits());
+    if (referralSync.changed) saveReferralCredits(referralSync.credits);
+  } catch { /* referral queue sync is best-effort on the save path */ }
   try { persistState(state, localStorage); storageAvailable = true; }
   catch (error) {
     storageAvailable = false;
@@ -2272,6 +2282,12 @@ function renderCustomerProfileView(customer) {
   const downtimeMonth = buildCustomerDowntimeSummary(loadComplaints(), customer.id, pakistanMonthNow());
   const downtimeAll = buildCustomerDowntimeSummary(loadComplaints(), customer.id, '');
   const downtimeSectionHtml = `<section class="profile-downtime-section" aria-label="${t('prof_downtime_aria')}"><h4>${t('prof_downtime_heading')}</h4><p><strong>${escapeHtml(downtimeMonth.complaintCount === 1 ? t('prof_downtime_month_1', null, { count: downtimeMonth.complaintCount, hours: downtimeMonth.totalDowntime }) : t('prof_downtime_month_n', null, { count: downtimeMonth.complaintCount, hours: downtimeMonth.totalDowntime }))}</strong>${downtimeMonth.primaryIssueTag ? escapeHtml(t('prof_downtime_issue', null, { tag: downtimeMonth.primaryIssueTag })) : ''}</p><p><strong>${escapeHtml(downtimeAll.complaintCount === 1 ? t('prof_downtime_all_1', null, { count: downtimeAll.complaintCount, hours: downtimeAll.totalDowntime }) : t('prof_downtime_all_n', null, { count: downtimeAll.complaintCount, hours: downtimeAll.totalDowntime }))}</strong>${downtimeAll.primaryIssueTag ? escapeHtml(t('prof_downtime_issue', null, { tag: downtimeAll.primaryIssueTag })) : ''}</p><button type="button" class="secondary-button" id="profileOpenDowntimeAnalyticsBtn">${t('prof_downtime_open')}</button></section>`;
+  // SISP-40: profile hamsaya referral section — who referred this
+  // customer, and the referral credits this customer has earned (queued
+  // for the next billing cycle / already deducted). Rendered only when
+  // there is something to show.
+  const referralSummary = referralBillingSummary(customer, state, loadReferralCredits());
+  const referralSectionHtml = referralSummary.hasContent ? `<section class="profile-referral-section" aria-label="${t('prof_ref_aria')}"><h4>${t('prof_ref_heading')}</h4>${referralSummary.referredByLabel ? `<p>${escapeHtml(referralSummary.referredByLabel)}</p>` : ''}${referralSummary.earned.length ? `<ul class="profile-referral-list">${referralSummary.earned.map((row) => `<li>${escapeHtml(row.label)}</li>`).join('')}</ul>` : ''}${referralSummary.queuedLabel ? `<p><strong>${escapeHtml(referralSummary.queuedLabel)}</strong></p>` : ''}${referralSummary.appliedLabel ? `<p>${escapeHtml(referralSummary.appliedLabel)}</p>` : ''}</section>` : '';
   // SISP-24: profile optical section — splitter box, port, PON port and
   // last RX reading, with a red high-loss badge below -26.0 dBm.
   const opticalFields = normalizeOpticalFields(customer);
@@ -2316,7 +2332,7 @@ function renderCustomerProfileView(customer) {
   const custodyChecklist = disconnectionChecklist(customer);
   const custodyPending = custodyChecklist.filter(item => !item.recovered);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${custodySectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
@@ -2720,7 +2736,7 @@ function downloadJson(filename, text) {
 // the backup engine explicitly so exports carry them and restores can adopt
 // them under the safe-merge rules in previewJsonBackupMerge.
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), referralCredits: loadReferralCredits(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -2735,6 +2751,7 @@ function backupRestoreOptions() {
   let pendingWorksStored = false;
   let billingGroupsStored = false;
   let suspensePaymentsStored = false;
+  let referralCreditsStored = false;
   let partnerLedgerStored = false;
   let partnerSettlementsStored = false;
   let homeBudgetStored = false;
@@ -2750,6 +2767,7 @@ function backupRestoreOptions() {
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   try { billingGroupsStored = localStorage.getItem(GROUP_BILLING_KEY) !== null; } catch { billingGroupsStored = false; }
   try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
+  try { referralCreditsStored = localStorage.getItem(REFERRAL_CREDITS_KEY) !== null; } catch { referralCreditsStored = false; }
   let notesStored = false;
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
   try { partnerLedgerStored = localStorage.getItem(PARTNER_LEDGER_KEY) !== null; } catch { partnerLedgerStored = false; }
@@ -2761,7 +2779,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentReferralCredits: loadReferralCredits(), currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -3547,6 +3565,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     if (pendingBackupPreview.suspensePayments) {
       saveSuspensePayments(pendingBackupPreview.suspensePayments);
     }
+    if (pendingBackupPreview.referralCredits) {
+      saveReferralCredits(pendingBackupPreview.referralCredits);
+    }
     if (pendingBackupPreview.monthlyClosingNotes) {
       saveMonthlyClosingNotes(pendingBackupPreview.monthlyClosingNotes);    }
     if (pendingBackupPreview.partnerLedger) {
@@ -4193,6 +4214,22 @@ function renderDuplicateReview(matches) {
   $('#duplicateCustomerReview').hidden = false;
   $('#editNewCustomerDetails').focus();
 }
+// SISP-40: fill the "Referred by" select with the existing customers
+// (the referrer must already be on the list — core addCustomer validates
+// the id again at save time). Keeps the current selection when possible.
+function populateReferrerOptions() {
+  const select = $('#newCustomerReferredBy');
+  if (!select) return;
+  const current = select.value;
+  const options = [...(state.customers ?? [])]
+    .filter((row) => row && row.id)
+    .sort((a, b) => (a.customerNumber ?? 0) - (b.customerNumber ?? 0))
+    .map((row) => `<option value="${escapeHtml(row.id)}">#${escapeHtml(String(row.customerNumber ?? ''))} ${escapeHtml(row.name)}</option>`)
+    .join('');
+  select.innerHTML = `<option value="">No referral</option>${options}`;
+  if (current && [...select.options].some((option) => option.value === current)) select.value = current;
+}
+
 function saveNewCustomer(allowDuplicateName = false) {
   const details = {
     name:$('#newCustomerName').value,
@@ -4214,7 +4251,9 @@ function saveNewCustomer(allowDuplicateName = false) {
     linemanInstallFee:$('#newCustomerLinemanInstallFee') ? $('#newCustomerLinemanInstallFee').value : '',
     fiberPerMeterRate:$('#newCustomerFiberPerMeterRate') ? $('#newCustomerFiberPerMeterRate').value : '',    // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
     serviceStatus:$('#newCustomerServiceStatus')?.value || 'not-set',
-    nameUrdu:$('#newCustomerNameUrdu') ? $('#newCustomerNameUrdu').value.trim() : ''
+    nameUrdu:$('#newCustomerNameUrdu') ? $('#newCustomerNameUrdu').value.trim() : '',
+    // SISP-40: hamsaya referral link (optional existing-customer id).
+    referredByCustomerId:$('#newCustomerReferredBy') ? $('#newCustomerReferredBy').value : ''
   };
   const nameValidation = validateCustomerName(details.name);
   if (!nameValidation.valid) {
@@ -4279,6 +4318,7 @@ $('#addCustomerButton').addEventListener('click', () => {
   }
   $('#addCustomerError').hidden = true;
   resetDuplicateReview();
+  populateReferrerOptions();
   $('#addCustomerDialog').showModal();
   $('#newCustomerName').focus();
 });

@@ -21,6 +21,7 @@
 import { calculatePaymentAllocations, formatPKR } from './core.js';
 import { advancePlansForBilledLines, advancePlansForCoveredKist, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
+import { REFERRAL_CREDIT_REASON, applyReferralApplications, loadReferralCredits, planReferralApplications, queuedReferralTotalFor, reconcileReferralCredits, saveReferralCredits } from './referral-credits.js';
 
 export const BILLING_CYCLES_KEY = 'sisp_billing_cycles_v1';
 
@@ -73,6 +74,7 @@ export function sanitizeBillingCycles(value) {
         totalArrears: num('totalArrears'),
         totalAdvanceAvailable: num('totalAdvanceAvailable'),
         totalAdvanceApplied: num('totalAdvanceApplied'),
+        totalReferralCredit: num('totalReferralCredit'),
         netExpectedCollection: num('netExpectedCollection'),
         billedCount: Number.isSafeInteger(totals.billedCount) ? totals.billedCount : 0,
         skippedCount: Number.isSafeInteger(totals.skippedCount) ? totals.skippedCount : 0
@@ -142,7 +144,7 @@ export function arrearsAndAdvance(customer, month) {
   return { previousArrears: rupees(arrearsCents), advanceCredit: rupees(advanceCents), arrearsMonths };
 }
 
-export function planCustomerCycleLine(customer, month) {
+export function planCustomerCycleLine(customer, month, referralQueued = 0) {
   const base = { customerId: customer?.id ?? null, customerNumber: customer?.customerNumber ?? null, name: customer?.name ?? '' };
   if (!customer || customer.archived) return { ...base, skipped: true, reason: 'archived' };
   // SISP-8: a billing-paused month generates no new charge at all — not
@@ -176,6 +178,17 @@ export function planCustomerCycleLine(customer, month) {
   const kistAmount = rupees(cents(existingKistTotal) + cents(kistNewAmount));
   const { previousArrears, advanceCredit, arrearsMonths } = arrearsAndAdvance(customer, month);
   const gross = price + kistAmount + previousArrears;
+  // SISP-40: queued hamsaya referral credit deducts from this cycle's
+  // gross BEFORE the customer's own advance money is touched, capped at
+  // the gross so the net due can never go below Rs. 0. A bill that
+  // already carries a referral credit never receives a second one (the
+  // adopt-not-duplicate rule), and with no queued credit every figure
+  // below is exactly the pre-SISP-40 value.
+  const alreadyCredited = existing ? Number(existing.referralCreditAmount) > 0 : false;
+  const referralCreditApplied = alreadyCredited
+    ? 0
+    : Math.min(Math.max(0, rupees(cents(Number(referralQueued) || 0))), rupees(cents(gross)));
+  const advanceApplied = Math.min(advanceCredit, Math.max(0, gross - referralCreditApplied));
   return {
     ...base,
     skipped: false,
@@ -185,19 +198,27 @@ export function planCustomerCycleLine(customer, month) {
     kistNewAmount,
     previousArrears,
     advanceCredit,
-    netDue: Math.max(0, gross - advanceCredit),
-    remainingAdvance: Math.max(0, advanceCredit - gross),
+    referralCreditApplied,
+    advanceApplied,
+    netDue: Math.max(0, gross - referralCreditApplied - advanceCredit),
+    remainingAdvance: Math.max(0, advanceCredit - advanceApplied),
     arrearsMonths,
     existingBillId: existing?.id ?? null
   };
 }
 
-export function planBillingCycle(state, month) {
+export function planBillingCycle(state, month, options = {}) {
   if (!isBillingCycleMonth(month)) throw new Error('Choose a valid billing month (YYYY-MM).');
+  // SISP-40: the referral queue is an optional input — callers that pass
+  // no credits get exactly the pre-SISP-40 plan.
+  const referralCredits = Array.isArray(options?.referralCredits) ? options.referralCredits : [];
   const lines = [];
   const skipped = [];
   for (const customer of state?.customers ?? []) {
-    const line = planCustomerCycleLine(customer, month);
+    const line = planCustomerCycleLine(customer, month, queuedReferralTotalFor(referralCredits, customer?.id));
+    if (!line.skipped && line.referralCreditApplied > 0) {
+      line.referralApplications = planReferralApplications(referralCredits, customer.id, line.referralCreditApplied);
+    }
     if (line.skipped) skipped.push(line);
     else lines.push(line);
   }
@@ -207,7 +228,8 @@ export function planBillingCycle(state, month) {
     totalKist: sum('kistAmount'),
     totalArrears: sum('previousArrears'),
     totalAdvanceAvailable: sum('advanceCredit'),
-    totalAdvanceApplied: lines.reduce((total, line) => total + Math.min(line.advanceCredit, line.currentMonthBill + (line.kistAmount || 0) + line.previousArrears), 0),
+    totalAdvanceApplied: lines.reduce((total, line) => total + (line.advanceApplied ?? Math.min(line.advanceCredit, line.currentMonthBill + (line.kistAmount || 0) + line.previousArrears)), 0),
+    totalReferralCredit: sum('referralCreditApplied'),
     netExpectedCollection: sum('netDue'),
     billedCount: lines.length,
     skippedCount: skipped.length
@@ -224,6 +246,26 @@ export function planBillingCycle(state, month) {
 }
 
 // ---------------------------------------------------------------- applying
+// SISP-40: stamp a cycle-applied referral credit onto a bill, mirroring
+// the SISP-30 concession shape — the bill amount itself is never
+// rewritten; the credit rides as audited bill fields plus an
+// amountHistory entry, and presentation layers subtract it.
+function withReferralCredit(bill, amount, referenceDate) {
+  const stamp = (referenceDate instanceof Date ? referenceDate : new Date()).toISOString();
+  return {
+    ...bill,
+    referralCreditAmount: amount,
+    referralCreditReason: REFERRAL_CREDIT_REASON,
+    referralCreditAppliedAt: stamp,
+    amountHistory: [...(bill.amountHistory ?? []), {
+      changedAt: stamp,
+      type: 'referral_credit_applied',
+      referralCredit: amount,
+      note: REFERRAL_CREDIT_REASON
+    }]
+  };
+}
+
 /**
  * Apply a planned cycle to state. Existing bills are adopted untouched;
  * missing priced bills are created in the exact auto-generator shape
@@ -231,30 +273,44 @@ export function planBillingCycle(state, month) {
  * for the same month — that is what makes re-runs safe even if the cycle
  * record itself is ever lost (e.g. a backup restore without it).
  */
-export function applyBillingCycle(state, month, referenceDate = new Date()) {
-  const plan = planBillingCycle(state, month);
+export function applyBillingCycle(state, month, referenceDate = new Date(), options = {}) {
+  const plan = planBillingCycle(state, month, options);
   const byCustomerId = new Map(plan.lines.map((line) => [line.customerId, line]));
   let changed = false;
   const createdBillIds = [];
+  const referralApplications = [];
   const customers = (state?.customers ?? []).map((customer) => {
     const line = byCustomerId.get(customer.id);
     if (!line) return customer;
+    const referralAmount = line.referralCreditApplied || 0;
+    if (referralAmount > 0 && Array.isArray(line.referralApplications)) {
+      for (const application of line.referralApplications) {
+        referralApplications.push({ ...application, referrerCustomerId: customer.id, month });
+      }
+    }
     // SISP-4: an adopted bill still receives this month's kist lines
     // (existing bill's dueAmount grows by exactly the new kist, and the
     // plan's monthsBilled advances). Lines already on the bill are never
     // re-added — dueKistLines excluded them from the plan.
     if (line.existingBillId) {
-      if (!line.kistLines?.length) return customer;
+      if (!line.kistLines?.length && !(referralAmount > 0)) return customer;
       const bills = (customer.bills ?? []).map((bill) => {
         if (bill?.id !== line.existingBillId) return bill;
-        const oldLines = sanitizeBillKistLines(bill.kistLines);
-        const nextLines = [...oldLines, ...line.kistLines];
-        return {
-          ...bill,
-          dueAmount: rupees(cents(bill.dueAmount) + cents(line.kistNewAmount)),
-          kistLines: nextLines,
-          kistTotal: rupees(nextLines.reduce((sum, row) => sum + cents(row.amount), 0))
-        };
+        let next = bill;
+        if (line.kistLines?.length) {
+          const oldLines = sanitizeBillKistLines(bill.kistLines);
+          const nextLines = [...oldLines, ...line.kistLines];
+          next = {
+            ...next,
+            dueAmount: rupees(cents(bill.dueAmount) + cents(line.kistNewAmount)),
+            kistLines: nextLines,
+            kistTotal: rupees(nextLines.reduce((sum, row) => sum + cents(row.amount), 0))
+          };
+        }
+        // SISP-40: an adopted bill receives the referral credit fields
+        // exactly like a created one — the amount itself stays untouched.
+        if (referralAmount > 0) next = withReferralCredit(next, referralAmount, referenceDate);
+        return next;
       });
       changed = true;
       return {
@@ -263,7 +319,7 @@ export function applyBillingCycle(state, month, referenceDate = new Date()) {
         installmentPlans: advancePlansForBilledLines(customer.installmentPlans, line.kistLines)
       };
     }
-    const bill = {
+    const createdBill = {
       id: makeId(),
       month,
       dueAmount: rupees(cents(line.currentMonthBill) + cents(line.kistNewAmount || 0)),
@@ -278,6 +334,7 @@ export function applyBillingCycle(state, month, referenceDate = new Date()) {
       kistLines: line.kistLines ?? [],
       kistTotal: rupees((line.kistLines ?? []).reduce((sum, row) => sum + cents(row.amount), 0))
     };
+    const bill = referralAmount > 0 ? withReferralCredit(createdBill, referralAmount, referenceDate) : createdBill;
     createdBillIds.push(bill.id);
     changed = true;
     return {
@@ -298,20 +355,24 @@ export function applyBillingCycle(state, month, referenceDate = new Date()) {
     changed = true;
     return { ...customer, pauseSkippedMonths: [...current, month].sort() };
   });
-  return { state: changed ? { ...state, customers: withSkipped } : state, plan, createdBillIds };
+  return { state: changed ? { ...state, customers: withSkipped } : state, plan, createdBillIds, referralApplications };
 }
 
 /**
  * Run one cycle. Throws when the month was already cycled — the record is
  * the re-run guard; applyBillingCycle's adopt-not-duplicate rule is the
  * backstop. Callers persist the returned state, then save the cycle.
+ * SISP-40: when options.referralCredits is passed, the returned
+ * referralApplications tells the caller which queue entries the cycle
+ * consumed, so it can mark them applied (applyReferralApplications) and
+ * persist the queue.
  */
-export function runBillingCycle(state, month, cycles, referenceDate = new Date()) {
+export function runBillingCycle(state, month, cycles, referenceDate = new Date(), options = {}) {
   const existing = (cycles ?? []).find((cycle) => cycle?.month === month);
   if (existing) {
     throw new Error(`Monthly billing cycle for ${month} already ran${existing.ranAt ? ` on ${existing.ranAt}` : ''}. It cannot run again — re-running would double-bill.`);
   }
-  const { state: nextState, plan } = applyBillingCycle(state, month, referenceDate);
+  const { state: nextState, plan, referralApplications } = applyBillingCycle(state, month, referenceDate, options);
   const cycle = {
     month,
     ranAt: pakistanDateTime(referenceDate),
@@ -320,7 +381,7 @@ export function runBillingCycle(state, month, cycles, referenceDate = new Date()
     totals: plan.totals,
     defaulterBuckets: plan.defaulterBuckets
   };
-  return { state: nextState, cycle };
+  return { state: nextState, cycle, referralApplications };
 }
 
 // ---------------------------------------------------------------- receipts
@@ -348,6 +409,12 @@ export function buildArrearsBreakdown(customer, bill) {
   // breakdown lines (WhatsApp + thermal receipts render them from here).
   const kistAmount = billKistTotal(bill);
   const kistLines = sanitizeBillKistLines(bill.kistLines);
+  // SISP-40: an applied referral credit rides the bill like the SISP-30
+  // concession — exposed here for receipt renderers, which subtract it
+  // for display; balanceDue keeps the same gross derivation as before.
+  const referralCreditAmount = Number.isFinite(Number(bill.referralCreditAmount)) && Number(bill.referralCreditAmount) > 0
+    ? rupees(cents(bill.referralCreditAmount))
+    : 0;
   return {
     month: bill.month,
     packageAmount: Math.max(0, rupees(cents(amount) - cents(kistAmount))),
@@ -357,6 +424,7 @@ export function buildArrearsBreakdown(customer, bill) {
     totalDue,
     paidAmount,
     discountApplied,
+    referralCreditAmount,
     balanceDue: Math.max(0, totalDue - paidAmount - discountApplied)
   };
 }
@@ -370,6 +438,7 @@ export function arrearsBreakdownTextLines(breakdown) {
       ...(Array.isArray(breakdown.kistLines) ? breakdown.kistLines.map((line) => `  ${kistLineLabel(line)} — ${formatPKR(line.amount)}`) : [])
     ] : []),
     `Sabiqa Baqaya (Previous Arrears): ${formatPKR(breakdown.previousArrears)}`,
+    ...(breakdown.referralCreditAmount > 0 ? [`Hamsaya Referral Credit: -${formatPKR(breakdown.referralCreditAmount)}`] : []),
     `Kul Qabil-e-Ada (Total Due): ${formatPKR(breakdown.totalDue)}`,
     `Wusool Paya (Paid): ${formatPKR(breakdown.paidAmount)}`,
     `Baqi Rehta (Balance): ${formatPKR(breakdown.balanceDue)}`
@@ -649,6 +718,19 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
   let currentPlan = null;
 
   const money = (value) => formatPKR(value);
+  // SISP-40: keep the referral queue in step with the ledger before a
+  // plan is built, so a first payment recorded moments ago already
+  // counts. Reconcile is idempotent; a storage failure must never block
+  // the billing cycle itself, so fall back to the stored queue.
+  function syncReferralCredits(state) {
+    try {
+      const { credits, changed } = reconcileReferralCredits(state, loadReferralCredits());
+      if (changed) saveReferralCredits(credits);
+      return credits;
+    } catch {
+      return loadReferralCredits();
+    }
+  }
   const skipReasonLabel = (reason) => ({
     archived: 'Archived',
     'billing-not-started': 'Billing starts later',
@@ -683,6 +765,7 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
       ${plan.totals.totalKist > 0 ? `<p><span>Kist installments included</span><strong>${money(plan.totals.totalKist)}</strong></p>` : ''}
       <p><span>Total arrears carried forward</span><strong>${money(plan.totals.totalArrears)}</strong></p>
       <p><span>Advance available / applied</span><strong>${money(plan.totals.totalAdvanceAvailable)} / ${money(plan.totals.totalAdvanceApplied)}</strong></p>
+      ${plan.totals.totalReferralCredit > 0 ? `<p><span>Hamsaya referral credits applied</span><strong>${money(plan.totals.totalReferralCredit)}</strong></p>` : ''}
       <p><span>Net expected collection</span><strong>${money(plan.totals.netExpectedCollection)}</strong></p>
       <p><span>Defaulters by age</span><strong>Current ${buckets.current} · 1 month ${buckets.oneMonth} · 2–3 months ${buckets.twoToThreeMonths} · 4+ months ${buckets.fourPlusMonths}</strong></p>
     </div>
@@ -706,7 +789,7 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
         renderPreview({ month }, alreadyRun);
         return;
       }
-      currentPlan = planBillingCycle(state, month);
+      currentPlan = planBillingCycle(state, month, { referralCredits: syncReferralCredits(state) });
       renderPreview(currentPlan, null);
     } catch (error) {
       if (previewBox) previewBox.innerHTML = `<p class="billing-cycle-warning">⚠️ ${escapeHtml(error.message)}</p>`;
@@ -719,13 +802,19 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
     try {
       const state = getState() || { customers: [] };
       const cycles = loadBillingCycles();
-      const { state: nextState, cycle } = runBillingCycle(state, currentPlan.month, cycles);
+      const referralCredits = syncReferralCredits(state);
+      const { state: nextState, cycle, referralApplications } = runBillingCycle(state, currentPlan.month, cycles, new Date(), { referralCredits });
       if (onUpdateState) onUpdateState(nextState);
       saveBillingCycles([...cycles, cycle]);
+      // SISP-40: mark the queue entries this cycle consumed, so a credit
+      // is deducted exactly once and any remainder stays queued.
+      if (Array.isArray(referralApplications) && referralApplications.length) {
+        saveReferralCredits(applyReferralApplications(referralCredits, referralApplications, currentPlan.month));
+      }
       currentPlan = null;
       if (confirmBtn) confirmBtn.hidden = true;
       if (previewBox) previewBox.innerHTML = '';
-      if (resultBox) resultBox.innerHTML = `<p class="billing-cycle-success">✅ Billing cycle for ${escapeHtml(cycle.month)} ran: ${cycle.totals.billedCount} bills · ${money(cycle.totals.totalBilled)} billed${cycle.totals.totalKist > 0 ? ` · ${money(cycle.totals.totalKist)} kist included` : ''} · ${money(cycle.totals.totalArrears)} arrears carried · ${money(cycle.totals.netExpectedCollection)} net expected.</p>`;
+      if (resultBox) resultBox.innerHTML = `<p class="billing-cycle-success">✅ Billing cycle for ${escapeHtml(cycle.month)} ran: ${cycle.totals.billedCount} bills · ${money(cycle.totals.totalBilled)} billed${cycle.totals.totalKist > 0 ? ` · ${money(cycle.totals.totalKist)} kist included` : ''} · ${money(cycle.totals.totalArrears)} arrears carried${cycle.totals.totalReferralCredit > 0 ? ` · ${money(cycle.totals.totalReferralCredit)} referral credit applied` : ''} · ${money(cycle.totals.netExpectedCollection)} net expected.</p>`;
       renderLastRun();
       if (onToast) onToast(`Billing cycle for ${cycle.month} ran: ${cycle.totals.billedCount} bills.`);
     } catch (error) {

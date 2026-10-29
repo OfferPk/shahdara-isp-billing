@@ -14,6 +14,7 @@ import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
+import { sanitizeReferralCredits } from './referral-credits.js';
 import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
@@ -297,10 +298,20 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const pppoePassword = cleanText(options.pppoePassword, 100, 'PPPoE password');
   const staticIp = cleanText(options.staticIp, 45, 'Static IP');
   const macAddress = cleanText(options.macAddress, 20, 'MAC address');
+  // SISP-40: hamsaya referral link — the existing customer who brought
+  // this one. Validated against the live list so a stored link always
+  // points at a real record (a dangling id would queue credit for nobody).
+  const referredByRaw = cleanText(options.referredByCustomerId, 100, 'Referrer');
+  let referredByCustomerId = null;
+  if (referredByRaw) {
+    const referrer = state.customers.find(c => c.id === referredByRaw);
+    if (!referrer) throw new Error('Referrer not found — pick an existing customer as the referrer.');
+    referredByCustomerId = referrer.id;
+  }
   const usedNumbers = new Set(state.customers.map(customer => customer.customerNumber).filter(Number.isSafeInteger));
   let customerNumber = Math.max(state.nextCustomerNumber ?? 1, ...usedNumbers, 0);
   while (usedNumbers.has(customerNumber)) customerNumber++;
-  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber: customerNumber + 1, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set', packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
@@ -2056,6 +2067,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSuspensePayments(options.suspensePayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), suspensePayments: cleaned };
   }
+  // SISP-40: referral credit queue entries live outside the ledger state
+  // (localStorage key sisp_referral_credits_v1), so they travel in an
+  // optional `settings.referralCredits` section. Written only when at
+  // least one entry exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.referralCredits) && options.referralCredits.length) {
+    const cleaned = sanitizeReferralCredits(options.referralCredits);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), referralCredits: cleaned };
+  }
   // SISP-20: monthly closing notes live outside the ledger state
   // (localStorage key sisp_monthly_closing_notes_v1), so they travel in an
   // optional `settings.monthlyClosingNotes` section. Written only when at
@@ -2155,7 +2174,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','poleNumber','boxLocationNote','dropWireCoreColor']) mergeField(customer, backupCustomer, key, backupCustomer);    // SISP-8: skipped months merge by union (a skipped month only ever
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);    // SISP-8: skipped months merge by union (a skipped month only ever
     // means "never backfill this month") — never a conflict, never lost.
     {
       const localSkipped = Array.isArray(customer.pauseSkippedMonths) ? customer.pauseSkippedMonths : [];
@@ -2215,7 +2234,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
         customer.bills.push(deepCopy(incomingBill)); counts.addedBills++; counts.addedPayments+=incomingBill.payments.length; counts.changes++;
         continue;
       }
-      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt']) {
+      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt','referralCreditAmount','referralCreditReason','referralCreditAppliedAt']) {
         const oldValue = existingBill[key] ?? null; const newValue = incomingBill[key] ?? null;
         if (sameJson(oldValue,newValue)) continue;
         if (!nonempty(oldValue) && nonempty(newValue)) { existingBill[key]=deepCopy(newValue); counts.changes++; }
@@ -2619,6 +2638,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Suspense payment records differ from this device' });
     }
   }
+  // SISP-40 referral credits: optional queue section (see
+  // createJsonBackup). Safe-merge rule, same as suspense payments: adopt
+  // the backup's entries only when this device has none stored yet; when
+  // both sides hold different real entries, keep existing + conflict (a
+  // queued credit must never be silently overwritten or duplicated).
+  let referralCredits = null;
+  const rawIncomingReferralCredits = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.referralCredits
+    : undefined;
+  if (Array.isArray(rawIncomingReferralCredits) && rawIncomingReferralCredits.length) {
+    const incomingReferralCredits = sanitizeReferralCredits(rawIncomingReferralCredits);
+    const currentReferralCredits = (options && typeof options === 'object' && Array.isArray(options.currentReferralCredits))
+      ? sanitizeReferralCredits(options.currentReferralCredits)
+      : [];
+    if (incomingReferralCredits.length && sameJson(incomingReferralCredits, currentReferralCredits)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingReferralCredits.length && (!options?.currentReferralCreditsStored || currentReferralCredits.length === 0)) {
+      referralCredits = incomingReferralCredits;
+      counts.referralCreditsRestored = 1;
+      counts.changes++;
+    } else if (incomingReferralCredits.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Referral credit records differ from this device' });
+    }
+  }
   let monthlyClosingNotes = null;
   const rawIncomingNotes = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
     ? document.settings.monthlyClosingNotes
@@ -2729,5 +2772,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, referralCredits, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status };
 }

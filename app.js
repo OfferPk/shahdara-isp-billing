@@ -125,6 +125,7 @@ import {
   sortExpenseRows,
   generateExpensesCsv
 } from './form-validation.js?v=1.11.0';
+import { normalizeCustomerSearchField, filterCustomersBySearchField, buildMohallaUserCounts } from './customer-search-filter.js?v=1.11.0';
 // FIRST-LOAD SPLIT: getLateFeeConfig/isBillOverdue are used by renderHistory
 // (synchronous), so they stay static via a direct import; all other QA names
 // load lazily through qa-setups.js (see lazy-qa.js).
@@ -675,6 +676,28 @@ function renderDashboard() {
       ? ''
       : `<p><span>${t('dash_splitter_weakest')}</span><strong>${escapeHtml(overview.weakCustomers[0].customerName || t('dash_fallback_unnamed'))} · ${escapeHtml(formatRxDbm(overview.weakCustomers[0].lastRxDbm))}</strong><small> · ${escapeHtml(overview.weakCustomers[0].boxId)} ${escapeHtml(t('dash_splitter_port', null, { port: overview.weakCustomers[0].splitterPort ?? overview.weakCustomers[0].port ?? '' }))}</small></p>`;
   }
+  // Owner feature (2026-10-29): Mohalla dashboard — one card per mohalla
+  // that actually has users (zero-user mohallas render no card). Counts go
+  // through canonicalMohalla so "Bani" and "BANII" share one card. Clicking
+  // a card opens the Customers list with the Area search field set to that
+  // mohalla, landing the owner on exactly those users.
+  const mohallaCardsEl = $('#mohallaDashboardCards');
+  if (mohallaCardsEl) {
+    const mohallaCounts = buildMohallaUserCounts(state.customers);
+    const mohallaEmptyEl = $('#mohallaDashboardEmpty');
+    if (mohallaEmptyEl) mohallaEmptyEl.hidden = mohallaCounts.length > 0;
+    mohallaCardsEl.innerHTML = mohallaCounts.map((row) => `<button type="button" class="mohalla-card" data-mohalla-card="${escapeHtml(row.stored)}" aria-label="${escapeHtml(`${row.stored}: ${row.count} ${t('dash_mohalla_users')}`)}"><span class="mohalla-card-name">${escapeHtml(row.stored)}</span><strong class="mohalla-card-count">${row.count}</strong><span class="mohalla-card-users">${escapeHtml(t('dash_mohalla_users'))}</span></button>`).join('');
+    mohallaCardsEl.querySelectorAll('[data-mohalla-card]').forEach((button) => button.addEventListener('click', () => {
+      customerSearchField = 'area';
+      customerAreaFilter = 'all';
+      if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
+      if ($('#customerSearchField')) $('#customerSearchField').value = 'area';
+      if ($('#customerListSearch')) $('#customerListSearch').value = button.dataset.mohallaCard;
+      customerCurrentPage = 1;
+      switchView('customers');
+      renderCustomers();
+    }));
+  }
   // SISP-17: monthly complaint report card (this-month 4-part report totals).
   const monthlyReportSummaryEl = $('#monthlyComplaintReportSummary');
   if (monthlyReportSummaryEl) {
@@ -1180,6 +1203,7 @@ let customerCurrentPage = 1;
 let customerPageSize = 15;
 let customerSortBy = 'number-asc';
 let customerAreaFilter = 'all';
+let customerSearchField = 'name';
 let customerViewMode = (typeof localStorage !== 'undefined' && localStorage.getItem('shahdara_customer_view_mode')) || 'cards';
 
 // New-customers panel (customer ledger): view-only monthly join counts and
@@ -1308,7 +1332,16 @@ function renderCustomers() {
   const sortSelect = $('#customerSortSelect');
   if (sortSelect) sortSelect.value = customerSortBy;
 
-  let filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery });
+  const searchFieldSelect = $('#customerSearchField');
+  if (searchFieldSelect) searchFieldSelect.value = customerSearchField;
+
+  // Owner feature: with a non-Name field picked, the typed query matches
+  // ONLY that field (mobile digits / user ID / mohalla), so the broad
+  // all-fields matcher is bypassed and the field filter runs on the
+  // status-filtered roster instead. Name keeps the historical behaviour.
+  const fieldScopedSearch = customerSearchField !== 'name' && customerQuery.trim() !== '';
+  let filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery: fieldScopedSearch ? '' : customerQuery });
+  if (fieldScopedSearch) filtered = filterCustomersBySearchField(filtered, customerSearchField, customerQuery);
   if (customerAreaFilter !== 'all') {
     filtered = filterCustomersByArea(filtered, customerAreaFilter);
   }
@@ -1320,7 +1353,7 @@ function renderCustomers() {
   active = sortCustomerRoster(active, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
   archived = sortCustomerRoster(archived, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
 
-  const searched = searchCustomers(state, customerQuery);
+  const searched = fieldScopedSearch ? filterCustomersBySearchField(state.customers, customerSearchField, customerQuery) : searchCustomers(state, customerQuery);
   const activeTotal = searched.filter(customer => !customer.archived).length;
   const archivedTotal = searched.filter(customer => customer.archived).length;
 
@@ -1357,6 +1390,8 @@ function renderCustomers() {
         $('#resetCustomerTableFiltersBtn')?.addEventListener('click', () => {
           if ($('#customerListSearch')) $('#customerListSearch').value = '';
           if ($('#globalCustomerSearch')) $('#globalCustomerSearch').value = '';
+          customerSearchField = 'name';
+          if ($('#customerSearchField')) $('#customerSearchField').value = 'name';
           customerAreaFilter = 'all';
           if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
           selectedServiceFilter = 'all';
@@ -3844,6 +3879,7 @@ async function requestDeleteIncident(customerId, incidentId) {
 }
 
 $('#customerListSearch').addEventListener('input', renderCustomers);
+$('#customerSearchField')?.addEventListener('change', (event) => { customerSearchField = normalizeCustomerSearchField(event.currentTarget.value); customerCurrentPage = 1; renderCustomers(); });
 $('#clearCustomerListSearch').addEventListener('click', () => { $('#customerListSearch').value = ''; renderCustomers(); $('#customerListSearch').focus(); });
 $('#globalCustomerSearch').addEventListener('input', () => { renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });

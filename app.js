@@ -137,6 +137,7 @@ import { loadQaSetups } from './lazy-qa.js';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
+import { setupZoneSheetDialog } from './lineman-sheet-print.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
@@ -317,6 +318,7 @@ let pendingFallbackRecord = null;
 export let collectionTargetController = null;
 export let duesAgingController = null;
 export let topDefaultersModalController = null;
+export let zoneSheetDialogController = null;
 export let areaCollectionsModalController = null;
 export let packageRevenueModalController = null;
 export let pnlModalController = null;
@@ -10109,6 +10111,9 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts),
     onWaadaChange: () => { try { persistState(state, localStorage); } catch {} }
   });
+  zoneSheetDialogController = setupZoneSheetDialog(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
     onFilterCustomerArea: (areaName) => {
       const search = $('#globalCustomerSearch');
@@ -11209,6 +11214,13 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const zoneSheetDialog = $('#zoneSheetDialog');
+  if (zoneSheetDialog && !zoneSheetDialogController) {
+    zoneSheetDialogController = setupZoneSheetDialog(() => state, {
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
   const areaCollectionsModal = $('#areaCollectionsModal');
   if (areaCollectionsModal && !areaCollectionsModalController) {
     areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
@@ -11399,6 +11411,7 @@ if (typeof document !== 'undefined') {
     window.collectionTargetController = collectionTargetController;
     window.duesAgingController = duesAgingController;
     window.topDefaultersModalController = topDefaultersModalController;
+    window.zoneSheetDialogController = zoneSheetDialogController;
     window.areaCollectionsModalController = areaCollectionsModalController;
     window.packageRevenueModalController = packageRevenueModalController;
     window.pnlModalController = pnlModalController;

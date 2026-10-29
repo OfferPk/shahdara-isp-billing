@@ -198,6 +198,18 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
   return { url:`${target}?text=${encodeURIComponent(message)}`, message };
 }
 
+const escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[ch]));
+
+// SISP-41: the 1-tap PNG receipt button for one saved payment in the
+// Customer Profile receipt actions. The host binds [data-png-receipt]
+// clicks to downloadPngReceipt (the SISP-6 generator: stamped PNG via
+// generateReceiptPNG + shareOrDownloadPng); this helper owns the markup so
+// the profile history rows and any other profile surface render the exact
+// same button (class, data attributes, i18n label) — never a dead button.
+export function pngReceiptButtonMarkup(customerId, month, paymentId, customerNumber) {
+  return `<button class="print-receipt-button png-receipt-button" type="button" data-png-receipt data-customer-id="${escapeHtml(customerId)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(paymentId)}" aria-label="${t('prof_hist_png_receipt_aria', null, { number: customerNumber })}">${t('prof_hist_png_receipt')}</button>`;
+}
+
 /** Bind each actual receipt only to its owning profile's saved number and identity. */
 export function resolveReceiptWhatsAppAction(customer, receipt) {
   if (!customer?.id || !receipt || receipt.customerId !== customer.id) return { type:'unavailable', reason:'customer-mismatch' };

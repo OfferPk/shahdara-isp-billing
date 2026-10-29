@@ -33,6 +33,21 @@
  * log, picks the date, and the month view aggregates what was entered.
  * No auto check-in, no GPS, no automatic detection.
  *
+ * SISP-56: the recorded payments are also the source of truth for two
+ * convergent mirrors (syncSaadPaymentLedgers below), following the
+ * SISP-45 roznamcha pattern: every payment lands as exactly ONE row in
+ * the main Expenses ledger (category 'Salary — Saad', deduplicated by
+ * saadPaymentId), so monthly P&L (dashboard-pnl.js) and the Nasir/Aqib
+ * 50% partner shares deduct what Saad was actually paid — never a
+ * computed salary, and never twice. A payment flagged paidFromDrawer
+ * additionally lands as exactly ONE roznamcha outflow (deterministic
+ * id `saad-<payment id>`, petty-cash category 'Lineman Allowance',
+ * lineman 'Saad'); syncRoznamchaExpenses skips those outflows because
+ * their expense mirror lives here. The mirror never mutates a CLOSED
+ * roznamcha day (frozen snapshots are history): a drawer payout whose
+ * day is already closed still mirrors into Expenses and is reported as
+ * drawerSkippedClosed so the caller can surface it.
+ *
  * Backup: visits + payments travel in the JSON backup `settings.saadVisits`
  * and `settings.saadPayments` sections (see core.js), under the same
  * safe-merge rule as the SISP-15 complaint register and SISP-18 stock
@@ -203,6 +218,7 @@ export function sanitizeSaadPayments(value) {
       type,
       amount: Math.round(amount * 100) / 100,
       note: cleanText(entry.note),
+      paidFromDrawer: entry.paidFromDrawer === true,
       createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
     });
   }
@@ -429,7 +445,13 @@ export function buildPaymentFields(input) {
   if (!type) throw new Error('Payment type must be Salary or Commission.');
   const amount = Number(input.amount);
   if (!Number.isFinite(amount) || amount <= 0) throw new Error('Payment amount must be a positive PKR number.');
-  return { date, type, amount: Math.round(amount * 100) / 100, note: cleanText(input.note) };
+  return {
+    date,
+    type,
+    amount: Math.round(amount * 100) / 100,
+    note: cleanText(input.note),
+    paidFromDrawer: input.paidFromDrawer === true
+  };
 }
 
 /**
@@ -552,6 +574,230 @@ export function buildMonthlySaadSummary(visits, payments, month) {
 }
 
 /**
+ * SISP-56: Saad payments ↔ Expenses + Roznamcha sync.
+ *
+ * The Expenses ledger (state.expenses) is what monthly P&L
+ * (dashboard-pnl.js calculatePnlAnalytics) and the partner-share report
+ * (phase3.js buildPartnerShareReport) read. Saad payments live in their
+ * own store, so before this sync what Saad was actually paid never
+ * reduced monthly profit or the partners' 50% shares.
+ *
+ * The sync is a convergent reconcile in the SISP-45 shape, run at
+ * startup, after every Saad-log change, after every roznamcha change
+ * and after a backup restore. The payment list is the source of truth:
+ * - Each payment maps to exactly ONE expense row carrying
+ *   saadPaymentId = the payment's id (the dedup key) plus a
+ *   deterministic expense id (`saad-<payment id>`), saadPaymentType
+ *   (the verbatim Salary/Commission type) and source: 'saad-visits'.
+ *   Salary and Commission both map onto the canonical expense
+ *   category 'Salary — Saad' (EXPENSE_CATEGORIES in phase3.js) — it is
+ *   the ledger's one Saad-pay category, and the verbatim type survives
+ *   in saadPaymentType and in the notes text.
+ * - A payment with paidFromDrawer also maps to exactly ONE roznamcha
+ *   outflow (same deterministic id, petty-cash category
+ *   'Lineman Allowance', lineman 'Saad'). syncRoznamchaExpenses skips
+ *   outflows with this id prefix — their expense mirror lives here, so
+ *   a drawer payout is never deducted twice.
+ * - Drifted mirrors are restored to the payment's values, a mirror
+ *   whose payment was deleted (or un-flagged as drawer) is removed,
+ *   and duplicated mirrors collapse back to one row. Manual expenses
+ *   (no saadPaymentId) and manual roznamcha outflows (no `saad-` id)
+ *   are never touched.
+ * - A CLOSED roznamcha day is never mutated: a drawer payout whose day
+ *   is closed keeps only its expense mirror and is counted in
+ *   drawerSkippedClosed; an outflow already frozen into a closed day
+ *   stays exactly as frozen.
+ * - Idempotent: running it on an already-synced pair of ledgers
+ *   returns changed: false with the identical array references, so
+ *   re-running it can never duplicate an entry.
+ */
+
+/** The canonical Expenses-ledger category every Saad payout maps to. */
+export const SAAD_EXPENSE_CATEGORY = 'Salary — Saad';
+
+/** The petty-cash category a drawer-paid Saad payout lands under. */
+export const SAAD_DRAWER_ROZNAMCHA_CATEGORY = 'Lineman Allowance';
+
+/** Deterministic expense id for a mirrored payment. */
+export function syncedSaadExpenseId(paymentId) {
+  return `saad-${paymentId}`;
+}
+
+/** Deterministic roznamcha outflow id for a drawer-paid payment. */
+export function syncedSaadDrawerOutflowId(paymentId) {
+  return `saad-${paymentId}`;
+}
+
+/** Notes text for a mirrored expense — keeps the verbatim payment facts. */
+export function buildSaadPaymentExpenseNotes(payment) {
+  const head = `Saad Visit Log · ${paymentTypeLabel(payment.type)}`;
+  return (payment.note ? `${head} — ${payment.note}` : head).slice(0, 1000);
+}
+
+/** Note text for a mirrored drawer outflow (roznamcha caps notes at 200). */
+export function buildSaadDrawerOutflowNote(payment) {
+  const head = `Saad ${payment.type === 'salary' ? 'salary' : 'commission'} · ${payment.id}`;
+  return (payment.note ? `${head} — ${payment.note}` : head).slice(0, 200);
+}
+
+function syncedSaadExpenseRow(payment, existing, referenceDate) {
+  const fields = {
+    date: payment.date,
+    amount: Math.round(payment.amount * 100) / 100,
+    category: SAAD_EXPENSE_CATEGORY,
+    notes: buildSaadPaymentExpenseNotes(payment),
+    area: '',
+    saadPaymentId: payment.id,
+    saadPaymentType: payment.type,
+    source: 'saad-visits'
+  };
+  if (!existing) {
+    return { id: syncedSaadExpenseId(payment.id), ...fields, createdAt: new Date(referenceDate).toISOString() };
+  }
+  const drifted = existing.date !== fields.date || existing.amount !== fields.amount
+    || existing.category !== fields.category || existing.notes !== fields.notes
+    || existing.saadPaymentType !== fields.saadPaymentType || existing.source !== 'saad-visits';
+  return drifted ? { ...existing, ...fields, updatedAt: new Date(referenceDate).toISOString() } : existing;
+}
+
+function syncedSaadDrawerOutflow(payment) {
+  return {
+    id: syncedSaadDrawerOutflowId(payment.id),
+    category: SAAD_DRAWER_ROZNAMCHA_CATEGORY,
+    amount: Math.round(payment.amount * 100) / 100,
+    lineman: 'Saad',
+    note: buildSaadDrawerOutflowNote(payment)
+  };
+}
+
+function sameDrawerOutflow(a, b) {
+  return a && b && a.category === b.category && a.amount === b.amount
+    && a.lineman === b.lineman && a.note === b.note;
+}
+
+/**
+ * Reconcile the Expenses ledger and the roznamcha day ledger with the
+ * recorded Saad payments. Pure: returns { expenses, days,
+ * expensesChanged, daysChanged, changed, added, updated, removed,
+ * drawerAdded, drawerUpdated, drawerRemoved, drawerSkippedClosed }
+ * and never mutates its inputs. `expenses` / `days` are the SAME
+ * array references when their side did not change, so callers can
+ * skip persisting. `days` is treated as plain sanitized day data
+ * (see roznamcha.js sanitizeRoznamchaDays); closed days are read
+ * but never written.
+ */
+export function syncSaadPaymentLedgers(expenses, days, payments, referenceDate = new Date()) {
+  const cleanPayments = sanitizeSaadPayments(payments);
+
+  // --- Expenses side: one mirror row per payment, keyed saadPaymentId.
+  const desiredPayments = new Map(cleanPayments.map((p) => [p.id, p]));
+  const currentExpenses = Array.isArray(expenses) ? expenses : [];
+  const seenPayments = new Set();
+  let added = 0;
+  let updated = 0;
+  let removed = 0;
+  const nextExpenses = [];
+  for (const row of currentExpenses) {
+    const paymentId = typeof row?.saadPaymentId === 'string' && row.saadPaymentId ? row.saadPaymentId : null;
+    if (!paymentId) { nextExpenses.push(row); continue; }
+    const want = desiredPayments.get(paymentId);
+    if (!want || seenPayments.has(paymentId)) { removed += 1; continue; }
+    seenPayments.add(paymentId);
+    const synced = syncedSaadExpenseRow(want, row, referenceDate);
+    if (synced !== row) updated += 1;
+    nextExpenses.push(synced);
+  }
+  for (const [paymentId, want] of desiredPayments) {
+    if (seenPayments.has(paymentId)) continue;
+    seenPayments.add(paymentId);
+    nextExpenses.push(syncedSaadExpenseRow(want, null, referenceDate));
+    added += 1;
+  }
+  const expensesChanged = added + updated + removed > 0;
+
+  // --- Roznamcha side: one outflow per drawer-paid payment, keyed by
+  // the deterministic outflow id. Clone-on-write so frozen/untouched
+  // days keep their identity and closed days are never rebuilt.
+  const drawerDesired = new Map(
+    cleanPayments.filter((p) => p.paidFromDrawer).map((p) => [syncedSaadDrawerOutflowId(p.id), p])
+  );
+  const currentDays = Array.isArray(days) ? days : [];
+  let nextDays = currentDays;
+  let drawerAdded = 0;
+  let drawerUpdated = 0;
+  let drawerRemoved = 0;
+  let drawerSkippedClosed = 0;
+  const writableDays = () => {
+    if (nextDays === currentDays) {
+      nextDays = currentDays.map((d) => ({ ...d, outflows: [...(Array.isArray(d?.outflows) ? d.outflows : [])] }));
+    }
+    return nextDays;
+  };
+  // Pass 1: drop or repair existing Saad-owned outflows in OPEN days.
+  const present = new Set();
+  currentDays.forEach((day, dayIndex) => {
+    if (!day || day.closed === true || !Array.isArray(day.outflows)) return;
+    for (const outflow of day.outflows) {
+      const outflowId = typeof outflow?.id === 'string' ? outflow.id : '';
+      if (!outflowId.startsWith('saad-')) continue;
+      const want = drawerDesired.get(outflowId);
+      if (!want || want.date !== day.date) {
+        const target = writableDays()[dayIndex];
+        target.outflows = target.outflows.filter((o) => o.id !== outflowId);
+        drawerRemoved += 1;
+        continue;
+      }
+      present.add(outflowId);
+      const clean = syncedSaadDrawerOutflow(want);
+      if (!sameDrawerOutflow(outflow, clean)) {
+        const target = writableDays()[dayIndex];
+        target.outflows = target.outflows.map((o) => (o.id === outflowId ? clean : o));
+        drawerUpdated += 1;
+      }
+    }
+  });
+  // Pass 2: add missing outflows; a closed (or frozen) target day is
+  // reported, never mutated.
+  for (const [outflowId, want] of drawerDesired) {
+    if (present.has(outflowId)) continue;
+    const frozen = currentDays.some((d) => d && d.date === want.date && Array.isArray(d.outflows)
+      && d.outflows.some((o) => o.id === outflowId));
+    if (frozen) { present.add(outflowId); continue; }
+    const existingIndex = currentDays.findIndex((d) => d && d.date === want.date);
+    if (existingIndex >= 0 && currentDays[existingIndex].closed === true) {
+      drawerSkippedClosed += 1;
+      continue;
+    }
+    const target = writableDays();
+    const writableIndex = target.findIndex((d) => d && d.date === want.date);
+    if (writableIndex >= 0) {
+      target[writableIndex].outflows = [...target[writableIndex].outflows, syncedSaadDrawerOutflow(want)];
+    } else {
+      target.push({ date: want.date, outflows: [syncedSaadDrawerOutflow(want)], closed: false });
+      target.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    }
+    present.add(outflowId);
+    drawerAdded += 1;
+  }
+  const daysChanged = drawerAdded + drawerUpdated + drawerRemoved > 0;
+
+  return {
+    expenses: expensesChanged ? nextExpenses : currentExpenses,
+    days: daysChanged ? nextDays : currentDays,
+    expensesChanged,
+    daysChanged,
+    changed: expensesChanged || daysChanged,
+    added,
+    updated,
+    removed,
+    drawerAdded,
+    drawerUpdated,
+    drawerRemoved,
+    drawerSkippedClosed
+  };
+}
+
+/**
  * Dashboard + modal controller, following the inventory-book pattern:
  * open() / refresh(), open button wired by id, close button, form submits.
  * getState supplies the live customer list; listTicketIds supplies existing
@@ -642,7 +888,7 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
       const paymentLines = summary.payments.length === 0
         ? '<p class="saad-visits-empty">Is mahine koi payment darj nahi hui (0 PKR).</p>'
         : summary.payments.map((p) => `
-          <p><span>${escapeHtml(p.date)} · ${escapeHtml(paymentTypeLabel(p.type))}</span><strong>${escapeHtml(String(p.amount))} PKR</strong><span class="saad-visits-payment-actions"><button type="button" class="secondary-button" data-edit-payment="${escapeHtml(String(p.id))}">✏️ Edit</button><button type="button" class="secondary-button danger" data-delete-payment="${escapeHtml(String(p.id))}">🗑 Delete</button></span></p>`).join('');
+          <p><span>${escapeHtml(p.date)} · ${escapeHtml(paymentTypeLabel(p.type))}${p.paidFromDrawer ? ' · Drawer cash (Roznamcha)' : ''}</span><strong>${escapeHtml(String(p.amount))} PKR</strong><span class="saad-visits-payment-actions"><button type="button" class="secondary-button" data-edit-payment="${escapeHtml(String(p.id))}">✏️ Edit</button><button type="button" class="secondary-button danger" data-delete-payment="${escapeHtml(String(p.id))}">🗑 Delete</button></span></p>`).join('');
       summaryEl.innerHTML = `
         <div class="saad-visits-summary-cards">
           <p><span>Days present</span><strong>${summary.dayCount}</strong></p>
@@ -773,6 +1019,29 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
     refreshCustomerSelect();
     setVisitSubmitMode();
   }
+  // SISP-56: pre-fill the visit form from a resolved field ticket
+  // ("Log Saad Visit from Ticket"). Only facts the ticket actually
+  // records are filled — date, work type, customer, area, fiber meters
+  // and the ticket link; the operator still enters the hours worked,
+  // because a ticket's created/resolved stamps are not work duration.
+  function applyVisitPrefill(prefill) {
+    if (editingVisitId) cancelVisitEdit();
+    const set = (id, value) => { const el = $(id); if (el) el.value = value ?? ''; };
+    if (prefill.date) set('saadVisitDate', prefill.date);
+    if (prefill.type) set('saadVisitType', prefill.type);
+    refreshCustomerSelect();
+    if (prefill.customerId) set('saadVisitCustomer', prefill.customerId);
+    if (prefill.area) set('saadVisitArea', prefill.area);
+    set('saadVisitFiberMeters', prefill.fiberMeters === null || prefill.fiberMeters === undefined ? '' : String(prefill.fiberMeters));
+    if (prefill.ticketId) set('saadVisitTicket', prefill.ticketId);
+    if (prefill.note) set('saadVisitNote', prefill.note);
+    try { $('saadVisitForm')?.scrollIntoView({ block: 'start' }); } catch { /* scroll is a nicety, never a failure */ }
+    const hoursInput = $('saadVisitHours');
+    if (hoursInput) { try { hoursInput.focus(); } catch { /* focus is a nicety */ } }
+    if (typeof onToast === 'function') {
+      onToast(`Ticket ${prefill.ticketId || ''} se visit tayyar hai — hours darj karke save karein.`);
+    }
+  }
   function setPaymentSubmitMode() {
     const submit = $('saadPaymentForm')?.querySelector('button[type="submit"]');
     if (submit) submit.textContent = editingPaymentId ? '💾 Changes save karein' : '➕ Payment darj karein';
@@ -786,6 +1055,8 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
     set('saadPaymentAmount', String(payment.amount));
     set('saadPaymentType', payment.type);
     set('saadPaymentNote', payment.note);
+    const drawerBox = $('saadPaymentFromDrawer');
+    if (drawerBox) drawerBox.checked = payment.paidFromDrawer === true;
     setPaymentSubmitMode();
     try { $('saadPaymentForm')?.scrollIntoView({ block: 'start' }); } catch { /* scroll is a nicety, never a failure */ }
   }
@@ -854,7 +1125,8 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
           date: $('saadPaymentDate')?.value,
           amount: $('saadPaymentAmount')?.value,
           type: $('saadPaymentType')?.value,
-          note: $('saadPaymentNote')?.value
+          note: $('saadPaymentNote')?.value,
+          paidFromDrawer: $('saadPaymentFromDrawer')?.checked === true
         };
         const wasEditing = editingPaymentId;
         const updated = wasEditing
@@ -887,8 +1159,15 @@ export function setupSaadVisitsModal(getState, { onVisitsChanged, onToast, listT
   });
 
   return {
-    open() {
+    open(prefill = null) {
+      // SISP-56: a ticket prefill opens the log on the ticket's month
+      // so the visit being logged is in view once saved.
+      if (prefill && typeof prefill === 'object' && prefill.date) {
+        const monthInput = $('saadVisitsMonth');
+        if (monthInput) monthInput.value = monthOf(prefill.date);
+      }
       render();
+      if (prefill && typeof prefill === 'object') applyVisitPrefill(prefill);
       dialog.showModal();
     },
     refresh: render

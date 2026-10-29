@@ -431,6 +431,11 @@ export function deleteRoznamchaOutflow(days, date, outflowId) {
  *   values, a mirror whose outflow was deleted is removed, and a
  *   duplicated mirror collapses back to one row. Manual expenses (no
  *   roznamchaEntryId) are never touched.
+ * - SISP-56 exception: outflows whose id starts with `saad-` are owned
+ *   by the Saad payment sync (saad-visits.js syncSaadPaymentLedgers) —
+ *   they are drawer views of a recorded Saad payout, already mirrored
+ *   into Expenses under saadPaymentId, so this sync skips them and a
+ *   drawer payout is never deducted twice.
  * - Idempotent: running it on an already-synced ledger returns
  *   changed: false with the identical expenses array, so re-closing a
  *   day can never duplicate an entry.
@@ -489,7 +494,13 @@ export function syncRoznamchaExpenses(expenses, days, referenceDate = new Date()
   const cleanDays = sanitizeRoznamchaDays(days);
   const desired = new Map();
   for (const day of cleanDays) {
-    for (const outflow of day.outflows) desired.set(outflow.id, { date: day.date, outflow });
+    for (const outflow of day.outflows) {
+      // SISP-56: Saad-owned outflows (id `saad-<payment id>`) are
+      // mirrored into Expenses by the Saad payment sync under
+      // saadPaymentId — never mirror them here as well.
+      if (typeof outflow.id === 'string' && outflow.id.startsWith('saad-')) continue;
+      desired.set(outflow.id, { date: day.date, outflow });
+    }
   }
   const current = Array.isArray(expenses) ? expenses : [];
   const seen = new Set();

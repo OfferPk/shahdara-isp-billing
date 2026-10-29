@@ -48,6 +48,14 @@
  *   a later complaint reopen can undo exactly that synced resolution; a
  *   direct resolveTicket is a human field decision and clears the stamp
  *   (the sync layer stamps it again after its own calls).
+ * - SISP-56: a RESOLVED ticket assigned to Saad offers a 1-click
+ *   "Log Saad Visit from Ticket (TKT-NNN)" action. It opens the Saad
+ *   Visit Log (saad-visits.js) with the visit form pre-filled from
+ *   facts the ticket actually records (buildVisitPrefillFromTicket) —
+ *   the operator still enters hours worked, because created/resolved
+ *   stamps are not work duration. The link is the visit's ticketId, so
+ *   a ticket with a logged visit shows "Saad visit logged" instead of
+ *   the button and can never be logged twice from here.
  * - This module imports nothing: it is self-contained so the backup merge
  *   in core.js can sanitize tickets without a module cycle.
  *
@@ -410,6 +418,57 @@ export function markTicketChargePaid(list, id, paid, referenceDate = new Date())
   return clean;
 }
 
+/**
+ * SISP-56: is this ticket assigned to Saad? The technician field is
+ * free text, so the match is by whole word: 'Saad', 'SAAD' and
+ * 'Muhammad Saad' match; 'Saadullah' does not.
+ */
+export function isSaadTechnician(name) {
+  return cleanText(name).toLowerCase().split(/[^a-z]+/).includes('saad');
+}
+
+/**
+ * SISP-56: the Saad visit work type a ticket maps to. Splice work is
+ * Saad's main job (see saad-visits.js), installs map to install, any
+ * other fiber work to fiber-fix, and the rest to other.
+ */
+export function visitTypeForTicket(ticket) {
+  const fault = `${cleanText(ticket?.faultPreset)} ${cleanText(ticket?.customFault)}`.toLowerCase();
+  if (/install|new connection/.test(fault)) return 'install';
+  if (/splice|splicing/.test(fault)) return 'splicing';
+  if (/fiber|fibre/.test(fault)) return 'fiber-fix';
+  return 'other';
+}
+
+/**
+ * SISP-56: pre-fill for the Saad visit form from a resolved ticket.
+ * Only facts the ticket itself records: the resolution date, the
+ * mapped work type, the ticket's customer, the customer's area, the
+ * fiber meters the resolve actually logged as consumed, and the
+ * ticket link. Hours are deliberately absent — the operator enters
+ * them in the visit form.
+ */
+export function buildVisitPrefillFromTicket(ticket, customers = []) {
+  if (!ticket || typeof ticket !== 'object') return null;
+  const customer = (Array.isArray(customers) ? customers : [])
+    .find((c) => String(c.id) === String(ticket.customerId));
+  const fiber = (Array.isArray(ticket.materialsUsed) ? ticket.materialsUsed : [])
+    .find((m) => m && m.key === 'fiber');
+  const fiberQty = fiber ? Number(fiber.qty) : NaN;
+  const resolvedDate = /^\d{4}-\d{2}-\d{2}/.test(String(ticket.resolvedAt || ''))
+    ? String(ticket.resolvedAt).slice(0, 10)
+    : pakistanTicketDateTimeNow().slice(0, 10);
+  return {
+    date: resolvedDate,
+    type: visitTypeForTicket(ticket),
+    customerId: cleanText(ticket.customerId),
+    area: customer ? (cleanText(customer.mohalla) || cleanText(customer.zone)) : '',
+    fiberMeters: Number.isFinite(fiberQty) && fiberQty > 0 ? fiberQty : null,
+    ticketId: cleanText(ticket.id),
+    note: `Ticket ${cleanText(ticket.id)} · ${ticketFaultLabel(ticket)}`.slice(0, 200)
+  };
+}
+
 /** Tickets for one customer, newest first. */
 export function ticketsForCustomer(list, customerId) {
   return sanitizeTickets(list)
@@ -689,7 +748,7 @@ function materialLineLabel(line) {
  * getState is the app state accessor (customers list); tickets live in
  * their own localStorage ledger, like the complaint register.
  */
-export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast } = {}) {
+export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('fieldTicketsModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -780,6 +839,13 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast } =
       listEl.innerHTML = '<p class="ticket-empty">No field tickets recorded yet. Add the first one above.</p>';
       return;
     }
+    // SISP-56: ticket ids that already have a Saad visit logged, so a
+    // resolved Saad ticket shows its logged state instead of the
+    // 1-click log button (the visit's ticketId is the dedup key).
+    const loggedVisitTicketIds = new Set(
+      (typeof listLoggedVisitTicketIds === 'function' ? listLoggedVisitTicketIds() : [])
+        .map((id) => String(id)).filter(Boolean)
+    );
     const sorted = [...rows].sort((a, b) => {
       if (a.status !== b.status) return a.status === 'Open' ? -1 : b.status === 'Open' ? 1 : 0;
       return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
@@ -800,6 +866,11 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast } =
       const chargeBtn = t.status === 'Resolved' && t.billingType === 'billed' && !t.chargePaid
         ? `<button type="button" class="secondary-button ticket-status-btn" data-ticket-action="charge-paid" data-ticket-id="${escapeHtml(t.id)}">Mark charge paid</button>`
         : '';
+      const saadVisitBtn = t.status === 'Resolved' && isSaadTechnician(t.technician)
+        ? (loggedVisitTicketIds.has(String(t.id))
+          ? '<span class="ticket-status-badge ticket-status-resolved">✓ Saad visit logged</span>'
+          : `<button type="button" class="secondary-button ticket-status-btn" data-ticket-action="log-saad-visit" data-ticket-id="${escapeHtml(t.id)}">🧰 Log Saad Visit from Ticket (${escapeHtml(t.id)})</button>`)
+        : '';
       return `<article class="ticket-card" data-ticket-id="${escapeHtml(t.id)}">
         <header class="ticket-card-head">
           <strong>${escapeHtml(t.id)}</strong>
@@ -816,7 +887,7 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast } =
         ${t.resolvedAt ? `<p><span>Resolved</span><span>${escapeHtml(t.resolvedAt)}</span></p>` : ''}
         ${t.note ? `<p><span>Note</span><span>${escapeHtml(t.note)}</span></p>` : ''}
         ${materials}${charge}${stock}
-        <div class="ticket-card-actions">${statusButtons(t)}${chargeBtn}</div>
+        <div class="ticket-card-actions">${statusButtons(t)}${chargeBtn}${saadVisitBtn}</div>
         <div class="ticket-resolve-slot" data-resolve-slot="${escapeHtml(t.id)}"></div>
       </article>`;
     }).join('');
@@ -907,6 +978,12 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast } =
           next = markTicketChargePaid(loadTickets(), id, true);
           persist(next);
           onToast && onToast(`Ticket ${id} charge marked paid.`);
+        } else if (action === 'log-saad-visit') {
+          // SISP-56: hand the ticket to the app, which opens the Saad
+          // Visit Log pre-filled from it (see buildVisitPrefillFromTicket).
+          const ticket = loadTickets().find((t) => t.id === id);
+          if (ticket && typeof onLogSaadVisit === 'function') onLogSaadVisit(ticket);
+          return;
         } else if (action === 'show-resolve') {
           const slot = listEl.querySelector(`[data-resolve-slot="${CSS.escape(id)}"]`);
           const ticket = loadTickets().find((t) => t.id === id);

@@ -188,6 +188,32 @@ export function buildOutageQueue(customers, sourceId, { urdu = false } = {}) {
   };
 }
 
+/**
+ * SISP-49: daisy-chain alert for ONE complaint source — the customer whose
+ * media converter / feeder point a complaint is about, plus every
+ * downstream home that loses internet with it. Returns null when the
+ * source is unknown or feeds nobody downstream (no dependents, no
+ * banner). Pure and read-only: it never mutates the customer list, so a
+ * banner can never hide, merge or alter a complaint or a customer
+ * record. Each impacted entry carries the same wa.me draft link the
+ * outage queue uses, so what the banner lists is exactly what the bulk
+ * notification launch will act on.
+ */
+export function buildDaisyChainAlert(customers, sourceId) {
+  const source = customerById(customers, sourceId);
+  if (!source) return null;
+  const impacted = traceDownstreamImpact(customers, sourceId);
+  if (impacted.length === 0) return null;
+  return {
+    source,
+    impacted: impacted.map((customer) => ({
+      customer,
+      whatsappLink: outageWhatsAppLink(customer.phone)
+    })),
+    count: impacted.length
+  };
+}
+
 /** Copy-all text for a queue: one "Name — message" line per subscriber. */
 export function buildOutageQueueText(queue, { urdu = false } = {}) {
   if (!queue) return '';

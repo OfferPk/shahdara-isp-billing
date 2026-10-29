@@ -1,3 +1,5 @@
+import { verifyBackupChecksum } from './backup-health.js';
+
 export const BACKUP_FREQUENCIES = Object.freeze({ daily:24 * 60 * 60 * 1000, weekly:7 * 24 * 60 * 60 * 1000 });
 export const DEFAULT_BACKUP_FREQUENCY = 'weekly';
 export const BACKUP_DATABASE_NAME = 'shahdara-isp-billing-local-backups-v1';
@@ -395,6 +397,12 @@ export async function shareJsonBackupFile({
   if (typeof backupText !== 'string' || !backupText) {
     throw new Error('Backup data is empty or invalid.');
   }
+  // SISP-52: report the SISP-10 CRC-32 checksum verdict of the exact text
+  // being shared, so callers and tests can prove the file that left the
+  // device is the checksum-stamped export. Reporting only — sharing is
+  // never blocked here; the fallback ladder below guarantees no dead end.
+  let checksumStatus = 'invalid';
+  try { checksumStatus = verifyBackupChecksum(backupText).status; } catch { checksumStatus = 'invalid'; }
   const name = filename || `shahdara-isp-billing-backup-${new Date().toISOString().slice(0, 10)}.json`;
 
   let canShareFiles = false;
@@ -415,15 +423,15 @@ export async function shareJsonBackupFile({
         text: `Shahdara ISP Billing ledger backup (${name}). Save to WhatsApp or Google Drive.`,
         files: [file]
       });
-      return { success: true, method: 'share', filename: name };
+      return { success: true, method: 'share', filename: name, checksumStatus };
     } catch (err) {
       if (err?.name === 'AbortError') {
-        return { success: false, method: 'cancelled', message: 'Share was cancelled by user.' };
+        return { success: false, method: 'cancelled', message: 'Share was cancelled by user.', checksumStatus };
       }
     }
   }
 
-  return { success: true, method: 'download', filename: name, backupText };
+  return { success: true, method: 'download', filename: name, backupText, checksumStatus };
 }
 
 export const ENCRYPTED_BACKUP_FORMAT = 'shahdara-isp-billing-encrypted-backup';

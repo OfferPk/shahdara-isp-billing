@@ -134,6 +134,75 @@ export function countPaymentsAfterDate(state, exportDateKey) {
   return total;
 }
 
+// ------------------------------------------------------------ SISP-52 -----
+// 1-Tap Off-Device Backup File Share (enhancing SISP-10). The Backup Health
+// surface gets a single [Share Backup to WhatsApp / Drive] action: the file
+// handed to the share handler is the exact export `createJsonBackup` builds
+// for the download button — CRC-32 checksum stamp and SISP-46 branch-guard
+// stamp included — and a completed share (or the download fallback) writes
+// the health record below, so the badge resets to Safe. A cancelled share
+// records nothing. The platform share call itself is injected (`shareFile`,
+// backup-store.js `shareJsonBackupFile` in the app) so this flow stays pure
+// and unit-testable; the checksum verdict is reported, never hidden.
+
+// The record persisted under BACKUP_HEALTH_KEY after any off-device export.
+export function createBackupHealthRecord(state, now = new Date()) {
+  const current = now instanceof Date ? now : new Date(now);
+  return {
+    lastExportAt: current.toISOString(),
+    paymentCountAtExport: countAllPayments(state)
+  };
+}
+
+// Writes the health record to a localStorage-like storage. Returns the
+// record, or null when storage is unavailable/unwritable — it never throws,
+// so a storage hiccup can never turn a completed share into a failure.
+export function recordBackupHealthExport(storage, state, now = new Date()) {
+  const record = createBackupHealthRecord(state, now);
+  try {
+    if (!storage || typeof storage.setItem !== 'function') return null;
+    storage.setItem(BACKUP_HEALTH_KEY, JSON.stringify(record));
+    return record;
+  } catch {
+    return null;
+  }
+}
+
+// Orchestrates one 1-tap share: verify the checksum stamp, invoke the file
+// share handler, and — only when a copy actually left the device (method
+// 'share' or the 'download' fallback) — mark Backup Health Safe.
+// `onExported(record)` runs right after the health record is written (the
+// app uses it to keep the legacy last-backup timestamp in step).
+export async function shareBackupOffDevice({
+  backupText,
+  filename,
+  state,
+  storage,
+  shareFile,
+  now = new Date(),
+  onExported = null
+} = {}) {
+  if (typeof backupText !== 'string' || !backupText) {
+    throw new Error('Backup data is empty or invalid.');
+  }
+  if (typeof shareFile !== 'function') {
+    throw new Error('Backup file share handler is unavailable.');
+  }
+  const checksumStatus = verifyBackupChecksum(backupText).status;
+  const result = await shareFile({ backupText, filename });
+  let healthRecord = null;
+  if (result?.method === 'share' || result?.method === 'download') {
+    healthRecord = recordBackupHealthExport(storage, state, now);
+    if (healthRecord && typeof onExported === 'function') {
+      try { onExported(healthRecord); } catch { /* the export already counts */ }
+    }
+  }
+  const health = healthRecord
+    ? assessBackupHealth({ lastExportAt: healthRecord.lastExportAt, paymentsSinceExport: 0, now })
+    : null;
+  return { ...result, checksumStatus, healthRecord, health };
+}
+
 // Spec thresholds: Safe < 24h; Due 1–3 days; Critical > 3 days, or 10+ new
 // payments since the last export, or never exported.
 export function assessBackupHealth({ lastExportAt, paymentsSinceExport, now = new Date() } = {}) {

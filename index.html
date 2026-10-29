@@ -548,6 +548,15 @@
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openWalletLedgerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_wallet">💳 Wallet Ledger</button>
           </div>
+        </article>
+        <article class="summary-card summary-suspense-payments ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_suspense">🧾 Suspense Payments</p>
+          <strong id="dashboardSuspenseValue" class="summary-value">No suspense entries</strong>
+          <p id="dashboardSuspensePeriod" class="summary-period">Unidentified wallet transfers</p>
+          <div id="suspensePaymentsSummary" class="suspense-payments-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSuspensePaymentsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_suspense">🧾 Suspense Register</button>
+          </div>
         </article>        <article class="summary-card summary-month-collection ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">💵</span><p class="summary-label" data-i18n="dash_card_month_coll">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue ds-stat ds-stat--info"><span class="ds-stat__icon" aria-hidden="true">📊</span><p class="summary-label" data-i18n="dash_card_month_billed">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">💸</span><p class="summary-label" data-i18n="dash_card_expenses">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -570,6 +579,15 @@
         <article class="summary-card summary-profit ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">💹</span><p class="summary-label" data-i18n="dash_card_exp_profit">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
         <article class="summary-card summary-provider-cost ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">🛰️</span><p class="summary-label" data-i18n="dash_card_prov_cost">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
       </div>
+      <section class="mohalla-dashboard-section" id="mohallaDashboardSection" aria-labelledby="mohallaDashboardHeading">
+        <div class="mohalla-dashboard-heading">
+          <p class="eyebrow" data-i18n="dash_mohalla_eyebrow">AREA / MOHALLA</p>
+          <h3 id="mohallaDashboardHeading" data-i18n="dash_mohalla_title">Mohalla Dashboard</h3>
+          <p class="chart-caption" data-i18n="dash_mohalla_sub">Live user count in every mohalla that has customers. Tap a card to open exactly those customers.</p>
+        </div>
+        <div id="mohallaDashboardCards" class="mohalla-cards-grid"></div>
+        <p id="mohallaDashboardEmpty" class="empty-state" hidden data-i18n="dash_mohalla_empty">No mohalla users yet — cards appear here as soon as a customer has a mohalla set.</p>
+      </section>
       <div class="dashboard-target-section" id="dashboardTargetSection" style="margin: 14px 0;">
         <article class="dashboard-chart-card chart-card-target">
           <div class="chart-card-header chart-card-header-flex">
@@ -6641,8 +6659,9 @@
         </section>
         <div class="customer-list-search">
           <label class="customer-list-search-label" for="customerListSearch" data-i18n="cust_search_list_label">Search this list</label>
-          <div class="customer-list-search-control"><input id="customerListSearch" type="search" autocomplete="off" aria-describedby="customerListSearchHelp" placeholder="Name, phone, customer # or ID" data-i18n-placeholder="cust_search_placeholder"><button id="clearCustomerListSearch" class="secondary-button" type="button" aria-label="Clear customer-list search" data-i18n="cust_search_clear" data-i18n-aria-label="cust_search_clear_aria">Clear</button></div>
+          <div class="customer-list-search-control"><label class="sr-only" for="customerSearchField" data-i18n="cust_search_field_label">Search by</label><select id="customerSearchField" class="customer-search-field-select" aria-label="Search field" data-i18n-aria-label="cust_search_field_aria"><option value="name" selected data-i18n="cust_search_field_name">Name</option><option value="mobile" data-i18n="cust_search_field_mobile">Mobile</option><option value="userid" data-i18n="cust_search_field_userid">User ID</option><option value="area" data-i18n="cust_search_field_area">Area</option></select><input id="customerListSearch" type="search" autocomplete="off" aria-describedby="customerListSearchHelp" placeholder="Name, phone, customer # or ID" data-i18n-placeholder="cust_search_placeholder"><button id="clearCustomerListSearch" class="secondary-button" type="button" aria-label="Clear customer-list search" data-i18n="cust_search_clear" data-i18n-aria-label="cust_search_clear_aria">Clear</button></div>
           <p id="customerListSearchHelp" class="customer-list-search-help" data-i18n="cust_search_help">Matches customer name, phone, customer number or record ID; combines with each bill-status filter. When blank, global search also filters this list.</p>
+          <p class="customer-list-search-help" data-i18n="cust_search_field_help">With a field picked, the typed text matches only that field: Mobile matches phone digits, User ID matches the customer number or record ID, Area matches the mohalla.</p>
         </div>
         <section id="newCustomersPanel" class="new-customers-panel" aria-label="New customers by month" data-i18n-aria-label="cust_newcust_panel_aria"></section>
         <ul id="customerList" class="customer-list" aria-label="Customer list" data-i18n-aria-label="cust_list_aria"></ul>
@@ -21253,6 +21272,50 @@
             <button id="groupBillingCopyBtn" class="secondary-button" type="button">📋 Copy receipt</button>
             <a id="groupBillingWhatsAppBtn" class="secondary-button" href="#" target="_blank" rel="noopener">💬 WhatsApp receipt</a>
             <button id="groupBillingPrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="suspensePaymentsModal" class="billing-modal suspense-payments-modal" aria-labelledby="suspensePaymentsModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="suspensePaymentsModalTitle">🧾 Suspense Payments — بے نامی آن لائن پیمنٹ رجسٹر</h2>
+        <button id="suspensePaymentsCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="suspense-intro">Wallet me aayi hui woh transfers jin ka bhejne wala maloom nahi — yahan log karein. Jab asal customer mil jaye to "Claim &amp; Link" se wohi transfer us customer ki verified payment ban jati hai aur receipt issue hoti hai. Claimed entries audit ke liye yahin rehti hain, delete nahi hotin.</p>
+        <p id="suspensePaymentsCountNote" class="suspense-count-note"></p>
+        <form id="suspensePaymentForm" class="suspense-form">
+          <label for="suspenseAmount">Amount (Rs.)</label>
+          <input id="suspenseAmount" class="form-input" type="number" min="1" step="any" required aria-label="Amount received in rupees" placeholder="e.g. 3000">
+          <label for="suspenseWallet">Wallet</label>
+          <select id="suspenseWallet" class="form-input" aria-label="Wallet the transfer arrived in">
+            <option value="Easypaisa">Easypaisa</option>
+            <option value="JazzCash">JazzCash</option>
+            <option value="NayaPay">NayaPay</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Raast">Raast</option>
+          </select>
+          <label for="suspenseSenderName">Sender name (as shown in wallet alert)</label>
+          <input id="suspenseSenderName" class="form-input" type="text" maxlength="100" aria-label="Sender name" placeholder="Optional — leave blank if unknown">
+          <label for="suspenseSenderMobile">Sender mobile</label>
+          <input id="suspenseSenderMobile" class="form-input" type="text" maxlength="32" aria-label="Sender mobile number" placeholder="Optional — 03xx xxxxxxx">
+          <label for="suspenseTid">TID / Transaction ID</label>
+          <input id="suspenseTid" class="form-input" type="text" maxlength="64" aria-label="Transaction ID" placeholder="Optional but recommended — duplicate guard uses it">
+          <label for="suspenseDate">Date received</label>
+          <input id="suspenseDate" class="form-input" type="date" required aria-label="Date the transfer was received">
+          <button id="suspenseSubmitBtn" class="action-btn-sm daily-slip-btn" type="submit">➕ Log suspense entry</button>
+        </form>
+        <h3>Register</h3>
+        <div id="suspensePaymentsList" class="suspense-list"></div>
+        <div id="suspenseReceiptPanel" class="suspense-receipt-panel" hidden>
+          <h3>Receipt</h3>
+          <pre id="suspenseReceiptText" class="suspense-receipt-text"></pre>
+          <div class="suspense-actions">
+            <button id="suspenseCopyBtn" class="secondary-button" type="button">📋 Copy receipt</button>
+            <a id="suspenseWhatsAppBtn" class="secondary-button" href="#" target="_blank" rel="noopener">💬 WhatsApp receipt</a>
+            <button id="suspensePrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
           </div>
         </div>
       </div>

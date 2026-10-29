@@ -536,6 +536,15 @@
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openWalletLedgerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_wallet">💳 Wallet Ledger</button>
           </div>
+        </article>
+        <article class="summary-card summary-suspense-payments">
+          <p class="summary-label" data-i18n="dash_card_suspense">🧾 Suspense Payments</p>
+          <strong id="dashboardSuspenseValue" class="summary-value">No suspense entries</strong>
+          <p id="dashboardSuspensePeriod" class="summary-period">Unidentified wallet transfers</p>
+          <div id="suspensePaymentsSummary" class="suspense-payments-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSuspensePaymentsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_suspense">🧾 Suspense Register</button>
+          </div>
         </article>        <article class="summary-card summary-month-collection"><p class="summary-label" data-i18n="dash_card_month_coll">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue"><p class="summary-label" data-i18n="dash_card_month_billed">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses"><p class="summary-label" data-i18n="dash_card_expenses">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -21241,6 +21250,50 @@
             <button id="groupBillingCopyBtn" class="secondary-button" type="button">📋 Copy receipt</button>
             <a id="groupBillingWhatsAppBtn" class="secondary-button" href="#" target="_blank" rel="noopener">💬 WhatsApp receipt</a>
             <button id="groupBillingPrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="suspensePaymentsModal" class="billing-modal suspense-payments-modal" aria-labelledby="suspensePaymentsModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="suspensePaymentsModalTitle">🧾 Suspense Payments — بے نامی آن لائن پیمنٹ رجسٹر</h2>
+        <button id="suspensePaymentsCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="suspense-intro">Wallet me aayi hui woh transfers jin ka bhejne wala maloom nahi — yahan log karein. Jab asal customer mil jaye to "Claim &amp; Link" se wohi transfer us customer ki verified payment ban jati hai aur receipt issue hoti hai. Claimed entries audit ke liye yahin rehti hain, delete nahi hotin.</p>
+        <p id="suspensePaymentsCountNote" class="suspense-count-note"></p>
+        <form id="suspensePaymentForm" class="suspense-form">
+          <label for="suspenseAmount">Amount (Rs.)</label>
+          <input id="suspenseAmount" class="form-input" type="number" min="1" step="any" required aria-label="Amount received in rupees" placeholder="e.g. 3000">
+          <label for="suspenseWallet">Wallet</label>
+          <select id="suspenseWallet" class="form-input" aria-label="Wallet the transfer arrived in">
+            <option value="Easypaisa">Easypaisa</option>
+            <option value="JazzCash">JazzCash</option>
+            <option value="NayaPay">NayaPay</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Raast">Raast</option>
+          </select>
+          <label for="suspenseSenderName">Sender name (as shown in wallet alert)</label>
+          <input id="suspenseSenderName" class="form-input" type="text" maxlength="100" aria-label="Sender name" placeholder="Optional — leave blank if unknown">
+          <label for="suspenseSenderMobile">Sender mobile</label>
+          <input id="suspenseSenderMobile" class="form-input" type="text" maxlength="32" aria-label="Sender mobile number" placeholder="Optional — 03xx xxxxxxx">
+          <label for="suspenseTid">TID / Transaction ID</label>
+          <input id="suspenseTid" class="form-input" type="text" maxlength="64" aria-label="Transaction ID" placeholder="Optional but recommended — duplicate guard uses it">
+          <label for="suspenseDate">Date received</label>
+          <input id="suspenseDate" class="form-input" type="date" required aria-label="Date the transfer was received">
+          <button id="suspenseSubmitBtn" class="action-btn-sm daily-slip-btn" type="submit">➕ Log suspense entry</button>
+        </form>
+        <h3>Register</h3>
+        <div id="suspensePaymentsList" class="suspense-list"></div>
+        <div id="suspenseReceiptPanel" class="suspense-receipt-panel" hidden>
+          <h3>Receipt</h3>
+          <pre id="suspenseReceiptText" class="suspense-receipt-text"></pre>
+          <div class="suspense-actions">
+            <button id="suspenseCopyBtn" class="secondary-button" type="button">📋 Copy receipt</button>
+            <a id="suspenseWhatsAppBtn" class="secondary-button" href="#" target="_blank" rel="noopener">💬 WhatsApp receipt</a>
+            <button id="suspensePrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
           </div>
         </div>
       </div>

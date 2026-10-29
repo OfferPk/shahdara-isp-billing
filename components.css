@@ -957,3 +957,21 @@ body.field-mode-open { overflow: hidden; }
   .group-billing-collect-bar { grid-template-columns: 1fr; }
   .group-billing-actions .primary-button, .group-billing-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }
 }
+/* SISP-37: suspense payments — theme tokens only, mobile-first cards. */
+.suspense-intro, .suspense-count-note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.suspense-form { display: grid; gap: 8px; margin: 0 0 16px; }
+.suspense-list { display: grid; gap: 12px; }
+.suspense-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.suspense-card p { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 8px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.suspense-card p strong { color: var(--ink); text-align: right; }
+.suspense-card-claimed { opacity: 0.85; }
+.suspense-warn { color: var(--ink); font-size: 13px; display: block; }
+.suspense-claim-bar { display: grid; gap: 8px; margin-top: 8px; }
+.suspense-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.suspense-empty { color: var(--muted); font-size: 13px; }
+.suspense-receipt-panel { margin-top: 16px; }
+.suspense-receipt-text { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 13px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .suspense-actions .primary-button, .suspense-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }
+  .suspense-claim-bar .primary-button, .suspense-claim-bar .secondary-button { width: 100%; text-align: center; justify-content: center; }
+}

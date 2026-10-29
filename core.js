@@ -13,6 +13,7 @@ import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
 import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeBillingGroups } from './group-billing.js';
+import { sanitizeSuspensePayments } from './suspense-payments.js';
 import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
@@ -2046,6 +2047,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeBillingGroups(options.billingGroups);
     if (cleaned.length) document.settings = { ...(document.settings || {}), billingGroups: cleaned };
   }
+  // SISP-37: suspense (unidentified) wallet transfers live outside the
+  // ledger state (localStorage key sisp_suspense_payments_v1), so they
+  // travel in an optional `settings.suspensePayments` section. Written
+  // only when at least one entry exists; readers that predate it ignore
+  // the field.
+  if (options && typeof options === 'object' && Array.isArray(options.suspensePayments) && options.suspensePayments.length) {
+    const cleaned = sanitizeSuspensePayments(options.suspensePayments);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), suspensePayments: cleaned };
+  }
   // SISP-20: monthly closing notes live outside the ledger state
   // (localStorage key sisp_monthly_closing_notes_v1), so they travel in an
   // optional `settings.monthlyClosingNotes` section. Written only when at
@@ -2585,6 +2595,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Billing group records differ from this device' });
     }
   }
+  // SISP-37 suspense payments: optional register section (see
+  // createJsonBackup). Safe-merge rule, same as billing groups: adopt
+  // the backup's entries only when this device has none stored yet;
+  // when both sides hold different real entries, keep existing +
+  // conflict (a claimed entry must never be silently overwritten).
+  let suspensePayments = null;
+  const rawIncomingSuspensePayments = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.suspensePayments
+    : undefined;
+  if (Array.isArray(rawIncomingSuspensePayments) && rawIncomingSuspensePayments.length) {
+    const incomingSuspensePayments = sanitizeSuspensePayments(rawIncomingSuspensePayments);
+    const currentSuspensePayments = (options && typeof options === 'object' && Array.isArray(options.currentSuspensePayments))
+      ? sanitizeSuspensePayments(options.currentSuspensePayments)
+      : [];
+    if (incomingSuspensePayments.length && sameJson(incomingSuspensePayments, currentSuspensePayments)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingSuspensePayments.length && (!options?.currentSuspensePaymentsStored || currentSuspensePayments.length === 0)) {
+      suspensePayments = incomingSuspensePayments;
+      counts.suspensePaymentsRestored = 1;
+      counts.changes++;
+    } else if (incomingSuspensePayments.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Suspense payment records differ from this device' });
+    }
+  }
   let monthlyClosingNotes = null;
   const rawIncomingNotes = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
     ? document.settings.monthlyClosingNotes
@@ -2695,5 +2729,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status };
 }

@@ -181,6 +181,45 @@ export function buildWalletReconciliation(customers, month, settlements = []) {
   };
 }
 
+/**
+ * SISP-37: every recorded customer payment whose TID matches `tid`
+ * under the normalizeTid rule above. The Suspense Payment Register
+ * (suspense-payments.js) uses this before claiming an unidentified
+ * transfer: if the TID is already a recorded payment, claiming it again
+ * would count the same money twice, so the claim is refused. An empty
+ * or whitespace-only TID matches nothing.
+ */
+export function findPaymentsByTid(customers, tid) {
+  const normalized = normalizeTid(tid);
+  if (!normalized) return [];
+  const matches = [];
+  for (const customer of (Array.isArray(customers) ? customers : [])) {
+    if (!customer || typeof customer !== 'object') continue;
+    for (const bill of (Array.isArray(customer.bills) ? customer.bills : [])) {
+      if (!bill || typeof bill !== 'object') continue;
+      for (const payment of (Array.isArray(bill.payments) ? bill.payments : [])) {
+        if (!payment || typeof payment !== 'object') continue;
+        if (payment.voided === true) continue;
+        const paymentTid = payment.transactionId || payment.reference || '';
+        if (normalizeTid(paymentTid) !== normalized) continue;
+        matches.push({
+          customerId: customer.id,
+          customerNumber: customer.customerNumber,
+          customerName: customer.name,
+          billMonth: bill.month,
+          paymentId: payment.id,
+          date: payment.date,
+          amount: Number(payment.amount) || 0,
+          method: String(payment.method || 'Cash').trim(),
+          transactionId: paymentTid
+        });
+      }
+    }
+  }
+  matches.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  return matches;
+}
+
 /** One-line Roman Urdu / English summary for copy/share. */
 export function walletReconciliationSummaryText(report) {
   const lines = [`Digital Wallet Ledger — ${report.month}`];

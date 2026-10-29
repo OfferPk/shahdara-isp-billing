@@ -991,3 +991,22 @@ body.field-mode-open { overflow: hidden; }
   .suspense-actions .primary-button, .suspense-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }
   .suspense-claim-bar .primary-button, .suspense-claim-bar .secondary-button { width: 100%; text-align: center; justify-content: center; }
 }
+
+/* Billing Invoice Register (owner request 2026-10-29): period-filtered
+   invoice rows inside the Monthly Billing screen. Theme tokens only — no
+   hardcoded surfaces, so dark mode stays correct. On phones the rows
+   become labeled cards: no horizontal scroll, full amounts. */
+.billing-register-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 12px 0 4px; }
+.billing-register-controls .report-filters { margin: 0; }
+.billing-register-totals { font-size: 12px; font-weight: 700; color: var(--ink); margin: 8px 0 10px; }
+.billing-register-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.register-row { display: grid; grid-template-columns: minmax(170px, 1.5fr) repeat(4, minmax(90px, .8fr)) minmax(86px, .6fr); gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; }
+.register-customer { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.register-reference { font-size: 10px; font-weight: 700; letter-spacing: .2px; color: var(--green); }
+.register-customer-sub { font-size: 10px; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .register-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 10px; }
+  .register-customer { grid-column: 1 / -1; }
+  .billing-register-controls { align-items: stretch; }
+  .billing-register-controls .report-month-label { width: 100%; }
+}

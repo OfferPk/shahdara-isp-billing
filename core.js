@@ -771,8 +771,21 @@ export function paymentTicketChargeCents(payment) {
   return ticketChargeLinesOf(payment).reduce((sum, line) => sum + moneyCents(line.amount), 0);
 }
 
+/**
+ * Advance payments: money collected BEFORE the bill it belongs to exists
+ * (or after the current bill was already settled in full) — e.g. a customer
+ * paying next month early. The tag is the ONLY marker: the amount flows
+ * through the ordinary allocation engine, whose excess/pending-credit
+ * carry-forward turns it into advance credit for the next generated bill.
+ * Legacy payments carry no kind and always read as normal payments.
+ */
+export const ADVANCE_PAYMENT_KIND = 'advance';
+export function isAdvancePayment(payment) {
+  return payment?.kind === ADVANCE_PAYMENT_KIND;
+}
+
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, kind, note } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -803,10 +816,17 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   const ticketChargeLines = sanitizeTicketChargeLines(ticketCharges);
   const ticketChargeTotalCents = ticketChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
   if (ticketChargeTotalCents > Math.round(cents * 100)) throw new Error('Ticket charges on a payment cannot exceed the amount collected.');
+  // Advance tag: only the exact 'advance' kind is kept — any other value
+  // (including a missing one, i.e. every legacy payment) stays untagged,
+  // so untagged records remain byte-identical to before.
+  const cleanNote = String(note ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
+  if (cleanNote.length > 200) throw new Error('Payment note must be 200 characters or fewer.');
   return {
     date,
     amount: cents,
     method,
+    ...(kind === ADVANCE_PAYMENT_KIND ? { kind: ADVANCE_PAYMENT_KIND } : {}),
+    ...(cleanNote ? { note: cleanNote } : {}),
     ...(ticketChargeLines.length > 0 ? { ticketCharges: ticketChargeLines } : {}),
     ...(payer ? { paidBy:payer } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
@@ -1569,6 +1589,8 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     paymentId: payment.id,
     // SISP-34: voided rows stay listed as history; totals skip them.
     voided: payment.voided === true,
+    // Advance tag (legacy payments carry no kind and read as normal).
+    isAdvance: isAdvancePayment(payment),
     customerId: customer.id,
     customerNumber: customer.customerNumber,
     customerName: customer.name,

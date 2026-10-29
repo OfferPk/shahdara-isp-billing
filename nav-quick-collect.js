@@ -33,6 +33,7 @@ import {
   unsettleTicketChargesForPayment
 } from './complaint-tickets.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
+import { normalPaymentBlockReason } from './advance-payment.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
 import { t } from './nav-language.js';
 import {
@@ -330,7 +331,8 @@ export function executeQuickCollection(state, {
   screenshot,
   strictDigitalReference,
   enforceDigitalReference,
-  tickets
+  tickets,
+  kind
 }, referenceDate = new Date()) {
   if (!customerId) throw new Error('Customer ID is required.');
   const numAmount = Number(amount);
@@ -386,11 +388,15 @@ export function executeQuickCollection(state, {
     settledTicketLines = planTicketChargeSettlement(tickets, customerId, remainderCents).lines;
   }
 
-  // Create immutable payment entry through core function
+  // Create immutable payment entry through core function. An explicit
+  // kind:'advance' tags the collection as advance credit (the only way
+  // core accepts money against an already-paid bill); anything else
+  // stays an ordinary untagged payment, exactly as before.
   const nextState = addPayment(state, customerId, targetMonth, {
     date: pDate,
     amount: numAmount,
     method: pMethod,
+    kind: kind === 'advance' ? 'advance' : undefined,
     paidBy: paidBy ? String(paidBy).trim() : undefined,
     transactionId: cleanTxnId || undefined,
     referenceOverrideReason: cleanReason || undefined,
@@ -899,6 +905,7 @@ export function setupQuickCollectModal({
   const methodSelect = document.getElementById('quickCollectMethodSelect');
   const monthSelect = document.getElementById('quickCollectMonthSelect');
   const paidByInput = document.getElementById('quickCollectPaidByInput');
+  const advanceCheckbox = document.getElementById('quickCollectAdvanceCheckbox');
   const dueAmountVal = document.getElementById('quickCollectDueAmountVal');
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
@@ -1238,6 +1245,14 @@ export function setupQuickCollectModal({
         monthSelect.innerHTML = historyMonths.map(m =>
           `<option value="${m}" ${m === activeDefaults.targetMonth ? 'selected' : ''}>${m}</option>`
         ).join('');
+      }
+
+      // Advance tag: reset per customer. When nothing is due at all (no
+      // bill balance, no ticket charges), money can only be recorded as
+      // advance credit — pre-tick the box so the 2-tap flow keeps working
+      // for early payers instead of hitting core's fully-paid guard.
+      if (advanceCheckbox) {
+        advanceCheckbox.checked = activeDefaults.totalDues <= 0 && activeDefaults.ticketChargesPending <= 0;
       }
 
       // SISP-30: concession badge for the target month (refreshes on month change).
@@ -1637,12 +1652,26 @@ export function setupQuickCollectModal({
         }
       }
 
+      // Advance guard (owner rule): an untagged collection against an
+      // already-paid bill is refused — the collector ticks the Advance
+      // box instead, so money received early stays tagged as advance
+      // credit. Collections settling billed ticket charges are exempt
+      // (SISP-43: their money belongs to the tickets, and that pinned
+      // flow records after a bill is paid).
+      if (!advanceCheckbox?.checked
+        && normalPaymentBlockReason(state, activeCustomerId, monthVal) === 'fully-paid'
+        && billedTicketChargesPending(loadTickets(), activeCustomerId) <= 0) {
+        if (typeof onToast === 'function') onToast(t('adv_blocked_paid'), { type: 'error' });
+        return;
+      }
+
       const { nextState, receipt, nextTickets } = executeQuickCollection(state, {
         customerId: activeCustomerId,
         month: monthVal,
         amount: amountVal,
         date: dateVal,
         method: methodVal,
+        kind: advanceCheckbox?.checked ? 'advance' : undefined,
         paidBy: paidByVal,
         transactionId: txnIdVal,
         referenceOverrideReason: (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim()) ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : '')) : overrideReasonVal,

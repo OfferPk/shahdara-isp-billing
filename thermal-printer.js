@@ -100,6 +100,7 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   if (fields.reference) push(rowLine('Ref', fields.reference, width));
   if (fields.discount) push(rowLine('Discount', fields.discount, width));
   if (fields.concession) push(rowLine('Outage concession', fields.concession, width));
+  if (fields.referralCredit) push(rowLine('Referral credit', fields.referralCredit, width));
   if (fields.arrearsPackage || fields.arrearsPrevious || fields.arrearsTotal) {
     push(rowLine('Monthly pkg', fields.arrearsPackage, width));
     if (fields.arrearsKist) push(rowLine('Kist', fields.arrearsKist, width));
@@ -171,6 +172,8 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     // stays gross, so subtract here for display; balanceDue above already
     // comes from the net balanceDueCents computed by buildPaymentReceipt).
     concession: receipt.concessionAmount ? money(receipt.concessionAmount) : '',
+    // SISP-40: hamsaya referral credit line, printed next to the concession.
+    referralCredit: receipt.referralCreditAmount ? money(receipt.referralCreditAmount) : '',
     balanceDue: balance,
     statusLabel: receipt.status || '',
     // SISP-2: itemized arrears breakdown (passed through from the receipt
@@ -181,7 +184,7 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     arrearsPrevious: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.previousArrears) : '',
     arrearsTotal: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.totalDue) : '',
     arrearsPaid: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.paidAmount) : '',
-    arrearsBalance: receipt.arrearsBreakdown ? money(Math.max(0, receipt.arrearsBreakdown.balanceDue - (receipt.concessionAmount || 0))) : '',
+    arrearsBalance: receipt.arrearsBreakdown ? money(Math.max(0, receipt.arrearsBreakdown.balanceDue - (receipt.concessionAmount || 0) - (receipt.referralCreditAmount || 0))) : '',
     footerNote: 'Thank you! Please keep this receipt.'
   };
 }

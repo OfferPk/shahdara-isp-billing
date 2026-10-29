@@ -96,13 +96,15 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   // SISP-30: the concession line, and the remaining balance is net of it —
   // the SISP-2 breakdown itself stays gross, so subtract here for display.
   if (receipt.concessionAmount > 0) financial.push({ label: 'Outage Concession / رعایت', value: `-${money(receipt.concessionAmount)}` });
+  // SISP-40: the hamsaya referral credit line, next to the concession.
+  if (receipt.referralCreditAmount > 0) financial.push({ label: 'Referral Credit / ہمسایہ ریفرل', value: `-${money(receipt.referralCreditAmount)}` });
   financial.push({ label: 'Amount Paid / Wusool Paya', value: money(receipt.paidAmount), strong: true });
   financial.push({ label: 'Payment Method / طریقہ', value: method || '—' });
   const grossRemaining = breakdown
     ? breakdown.balanceDue
     : (receipt.balanceDueCents === null || receipt.balanceDueCents === undefined
       ? null : receipt.balanceDueCents / 100);
-  const remaining = grossRemaining === null ? null : Math.max(0, grossRemaining - (receipt.concessionAmount > 0 && breakdown ? receipt.concessionAmount : 0));
+  const remaining = grossRemaining === null ? null : Math.max(0, grossRemaining - (receipt.concessionAmount > 0 && breakdown ? receipt.concessionAmount : 0) - (receipt.referralCreditAmount > 0 && breakdown ? receipt.referralCreditAmount : 0));
   financial.push({
     label: 'Remaining Balance / Baqi Rehta',
     value: remaining === null ? '—' : money(remaining),

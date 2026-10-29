@@ -3,6 +3,7 @@ import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from '
 import { sanitizePauseFields } from './pause-billing.js';
 import { t } from './nav-language.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
+import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 
 const BILL_STATUS = Object.freeze({
   paid: { label:'Paid', className:'status-received' },
@@ -236,6 +237,39 @@ export function pauseBillingSummary(customer) {
       : (pauseSkippedMonths.length > 0
         ? t('prof_pause_detail_inactive_skipped', null, { skipped: skippedNote })
         : t('prof_pause_not_paused'))
+  };
+}
+
+// SISP-40: hamsaya referral summary for the profile view. Reads only the
+// stored link (referredByCustomerId) and the referral queue — it never
+// decides credit; referral-credits.js reconcile + the SISP-2 cycle do.
+export function referralBillingSummary(customer, state, credits) {
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  const byId = new Map(customers.filter((row) => row && row.id).map((row) => [row.id, row]));
+  const labelFor = (row) => (row ? `${row.name} (#${row.customerNumber ?? ''})` : '');
+  const referrer = customer?.referredByCustomerId && customer.referredByCustomerId !== customer.id
+    ? byId.get(customer.referredByCustomerId) ?? null
+    : null;
+  const earned = referralEntriesForReferrer(credits, customer?.id).map((entry) => {
+    const referred = byId.get(entry.referredCustomerId);
+    const name = referred ? labelFor(referred) : t('prof_ref_customer_gone');
+    const amount = formatPKR(entry.amount);
+    const label = entry.status === 'applied'
+      ? t('prof_ref_line_applied', null, { name, amount })
+      : entry.status === 'cancelled'
+        ? t('prof_ref_line_cancelled', null, { name, amount })
+        : t('prof_ref_line_queued', null, { name, amount });
+    return { referralId: entry.referralId, status: entry.status, label };
+  });
+  const totals = referralTotalsForReferrer(credits, customer?.id);
+  return {
+    referredByLabel: referrer ? t('prof_ref_referred_by', null, { name: labelFor(referrer) }) : '',
+    earned,
+    queuedTotal: totals.queuedTotal,
+    appliedTotal: totals.appliedTotal,
+    queuedLabel: totals.queuedTotal > 0 ? t('prof_ref_queued', null, { amount: formatPKR(totals.queuedTotal) }) : '',
+    appliedLabel: totals.appliedTotal > 0 ? t('prof_ref_applied', null, { amount: formatPKR(totals.appliedTotal) }) : '',
+    hasContent: Boolean(referrer) || earned.length > 0
   };
 }
 

@@ -7454,6 +7454,8 @@
         <label class="field-label" for="newCustomerFiberPerMeterRate">Fiber rate per meter (PKR) <span class="optional-label">Optional · needed to price the fiber used</span></label>
         <input id="newCustomerFiberPerMeterRate" name="fiberPerMeterRate" type="number" min="0" step="0.01" inputmode="decimal" placeholder="e.g. 12">        <label class="field-label" for="newCustomerServiceStatus">Service status <span class="optional-label">Manual · change it any time in the profile</span></label>
         <select id="newCustomerServiceStatus" name="serviceStatus"><option value="active" selected>Active · connected</option><option value="offline">Offline</option><option value="not-set">Not set</option></select>
+        <label class="field-label" for="newCustomerReferredBy">Referred by (Hamsaya Referral) <span class="optional-label">Optional · the existing customer who brought them — they earn a referral credit when this customer pays their first bill</span></label>
+        <select id="newCustomerReferredBy" name="referredByCustomerId"><option value="">No referral</option></select>
         <div id="addCustomerError" class="form-error" role="alert" hidden></div>
         <div class="modal-actions add-customer-actions"><button class="secondary-button" type="button" data-close-dialog>Cancel</button><button id="addCustomerSubmit" class="primary-button" type="submit">Check and add customer</button></div>
       </fieldset>

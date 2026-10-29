@@ -140,8 +140,14 @@ function rowFromCells(cells, lineNo, mapping) {
  * column; otherwise rows are positional (see rowFromCells).
  */
 export function parseBulkImportText(text) {
-  const lines = String(text ?? '').split(/\r\n|\n|\r/).map(l => l.trim()).filter(Boolean);
-  if (!lines.length) return { rows: [], header: false, delimiter: ',' };
+  // Keep each line's ORIGINAL number: blank lines are skipped from the
+  // rows but still count, so a reported "Line N" always matches the line
+  // the operator sees in the pasted text (SISP-53 follow-up).
+  const numbered = String(text ?? '').split(/\r\n|\n|\r/)
+    .map((line, idx) => ({ text: line.trim(), no: idx + 1 }))
+    .filter(entry => entry.text);
+  if (!numbered.length) return { rows: [], header: false, delimiter: ',' };
+  const lines = numbered.map(entry => entry.text);
   const delimiter = detectDelimiter(lines);
   const split = line => splitDelimited(line, delimiter).map(tidy);
   const firstCells = split(lines[0]);
@@ -150,28 +156,28 @@ export function parseBulkImportText(text) {
   const hasIdentity = mapped.some(k => k === 'name' || k === 'phone' || k === 'connectionId');
   const header = knownCount >= 2 && hasIdentity;
   let mapping = null;
-  let body = lines;
+  let body = numbered;
   if (header) {
     mapping = {};
     mapped.forEach((field, idx) => { if (field && mapping[field] === undefined) mapping[field] = idx; });
-    body = lines.slice(1);
+    body = numbered.slice(1);
   }
   const rows = [];
-  body.forEach((line, i) => {
-    const cells = split(line);
+  body.forEach(entry => {
+    const cells = split(entry.text);
     if (!cells.some(c => c)) return;
-    const row = rowFromCells(cells, i + (header ? 2 : 1), mapping);
+    const row = rowFromCells(cells, entry.no, mapping);
     if (row.name || row.phone || row.connectionId !== null) rows.push(row);
   });
   return { rows, header, delimiter };
 }
 
 export const BULK_ROW_STATUS = {
-  ok: { label: 'OK', tone: 'ok' },
-  'missing-fee': { label: 'Missing fee', tone: 'warn' },
-  'duplicate-connection': { label: 'Duplicate ID', tone: 'warn' },
-  'duplicate-phone': { label: 'Duplicate phone', tone: 'warn' },
-  error: { label: 'Fix', tone: 'error' }
+  ok: { i18nKey: 'bci_status_ok', tone: 'ok' },
+  'missing-fee': { i18nKey: 'bci_status_missing_fee', tone: 'warn' },
+  'duplicate-connection': { i18nKey: 'bci_status_dup_id', tone: 'warn' },
+  'duplicate-phone': { i18nKey: 'bci_status_dup_phone', tone: 'warn' },
+  error: { i18nKey: 'bci_status_error', tone: 'error' }
 };
 
 /**
@@ -179,10 +185,19 @@ export const BULK_ROW_STATUS = {
  * importable (included === false, checkbox disabled in the dialog): the
  * guard flags them, it does not merge them. Missing-fee rows can be ticked
  * to add without a bill, mirroring the older Bulk Add behaviour.
+ *
+ * Connection IDs count EVERY stored customer, archived included: core
+ * addCustomer treats an archived customer's number as taken (it throws
+ * "already in use"), so the preview must flag it too — otherwise a row
+ * previews OK and then throws mid-import. Phones stay live-only, matching
+ * addCustomer, which enforces no phone uniqueness at all.
  */
 export function computeBulkStatuses(rows, customers = []) {
-  const existing = customers.filter(c => !c.archived).map(c => ({
-    c, num: c.customerNumber, phoneKey: phoneNationalKey(c.phone)
+  const existingNumbers = customers.map(c => ({
+    c, num: c.customerNumber, archived: c.archived === true
+  }));
+  const existingPhones = customers.filter(c => !c.archived).map(c => ({
+    c, phoneKey: phoneNationalKey(c.phone)
   }));
   const seenIds = new Map();
   const seenPhones = new Map();
@@ -193,22 +208,27 @@ export function computeBulkStatuses(rows, customers = []) {
     if (!nameCheck.valid) {
       status = 'error'; detail = nameCheck.message;
     } else if (row.phoneRaw && !row.phone) {
-      status = 'error'; detail = 'Phone number looks wrong — use a Pakistani mobile (03XX… or +92…).';
+      status = 'error'; detail = t('bci_detail_bad_phone');
     } else if (row.connectionId !== null) {
-      const clash = existing.find(e => e.num === row.connectionId);
+      const clash = existingNumbers.find(e => e.num === row.connectionId);
       const twin = seenIds.get(row.connectionId);
-      if (clash) { status = 'duplicate-connection'; detail = `Connection ID #${row.connectionId} already belongs to ${clash.c.name}.`; }
-      else if (twin) { status = 'duplicate-connection'; detail = `Same Connection ID as line ${twin}.`; }
+      if (clash) {
+        status = 'duplicate-connection';
+        detail = clash.archived
+          ? t('bci_detail_dup_id_archived', null, { id: row.connectionId, name: clash.c.name })
+          : t('bci_detail_dup_id', null, { id: row.connectionId, name: clash.c.name });
+      }
+      else if (twin) { status = 'duplicate-connection'; detail = t('bci_detail_dup_id_twin', null, { line: twin }); }
     }
     if (status === 'ok' && row.phone) {
       const key = phoneNationalKey(row.phone);
-      const clash = key ? existing.find(e => e.phoneKey && e.phoneKey === key) : null;
+      const clash = key ? existingPhones.find(e => e.phoneKey && e.phoneKey === key) : null;
       const twin = key ? seenPhones.get(key) : null;
-      if (clash) { status = 'duplicate-phone'; detail = `Phone ${row.phone} already belongs to #${clash.c.customerNumber} ${clash.c.name}.`; }
-      else if (twin) { status = 'duplicate-phone'; detail = `Same phone as line ${twin}.`; }
+      if (clash) { status = 'duplicate-phone'; detail = t('bci_detail_dup_phone', null, { phone: row.phone, num: clash.c.customerNumber, name: clash.c.name }); }
+      else if (twin) { status = 'duplicate-phone'; detail = t('bci_detail_dup_phone_twin', null, { line: twin }); }
     }
     if (status === 'ok' && !(Number(row.fee) > 0)) {
-      status = 'missing-fee'; detail = 'No monthly fee — tick to add without a bill.';
+      status = 'missing-fee'; detail = t('bci_detail_missing_fee');
     }
     if (status !== 'error') {
       if (row.connectionId !== null && !seenIds.has(row.connectionId)) seenIds.set(row.connectionId, row.line);
@@ -242,27 +262,36 @@ export function importBulkCustomers(state, statusRows, { referenceDate = new Dat
   let next = state;
   const addedIds = [];
   let billed = 0;
+  // Per-row resilience (SISP-53 follow-up): one row throwing — e.g. its
+  // Connection ID was taken between preview and import — must not lose
+  // the whole batch. The failed row is reported, the rest still import,
+  // and nothing is committed until the caller calls commitState.
+  const failed = [];
   for (const row of statusRows) {
     if (!row.included) continue;
-    next = addCustomer(next, row.name, referenceDate, {
-      phone: row.phone || '',
-      mohalla: row.area || '',
-      address: row.address || '',
-      nameUrdu: row.urduName || '',
-      requestedCustomerNumber: row.connectionId,
-      allowDuplicateName: true
-    });
-    const id = next.customers.at(-1).id;
-    addedIds.push(id);
-    const fee = Number(row.fee);
-    if (fee > 0) {
-      const plan = { packageLabel: row.packageLabel || '', fee, connectionDate };
-      const res = applyCustomerPlan(next, id, plan, referenceDate);
-      next = res.nextState;
-      if (res.billed) billed += 1;
+    try {
+      next = addCustomer(next, row.name, referenceDate, {
+        phone: row.phone || '',
+        mohalla: row.area || '',
+        address: row.address || '',
+        nameUrdu: row.urduName || '',
+        requestedCustomerNumber: row.connectionId,
+        allowDuplicateName: true
+      });
+      const id = next.customers.at(-1).id;
+      addedIds.push(id);
+      const fee = Number(row.fee);
+      if (fee > 0) {
+        const plan = { packageLabel: row.packageLabel || '', fee, connectionDate };
+        const res = applyCustomerPlan(next, id, plan, referenceDate);
+        next = res.nextState;
+        if (res.billed) billed += 1;
+      }
+    } catch (err) {
+      failed.push({ line: row.line, name: row.name, error: err.message });
     }
   }
-  return { nextState: next, addedIds, added: addedIds.length, skipped: statusRows.length - addedIds.length, billed };
+  return { nextState: next, addedIds, added: addedIds.length, skipped: statusRows.length - addedIds.length, billed, failed };
 }
 
 export { undoImport as undoBulkImport };
@@ -302,19 +331,19 @@ export function setupBulkCustomerImport({ win = window, doc = document, getContr
   function renderRows() {
     const list = statusRows();
     const sum = summarizeBulkRows(list);
-    if ($('bciCounts')) $('bciCounts').innerHTML = `<strong>${sum.total}</strong> row${sum.total === 1 ? '' : 's'} · <strong>${sum.ready}</strong> to add${sum.attention ? ` · <span class="bci-attn">${sum.attention} need a look</span>` : ''}`;
+    if ($('bciCounts')) $('bciCounts').innerHTML = `<strong>${sum.total}</strong> ${sum.total === 1 ? t('bci_row') : t('bci_rows')} · <strong>${sum.ready}</strong> ${t('bci_to_add')}${sum.attention ? ` · <span class="bci-attn">${sum.attention} ${t('bci_need_look')}</span>` : ''}`;
     if (!rowsEl) return;
     rowsEl.innerHTML = list.map(r => {
       const st = BULK_ROW_STATUS[r.status];
       const locked = r.status === 'error' || r.status.startsWith('duplicate');
       return `<li class="bci-row is-${st.tone}${r.included ? ' is-included' : ''}" data-bci-row="${esc(r.key)}">
         <div class="bci-row-top">
-          <label class="bci-include"><input type="checkbox" data-bci-include ${r.included ? 'checked' : ''} ${locked ? 'disabled' : ''} aria-label="Import ${esc(r.name || `line ${r.line}`)}"><span class="bci-line">Line ${r.line}</span></label>
-          <span class="bci-chip bci-chip-${st.tone}">${esc(st.label)}</span>
+          <label class="bci-include"><input type="checkbox" data-bci-include ${r.included ? 'checked' : ''} ${locked ? 'disabled' : ''} aria-label="${esc(t('bci_import_row', null, { name: r.name || t('bci_line', null, { line: r.line }) }))}"><span class="bci-line">${esc(t('bci_line', null, { line: r.line }))}</span></label>
+          <span class="bci-chip bci-chip-${st.tone}">${esc(t(st.i18nKey))}</span>
         </div>
         <div class="bci-fields">
           <span><strong>${esc(r.name)}</strong>${r.urduName ? ` <span class="bci-urdu">${esc(r.urduName)}</span>` : ''}</span>
-          <span>${r.connectionId !== null ? `#${r.connectionId} · ` : ''}${esc(r.packageLabel || 'No package')} · ${r.fee ? esc(pkr(r.fee)) : 'no fee'}${r.phone ? ` · ${esc(r.phone)}` : ''}${r.area ? ` · ${esc(r.area)}` : ''}</span>
+          <span>${r.connectionId !== null ? `#${r.connectionId} · ` : ''}${esc(r.packageLabel || t('bci_no_package'))} · ${r.fee ? esc(pkr(r.fee)) : t('bci_no_fee')}${r.phone ? ` · ${esc(r.phone)}` : ''}${r.area ? ` · ${esc(r.area)}` : ''}</span>
           ${r.detail ? `<span class="bci-detail">${esc(r.detail)}</span>` : ''}
         </div>
       </li>`;
@@ -365,10 +394,10 @@ export function setupBulkCustomerImport({ win = window, doc = document, getContr
       if ($('bciDoneDetail')) $('bciDoneDetail').textContent = t('bci_done_detail', null, { billed: res.billed, skipped: res.skipped });
       const added = res.nextState.customers.filter(c => res.addedIds.includes(c.id));
       if ($('bciDoneList')) $('bciDoneList').innerHTML = added.slice(0, 8).map(c =>
-        `<li><strong>#${c.customerNumber} ${esc(c.name)}</strong>${c.nameUrdu ? ` <span class="bci-urdu">${esc(c.nameUrdu)}</span>` : ''} <span>${esc(c.packageSpeed || 'No package')} · ${c.monthlySellingAmount ? esc(pkr(c.monthlySellingAmount)) : 'no fee'}</span></li>`).join('')
-        + (added.length > 8 ? `<li>+ ${added.length - 8} more</li>` : '');
+        `<li><strong>#${c.customerNumber} ${esc(c.name)}</strong>${c.nameUrdu ? ` <span class="bci-urdu">${esc(c.nameUrdu)}</span>` : ''} <span>${esc(c.packageSpeed || t('bci_no_package'))} · ${c.monthlySellingAmount ? esc(pkr(c.monthlySellingAmount)) : t('bci_no_fee')}</span></li>`).join('')
+        + (added.length > 8 ? `<li>${esc(t('bci_more', null, { count: added.length - 8 }))}</li>` : '');
       if ($('bciUndoBtn')) $('bciUndoBtn').disabled = !res.added;
-      say($('bciDoneStatus'), '');
+      say($('bciDoneStatus'), res.failed?.length ? t('bci_done_failed', null, { count: res.failed.length, lines: res.failed.map(f => f.line).join(', ') }) : '', res.failed?.length ? 'error' : 'info');
       show('done');
     } catch (err) {
       say($('bciInputStatus'), err.message, 'error');

@@ -40,7 +40,7 @@ import {
 } from './backup-store.js?v=1.11.0';
 import { saveBranchGuard, ensureBranchGuard, createBranchGuardStamp, recordBranchGuardExport, recordBranchGuardApply } from './branch-guard.js?v=1.11.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.11.0';
-import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate } from './backup-health.js?v=1.11.0';
+import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate, recordBackupHealthExport, shareBackupOffDevice } from './backup-health.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard } from './dashboard.js?v=1.11.0';
@@ -430,9 +430,12 @@ function getLatestBackupTimestamp(status = null) {
 // that left the device (JSON download / share / encrypted export / sync-code
 // copy) resets the health badge.
 function recordOffDeviceBackupExport() {
-  const nowIso = new Date().toISOString();
+  // SISP-52: the health record write lives in backup-health.js so every
+  // export path (download, share, encrypted, sync code) stamps the exact
+  // same record shape the share flow pins in tests.
+  const record = recordBackupHealthExport(localStorage, state, new Date());
+  const nowIso = record?.lastExportAt ?? new Date().toISOString();
   try { localStorage.setItem(LAST_BACKUP_TIME_KEY, nowIso); } catch { /* ignore */ }
-  try { localStorage.setItem(BACKUP_HEALTH_KEY, JSON.stringify({ lastExportAt: nowIso, paymentCountAtExport: countAllPayments(state) })); } catch { /* ignore */ }
 }
 
 function readBackupHealthRecord() {
@@ -3436,14 +3439,27 @@ async function handleShareBackupAction() {
   const backupText = createJsonBackup(state, new Date(), backupExtras());
 
   try {
-    const result = await shareJsonBackupFile({ backupText, filename });
+    // SISP-52: 1-tap share orchestration lives in backup-health.js — the
+    // file handed to the share handler is the same checksum-stamped,
+    // branch-guard-stamped export the download button produces; a completed
+    // share (or the download fallback) writes the health record so the
+    // Backup Health badge resets to Safe. A cancelled share records
+    // nothing, and the legacy timestamp follows the health record's own.
+    const result = await shareBackupOffDevice({
+      backupText,
+      filename,
+      state,
+      storage: localStorage,
+      shareFile: shareJsonBackupFile,
+      onExported: record => {
+        try { localStorage.setItem(LAST_BACKUP_TIME_KEY, record.lastExportAt); } catch { /* ignore */ }
+      }
+    });
     if (result.method === 'share') {
-      recordOffDeviceBackupExport();
       updateDataSafetyUi();
       toast('Backup shared successfully! Keep it safe.');
     } else if (result.method === 'download') {
       downloadJson(result.filename, result.backupText);
-      recordOffDeviceBackupExport();
       updateDataSafetyUi();
       toast('JSON backup downloaded (file share fallback). Store it somewhere safe.');
     } else if (result.method === 'cancelled') {
@@ -3473,6 +3489,8 @@ async function handleProtectStorageAction() {
 
 $('#shareJsonBackupButton')?.addEventListener('click', handleShareBackupAction);
 $('#dataSafetyShareBackupBtn')?.addEventListener('click', handleShareBackupAction);
+// SISP-52: the 1-tap share button inside the Backup Health panel itself.
+$('#shareBackupHealthButton')?.addEventListener('click', handleShareBackupAction);
 $('#requestStoragePersistenceBtn')?.addEventListener('click', handleProtectStorageAction);
 $('#dataSafetyProtectStorageBtn')?.addEventListener('click', handleProtectStorageAction);
 

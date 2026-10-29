@@ -240,7 +240,7 @@ export const SHAH_ADSS_PRESETS = {
   'PRESET_JIA_MUSA_FIG8_DROP': {
     id: 'PRESET_JIA_MUSA_FIG8_DROP',
     name: 'Jia Musa Dense Residential Figure-8 Drop Run (45m Span)',
-    customer: 'Muhammad Rizwan (Acct #JM-4091)',
+    customer: 'Sample Customer (Acct #JM-4091)',
     route: 'Jia Musa Lane 4 Pole #JM-12 to Rooftop Hook #42',
     cableTypeId: 'FIG8_12F_STEEL_MESSENGER',
     envConditionId: 'SPRING_EDS_NOMINAL',

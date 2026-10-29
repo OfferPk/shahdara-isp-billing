@@ -35,18 +35,18 @@ const payment = (id, overrides) => ({ id, date: '2026-10-06', amount: 0, method:
 function fixture() {
   return {
     customers: [
-      customer('c1', 11, 'CH BILAL', [
+      customer('c1', 11, 'Test Customer 11', [
         bill('2026-10', [
           payment('p1', { date: '2026-10-06', amount: 3000, method: 'Cash at Waseem Abbasi shop' }),
           payment('p2', { date: '2026-10-07', amount: 1500, method: 'Cash at Waseem Abbasi shop' })
         ])
       ]),
-      customer('c2', 9, 'AC HOUSE', [
+      customer('c2', 9, 'Test Customer 09', [
         bill('2026-10', [
           payment('p3', { date: '2026-10-08', amount: 2000, method: 'Cash at Hassan shop' })
         ])
       ]),
-      customer('c3', 73, 'AKHTAR HOUSE', [
+      customer('c3', 73, 'Test Customer 73', [
         bill('2026-10', [
           payment('p4', { date: '2026-10-09', amount: 5000, method: 'Cash' }),
           payment('p5', { date: '2026-10-10', amount: 4000, method: 'JazzCash' })
@@ -71,7 +71,7 @@ test('shop collector detection: known shops, custom shops, non-shop methods', ()
 });
 
 test('spec criteria: Rs. 3,000 Waseem payment raises unsettled by Rs. 3,000', () => {
-  const state = { customers: [customer('c1', 11, 'CH BILAL', [
+  const state = { customers: [customer('c1', 11, 'Test Customer 11', [
     bill('2026-10', [payment('p1', { date: '2026-10-06', amount: 3000, method: 'Cash at Waseem Abbasi shop' })])
   ])] };
   const summaries = buildShopSummaries(state, [], new Date(Date.UTC(2026, 9, 27, 7)));
@@ -193,13 +193,13 @@ test('settlement storage: corrupt or missing data degrades to []', () => {
 test('settlement receipt text lists shop, amount, allocations and remainder', () => {
   const settlement = {
     id: 'shop-settle-1', shop: 'Waseem Abbasi Shop', amount: 3000, date: '2026-10-27', note: 'Cash received',
-    allocations: [{ customerNumber: 11, customerName: 'CH BILAL', date: '2026-10-06', amount: 3000 }]
+    allocations: [{ customerNumber: 11, customerName: 'Test Customer 11', date: '2026-10-06', amount: 3000 }]
   };
   const text = generateShopSettlementReceiptText({ shop: 'Waseem Abbasi Shop', settlement, remainingUnsettled: 1500 });
   assert.match(text, /Waseem Abbasi Shop/);
   assert.match(text, /2026-10-27/);
   assert.match(text, /PKR 3,000/);
-  assert.match(text, /CH BILAL/);
+  assert.match(text, /Test Customer 11/);
   assert.match(text, /PKR 1,500/);
   assert.match(text, /shop-settle-1/);
 });
@@ -227,7 +227,7 @@ test('JSON backup carries shop settlements and restores them under safe-merge ru
 });
 
 test('Balla Shop: a Rs. 2,000 Cash at Balla shop payment raises Balla unsettled by Rs. 2,000', () => {
-  const state = { customers: [customer('c1', 11, 'CH BILAL', [
+  const state = { customers: [customer('c1', 11, 'Test Customer 11', [
     bill('2026-10', [payment('p1', { date: '2026-10-06', amount: 2000, method: 'Cash at Balla shop' })])
   ])] };
   const summaries = buildShopSummaries(state, [], new Date(Date.UTC(2026, 9, 27, 7)));

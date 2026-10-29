@@ -34,7 +34,7 @@ async function seedCustomers(page) {
     let s = JSON.parse(localStorage.getItem(core.STORAGE_KEY));
     const now = new Date();
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    s = core.addCustomer(s, 'RAJA FAISAL', now, { phone: '+923001234567', mohalla: 'Barrian', zone: 'Barrian' });
+    s = core.addCustomer(s, 'Test Customer 34', now, { phone: '+923001234567', mohalla: 'Barrian', zone: 'Barrian' });
     const raja = s.customers.at(-1);
     s = core.saveBillMonth(s, raja.id, { month, dueAmount: '3000', status: 'pending' });
     s = core.addCustomer(s, 'ALI KHAN', now, { phone: '+923009998877', mohalla: 'Shahdara Town', zone: 'Shahdara Town' });
@@ -58,7 +58,7 @@ test('field mode 2.0: bilingual search, 58mm slip button, collected-today pill',
   await expect(page.locator('#fieldModeZoneTarget')).toContainText('Collected Today');
   await expect(page.locator('#fieldModeZoneTarget')).toContainText('0 houses');
 
-  // Urdu query finds RAJA FAISAL; capture the card id.
+  // Urdu query finds Test Customer 34; capture the card id.
   await page.locator('#fieldModeSearchInput').fill('راجہ');
   const cards = page.locator('#fieldModeCustomerList [data-field-customer-id]');
   await expect(cards).toHaveCount(1);

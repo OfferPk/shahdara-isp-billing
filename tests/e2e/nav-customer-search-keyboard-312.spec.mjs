@@ -5,7 +5,7 @@
  *
  * Verifies:
  * 1. enterkeyhint="go" on search input so phone keyboard displays "Go".
- * 2. When there is exactly 1 search result (e.g. typing "nazeer"), it is automatically highlighted,
+ * 2. When there is exactly 1 search result (e.g. typing "Test Customer 01"), it is automatically highlighted,
  *    and pressing Enter immediately opens Quick Collect (#quickCollectModal) for that customer.
  * 3. When multiple results exist (e.g. typing "raja"), ArrowDown / ArrowUp moves the highlight ring,
  *    and pressing Enter opens Quick Collect for the highlighted customer.
@@ -45,7 +45,7 @@ function trackErrors(page) {
 }
 
 test.describe('Issue #312: Fast Customer Search Keyboard Navigation & Quick Collect', () => {
-  test('single result: typing nazeer and pressing Enter opens Quick Collect (#312)', async ({ page, isMobile }) => {
+  test('single result: typing Test Customer 01 and pressing Enter opens Quick Collect (#312)', async ({ page, isMobile }) => {
     const errors = trackErrors(page);
     await page.goto('/');
     await giveEveryCustomerAfee(page);
@@ -63,12 +63,12 @@ test.describe('Issue #312: Fast Customer Search Keyboard Navigation & Quick Coll
     await expect(searchInput).toHaveAttribute('enterkeyhint', 'go');
     await expect(searchInput).toHaveAttribute('aria-autocomplete', 'list');
 
-    // 3. Type "nazeer"
-    await searchInput.fill('nazeer');
+    // 3. Type "Test Customer 01"
+    await searchInput.fill('Test Customer 01');
 
     const results = page.locator('#fastCustomerSearchResults .fcs-card');
     await expect(results).toHaveCount(1);
-    await expect(results.first()).toContainText('NAZEER');
+    await expect(results.first()).toContainText('Test Customer 01');
     await expect(results.first()).toHaveClass(/is-highlighted/);
     await expect(results.first()).toHaveAttribute('aria-selected', 'true');
 
@@ -79,8 +79,8 @@ test.describe('Issue #312: Fast Customer Search Keyboard Navigation & Quick Coll
     await expect(quickCollectModal).toBeVisible();
     await expect(searchModal).not.toBeVisible();
 
-    // Verify Quick Collect contains NAZEER
-    await expect(quickCollectModal).toContainText('NAZEER');
+    // Verify Quick Collect contains Test Customer 01
+    await expect(quickCollectModal).toContainText('Test Customer 01');
 
     // Close Quick Collect
     await page.locator('#closeQuickCollectModalBtn').click();
@@ -151,8 +151,8 @@ test.describe('Issue #312: Fast Customer Search Keyboard Navigation & Quick Coll
     await searchTrigger.click();
     await expect(searchModal).toBeVisible();
 
-    // Type "nazeer" (single result)
-    await searchInput.fill('nazeer');
+    // Type "Test Customer 01" (single result)
+    await searchInput.fill('Test Customer 01');
     const resultCard = page.locator('#fastCustomerSearchResults .fcs-card').first();
     await expect(resultCard).toBeVisible();
 
@@ -162,7 +162,7 @@ test.describe('Issue #312: Fast Customer Search Keyboard Navigation & Quick Coll
     // Expect search modal to close and Customers view / profile to open
     await expect(searchModal).not.toBeVisible();
     await expect(page.locator('body')).toHaveAttribute('data-screen', 'customers');
-    await expect(page.locator('#detailName')).toHaveText('NAZEER');
+    await expect(page.locator('#detailName')).toHaveText('Test Customer 01');
 
     expect(errors).toEqual([]);
   });

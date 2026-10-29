@@ -37,41 +37,41 @@ function receiptFor(name, overrides = {}) {
 }
 
 test('urduNameFor: manual override wins, else transliteration, else empty', () => {
-  assert.equal(urduNameFor({ name: 'RAJA FAISAL' }), 'راجہ فیصل');
+  assert.equal(urduNameFor({ name: 'ALI KHAN' }), 'علی خان');
   assert.equal(urduNameFor({ name: 'Ahmed', nameUrdu: 'احمد صاحب' }), 'احمد صاحب');
   assert.equal(urduNameFor({ name: '03001234567' }), '');
   assert.equal(urduNameFor({ name: '' }), '');
   assert.equal(urduNameFor(null), '');
-  assert.equal(transliterateRomanToUrdu('RAJA FAISAL'), 'راجہ فیصل');
+  assert.equal(transliterateRomanToUrdu('ALI KHAN'), 'علی خان');
 });
 
 test('bilingualCustomerName: Urdu (Roman) when they differ, Roman only otherwise', () => {
-  assert.equal(bilingualCustomerName({ name: 'RAJA FAISAL' }), 'راجہ فیصل (RAJA FAISAL)');
+  assert.equal(bilingualCustomerName({ name: 'ALI KHAN' }), 'علی خان (ALI KHAN)');
   assert.equal(bilingualCustomerName({ name: 'Ahmed', nameUrdu: 'احمد' }), 'احمد (Ahmed)');
   assert.equal(bilingualCustomerName({ name: '03001234567' }), '03001234567');
   assert.equal(bilingualCustomerName({ name: 'احمد' }), 'احمد');
 });
 
 test('buildPaymentReceipt carries customerNameUrdu without changing the Roman name', () => {
-  const receipt = receiptFor('RAJA FAISAL');
-  assert.equal(receipt.customerName, 'RAJA FAISAL');
-  assert.equal(receipt.customerNameUrdu, 'راجہ فیصل');
-  const overridden = receiptFor('RAJA FAISAL', { nameUrdu: 'راجہ فیصل صاحب' });
-  assert.equal(overridden.customerNameUrdu, 'راجہ فیصل صاحب');
+  const receipt = receiptFor('ALI KHAN');
+  assert.equal(receipt.customerName, 'ALI KHAN');
+  assert.equal(receipt.customerNameUrdu, 'علی خان');
+  const overridden = receiptFor('ALI KHAN', { nameUrdu: 'علی خان صاحب' });
+  assert.equal(overridden.customerNameUrdu, 'علی خان صاحب');
   const digits = receiptFor('03001234567');
   assert.equal(digits.customerName, '03001234567');
   assert.equal(digits.customerNameUrdu, '');
 });
 
 test('all three receipt layouts show the bilingual header', () => {
-  const receipt = receiptFor('RAJA FAISAL');
+  const receipt = receiptFor('ALI KHAN');
   for (const format of ['a4', 'thermal-80', 'thermal-58']) {
     const html = generatePaymentReceiptHtml(receipt, { format });
-    assert.ok(html.includes('راجہ فیصل (RAJA FAISAL)'), `${format} shows the bilingual header`);
+    assert.ok(html.includes('علی خان (ALI KHAN)'), `${format} shows the bilingual header`);
   }
   // Thermal-58 pins the exact Name field; the Roman name is never dropped.
   const thermal58 = generatePaymentReceiptHtml(receipt, { format: 'thermal-58' });
-  assert.ok(thermal58.includes('<dt>Name / صارف:</dt><dd>راجہ فیصل (RAJA FAISAL)</dd>'));
+  assert.ok(thermal58.includes('<dt>Name / صارف:</dt><dd>علی خان (ALI KHAN)</dd>'));
 });
 
 test('receipts without an Urdu rendering, or built before the field, show Roman only', () => {
@@ -79,11 +79,11 @@ test('receipts without an Urdu rendering, or built before the field, show Roman 
   const html = generatePaymentReceiptHtml(digits, { format: 'a4' });
   assert.ok(html.includes('03001234567'));
   assert.ok(!html.includes('03001234567 ('), 'no empty-Urdu parens duplication');
-  const legacy = { ...receiptFor('RAJA FAISAL') };
+  const legacy = { ...receiptFor('ALI KHAN') };
   delete legacy.customerNameUrdu;
   const legacyHtml = generatePaymentReceiptHtml(legacy, { format: 'thermal-80' });
-  assert.ok(legacyHtml.includes('<dd>RAJA FAISAL</dd>'));
-  assert.ok(!legacyHtml.includes('راجہ فیصل'), 'legacy receipts stay Roman-only');
+  assert.ok(legacyHtml.includes('<dd>ALI KHAN</dd>'));
+  assert.ok(!legacyHtml.includes('علی خان'), 'legacy receipts stay Roman-only');
 });
 
 test('WhatsApp templates: bilingualName placeholder, Urdu greeting bilingual, urduName unchanged', () => {

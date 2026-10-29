@@ -143,13 +143,13 @@ test.describe('Customer deep link #/customers/:id (#212)', () => {
     await page.goto('/#/customers/1');
     await expect(page.locator('#customersView')).toBeVisible();
     await expect(page.locator('#customerDetail')).toBeVisible();
-    await expect(page.locator('#detailName')).toHaveText('NAZEER');
+    await expect(page.locator('#detailName')).toHaveText('Test Customer 01');
 
     // Reload page to verify offline/re-entry persistence
     await page.reload();
     await expect(page.locator('#customersView')).toBeVisible();
     await expect(page.locator('#customerDetail')).toBeVisible();
-    await expect(page.locator('#detailName')).toHaveText('NAZEER');
+    await expect(page.locator('#detailName')).toHaveText('Test Customer 01');
 
     expect(errors).toEqual([]);
   });

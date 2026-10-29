@@ -2,7 +2,7 @@
  * install-tracker.js — New Customer Installation Tracker (user-ordered).
  *
  * Owner's problem (his words): a person asks for a new connection and
- * often PAYS FIRST — e.g. Master Zaheer sent Rs. 10,000 via EasyPaisa —
+ * often PAYS FIRST — e.g. a customer sent Rs. 10,000 via EasyPaisa —
  * but the connection is NOT installed for days. The app must record the
  * request AND the reason for any delay (his examples: "Nasir did not send
  * fiber/ONU on time", "Saad did not come to install"), and at month end

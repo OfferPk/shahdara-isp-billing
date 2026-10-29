@@ -15,7 +15,7 @@ import {
 const complaint = (overrides = {}) => ({
   id: 'CMP-101',
   customerId: 'c1',
-  customerName: 'CH BILAL',
+  customerName: 'Test Customer 11',
   zone: 'Shahdara Town',
   issueCategory: 'Fiber Cut',
   reportedAt: '2026-10-05T10:00',
@@ -34,7 +34,7 @@ const LIST = [
   complaint({ id: 'CMP-102', reportedAt: '2026-10-06T09:00', resolvedAt: '2026-10-06T11:30', downtimeHours: 2.5 }),
   complaint({ id: 'CMP-103', issueCategory: 'Media Converter / Charger Off', reportedAt: '2026-10-07T08:00', resolvedAt: '2026-10-07T09:30', downtimeHours: 1.5, resolutionNote: '' }),
   complaint({ id: 'CMP-090', reportedAt: '2026-09-20T10:00', resolvedAt: '2026-09-20T12:00', downtimeHours: 2 }),
-  complaint({ id: 'CMP-104', customerId: 'c2', customerName: 'RAJA FAISAL', zone: 'Barrian', issueCategory: 'WAPDA / Power Outage', reportedAt: '2026-10-08T18:00', resolvedAt: '', downtimeHours: null, status: 'Open', resolutionNote: '' }),
+  complaint({ id: 'CMP-104', customerId: 'c2', customerName: 'Test Customer 34', zone: 'Barrian', issueCategory: 'WAPDA / Power Outage', reportedAt: '2026-10-08T18:00', resolvedAt: '', downtimeHours: null, status: 'Open', resolutionNote: '' }),
   complaint({ id: 'CMP-105', customerId: 'AREA_OUTAGE', customerName: 'AREA_OUTAGE', zone: 'Barrian', issueCategory: 'Main Uplink / NayaPay Down', reportedAt: '2026-10-09T06:00', resolvedAt: '2026-10-09T08:00', downtimeHours: 2, resolutionNote: 'Uplink restored' })
 ];
 
@@ -62,13 +62,13 @@ test('summary: resolved/pending/total hours/Fiber Cut hours', () => {
 test('per-customer: sorted by complaints then hours; status + last resolved', () => {
   const report = buildMonthlyComplaintReport(LIST, '2026-10');
   assert.equal(report.perCustomer.length, 2);
-  assert.equal(report.perCustomer[0].customerName, 'CH BILAL');
+  assert.equal(report.perCustomer[0].customerName, 'Test Customer 11');
   assert.equal(report.perCustomer[0].complaintCount, 3);
   assert.equal(report.perCustomer[0].totalDowntime, 8);
   assert.equal(report.perCustomer[0].status, 'Resolved');
   assert.equal(report.perCustomer[0].lastResolvedAt, '2026-10-07T09:30');
   assert.equal(report.perCustomer[0].areaZone, 'Shahdara Town');
-  assert.equal(report.perCustomer[1].customerName, 'RAJA FAISAL');
+  assert.equal(report.perCustomer[1].customerName, 'Test Customer 34');
   assert.equal(report.perCustomer[1].status, 'Pending (1)');
   assert.equal(report.perCustomer[1].totalDowntime, 0);
   assert.equal(report.perCustomer[1].lastResolvedAt, '');
@@ -139,7 +139,7 @@ test('WhatsApp summary: Roman and Urdu carry the same totals', () => {
   assert.ok(roman.includes('Kul 5 shikayat'));
   assert.ok(roman.includes('4 hal, 1 pending'));
   assert.ok(roman.includes('10 ghante'));
-  assert.ok(roman.includes('CH BILAL'));
+  assert.ok(roman.includes('Test Customer 11'));
   const urdu = buildReportWhatsAppSummary(report, 'urdu');
   assert.ok(urdu.includes('کل 5 شکایات'));
   assert.ok(urdu.includes('4 حل، 1 زیر التواء'));

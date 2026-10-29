@@ -43,7 +43,7 @@ const customer = (id, number, name, overrides) => ({
 const stateWith = (customers) => ({ customers });
 
 test('spec criterion 1: Rs. 3,000 prior unpaid bill -> new Rs. 3,000 bill, Rs. 6,000 outstanding', () => {
-  const c = customer('c1', 11, 'CH BILAL', { bills: [bill('2026-09')] });
+  const c = customer('c1', 11, 'Test Customer 11', { bills: [bill('2026-09')] });
   const line = planCustomerCycleLine(c, '2026-10');
   assert.equal(line.skipped, false);
   assert.equal(line.currentMonthBill, 3000);
@@ -67,7 +67,7 @@ test('spec criterion 1: Rs. 3,000 prior unpaid bill -> new Rs. 3,000 bill, Rs. 6
 test('spec criterion 2: Rs. 6,000 advance -> Rs. 3,000 bill, Rs. 0 net due, Rs. 3,000 advance left', () => {
   // Rs. 6,000 of ADVANCE credit before the cycle month: a Rs. 9,000 receipt
   // on the Rs. 3,000 September bill covers it and leaves Rs. 6,000 excess.
-  const c = customer('c1', 11, 'CH BILAL', {
+  const c = customer('c1', 11, 'Test Customer 11', {
     bills: [bill('2026-09', { payments: [payment('p1', { date: '2026-09-06', amount: 9000 })] })]
   });
   const line = planCustomerCycleLine(c, '2026-10');
@@ -79,7 +79,7 @@ test('spec criterion 2: Rs. 6,000 advance -> Rs. 3,000 bill, Rs. 0 net due, Rs. 
 });
 
 test('spec criterion 3: second run for the same month is refused and creates no duplicate bills', () => {
-  const c = customer('c1', 11, 'CH BILAL', { bills: [bill('2026-09')] });
+  const c = customer('c1', 11, 'Test Customer 11', { bills: [bill('2026-09')] });
   const first = runBillingCycle(stateWith([c]), '2026-10', [], new Date('2026-10-01T00:00:00Z'));
   assert.equal(first.state.customers[0].bills.length, 2);
   assert.equal(first.cycle.month, '2026-10');
@@ -91,7 +91,7 @@ test('spec criterion 3: second run for the same month is refused and creates no 
 });
 
 test('arrears math: multi-month unpaid + partial payment sums to Rs. 5,000 arrears', () => {
-  const c = customer('c1', 11, 'CH BILAL', {
+  const c = customer('c1', 11, 'Test Customer 11', {
     bills: [
       bill('2026-08'),
       bill('2026-09', { payments: [payment('p1', { date: '2026-09-06', amount: 1000 })] })
@@ -104,7 +104,7 @@ test('arrears math: multi-month unpaid + partial payment sums to Rs. 5,000 arrea
 });
 
 test('advance from a payment on an unpriced bill rolls forward', () => {
-  const c = customer('c1', 11, 'CH BILAL', {
+  const c = customer('c1', 11, 'Test Customer 11', {
     bills: [bill('2026-08', { dueAmount: null, priceSnapshot: null, payments: [payment('p1', { date: '2026-08-06', amount: 2000 })] })]
   });
   const { previousArrears, advanceCredit } = arrearsAndAdvance(c, '2026-10');
@@ -113,7 +113,7 @@ test('advance from a payment on an unpriced bill rolls forward', () => {
 });
 
 test('existing priced bill is adopted untouched (rate-locked) even after a price change', () => {
-  const c = customer('c1', 11, 'CH BILAL', {
+  const c = customer('c1', 11, 'Test Customer 11', {
     monthlyPriceSchedule: [{ effectiveMonth: '2026-08', amount: 3000 }, { effectiveMonth: '2026-10', amount: 4000 }],
     bills: [bill('2026-09'), bill('2026-10', { dueAmount: 3000, priceSnapshot: 3000 })]
   });
@@ -154,7 +154,7 @@ test('batch summary totals and defaulter aging buckets', () => {
 });
 
 test('receipt breakdown reconciles: total - paid - discount = balance', () => {
-  const c = customer('c1', 11, 'CH BILAL', {
+  const c = customer('c1', 11, 'Test Customer 11', {
     bills: [
       bill('2026-09'),
       bill('2026-10', { payments: [payment('p1', { date: '2026-10-06', amount: 2000 })] })

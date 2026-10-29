@@ -30,7 +30,7 @@ import {
 const base = (overrides = {}) => ({
   id: 'c1',
   customerNumber: 42,
-  name: 'RAJA FAISAL',
+  name: 'Test Customer 34',
   mohalla: 'Shahdara Town',
   archived: false,
   archivedAt: null,
@@ -130,7 +130,7 @@ test('pending list sorts by customer number', () => {
 
 test('recovery stock movement shape for SISP-18 merge-time wiring', () => {
   const recovered = base({
-    archived: true, name: 'RAJA FAISAL', customerNumber: 42,
+    archived: true, name: 'Test Customer 34', customerNumber: 42,
     routerOwnership: 'isp-owned',
     hardwareRecovered: { router: '2026-10-28', mediaConverter: null }
   });
@@ -139,7 +139,7 @@ test('recovery stock movement shape for SISP-18 merge-time wiring', () => {
     kind: 'in',
     qty: 1,
     date: '2026-10-28',
-    customerName: 'RAJA FAISAL',
+    customerName: 'Test Customer 34',
     note: 'Hardware recovered — Router (customer #42)'
   });
   assert.equal(recoveryStockMovement(recovered, 'mediaConverter'), null);
@@ -150,7 +150,7 @@ test('recovery stock movement shape for SISP-18 merge-time wiring', () => {
 
 test('core: addCustomer and updateCustomerProfile carry custody fields; invalid ownership rejected', () => {
   let state = createInitialState([]);
-  state = addCustomer(state, 'RAJA FAISAL', new Date('2026-10-28'), {
+  state = addCustomer(state, 'Test Customer 34', new Date('2026-10-28'), {
     routerOwnership: 'isp-owned',
     mediaConverterOwnership: 'customer-owned',
     serialNumber: 'SN-1234',
@@ -172,7 +172,7 @@ test('core: addCustomer and updateCustomerProfile carry custody fields; invalid 
 
 test('core: profile saves can never fake a recovery date', () => {
   let state = createInitialState([]);
-  state = addCustomer(state, 'RAJA FAISAL', new Date('2026-10-28'), { routerOwnership: 'isp-owned' });
+  state = addCustomer(state, 'Test Customer 34', new Date('2026-10-28'), { routerOwnership: 'isp-owned' });
   const customer = state.customers[0];
   state = updateCustomerProfile(state, customer.id, { hardwareRecovered: { router: '2026-10-28', mediaConverter: null } });
   assert.deepEqual(state.customers[0].hardwareRecovered, { router: null, mediaConverter: null });
@@ -180,7 +180,7 @@ test('core: profile saves can never fake a recovery date', () => {
 
 test('core: archive + custody fields flow through JSON backup merge; recovery dates merge per item', () => {
   let source = createInitialState([]);
-  source = addCustomer(source, 'RAJA FAISAL', new Date('2026-10-28'), {
+  source = addCustomer(source, 'Test Customer 34', new Date('2026-10-28'), {
     routerOwnership: 'isp-owned',
     mediaConverterOwnership: 'isp-owned',
     serialNumber: 'SN-1234',
@@ -195,7 +195,7 @@ test('core: archive + custody fields flow through JSON backup merge; recovery da
 
   // Device holds the same customer with empty custody fields: merge fills them.
   let device = createInitialState([]);
-  device = addCustomer(device, 'RAJA FAISAL', new Date('2026-10-28'), {});
+  device = addCustomer(device, 'Test Customer 34', new Date('2026-10-28'), {});
   device.customers[0].id = sourceCustomer.id;
   const preview = previewJsonBackupMerge(device, backup);
   const merged = preview.state.customers.find(c => c.id === sourceCustomer.id);
@@ -211,7 +211,7 @@ test('core: archive + custody fields flow through JSON backup merge; recovery da
   // Recovery-date merge: device date wins when both sides hold one (first
   // date kept); a device-side null adopts the backup date.
   let device2 = createInitialState([]);
-  device2 = addCustomer(device2, 'RAJA FAISAL', new Date('2026-10-28'), { routerOwnership: 'isp-owned', mediaConverterOwnership: 'isp-owned' });
+  device2 = addCustomer(device2, 'Test Customer 34', new Date('2026-10-28'), { routerOwnership: 'isp-owned', mediaConverterOwnership: 'isp-owned' });
   device2.customers[0].id = sourceCustomer.id;
   device2.customers[0].hardwareRecovered = { router: '2026-10-20', mediaConverter: null };
   const recoveredSource = markHardwareRecovered(
@@ -229,7 +229,7 @@ test('core: archive + custody fields flow through JSON backup merge; recovery da
 
 test('core: archived customer with ISP-owned media converter appears in pending list (end to end)', () => {
   let state = createInitialState([]);
-  state = addCustomer(state, 'RAJA FAISAL', new Date('2026-10-28'), { mediaConverterOwnership: 'isp-owned' });
+  state = addCustomer(state, 'Test Customer 34', new Date('2026-10-28'), { mediaConverterOwnership: 'isp-owned' });
   const customer = state.customers[0];
   assert.equal(pendingHardwareRecovery(state.customers).length, 0);
   state = archiveCustomer(state, customer.id, new Date('2026-10-28'));
@@ -255,7 +255,7 @@ test('wiring: recovered router yields exactly one stock-in movement for router',
   assert.equal(movements[0].kind, 'in');
   assert.equal(movements[0].qty, 1);
   assert.equal(movements[0].date, '2026-10-28');
-  assert.equal(movements[0].customerName, 'RAJA FAISAL');
+  assert.equal(movements[0].customerName, 'Test Customer 34');
 });
 
 test('wiring: recovered media converter maps to media-converter stock id', () => {

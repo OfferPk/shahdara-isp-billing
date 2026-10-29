@@ -41,7 +41,7 @@ const customer = (id, number, name, overrides) => ({
 
 const searchState = {
   customers: [
-    customer('c1', 11, 'RAJA FAISAL', {
+    customer('c1', 11, 'Raja Test', {
       mohalla: 'Barrian', phone: '+923001234567',
       bills: [bill('2026-09'), bill('2026-10')]
     }),
@@ -98,7 +98,7 @@ test('SISP-31 Urdu normalization folds keyboard variants and strips diacritics',
 test('SISP-31 zone Collected Today: houses + cash from today\'s recorded payments only', () => {
   const state = {
     customers: [
-      customer('c1', 11, 'RAJA FAISAL', {
+      customer('c1', 11, 'Test Customer 34', {
         mohalla: 'Barrian',
         bills: [bill('2026-10', { payments: [{ id: 'p1', date: TODAY, amount: 3000, method: 'Cash' }] })]
       }),
@@ -126,7 +126,7 @@ test('SISP-31 zone Collected Today: houses + cash from today\'s recorded payment
 test('SISP-31 pinned: collecting a payment updates the zone counter immediately', () => {
   const state = {
     customers: [
-      customer('c1', 11, 'RAJA FAISAL', {
+      customer('c1', 11, 'Test Customer 34', {
         mohalla: 'Barrian', phone: '+923001234567',
         bills: [bill('2026-09'), bill('2026-10')]
       })

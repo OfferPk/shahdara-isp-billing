@@ -37,7 +37,7 @@ test('address normalization finds punctuation and case variants and labels a sha
 });
 
 test('partial names and addresses are advisory; matching area alone is not enough', () => {
-  const partialName = findPossibleDuplicateCustomers([saved({ name: 'Nazeer Ahmed' })], { name: 'Nazeer' });
+  const partialName = findPossibleDuplicateCustomers([saved({ name: 'Test Customer 01 Ahmed' })], { name: 'Test Customer 01' });
   assert.equal(partialName.length, 1);
   assert.equal(partialName[0].reasons[0].type, 'partial');
   const partialAddress = findPossibleDuplicateCustomers([saved({ name: 'Old Name', address: 'Flat 8, Shahdara Market, Lahore' })], {

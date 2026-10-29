@@ -169,7 +169,7 @@ export const FERRULE_GEOMETRY_PRESETS = {
     springForceN: 7.5,
     matingCycles: 2,
     location: 'Kala Khatai Road Distribution Sub-FAT 09',
-    inspectorName: 'Muhammad Rizwan',
+    inspectorName: 'Sample Technician',
     serialNumber: 'SN-UNB-PIG-99824',
     description: 'Unbranded cheap pigtail with off-center apex dome causing fiber core air gap.'
   },
@@ -214,7 +214,7 @@ export const FERRULE_GEOMETRY_PRESETS = {
     springForceN: 5.5,
     matingCycles: 28,
     location: 'Vandala Road Pole 14 Sub-FAT Demarc',
-    inspectorName: 'Muhammad Rizwan',
+    inspectorName: 'Sample Technician',
     serialNumber: 'SN-LC-FLAT-77102',
     description: 'Worn polishing film generated a nearly flat surface (RoC > 25mm), unable to deform.'
   }

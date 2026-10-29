@@ -27,13 +27,13 @@ import {
 } from '../install-tracker.js';
 
 const CUSTOMERS = [
-  { id: 'c1', name: 'Master Zaheer', customerNumber: 1, mohalla: 'Barrian' },
+  { id: 'c1', name: 'Test Customer 122', customerNumber: 1, mohalla: 'Barrian' },
   { id: 'c2', name: 'Faisal', customerNumber: 2, mohalla: 'Barrian' }
 ];
 
 function request(overrides = {}) {
   return {
-    requesterName: 'Master Zaheer',
+    requesterName: 'Test Customer 122',
     requestDate: '2026-10-01',
     amountPaid: '10000',
     payMethod: 'easypaisa',
@@ -145,9 +145,9 @@ test('validation: missing name, bad date, negative amount, unknown method, unkno
   assert.equal(zero[0].amountPaid, 0);
   // Linked customer snapshots name/number without mutating the customer.
   const linked = addInstallRequest([], request({ customerId: 'c1' }), { customers: CUSTOMERS });
-  assert.equal(linked[0].customerName, 'Master Zaheer');
+  assert.equal(linked[0].customerName, 'Test Customer 122');
   assert.equal(linked[0].customerNumber, 1);
-  assert.equal(CUSTOMERS[0].name, 'Master Zaheer');
+  assert.equal(CUSTOMERS[0].name, 'Test Customer 122');
 });
 
 test('mark installed: happy path, reason replace/keep, and all rejections', () => {
@@ -194,7 +194,7 @@ test('storage round-trip under the tracker key', () => {
   assert.equal(store.has(INSTALL_REQUESTS_KEY), true);
   const loaded = loadInstallRequests(storage);
   assert.equal(loaded.length, 1);
-  assert.equal(loaded[0].requesterName, 'Master Zaheer');
+  assert.equal(loaded[0].requesterName, 'Test Customer 122');
   assert.equal(delayDays(loaded[0]), 2);
   assert.deepEqual(loadInstallRequests({ getItem: () => 'not json' }), []);
 });
@@ -251,7 +251,7 @@ test('edit request: same validation as create; unchanged customer kept when it l
   assert.throws(() => updateInstallRequest(requests, requests[0].id, request({ requesterName: '  ' }), { customers: CUSTOMERS }), /Requester name is required/);
   // Unchanged customer is NOT rejected when the customer left the list.
   const kept = updateInstallRequest(requests, requests[0].id, request({ customerId: 'c1', amountPaid: '12000' }), { customers: [] });
-  assert.equal(kept[0].customerName, 'Master Zaheer');
+  assert.equal(kept[0].customerName, 'Test Customer 122');
   assert.equal(kept[0].amountPaid, 12000);
   // But switching to a different unknown customer still throws.
   assert.throws(() => updateInstallRequest(requests, requests[0].id, request({ customerId: 'c2' }), { customers: [] }), /from the list/);

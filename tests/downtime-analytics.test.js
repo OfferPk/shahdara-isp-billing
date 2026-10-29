@@ -18,7 +18,7 @@ import {
 const complaint = (overrides = {}) => ({
   id: 'CMP-101',
   customerId: 'c1',
-  customerName: 'CH BILAL',
+  customerName: 'Test Customer 11',
   zone: 'Shahdara Town',
   issueCategory: 'Fiber Cut',
   reportedAt: '2026-10-05T10:00',
@@ -87,7 +87,7 @@ test('AREA_OUTAGE counts toward network breakdown, never toward a customer', () 
   assert.equal(analytics.areaOutageComplaints, 1);
   assert.equal(analytics.areaOutageDowntime, 3);
   assert.equal(analytics.perCustomer.length, 1);
-  assert.equal(analytics.perCustomer[0].customerName, 'CH BILAL');
+  assert.equal(analytics.perCustomer[0].customerName, 'Test Customer 11');
   const wapda = analytics.byCause.find((row) => row.category === 'WAPDA / Power Outage');
   assert.equal(wapda.incidents, 1);
   assert.equal(wapda.totalDowntime, 3);

@@ -12,6 +12,8 @@ import {
 import { inspectBackupFileHeader } from '../qa-backup-csv-import.js';
 import { createJsonBackup, previewJsonBackupMerge, createInitialState } from '../core.js';
 
+const SAMPLE_NAMES = Array.from({ length: 74 }, (_, i) => `Test Customer ${String(i + 1).padStart(2, '0')}`); // synthetic seed names (privacy cleanup: app ships an empty starter list)
+
 test('Issue #232: isEncryptedBackupPayload accurately identifies encrypted envelopes', () => {
   assert.equal(isEncryptedBackupPayload(null), false);
   assert.equal(isEncryptedBackupPayload(''), false);
@@ -139,7 +141,7 @@ test('Issue #232: inspectBackupFileHeader seamlessly recognizes encrypted backup
 });
 
 test('Issue #232: Full round-trip test: state -> backup -> encrypt -> decrypt -> previewJsonBackupMerge identical', async () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
   const rawBackupJson = createJsonBackup(state);
 
   const passphrase = 'ShahdaraFiberNetwork#2026';

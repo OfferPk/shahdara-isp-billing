@@ -113,7 +113,7 @@ test('phase 1 dictionary: interpolated keys keep their params in both languages'
 const customer = {
   id: 'c1',
   customerNumber: '34',
-  name: 'RAJA ALI',
+  name: 'Test Customer 35',
   phone: '03001234567',
   mohalla: 'Barrian',
   packageSpeed: '10MB',
@@ -142,7 +142,7 @@ test('phase 1 render: table row in English mode is byte-identical to the old str
   const html = renderCustomerTableRowMarkup(customer, { selectedBillingMonth: '2026-10' });
   for (const english of ['>Paid<', '>Active<', 'Open →']) assert.ok(html.includes(english), `row must contain ${english}`);
   // Params must actually interpolate (this caught t(key, {params}) being read as lang).
-  assert.ok(html.includes('Open profile for #34 RAJA ALI'), 'row title params must interpolate');
+  assert.ok(html.includes('Open profile for #34 Test Customer 35'), 'row title params must interpolate');
   assert.ok(!html.includes('{number}') && !html.includes('{name}'), 'row title must not leak raw placeholders');
   const empty = renderCustomerTableEmptyMarkup('Ali', 'Barrian');
   // Quotes are HTML-escaped by the renderer (same as before the change).

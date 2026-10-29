@@ -56,15 +56,15 @@ test('CSV header row is auto-detected, quoted cells and column order respected',
 
 test('statuses: OK / Missing fee / Duplicate (name+phone) / Duplicate in file / Fix', () => {
   let s = { version: 1, nextCustomerNumber: 1, customers: [] };
-  s = addCustomer(s, 'RAJA ALI', new Date(), { phone: '03001234567' });
+  s = addCustomer(s, 'Test Customer 35', new Date(), { phone: '03001234567' });
   const { rows } = parseCustomerList([
-    'ALI, 15MBPS, 3000RS', 'ASIF 5mbps', 'RAJA ALI 03001234567 5mbps 1500', 'RAJA ALI 03009999999 5mbps 1500',
+    'ALI, 15MBPS, 3000RS', 'ASIF 5mbps', 'Test Customer 35 03001234567 5mbps 1500', 'Test Customer 35 03009999999 5mbps 1500',
     'SAIM, 5MBPS, 1500', 'saim 5mbps 1500', 'X 5mbps 1500'
   ].join('\n'));
   const st = computeStatuses(rows, s.customers);
   assert.deepEqual(st.map(r => r.status), ['ok', 'missing-fee', 'duplicate', 'ok', 'ok', 'dup-file', 'error']);
   assert.deepEqual(st.map(r => r.included), [true, false, false, true, true, false, false]);
-  assert.match(st[2].detail, /Matches #1 RAJA ALI/);
+  assert.match(st[2].detail, /Matches #1 Test Customer 35/);
   assert.deepEqual(summarizeRows(st), { total: 7, ready: 3, skipped: 4, attention: 4 });
   // The user can tick a duplicate / missing-fee row; error rows stay out.
   const forced = computeStatuses(rows.map((r, i) => ({ ...r, include: [1, 2, 6].includes(i) ? true : null })), s.customers);

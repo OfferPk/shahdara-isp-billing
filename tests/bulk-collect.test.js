@@ -233,32 +233,32 @@ test('commitBatch is all-or-nothing and refuses an empty batch', () => {
 // ---- Bulk Collect v2: search always finds customers (#249 follow-up) ----
 function demoNoFees() {
   // Mirrors the demo seed: names in caps, no package, no bills.
-  const names = ['NAZEER', 'AWAIS', 'TEHMENA', 'NAZIA BIBI', 'SAFEER'];
+  const names = ['NAZEEHA TEST', 'Test Customer 02', 'Test Customer 03', 'NAZIA BIBI', 'Test Customer 04'];
   return { customers: names.map((name, i) => customer(`seed-${i + 1}`, i + 1, { name, phone: `0321555000${i + 1}`, area: i === 3 ? 'Jia Musa' : 'Begum Kot' })) };
 }
 
-test('search nazeer finds NAZEER when no fees set', () => {
+test('search NAZEEHA TEST finds NAZEEHA TEST when no fees set', () => {
   const s = demoNoFees();
   const b = createBatch();
-  const { rows, mode } = searchCustomersForBatch(s, b, 'nazeer');
+  const { rows, mode } = searchCustomersForBatch(s, b, 'NAZEEHA TEST');
   assert.equal(mode, 'search');
-  assert.deepEqual(rows.map(r => r.name), ['NAZEER']);
+  assert.deepEqual(rows.map(r => r.name), ['NAZEEHA TEST']);
   assert.equal(rows[0].status, 'no-bill');
   assert.equal(rows[0].totalDues, 0);
   // and the pending-only picker (the v1 bug) really had nothing
-  assert.equal(pendingForBatch(s, b, 'nazeer').length, 0);
+  assert.equal(pendingForBatch(s, b, 'NAZEEHA TEST').length, 0);
 });
 
 test('search is case-insensitive, partial, and matches mobile, area and customer #', () => {
   const s = demoNoFees();
   const b = createBatch();
   const names = q => searchCustomersForBatch(s, b, q).rows.map(r => r.name);
-  assert.deepEqual(names('NaZ').sort(), ['NAZEER', 'NAZIA BIBI']);
-  assert.deepEqual(names('azee'), ['NAZEER']);
-  assert.deepEqual(names('03215550002'), ['AWAIS']);
-  assert.deepEqual(names('5550005'), ['SAFEER']);
+  assert.deepEqual(names('NaZ').sort(), ['NAZEEHA TEST', 'NAZIA BIBI']);
+  assert.deepEqual(names('azee'), ['NAZEEHA TEST']);
+  assert.deepEqual(names('03215550002'), ['Test Customer 02']);
+  assert.deepEqual(names('5550005'), ['Test Customer 04']);
   assert.deepEqual(names('jia musa'), ['NAZIA BIBI']);
-  assert.deepEqual(names('#3'), ['TEHMENA']);
+  assert.deepEqual(names('#3'), ['Test Customer 03']);
   assert.deepEqual(names('zzz-none'), []);
 });
 
@@ -287,8 +287,8 @@ test('added customers leave the default list but stay findable, flagged and sort
   b = addEntry(b, s, fieldsFor(s, b, 'seed-1', { amount: 500 })).batch;
   assert.ok(!searchCustomersForBatch(s, b, '').rows.some(r => r.id === 'seed-1'));
   const naz = searchCustomersForBatch(s, b, 'naz').rows;
-  assert.deepEqual(naz.map(r => [r.name, r.inBatch]), [['NAZIA BIBI', false], ['NAZEER', true]]);
-  // adding NAZEER again still triggers the "Already added" duplicate check
+  assert.deepEqual(naz.map(r => [r.name, r.inBatch]), [['NAZIA BIBI', false], ['NAZEEHA TEST', true]]);
+  // adding NAZEEHA TEST again still triggers the "Already added" duplicate check
   const again = addEntry(b, s, fieldsFor(s, b, 'seed-1', { amount: 100 }));
   assert.equal(again.added, null);
   assert.ok(again.duplicate);
@@ -303,7 +303,7 @@ test('a customer with no bill can be paid with a manually entered amount', () =>
   const add = addEntry(b, s, fieldsFor(s, b, 'seed-1', { amount: 750 }));
   assert.ok(add.added);
   const res = commitBatch(s, add.batch);
-  const nazeer = res.nextState.customers.find(c => c.id === 'seed-1');
-  const paid = nazeer.bills.flatMap(bill => bill.payments ?? []).reduce((t, p) => t + Number(p.amount), 0);
+  const firstCustomer = res.nextState.customers.find(c => c.id === 'seed-1');
+  const paid = firstCustomer.bills.flatMap(bill => bill.payments ?? []).reduce((t, p) => t + Number(p.amount), 0);
   assert.equal(paid, 750);
 });

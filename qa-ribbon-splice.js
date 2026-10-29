@@ -149,7 +149,7 @@ export const SHAH_RIBBON_SPLICE_PRESETS = {
     arcDischargeCurrentMa: 14.5,
     arcBalanceFactor: 0.99,
     wavelengthNm: 1310,
-    technicianName: 'Muhammad Rizwan (Senior OSP Splicer)',
+    technicianName: 'Sample Technician (Senior OSP Splicer)',
     notes: 'Pristine ribbon preparation using thermal stripper and CT50 blade. Optimal fusion across all 12 channels.'
   },
   'PRESET_RAVI_SIPHON_24F_TRUNK': {
@@ -1267,7 +1267,7 @@ export function setupRibbonSpliceQaModal(options = {}) {
           pitchVariationUm: pitchVarInput ? parseFloat(pitchVarInput.value) || 1.0 : 1.0,
           cleaveLengthDiffUm: cleaveDiffInput ? parseFloat(cleaveDiffInput.value) || 2.0 : 2.0,
           arcBalanceFactor: arcBalanceInput ? parseFloat(arcBalanceInput.value) || 0.96 : 0.96,
-          technicianName: techInput ? techInput.value : 'Muhammad Rizwan',
+          technicianName: techInput ? techInput.value : 'Sample Technician',
           notes: notesInput ? notesInput.value : ''
         }, options.state);
 

@@ -32,7 +32,7 @@ import {
 } from '../saad-visits.js';
 
 const CUSTOMERS = [
-  { id: 'c-1', customerNumber: 1, name: 'RAJA FAISAL', mohalla: 'Barrian', zone: '' },
+  { id: 'c-1', customerNumber: 1, name: 'Test Customer 34', mohalla: 'Barrian', zone: '' },
   { id: 'c-2', customerNumber: 2, name: 'AW AIS', mohalla: 'Shahdara Khurd', zone: 'Side 1' }
 ];
 
@@ -76,7 +76,7 @@ test('hours from times: 09:00-12:30 is 3.5 hours; bad pairs give null', () => {
 test('add visit happy path: customer picked, area defaults from mohalla, hours from times', () => {
   const [v] = addSaadVisit([], visit(), { customers: CUSTOMERS, ticketIds: [] });
   assert.equal(v.id, 'SV-1');
-  assert.equal(v.customerName, 'RAJA FAISAL');
+  assert.equal(v.customerName, 'Test Customer 34');
   assert.equal(v.customerNumber, 1);
   assert.equal(v.area, 'Barrian');
   assert.equal(v.hoursWorked, 3.5);
@@ -194,7 +194,7 @@ test('monthly summary: same-day two visits count as ONE day but sum BOTH hours',
   assert.equal(s.totalHours, 3.5);
   assert.equal(s.perDay.length, 1);
   assert.equal(s.perDay[0].hours, 3.5);
-  assert.deepEqual(s.perDay[0].places, ['RAJA FAISAL (#1)']);
+  assert.deepEqual(s.perDay[0].places, ['Test Customer 34 (#1)']);
   assert.equal(s.splicingCount, 1);
   assert.equal(s.fiberFixCount, 1);
 });
@@ -244,7 +244,7 @@ test('monthly summary: per-day where labels show customer and area work side by 
   let visits = addSaadVisit([], visit({ date: '2026-10-05', customerId: 'c-1' }), { customers: CUSTOMERS });
   visits = addSaadVisit(visits, visit({ date: '2026-10-05', type: 'fiber-fix', customerId: '', area: 'Barrian main fiber', startTime: '15:00', endTime: '16:00' }), { customers: CUSTOMERS });
   const s = buildMonthlySaadSummary(visits, [], '2026-10');
-  assert.deepEqual(s.perDay[0].places, ['RAJA FAISAL (#1)', 'Barrian main fiber']);
+  assert.deepEqual(s.perDay[0].places, ['Test Customer 34 (#1)', 'Barrian main fiber']);
   assert.equal(s.totalFiberMeters, 0);
   const withFiber = addSaadVisit(visits, visit({ date: '2026-10-07', fiberMeters: '120' }), { customers: CUSTOMERS });
   assert.equal(buildMonthlySaadSummary(withFiber, [], '2026-10').totalFiberMeters, 120);
@@ -322,7 +322,7 @@ test('edit visit: same validation as create; unchanged customer kept when it lef
   assert.throws(() => updateSaadVisit(visits, visits[0].id, visit({ customerId: 'c-9' }), { customers: CUSTOMERS }), /from the list/);
   // Unchanged customer is NOT rejected when the customer left the list.
   const kept = updateSaadVisit(visits, visits[0].id, visit({ startTime: '09:00', endTime: '10:00' }), { customers: [] });
-  assert.equal(kept[0].customerName, 'RAJA FAISAL');
+  assert.equal(kept[0].customerName, 'Test Customer 34');
   assert.equal(kept[0].hoursWorked, 1);
   // But switching to a different unknown customer still throws.
   assert.throws(() => updateSaadVisit(visits, visits[0].id, visit({ customerId: 'c-9' }), { customers: [] }), /from the list/);

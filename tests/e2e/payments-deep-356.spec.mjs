@@ -55,9 +55,9 @@ test.describe('Issue 356: Payments screens deep functional test', () => {
   test('transactions: seed 3 payments, filter, sort, edit, delete+undo, export', async ({ page }) => {
     const errors = trackErrors(page);
     await seedFees(page);
-    await qcPay(page, 'NAZEER', {}); // full 1000 Cash (defaults)
-    await qcPay(page, 'AWAIS', { method: 'Bank Transfer', txn: 'BANKTXN123' }); // full 1000 via Bank chip
-    await qcPay(page, 'TEHMENA', { method: 'JazzCash', amount: 400, txn: 'JC-9001' }); // partial 400
+    await qcPay(page, 'Test Customer 01', {}); // full 1000 Cash (defaults)
+    await qcPay(page, 'Test Customer 02', { method: 'Bank Transfer', txn: 'BANKTXN123' }); // full 1000 via Bank chip
+    await qcPay(page, 'Test Customer 03', { method: 'JazzCash', amount: 400, txn: 'JC-9001' }); // partial 400
 
     // Regression: the Bank payment must be stored as Bank Transfer, not Cash.
     const stored = await page.evaluate(() => {
@@ -66,44 +66,44 @@ test.describe('Issue 356: Payments screens deep functional test', () => {
       for (const c of st.customers) for (const b of c.bills || []) for (const p of b.payments || []) out.push(`${c.name}:${p.method}:${p.amount}`);
       return out.sort();
     });
-    expect(stored).toEqual(['AWAIS:Bank Transfer:1000', 'NAZEER:Cash:1000', 'TEHMENA:JazzCash:400']);
+    expect(stored).toEqual(['Test Customer 02:Bank Transfer:1000', 'Test Customer 01:Cash:1000', 'Test Customer 03:JazzCash:400']);
 
     await page.goto('/#/transactions');
     await expect(page.locator('#transactionsCount')).toContainText('3 of 3 recorded payments');
     await expect(page.locator('#txSummaryTotal')).toHaveText('PKR 2,400');
 
-    // Method filter: Bank Transfer shows only AWAIS.
+    // Method filter: Bank Transfer shows only Test Customer 02.
     await page.locator('#transactionMethodFilter').selectOption('Bank Transfer');
     await expect(page.locator('#transactionsList [data-payment-row]')).toHaveCount(1);
-    await expect(page.locator('#transactionsList')).toContainText('AWAIS');
+    await expect(page.locator('#transactionsList')).toContainText('Test Customer 02');
     await expect(page.locator('#txSummaryTotal')).toHaveText('PKR 1,000');
-    // Method filter: Cash shows only NAZEER (the Bank payment must not leak in).
+    // Method filter: Cash shows only Test Customer 01 (the Bank payment must not leak in).
     await page.locator('#transactionMethodFilter').selectOption('Cash');
     await expect(page.locator('#transactionsList [data-payment-row]')).toHaveCount(1);
-    await expect(page.locator('#transactionsList')).toContainText('NAZEER');
+    await expect(page.locator('#transactionsList')).toContainText('Test Customer 01');
     await page.locator('#transactionMethodFilter').selectOption('all');
     await expect(page.locator('#transactionsList [data-payment-row]')).toHaveCount(3);
 
-    // Sort by amount ascending: TEHMENA (400) first.
+    // Sort by amount ascending: Test Customer 03 (400) first.
     await page.locator('#transactionSortSelect').selectOption('amount-asc');
-    await expect(page.locator('#transactionsList [data-payment-row]').first()).toContainText('TEHMENA');
+    await expect(page.locator('#transactionsList [data-payment-row]').first()).toContainText('Test Customer 03');
 
-    // Expand AWAIS row -> actions; Edit amount 1000 -> 900 inline.
+    // Expand Test Customer 02 row -> actions; Edit amount 1000 -> 900 inline.
     // (Locate by payment id: the correction form replaces the row's
     // content and no longer contains the customer name.)
-    const awaisRow = page.locator('#transactionsList [data-payment-row]', { hasText: 'AWAIS' });
-    const awaisPid = await awaisRow.getAttribute('data-payment-row');
-    await awaisRow.locator('.tx-row').click();
-    await awaisRow.locator('[data-transaction-edit]').click();
-    const form = page.locator(`#transactionsList [data-payment-row="${awaisPid}"] form.payment-form.editing`);
+    const secondRow = page.locator('#transactionsList [data-payment-row]', { hasText: 'Test Customer 02' });
+    const secondPid = await secondRow.getAttribute('data-payment-row');
+    await secondRow.locator('.tx-row').click();
+    await secondRow.locator('[data-transaction-edit]').click();
+    const form = page.locator(`#transactionsList [data-payment-row="${secondPid}"] form.payment-form.editing`);
     await expect(form).toBeVisible();
     await form.locator('input[name="amount"]').fill('900');
     await form.locator('button[type="submit"]').click();
     await expect(form).toBeHidden();
     await expect(page.locator('#txSummaryTotal')).toHaveText('PKR 2,300');
 
-    // Delete TEHMENA's payment, then Undo from the toast.
-    const tehRow = page.locator('#transactionsList [data-payment-row]', { hasText: 'TEHMENA' });
+    // Delete Test Customer 03's payment, then Undo from the toast.
+    const tehRow = page.locator('#transactionsList [data-payment-row]', { hasText: 'Test Customer 03' });
     await tehRow.locator('.tx-row').click();
     await tehRow.locator('[data-transaction-delete]').click();
     await page.getByRole('button', { name: 'Delete payment' }).click();

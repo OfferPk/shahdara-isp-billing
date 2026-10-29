@@ -91,16 +91,16 @@ test.describe('Issue #268: Quick Collect & Bulk Collect data path', () => {
     // Bulk caption shows Pending customers (74), NOT "No pending dues"
     await expect(page.locator('.bc-list-caption')).toContainText('Pending customers (74)');
 
-    // 6. Search Nazeer
-    await page.locator('#bulkCollectSearch').fill('Nazeer');
-    const nazeerRow = page.locator('[data-bulk-row="seed-001"]');
-    await expect(nazeerRow).toBeVisible();
-    await expect(nazeerRow.locator('.bc-badge-due')).toHaveText('Due PKR 1,000');
+    // 6. Search Test Customer 01
+    await page.locator('#bulkCollectSearch').fill('Test Customer 01');
+    const firstRow = page.locator('[data-bulk-row="seed-001"]');
+    await expect(firstRow).toBeVisible();
+    await expect(firstRow.locator('.bc-badge-due')).toHaveText('Due PKR 1,000');
     // Amount input is prefilled with 1000
-    await expect(nazeerRow.locator('.bc-amount')).toHaveValue('1000');
+    await expect(firstRow.locator('.bc-amount')).toHaveValue('1000');
 
-    // Add Nazeer to batch
-    await nazeerRow.locator('.bc-row-add').click();
+    // Add Test Customer 01 to batch
+    await firstRow.locator('.bc-row-add').click();
     await expect(page.locator('#bulkCollectCount')).toHaveText('1 customer');
     await expect(page.locator('#bulkCollectTotal')).toHaveText('PKR 1,000');
 

@@ -54,7 +54,7 @@ function seedStock(entries) {
 /** A resolved TKT-101 (first ticket in an empty list) with materials. */
 function resolvedTicket(materialsUsed, referenceDate = RESOLVE_REF) {
   const created = createTicket({
-    customerId: 'c1', customerName: 'CH BILAL', faultPreset: 'Fiber Cut / Splice Loss', technician: 'Saad'
+    customerId: 'c1', customerName: 'Test Customer 11', faultPreset: 'Fiber Cut / Splice Loss', technician: 'Saad'
   }, [], referenceDate);
   return resolveTicket([created], created.id, { materialsUsed, billingType: 'free', referenceDate })[0];
 }
@@ -112,7 +112,7 @@ test('bridge: a ticket with no materials deducts nothing; open tickets untouched
   const movements = seedStock([{ itemId: 'fiber-2core', qty: 1000 }]);
   const noMaterials = resolvedTicket([]);
   const created = createTicket({
-    customerId: 'c2', customerName: 'RAJA ARIF', faultPreset: 'Router / IP Conflict', technician: 'Saad'
+    customerId: 'c2', customerName: 'Test Customer 109', faultPreset: 'Router / IP Conflict', technician: 'Saad'
   }, [noMaterials], RESOLVE_REF);
   const result = applyTicketStockBridge([noMaterials, created], movements, addMovement);
   assert.deepEqual(result.deducted, []);
@@ -192,7 +192,7 @@ test('spec: recovering a router from an archived customer adds +1 router to sisp
   const before = {
     id: 'c9',
     customerNumber: 9,
-    name: 'AKHTAR WAPDA HOUSE',
+    name: 'Test Customer 132',
     archived: true,
     routerOwnership: 'isp-owned',
     mediaConverterOwnership: '',

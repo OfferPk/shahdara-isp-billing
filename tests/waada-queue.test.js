@@ -31,6 +31,8 @@ import {
 } from '../reminder-queue.js';
 import { calculateTopDefaulters } from '../dashboard-top-defaulters.js';
 
+const SAMPLE_NAMES = Array.from({ length: 74 }, (_, i) => `Test Customer ${String(i + 1).padStart(2, '0')}`); // synthetic seed names (privacy cleanup: app ships an empty starter list)
+
 const TODAY = '2026-10-28';
 const referenceDate = new Date(2026, 8, 29, 12);
 const mockStorage = () => {
@@ -133,7 +135,7 @@ test('clearWaadaOnFullPayment clears only when the balance is fully paid', () =>
 // --- Core addPayment auto-clear (spec criterion 3) ---
 
 test('recording full payment automatically clears promiseDate; partial payment keeps it', () => {
-  let state = createInitialState();
+  let state = createInitialState(SAMPLE_NAMES);
   state = pricedBill(state, 'seed-001', '2026-09', '3000');
   state = withPromise(state, 'seed-001', { promiseDate: '2026-10-10', promiseAmount: 3000, promiseNote: 'Salary' });
 
@@ -147,7 +149,7 @@ test('recording full payment automatically clears promiseDate; partial payment k
 });
 
 test('payment on an unpriced bill does not clear the promise (no priced balance to settle)', () => {
-  let state = createInitialState();
+  let state = createInitialState(SAMPLE_NAMES);
   state = withPromise(state, 'seed-001', { promiseDate: '2026-10-10' });
   const next = addPayment(state, 'seed-001', '2026-09', { date: '2026-09-15', amount: '500', method: 'Cash' }, referenceDate);
   assert.equal(next.customers[0].promiseDate, '2026-10-10');
@@ -156,7 +158,7 @@ test('payment on an unpriced bill does not clear the promise (no priced balance 
 // --- Daily reminder queue tiering ---
 
 test('daily queue: broken promises pin first, promised customers are snoozed out', () => {
-  let state = createInitialState();
+  let state = createInitialState(SAMPLE_NAMES);
   state = pricedBill(state, 'seed-001', '2026-10', '3000', octoberReference);
   state = pricedBill(state, 'seed-002', '2026-10', '5000', octoberReference);
   state = pricedBill(state, 'seed-003', '2026-10', '2000', octoberReference);
@@ -177,7 +179,7 @@ test('daily queue: broken promises pin first, promised customers are snoozed out
 // --- Defaulters tier filter ---
 
 test('defaulters waada filter isolates broken / promised / active tiers', () => {
-  let state = createInitialState();
+  let state = createInitialState(SAMPLE_NAMES);
   state = pricedBill(state, 'seed-001', '2026-10', '3000', octoberReference);
   state = pricedBill(state, 'seed-002', '2026-10', '5000', octoberReference);
   state = pricedBill(state, 'seed-003', '2026-10', '2000', octoberReference);
@@ -202,8 +204,8 @@ test('defaulters waada filter isolates broken / promised / active tiers', () => 
 // --- Backup round-trip ---
 
 test('promise fields survive JSON backup export and safe-merge restore', () => {
-  let existing = createInitialState();
-  let backupState = createInitialState();
+  let existing = createInitialState(SAMPLE_NAMES);
+  let backupState = createInitialState(SAMPLE_NAMES);
   backupState = withPromise(backupState, 'seed-001', { promiseDate: '2026-11-10', promiseAmount: 3000, promiseNote: 'Salary' });
   const backupText = createJsonBackup(backupState, new Date());
 

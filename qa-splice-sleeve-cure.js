@@ -305,7 +305,7 @@ export const SHAH_SLEEVE_PRESETS = {
     hasMeniscusSeal: true,
     rodAngleDeg: 0.15,
     outerTubeCondition: 'PRISTINE_CRYSTALLINE',
-    technicianName: 'Muhammad Rizwan (Senior Fiber Splicing Specialist)'
+    technicianName: 'Sample Technician (Senior Fiber Splicing Specialist)'
   },
   'VANDALA_SLIM_40MM': {
     id: 'VANDALA_SLIM_40MM',

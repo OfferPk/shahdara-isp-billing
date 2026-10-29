@@ -2,7 +2,7 @@
 //
 // When the app language is Urdu, customer names shown on screen (dashboard
 // overdue lists, customer list, profile header) render in Urdu script, e.g.
-// RAJA FAISAL → راجہ فیصل. Receipt drafts, WhatsApp drafts and exports keep
+// ALI KHAN → علی خان. Receipt drafts, WhatsApp drafts and exports keep
 // the saved Roman name so records always match.
 //
 // Two layers, in order:
@@ -29,7 +29,7 @@ export const URDU_NAME_WORDS = {
   AQIB: 'عاقب', WASEEM: 'وسیم',
   // People — common family / caste names
   ABBASI: 'عباسی', MALIK: 'ملک', CHAUDHRY: 'چوہدری', CHAUDRY: 'چوہدری',
-  CH: 'چوہدری', BAJWA: 'باجوہ', DARBAR: 'دربار', PATHAN: 'پٹھان',
+  CH: 'چوہدری', BAJWA: 'باجوہ',
   SHAH: 'شاہ', MIRZA: 'مرزا', QURESHI: 'قریشی', ANSARI: 'انصاری',
   SHEIKH: 'شیخ', SYED: 'سید', BUKHARI: 'بخاری', GILLANI: 'گیلانی',
   NAQVI: 'نقوی', ZAIDI: 'زیدی', KAZMI: 'کاظمی', RIZVI: 'رضوی',

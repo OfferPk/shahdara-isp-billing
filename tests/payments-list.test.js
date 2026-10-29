@@ -30,7 +30,7 @@ test('bill month is only repeated when it differs from the payment month', () =>
 
 test('payment deletions are kept in a device audit log with the reason, and undo is marked', () => {
   const st = mem();
-  recordPaymentDeletion({ paymentId: 'p1', customerId: 'c1', customerNumber: 2, customerName: 'AWAIS', month: '2026-10', date: '2026-10-19', amount: 1000, method: 'Cash', reason: '  entered twice ' }, st);
+  recordPaymentDeletion({ paymentId: 'p1', customerId: 'c1', customerNumber: 2, customerName: 'Test Customer 02', month: '2026-10', date: '2026-10-19', amount: 1000, method: 'Cash', reason: '  entered twice ' }, st);
   let log = readPaymentDeletionLog(st);
   assert.equal(log.length, 1);
   assert.equal(log[0].reason, 'entered twice');

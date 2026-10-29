@@ -34,7 +34,7 @@ async function seedCustomer(page) {
     let s = JSON.parse(localStorage.getItem(core.STORAGE_KEY));
     const now = new Date();
     const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    s = core.addCustomer(s, 'RAJA FAISAL', now, { phone: '+923001234567', mohalla: 'Barrian', zone: 'Barrian' });
+    s = core.addCustomer(s, 'Test Customer 34', now, { phone: '+923001234567', mohalla: 'Barrian', zone: 'Barrian' });
     const raja = s.customers.at(-1);
     s = core.saveBillMonth(s, raja.id, { month, dueAmount: '3000', status: 'pending' });
     localStorage.setItem(core.STORAGE_KEY, JSON.stringify(s));

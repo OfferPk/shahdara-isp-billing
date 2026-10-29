@@ -28,7 +28,7 @@ async function searchAndCollect(page, query) {
 test.describe('Issue 354: Fast Search Collect / Set Fee', () => {
   test('no-fee customer: opens Set monthly bill, not Quick Collect with Rs 0 chips', async ({ page }) => {
     await freshApp(page);
-    const card = await searchAndCollect(page, 'awais');
+    const card = await searchAndCollect(page, 'Test Customer 02');
     const collectBtn = card.locator('[data-fcs-action="collect"]');
     await expect(collectBtn).toContainText('Collect / Set Fee');
     await collectBtn.click();
@@ -37,7 +37,7 @@ test.describe('Issue 354: Fast Search Collect / Set Fee', () => {
     const dialog = page.locator('#inlineBillEditDialog');
     await expect(dialog).toBeVisible();
     await expect(page.locator('#inlineBillEditTitle')).toHaveText('Set monthly bill');
-    await expect(page.locator('#inlineBillCustomerInfo')).toContainText('AWAIS');
+    await expect(page.locator('#inlineBillCustomerInfo')).toContainText('Test Customer 02');
     // Quick Collect did NOT open.
     await expect(page.locator('#quickCollectModal')).toBeHidden();
 
@@ -48,7 +48,7 @@ test.describe('Issue 354: Fast Search Collect / Set Fee', () => {
     await expect(page.locator('#toast')).toContainText('1,500');
 
     // Now the same search action goes to Quick Collect with real amounts.
-    const card2 = await searchAndCollect(page, 'awais');
+    const card2 = await searchAndCollect(page, 'Test Customer 02');
     await card2.locator('[data-fcs-action="collect"]').click();
     const qc = page.locator('#quickCollectModal');
     await expect(qc).toBeVisible();
@@ -60,7 +60,7 @@ test.describe('Issue 354: Fast Search Collect / Set Fee', () => {
     await page.locator('#mobileCustomerSearchTrigger').click();
     const input = page.locator('#fastCustomerSearchInput');
     await expect(input).toBeVisible();
-    await input.fill('nazeer');
+    await input.fill('Test Customer 01');
     await expect(page.locator('.fcs-card').first()).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(page.locator('#inlineBillEditDialog')).toBeVisible();

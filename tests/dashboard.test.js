@@ -517,6 +517,8 @@ import {
   METHOD_COLORS
 } from '../dashboard-charts.js';
 
+const SAMPLE_NAMES = Array.from({ length: 74 }, (_, i) => `Test Customer ${String(i + 1).padStart(2, '0')}`); // synthetic seed names (privacy cleanup: app ships an empty starter list)
+
 test('calculateDashboardKpis returns accurate subscriber breakdown and percentages', () => {
   let state = createInitialState(['Alice', 'Bob', 'Charlie', 'David']);
   state.customers[0].serviceStatus = 'active';
@@ -3249,7 +3251,7 @@ test('setupUpstreamGatewayModal wires up modal dialog, KPIs, table, and clipboar
 });
 
 test('calculateAcquisitionRoiMetrics correctly segments subscribers into acquisition channels and computes CAC payback', () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
   const res = calculateAcquisitionRoiMetrics(state, new Date('2026-10-15T12:00:00+05:00'));
 
   assert.ok(res.totalPortfolioAcquisitions > 0);
@@ -3336,7 +3338,7 @@ test('renderAcquisitionRoiSvg renders accessible SVG with channel bars and empty
   assert.ok(emptySvg.includes('<svg'));
   assert.ok(emptySvg.includes('No subscriber acquisition data available'));
 
-  const populatedState = createInitialState();
+  const populatedState = createInitialState(SAMPLE_NAMES);
   const popData = calculateAcquisitionRoiMetrics(populatedState);
   const svg = renderAcquisitionRoiSvg(popData);
 
@@ -3347,7 +3349,7 @@ test('renderAcquisitionRoiSvg renders accessible SVG with channel bars and empty
 });
 
 test('generateAcquisitionBriefingReport generates structured plain text summary', () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
   const data = calculateAcquisitionRoiMetrics(state);
   const report = generateAcquisitionBriefingReport(data, new Date('2026-10-15T12:00:00+05:00'));
 
@@ -3359,7 +3361,7 @@ test('generateAcquisitionBriefingReport generates structured plain text summary'
 });
 
 test('setupAcquisitionRoiModal wires modal open, close, preset multipliers, and clipboard copy', async () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
 
   let modalOpened = false;
   let openHandler = null;
@@ -3466,7 +3468,7 @@ test('setupAcquisitionRoiModal wires modal open, close, preset multipliers, and 
 });
 
 test('calculateBandwidthShapingMetrics calculates peak demand, diurnal profile, and headroom', () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
   const res = calculateBandwidthShapingMetrics(state, new Date('2026-10-15T12:00:00+05:00'));
 
   assert.ok(res.activeSubscribersCount > 0);
@@ -3518,7 +3520,7 @@ test('renderBandwidthShapingSvg renders accessible SVG with 24h diurnal curve an
   assert.ok(emptySvg.includes('<svg'));
   assert.ok(emptySvg.includes('No active bandwidth demand detected'));
 
-  const populatedState = createInitialState();
+  const populatedState = createInitialState(SAMPLE_NAMES);
   const popMetrics = calculateBandwidthShapingMetrics(populatedState);
   const svg = renderBandwidthShapingSvg(popMetrics);
 
@@ -3529,7 +3531,7 @@ test('renderBandwidthShapingSvg renders accessible SVG with 24h diurnal curve an
 });
 
 test('generateBandwidthShapingReport generates plain-text summary', () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
   const metrics = calculateBandwidthShapingMetrics(state);
   const report = generateBandwidthShapingReport(metrics, new Date('2026-10-15T12:00:00+05:00'));
 
@@ -3540,7 +3542,7 @@ test('generateBandwidthShapingReport generates plain-text summary', () => {
 });
 
 test('setupBandwidthShapingModal wires modal open, close, ratio toggling, and clipboard copy', async () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
 
   let modalOpened = false;
   let openHandler = null;
@@ -11857,7 +11859,7 @@ test('calculateEvpnMetrics correlates overlay topology with subscriber base and 
 });
 
 test('renderEvpnDiagramSvg generates compliant SVG in compact and expanded views', () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
   const metrics = calculateEvpnMetrics(state, { vniId: 'evpn-vni-10010' });
 
   // Compact SVG
@@ -11886,7 +11888,7 @@ test('renderEvpnDiagramSvg generates compliant SVG in compact and expanded views
 });
 
 test('generateEvpnReport formats comprehensive engineering briefing', () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
   const metrics = calculateEvpnMetrics(state, { vniId: 'evpn-vni-10010' });
   const report = generateEvpnReport(metrics);
 
@@ -11901,7 +11903,7 @@ test('generateEvpnReport formats comprehensive engineering briefing', () => {
 });
 
 test('setupEvpnModal binds UI events, controls, presets, and clipboard integration', async () => {
-  const state = createInitialState();
+  const state = createInitialState(SAMPLE_NAMES);
   addCustomer(state, { name: 'Evpn Test Customer', area: 'Shahdara Town', packagePrice: 2500, status: 'Active' });
 
   let modalOpened = false;

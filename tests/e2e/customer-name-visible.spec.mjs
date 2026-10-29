@@ -13,7 +13,7 @@ import { test, expect } from '@playwright/test';
 // giving .customer-copy the full heading width. No information is removed:
 // avatar, #number, package, service-status pill and billing badge all stay.
 
-const LONG_NAME = 'MUHAMMAD NAZEER AHMAD';
+const LONG_NAME = 'SAMPLE CUSTOMER AHMAD';
 const LONGEST_NAME = 'SHAHID MEHMOOD KHAN RAJPOOT';
 const SHORT_NAME = 'ALI';
 

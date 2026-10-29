@@ -30,7 +30,7 @@ const customer = (id, number, name, overrides) => ({
   monthlyPriceSchedule: [{ effectiveMonth: '2026-08', amount: 3000 }],
   bills: [], ...overrides
 });
-const kistCustomer = (overrides = {}) => customer('c1', 11, 'CH BILAL', {
+const kistCustomer = (overrides = {}) => customer('c1', 11, 'Test Customer 11', {
   installmentPlans: [createInstallmentPlan({ itemTitle: 'Tenda F3 Router', totalAmount: 3000, downPayment: 0, totalMonths: 3 })],
   ...overrides
 });
@@ -154,7 +154,7 @@ test('down-payment receipt snapshot carries the payment, plan totals and schedul
   const plan = createInstallmentPlan({ itemTitle: 'Tenda F3 Router', totalAmount: 5000, downPayment: 2000, totalMonths: 3 });
   const payment = { id: 'pay-1', amount: 2000, date: '2026-10-20', method: 'Cash' };
   const receipt = buildDownPaymentKistReceipt(kistCustomer(), plan, payment);
-  assert.equal(receipt.customerName, 'CH BILAL');
+  assert.equal(receipt.customerName, 'Test Customer 11');
   assert.equal(receipt.customerId, '11');
   assert.match(receipt.receiptNumber, /^REC-/);
   assert.equal(receipt.paymentDate, '2026-10-20');

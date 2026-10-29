@@ -184,13 +184,13 @@ test('phase 2 render: Today card in Urdu mode shows Urdu, never the English orig
 
   renderHomeTodaySummary(doc, {
     ...todayBase,
-    top5Overdue: [{ id: 'c9', customerNumber: '35', name: 'RAJA ALI', phone: '03001234567', mohalla: 'Barrian', balanceDue: 6000 }],
+    top5Overdue: [{ id: 'c9', customerNumber: '35', name: 'Test Customer 35', phone: '03001234567', mohalla: 'Barrian', balanceDue: 6000 }],
   });
   const row = els.homeTopOverdueList.innerHTML;
   assert.ok(row.includes('title="واٹس ایپ یاد دہانی بھیجیں"'), 'WA link title must be Urdu');
-  assert.ok(row.includes('aria-label="RAJA ALI کو واٹس ایپ بھیجیں"'), 'WA link aria must be Urdu');
+  assert.ok(row.includes('aria-label="Test Customer 35 کو واٹس ایپ بھیجیں"'), 'WA link aria must be Urdu');
   assert.ok(row.includes('title="ادائیگی وصول کریں"'), 'Collect title must be Urdu');
-  assert.ok(row.includes('aria-label="RAJA ALI سے وصول کریں"'), 'Collect aria must be Urdu');
+  assert.ok(row.includes('aria-label="Test Customer 35 سے وصول کریں"'), 'Collect aria must be Urdu');
   assert.ok(row.includes('>وصول کریں</a>'), 'Collect text must be Urdu');
   assert.ok(!row.includes('Send WhatsApp reminder'), 'WA title must not be English');
   assert.ok(!row.includes('>Collect</a>'), 'Collect text must not be English');
@@ -215,7 +215,7 @@ test('phase 2 render: Daily Closing card in Urdu mode shows Urdu, never the Engl
   const refDate = new Date('2026-10-28T00:00:00Z');
   const state = {
     customers: [{
-      id: 'c9', customerNumber: '35', name: 'RAJA ALI', mohalla: 'Barrian',
+      id: 'c9', customerNumber: '35', name: 'Test Customer 35', mohalla: 'Barrian',
       bills: [{ month: '2026-10', dueAmount: 3000, payments: [{ date: '2026-10-28', amount: 5000, method: 'Cash' }] }],
     }],
     expenses: [],
@@ -262,7 +262,7 @@ test('phase 2 render: Daily Closing card in English mode is byte-identical to th
   const refDate = new Date('2026-10-28T00:00:00Z');
   const state = {
     customers: [{
-      id: 'c9', customerNumber: '35', name: 'RAJA ALI', mohalla: 'Barrian',
+      id: 'c9', customerNumber: '35', name: 'Test Customer 35', mohalla: 'Barrian',
       bills: [{ month: '2026-10', dueAmount: 3000, payments: [{ date: '2026-10-28', amount: 5000, method: 'Cash' }] }],
     }],
     expenses: [],

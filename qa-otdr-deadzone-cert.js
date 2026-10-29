@@ -454,7 +454,7 @@ export function renderOtdrDeadzoneSvg(analysis, options = {}) {
     gridLines += `<text x="${x}" y="${height - padding.bottom + 16}" font-size="10" text-anchor="middle" fill="currentColor" opacity="0.6">${kmLabel}</text>`;
   }
 
-  // Zone Shading (Launch Box, Span Under Test, Tail Box)
+  // Zone Tinting (Launch Box, Span Under Test, Tail Box)
   const launchZoneW = xM(launchEndDistM) - xM(0);
   const spanZoneW = xM(spanEndDistM) - xM(launchEndDistM);
   const tailZoneW = xM(totalLengthM) - xM(spanEndDistM);

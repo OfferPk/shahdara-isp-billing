@@ -1,6 +1,6 @@
 // Installation tracker: request + delay reason + month summary.
 // Written to run in CI (the repo Playwright runner cannot run in the dev
-// VM). Logs a request for Master Zaheer (Rs. 10,000 EasyPaisa), marks it
+// VM). Logs a request for Test Customer 122 (Rs. 10,000 EasyPaisa), marks it
 // installed 2 days later with a delay reason, and checks the month
 // summary shows 2 days, the reason, and total delay 2 — plus a pending
 // request that shows days-so-far without entering the total, and no
@@ -29,14 +29,14 @@ test('installation tracker: request, install 2 days later with reason, summary t
   await page.locator('#openInstallTrackerModalBtn').click();
   await expect(page.locator('#installTrackerModal')).toBeVisible();
   await page.locator('#installTrackerMonth').fill('2026-10');
-  await page.locator('#installRequestName').fill('Master Zaheer');
+  await page.locator('#installRequestName').fill('Test Customer 122');
   await page.locator('#installRequestDate').fill('2026-10-01');
   await page.locator('#installRequestAmount').fill('10000');
   await page.locator('#installRequestPayMethod').selectOption('easypaisa');
   await page.locator('#installRequestPayReference').fill('TID123');
   await page.locator('#installRequestForm button[type="submit"]').click();
   let listText = await page.locator('#installTrackerList').innerText();
-  expect(listText).toContain('Master Zaheer');
+  expect(listText).toContain('Test Customer 122');
   expect(listText).toContain('still pending');
   // Mark installed 2 days later with the Nasir fiber/ONU reason.
   await page.locator('#installMarkRequest').selectOption({ index: 1 });

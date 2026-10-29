@@ -98,7 +98,7 @@ test.describe('Mobile More Menu: Payments Inbox & PWA Integration', () => {
       await expect(modal).toBeVisible();
 
       const input = page.locator('#fastCustomerSearchInput');
-      await input.fill('nazeer');
+      await input.fill('Test Customer 01');
 
       const card = page.locator('.fcs-card').first();
       await expect(card).toBeVisible();

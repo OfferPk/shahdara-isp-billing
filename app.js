@@ -6757,20 +6757,30 @@ function renderInventory() {
   });
 
   const itemsTable=$('#inventoryItemsTable');
+  const itemCards=$('#inventoryItemCards');
+  // Inventory redesign (2026-10-29): ONE status computation shared by the
+  // desktop table row and the phone card — same thresholds and pill markup
+  // as before (unrecorded / out at 0 / low at or below minimum / in stock),
+  // matching the stock-level filter semantics above. Presentation only.
+  const inventoryItemStatus=(item)=>{
+    if (!item.hasMovements) return {pill:'<span class="stock-status-pill pill-muted">Unrecorded</span>',level:'unrecorded'};
+    if (item.available <= 0) return {pill:'<span class="stock-status-pill pill-danger">Out of stock</span>',level:'out'};
+    if (item.available <= item.minimumStock) return {pill:'<span class="stock-status-pill pill-warning">Low stock</span>',level:'low'};
+    return {pill:'<span class="stock-status-pill pill-success">In stock</span>',level:'in'};
+  };
   itemsTable.innerHTML=filteredItems.map(item=>{
-    let statusPill = '';
-    if (!item.hasMovements) {
-      statusPill = '<span class="stock-status-pill pill-muted">Unrecorded</span>';
-    } else if (item.available <= 0) {
-      statusPill = '<span class="stock-status-pill pill-danger">Out of stock</span>';
-    } else if (item.available <= item.minimumStock) {
-      statusPill = '<span class="stock-status-pill pill-warning">Low stock</span>';
-    } else {
-      statusPill = '<span class="stock-status-pill pill-success">In stock</span>';
-    }
+    const statusPill = inventoryItemStatus(item).pill;
     const formattedAvail = item.hasMovements ? new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.available) : 'Not recorded';
     return `<tr><th scope="row">${phase3Cell(item.name)}</th><td>${phase3Cell(item.category)}</td><td><div class="stock-avail-cell"><span class="stock-qty">${formattedAvail}</span> ${statusPill}</div></td><td>${phase3Cell(item.unit)}</td><td>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.minimumStock)}</td><td>${item.unitCost===null||item.unitCost===undefined?'Not set':phase3Cell(formatAmount(item.unitCost))}</td><td>${item.hasMovements&&item.value!==null?phase3Cell(formatAmount(item.value)):'Not set'}</td><td>${item.hasMovements?`${item.installed} / ${item.damaged} / ${item.returned}`:'Not recorded'}</td><td class="inventory-actions"><button type="button" class="edit-payment" data-edit-inventory="${phase3Cell(item.id)}">Edit</button></td></tr>`;
   }).join('');
+  if(itemCards){
+    itemCards.innerHTML=filteredItems.map(item=>{
+      const status=inventoryItemStatus(item);
+      const formattedAvail = item.hasMovements ? new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.available) : 'Not recorded';
+      const levelClass=status.level==='out'?' inventory-item-card--out':status.level==='low'?' inventory-item-card--low':'';
+      return `<article class="area-intel-card inventory-item-card${levelClass}"><header class="area-intel-card-header"><h4>${phase3Cell(item.name)}</h4><span class="inventory-item-chip">${phase3Cell(item.category)}</span></header><div class="inventory-item-figure"><span class="inventory-item-figure-qty">${formattedAvail}</span>${item.hasMovements?`<span class="inventory-item-figure-unit">${phase3Cell(item.unit)} available</span>`:''}${status.pill}</div><div class="area-intel-metrics"><div class="area-intel-metric"><span>Minimum</span><strong>${new Intl.NumberFormat('en-PK',{maximumFractionDigits:2}).format(item.minimumStock)} ${phase3Cell(item.unit)}</strong></div><div class="area-intel-metric"><span>Unit cost</span><strong>${item.unitCost===null||item.unitCost===undefined?'Not set':phase3Cell(formatAmount(item.unitCost))}</strong></div><div class="area-intel-metric"><span>Available value</span><strong>${item.hasMovements&&item.value!==null?phase3Cell(formatAmount(item.value)):'Not set'}</strong></div><div class="area-intel-metric"><span>Installed / damaged / returned</span><strong>${item.hasMovements?`${item.installed} / ${item.damaged} / ${item.returned}`:'Not recorded'}</strong></div></div>${item.notes?`<p class="area-intel-no-zone">${phase3Cell(item.notes)}</p>`:''}<div class="inventory-item-card-actions"><button type="button" class="edit-payment" data-edit-inventory="${phase3Cell(item.id)}">Edit</button></div></article>`;
+    }).join('');
+  }
   $('#inventoryItemsEmpty').hidden=allItems.length>0;
   const filterEmpty = $('#inventoryItemsFilterEmpty');
   if (filterEmpty) filterEmpty.hidden = !(allItems.length > 0 && filteredItems.length === 0);
@@ -6784,7 +6794,9 @@ function renderInventory() {
   $('#inventoryMovementsEmpty').hidden=summary.movements.length>0;
   const movDate=$('#movementDate');
   if(movDate&&!movDate.value) movDate.value=new Date(Date.now()+5*3600*1000).toISOString().slice(0,10);
-  itemsTable.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));
+  const bindInventoryEditButtons=(root)=>{root?.querySelectorAll('[data-edit-inventory]').forEach(button=>button.addEventListener('click',()=>{const item=items.find(row=>row.id===button.dataset.editInventory);if(!item)return;$('#inventoryItemId').value=item.id;$('#inventoryName').value=item.name;$('#inventoryCategory').value=item.category;$('#inventoryUnit').value=item.unit;$('#inventoryMinimum').value=item.minimumStock;$('#inventoryUnitCost').value=item.unitCost??'';$('#inventoryCreatedDate').value=item.createdDate??'';$('#inventoryNotes').value=item.notes??'';$('#inventoryItemSubmit').textContent='Save item changes';$('#inventoryItemCancel').hidden=false;$('#inventoryItemForm').scrollIntoView({behavior:'smooth',block:'center'});}));};
+  bindInventoryEditButtons(itemsTable);
+  bindInventoryEditButtons(itemCards);
   $('#inventoryMovementTable').querySelectorAll('[data-delete-movement]').forEach(button=>button.addEventListener('click',async()=>{const movement=summary.movements.find(row=>row.id===button.dataset.deleteMovement);if(!movement)return;if(!await appConfirm({tone:'danger',title:'Delete this stock movement?',subject:`${movement.type} · ${movement.quantity} ${movement.unit} · ${movement.date}`,message:'This may change all current inventory balances.',confirmLabel:'Delete movement'}))return;try{state=deleteStockMovement(state,movement.id);save();toast('Stock movement deleted from this device.',{type:'success',title:'Deleted'});}catch(error){toast(error.message,{type:'error'});}}));
   updateNavigationBadges(state);
 }

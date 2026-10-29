@@ -148,4 +148,48 @@ test.describe('Equipment Inventory & Stock Register E2E Verification', () => {
     const toolbarBg = await toolbar.evaluate(el => window.getComputedStyle(el).backgroundColor);
     expect(toolbarBg).toContain('24, 45, 39'); // rgb(24, 45, 39) == #182d27
   });
+
+  test('phone layout: items render as cards, table hides, card Edit fills the form (redesign 2026-10-29)', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'Mobile-specific card layout test');
+
+    await page.goto('/');
+    const moreBtn = page.locator('#mobileMoreButton');
+    await moreBtn.click();
+    await page.locator('#mobileMoreMenu button[data-mobile-more="inventory"]').click();
+    await expect(page.locator('#inventoryView')).toBeVisible();
+
+    // Add one item definition
+    await page.locator('#inventoryName').fill('Card Layout Test ONU');
+    await page.locator('#inventoryCategory').selectOption('ONU');
+    await page.locator('#inventoryUnit').fill('piece');
+    await page.locator('#inventoryMinimum').fill('5');
+    await page.locator('#inventoryUnitCost').fill('4500');
+    await page.locator('#inventoryItemSubmit').click();
+
+    // The wide table is hidden at phone width; one card renders instead
+    const itemsSection = page.locator('.inventory-items-card');
+    await expect(itemsSection.locator('.table-scroll')).toBeHidden();
+    const cards = page.locator('#inventoryItemCards .inventory-item-card');
+    await expect(cards).toHaveCount(1);
+    await expect(cards.first()).toContainText('Card Layout Test ONU');
+    await expect(cards.first().locator('.inventory-item-chip')).toContainText('ONU');
+    await expect(cards.first().locator('.inventory-item-figure-qty')).toContainText('Not recorded');
+    await expect(cards.first().locator('.stock-status-pill')).toContainText(/Unrecorded/i);
+    await expect(cards.first()).toContainText('Minimum');
+
+    // Filter toolbar no longer stacks: the two selects share a row
+    const catBox = await page.locator('#inventoryCategoryFilter').boundingBox();
+    const stockBox = await page.locator('#inventoryStockFilter').boundingBox();
+    expect(Math.abs((catBox?.y ?? 0) - (stockBox?.y ?? 0))).toBeLessThanOrEqual(2);
+
+    // Zero horizontal overflow with the card layout at phone width
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    const clientWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(clientWidth + 1);
+
+    // Tapping the card's Edit button fills the same item form
+    await cards.first().locator('[data-edit-inventory]').click();
+    await expect(page.locator('#inventoryName')).toHaveValue('Card Layout Test ONU');
+    await expect(page.locator('#inventoryItemSubmit')).toContainText('Save item changes');
+  });
 });

@@ -18,9 +18,22 @@
  * would create a module cycle. PKT dates are small local helpers mirroring
  * core.js (Intl en-PK / Asia/Karachi).
  *
+ * SISP-44: a complaint can be linked to a SISP-12 field ticket (the link
+ * lives on the ticket as complaintId). complaint-ticket-sync.js keeps the
+ * two ledgers in step: resolving the ticket resolves the complaint (and
+ * stamps resolvedViaTicketId here so a later ticket reopen can undo
+ * exactly that synced resolution), resolving the complaint resolves the
+ * ticket, and a reopen on either side reopens the other only when the
+ * resolution being undone was itself a synced one. A direct status
+ * change through setComplaintStatus is a human decision: resolving here
+ * clears resolvedViaTicketId (the sync layer stamps it again after its
+ * own calls), so manual resolutions are never overwritten by the sync.
+ *
  * All helpers are pure except load/saveComplaints and the modal setup.
  * Tests use synthetic data only.
  */
+
+import { t } from './nav-language.js';
 
 export const COMPLAINTS_KEY = 'sisp_complaints_ledger_v1';
 
@@ -44,6 +57,7 @@ const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 const DATE_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 const MONTH_RE = /^\d{4}-\d{2}$/;
 const ID_RE = /^CMP-(\d+)$/;
+const TICKET_ID_RE = /^TKT-\d+$/;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -149,6 +163,13 @@ export function sanitizeComplaints(value) {
       downtimeManual: entry.downtimeManual === true,
       status,
       resolutionNote: cleanText(entry.resolutionNote),
+      // SISP-44: set only while this complaint's Resolved state was
+      // produced by the ticket sync from that ticket (see header).
+      resolvedViaTicketId: TICKET_ID_RE.test(String(entry.resolvedViaTicketId || '')) ? String(entry.resolvedViaTicketId) : '',
+      // SISP-44: "TKT-NNN@<resolvedAt>" while this complaint stands
+      // deliberately reopened against that exact ticket resolution —
+      // the sync must not slam it shut again (see sync module header).
+      syncReopenGuard: /^TKT-\d+@\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(entry.syncReopenGuard || '')) ? String(entry.syncReopenGuard) : '',
       createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
     });
   }
@@ -207,6 +228,8 @@ export function createComplaint(input, existing, referenceDate = new Date()) {
     downtimeManual: false,
     status: 'Open',
     resolutionNote: cleanText(input?.resolutionNote),
+    resolvedViaTicketId: '',
+    syncReopenGuard: '',
     createdAt: new Date().toISOString()
   };
 }
@@ -233,6 +256,11 @@ export function setComplaintStatus(list, id, status, options = {}) {
   if (!entry) throw new Error(`Complaint not found: ${id}.`);
   entry.status = status;
   if (status === 'Resolved') {
+    // A direct resolution is a human decision, not a synced one: clear
+    // the SISP-44 provenance stamp. The sync layer stamps it again
+    // immediately after its own setComplaintStatus calls.
+    entry.resolvedViaTicketId = '';
+    entry.syncReopenGuard = '';
     if (DATE_TIME_RE.test(String(options.resolvedAt || ''))) entry.resolvedAt = String(options.resolvedAt);
     else if (!entry.resolvedAt) entry.resolvedAt = pakistanDateTimeNow(options.referenceDate);
     if (typeof options.resolutionNote === 'string') entry.resolutionNote = cleanText(options.resolutionNote);
@@ -335,7 +363,7 @@ export function collectComplaintZones(state) {
  * lives above; this controller only renders and persists via load/save
  * + the app's onComplaintsChanged callback (dashboard + profile refresh).
  */
-export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast } = {}) {
+export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('complaintRegisterModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -400,7 +428,21 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       return;
     }
     const sorted = [...rows].sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
-    listEl.innerHTML = sorted.map((c) => `
+    listEl.innerHTML = sorted.map((c) => {
+      // SISP-44: linked-ticket line, or the 1-click assign controls when
+      // no ticket is linked yet (host callbacks supplied by app.js).
+      const link = typeof getTicketLink === 'function' ? getTicketLink(c.id) : null;
+      const ticketLine = link
+        ? `<p><span>${escapeHtml(t('cmp_link_ticket_label'))}</span><strong>${escapeHtml(link.id)} · ${escapeHtml(link.status)}</strong></p>`
+        : '';
+      // Assign stays available when the only linked ticket is already
+      // resolved: idempotency reuses open/in-progress tickets only, so
+      // a resolved link must never block a fresh ticket for the same
+      // complaint (assignTicketForComplaint creates a new one then).
+      const assignControls = (!link || link.status === 'Resolved') && typeof onAssignTicket === 'function'
+        ? `<input class="form-input complaint-assign-input" type="text" data-assign-technician="${escapeHtml(c.id)}" placeholder="${escapeHtml(t('cmp_link_technician_ph'))}" aria-label="${escapeHtml(t('cmp_link_technician_ph'))}"><button type="button" class="secondary-button complaint-status-btn" data-complaint-action="assign" data-complaint-id="${escapeHtml(c.id)}">${escapeHtml(t('cmp_link_assign_btn'))}</button>`
+        : '';
+      return `
       <article class="complaint-register-card" data-complaint-id="${escapeHtml(c.id)}">
         <header class="complaint-register-head">
           <strong>${escapeHtml(c.id)}</strong>
@@ -409,12 +451,14 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         <p><span>Customer</span><strong>${escapeHtml(complaintCustomerLabel(c))}</strong></p>
         <p><span>Zone</span><strong>${escapeHtml(c.zone || 'Not set')}</strong></p>
         <p><span>Issue</span><strong>${escapeHtml(c.issueCategory)}</strong></p>
+        ${ticketLine}
         <p><span>Reported</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="reportedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.reportedAt || '')}" aria-label="Reported at"></p>
         <p><span>Resolved</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="resolvedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolvedAt || '')}" aria-label="Resolved at" ${c.status !== 'Resolved' ? 'disabled' : ''}></p>
         <p><span>Downtime</span><span class="complaint-downtime-wrap"><input class="form-input complaint-inline-input complaint-downtime-input" type="number" min="0" step="0.25" data-complaint-field="downtimeHours" data-complaint-id="${escapeHtml(c.id)}" value="${c.downtimeHours === null || c.downtimeHours === undefined ? '' : escapeHtml(String(c.downtimeHours))}" placeholder="auto" aria-label="Downtime hours"><small>h${c.downtimeManual ? ' (manual)' : ''}</small></span></p>
         <p><span>Fix note</span><input class="form-input complaint-inline-input" type="text" data-complaint-field="resolutionNote" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolutionNote || '')}" placeholder="Permanent fix…" aria-label="Resolution note"></p>
-        <div class="complaint-register-actions">${statusButtons(c)}</div>
-      </article>`).join('');
+        <div class="complaint-register-actions">${statusButtons(c)}${assignControls}</div>
+      </article>`;
+    }).join('');
   }
 
   function persist(next) {
@@ -482,6 +526,25 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       if (!btn) return;
       const id = btn.dataset.complaintId;
       const action = btn.dataset.complaintAction;
+      if (action === 'assign') {
+        // SISP-44: 1-click "Assign Lineman Ticket" — the host (app.js)
+        // creates the linked ticket via complaint-ticket-sync.js.
+        const input = listEl.querySelector(`[data-assign-technician="${CSS.escape(id)}"]`);
+        const technician = input ? input.value.trim() : '';
+        if (!technician) { onToast && onToast(t('cmp_link_technician_required')); return; }
+        try {
+          const result = typeof onAssignTicket === 'function' ? onAssignTicket(id, technician) : null;
+          if (result && result.ticket) {
+            onToast && onToast(result.created
+              ? t('cmp_link_assigned_toast', null, { ticket: result.ticket.id, complaint: id })
+              : t('cmp_link_exists_toast', null, { ticket: result.ticket.id, complaint: id }));
+          }
+          renderList();
+        } catch (error) {
+          onToast && onToast(error && error.message ? error.message : 'Ticket could not be assigned.');
+        }
+        return;
+      }
       try {
         let next;
         if (action === 'resolve') next = setComplaintStatus(loadComplaints(), id, 'Resolved');

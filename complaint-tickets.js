@@ -42,6 +42,12 @@
  *   sisp_inventory_v1 live, and a deduction that the book refuses
  *   (over-draw) stays pending on the ticket, visible in the worklist,
  *   and retries automatically. Resolution is never blocked by stock.
+ * - SISP-44 two-way sync (complaint-ticket-sync.js) keeps a linked
+ *   register complaint and its ticket in step. When the sync resolves a
+ *   ticket from its complaint it stamps resolvedViaComplaintId here, so
+ *   a later complaint reopen can undo exactly that synced resolution; a
+ *   direct resolveTicket is a human field decision and clears the stamp
+ *   (the sync layer stamps it again after its own calls).
  * - This module imports nothing: it is self-contained so the backup merge
  *   in core.js can sanitize tickets without a module cycle.
  *
@@ -233,6 +239,9 @@ export function sanitizeTickets(value) {
       chargePaymentId: entry.chargePaid === true && typeof entry.chargePaymentId === 'string'
         ? entry.chargePaymentId.slice(0, 80)
         : '',
+      // SISP-44: set only while this ticket's Resolved state was
+      // produced by the complaint sync from that register complaint.
+      resolvedViaComplaintId: COMPLAINT_ID_RE.test(String(entry.resolvedViaComplaintId || '')) ? String(entry.resolvedViaComplaintId) : '',
       stockDeductions: Array.isArray(entry.stockDeductions) ? clone(entry.stockDeductions) : [],
       stockDeducted: entry.stockDeducted === true
     });
@@ -296,6 +305,7 @@ export function createTicket(input, existing, referenceDate = new Date()) {
     chargePaid: false,
     chargePaidAt: '',
     chargePaymentId: '',
+    resolvedViaComplaintId: '',
     stockDeductions: [],
     stockDeducted: false
   };
@@ -338,7 +348,12 @@ export function resolveTicket(list, id, options = {}) {
   const resolved = {
     ...ticket,
     status: 'Resolved',
-    resolvedAt: pakistanTicketDateTimeNow(options.referenceDate),
+    // SISP-44: a caller that already knows the resolution time (the
+    // complaint sync, mirroring a register resolution) stamps it
+    // verbatim; otherwise the resolution time is now in Pakistan time.
+    resolvedAt: DATE_TIME_RE.test(String(options.resolvedAt || ''))
+      ? String(options.resolvedAt)
+      : pakistanTicketDateTimeNow(options.referenceDate),
     materialsUsed,
     billingType,
     billedAmount: billingType === 'billed'
@@ -346,7 +361,11 @@ export function resolveTicket(list, id, options = {}) {
       : 0,
     chargePaid: false,
     chargePaidAt: '',
-    chargePaymentId: ''
+    chargePaymentId: '',
+    // A direct field resolution is a human decision, not a synced one:
+    // clear the SISP-44 provenance stamp (the sync layer stamps it
+    // again immediately after its own resolveTicket calls).
+    resolvedViaComplaintId: ''
   };
   resolved.stockDeductions = ticketStockDeductions(resolved);
   resolved.stockDeducted = false;
@@ -791,6 +810,7 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast } =
         <p><span>Customer</span><strong>${escapeHtml(ticketCustomerLabel(t))}</strong></p>
         <p><span>Fault</span><strong>${escapeHtml(ticketFaultLabel(t))}</strong></p>
         ${t.complaintId ? `<p><span>Complaint</span><strong>${escapeHtml(t.complaintId)}</strong></p>` : ''}
+        ${t.resolvedViaComplaintId ? `<p><span>Resolved via</span><strong>${escapeHtml(t.resolvedViaComplaintId)} · complaint register</strong></p>` : ''}
         <p><span>Lineman</span><strong>${escapeHtml(t.technician || 'Not set')}</strong></p>
         <p><span>Created</span><span>${escapeHtml(t.createdAt || 'not recorded')}</span></p>
         ${t.resolvedAt ? `<p><span>Resolved</span><span>${escapeHtml(t.resolvedAt)}</span></p>` : ''}

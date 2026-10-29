@@ -23,8 +23,14 @@
  * - Opening balance auto-carries from the latest CLOSED day before this
  *   date. An unclosed previous day does not carry — its expected closing
  *   is not a fact yet.
- * - Petty outflows live ONLY in this ledger. They are not written into the
- *   main Expenses ledger, so expense totals never double-count.
+ * - Petty outflows are owned by this ledger. Since SISP-45 they are also
+ *   mirrored into the main Expenses ledger by syncRoznamchaExpenses
+ *   (below): every outflow appears there exactly once, deduplicated by
+ *   roznamchaEntryId, so monthly P&L and the Nasir/Aqib 50% shares deduct
+ *   field spending while no total ever counts it twice. The roznamcha
+ *   stays the source of truth — the mirror is a convergent reconcile, not
+ *   a copy, so re-running it (startup, every roznamcha change, re-close)
+ *   never duplicates.
  *
  * This module imports loadShopSettlements from shop-settlement.js only.
  * shop-settlement.js imports nothing from core.js, so there is no module
@@ -321,6 +327,120 @@ export function deleteRoznamchaOutflow(days, date, outflowId) {
   if (stored?.closed) throw new Error('This day is closed. Reopen it before removing an expense.');
   if (!stored) return list;
   return upsertDay(list, { ...stored, outflows: stored.outflows.filter((o) => o.id !== outflowId) });
+}
+
+/**
+ * SISP-45: Roznamcha ↔ Monthly Expenses auto-sync.
+ *
+ * The Expenses ledger (state.expenses) is what monthly P&L
+ * (dashboard-pnl.js) and the partner-share report (phase3.js
+ * buildPartnerShareReport, PR #395) read. Roznamcha outflows live in
+ * their own store, so before this sync field spending never reduced
+ * monthly profit or the partners' 50% shares.
+ *
+ * The sync is a convergent reconcile, run at startup, after every
+ * roznamcha change and after a backup restore:
+ * - Each outflow maps to exactly ONE expense row carrying
+ *   roznamchaEntryId = the outflow's id (the spec's dedup key) plus a
+ *   deterministic expense id (`roz-<outflow id>`) for newly created
+ *   rows, roznamchaCategory (the verbatim petty-cash category) and
+ *   source: 'roznamcha' as provenance.
+ * - Roznamcha categories are not Expenses-ledger categories, so each
+ *   one maps onto a canonical expense category (EXPENSE_CATEGORIES in
+ *   phase3.js) — cable/line materials to 'Cable', the rest to 'Other
+ *   expenses' — and the verbatim category survives in roznamchaCategory
+ *   and in the notes text, so category totals stay canonical and no
+ *   information is lost.
+ * - The roznamcha is the source of truth for its mirrored rows: a
+ *   drifted mirror (e.g. an amount corrected before the Expenses UI
+ *   learned to leave synced rows alone) is restored to the outflow's
+ *   values, a mirror whose outflow was deleted is removed, and a
+ *   duplicated mirror collapses back to one row. Manual expenses (no
+ *   roznamchaEntryId) are never touched.
+ * - Idempotent: running it on an already-synced ledger returns
+ *   changed: false with the identical expenses array, so re-closing a
+ *   day can never duplicate an entry.
+ */
+export const ROZNAMCHA_EXPENSE_CATEGORY_MAP = Object.freeze({
+  'Petrol / Bike Fuel': 'Other expenses',
+  'RJ45 / Patch Cord': 'Cable',
+  'Fiber Splicing': 'Cable',
+  'Lineman Allowance': 'Other expenses',
+  'Other': 'Other expenses'
+});
+
+/** The canonical Expenses-ledger category a roznamcha category maps to. */
+export function roznamchaExpenseCategory(category) {
+  return ROZNAMCHA_EXPENSE_CATEGORY_MAP[category] || 'Other expenses';
+}
+
+/** Deterministic expense id for a mirrored outflow. */
+export function syncedRoznamchaExpenseId(roznamchaEntryId) {
+  return `roz-${roznamchaEntryId}`;
+}
+
+/** Notes text for a mirrored expense — keeps the verbatim petty-cash facts. */
+export function buildSyncedRoznamchaExpenseNotes(outflow) {
+  const head = `Roznamcha · ${outflow.category}${outflow.lineman ? ` · ${outflow.lineman}` : ''}`;
+  return (outflow.note ? `${head} — ${outflow.note}` : head).slice(0, 1000);
+}
+
+function syncedRoznamchaExpenseRow(date, outflow, existing, referenceDate) {
+  const fields = {
+    date,
+    amount: round2(moneyValue(outflow.amount)),
+    category: roznamchaExpenseCategory(outflow.category),
+    notes: buildSyncedRoznamchaExpenseNotes(outflow),
+    area: '',
+    roznamchaEntryId: outflow.id,
+    roznamchaCategory: outflow.category,
+    source: 'roznamcha'
+  };
+  if (!existing) {
+    return { id: syncedRoznamchaExpenseId(outflow.id), ...fields, createdAt: new Date(referenceDate).toISOString() };
+  }
+  const drifted = existing.date !== fields.date || existing.amount !== fields.amount
+    || existing.category !== fields.category || existing.notes !== fields.notes
+    || existing.roznamchaCategory !== fields.roznamchaCategory || existing.source !== 'roznamcha';
+  return drifted ? { ...existing, ...fields, updatedAt: new Date(referenceDate).toISOString() } : existing;
+}
+
+/**
+ * Reconcile the Expenses ledger with the roznamcha day ledger.
+ * Pure: returns { expenses, changed, added, updated, removed } and never
+ * mutates its inputs. `expenses` is the SAME array reference when
+ * nothing changed, so callers can skip persisting.
+ */
+export function syncRoznamchaExpenses(expenses, days, referenceDate = new Date()) {
+  const cleanDays = sanitizeRoznamchaDays(days);
+  const desired = new Map();
+  for (const day of cleanDays) {
+    for (const outflow of day.outflows) desired.set(outflow.id, { date: day.date, outflow });
+  }
+  const current = Array.isArray(expenses) ? expenses : [];
+  const seen = new Set();
+  let added = 0;
+  let updated = 0;
+  let removed = 0;
+  const next = [];
+  for (const row of current) {
+    const entryId = typeof row?.roznamchaEntryId === 'string' && row.roznamchaEntryId ? row.roznamchaEntryId : null;
+    if (!entryId) { next.push(row); continue; }
+    const want = desired.get(entryId);
+    if (!want || seen.has(entryId)) { removed += 1; continue; }
+    seen.add(entryId);
+    const synced = syncedRoznamchaExpenseRow(want.date, want.outflow, row, referenceDate);
+    if (synced !== row) updated += 1;
+    next.push(synced);
+  }
+  for (const [entryId, want] of desired) {
+    if (seen.has(entryId)) continue;
+    seen.add(entryId);
+    next.push(syncedRoznamchaExpenseRow(want.date, want.outflow, null, referenceDate));
+    added += 1;
+  }
+  const changed = added + updated + removed > 0;
+  return { expenses: changed ? next : current, changed, added, updated, removed };
 }
 
 /**

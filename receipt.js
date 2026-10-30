@@ -1,4 +1,4 @@
-import { calculatePaymentAllocations, paymentTicketChargeCents, prepayTermsOf, ticketChargeLinesOf } from './core.js';
+import { calculatePaymentAllocations, paymentSenderLabel, paymentTicketChargeCents, prepayTermsOf, ticketChargeLinesOf } from './core.js';
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
 import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle.js';
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
@@ -104,6 +104,10 @@ export function buildPaymentReceipt(customer, bill, payment) {
   }
 
   const transactionId = text(payment.transactionId);
+  // SISP-63: sender proof metadata display label ("Hamza (…3310)") —
+  // '' on every payment without sender metadata, so receipts for those
+  // payments stay byte-identical.
+  const senderLabel = paymentSenderLabel(payment);
   const packageDuration = text(bill.packageDuration) || text(customer.packageDuration);
   const dataLimit = packageType === 'Limited'
     ? packageSnapshot?.dataLimit || text(bill.packageDataLimit) || text(customer.packageDataLimit)
@@ -127,6 +131,7 @@ export function buildPaymentReceipt(customer, bill, payment) {
     customerId:Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
     paymentDate:validStoredDate(payment.date),
     transactionId,
+    senderLabel,
     receiptNumber: permanentReceiptNumber,
     permanentReceiptNumber,
     urduNote: RECEIPT_URDU_NOTE,
@@ -290,6 +295,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Month / بل ماہ:</dt><dd>${escapeHtml(receipt.servicePeriodStart ? receipt.servicePeriodStart.slice(0, 7) : '')}</dd></div>
     <div class="receipt-field"><dt>Method / طریقہ:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
     ${receipt.transactionId ? `<div class="receipt-field"><dt>Txn ID:</dt><dd>${escapeHtml(receipt.transactionId)}</dd></div>` : ''}
+    ${receipt.senderLabel ? `<div class="receipt-field"><dt>Sender:</dt><dd>${escapeHtml(receipt.senderLabel)}</dd></div>` : ''}
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Billed / بل رقم:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
@@ -330,6 +336,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Billing Month / بل کا مہینہ:</dt><dd>${escapeHtml(receipt.servicePeriodStart ? receipt.servicePeriodStart.slice(0, 7) : '')}</dd></div>
     <div class="receipt-field"><dt>Payment Method / طریقہ کار:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
     ${receipt.transactionId ? `<div class="receipt-field"><dt>Transaction ID / ٹرانزیکشن نمبر:</dt><dd>${escapeHtml(receipt.transactionId)}</dd></div>` : ''}
+    ${receipt.senderLabel ? `<div class="receipt-field"><dt>Sender / بھیجنے والا:</dt><dd>${escapeHtml(receipt.senderLabel)}</dd></div>` : ''}
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Monthly Fee / ماہانہ واجبات:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge / تاخیری فیس:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
@@ -364,6 +371,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ['Account / Customer ID', receipt.customerId ? `#${receipt.customerId}` : ''],
     ['Payment Date / تاریخ ادائیگی', receipt.paymentDate],
     ['Transaction ID', receipt.transactionId],
+    ...(receipt.senderLabel ? [['Sender / بھیجنے والا', receipt.senderLabel]] : []),
     ['Package / پیکیج', receipt.package],
     ['Internet Speed', receipt.speedMbps ? `${receipt.speedMbps} Mbps` : ''],
     ['Package Duration', receipt.packageDuration],

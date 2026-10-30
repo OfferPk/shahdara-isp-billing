@@ -27,6 +27,27 @@ export function normalizeTid(tid) {
   return String(tid ?? '').replace(/\s+/g, '').toLowerCase();
 }
 
+/**
+ * SISP-63: sender proof metadata readers — the SAME sanitization rule
+ * as core.js's paymentSenderTitle / paymentSenderDigits /
+ * paymentSenderLabel, mirrored here because this module stays
+ * import-free (core.js imports normalizeTid FROM here). Keep the two
+ * copies in lockstep: single-line title capped at 100 chars, digits
+ * reduced to the last 4, label "Hamza (…3310)" / "Hamza" / "…3310" / ''.
+ */
+export function senderTitleOf(payment) {
+  return String(payment?.senderTitle ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100);
+}
+export function senderDigitsOf(payment) {
+  return String(payment?.senderDigits ?? '').replace(/\D/g, '').slice(-4);
+}
+export function senderLabelOf(payment) {
+  const title = senderTitleOf(payment);
+  const digits = senderDigitsOf(payment);
+  if (title && digits) return `${title} (…${digits})`;
+  return title || (digits ? `…${digits}` : '');
+}
+
 function methodKey(method) {
   return String(method ?? '').trim().toLowerCase();
 }
@@ -128,6 +149,12 @@ export function buildWalletReconciliation(customers, month, settlements = []) {
           amount,
           method,
           transactionId: payment.transactionId || payment.reference || '',
+          // SISP-63: sender proof metadata rides the wallet entry so
+          // the reconciliation ledger can show WHO sent each payment
+          // next to its TID.
+          senderTitle: senderTitleOf(payment),
+          senderDigits: senderDigitsOf(payment),
+          senderLabel: senderLabelOf(payment),
           walletVerified: payment.walletVerified === true
         };
         payments.push(entry);

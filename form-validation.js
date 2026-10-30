@@ -2,7 +2,7 @@
  * form-validation.js - Form validation and phone format helpers for Shahdara ISP Billing
  * Local-only, accessible, no external dependencies.
  */
-import { buildPayrollSummary } from './core.js';
+import { buildPayrollSummary, paymentSenderLabel } from './core.js';
 import { EXPENSE_CATEGORIES, canonicalMohalla } from './phase3.js';
 import { t } from './nav-language.js';
 
@@ -991,14 +991,20 @@ export function formatCustomerStatement(customer, { range = 'all', referenceDate
       const pDate = payment.date || (bill.month ? `${bill.month}-05` : '1970-01-01');
       const credit = Number(payment.amount ?? 0);
       const cashCredit = Number.isFinite(credit) && credit > 0 ? credit : 0;
+      // SISP-63: sender proof metadata on the payment line — the
+      // statement reads [Method • TID • Sender (…last4)] so a wallet
+      // payment can be matched to its sender from the statement alone.
+      // Payments without sender metadata keep the exact legacy line.
+      const senderLabel = paymentSenderLabel(payment);
       allEvents.push({
         date: pDate,
         type: 'payment',
         month: bill.month || '',
-        description: `Payment Received · ${payment.method || 'Cash'}${payment.reference ? ` (Ref: ${payment.reference})` : ''}`,
+        description: `Payment Received · ${payment.method || 'Cash'}${payment.reference ? ` (Ref: ${payment.reference})` : ''}${senderLabel ? ` · Sender: ${senderLabel}` : ''}`,
         charge: 0,
         credit: cashCredit,
         method: payment.method || 'Cash',
+        senderLabel,
         ref: payment.id || payment.reference || ''
       });
       const discountValue = Number(payment.discount ?? 0);

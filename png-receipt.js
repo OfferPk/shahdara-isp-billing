@@ -75,7 +75,9 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   const urduName = displayCustomerName(customer ?? {}, 'ur');
   const areaZone = [text(customer?.mohalla), text(customer?.zone)].filter(Boolean).join(', ');
   const method = text(receipt.paymentMethod)
-    + (text(receipt.transactionId) ? ` (Txn: ${text(receipt.transactionId)})` : '');
+    + (text(receipt.transactionId) ? ` (Txn: ${text(receipt.transactionId)})` : '')
+    // SISP-63: sender proof metadata rides the same line as the Txn id.
+    + (text(receipt.senderLabel) ? ` · Sender: ${text(receipt.senderLabel)}` : '');
 
   const financial = [];
   if (breakdown) {

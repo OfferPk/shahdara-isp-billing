@@ -1221,6 +1221,7 @@ export function calculateCustomerLtvCohorts(state, referenceDate = new Date()) {
     let customerTotalLtvCents = 0;
     for (const bill of (customer.bills ?? [])) {
       for (const p of (bill.payments ?? [])) {
+        if (p?.voided === true) continue; // FU4: SISP-34 voided receipts are not collected cash.
         const amt = Number(p.amount) || 0;
         if (amt > 0) {
           customerTotalLtvCents += Math.round(amt * 100);
@@ -2608,6 +2609,7 @@ export function calculateAcquisitionRoiMetrics(state, referenceDate = new Date()
     let custRevenueCents = 0;
     for (const bill of (c.bills ?? [])) {
       for (const p of (bill.payments ?? [])) {
+        if (p?.voided === true) continue; // FU4: SISP-34 voided receipts are not collected cash.
         const amt = Number(p.amount) || 0;
         if (amt > 0) custRevenueCents += Math.round(amt * 100);
       }

@@ -245,6 +245,7 @@ export function calculateAreaWiseCollections(state, {
       // Cash receipts dated within selected month
       const payments = Array.isArray(bill.payments) ? bill.payments : [];
       for (const p of payments) {
+        if (p?.voided === true) continue; // FU4: SISP-34 voided receipts are not collected cash.
         if (typeof p.date === 'string' && p.date.startsWith(selectedMonth)) {
           const pAmt = Number(p.amount) || 0;
           if (pAmt > 0) {

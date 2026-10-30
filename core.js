@@ -24,7 +24,7 @@ import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanit
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements } from './partner-settlement.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
-import { sanitizeVoidPayments } from './payment-void-audit.js';
+import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
@@ -2002,7 +2002,7 @@ function monthlyClosingMetrics(state, month, allocations = calculatePaymentAlloc
   const pricedBills = bills.filter(({ bill }) => bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== '' && Number.isFinite(Number(bill.dueAmount)) && Number(bill.dueAmount) > 0);
   const pendingCents = pricedBills.reduce((sum, { customer, bill }) => sum + (allocations.byCustomerMonth.get(monthAllocationKey(customer.id, month))?.balanceDueCents ?? moneyCents(bill.dueAmount)), 0);
   const pendingBillCount = pricedBills.filter(({ customer }) => (allocations.byCustomerMonth.get(monthAllocationKey(customer.id, month))?.balanceDueCents ?? 0) > 0).length;
-  const payments = state.customers.flatMap(customer => (customer.bills ?? []).flatMap(bill => (bill.payments ?? []).filter(payment => typeof payment.date === 'string' && payment.date.slice(0, 7) === month)));
+  const payments = state.customers.flatMap(customer => (customer.bills ?? []).flatMap(bill => (bill.payments ?? []).filter(payment => !isVoidedPayment(payment) && typeof payment.date === 'string' && payment.date.slice(0, 7) === month)));
   const expenses = (state.expenses ?? []).filter(expense => typeof expense.date === 'string' && expense.date.slice(0, 7) === month);
   const collectionCents = payments.reduce((sum, payment) => sum + moneyCents(payment.amount), 0);
   const expenseCents = expenses.reduce((sum, expense) => sum + moneyCents(expense.amount), 0);
@@ -2127,6 +2127,8 @@ export function calculateDashboard(state, referenceDate = new Date()) {
     const bills = Array.isArray(customer.bills) ? customer.bills : [];
     const retainedBills = bills.filter(bill => retainedMonths.has(bill.month));
     for (const bill of bills) for (const payment of bill.payments ?? []) {
+      // FU4: SISP-34 voided receipts are history, not collected cash.
+      if (isVoidedPayment(payment)) continue;
       const paymentCents = moneyCents(payment.amount);
       if (retainedMonths.has(bill.month)) totalCollectionCents += paymentCents;
       if (payment.date === today) todayCollectionCents += paymentCents;

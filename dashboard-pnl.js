@@ -25,6 +25,7 @@ import {
   addMonths,
   EXPENSE_CATEGORIES
 } from './phase3.js';
+import { isVoidedPayment } from './payment-void-audit.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -103,10 +104,13 @@ export function calculatePnlAnalytics(state = {}, {
     return addMonths(activeMonth, i - (validWindow - 1));
   });
 
-  // Extract all recorded cash receipts/payments
-  const payments = (state.customers || []).flatMap(customer => 
-    (customer.bills || []).flatMap(bill => 
-      (bill.payments || []).map(payment => ({
+  // Extract all recorded cash receipts/payments.
+  // FU4: SISP-34 voided payments are excluded — a voided receipt is
+  // history, not income, so it never inflates profit (or the partner
+  // shares derived from the same ledger).
+  const payments = (state.customers || []).flatMap(customer =>
+    (customer.bills || []).flatMap(bill =>
+      (bill.payments || []).filter(payment => !isVoidedPayment(payment)).map(payment => ({
         customer,
         bill,
         payment

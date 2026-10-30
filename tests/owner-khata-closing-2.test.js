@@ -95,12 +95,21 @@ test('SISP-51: split follows the collected basis exactly, even with a voided rec
   // The partner-share basis (which `collected` reuses verbatim) counts
   // receipts by payment date over paymentEntries — the split enumerates
   // the same set, so the two can never disagree inside one report.
+  // FU4 (pin changed WITH justification): this test previously asserted
+  // collected === 11500, i.e. it pinned the voided Rs 1,500 JazzCash
+  // receipt INSIDE collected income. That encoded the P&L-family bug:
+  // SISP-34's rule is that a voided payment is skipped everywhere (the
+  // allocation engine, Khata Doctor, receipts and shop settlement
+  // already excluded it). paymentEntries now excludes voided payments
+  // at the source, so collected is the valid Rs 10,000 only — and the
+  // split still sums to it exactly, which is what this test exists to
+  // prove.
   const state = specState();
   state.customers[0].bills[0].payments.push(
     { id: 'p9', date: '2026-10-09', amount: 1500, method: 'JazzCash', voided: true }
   );
   const report = build(state);
-  assert.equal(report.collected, 11500);
+  assert.equal(report.collected, 10000);
   assert.equal(report.collectionChannels.reduce((sum, row) => sum + row.amount, 0), report.collected);
   assert.equal(report.collectionChannels.reduce((sum, row) => sum + row.count, 0), report.receiptCount);
 });

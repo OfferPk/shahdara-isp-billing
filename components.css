@@ -1565,6 +1565,63 @@ body.field-mode-open { overflow: hidden; }
 .fcst-area-fill { height: 100%; background: var(--green); border-radius: var(--radius-pill); }
 .fcst-area-sub { color: var(--muted); font-size: var(--text-xs); font-variant-numeric: var(--numeric); }
 
+/* SISP-70: Multi-Month Growth & Finance Matrix — desktop table on wide
+   screens, stacked labelled cards at ≤700px so a 390px phone never
+   scrolls sideways and every amount stays fully visible.
+   Theme tokens only, both themes. */
+.multi-month-matrix-section { margin: 14px 0; }
+.mmx-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+}
+.mmx-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; }
+.mmx-title { margin: 0; font-size: var(--text-lg); color: var(--ink); }
+.mmx-controls { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.mmx-control-label { display: grid; gap: 4px; font-size: var(--text-sm); color: var(--muted); font-weight: 600; }
+.mmx-select {
+  background: var(--surface-soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 6px 8px;
+  font-size: var(--text-sm);
+  font-variant-numeric: var(--numeric);
+  max-width: 100%;
+}
+.mmx-table-wrap { margin-top: var(--space-3); overflow-x: auto; }
+.mmx-table { width: 100%; border-collapse: collapse; font-variant-numeric: var(--numeric); }
+.mmx-table th, .mmx-table td {
+  padding: 8px 10px;
+  text-align: right;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: var(--text-sm);
+}
+.mmx-table thead th { color: var(--muted); font-weight: 700; border-bottom: 2px solid var(--line); }
+.mmx-table th[scope="row"] { text-align: left; font-weight: 700; }
+.mmx-cards { display: none; }
+.mmx-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--text-xs); }
+.mmx-card-item {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3);
+  min-width: 0;
+}
+.mmx-card-title { margin: 0 0 6px; font-size: var(--text-md); color: var(--ink); font-variant-numeric: var(--numeric); }
+.mmx-card-item p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: var(--text-sm); color: var(--muted); }
+.mmx-card-item p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; font-variant-numeric: var(--numeric); }
+@media (max-width: 700px) {
+  .mmx-table-wrap { display: none; }
+  .mmx-cards { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
+  .mmx-controls { width: 100%; }
+  .mmx-control-label { flex: 1; min-width: 0; }
+}
+
 /* SISP-55: Zone Collection Sheet dialog (token-only; the dialog itself
    uses the shared .billing-modal shell → var(--modal-surface)). */
 .zone-sheet-help { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }

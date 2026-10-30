@@ -62,7 +62,7 @@ function shiftMonth(month, delta) { const [year, number] = month.split('-').map(
 const nextMonthKey = month => shiftMonth(month, 1);
 const dateKey = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit', day:'2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
 const offsetDateKey = (date, days) => { const shifted = new Date(`${date}T00:00:00.000Z`); shifted.setUTCDate(shifted.getUTCDate() + days); return shifted.toISOString().slice(0, 10); };
-const localDateTimeValue = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
+export const localDateTimeValue = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
 function parseLocalDateTime(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(value ?? ''));
   if (!match) return null;

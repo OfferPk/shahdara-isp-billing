@@ -1601,6 +1601,57 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-67: Zone Field Dispatch Board — open field work grouped by
+   mohalla with a per-zone WhatsApp dispatch button. Theme tokens
+   only (light + dark); zone cards stack full-width at phone widths
+   and item titles never truncate. */
+.field-dispatch-section { margin: 14px 0; }
+.field-dispatch-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: var(--space-4);
+}
+.field-dispatch-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); }
+.field-dispatch-title { margin: 0; font-size: var(--text-lg); color: var(--ink); }
+.field-dispatch-total { font-weight: 700; color: var(--green); font-size: var(--text-sm); font-variant-numeric: var(--numeric); white-space: nowrap; }
+.field-dispatch-sub { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--text-sm); }
+.field-dispatch-list { display: grid; gap: var(--space-3); margin-top: var(--space-3); }
+.field-dispatch-empty { margin: 0; color: var(--muted); font-size: var(--text-sm); }
+.field-dispatch-zone {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  min-width: 0;
+}
+.field-dispatch-zone-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); flex-wrap: wrap; }
+.field-dispatch-zone-name { font-weight: 800; color: var(--ink); font-size: var(--text-md); overflow-wrap: anywhere; }
+.field-dispatch-zone-count { color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--numeric); white-space: nowrap; }
+.field-dispatch-counts { margin: var(--space-1) 0 0; color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
+.field-dispatch-items { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: grid; gap: 4px; }
+.field-dispatch-item {
+  display: flex; align-items: baseline; gap: var(--space-2);
+  font-size: var(--text-sm); color: var(--ink);
+  background: none; border: none; padding: 2px 0; text-align: start;
+  font: inherit; width: 100%;
+}
+button.field-dispatch-item { cursor: pointer; }
+.field-dispatch-item-icon { flex-shrink: 0; }
+.field-dispatch-item-main { display: flex; flex-direction: column; min-width: 0; }
+.field-dispatch-item-title { font-weight: 600; overflow-wrap: anywhere; }
+.field-dispatch-item-detail { color: var(--muted); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.field-dispatch-send {
+  display: inline-flex; align-items: center; justify-content: center;
+  margin-top: var(--space-3); min-height: 42px; padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+  background: var(--surface); color: var(--green);
+  font-weight: 700; font-size: var(--text-sm); text-decoration: none;
+}
+@media (max-width: 480px) {
+  .field-dispatch-send { width: 100%; }
+}
 /* Owner feature (2026-10-29): Manual Baqaya (Loan) — profile section,
    summary stat and Customers-card badge. Theme tokens only. */
 .manual-baqaya-section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 12px 0; }

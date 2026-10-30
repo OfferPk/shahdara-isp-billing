@@ -158,6 +158,20 @@ export function getWaadaTier(customer, outstanding, todayStr = getWaadaTodayStri
   return promiseDate < todayStr ? WAADA_TIERS.BROKEN : WAADA_TIERS.PROMISED;
 }
 
+/**
+ * SISP-71: which Template Studio template (SISP-25, sisp_wa_templates_v1)
+ * speaks for a Waada tier once the operator customizes it — broken
+ * promises use the Broken Waada Alert, every other queued tier uses the
+ * Polite Reminder. A pure string mapping on purpose: this module imports
+ * nothing, and the rendering itself lives in whatsapp-templates.js
+ * (renderCustomWaTemplate), which callers combine with this id.
+ */
+export function waadaTemplateIdForTier(tier) {
+  if (tier === WAADA_TIERS.BROKEN) return 'brokenWaada';
+  if (tier === WAADA_TIERS.ACTIVE || tier === WAADA_TIERS.PROMISED) return 'politeReminder';
+  return null;
+}
+
 /** Badge label for a customer's promise, or null when no badge applies. */
 export function waadaBadgeLabel(customer, todayStr = getWaadaTodayString()) {
   if (!customer || typeof customer !== 'object') return null;

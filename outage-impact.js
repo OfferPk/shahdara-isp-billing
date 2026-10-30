@@ -27,7 +27,14 @@
  *   03xx-style number never gets a guessed country code: the draft link
  *   is null and the UI says to save the full international number.
  * - Tests use synthetic data only.
+ *
+ * SISP-71: when the operator has customized the Template Studio
+ * "Outage Notice" template (whatsapp-templates.js), buildOutageQueue
+ * renders it per subscriber ({name}, {package}, {zone} = feeder zone)
+ * instead of the spec-verbatim text below. The templates module imports
+ * nothing from core.js, so this cannot create an import cycle.
  */
+import { getWaTemplates, renderCustomWaTemplate } from './whatsapp-templates.js';
 
 /** Feeder zones from the spec: Side 1 to Side 4c (with a/b/c splits). */
 export const FIBER_ZONES = Object.freeze([
@@ -173,16 +180,24 @@ export function buildOutageMessage({ urdu = false } = {}) {
  * Full notification queue for an outage at one source: the source record
  * plus one entry per impacted subscriber (message + optional wa.me link).
  * Returns null when the source id is unknown.
+ *
+ * SISP-71: pass `templates` (a Template Studio list from getWaTemplates)
+ * to let a customized Outage Notice template speak per subscriber; an
+ * untouched template — or no templates at all — keeps the spec-verbatim
+ * message for every subscriber, exactly as before.
  */
-export function buildOutageQueue(customers, sourceId, { urdu = false } = {}) {
+export function buildOutageQueue(customers, sourceId, { urdu = false, templates = null } = {}) {
   const source = customerById(customers, sourceId);
   if (!source) return null;
   const message = buildOutageMessage({ urdu });
+  const variant = urdu ? 'urdu' : 'roman';
   return {
     source,
     impacted: traceDownstreamImpact(customers, sourceId).map((customer) => ({
       customer,
-      message,
+      message: (Array.isArray(templates)
+        ? renderCustomWaTemplate(templates, 'outageNotice', customer, {}, variant)
+        : null) ?? message,
       whatsappLink: outageWhatsAppLink(customer.phone)
     }))
   };
@@ -217,7 +232,7 @@ export function buildDaisyChainAlert(customers, sourceId) {
 /** Copy-all text for a queue: one "Name — message" line per subscriber. */
 export function buildOutageQueueText(queue, { urdu = false } = {}) {
   if (!queue) return '';
-  const message = buildOutageMessage({ urdu });
+  const fallbackMessage = buildOutageMessage({ urdu });
   const header = queue.source
     ? `Outage alert — feeder: ${cleanText(queue.source.name) || 'Unknown'}`
     : 'Outage alert';
@@ -225,7 +240,10 @@ export function buildOutageQueueText(queue, { urdu = false } = {}) {
   return [
     header,
     '',
-    ...queue.impacted.map((entry) => `${cleanText(entry.customer.name) || 'Unknown'}: ${message}`)
+    // SISP-71: each entry carries its own message (a customized Outage
+    // Notice renders per subscriber); entries without one fall back to
+    // the spec-verbatim text, so default queues read exactly as before.
+    ...queue.impacted.map((entry) => `${cleanText(entry.customer.name) || 'Unknown'}: ${entry.message ?? fallbackMessage}`)
   ].join('\n');
 }
 
@@ -291,7 +309,7 @@ export function setupOutageImpactModal(getState, { onToast } = {}) {
       if (copyBtn) copyBtn.disabled = true;
       return;
     }
-    const queue = buildOutageQueue(customers(), sourceId, { urdu });
+    const queue = buildOutageQueue(customers(), sourceId, { urdu, templates: getWaTemplates() });
     if (!queue) {
       if (summaryEl) summaryEl.textContent = 'Customer not found.';
       if (listEl) listEl.innerHTML = '';
@@ -343,7 +361,7 @@ export function setupOutageImpactModal(getState, { onToast } = {}) {
   const copyBtn = $('outageImpactCopyAllBtn');
   if (copyBtn) {
     copyBtn.addEventListener('click', async () => {
-      const queue = buildOutageQueue(customers(), sourceId, { urdu });
+      const queue = buildOutageQueue(customers(), sourceId, { urdu, templates: getWaTemplates() });
       const text = buildOutageQueueText(queue, { urdu });
       try {
         await navigator.clipboard.writeText(text);

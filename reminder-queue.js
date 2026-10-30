@@ -30,7 +30,8 @@ import {
   buildPaymentReminderMessage,
   escapeHtml
 } from './form-validation.js';
-import { getWaadaTier, WAADA_TIERS } from './waada-queue.js';
+import { getWaadaTier, WAADA_TIERS, waadaTemplateIdForTier } from './waada-queue.js';
+import { getWaTemplates, renderCustomWaTemplate } from './whatsapp-templates.js';
 
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 export const REMINDER_STAGES_SETTINGS_KEY = 'shahdara_reminder_stages_v1';
@@ -751,6 +752,9 @@ export function getRemindersTodayQueue(state, options = {}) {
   const monthStr = todayStr.slice(0, 7);
 
   const customers = Array.isArray(state?.customers) ? state.customers : [];
+  // SISP-71: Template Studio templates are read once per queue build, so a
+  // studio edit applies to the very next draft the queue generates.
+  const waTemplates = getWaTemplates(storage);
   const queue = [];
   let totalDuesPkr = 0;
   let completedCount = 0;
@@ -783,7 +787,7 @@ export function getRemindersTodayQueue(state, options = {}) {
     const dueDay = calculateCustomerDueDay(c);
     const dueDateLabel = `${dueDay}th of this month (${formatDisplayDate(match.dueDateString)})`;
 
-    const reminderMessage = buildPaymentReminderMessage({
+    let reminderMessage = buildPaymentReminderMessage({
       customer: c,
       templateType: match.template,
       billingData: {
@@ -793,6 +797,19 @@ export function getRemindersTodayQueue(state, options = {}) {
         dueDate: dueDateLabel
       }
     });
+
+    // SISP-71 bridge: a Template Studio template the operator customized
+    // for this customer's Waada tier replaces the built-in stage wording —
+    // broken promises follow the Broken Waada Alert at any stage, plain
+    // due-stage reminders follow the Polite Reminder. Untouched templates
+    // (renderCustomWaTemplate returns null) keep the built-in text, and
+    // the wa.me draft URL below is built from whichever text won, so a
+    // studio edit updates the draft URL immediately.
+    const waTemplateId = waadaTemplateIdForTier(waadaTier);
+    if (waTemplateId && (waadaTier === WAADA_TIERS.BROKEN || match.template === 'due')) {
+      const customMessage = renderCustomWaTemplate(waTemplates, waTemplateId, c, { totalDue: balance }, 'roman');
+      if (customMessage) reminderMessage = customMessage;
+    }
 
     const wa = formatWhatsAppUrl(c.phone || '', reminderMessage);
 
@@ -1211,11 +1228,18 @@ export function getPromiseToPayFollowupList(state, options = {}) {
 /**
  * Builds a polite, professional bilingual WhatsApp follow-up message for a promise-to-pay.
  *
+ * SISP-71: for a BROKEN promise, a Broken Waada Alert template the
+ * operator customized in the Template Studio (sisp_wa_templates_v1) is
+ * used instead of the built-in wording; pass `templates` to override the
+ * stored list (tests), otherwise the stored templates are read. An
+ * untouched template keeps the built-in bilingual text below.
+ *
  * @param {Object} promise
  * @param {Object} [customer]
+ * @param {Array<Object>} [templates]
  * @returns {string}
  */
-export function formatPromiseFollowupWhatsApp(promise, customer = null) {
+export function formatPromiseFollowupWhatsApp(promise, customer = null, templates = null) {
   const name = customer?.name || promise?.customerName || 'Valued Subscriber';
   const custNum = customer?.customerNumber ?? promise?.customerNumber ? `#${customer?.customerNumber ?? promise?.customerNumber}` : 'Account';
   const area = customer?.area || customer?.mohalla || promise?.area || 'Shahdara';
@@ -1226,6 +1250,19 @@ export function formatPromiseFollowupWhatsApp(promise, customer = null) {
     : (promise?.promisedDate && calendarDaysDifference(getTodayDateString(), promise.promisedDate) > 0);
 
   if (isBroken) {
+    // SISP-71 bridge: customized Broken Waada Alert wins; {totalDue} is
+    // the promised amount and {waadaDate} the promised date.
+    const bridged = renderCustomWaTemplate(
+      Array.isArray(templates) ? templates : getWaTemplates(),
+      'brokenWaada',
+      customer ?? { name: promise?.customerName, customerNumber: promise?.customerNumber, area: promise?.area },
+      {
+        totalDue: Number(promise?.promisedAmount) > 0 ? Number(promise.promisedAmount) : null,
+        waadaDate: promise?.promisedDate || ''
+      },
+      'roman'
+    );
+    if (bridged) return bridged;
     return (
       `*Shahdara ISP - Wada / Promise-to-Pay Reminder*\n\n` +
       `Assalam-o-Alaikum ${name},\n` +

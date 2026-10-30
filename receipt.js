@@ -4,6 +4,7 @@ import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { renderCustomWaTemplate } from './whatsapp-templates.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
@@ -260,6 +261,28 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * SISP-71 bridge — the operator-customized Template Studio "Payment
+ * Received" text for a payment ({totalDue} = the amount just received),
+ * or null when the studio template is untouched so callers keep the
+ * built-in receipt wording. Pass the list from getWaTemplates().
+ */
+export function buildReceiptPaymentReceivedMessage(customer, payment, templates = null) {
+  return renderCustomWaTemplate(templates, 'paymentReceived', customer, {
+    totalDue: payment?.amount ?? payment?.totalDue ?? null
+  }, 'roman');
+}
+
+/**
+ * SISP-71 bridge — the operator-customized Template Studio "Bill
+ * Generated" text used as the bill notice for a customer, or null when
+ * the studio template is untouched so callers keep the built-in wording.
+ * extras may carry { totalDue, zone, package } overrides.
+ */
+export function buildReceiptBillNoticeMessage(customer, extras = {}, templates = null) {
+  return renderCustomWaTemplate(templates, 'billGenerated', customer, extras, 'roman');
 }
 
 /**

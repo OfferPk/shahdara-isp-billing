@@ -42,7 +42,7 @@ export const WA_TEMPLATE_DESCRIPTIONS = Object.freeze({
 });
 
 /** Placeholders every template may use. */
-export const WA_PLACEHOLDER_KEYS = Object.freeze(['name', 'urduName', 'connectionId', 'package', 'totalDue', 'waadaDate', 'bilingualName']);
+export const WA_PLACEHOLDER_KEYS = Object.freeze(['name', 'urduName', 'connectionId', 'package', 'totalDue', 'waadaDate', 'zone', 'bilingualName']);
 
 const text = value => typeof value === 'string' ? value : '';
 
@@ -152,7 +152,10 @@ export function resolveWaTemplateValues(customer, extras = {}) {
     connectionId: String(customer?.connectionId ?? customer?.customerNumber ?? '').trim(),
     package: text(customer?.packageSpeed).trim() || text(extras.package).trim(),
     totalDue,
-    waadaDate: text(customer?.promiseDate).trim() || text(customer?.waadaDate).trim() || text(extras.waadaDate).trim()
+    waadaDate: text(customer?.promiseDate).trim() || text(customer?.waadaDate).trim() || text(extras.waadaDate).trim(),
+    // SISP-71: {zone} — the customer's campaign zone, else their SISP-7
+    // feeder zone; an explicit extras.zone wins over both.
+    zone: text(extras.zone).trim() || text(customer?.zone).trim() || text(customer?.fiberZone).trim()
   };
 }
 
@@ -191,6 +194,36 @@ export function sanitizeWaTemplates(entries) {
     out.push({ id: found.id, roman: roman || found.roman, urdu: urdu || found.urdu });
   }
   return out;
+}
+
+/**
+ * SISP-71 bridge: true when the operator has actually edited this
+ * template's chosen variant away from the shipped default text. The
+ * bridge only ever replaces a module's built-in wording with a template
+ * the operator deliberately customized — an untouched studio leaves every
+ * existing message exactly as it was.
+ */
+export function isWaTemplateCustomized(templates, id, variant = 'roman') {
+  const template = getWaTemplate(templates, id);
+  const fallback = DEFAULT_WA_TEMPLATES.find(def => def.id === id);
+  if (!template || !fallback) return false;
+  const key = variant === 'urdu' ? 'urdu' : 'roman';
+  const current = text(template[key]).trim();
+  return current !== '' && current !== text(fallback[key]).trim();
+}
+
+/**
+ * SISP-71 bridge: renders a template ONLY when the operator customized it,
+ * returning the rendered text (placeholders substituted, never a raw
+ * {token} or "undefined"). Returns null when the template is untouched or
+ * renders empty, so call sites fall back safely to their built-in default
+ * text. This is what lets a studio edit take effect immediately in the
+ * Waada queue, the outage tool and the receipt drafts.
+ */
+export function renderCustomWaTemplate(templates, id, customer, extras = {}, variant = 'roman') {
+  if (!isWaTemplateCustomized(templates, id, variant)) return null;
+  const rendered = renderWaTemplateFor(templates, id, customer, extras, variant);
+  return rendered.trim() ? rendered : null;
 }
 
 /** Payment Received message for a receipt: {totalDue} is the amount just received. */

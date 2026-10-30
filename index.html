@@ -6864,6 +6864,7 @@
             </div>
             <div id="profileContentMounts" hidden>
             <div id="customerReceiptSummary" aria-live="polite"></div>
+            <section id="manualBaqayaSection" class="manual-baqaya-section" aria-live="polite"></section>
             <div class="customer-meta">
               <div id="customerProfileView" class="customer-profile-view" data-i18n-aria-label="prof_view_aria" aria-label="Saved customer information"></div>
               <div id="customerProfileForm" class="customer-profile-form" hidden>
@@ -7476,6 +7477,19 @@
     </section>
   </dialog>
 
+  <dialog id="manualBaqayaDialog" class="modal">
+    <form id="manualBaqayaForm" method="dialog">
+      <div class="modal-heading"><div><p class="eyebrow" data-i18n="baqaya_title">Manual Baqaya (Loan)</p><h2 id="manualBaqayaDialogTitle" data-i18n="baqaya_dialog_add_title">Add manual baqaya</h2></div><button class="close-button" type="button" data-close-dialog aria-label="Close">↩</button></div>
+      <input id="manualBaqayaEntryId" type="hidden">
+      <label class="field-label" for="manualBaqayaAmount"><span data-i18n="baqaya_amount_label">Baqaya amount (PKR)</span></label>
+      <input id="manualBaqayaAmount" type="number" min="0.01" step="0.01" inputmode="decimal" required>
+      <label class="field-label" for="manualBaqayaDate"><span data-i18n="baqaya_date_label">Date this baqaya belongs to</span></label>
+      <input id="manualBaqayaDate" type="date" required>
+      <label class="field-label" for="manualBaqayaNote"><span data-i18n="baqaya_note_label">Note</span> <span class="optional-label" data-i18n="baqaya_note_optional">Optional · e.g. last month balance</span></label>
+      <input id="manualBaqayaNote" type="text" maxlength="200" autocomplete="off">
+      <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog data-i18n="adv_cancel">Cancel</button><button id="manualBaqayaSaveButton" class="primary-button" type="submit" data-i18n="baqaya_save">Save Baqaya</button></div>
+    </form>
+  </dialog>
   <dialog id="addCustomerDialog" class="modal">
     <form id="addCustomerForm" method="dialog">
       <div class="modal-heading"><div><p class="eyebrow">NEW CUSTOMER</p><h2>Add a customer</h2></div><button class="close-button" type="button" data-close-dialog aria-label="Close">↩</button></div>

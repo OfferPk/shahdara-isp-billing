@@ -197,6 +197,9 @@ export function readState(storage, key = STORAGE_KEY) {
       autoResumeDate:validDateOrNull(customer.autoResumeDate),
       pauseSkippedMonths:Array.isArray(customer.pauseSkippedMonths) ? [...new Set(customer.pauseSkippedMonths.filter((month) => validMonthString(month)))].sort() : [],
       bills,
+      // Owner feature (2026-10-29): manual baqaya entries ride the
+      // customer record; legacy saves without the field load as none.
+      manualBaqaya:sanitizeManualBaqayaEntries(customer.manualBaqaya),
       incidents:Array.isArray(customer.incidents) ? customer.incidents.map(incident => ({ ...incident, restoredAt:incident.restoredAt || null, note:incident.note ?? '', corrections:Array.isArray(incident.corrections) ? incident.corrections : [] })) : []
     };
   });
@@ -364,7 +367,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // an offline span can accrue from day one.
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
@@ -818,7 +821,7 @@ export function monthFeeTakenCents(customer, month) {
   let takenCents = 0;
   for (const payment of bill.payments ?? []) {
     if (!payment || payment.voided === true || isAdvancePayment(payment)) continue;
-    takenCents += Math.max(0, moneyCents(payment.amount) - paymentTicketChargeCents(payment));
+    takenCents += Math.max(0, moneyCents(payment.amount) - paymentTicketChargeCents(payment) - paymentManualBaqayaCents(payment));
   }
   return takenCents;
 }
@@ -913,6 +916,226 @@ export function paymentTicketChargeCents(payment) {
   return ticketChargeLinesOf(payment).reduce((sum, line) => sum + moneyCents(line.amount), 0);
 }
 
+// ---------------------------------------------------------------------------
+// OWNER FEATURE (2026-10-29, voice note): Manual Loan / Baqaya on the
+// customer profile. A manual baqaya entry is a due the owner writes by
+// hand for money that does NOT come from a generated bill — pre-app debt
+// or an off-book amount from an earlier month ("customer ne is maah ke
+// 3,000 bhej diye, pichhle maah ke abhi baqaya hain"). It is deliberately
+// NOT a bill: the allocation engine's bill arrears never see it, so a
+// real bill's arrears can never be double-counted through it.
+//
+// Storage: entries ride the customer record (`manualBaqaya`), so they
+// travel in JSON backups with the profile and survive the load/backup
+// sanitizers. Settlements are NOT stored on the entry — they ride the
+// paying receipt as a stamp, `manualBaqayaSettlements: [{ entryId,
+// amount }]`, exactly like the SISP-43 ticket-charge stamp and the
+// SISP-34 clearedWaada stamp: the ledger records WHAT the cash settled,
+// and each entry's remaining amount is DERIVED (entry amount minus the
+// stamps of the customer's non-voided payments). Voiding a payment
+// (SISP-34) therefore restores the baqaya exactly, with no second store
+// to keep in sync, and deleting an undone payment restores it too. The
+// stamped portion of a receipt is not bill money: the allocation engine
+// never applies it to a bill and never turns it into advance credit.
+const MANUAL_BAQAYA_ID_RE = /^MBQ-\d+$/;
+const cleanBaqayaNote = (value) => String(value ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 200);
+
+/**
+ * Sanitizes the stored entry list of a customer record. Lenient by
+ * design (load/backup path): a malformed entry is dropped, never
+ * invented and never fatal — a corrupt manual entry must not brick the
+ * whole ledger. Amounts are stored in rupees, rounded to cents.
+ */
+export function sanitizeManualBaqayaEntries(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const entries = [];
+  for (const entry of value) {
+    const id = typeof entry?.id === 'string' ? entry.id.trim() : '';
+    if (!MANUAL_BAQAYA_ID_RE.test(id) || seen.has(id)) continue;
+    const amount = Number(entry?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    const date = validDateOrNull(entry?.date);
+    if (!date) continue;
+    seen.add(id);
+    entries.push({
+      id,
+      amount: Math.round(amount * 100) / 100,
+      date,
+      note: cleanBaqayaNote(entry?.note),
+      createdAt: typeof entry?.createdAt === 'string' && entry.createdAt ? entry.createdAt : date
+    });
+  }
+  return entries;
+}
+
+/**
+ * Strict sanitizer for the settlement lines stamped on a payment (the
+ * write path — mirrors sanitizeTicketChargeLines): every line names a
+ * manual baqaya entry and a positive amount; an entry settles at most
+ * once per payment.
+ */
+export function sanitizeManualBaqayaSettlementLines(value) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error('Manual baqaya settlement lines must be a list.');
+  if (value.length > 20) throw new Error('Too many manual baqaya settlement lines on one payment.');
+  const seen = new Set();
+  const lines = [];
+  for (const entry of value) {
+    const entryId = typeof entry?.entryId === 'string' ? entry.entryId.trim() : '';
+    if (!MANUAL_BAQAYA_ID_RE.test(entryId)) throw new Error('A manual baqaya settlement line needs an entry id like MBQ-101.');
+    if (seen.has(entryId)) throw new Error(`Manual baqaya entry ${entryId} is listed twice on one payment.`);
+    seen.add(entryId);
+    const amount = Number(entry?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error('A manual baqaya settlement amount must be greater than zero.');
+    lines.push({ entryId, amount: Math.round(amount * 100) / 100 });
+  }
+  return lines;
+}
+
+/** Stored stamp lines of a payment ([] when absent or unreadable). */
+export function manualBaqayaSettlementLinesOf(payment) {
+  try { return sanitizeManualBaqayaSettlementLines(payment?.manualBaqayaSettlements); } catch { return []; }
+}
+
+/** The manual-baqaya portion of a payment, in cents. */
+export function paymentManualBaqayaCents(payment) {
+  return manualBaqayaSettlementLinesOf(payment).reduce((sum, line) => sum + moneyCents(line.amount), 0);
+}
+
+/** Settled cents per entry id, derived from the customer's non-voided payments. */
+export function manualBaqayaSettledCentsByEntry(customer) {
+  const settled = new Map();
+  for (const bill of customer?.bills ?? []) {
+    for (const payment of bill?.payments ?? []) {
+      if (!payment || payment.voided === true) continue;
+      for (const line of manualBaqayaSettlementLinesOf(payment)) {
+        settled.set(line.entryId, (settled.get(line.entryId) ?? 0) + moneyCents(line.amount));
+      }
+    }
+  }
+  return settled;
+}
+
+/**
+ * The customer's manual baqaya entries with derived settled/remaining
+ * amounts, oldest first (entry date, then creation order) — the FIFO
+ * order collections settle in. A stamp naming an entry that no longer
+ * exists is ignored here (the entry was removed while unsettled stamps
+ * cannot exist for it — removal is blocked once settled — so an orphan
+ * stamp can only arrive via a hand-edited backup; it stays harmless).
+ */
+export function manualBaqayaEntriesWithRemaining(customer) {
+  const settled = manualBaqayaSettledCentsByEntry(customer);
+  return sanitizeManualBaqayaEntries(customer?.manualBaqaya)
+    .map((entry) => {
+      const settledCents = Math.min(settled.get(entry.id) ?? 0, moneyCents(entry.amount));
+      return { ...entry, settledCents, remainingCents: Math.max(0, moneyCents(entry.amount) - settledCents) };
+    })
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.createdAt).localeCompare(String(b.createdAt)) || a.id.localeCompare(b.id));
+}
+
+/** Total unpaid manual baqaya of a customer, in cents (0 when none). */
+export function manualBaqayaOutstandingCents(customer) {
+  return manualBaqayaEntriesWithRemaining(customer).reduce((sum, entry) => sum + entry.remainingCents, 0);
+}
+
+/** Total unpaid manual baqaya of a customer, in rupees (0 when none). */
+export function manualBaqayaOutstanding(customer) {
+  return manualBaqayaOutstandingCents(customer) / 100;
+}
+
+/**
+ * Plans how much of an available cash remainder settles manual baqaya:
+ * oldest entry first (FIFO by entry date), part-settling the last entry
+ * the money reaches — a Rs 500 payment against a Rs 1,500 baqaya leaves
+ * exactly Rs 1,000. Returns stamp lines in rupees + the total in cents.
+ */
+export function planManualBaqayaSettlement(customer, availableCents) {
+  let budget = Math.max(0, Math.round(Number(availableCents) || 0));
+  const lines = [];
+  let totalCents = 0;
+  if (budget > 0) {
+    for (const entry of manualBaqayaEntriesWithRemaining(customer)) {
+      if (budget <= 0) break;
+      if (entry.remainingCents <= 0) continue;
+      const appliedCents = Math.min(entry.remainingCents, budget);
+      if (appliedCents <= 0) continue;
+      lines.push({ entryId: entry.id, amount: appliedCents / 100 });
+      totalCents += appliedCents;
+      budget -= appliedCents;
+    }
+  }
+  return { lines, totalCents };
+}
+
+function nextManualBaqayaId(customer) {
+  let highest = 100;
+  for (const entry of sanitizeManualBaqayaEntries(customer?.manualBaqaya)) {
+    const suffix = Number(entry.id.slice(4));
+    if (Number.isSafeInteger(suffix) && suffix > highest) highest = suffix;
+  }
+  return `MBQ-${highest + 1}`;
+}
+
+function cleanManualBaqayaFields(fields, referenceDate) {
+  const amount = Number(fields?.amount);
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a baqaya amount greater than zero.');
+  const date = checkOptionalDate(fields?.date ?? '', 'Baqaya date');
+  if (!date) throw new Error('Enter the date this baqaya belongs to.');
+  if (date > dateKey(referenceDate)) throw new Error('Baqaya date cannot be in the future.');
+  const note = cleanBaqayaNote(fields?.note);
+  return { amount: Math.round(amount * 100) / 100, date, note };
+}
+
+function replaceCustomer(state, customerId, nextCustomer) {
+  return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : nextCustomer) };
+}
+
+/**
+ * Adds a manual baqaya entry to a customer. Guards (owner rules): a
+ * FREE connection never owes anything, and an archived profile is
+ * frozen history — both refuse new entries.
+ */
+export function addManualBaqayaEntry(state, customerId, fields, referenceDate = new Date()) {
+  const customer = customerOrThrow(state, customerId);
+  if (customer.archived) throw new Error('Archived customers cannot take a new manual baqaya entry. Unarchive the customer first.');
+  if (customer.isFreeConnection === true) throw new Error('Free connections never owe anything — a manual baqaya entry cannot be added.');
+  const clean = cleanManualBaqayaFields(fields, referenceDate);
+  const entry = { id: nextManualBaqayaId(customer), ...clean, createdAt: localDateTimeValue(referenceDate) };
+  const entries = [...sanitizeManualBaqayaEntries(customer.manualBaqaya), entry];
+  return replaceCustomer(state, customerId, { ...customer, manualBaqaya: entries });
+}
+
+/**
+ * Edits a manual baqaya entry. Audit rule: an entry can be edited or
+ * removed ONLY while it is fully unsettled — once a payment has settled
+ * part of it, the entry is ledger history; void the settling payment
+ * first (which restores the baqaya) and the entry unlocks again.
+ */
+export function updateManualBaqayaEntry(state, customerId, entryId, fields, referenceDate = new Date()) {
+  const customer = customerOrThrow(state, customerId);
+  const entries = manualBaqayaEntriesWithRemaining(customer);
+  const existing = entries.find(entry => entry.id === entryId);
+  if (!existing) throw new Error('Manual baqaya entry not found.');
+  if (existing.settledCents > 0) throw new Error('This baqaya entry already has payments against it and cannot be changed. Void the payment first.');
+  const clean = cleanManualBaqayaFields(fields, referenceDate);
+  const nextEntries = sanitizeManualBaqayaEntries(customer.manualBaqaya)
+    .map(entry => entry.id === entryId ? { ...entry, ...clean } : entry);
+  return replaceCustomer(state, customerId, { ...customer, manualBaqaya: nextEntries });
+}
+
+/** Removes a manual baqaya entry (same fully-unsettled audit rule as edit). */
+export function removeManualBaqayaEntry(state, customerId, entryId) {
+  const customer = customerOrThrow(state, customerId);
+  const entries = manualBaqayaEntriesWithRemaining(customer);
+  const existing = entries.find(entry => entry.id === entryId);
+  if (!existing) throw new Error('Manual baqaya entry not found.');
+  if (existing.settledCents > 0) throw new Error('This baqaya entry already has payments against it and cannot be removed. Void the payment first.');
+  const nextEntries = sanitizeManualBaqayaEntries(customer.manualBaqaya).filter(entry => entry.id !== entryId);
+  return replaceCustomer(state, customerId, { ...customer, manualBaqaya: nextEntries });
+}
+
 /**
  * Advance payments: money collected BEFORE the bill it belongs to exists
  * (or after the current bill was already settled in full) — e.g. a customer
@@ -975,7 +1198,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, senderTitle, senderDigits } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, senderTitle, senderDigits } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -1006,6 +1229,12 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   const ticketChargeLines = sanitizeTicketChargeLines(ticketCharges);
   const ticketChargeTotalCents = ticketChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
   if (ticketChargeTotalCents > Math.round(cents * 100)) throw new Error('Ticket charges on a payment cannot exceed the amount collected.');
+  // Owner feature (2026-10-29): settled manual baqaya lines ride the
+  // payment the same way (see the manual baqaya block above). Together
+  // the two non-bill portions can never exceed the cash collected.
+  const manualBaqayaLines = sanitizeManualBaqayaSettlementLines(manualBaqayaSettlements);
+  const manualBaqayaTotalCents = manualBaqayaLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
+  if (ticketChargeTotalCents + manualBaqayaTotalCents > Math.round(cents * 100)) throw new Error('Settled charges and baqaya on a payment cannot exceed the amount collected.');
   // Advance tag: only the exact 'advance' kind is kept — any other value
   // (including a missing one, i.e. every legacy payment) stays untagged,
   // so untagged records remain byte-identical to before.
@@ -1052,6 +1281,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(prepayTerms ?? {}),
     ...(cleanNote ? { note: cleanNote } : {}),
     ...(ticketChargeLines.length > 0 ? { ticketCharges: ticketChargeLines } : {}),
+    ...(manualBaqayaLines.length > 0 ? { manualBaqayaSettlements: manualBaqayaLines } : {}),
     ...(payer ? { paidBy:payer } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -1301,6 +1531,19 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
       throw new Error('This payment settled ticket charges. Void it and record a fresh payment to change the amount.');
     }
     payment = { ...payment, ticketCharges: settledTicketCharges };
+  }
+  // Owner feature (2026-10-29): the manual baqaya settlement stamp is
+  // carried over verbatim under the same rule — a correction restates
+  // the receipt, never what its cash settled; the corrected amount must
+  // still cover the settled non-bill portions (baqaya + ticket charges).
+  const settledBaqayaLines = manualBaqayaSettlementLinesOf(existingPayment);
+  if (settledBaqayaLines.length > 0) {
+    const settledNonBillCents = settledTicketCharges.reduce((sum, line) => sum + moneyCents(line.amount), 0)
+      + settledBaqayaLines.reduce((sum, line) => sum + moneyCents(line.amount), 0);
+    if (moneyCents(payment.amount) <= settledNonBillCents) {
+      throw new Error('This payment settled manual baqaya. Void it and record a fresh payment to change the amount.');
+    }
+    payment = { ...payment, manualBaqayaSettlements: settledBaqayaLines };
   }
   assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId, { prepayCoverage: prepayTermsOf(payment) !== null });
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };
@@ -1759,13 +2002,17 @@ export function calculatePaymentAllocations(state) {
           // SISP-43: the ticket-charge portion of the receipt is consumed
           // by the tickets — only the rest is unused credit here.
           const ticketChargeCents = paymentTicketChargeCents(payment);
+          // Owner feature (2026-10-29): the manual baqaya portion of a
+          // receipt is likewise consumed by the baqaya entries — only
+          // the rest is unused credit here.
+          const manualBaqayaCents = paymentManualBaqayaCents(payment);
           // SISP-61: on an unpriced bill a prepay's upfront discount is
           // pure coverage (nothing has been applied yet) — it joins the
           // credit in full, reserved for its target month below, so the
           // customer is credited cash + discount = the full gross.
           const prepayDiscountCents = prepayTermsOf(payment) ? moneyCents(payment.discount || 0) : 0;
-          const creditCents = Math.max(0, amountCents - ticketChargeCents) + prepayDiscountCents;
-          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents, targetMonth:advancePaymentTargetMonth(payment), ...(prepayDiscountCents > 0 ? { prepayDiscountCreditCents:prepayDiscountCents } : {}) };
+          const creditCents = Math.max(0, amountCents - ticketChargeCents - manualBaqayaCents) + prepayDiscountCents;
+          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents, manualBaqayaCents, targetMonth:advancePaymentTargetMonth(payment), ...(prepayDiscountCents > 0 ? { prepayDiscountCreditCents:prepayDiscountCents } : {}) };
           byPaymentId.set(payment.id, paymentLedger);
           if (creditCents > 0) {
             summary.excessGeneratedCents += creditCents;
@@ -1848,10 +2095,14 @@ export function calculatePaymentAllocations(state) {
         // SISP-43: only the bill portion of the receipt can settle this
         // bill or become credit — the ticket-charge portion is already
         // spent on the tickets named in the payment's stamp.
+        // Owner feature (2026-10-29): the manual baqaya portion named in
+        // the payment's stamp is likewise already spent on the baqaya
+        // entries — it is never bill money and never becomes credit.
         const ticketChargeCents = paymentTicketChargeCents(payment);
-        const billPortionCents = Math.max(0, amountCents - ticketChargeCents);
+        const manualBaqayaCents = paymentManualBaqayaCents(payment);
+        const billPortionCents = Math.max(0, amountCents - ticketChargeCents - manualBaqayaCents);
         const discountCents = moneyCents(payment.discount || 0);
-        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false, ticketChargeCents, targetMonth:advancePaymentTargetMonth(payment) };
+        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false, ticketChargeCents, manualBaqayaCents, targetMonth:advancePaymentTargetMonth(payment) };
         byPaymentId.set(payment.id, paymentLedger);
 
         // SISP-61: a prepay's upfront discount is NOT a discount on
@@ -2493,7 +2744,11 @@ function validateBackupState(source) {
       poleNumber:customer.poleNumber ?? '', boxLocationNote:customer.boxLocationNote ?? '', dropWireCoreColor:customer.dropWireCoreColor ?? '',
       packageHistory, relocationLog, bills, incidents,      // SISP-4: installment plans travel with the customer; old backups
       // without the field import as an empty plan list (backward compatible).
-      installmentPlans: sanitizeInstallmentPlans(customer.installmentPlans)
+      installmentPlans: sanitizeInstallmentPlans(customer.installmentPlans),
+      // Owner feature (2026-10-29): manual baqaya entries travel with
+      // the customer in JSON backups; old backups without the field
+      // import as no entries (backward compatible).
+      manualBaqaya: sanitizeManualBaqayaEntries(customer.manualBaqaya)
     };
   });
   const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
@@ -2833,6 +3088,16 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     customer.relocationLog = customer.relocationLog ?? [];
     for (const incomingEntry of backupCustomer.relocationLog ?? []) {
       if (!customer.relocationLog.some(existing => String(existing.id) === String(incomingEntry.id))) { customer.relocationLog.push(deepCopy(incomingEntry)); counts.changes++; }
+    }
+    // Owner feature (2026-10-29): manual baqaya entries merge by entry
+    // id — an entry only the backup holds is adopted; an entry both
+    // sides hold with different amount/date is a money conflict the
+    // owner must see (the local copy is kept, like the price schedule).
+    customer.manualBaqaya = sanitizeManualBaqayaEntries(customer.manualBaqaya);
+    for (const incomingEntry of sanitizeManualBaqayaEntries(backupCustomer.manualBaqaya)) {
+      const existingEntry = customer.manualBaqaya.find(entry => entry.id === incomingEntry.id);
+      if (!existingEntry) { customer.manualBaqaya.push(deepCopy(incomingEntry)); counts.changes++; continue; }
+      if (!sameJson(existingEntry, incomingEntry)) addConflict(backupCustomer, `manual baqaya ${incomingEntry.id}`);
     }
     for (const incomingEntry of backupCustomer.monthlyPriceSchedule) {
       const existingEntry = customer.monthlyPriceSchedule.find(entry => entry.effectiveMonth === incomingEntry.effectiveMonth);

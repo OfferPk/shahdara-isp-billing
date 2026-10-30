@@ -80,7 +80,7 @@ import {
   formatQuickCollectWhatsAppReceipt,
   getPakistanLocalDate
 } from './nav-quick-collect.js';
-import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations } from './core.js';
+import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOutstandingCents } from './core.js';
 import { advanceBalanceCents, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { canonicalLocation } from './phase3.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
@@ -369,6 +369,11 @@ export function fieldModeCustomerStatus(state, customerId, allocations = null) {
     const summary = allocs.forMonth(customerId, bill.month);
     if (summary?.balanceDueCents > 0) duesCents += summary.balanceDueCents;
   }
+  // Owner feature (2026-10-29): unpaid manual baqaya is part of what
+  // the round still has to collect — a customer whose bills are paid
+  // but who carries hand-written dues shows the RED due strip, not
+  // the GREEN paid one.
+  duesCents += manualBaqayaOutstandingCents(customer);
   const totalDues = Math.round(Math.max(0, duesCents)) / 100;
   const advanceCredit = Math.round(advanceBalanceCents(state, customerId, allocs)) / 100;
   const key = totalDues > 0 ? 'due' : advanceCredit > 0 ? 'advance' : 'paid';

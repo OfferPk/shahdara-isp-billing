@@ -7,7 +7,8 @@ import {
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation, applyConcessionToBill, removeConcessionFromBill,
   calculateMethodCollectionTotals, findDuplicatePaymentReference, paymentSenderLabel,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
-  autoPackageFromPayment
+  autoPackageFromPayment,
+  addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining
 } from './core.js?v=1.11.0';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
 import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
@@ -181,6 +182,7 @@ import { buildCollectionForecast } from './collection-forecaster.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { recordPrepay, prepayQuote, PREPAY_MONTH_OPTIONS } from './advance-prepay.js';
+import { manualBaqayaCardBadgeMarkup, manualBaqayaStatMarkup, manualBaqayaSectionMarkup } from './manual-baqaya.js';
 import { UPS_NODES_KEY, activeOutages, checkUpsNodeDepletions, formatClockTime, loadUpsNodes, powerBackupSummary, saveUpsNodes, setupPowerBackupModal } from './power-backup-monitor.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
@@ -660,7 +662,7 @@ function mountCustomerProfileContent() {
   const mounts = $('#profileContentMounts');
   if (!mounts) return;
   const groups = {
-    billing:['#customerReceiptSummary','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
+    billing:['#customerReceiptSummary','#manualBaqayaSection','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
     info:['.customer-meta','.package-history-section','.uptime-section'],
     complaints:['.incident-section:not(.uptime-section)']
   };
@@ -1699,7 +1701,7 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
     const selected = status === customer.serviceStatus;
     return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="${t('cust_service_button_aria', null, { number: customer.customerNumber, status: label })}">${label}</button>`;
   }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''} ${prepaidUntilBadgeHtml(state, customer)}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span></span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div>${liveSessionMarkup(customer)}</div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''} ${prepaidUntilBadgeHtml(state, customer)}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>${manualBaqayaCardBadgeMarkup(customer)}</span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div>${liveSessionMarkup(customer)}</div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
@@ -3096,6 +3098,54 @@ function renderCurrentBillSummary(customer) {
   const currentStatusKey = { paid: 'prof_current_status_paid', pending: 'prof_current_status_pending', partial: 'prof_current_status_partial', 'not-set': 'prof_not_set' }[summary.status];
   $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>${t('prof_current_heading', null, { month: displayMonthName(month) })}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_current_help_label')}" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">${t('prof_current_help')}</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat"><span>${t('prof_current_monthly_bill')}</span><strong>${summary.billAmount === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.billAmount))}</strong></article><article class="current-bill-stat"><span>${t('prof_current_received')}</span><strong>${summary.receiptCount?escapeHtml(formatAmount(summary.receivedAmount)):t('prof_current_no_receipts')}</strong></article><article class="current-bill-stat"><span>${t('prof_current_status')}</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(currentStatusKey ? t(currentStatusKey) : summary.statusLabel)}</strong></article><article class="current-bill-stat"><span>${t('prof_current_net_due')}</span><strong>${summary.balanceDueCents === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.balanceDueCents / 100))}</strong></article><article class="current-bill-stat"><span>${t('prof_current_unused_credit')}</span><strong>${unusedCreditCents?escapeHtml(formatAmount(unusedCreditCents/100)):t('prof_none_recorded')}</strong></article>${ticketChargesPending > 0 ? `<article class="current-bill-stat"><span>${t('prof_current_ticket_charges')}</span><strong>${escapeHtml(formatAmount(ticketChargesPending))}</strong></article>` : ''}</div>${summary.fifo && (summary.fifo.previousArrears > 0 || summary.fifo.kistTotal > 0) ? `<div class="current-bill-grid" aria-label="${t('prof_fifo_aria')}"><article class="current-bill-stat"><span>${t('prof_fifo_arrears')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingArrears))}</strong></article><article class="current-bill-stat"><span>${t('prof_fifo_package')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingPackage))}</strong></article><article class="current-bill-stat"><span>${t('prof_fifo_kist')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingKist))}</strong></article></div>` : ''}`;
 }
+// Owner feature (2026-10-29): Manual Baqaya profile flows. The
+// section lives in the Billing tab (mounted from #manualBaqayaSection);
+// entries stay readable on archived profiles but the Add/Edit/Remove
+// controls render only for a live, non-FREE connection (core enforces
+// the same rules again in its mutations).
+let manualBaqayaDialogCustomerId = null;
+function renderManualBaqayaSection(customer) {
+  const section = $('#manualBaqayaSection');
+  if (!section) return;
+  const entries = manualBaqayaEntriesWithRemaining(customer);
+  const canAdd = !customer.archived && customer.isFreeConnection !== true;
+  section.hidden = entries.length === 0 && !canAdd;
+  if (section.hidden) { section.innerHTML = ''; return; }
+  section.innerHTML = manualBaqayaSectionMarkup(customer, { archived: !!customer.archived });
+  section.querySelector('[data-add-baqaya]')?.addEventListener('click', () => openManualBaqayaDialog(customer.id));
+  section.querySelectorAll('[data-edit-baqaya]').forEach((button) => button.addEventListener('click', () => openManualBaqayaDialog(customer.id, button.getAttribute('data-edit-baqaya'))));
+  section.querySelectorAll('[data-remove-baqaya]').forEach((button) => button.addEventListener('click', () => removeManualBaqayaEntryFlow(customer.id, button.getAttribute('data-remove-baqaya'))));
+}
+function openManualBaqayaDialog(customerId, entryId = null) {
+  const customer = state.customers.find((entry) => entry.id === customerId);
+  if (!customer) return;
+  const existing = entryId ? (customer.manualBaqaya ?? []).find((entry) => entry.id === entryId) : null;
+  manualBaqayaDialogCustomerId = customerId;
+  $('#manualBaqayaDialogTitle').textContent = t(existing ? 'baqaya_dialog_edit_title' : 'baqaya_dialog_add_title');
+  $('#manualBaqayaEntryId').value = existing?.id ?? '';
+  $('#manualBaqayaAmount').value = existing ? existing.amount : '';
+  $('#manualBaqayaDate').value = existing ? existing.date : pakistanToday();
+  $('#manualBaqayaDate').max = pakistanToday();
+  $('#manualBaqayaNote').value = existing?.note ?? '';
+  $('#manualBaqayaDialog').showModal();
+}
+async function removeManualBaqayaEntryFlow(customerId, entryId) {
+  const customer = state.customers.find((entry) => entry.id === customerId);
+  const target = (customer?.manualBaqaya ?? []).find((entry) => entry.id === entryId);
+  if (!customer || !target) return;
+  const confirmed = await appConfirm({ tone: 'danger', title: t('baqaya_remove'), message: t('baqaya_remove_confirm', null, { amount: formatAmount(target.amount) }), confirmLabel: t('baqaya_remove') });
+  if (!confirmed) return;
+  try {
+    state = removeManualBaqayaEntry(state, customerId, entryId);
+    save();
+    toast(t('baqaya_removed'));
+    renderDetail();
+    renderCustomers();
+  } catch (error) {
+    toast(error.message, { type: 'error' });
+  }
+}
+
 function renderDetail() {
   // FIRST-LOAD SPLIT: start the lazy QA chunk load on first profile open.
   ensureQaModals().catch(() => {});
@@ -3108,6 +3158,12 @@ function renderDetail() {
     const id = event.currentTarget.getAttribute('data-edit-customer');
     if (id) editCustomerProfile(id);
   });
+  // Owner feature (2026-10-29): the summary grid gains the manual
+  // baqaya stat (only while baqaya is unpaid) and the Billing tab
+  // renders the entries section.
+  const baqayaStat = manualBaqayaStatMarkup(customer);
+  if (baqayaStat) $('#customerReceiptSummary .profile-summary-grid')?.insertAdjacentHTML('beforeend', baqayaStat);
+  renderManualBaqayaSection(customer);
   $('#profileAvatar').textContent = initials(customer.name);
   $('#detailCustomerNumber').textContent = t('prof_customer_number', null, { n: customer.customerNumber });
   const shownName = displayCustomerName(customer, currentAppLanguage());
@@ -5287,6 +5343,36 @@ $('#duplicateCustomerMatches').addEventListener('click', event => {
 document.querySelectorAll('[data-close-dialog]').forEach(button => button.addEventListener('click', () => $('#addCustomerDialog').close()));
 $('#addCustomerDialog')?.addEventListener('click', (e) => {
   if (e.target === $('#addCustomerDialog')) $('#addCustomerDialog').close();
+});
+// Owner feature (2026-10-29): Manual Baqaya dialog wiring. Core
+// mutations enforce the guards (FREE/archived/settled-entry locks);
+// the dialog just collects amount + date + optional note and reports.
+document.querySelectorAll('#manualBaqayaDialog [data-close-dialog]').forEach(button => button.addEventListener('click', () => $('#manualBaqayaDialog').close()));
+$('#manualBaqayaDialog')?.addEventListener('click', (e) => {
+  if (e.target === $('#manualBaqayaDialog')) $('#manualBaqayaDialog').close();
+});
+$('#manualBaqayaForm').addEventListener('submit', event => {
+  event.preventDefault();
+  const customerId = manualBaqayaDialogCustomerId;
+  if (!customerId) return;
+  const entryId = $('#manualBaqayaEntryId').value || null;
+  const fields = {
+    amount: Number($('#manualBaqayaAmount').value),
+    date: $('#manualBaqayaDate').value,
+    note: $('#manualBaqayaNote').value
+  };
+  try {
+    state = entryId
+      ? updateManualBaqayaEntry(state, customerId, entryId, fields)
+      : addManualBaqayaEntry(state, customerId, fields);
+    save();
+    $('#manualBaqayaDialog').close();
+    toast(t('baqaya_saved'));
+    renderDetail();
+    renderCustomers();
+  } catch (error) {
+    toast(error.message, { type: 'error' });
+  }
 });
 $('#saveMohallaButton').addEventListener('click', async () => {
   if (!selectedCustomer()) return;

@@ -109,6 +109,11 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   for (const line of Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []) {
     financial.push({ label: `Murammat / Material Charge (${line.ticketId})`, value: money(line.amount) });
   }
+  // Owner feature (2026-10-29): manual baqaya this payment settled, one
+  // line each, next to the ticket charges.
+  for (const line of Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : []) {
+    financial.push({ label: `Manual Baqaya / دستی بقایا (${line.entryId})`, value: money(line.amount) });
+  }
   financial.push({ label: 'Amount Paid / Wusool Paya', value: money(receipt.paidAmount), strong: true });
   financial.push({ label: 'Payment Method / طریقہ', value: method || '—' });
   const grossRemaining = breakdown

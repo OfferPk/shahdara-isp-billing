@@ -183,8 +183,14 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     referralCredit: receipt.referralCreditAmount ? money(receipt.referralCreditAmount) : '',
     // SISP-43: billed ticket charges settled by this payment (short
     // label — the 32-char slip cannot fit the full receipt wording).
-    ticketCharges: (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : [])
-      .map(line => ({ label: `Murammat (${line.ticketId})`, value: money(line.amount) })),
+    // Owner feature (2026-10-29): manual baqaya settled by this payment
+    // rides the same row list with its own short label.
+    ticketCharges: [
+      ...(Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : [])
+        .map(line => ({ label: `Murammat (${line.ticketId})`, value: money(line.amount) })),
+      ...(Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [])
+        .map(line => ({ label: `Baqaya (${line.entryId})`, value: money(line.amount) }))
+    ],
     balanceDue: balance,
     statusLabel: receipt.status || '',
     // SISP-2: itemized arrears breakdown (passed through from the receipt

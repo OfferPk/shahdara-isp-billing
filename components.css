@@ -1559,3 +1559,27 @@ body.field-mode-open { overflow: hidden; }
   font-size: var(--text-md);
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+
+/* Owner feature (2026-10-29): Manual Baqaya (Loan) — profile section,
+   summary stat and Customers-card badge. Theme tokens only. */
+.manual-baqaya-section { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 12px 0; }
+.manual-baqaya-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.manual-baqaya-heading h3 { margin: 0; font-size: var(--text-md); color: var(--ink); }
+.manual-baqaya-total { margin: 6px 0 0; font-weight: 700; color: var(--color-overdue); font-variant-numeric: var(--numeric); }
+.manual-baqaya-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.manual-baqaya-row { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.manual-baqaya-main { display: grid; gap: 2px; min-width: 0; color: var(--ink); }
+.manual-baqaya-main small { color: var(--muted); }
+.manual-baqaya-note { color: var(--ink); overflow-wrap: anywhere; }
+.manual-baqaya-side { display: grid; gap: 2px; justify-items: end; text-align: end; color: var(--ink); font-variant-numeric: var(--numeric); }
+.manual-baqaya-status { border-radius: 999px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
+.manual-baqaya-status-pending { background: var(--color-pending-bg); color: var(--color-overdue); }
+.manual-baqaya-status-partial { background: var(--amber-bg); color: var(--amber); }
+.manual-baqaya-status-paid { background: var(--color-paid-bg); color: var(--color-paid); }
+.manual-baqaya-settled { color: var(--muted); }
+.manual-baqaya-locked { font-size: 12px; color: var(--muted); max-width: 260px; }
+.manual-baqaya-actions { display: inline-flex; gap: 10px; }
+.manual-baqaya-empty { margin: 8px 0 0; color: var(--muted); }
+.manual-baqaya-hint { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.manual-baqaya-badge { display: inline-block; margin-top: 2px; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-pending-bg); color: var(--color-overdue); white-space: nowrap; }
+.manual-baqaya-stat strong { color: var(--color-overdue); }

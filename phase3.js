@@ -1,3 +1,5 @@
+import { isVoidedPayment } from './payment-void-audit.js';
+
 export const EXPENSE_CATEGORIES = Object.freeze([
   'Nayatel bill','Electricity','Salary — Saad','Salary — Umair','Cable','ONU','Routers','Charger','Repairs','OLT','Tools','RADIUS server bill','Other expenses'
 ]);
@@ -238,7 +240,12 @@ function uniqueBillsForCustomer(customer) {
 }
 // Exported for SISP-51: the Owner Khata channel split enumerates the exact
 // same payment set as partner revenue, so the split always sums to it.
-export function paymentEntries(state) { return allBills(state).flatMap(({customer,bill})=>(bill.payments??[]).map(payment=>({customer,bill,payment}))); }
+// FU4: SISP-34 voided payments are skipped here, at the shared source —
+// a voided receipt is history, not collected cash, so partner revenue,
+// the Owner Khata split, phase-3 analytics and area collections all
+// exclude it (the allocation engine, Doctor and shop settlement already
+// did; the P&L family now agrees with them).
+export function paymentEntries(state) { return allBills(state).flatMap(({customer,bill})=>(bill.payments??[]).filter(payment=>!isVoidedPayment(payment)).map(payment=>({customer,bill,payment}))); }
 function allBills(state) { return uniqueCustomerRows(state.customers??[]).flatMap(customer=>uniqueBillsForCustomer(customer).map(bill=>({customer,bill}))); }
 function dateThrough(referenceDate,month) { const end=monthEnd(month); const today=pktDate(referenceDate); return end>today?today:end; }
 export function outstandingAtMonthEnd(state,month,referenceDate=new Date()) {
@@ -249,7 +256,7 @@ export function outstandingAtMonthEnd(state,month,referenceDate=new Date()) {
     for(const bill of bills) {
       const due=Number(bill.dueAmount); if(!Number.isFinite(due)||due<=0) continue; billCount++;
       let remaining=cents(due); const credit=Math.min(remaining,pendingCredit); remaining-=credit; pendingCredit-=credit;
-      const payments=[...(bill.payments??[])].filter(payment=>validDate(payment.date)&&payment.date<=cutoff).sort((a,b)=>a.date.localeCompare(b.date)||String(a.id).localeCompare(String(b.id)));
+      const payments=[...(bill.payments??[])].filter(payment=>!isVoidedPayment(payment)&&validDate(payment.date)&&payment.date<=cutoff).sort((a,b)=>a.date.localeCompare(b.date)||String(a.id).localeCompare(String(b.id)));
       for(const payment of payments) { const value=cents(payment.amount); const applied=Math.min(value,remaining); remaining-=applied; pendingCredit+=value-applied; }
       customerCents+=remaining;
     }

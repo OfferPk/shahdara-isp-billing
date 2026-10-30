@@ -247,6 +247,7 @@ export function calculateStaffPerformance(state = {}, {
     for (const bill of bills) {
       const payments = Array.isArray(bill.payments) ? bill.payments : [];
       for (const p of payments) {
+        if (p?.voided === true) continue; // FU4: SISP-34 voided receipts are not collected cash.
         const pDate = p.date || '';
         const pMonth = pDate.slice(0, 7) || bill.month;
 

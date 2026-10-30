@@ -175,6 +175,10 @@ export function calculateDailyClosingSummary(state = {}, referenceDate = new Dat
     for (const bill of bills) {
       const payments = Array.isArray(bill.payments) ? bill.payments : [];
       for (const p of payments) {
+        // FU4: SISP-34 voided receipts are history, not collected cash —
+        // they stay out of the day's totals, method/shop/collector splits
+        // and receipt list alike.
+        if (p?.voided === true) continue;
         if (p.date === todayStr) {
           const amt = Number(p.amount) || 0;
           if (amt > 0) {

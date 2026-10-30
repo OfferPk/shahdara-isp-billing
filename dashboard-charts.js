@@ -323,6 +323,7 @@ export function calculateAreaCollectionHeatmap(state, referenceDate = new Date()
       // Actual cash receipts dated in current month for this customer
       const payments = Array.isArray(bill.payments) ? bill.payments : [];
       for (const p of payments) {
+        if (p?.voided === true) continue; // FU4: SISP-34 voided receipts are not collected cash.
         if (typeof p.date === 'string' && p.date.startsWith(currentMonth)) {
           const amt = Number(p.amount) || 0;
           if (amt > 0) {

@@ -4,6 +4,7 @@ import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { isVoidedPayment } from './payment-void-audit.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
 export const RECEIPT_URDU_NOTE = 'رسید برائے انٹرنیٹ بل ادائیگی - ادائیگی موصول ہوئی۔ شکریہ! بروقت سروس کے لیے ہر ماہ کی 5 تاریخ تک بل ادا فرمائیں۔';
@@ -92,9 +93,15 @@ export function buildPaymentReceipt(customer, bill, payment) {
     // each payment — the ticket-charge portion settled field work, not
     // this bill (the total cash received still prints as paidAmount).
     const billPortionCents = (row) => Math.max(0, cents(positiveAmount(row.amount) ?? 0) - paymentTicketChargeCents(row));
+    // FU4: SISP-34 voided payments settle nothing — a voided sibling
+    // receipt (amount, discount and ticket-charge portions alike) never
+    // counts toward what was received before this payment, and a voided
+    // payment's own receipt contributes nothing itself, so the printed
+    // balance/status agree with the allocation engine and Khata Doctor.
     const paidBeforeCents = orderedPayments.slice(0, selectedIndex)
+      .filter(row => !isVoidedPayment(row))
       .reduce((sum, row) => sum + billPortionCents(row) + cents(positiveAmount(row.discount) ?? 0), 0);
-    const thisEffectiveCents = billPortionCents(payment) + cents(positiveAmount(payment.discount) ?? 0);
+    const thisEffectiveCents = isVoidedPayment(payment) ? 0 : billPortionCents(payment) + cents(positiveAmount(payment.discount) ?? 0);
     const receivedThroughCents = paidBeforeCents + thisEffectiveCents;
     const coveredBeforeReceipt = carryInCents + paidBeforeCents >= dueCents;
     balanceDueCents = Math.max(0, dueCents - carryInCents - receivedThroughCents);

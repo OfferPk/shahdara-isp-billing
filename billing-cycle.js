@@ -22,6 +22,7 @@ import { calculatePaymentAllocations, formatPKR, localDateTimeValue, paymentTick
 import { advancePlansForBilledLines, advancePlansForCoveredKist, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
 import { REFERRAL_CREDIT_REASON, applyReferralApplications, loadReferralCredits, planReferralApplications, queuedReferralTotalFor, reconcileReferralCredits, saveReferralCredits } from './referral-credits.js';
+import { isVoidedPayment } from './payment-void-audit.js';
 
 export const BILLING_CYCLES_KEY = 'sisp_billing_cycles_v1';
 
@@ -584,6 +585,10 @@ export function allocateFifoForBill(customer, bill) {
   const payments = [];
   for (const payment of (bill?.payments ?? [])) {
     if (!payment || typeof payment !== 'object') continue;
+    // FU4: SISP-34 voided payments settle nothing, so they consume no
+    // FIFO bucket and leave no split entry — later receipts' splits and
+    // the bill's remaining split derive from valid receipts only.
+    if (isVoidedPayment(payment)) continue;
     const remainingBefore = { arrears: rupees(remArrears), package: rupees(remPkg), kist: rupees(remKist) };
     // SISP-43: the ticket-charge portion of a receipt settled field-work
     // charges, not any FIFO bucket — the split sees the bill portion only.

@@ -48,6 +48,18 @@
  * the SISP-6 stamped PNG via generateReceiptPNG + shareOrDownloadPng).
  * The button renders only when the host supplies onPngReceipt.
  *
+ * SISP-65 adds a 1-tap [🔊 Speak Due] button on the collection sheet
+ * (dues + advance): it speaks the customer's name and net due aloud
+ * through the device's OFFLINE window.speechSynthesis — no network, no
+ * service. The spoken string is a pure formatter (formatSpeakDueText)
+ * fed by fieldModeCustomerStatus, i.e. the SAME allocation-engine
+ * figures the cards print — never a second balance computation. The
+ * speaker (speakTextAloud) is a safe no-op when speech is unavailable:
+ * it returns false and never throws, and the sheet then toasts the
+ * exact text instead, so the button is never a dead end. The profile
+ * heading carries the same button (profile-ui.js speakDueButtonMarkup,
+ * bound in app.js to speakCustomerDue).
+ *
  * SEARCH FIX (owner report 2026-10-29, "name search kro tu ni ataa"):
  * the list used to be built ONLY from the 'all-dues' pending list, so a
  * fully-paid customer could never be found by search — when the whole
@@ -81,6 +93,7 @@ import {
   getPakistanLocalDate
 } from './nav-quick-collect.js';
 import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOutstandingCents } from './core.js';
+import { t } from './nav-language.js';
 import { advanceBalanceCents, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { canonicalLocation } from './phase3.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
@@ -381,6 +394,92 @@ export function fieldModeCustomerStatus(state, customerId, allocations = null) {
 }
 
 /**
+ * SISP-65: the spoken form of a due figure — grouped digits with NO
+ * currency symbol or "PKR" prefix, so a speech engine reads "6,000"
+ * as "six thousand" (the speak_due_text template itself supplies the
+ * word "Rupees" / "rupay"). Non-finite or negative input reads as 0.
+ */
+function speakableAmount(value) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount <= 0) return '0';
+  const rounded = Math.round(amount * 100) / 100;
+  return new Intl.NumberFormat('en-PK', {
+    minimumFractionDigits: Number.isInteger(rounded) ? 0 : 2,
+    maximumFractionDigits: 2
+  }).format(rounded);
+}
+
+/**
+ * SISP-65: the EXACT string the [🔊 Speak Due] button speaks for one
+ * customer — pure and exported so the wording is unit-pinned. The
+ * template follows the app language setting via t() (the house
+ * pattern). The Urdu template is deliberately Roman Urdu with Latin
+ * digits — the same register as the WhatsApp receipts — because the
+ * device's default speech voice reads Latin script reliably, while an
+ * Urdu-script sentence would be spelled out letter by letter. A zero
+ * (or invalid) due speaks the "fully paid" line instead of "Rupees 0".
+ */
+export function formatSpeakDueText(name, netDue, lang = null) {
+  const who = String(name ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
+  const due = Number(netDue);
+  if (!Number.isFinite(due) || due <= 0) {
+    return t('speak_due_paid_text', lang, { name: who });
+  }
+  return t('speak_due_text', lang, { name: who, amount: speakableAmount(due) });
+}
+
+/**
+ * SISP-65: builds the spoken string for a customer from the SAME
+ * allocation-engine figures Field Mode's cards already show
+ * (fieldModeCustomerStatus — one shared engine pass, never a second
+ * balance computation). Returns '' for an unknown customer id.
+ */
+export function speakDueTextForCustomer(state, customerId, allocations = null, lang = null) {
+  const customer = (state?.customers ?? []).find(c => c.id === customerId);
+  if (!customer) return '';
+  const status = fieldModeCustomerStatus(state, customerId, allocations);
+  return formatSpeakDueText(customer.name, status.totalDues, lang);
+}
+
+/**
+ * SISP-65: speaks a string through the device's OFFLINE speech
+ * synthesis (window.speechSynthesis — on-device, no network, no
+ * service). Safe no-op by contract: returns false and NEVER throws
+ * when the API is missing (headless tests, unsupported browsers) or
+ * fails mid-call. `synth` is injectable for tests; a real
+ * SpeechSynthesisUtterance is constructed when the platform provides
+ * one, otherwise a plain { text } object is passed through.
+ */
+export function speakTextAloud(text, synth = null) {
+  try {
+    const api = synth ?? (typeof globalThis !== 'undefined' ? globalThis.speechSynthesis : undefined);
+    if (!api || typeof api.speak !== 'function') return false;
+    const spoken = String(text ?? '').trim();
+    if (!spoken) return false;
+    const utterance = typeof SpeechSynthesisUtterance !== 'undefined'
+      ? new SpeechSynthesisUtterance(spoken)
+      : { text: spoken };
+    if (typeof api.cancel === 'function') api.cancel();
+    api.speak(utterance);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * SISP-65: the [🔊 Speak Due] click seam — builds the customer's
+ * spoken string from the engine figures and speaks it. Returns
+ * { text, spoken } so the caller can fall back to showing the text
+ * (a toast) when no speech engine exists. Never throws.
+ */
+export function speakCustomerDue(state, customerId, { allocations = null, lang = null, synth = null } = {}) {
+  const text = speakDueTextForCustomer(state, customerId, allocations, lang);
+  if (!text) return { text: '', spoken: false };
+  return { text, spoken: speakTextAloud(text, synth) };
+}
+
+/**
  * SEARCH FIX: records an ADVANCE collection for a customer found by
  * search (typically zero-dues) through Field Mode's own existing path —
  * executeQuickCollection with kind 'advance', the exact call the Quick
@@ -507,6 +606,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let busy = false;
 
   const toast = (msg) => { if (typeof onToast === 'function') onToast(msg); };
+  // SISP-65: the [🔊 Speak Due] button shared by both collection
+  // sheets (existing field-mode-action-btn class — theme tokens only).
+  const speakDueBtn = () =>
+    `<button type="button" class="field-mode-action-btn" data-field-action="speakDue" ${busy ? 'disabled' : ''}>${escapeHtml(t('speak_due_btn'))}</button>`;
   const todayStr = () => getWaadaTodayString();
   const searching = () => String(query ?? '').trim().length > 0;
 
@@ -655,6 +758,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       <div class="field-mode-action-grid">
         <button type="button" class="field-mode-action-btn field-mode-cash-btn" data-field-action="cash" ${busy ? 'disabled' : ''}>💵 Cash Full — ${escapeHtml(formatPKR(entry.totalDues))}</button>
         ${shopButtons}
+        ${speakDueBtn()}
         <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="advance" ${busy ? 'disabled' : ''}>💰 Advance payment</button>
       </div>
       <div class="field-mode-waada">
@@ -709,6 +813,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       <div class="field-mode-action-grid">
         ${methodButtons}
       </div>
+      ${speakDueBtn()}
       <p class="field-mode-note">Money received before its bill — it stays tagged as advance for the selected month and adjusts against that month's bill automatically.</p>
       ${zeroDues ? '' : '<button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="advance-back">← Back to collection</button>'}
       <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="back">← Back to list</button>
@@ -741,6 +846,18 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     lastReceiptAdvanceTarget = null;
     panelMode = 'collect';
     render();
+  }
+
+  // SISP-65: speaks the selected customer's name + net due through
+  // speakCustomerDue (the engine figures, never a second computation).
+  // With no speech engine on the device the exact text is toasted
+  // instead — the operator still gets the figures, never a dead end.
+  function speakDue() {
+    if (!selectedId) return;
+    const state = typeof getState === 'function' ? getState() : null;
+    if (!state) return;
+    const { text, spoken } = speakCustomerDue(state, selectedId);
+    if (!spoken && text) toast(text);
   }
 
   function collect(method) {
@@ -948,6 +1065,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           panelMode = 'collect';
           render();
         }
+        else if (action === 'speakDue') speakDue();
         else if (action === 'print58') {
           // SISP-31: 1-tap 58mm slip through the host's EXISTING thermal
           // path (same printPaymentReceipt format 'thermal-58' the profile

@@ -7082,6 +7082,7 @@
           <button id="generateBillsBtn" class="primary-button" type="button" data-i18n="bill_generate">Generate this month's bills</button>
           <button id="billsInvoicesBtn" class="secondary-button" type="button" data-i18n="bill_invoices">Print / WhatsApp invoices</button>
           <button id="unbilledCustomersBtn" class="secondary-button" type="button" data-i18n="bill_unbilled">Unbilled customers (Not set)</button>
+          <button id="bulkTariffOpenBtn" class="secondary-button" type="button" data-i18n="tariff_open_btn">📈 Bulk Tariff Update</button>
           <p id="billsActionsNote" class="chart-caption" role="status" aria-live="polite"></p>
         </div>
         <div class="report-filters" role="group" aria-label="Filter customers by payment status" data-i18n-aria-label="bill_filter_aria">
@@ -20408,6 +20409,55 @@
           <button id="expenseVoucherPrintBtn" class="secondary-button" type="button" data-i18n="evouch_print_a4">📄 Print A4</button>
         </div>
         <button id="expenseVoucherCloseBtn2" class="primary-button" type="button" data-i18n="evouch_close">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- SISP-81: Bulk Package Tariff Updater wizard (opened from the
+       Monthly Billing actions bar). Applies a new monthly fee to every
+       active customer on one package for future cycles only — issued
+       bills are rate-locked and never change. -->
+  <dialog id="bulkTariffDialog" class="billing-modal bulk-tariff-modal" aria-labelledby="bulkTariffDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="bulkTariffDialogTitle" data-i18n="tariff_title">Bulk Package Tariff Update</h2>
+          <span class="urdu-subtitle">بلک پیکج ریٹ تبدیلی اور پرانے بلوں کا تحفظ</span>
+        </div>
+        <button id="bulkTariffCloseBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="billing-modal-body">
+        <p class="bulk-tariff-help" data-i18n="tariff_help">Change the monthly fee for every active customer on one package in a single pass. Bills already issued never change — the new fee applies only from the next unpaid cycle.</p>
+        <p class="bulk-tariff-lock-note" data-i18n="tariff_rate_lock_note">Rate lock: bills already issued keep their old amounts — always.</p>
+        <div class="bulk-tariff-controls">
+          <label class="bulk-tariff-field" for="tariffPackageSelect"><span data-i18n="tariff_package_label">Package</span>
+            <select id="tariffPackageSelect" class="bulk-tariff-select"></select>
+          </label>
+          <label class="bulk-tariff-field" for="tariffCurrentRateInput"><span data-i18n="tariff_current_rate_label">Current monthly fee (PKR)</span>
+            <input id="tariffCurrentRateInput" class="bulk-tariff-input" type="number" min="1" step="1" inputmode="numeric" placeholder="2000">
+            <span class="bulk-tariff-hint" data-i18n="tariff_current_rate_hint">Leave empty to include custom fees on this package.</span>
+          </label>
+          <label class="bulk-tariff-field" for="tariffNewRateInput"><span data-i18n="tariff_new_rate_label">New monthly fee (PKR)</span>
+            <input id="tariffNewRateInput" class="bulk-tariff-input" type="number" min="1" step="1" inputmode="numeric" placeholder="2200">
+          </label>
+        </div>
+        <p id="tariffError" class="bulk-tariff-error" role="alert" hidden></p>
+        <p id="tariffPreviewSummary" class="bulk-tariff-summary" role="status"></p>
+        <ul id="tariffPreviewList" class="bulk-tariff-list" aria-label="Customers to update"></ul>
+        <p id="tariffFreeSkippedNote" class="bulk-tariff-free-note" hidden></p>
+        <div id="tariffResultSection" class="bulk-tariff-result" hidden>
+          <p id="tariffResultSummary" class="bulk-tariff-summary" role="status"></p>
+          <h3 class="bulk-tariff-notice-heading" data-i18n="tariff_notice_heading">WhatsApp rate-revision notices</h3>
+          <ul id="tariffNoticeList" class="bulk-tariff-list" aria-label="WhatsApp notices"></ul>
+        </div>
+      </div>
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="tariffPreviewBtn" class="secondary-button" type="button" data-i18n="tariff_preview_btn">Preview customers</button>
+          <button id="tariffApplyBtn" class="primary-button" type="button" disabled>Apply new fee</button>
+          <button id="tariffCopyNoticesBtn" class="secondary-button" type="button" data-i18n="tariff_copy_all" disabled>Copy all notices</button>
+        </div>
+        <button id="bulkTariffDoneBtn" class="primary-button" type="button" data-i18n="tariff_close">Close</button>
       </footer>
     </div>
   </dialog>

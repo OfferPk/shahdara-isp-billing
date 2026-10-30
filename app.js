@@ -187,6 +187,7 @@ import { buildCollectionForecast } from './collection-forecaster.js';
 import { buildDailyPartnerDigest, dailyPartnerDigestWhatsAppUrl } from './daily-partner-digest.js';
 import { setupMultiMonthMatrix } from './multi-month-comparison.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
+import { buildRevenueLeakAudit, buildRevenueLeakSummary } from './revenue-leak-detector.js';
 import { setupBulkTariffDialog } from './bulk-tariff-updater.js';
 import { buildBottleneckSuspects, buildBottleneckSummary, bottleneckForCustomer } from './hardware-speed-audit.js';
 import { buildFieldDispatchBoard, DISPATCH_ITEM_TYPES, UNASSIGNED_ZONE_KEY } from './field-dispatch-board.js';
@@ -951,6 +952,39 @@ function renderDashboard() {
         return `<li class="upsell-item"><button type="button" class="upsell-row" data-upsell-customer-id="${escapeHtml(row.customerId)}"><span class="upsell-main"><strong class="upsell-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="upsell-sub-line">${escapeHtml(t('upsell_pkg_line', null, { current: row.currentLabel, fee: formatAmount(row.currentFee), target: row.targetLabel, price: formatAmount(row.targetPrice) }))}</span><span class="upsell-sub-line">${escapeHtml(reasons)}</span></span><strong class="upsell-gain">${escapeHtml(t('upsell_gain', null, { amount: formatAmount(row.gainPerMonth) }))}</strong></button>${row.whatsappUrl ? `<a class="upsell-offer-btn" href="${escapeHtml(row.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('upsell_offer'))}</a>` : ''}</li>`;
       }).join('');
     upsellListEl.querySelectorAll('[data-upsell-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.upsellCustomerId)));
+  }
+  // SISP-85: Revenue Leak Audit — active zero-rate connections,
+  // expired vacation holds and active customers with no bill in the
+  // current cycle, with an estimated monthly leakage taken only from
+  // recorded rates/bills. Read-only: rows open the customer profile;
+  // the audit never resumes a hold, sets a rate or creates a bill.
+  const revenueLeakListEl = $('#revenueLeakList');
+  if (revenueLeakListEl) {
+    const leakRows = buildRevenueLeakAudit(state, referenceDate);
+    const leakSummary = buildRevenueLeakSummary(leakRows);
+    const leakTotalEl = $('#revenueLeakTotal');
+    if (leakTotalEl) leakTotalEl.textContent = leakSummary.totalEstimatedMonthlyLeakage > 0
+      ? t('revleak_total', null, { amount: formatAmount(leakSummary.totalEstimatedMonthlyLeakage) })
+      : '';
+    const leakFlagKeys = {
+      'zero-rate': 'revleak_flag_zero',
+      'expired-pause': 'revleak_flag_expired',
+      'missing-current-bill': 'revleak_flag_missing'
+    };
+    revenueLeakListEl.innerHTML = leakRows.length === 0
+      ? `<li class="revleak-empty">${escapeHtml(t('revleak_empty'))}</li>`
+      : leakRows.map((row) => {
+        const detail = row.flag === 'zero-rate'
+          ? t('revleak_zero_line')
+          : row.flag === 'expired-pause'
+            ? t('revleak_expired_line', null, { date: row.autoResumeDate ? humanDate(row.autoResumeDate) : '' })
+            : t('revleak_missing_line', null, { month: displayMonthName(row.currentMonth) });
+        const amount = row.estimatedMonthlyLeakage === null
+          ? `<span class="revleak-no-estimate">${escapeHtml(t('revleak_no_estimate'))}</span>`
+          : `<strong class="revleak-amount">${escapeHtml(t('revleak_estimate', null, { amount: formatAmount(row.estimatedMonthlyLeakage) }))}</strong>`;
+        return `<li class="revleak-item"><button type="button" class="revleak-row" data-revleak-customer-id="${escapeHtml(row.customerId)}"><span class="revleak-main"><strong class="revleak-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="revleak-flag">${escapeHtml(t(leakFlagKeys[row.flag] || 'revleak_flag_missing'))}</span><span class="revleak-sub-line">${escapeHtml(detail)}</span></span>${amount}</button></li>`;
+      }).join('');
+    revenueLeakListEl.querySelectorAll('[data-revleak-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.revleakCustomerId)));
   }
   // SISP-75: Daily Partner Digest — one tap builds today's Roman Urdu
   // partner summary (direct cash, per-shop unsettled cash, roznamcha

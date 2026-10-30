@@ -193,6 +193,9 @@ export function readState(storage, key = STORAGE_KEY) {
       // Owner default roster (2026-10-29): free connections keep their
       // flag through save/load; legacy records load as not free.
       isFreeConnection:customer.isFreeConnection === true,
+      // SISP-76: SMS-first contact preference — legacy records load
+      // as WhatsApp-default (false), never as an invented opt-in.
+      prefersSms:customer.prefersSms === true,
       archived:customer.archived === true,
       archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       // SISP-8: vacation hold — corrupt values fall back to "no hold",
@@ -375,7 +378,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // an offline span can accrue from day one.
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, prefersSms:options.prefersSms === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -725,6 +728,8 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     // zone value coerces to '' rather than blocking an unrelated save.
     upstreamCustomerId: cleanText(valueOrCurrent('upstreamCustomerId') ?? '', 100, 'Upstream customer'),
     fiberZone: normalizeFiberZone(valueOrCurrent('fiberZone') ?? ''),
+    // SISP-76: contact preference edited on the profile form.
+    prefersSms: valueOrCurrent('prefersSms') === true,
     paused: valueOrCurrent('paused') === true,
     pauseStartDate: checkOptionalDate(valueOrCurrent('pauseStartDate'), 'Pause start date'),
     autoResumeDate: checkOptionalDate(valueOrCurrent('autoResumeDate'), 'Auto-resume date')

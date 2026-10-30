@@ -187,6 +187,7 @@ import { buildBottleneckSuspects, buildBottleneckSummary, bottleneckForCustomer 
 import { buildFieldDispatchBoard, DISPATCH_ITEM_TYPES, UNASSIGNED_ZONE_KEY } from './field-dispatch-board.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { recordPrepay, prepayQuote, PREPAY_MONTH_OPTIONS } from './advance-prepay.js';
+import { buildSmsReceiptUrl, buildSmsReminderUrl, customerPrefersSms } from './sms-fallback.js';
 import { BAD_DEBTS_KEY, activeBadDebtFor, badDebtSummary, loadBadDebts, restoreBadDebt, saveBadDebts, writeOffBadDebt } from './bad-debt-ledger.js';
 import { manualBaqayaCardBadgeMarkup, manualBaqayaStatMarkup, manualBaqayaSectionMarkup } from './manual-baqaya.js';
 import { UPS_NODES_KEY, activeOutages, checkUpsNodeDepletions, formatClockTime, loadUpsNodes, powerBackupSummary, saveUpsNodes, setupPowerBackupModal } from './power-backup-monitor.js';
@@ -2183,15 +2184,34 @@ function profilePaymentAllocationMarkup(allocation) {
   if (allocation.unappliedCreditCents) lines.push(t('prof_hist_alloc_waiting', null, { amount: formatAmount(allocation.unappliedCreditCents / 100) }));
   return `<span class="payment-allocation">${lines.map(escapeHtml).join('<br>')}</span>`;
 }
+// SISP-76: native SMS slip beside the WhatsApp receipt — for keypad /
+// non-WhatsApp customers. The sms: URI opens the phone's SMS composer
+// with a short Roman Urdu draft; nothing is sent automatically. An
+// SMS-valid number yields a link even when WhatsApp cannot draft
+// (e.g. a locally saved 03xx number); an invalid number yields ''.
+function receiptSmsSlipMarkup(customer, receipt) {
+  const sms = buildSmsReceiptUrl({
+    phone: customer.phone || '',
+    customerName: customer.name || '',
+    amount: receipt.amount,
+    balanceDue: receipt.balanceDueCents === null || receipt.balanceDueCents === undefined ? null : receipt.balanceDueCents / 100,
+    receiptNumber: receipt.receiptNumber || ''
+  });
+  if (!sms.valid) return '';
+  return `<a class="receipt-whatsapp-action receipt-sms-action" href="${escapeHtml(sms.url)}" aria-label="${escapeHtml(t('sms_slip_aria', null, { number: customer.customerNumber, name: customer.name }))}">${escapeHtml(t('sms_slip_btn'))}</a>`;
+}
 function receiptWhatsAppActionMarkup(customer, receipt, { askLabel = null } = {}) {
   const action = resolveReceiptWhatsAppAction(customer, receipt);
+  const smsMarkup = receiptSmsSlipMarkup(customer, receipt);
   if (action.type === 'phone-required') {
     // #298: in the payments list the button says "WhatsApp receipt" and asks for the number only when tapped.
     const label = askLabel || (action.hasSavedPhone ? 'Update WhatsApp number' : 'Add WhatsApp number');
-    return `<button class="receipt-phone-help" type="button" data-edit-receipt-phone="${escapeHtml(customer.id)}" aria-label="${label} for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)} before preparing this receipt" title="Use this customer's full international number including country code.">${label}</button>`;
+    return `${smsMarkup}<button class="receipt-phone-help" type="button" data-edit-receipt-phone="${escapeHtml(customer.id)}" aria-label="${label} for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)} before preparing this receipt" title="Use this customer's full international number including country code.">${label}</button>`;
   }
-  if (action.type !== 'draft') return '<span class="whatsapp-receipt-unavailable">Receipt draft unavailable for this customer.</span>';
-  return `<span class="receipt-whatsapp-action-wrap"><a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; an internet connection is required to open WhatsApp; it will not send automatically" title="Draft prepared locally; internet is required to open WhatsApp.">WhatsApp receipt</a><small class="receipt-network-note">Internet required to open WhatsApp.</small></span>`;
+  if (action.type !== 'draft') return smsMarkup || '<span class="whatsapp-receipt-unavailable">Receipt draft unavailable for this customer.</span>';
+  const whatsappMarkup = `<span class="receipt-whatsapp-action-wrap"><a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; an internet connection is required to open WhatsApp; it will not send automatically" title="Draft prepared locally; internet is required to open WhatsApp.">WhatsApp receipt</a><small class="receipt-network-note">Internet required to open WhatsApp.</small></span>`;
+  // SISP-76: an SMS-preference customer sees the SMS slip first.
+  return customerPrefersSms(customer) ? `${smsMarkup}${whatsappMarkup}` : `${whatsappMarkup}${smsMarkup}`;
 }
 function editCustomerPhoneFromReceipt(customerId) {
   if (!customerId || !state.customers.some(customer => customer.id === customerId)) return;
@@ -2846,7 +2866,11 @@ function renderCustomerProfileView(customer) {
   const phone = String(customer.phone ?? '').trim();
   const cnic = String(customer.cnic ?? '').trim();
   const phoneTargets = contactActionTargets(phone);
-  const phoneActions = phoneTargets ? `<span class="profile-contact-actions" aria-label="${t('prof_view_contact_aria')}"><a class="secondary-button" href="${escapeHtml(phoneTargets.tel)}">${t('prof_view_call')}</a>${phoneTargets.whatsapp ? `<a class="secondary-button" href="${escapeHtml(phoneTargets.whatsapp)}" target="_blank" rel="noopener noreferrer">${t('prof_view_whatsapp')}</a>` : ''}</span>` : '';
+  // SISP-76: an SMS-preference customer gets the SMS shortcut first
+  // among the contact actions (generic reminder draft, no figures).
+  const smsContact = customerPrefersSms(customer) ? buildSmsReminderUrl({ phone, customerName: customer.name || '' }) : null;
+  const smsAction = smsContact?.valid ? `<a class="secondary-button" href="${escapeHtml(smsContact.url)}">${t('prof_view_sms')}</a>` : '';
+  const phoneActions = phoneTargets ? `<span class="profile-contact-actions" aria-label="${t('prof_view_contact_aria')}"><a class="secondary-button" href="${escapeHtml(phoneTargets.tel)}">${t('prof_view_call')}</a>${smsAction}${phoneTargets.whatsapp ? `<a class="secondary-button" href="${escapeHtml(phoneTargets.whatsapp)}" target="_blank" rel="noopener noreferrer">${t('prof_view_whatsapp')}</a>` : ''}</span>` : '';
   const phoneHint = phoneTargets?.whatsapp ? '' : `<p class="profile-contact-note">${t('prof_view_phone_hint')}</p>`;
   const profit = customerPackageProfit(customer);
   const lifetimeValue = buildCustomerLifetimeValue(state, customer, new Date());
@@ -3395,6 +3419,7 @@ function renderDetail() {
   // a hold is active; skipped months stay visible in the profile view).
   const pauseSummary = pauseBillingSummary(customer);
   if ($('#pauseBillingCheckbox')) $('#pauseBillingCheckbox').checked = customer.paused === true;
+  if ($('#prefersSmsCheckbox')) $('#prefersSmsCheckbox').checked = customer.prefersSms === true;
   if ($('#pauseStartDateInput')) $('#pauseStartDateInput').value = customer.pauseStartDate ?? '';
   if ($('#autoResumeDateInput')) $('#autoResumeDateInput').value = customer.autoResumeDate ?? '';
   const pauseBadge = $('#pauseStateBadge');
@@ -5723,6 +5748,8 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       expiryDate:$('#expiryDateInput').value, cancellationDate:$('#cancellationDateInput').value,
       // SISP-8: vacation hold (validation errors surface as a toast).
       paused: $('#pauseBillingCheckbox')?.checked === true,
+      // SISP-76: SMS-first contact preference.
+      prefersSms: $('#prefersSmsCheckbox')?.checked === true,
       pauseStartDate: $('#pauseStartDateInput')?.value || '',
       autoResumeDate: $('#autoResumeDateInput')?.value || '',
       packageChangeStaffName:$('#packageChangeStaffNameInput').value,
@@ -6719,7 +6746,16 @@ window.fieldModeController = setupFieldMode({
   onPrint58mm: (receipt) => printPaymentReceipt(receipt.customerId, receipt.month, receipt.paymentId, { format: 'thermal-58' }),
   // SISP-41: 1-tap stamped PNG receipt on field-mode receipt cards, reusing
   // the existing SISP-6 path (same downloadPngReceipt the profile history buttons use).
-  onPngReceipt: (receipt) => downloadPngReceipt(receipt.customerId, receipt.month, receipt.paymentId)
+  onPngReceipt: (receipt) => downloadPngReceipt(receipt.customerId, receipt.month, receipt.paymentId),
+  // SISP-76: 1-tap native SMS slip on field-mode receipt cards for
+  // keypad / non-WhatsApp customers ('' hides the button entirely).
+  onSmsSlipUrl: (receipt) => buildSmsReceiptUrl({
+    phone: receipt.phone || '',
+    customerName: receipt.customerName || '',
+    amount: receipt.amount,
+    balanceDue: receipt.newTotalDues ?? receipt.payableRemaining ?? null,
+    receiptNumber: receipt.receiptNumber || ''
+  }).url
 });
 // Setup Mobile Customer Quick Profile Sheet & WhatsApp Delivery (agent2 - shahdara-mobile-nav)
 window.mobileQuickProfileController = setupMobileQuickProfileModal({
@@ -9504,6 +9540,7 @@ const reminderCustomerSummary = $('#reminderCustomerSummary');
 const reminderCharCount = $('#reminderCharCount');
 const reminderPhoneNotice = $('#reminderPhoneNotice');
 const sendWhatsAppReminderBtn = $('#sendWhatsAppReminderBtn');
+const sendSmsReminderBtn = $('#sendSmsReminderBtn');
 const copyReminderTextBtn = $('#copyReminderTextBtn');
 const printReminderSlipBtn = $('#printReminderSlipBtn');
 
@@ -9666,6 +9703,25 @@ function renderReminderContent() {
     } else {
       reminderPhoneNotice.textContent = 'Phone number missing or invalid format';
       reminderPhoneNotice.style.color = '#f59e0b';
+    }
+  }
+
+  // SISP-76: SMS slip for the same reminder — shown only when the
+  // number can take an SMS; a prefersSms customer gets the SMS action
+  // emphasised first in the actions row.
+  if (sendSmsReminderBtn) {
+    const sms = buildSmsReminderUrl({ phone: c.phone || '', customerName: c.name || '', balanceDue: balance > 0 ? balance : null, dueText: dueDate });
+    if (sms.valid) {
+      sendSmsReminderBtn.href = sms.url;
+      sendSmsReminderBtn.hidden = false;
+      // An SMS-preference customer gets the SMS action first in the row.
+      const actionsRow = sendSmsReminderBtn.parentElement;
+      if (actionsRow && sendWhatsAppReminderBtn) {
+        actionsRow.insertBefore(sendSmsReminderBtn, customerPrefersSms(c) ? sendWhatsAppReminderBtn : sendWhatsAppReminderBtn.nextSibling);
+      }
+    } else {
+      sendSmsReminderBtn.hidden = true;
+      sendSmsReminderBtn.removeAttribute('href');
     }
   }
 

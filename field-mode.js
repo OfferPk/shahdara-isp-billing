@@ -580,7 +580,7 @@ export function fieldModeReceiptActionMarkup({ hasPrint58 = false, hasPngReceipt
   return `${print58Button}${pngReceiptButton}`;
 }
 
-export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, onPngReceipt } = {}) {
+export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, onPngReceipt, onSmsSlipUrl } = {}) {
   if (typeof document === 'undefined') return nullFieldModeController();
   const view = document.getElementById('fieldModeView');
   const toggleBtn = document.getElementById('fieldModeToggleBtn');
@@ -711,6 +711,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     if (lastReceipt) {
       const { receipt, whatsapp } = lastReceipt;
       const settled = Number(receipt.newTotalDues) <= 0;
+      // SISP-76: native SMS slip for keypad / non-WhatsApp customers.
+      // The host supplies the sms: URL ('' when the phone cannot take
+      // an SMS), so the button never renders as a dead link.
+      const smsSlipUrl = typeof onSmsSlipUrl === 'function' ? (onSmsSlipUrl(receipt) || '') : '';
       const receiptActionButtons = fieldModeReceiptActionMarkup({
         hasPrint58: typeof onPrint58mm === 'function',
         hasPngReceipt: typeof onPngReceipt === 'function'
@@ -723,6 +727,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         ${whatsapp.url
           ? `<a class="field-mode-action-btn field-mode-whatsapp-btn" href="${escapeHtml(whatsapp.url)}" target="_blank" rel="noopener noreferrer">📲 WA Receipt</a>`
           : '<p class="field-mode-note">Save the customer\'s full phone number (with country code) to enable the WhatsApp receipt.</p>'}
+        ${smsSlipUrl
+          ? `<a class="field-mode-action-btn field-mode-sms-btn" href="${escapeHtml(smsSlipUrl)}">💬 SMS Slip</a>`
+          : ''}
         ${receiptActionButtons}
         <button type="button" class="field-mode-action-btn" data-field-action="next">Next customer →</button>
       </section>`;

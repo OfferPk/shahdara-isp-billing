@@ -185,6 +185,7 @@ import { buildCollectionForecast } from './collection-forecaster.js';
 import { buildDailyPartnerDigest, dailyPartnerDigestWhatsAppUrl } from './daily-partner-digest.js';
 import { setupMultiMonthMatrix } from './multi-month-comparison.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
+import { setupBulkTariffDialog } from './bulk-tariff-updater.js';
 import { buildBottleneckSuspects, buildBottleneckSummary, bottleneckForCustomer } from './hardware-speed-audit.js';
 import { buildFieldDispatchBoard, DISPATCH_ITEM_TYPES, UNASSIGNED_ZONE_KEY } from './field-dispatch-board.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
@@ -430,6 +431,7 @@ export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let zoneSheetDialogController = null;
 export let expenseVoucherDialogController = null;
+export let bulkTariffDialogController = null;
 export let ownerPinGuardController = null;
 export let multiMonthMatrixController = null;
 export let areaCollectionsModalController = null;
@@ -10987,6 +10989,13 @@ if (typeof document !== 'undefined') {
   });
   expenseVoucherDialogController = setupExpenseVoucherDialog(() => state, {
     getPartnerEntries: () => loadPartnerLedgerEntries(),
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  bulkTariffDialogController = setupBulkTariffDialog(() => state, {
+    onUpdateState: (newState) => {
+      state = newState;
+      save();
+    },
     onToast: (msg, opts) => toast(msg, opts)
   });
   ownerPinGuardController = setupOwnerPinGuard({

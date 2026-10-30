@@ -1678,6 +1678,38 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-81: Bulk Tariff Update wizard (token-only; the dialog itself
+   uses the shared .billing-modal shell → var(--modal-surface)). */
+.bulk-tariff-help { margin: 0 0 var(--space-2); color: var(--muted); font-size: var(--text-sm); }
+.bulk-tariff-lock-note { margin: 0 0 var(--space-3); color: var(--ink); font-size: var(--text-sm); font-weight: 700; }
+.bulk-tariff-controls { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-start; }
+.bulk-tariff-field { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-sm); color: var(--muted); min-width: 180px; flex: 1 1 180px; }
+.bulk-tariff-select, .bulk-tariff-input {
+  min-height: 42px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+.bulk-tariff-hint { font-size: var(--text-sm); color: var(--muted); }
+.bulk-tariff-error { margin: var(--space-3) 0 0; color: var(--color-overdue); font-weight: 700; }
+.bulk-tariff-summary { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+.bulk-tariff-list { list-style: none; margin: var(--space-3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.bulk-tariff-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.bulk-tariff-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bulk-tariff-meta { color: var(--muted); font-size: var(--text-sm); }
+.bulk-tariff-effective { color: var(--muted); font-size: var(--text-sm); }
+.bulk-tariff-rates { color: var(--ink); font-variant-numeric: var(--numeric); white-space: nowrap; }
+.bulk-tariff-free-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--text-sm); }
+.bulk-tariff-result { margin-top: var(--space-4); }
+.bulk-tariff-notice-heading { margin: var(--space-3) 0 0; color: var(--ink); }
+.bulk-tariff-notice-btn { color: var(--green); font-weight: 700; text-decoration: none; white-space: nowrap; }
+@media (max-width: 700px) {
+  .bulk-tariff-row { flex-wrap: wrap; }
+  .bulk-tariff-rates { white-space: normal; }
+}
 /* SISP-80: Owner PIN dialog (token-only; the dialog itself uses the
    shared .billing-modal shell → var(--modal-surface)). */
 .owner-pin-body { display: flex; flex-direction: column; gap: var(--space-2); }

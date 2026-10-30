@@ -626,6 +626,34 @@
           <div id="collectionForecastAreas" class="collection-forecast-areas"></div>
         </div>
       </section>
+      <section class="multi-month-matrix-section" id="multiMonthMatrixSection" aria-labelledby="multiMonthMatrixHeading">
+        <div class="mmx-card">
+          <div class="mmx-header">
+            <div>
+              <h3 id="multiMonthMatrixHeading" class="mmx-title" data-i18n="mmx_title">Growth &amp; Finance Matrix</h3>
+              <p class="chart-caption" data-i18n="mmx_sub">Subscribers, billing, collection, expenses, profit and downtime — month by month, from the same engines as their own screens</p>
+            </div>
+            <div class="mmx-controls">
+              <label class="mmx-control-label"><span data-i18n="mmx_range_label">Compare</span>
+                <select id="multiMonthRangeSelect" class="mmx-select">
+                  <option value="3" data-i18n="mmx_range_3">Last 3 months</option>
+                  <option value="6" data-i18n="mmx_range_6">Last 6 months</option>
+                  <option value="12" data-i18n="mmx_range_12">Last 12 months</option>
+                </select>
+              </label>
+              <label class="mmx-control-label"><span data-i18n="mmx_end_label">Ending month</span>
+                <select id="multiMonthEndSelect" class="mmx-select"></select>
+              </label>
+            </div>
+          </div>
+          <div class="mmx-table-wrap">
+            <table class="mmx-table" id="multiMonthMatrixTable"></table>
+          </div>
+          <div class="mmx-cards" id="multiMonthMatrixCards"></div>
+          <p id="multiMonthMatrixEmpty" class="empty-state" hidden data-i18n="mmx_empty">No billing, connections, expenses or downtime recorded in this range yet.</p>
+          <p class="mmx-note" data-i18n="mmx_note">Net Profit follows the P&amp;L screen (cash received in the month − expenses). Collected follows the billing engine (share of the month’s bills settled). Churned counts customers still archived whose archive date falls in that month.</p>
+        </div>
+      </section>
       <section class="mohalla-dashboard-section" id="mohallaDashboardSection" aria-labelledby="mohallaDashboardHeading">
         <div class="mohalla-dashboard-heading">
           <p class="eyebrow" data-i18n="dash_mohalla_eyebrow">AREA / MOHALLA</p>

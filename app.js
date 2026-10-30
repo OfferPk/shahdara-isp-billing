@@ -180,6 +180,7 @@ import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-sco
 import { buildRecentPayments } from './recent-payments.js';
 import { buildAdvanceDashboard } from './advance-dashboard.js';
 import { buildCollectionForecast } from './collection-forecaster.js';
+import { setupMultiMonthMatrix } from './multi-month-comparison.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
 import { buildBottleneckSuspects, buildBottleneckSummary, bottleneckForCustomer } from './hardware-speed-audit.js';
 import { buildFieldDispatchBoard, DISPATCH_ITEM_TYPES, UNASSIGNED_ZONE_KEY } from './field-dispatch-board.js';
@@ -424,6 +425,7 @@ export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let zoneSheetDialogController = null;
 export let expenseVoucherDialogController = null;
+export let multiMonthMatrixController = null;
 export let areaCollectionsModalController = null;
 export let packageRevenueModalController = null;
 export let pnlModalController = null;
@@ -1478,6 +1480,14 @@ function renderDashboard() {
         </div>`;
       }).join('');
     }
+  }
+
+  // SISP-70: Multi-Month Growth & Finance Matrix — 3/6/12-month
+  // side-by-side comparison under the thermometer, every figure from
+  // its own source engine (allocation engine, P&L, SISP-16 downtime,
+  // join/archive stamps). Read-only presentation.
+  if (multiMonthMatrixController) {
+    try { multiMonthMatrixController.refresh(); } catch { /* section is optional chrome */ }
   }
 
   // Wire #homeActionDuesList
@@ -10795,6 +10805,10 @@ if (typeof document !== 'undefined') {
     getPartnerEntries: () => loadPartnerLedgerEntries(),
     onToast: (msg, opts) => toast(msg, opts)
   });
+  multiMonthMatrixController = setupMultiMonthMatrix(() => state, {
+    getComplaints: () => loadComplaints()
+  });
+  if (multiMonthMatrixController) multiMonthMatrixController.refresh();
   areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
     onFilterCustomerArea: (areaName) => {
       const search = $('#globalCustomerSearch');
@@ -12002,6 +12016,13 @@ if (typeof document !== 'undefined') {
       getPartnerEntries: () => loadPartnerLedgerEntries(),
       onToast: (msg, opts) => toast(msg, opts)
     });
+  }
+
+  if (!multiMonthMatrixController) {
+    multiMonthMatrixController = setupMultiMonthMatrix(() => state, {
+      getComplaints: () => loadComplaints()
+    });
+    if (multiMonthMatrixController) multiMonthMatrixController.refresh();
   }
 
   const areaCollectionsModal = $('#areaCollectionsModal');

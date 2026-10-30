@@ -174,6 +174,7 @@ import { renderRelocationTimeline, setupRelocationModal } from './relocation-log
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { FIELD_TOOLS_KEY, fieldToolsSummary, loadFieldTools, saveFieldTools, setupToolCustodyModal } from './tool-custody-register.js';
 import { SPLICE_CLOSURES_KEY, loadSpliceClosures, saveSpliceClosures, setupSpliceClosureModal } from './fiber-splice-closure.js';
 import { setupQrScannerModal } from './qr-scanner.js';
 import './bulk-customer-import.js'; // SISP-53: self-wiring Excel/CSV import wizard (dialog lives in index.html).
@@ -457,6 +458,7 @@ export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
+export let toolCustodyModalController = null;
 export let spliceClosureModalController = null;
 export let powerBackupModalController = null;
 export let qrScannerModalController = null;
@@ -1287,6 +1289,20 @@ function renderDashboard() {
     suspenseSummaryEl.innerHTML = suspense.totalCount === 0
       ? ''
       : `<p><span>${t('dash_suspense_unclaimed')}</span><strong>${escapeHtml(formatAmount(suspense.unclaimedAmount))}</strong></p>`;
+  }
+  // SISP-82: field tool custody card (register totals; detail + actions
+  // live in the tool custody modal).
+  const toolsValueEl = $('#dashboardToolsValue');
+  if (toolsValueEl) {
+    const tools = fieldToolsSummary(loadFieldTools());
+    const toolsPeriodEl = $('#dashboardToolsPeriod');
+    if (tools.totalCount === 0) {
+      toolsValueEl.textContent = t('dash_tools_empty');
+      if (toolsPeriodEl) toolsPeriodEl.textContent = t('dash_tools_period_empty');
+    } else {
+      toolsValueEl.textContent = t('dash_tools_total', null, { count: tools.totalCount });
+      if (toolsPeriodEl) toolsPeriodEl.textContent = `${t('dash_tools_out', null, { count: tools.assignedCount })}${tools.maintenanceCount ? ` · ${t('dash_tools_maintenance', null, { count: tools.maintenanceCount })}` : ''}`;
+    }
   }
   // SISP-39: lineman monthly scorecard card (resolved complaints across
   // field staff this month; detail lives in the scorecard modal).
@@ -3592,7 +3608,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -3629,6 +3645,8 @@ function backupRestoreOptions() {
   try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
   try { upsNodesStored = localStorage.getItem(UPS_NODES_KEY) !== null; } catch { upsNodesStored = false; }
   try { referralCreditsStored = localStorage.getItem(REFERRAL_CREDITS_KEY) !== null; } catch { referralCreditsStored = false; }
+  let fieldToolsStored = false;
+  try { fieldToolsStored = localStorage.getItem(FIELD_TOOLS_KEY) !== null; } catch { fieldToolsStored = false; }
   try { spliceClosuresStored = localStorage.getItem(SPLICE_CLOSURES_KEY) !== null; } catch { spliceClosuresStored = false; }
   try { badDebtsStored = localStorage.getItem(BAD_DEBTS_KEY) !== null; } catch { badDebtsStored = false; }
   let notesStored = false;
@@ -3643,7 +3661,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -4497,6 +4515,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.referralCredits) {
       saveReferralCredits(pendingBackupPreview.referralCredits);
+    }
+    if (pendingBackupPreview.fieldTools) {
+      saveFieldTools(pendingBackupPreview.fieldTools);
     }
     if (pendingBackupPreview.spliceClosures) {
       saveSpliceClosures(pendingBackupPreview.spliceClosures);
@@ -11288,6 +11309,14 @@ if (typeof document !== 'undefined') {
         })
       };
     }
+  });
+  // SISP-82: field tool custody register — records live in their own
+  // localStorage key (sisp_field_tools_v1); every change re-renders the
+  // dashboard card.
+  toolCustodyModalController = setupToolCustodyModal({
+    onEntriesChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts)
   });
   // SISP-62: power backup monitor (head-end / feeder UPS registry +
   // WAPDA outage timer). The depletion logger writes through the existing

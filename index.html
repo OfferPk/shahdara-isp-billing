@@ -569,6 +569,14 @@
             <button id="openSuspensePaymentsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_suspense">🧾 Suspense Register</button>
           </div>
         </article>
+        <article class="summary-card summary-field-tools ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_tools">🔧 Field Tools</p>
+          <strong id="dashboardToolsValue" class="summary-value">No tools registered</strong>
+          <p id="dashboardToolsPeriod" class="summary-period">Splicer · OTDR · cleaver custody</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openToolCustodyModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_tools">🔧 Tool Register</button>
+          </div>
+        </article>
         <article class="summary-card summary-lineman-scorecard ds-stat ds-stat--info">
           <p class="summary-label" data-i18n="dash_card_lineman">🧑‍🔧 Lineman Scorecard</p>
           <strong id="dashboardLinemanScorecardValue" class="summary-value">No field activity</strong>
@@ -21872,6 +21880,50 @@
             <button id="suspensePrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
           </div>
         </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="toolCustodyModal" class="billing-modal tool-custody-modal" aria-labelledby="toolCustodyModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="toolCustodyModalTitle" data-i18n="toolcust_title">🔧 Field Tool Custody</h2>
+        <button id="toolCustodyCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="tool-custody-intro" data-i18n="toolcust_intro">Reusable field tools — splicer, cleaver, OTDR — kis lineman ke paas hain, kis halat mein hain, aur splicer ka electrode counter kitna ho gaya hai: sab yahan record karein. Register khaali shuru hota hai; asal auzaar khud add karein.</p>
+        <p id="toolCustodyCountNote" class="tool-custody-count-note"></p>
+        <h3 data-i18n="toolcust_add_title">Add a tool</h3>
+        <form id="toolCustodyForm" class="tool-custody-form">
+          <label for="toolCustodyType" data-i18n="toolcust_type">Tool type</label>
+          <select id="toolCustodyType" class="form-input" aria-label="Tool type">
+            <option value="fusion-splicer" data-i18n="toolcust_type_fusion_splicer">Fusion Splicer</option>
+            <option value="cleaver" data-i18n="toolcust_type_cleaver">Cleaver</option>
+            <option value="otdr" data-i18n="toolcust_type_otdr">OTDR</option>
+            <option value="opm" data-i18n="toolcust_type_opm">OPM Power Meter</option>
+            <option value="vfl" data-i18n="toolcust_type_vfl">VFL Red Laser</option>
+            <option value="ladder" data-i18n="toolcust_type_ladder">Ladder</option>
+          </select>
+          <label for="toolCustodyName" data-i18n="toolcust_name">Tool name / model</label>
+          <input id="toolCustodyName" class="form-input" type="text" maxlength="100" aria-label="Tool name or model" placeholder="e.g. Signal Fire AI-9">
+          <label for="toolCustodySerial" data-i18n="toolcust_serial">Serial / ID</label>
+          <input id="toolCustodySerial" class="form-input" type="text" maxlength="64" aria-label="Serial number or ID" placeholder="Optional">
+          <label for="toolCustodyCondition" data-i18n="toolcust_condition">Condition</label>
+          <select id="toolCustodyCondition" class="form-input" aria-label="Tool condition">
+            <option value="good" data-i18n="toolcust_cond_good">Good</option>
+            <option value="fair" data-i18n="toolcust_cond_fair">Fair</option>
+            <option value="needs-maintenance" data-i18n="toolcust_cond_needs_maintenance">Needs maintenance</option>
+            <option value="damaged" data-i18n="toolcust_cond_damaged">Damaged</option>
+          </select>
+          <label for="toolCustodyLineman" data-i18n="toolcust_assigned_to">Assigned to (lineman)</label>
+          <input id="toolCustodyLineman" class="form-input" type="text" maxlength="100" aria-label="Lineman the tool is assigned to" data-i18n-placeholder="toolcust_assigned_optional" placeholder="Optional — tool is out right away">
+          <label for="toolCustodySplices" data-i18n="toolcust_splices">Splice count (electrode)</label>
+          <input id="toolCustodySplices" class="form-input" type="number" min="0" step="1" aria-label="Current splice count for a fusion splicer" placeholder="Fusion splicer only">
+          <label for="toolCustodyCleaves" data-i18n="toolcust_cleaves">Blade cleaves count</label>
+          <input id="toolCustodyCleaves" class="form-input" type="number" min="0" step="1" aria-label="Current blade cleaves count for a cleaver" placeholder="Cleaver only">
+          <button id="toolCustodySubmitBtn" class="action-btn-sm daily-slip-btn" type="submit" data-i18n="toolcust_add_btn">➕ Add tool</button>
+        </form>
+        <h3 data-i18n="toolcust_register">Register</h3>
+        <div id="toolCustodyList" class="tool-custody-list"></div>
       </div>
     </div>
   </dialog>

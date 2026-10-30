@@ -12,8 +12,19 @@
 // clear error instead of producing a broken code; the UI falls back to showing
 // the card + copyable link without a QR in that case.
 
+import { PAYMENT_METHODS } from './core.js';
+import { resolveShopCollector } from './shop-settlement.js';
+
 export const KHATA_APP_URL = 'https://offerpk.github.io/shahdara-isp-billing/';
-export const KHATA_PAYMENT_SHOPS = ['Waseem Abbasi Shop', 'Hassan Shop', 'Balla Shop'];
+// SISP-86: the printed shop line is DERIVED from the same single source the
+// SISP-1 settlement ledger uses — PAYMENT_METHODS resolved through
+// shop-settlement's resolveShopCollector — never a second hardcoded list
+// that can drift from the settlement module (Waseem Abbasi Shop · Hassan
+// Shop · Balla Shop today; any future "Cash at X shop" method follows
+// automatically).
+export const KHATA_PAYMENT_SHOPS = Object.freeze([...new Set(
+  PAYMENT_METHODS.map((method) => resolveShopCollector(method)).filter(Boolean)
+)]);
 export const KHATA_ISP_NAME = 'Shahdara ISP';
 export const QR_EC_LEVEL = 'M';
 export const QR_MAX_VERSION = 6;

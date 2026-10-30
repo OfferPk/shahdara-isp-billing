@@ -18,7 +18,7 @@
 // All helpers are pure except load/saveBillingCycles and the modal setup.
 // Tests use synthetic data only; no customer, bill or payment data is ever
 // fabricated here.
-import { calculatePaymentAllocations, formatPKR, paymentTicketChargeCents } from './core.js';
+import { calculatePaymentAllocations, formatPKR, localDateTimeValue, paymentTicketChargeCents } from './core.js';
 import { advancePlansForBilledLines, advancePlansForCoveredKist, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
 import { REFERRAL_CREDIT_REASON, applyReferralApplications, loadReferralCredits, planReferralApplications, queuedReferralTotalFor, reconcileReferralCredits, saveReferralCredits } from './referral-credits.js';
@@ -267,7 +267,12 @@ export function planBillingCycle(state, month, options = {}) {
 // rewritten; the credit rides as audited bill fields plus an
 // amountHistory entry, and presentation layers subtract it.
 function withReferralCredit(bill, amount, referenceDate) {
-  const stamp = (referenceDate instanceof Date ? referenceDate : new Date()).toISOString();
+  // FU5: this stamp MUST use the house local format (localDateTimeValue,
+  // "YYYY-MM-DDTHH:MM") like every other amountHistory writer — core.js
+  // backup validation rejects any other shape, so the previous
+  // toISOString() stamp made every backup containing a cycle-applied
+  // referral credit unrestorable ("invalid bill correction date").
+  const stamp = localDateTimeValue(referenceDate instanceof Date ? referenceDate : new Date());
   return {
     ...bill,
     referralCreditAmount: amount,

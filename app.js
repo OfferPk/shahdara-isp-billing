@@ -173,6 +173,7 @@ import { renderRelocationTimeline, setupRelocationModal } from './relocation-log
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { SPLICE_CLOSURES_KEY, loadSpliceClosures, saveSpliceClosures, setupSpliceClosureModal } from './fiber-splice-closure.js';
 import { setupQrScannerModal } from './qr-scanner.js';
 import './bulk-customer-import.js'; // SISP-53: self-wiring Excel/CSV import wizard (dialog lives in index.html).
 import { applyDefaultCustomerRoster } from './default-customers.js';
@@ -452,6 +453,7 @@ export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
+export let spliceClosureModalController = null;
 export let powerBackupModalController = null;
 export let qrScannerModalController = null;
 export let linemanScorecardModalController = null;
@@ -3583,7 +3585,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), badDebts: loadBadDebts(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -3600,6 +3602,7 @@ function backupRestoreOptions() {
   let suspensePaymentsStored = false;
   let upsNodesStored = false;
   let referralCreditsStored = false;
+  let spliceClosuresStored = false;
   let badDebtsStored = false;
   let partnerLedgerStored = false;
   let partnerSettlementsStored = false;
@@ -3619,6 +3622,7 @@ function backupRestoreOptions() {
   try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
   try { upsNodesStored = localStorage.getItem(UPS_NODES_KEY) !== null; } catch { upsNodesStored = false; }
   try { referralCreditsStored = localStorage.getItem(REFERRAL_CREDITS_KEY) !== null; } catch { referralCreditsStored = false; }
+  try { spliceClosuresStored = localStorage.getItem(SPLICE_CLOSURES_KEY) !== null; } catch { spliceClosuresStored = false; }
   try { badDebtsStored = localStorage.getItem(BAD_DEBTS_KEY) !== null; } catch { badDebtsStored = false; }
   let notesStored = false;
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
@@ -3632,7 +3636,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -4486,6 +4490,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.referralCredits) {
       saveReferralCredits(pendingBackupPreview.referralCredits);
+    }
+    if (pendingBackupPreview.spliceClosures) {
+      saveSpliceClosures(pendingBackupPreview.spliceClosures);
     }
     if (pendingBackupPreview.badDebts) {
       saveBadDebts(pendingBackupPreview.badDebts);
@@ -11102,6 +11109,10 @@ if (typeof document !== 'undefined') {
   // OWNER-SIGNAL: per-mohalla average signal view (read-only).
   areaSignalModalController = setupAreaSignalModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
+  });
+  spliceClosureModalController = setupSpliceClosureModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts)
   });
   monthlyComplaintReportModalController = setupMonthlyComplaintReportModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)

@@ -2265,6 +2265,56 @@ function validStoredDateTime(value, label) {
   if (value === null || value === undefined || value === '') return;
   if (parseLocalDateTime(value) === null) throw new Error(`Backup contains an invalid ${label}.`);
 }
+// FU5b: ledgers written before the FU5 writer fix carry referral-credit
+// stamps that billing-cycle.js withReferralCredit produced via
+// Date#toISOString() ("2026-10-02T12:00:00.000Z") — a shape the strict
+// validation above has always rejected, so a backup exported from such
+// a ledger could never be restored even though the stamp came from
+// this app's own writer. Backup validation converts ONLY that one
+// known writer's stamps back to the house local format: the history
+// entry's type must be exactly 'referral_credit_applied' and the value
+// must be a strict ISO-8601 UTC timestamp naming a real instant (the
+// UTC components must survive a round trip, so rollovers like
+// "2026-02-30…" and junk like "2026-13-45T99:99:99Z" stay invalid).
+// Every other value passes through untouched and keeps failing
+// validation exactly as before — a format conversion for one known
+// stamp, not a loosening of the validator.
+const LEGACY_ISO_UTC_STAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?Z$/;
+function legacyIsoUtcToLocalDateTime(value) {
+  if (typeof value !== 'string') return null;
+  const match = LEGACY_ISO_UTC_STAMP.exec(value);
+  if (!match) return null;
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return null;
+  const [, year, month, day, hour, minute, second] = match.map(Number);
+  if (instant.getUTCFullYear() !== year || instant.getUTCMonth() !== month - 1 || instant.getUTCDate() !== day
+    || instant.getUTCHours() !== hour || instant.getUTCMinutes() !== minute || instant.getUTCSeconds() !== second) return null;
+  return localDateTimeValue(instant);
+}
+// Returns normalized COPIES for one bill: any 'referral_credit_applied'
+// amountHistory entry whose changedAt is a legacy ISO stamp is copied
+// with the converted local stamp, and — when the bill carries such an
+// entry — an ISO-shaped referralCreditAppliedAt (the same stamp, set
+// by the same writer) is converted too. Entries that do not qualify
+// keep their original object identity, so nothing else about the bill
+// changes and strict validation still judges them as-is.
+function normalizeLegacyReferralStamps(bill) {
+  const sourceHistory = Array.isArray(bill.amountHistory) ? bill.amountHistory : [];
+  let sawReferralEntry = false;
+  const amountHistory = sourceHistory.map(entry => {
+    if (!entry || typeof entry !== 'object' || entry.type !== 'referral_credit_applied') return entry;
+    sawReferralEntry = true;
+    const converted = legacyIsoUtcToLocalDateTime(entry.changedAt);
+    return converted === null ? entry : { ...entry, changedAt: converted };
+  });
+  let referralCreditAppliedAt = bill.referralCreditAppliedAt;
+  let appliedAtChanged = false;
+  if (sawReferralEntry) {
+    const converted = legacyIsoUtcToLocalDateTime(bill.referralCreditAppliedAt);
+    if (converted !== null) { referralCreditAppliedAt = converted; appliedAtChanged = true; }
+  }
+  return { amountHistory, referralCreditAppliedAt, appliedAtChanged };
+}
 function validateMonthlyClosingSnapshots(value) {
   if (!Array.isArray(value) || value.length > 1200) throw new Error('Saved monthly closing snapshots have an invalid structure.');
   const months = new Set();
@@ -2383,7 +2433,16 @@ function validateBackupState(source) {
         if (!('senderDigits' in validatedPayment)) delete mergedPayment.senderDigits;
         return mergedPayment;
       });
-      for (const correction of bill.amountHistory ?? []) {
+      // FU5b: convert this bill's pre-FU5 ISO referral-credit stamps to
+      // the local format BEFORE the strict validation below runs, so a
+      // legacy backup restores carrying house-format stamps instead of
+      // failing forever (and instead of re-exporting the same broken
+      // stamp). Only 'referral_credit_applied' stamps convert; every
+      // other entry is validated untouched. The parsed backup object
+      // is never mutated — the normalized copies ride the bill built
+      // at the end of this map.
+      const legacyReferral = normalizeLegacyReferralStamps(bill);
+      for (const correction of legacyReferral.amountHistory) {
         if (!correction || typeof correction !== 'object') throw new Error(`Backup bill ${bill.month} has an invalid amount correction.`);
         validStoredDateTime(correction.changedAt, 'bill correction date');
         validBackupAmount(correction.previousAmount, 'previous bill amount');
@@ -2400,7 +2459,7 @@ function validateBackupState(source) {
       // a malformed line can never corrupt the ledger or the cycle.
       const kistLines = sanitizeBillKistLines(bill.kistLines);
       const kistTotal = kistLines.reduce((sum, line) => sum + line.amount, 0);
-      return { ...bill, dueDate, payments, amountHistory:bill.amountHistory ?? [], ...(hasPackageSnapshot ? { packageSnapshot } : {}), ...(lateFee !== undefined ? { lateFee, lateFeeAppliedAt, lateFeeReason } : {}), ...(shiftingFee !== undefined ? { shiftingFee, shiftingFeeAppliedAt } : {}), kistLines, kistTotal: Math.round(kistTotal * 100) / 100 };
+      return { ...bill, dueDate, payments, amountHistory:legacyReferral.amountHistory, ...(legacyReferral.appliedAtChanged ? { referralCreditAppliedAt:legacyReferral.referralCreditAppliedAt } : {}), ...(hasPackageSnapshot ? { packageSnapshot } : {}), ...(lateFee !== undefined ? { lateFee, lateFeeAppliedAt, lateFeeReason } : {}), ...(shiftingFee !== undefined ? { shiftingFee, shiftingFeeAppliedAt } : {}), kistLines, kistTotal: Math.round(kistTotal * 100) / 100 };
     });
     const incidents = sourceIncidents.map(incident => {
       if (!incident || typeof incident.id !== 'string' || !incident.id || incidentIds.has(incident.id)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate incident ID.`);

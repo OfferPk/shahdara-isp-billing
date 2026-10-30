@@ -181,6 +181,7 @@ import { buildRecentPayments } from './recent-payments.js';
 import { buildAdvanceDashboard } from './advance-dashboard.js';
 import { buildCollectionForecast } from './collection-forecaster.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
+import { buildFieldDispatchBoard, DISPATCH_ITEM_TYPES, UNASSIGNED_ZONE_KEY } from './field-dispatch-board.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { recordPrepay, prepayQuote, PREPAY_MONTH_OPTIONS } from './advance-prepay.js';
 import { BAD_DEBTS_KEY, activeBadDebtFor, badDebtSummary, loadBadDebts, restoreBadDebt, saveBadDebts, writeOffBadDebt } from './bad-debt-ledger.js';
@@ -918,6 +919,40 @@ function renderDashboard() {
         return `<li class="upsell-item"><button type="button" class="upsell-row" data-upsell-customer-id="${escapeHtml(row.customerId)}"><span class="upsell-main"><strong class="upsell-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="upsell-sub-line">${escapeHtml(t('upsell_pkg_line', null, { current: row.currentLabel, fee: formatAmount(row.currentFee), target: row.targetLabel, price: formatAmount(row.targetPrice) }))}</span><span class="upsell-sub-line">${escapeHtml(reasons)}</span></span><strong class="upsell-gain">${escapeHtml(t('upsell_gain', null, { amount: formatAmount(row.gainPerMonth) }))}</strong></button>${row.whatsappUrl ? `<a class="upsell-offer-btn" href="${escapeHtml(row.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('upsell_offer'))}</a>` : ''}</li>`;
       }).join('');
     upsellListEl.querySelectorAll('[data-upsell-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.upsellCustomerId)));
+  }
+  // SISP-67: Unified Zone Field Dispatch Board — every OPEN field
+  // item (complaints, tickets, installations, pending works,
+  // hardware recovery) grouped by canonical mohalla via
+  // field-dispatch-board.js, with a 1-tap WhatsApp worklist per zone.
+  // Read-only aggregation: the board never writes to any source.
+  const fdispListEl = $('#fieldDispatchList');
+  if (fdispListEl) {
+    const board = buildFieldDispatchBoard(state, {
+      complaints: loadComplaints(),
+      tickets: loadTickets(),
+      installRequests: loadInstallRequests(),
+      pendingWorks: loadPendingWorks()
+    });
+    const fdispTotalEl = $('#fieldDispatchTotal');
+    if (fdispTotalEl) fdispTotalEl.textContent = board.totalOpen > 0 ? t('fdisp_total', null, { count: board.totalOpen }) : '';
+    const fdispTypeIcons = { complaint: '⚠️', ticket: '🎫', installation: '🔌', work: '📝', recovery: '📦' };
+    fdispListEl.innerHTML = board.zones.length === 0
+      ? `<p class="field-dispatch-empty">${escapeHtml(t('fdisp_empty'))}</p>`
+      : board.zones.map((zone) => {
+        const zoneLabel = zone.key === UNASSIGNED_ZONE_KEY ? t('fdisp_unassigned') : zone.label;
+        const countsLine = DISPATCH_ITEM_TYPES
+          .filter((type) => zone.counts[type] > 0)
+          .map((type) => `${fdispTypeIcons[type]} ${escapeHtml(t(`fdisp_type_${type}`))} ${zone.counts[type]}`)
+          .join(' · ');
+        const itemsHtml = zone.items.map((item) => {
+          const inner = `<span class="field-dispatch-item-icon" aria-hidden="true">${fdispTypeIcons[item.type]}</span><span class="field-dispatch-item-main"><span class="field-dispatch-item-title" dir="auto">${escapeHtml(item.title)}</span>${item.detail ? `<span class="field-dispatch-item-detail" dir="auto">${escapeHtml(item.detail)}</span>` : ''}</span>`;
+          return item.customerId
+            ? `<li><button type="button" class="field-dispatch-item" data-fdisp-customer-id="${escapeHtml(item.customerId)}">${inner}</button></li>`
+            : `<li class="field-dispatch-item">${inner}</li>`;
+        }).join('');
+        return `<article class="field-dispatch-zone"><div class="field-dispatch-zone-head"><span class="field-dispatch-zone-name" dir="auto">${escapeHtml(zoneLabel)}</span><span class="field-dispatch-zone-count">${escapeHtml(t('fdisp_items_count', null, { count: zone.totalCount }))}</span></div><p class="field-dispatch-counts">${countsLine}</p><ul class="field-dispatch-items">${itemsHtml}</ul><a class="field-dispatch-send" href="${escapeHtml(zone.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('fdisp_send'))}</a></article>`;
+      }).join('');
+    fdispListEl.querySelectorAll('[data-fdisp-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.fdispCustomerId)));
   }
   // SISP-62: power backup summary card + active outage strip.
   renderPowerBackupDashboard(referenceDate);

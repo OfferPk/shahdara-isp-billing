@@ -134,7 +134,10 @@ export function assignTicketForComplaint(complaints, tickets, complaintId, optio
     faultPreset: preset,
     customFault: preset ? '' : complaint.issueCategory,
     technician: options.technician,
-    priority: options.priority,
+    // SISP-84: an Urgent complaint (e.g. a commercial_vip customer's,
+    // born Urgent in the register) passes its urgency to the ticket
+    // unless the caller explicitly chose a priority.
+    priority: options.priority ?? (complaint.priority === 'Urgent' ? 'Urgent' : undefined),
     note: options.note
   }, cleanTickets, options.referenceDate);
   return {

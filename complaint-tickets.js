@@ -56,6 +56,16 @@
  *   stamps are not work duration. The link is the visit's ticketId, so
  *   a ticket with a logged visit shows "Saad visit logged" instead of
  *   the button and can never be logged twice from here.
+ * - This module imports only leaf modules (nav-language.js and
+ *   commercial-sla.js, neither of which imports anything), so the
+ *   backup merge in core.js can sanitize tickets without a module
+ *   cycle.
+ * - SISP-84: a ticket for a commercial_vip customer (commercial-sla.js)
+ *   is born with 'Urgent' priority (the add form and the SISP-44 sync
+ *   both pass priorityForNewQueueItem's / the complaint's verdict), and
+ *   the worklist SLA-sorts on every render: open VIP tickets pin to
+ *   the top with Urgent + "< 2 Hours SLA" badges, derived live — a
+ *   resolved ticket is never pinned or reordered.
  * - OWNER-SIGNAL (owner feature, 2026-10-30): a ticket may carry the
  *   optical RX reading measured when the fault was reported
  *   (signalBeforeDbm, prefilled from the customer's current lastRxDbm)
@@ -67,12 +77,13 @@
  *   onTicketSignal hook so the app can journal it into the customer's
  *   signal history (signal-history.js); this module never touches the
  *   customer ledger itself.
- * - This module imports nothing: it is self-contained so the backup merge
- *   in core.js can sanitize tickets without a module cycle.
  *
  * All helpers are pure except load/saveTickets and the modal setup.
  * Tests use synthetic data only. Amounts are PKR rupees (not cents).
  */
+
+import { t as translate } from './nav-language.js';
+import { effectiveQueuePriority, isSlaPinned, priorityForNewQueueItem, sortQueueBySla } from './commercial-sla.js';
 
 export const TICKETS_KEY = 'sisp_tickets_v1';
 
@@ -911,11 +922,23 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
       (typeof listLoggedVisitTicketIds === 'function' ? listLoggedVisitTicketIds() : [])
         .map((id) => String(id)).filter(Boolean)
     );
-    const sorted = [...rows].sort((a, b) => {
+    const state = getState() || { customers: [] };
+    const allCustomers = Array.isArray(state.customers) ? state.customers : [];
+    // SISP-84: base order stays Open-first, newest first; the SLA pass
+    // then pins open commercial_vip tickets to the very top (stable —
+    // residential and resolved rows keep their relative order).
+    const sorted = sortQueueBySla([...rows].sort((a, b) => {
       if (a.status !== b.status) return a.status === 'Open' ? -1 : b.status === 'Open' ? 1 : 0;
       return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
-    });
+    }), allCustomers);
     listEl.innerHTML = sorted.map((t) => {
+      // SISP-84: effective priority + SLA badges, derived live — an
+      // open VIP customer's ticket shows Urgent even when it was
+      // logged before the customer was tagged VIP.
+      const shownPriority = effectiveQueuePriority(t, allCustomers);
+      const slaBadges = isSlaPinned(t, allCustomers)
+        ? `<span class="sla-vip-badge">${escapeHtml(translate('sla_vip_badge'))}</span><span class="sla-badge">${escapeHtml(translate('sla_hours_badge'))}</span>`
+        : '';
       const warning = hasRecurringFaultWarning(loadTickets(), t.customerId)
         ? '<span class="ticket-warning-badge">⚠️ Recurring fault</span>'
         : '';
@@ -940,7 +963,8 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         <header class="ticket-card-head">
           <strong>${escapeHtml(t.id)}</strong>
           <span class="ticket-status-badge ticket-status-${t.status === 'Resolved' ? 'resolved' : t.status === 'In Progress' ? 'progress' : 'open'}">${escapeHtml(t.status)}</span>
-          <span class="ticket-priority-badge ticket-priority-${t.priority === 'Urgent' ? 'urgent' : 'normal'}">${escapeHtml(t.priority)}</span>
+          <span class="ticket-priority-badge ticket-priority-${shownPriority === 'Urgent' ? 'urgent' : 'normal'}">${escapeHtml(shownPriority)}</span>
+          ${slaBadges}
           ${warning}
         </header>
         <p><span>Customer</span><strong>${escapeHtml(ticketCustomerLabel(t))}</strong></p>
@@ -1021,7 +1045,8 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         faultPreset: addPreset,
         customFault,
         technician: $('ticketAddTechnician')?.value || '',
-        priority: $('ticketAddPriority')?.value || 'Normal',
+        // SISP-84: a commercial_vip customer's ticket is born Urgent.
+        priority: priorityForNewQueueItem(customer, $('ticketAddPriority')?.value || 'Normal'),
         note: $('ticketAddNote')?.value || '',
         signalBeforeDbm: $('ticketAddSignalBefore')?.value || ''
       }, loadTickets());

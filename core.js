@@ -195,6 +195,9 @@ export function readState(storage, key = STORAGE_KEY) {
       // Owner default roster (2026-10-29): free connections keep their
       // flag through save/load; legacy records load as not free.
       isFreeConnection:customer.isFreeConnection === true,
+      // SISP-84: connection type — legacy records without the field
+      // load as 'residential'; only the exact VIP tag survives.
+      connectionType:customer.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential',
       // SISP-76: SMS-first contact preference — legacy records load
       // as WhatsApp-default (false), never as an invented opt-in.
       prefersSms:customer.prefersSms === true,
@@ -380,7 +383,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // an offline span can accrue from day one.
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, prefersSms:options.prefersSms === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:options.prefersSms === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -651,6 +654,13 @@ function checkServiceStatus(value) {
   if (!['active','offline','not-set'].includes(value)) throw new Error('Choose Active, Offline, or Not set for manual service status.');
   return value;
 }
+// SISP-84: connection type — 'residential' (default) or 'commercial_vip'
+// (commercial / plaza SLA tag, see commercial-sla.js). An unknown value
+// coerces to 'residential' rather than blocking an unrelated save, so a
+// corrupt or legacy value can never lock the profile form.
+function checkConnectionType(value) {
+  return value === 'commercial_vip' ? 'commercial_vip' : 'residential';
+}
 // SISP-19: custody ownership — '' (not recorded), ISP-owned returnable,
 // or customer-purchased. Anything else is a caller bug, not user data.
 function checkCustodyOwnership(value) {
@@ -690,6 +700,8 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     cnic: cleanText(valueOrCurrent('cnic') ?? '', 30, 'CNIC'),
     ispProvider: cleanText(valueOrCurrent('ispProvider') ?? '', 100, 'ISP/provider name'),
     serviceStatus: checkServiceStatus(valueOrCurrent('serviceStatus') ?? 'not-set'),
+    // SISP-84: connection type (residential / commercial_vip SLA tag).
+    connectionType: checkConnectionType(valueOrCurrent('connectionType')),
     packageSpeed: cleanText(valueOrCurrent('packageSpeed') ?? '', 80, 'Package/speed'),
     monthlyPurchaseCost: checkCost(valueOrCurrent('monthlyPurchaseCost')),
     monthlySellingAmount: checkPositiveAmount(valueOrCurrent('monthlySellingAmount'), true),
@@ -3225,7 +3237,16 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);    // SISP-8: skipped months merge by union (a skipped month only ever
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);
+    // SISP-84: connection type merges like serviceStatus's default —
+    // 'commercial_vip' fills a local 'residential', and a local VIP tag
+    // is never stripped by a merge. (The load sanitizer stamps
+    // 'residential' on every legacy record, so the plain field merge
+    // would report a conflict against that stamped default forever.)
+    if (customer.connectionType !== 'commercial_vip' && backupCustomer.connectionType === 'commercial_vip') {
+      customer.connectionType = 'commercial_vip'; counts.filledProfileFields++; counts.changes++;
+    }
+    // SISP-8: skipped months merge by union (a skipped month only ever
     // means "never backfill this month") — never a conflict, never lost.
     {
       const localSkipped = Array.isArray(customer.pauseSkippedMonths) ? customer.pauseSkippedMonths : [];

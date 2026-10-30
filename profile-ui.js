@@ -2,7 +2,8 @@ import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, format
 import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from './billing-cycle.js';
 import { sanitizePauseFields, vacationHoldState } from './pause-billing.js';
 import { buildVacationHoldDisableSnippet, buildVacationHoldEnableSnippet } from './mikrotik-generator.js';
-import { t } from './nav-language.js';
+import { getAppLanguage, t } from './nav-language.js';
+import { paymentDayHabit } from './payment-day-advisor.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 import { prepaidUntilMonth } from './advance-prepay.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
@@ -477,6 +478,42 @@ export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date(
   if (!until) return '';
   const label = t('prepaid_badge', null, { month: formatReceiptMonth(until) ?? until });
   return `<span class="prepaid-until-badge">${label}</span>`;
+}
+
+const ordinalDay = (day) => {
+  const n = Number(day);
+  const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th'
+    : n % 10 === 1 ? 'st'
+      : n % 10 === 2 ? 'nd'
+        : n % 10 === 3 ? 'rd'
+          : 'th';
+  return `${n}${suffix}`;
+};
+
+/**
+ * SISP-79: the profile's "Usual pay day" line. Pure presentation over
+ * payment-day-advisor.js's derived habit — it reads the customer's
+ * live receipts and formats the usual window (e.g. "Usually pays
+ * around 10th–12th"); with fewer than 2 qualifying payments it reports
+ * that there is not enough history yet instead of guessing a day.
+ * Urdu keeps plain Latin digits (house rule); English gets ordinals.
+ */
+export function paymentHabitPresentation(customer) {
+  const habit = paymentDayHabit(customer);
+  if (!habit) {
+    return { visible: false, medianDay: null, windowStart: null, windowEnd: null, paymentCount: 0, label: t('prof_payday_none') };
+  }
+  const range = getAppLanguage() === 'ur'
+    ? `${habit.windowStart}–${habit.windowEnd}`
+    : `${ordinalDay(habit.windowStart)}–${ordinalDay(habit.windowEnd)}`;
+  return {
+    visible: true,
+    medianDay: habit.medianDay,
+    windowStart: habit.windowStart,
+    windowEnd: habit.windowEnd,
+    paymentCount: habit.paymentCount,
+    label: t('prof_payday_usually', null, { range })
+  };
 }
 
 export function upsellProfileHintHtml(candidate, formatAmountFn = (n) => String(n ?? '')) {

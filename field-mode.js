@@ -48,6 +48,18 @@
  * the SISP-6 stamped PNG via generateReceiptPNG + shareOrDownloadPng).
  * The button renders only when the host supplies onPngReceipt.
  *
+ * SISP-79 adds a 🎯 "Likely to Pay Today" toggle chip beside the zone
+ * chips: payment-day-advisor.js derives each customer's habitual pay
+ * window (median payment day-of-month ± 1, from non-voided receipts
+ * only) and, while the toggle is on, the list shows only customers
+ * whose window contains today's day-of-month — the collector's round
+ * starts with the people most likely to hand over money today. Cards
+ * whose window contains today carry a 🎯 marker even when the toggle
+ * is off, and the collect sheet prints the customer's usual window.
+ * Read-only: the advisor never writes to any record, and a customer
+ * with fewer than 2 qualifying payments has no habit and is never
+ * surfaced by the filter.
+ *
  * SISP-65 adds a 1-tap [🔊 Speak Due] button on the collection sheet
  * (dues + advance): it speaks the customer's name and net due aloud
  * through the device's OFFLINE window.speechSynthesis — no network, no
@@ -96,6 +108,7 @@ import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOu
 import { t } from './nav-language.js';
 import { advanceBalanceCents, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { canonicalLocation } from './phase3.js';
+import { paymentDayHabit, habitCoversDay, filterLikelyToPayEntries } from './payment-day-advisor.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
 import {
@@ -599,6 +612,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let openedViaHash = false;
   let query = '';
   let zoneKey = FIELD_MODE_ALL_ZONES;
+  let likelyOnly = false;
   let selectedId = null;
   let lastReceipt = null;
   let lastReceiptAdvance = false;
@@ -649,6 +663,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const active = zoneKey === group.key;
       chips.push(`<button type="button" class="field-mode-zone-chip${active ? ' is-active' : ''}" data-field-zone="${escapeHtml(group.key)}" aria-pressed="${active}">${escapeHtml(group.label)} · ${group.count}</button>`);
     }
+    // SISP-79: the 🎯 Likely-to-Pay-Today toggle — a view filter, not a
+    // zone, so it rides the same chip row (same token CSS) with its own
+    // data attribute and handler branch.
+    chips.push(`<button type="button" class="field-mode-zone-chip${likelyOnly ? ' is-active' : ''}" data-field-likely="toggle" aria-pressed="${likelyOnly}">🎯 Likely to Pay Today</button>`);
     zoneFiltersEl.innerHTML = chips.join('');
     if (zoneTargetEl) {
       const state = typeof getState === 'function' ? getState() : null;
@@ -672,16 +690,25 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   function renderList(visible, statusById) {
     if (!listEl) return;
     if (!visible.length) {
-      listEl.innerHTML = searching()
-        ? '<p class="field-mode-empty">No customer matches your search. Try another name, phone or area.</p>'
-        : '<p class="field-mode-empty">No customers with dues here. Try another area or search.</p>';
+      listEl.innerHTML = likelyOnly
+        ? '<p class="field-mode-empty">No customer is in their usual pay window today. Turn off 🎯 Likely to Pay Today to see everyone.</p>'
+        : searching()
+          ? '<p class="field-mode-empty">No customer matches your search. Try another name, phone or area.</p>'
+          : '<p class="field-mode-empty">No customers with dues here. Try another area or search.</p>';
       return;
     }
+    const todayDay = Number(todayStr().slice(8, 10));
     const nameState = typeof getState === 'function' ? getState() : null;
     const nameIndex = buildSameNameIndex(nameState?.customers);
     listEl.innerHTML = visible.map(entry => {
       const badge = waadaBadgeLabel(liveCustomer(entry.id), todayStr());
       const sameNameBadge = sameNameBadgeHtml(nameState, liveCustomer(entry.id), new Date(), nameIndex);
+      // SISP-79: 🎯 marker when the customer's usual pay window
+      // contains today (derived from his receipts; no habit, no marker).
+      const habit = paymentDayHabit(liveCustomer(entry.id));
+      const likelyChip = habitCoversDay(habit, todayDay)
+        ? '<span class="ds-chip ds-chip--paid">🎯 Likely today</span>'
+        : '';
       const zone = fieldModeZoneOf(liveCustomer(entry.id) ?? entry);
       // SEARCH FIX colour coding: strip + word chip from the engine
       // figures — RED due, YELLOW advance credit waiting, GREEN paid.
@@ -705,6 +732,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${creditNote}</small>
           ${sameNameBadge}
           ${chip}
+          ${likelyChip}
         </span>
         <span class="field-mode-customer-due">${escapeHtml(figure)}</span>
       </button>`;
@@ -760,13 +788,18 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     }
     const customer = liveCustomer(selectedId);
     const badge = waadaBadgeLabel(customer, todayStr());
+    // SISP-79: the customer's usual pay window, when he has a proven
+    // habit — printed on the dues line so the collector knows whether
+    // today is this customer's normal paying day.
+    const habit = paymentDayHabit(customer);
+    const habitNote = habit ? ` · Usually pays around ${habit.windowStart}–${habit.windowEnd} of the month` : '';
     const shops = fieldModeShopMethods();
     const shopButtons = shops.map(shop =>
       `<button type="button" class="field-mode-action-btn" data-field-action="shop" data-field-method="${escapeHtml(shop.method)}" ${busy ? 'disabled' : ''}>🏪 ${escapeHtml(shop.short)} Full — ${escapeHtml(formatPKR(entry.totalDues))}</button>`
     ).join('');
     panelEl.innerHTML = `<section class="field-mode-actions" aria-label="Collection actions">
       <h3>${escapeHtml(entry.name)} <small>#${escapeHtml(entry.customerNumber)}</small></h3>
-      <p class="field-mode-due-line">Full pending: <strong>${escapeHtml(formatPKR(entry.totalDues))}</strong>${entry.targetMonth ? ` · oldest unpaid: ${escapeHtml(entry.targetMonth)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}</p>
+      <p class="field-mode-due-line">Full pending: <strong>${escapeHtml(formatPKR(entry.totalDues))}</strong>${entry.targetMonth ? ` · oldest unpaid: ${escapeHtml(entry.targetMonth)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${escapeHtml(habitNote)}</p>
       <div class="field-mode-action-grid">
         <button type="button" class="field-mode-action-btn field-mode-cash-btn" data-field-action="cash" ${busy ? 'disabled' : ''}>💵 Cash Full — ${escapeHtml(formatPKR(entry.totalDues))}</button>
         ${shopButtons}
@@ -837,9 +870,15 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     const state = typeof getState === 'function' ? getState() : null;
     const base = activeEntries();
     const groups = groupFieldModeZones(state, base);
-    const visible = zoneKey === FIELD_MODE_ALL_ZONES
+    const zoneVisible = zoneKey === FIELD_MODE_ALL_ZONES
       ? base
       : (groups.find(g => g.key === zoneKey)?.entries ?? []);
+    // SISP-79: with the 🎯 toggle on, only customers whose habitual
+    // pay window contains today stay in the list (zone filter first,
+    // then the habit filter — the two compose).
+    const visible = likelyOnly
+      ? filterLikelyToPayEntries(zoneVisible, state?.customers ?? [], Number(todayStr().slice(8, 10)))
+      : zoneVisible;
     // One engine pass shared by every card's colour status.
     const allocations = state ? calculatePaymentAllocations(state) : null;
     const statusById = new Map(visible.map(entry => [
@@ -1025,6 +1064,15 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   }
   if (zoneFiltersEl) {
     zoneFiltersEl.addEventListener('click', (event) => {
+      // SISP-79: the 🎯 toggle is a view filter, not a zone — handle it
+      // before the zone branch so it never touches zoneKey.
+      const likelyChipBtn = event.target.closest?.('[data-field-likely]');
+      if (likelyChipBtn) {
+        likelyOnly = !likelyOnly;
+        resetSelection();
+        render();
+        return;
+      }
       const chip = event.target.closest?.('[data-field-zone]');
       if (!chip) return;
       zoneKey = chip.getAttribute('data-field-zone') || FIELD_MODE_ALL_ZONES;

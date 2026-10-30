@@ -4500,6 +4500,70 @@
   padding: 8px 0 2px;
 }
 
+/* SISP-62: Dashboard active-outage strip — visible only while at
+   least one node is running on battery. Theme tokens only; the
+   remaining-time column never shrinks at phone widths. */
+.power-outage-section {
+  margin-top: 10px;
+}
+.power-outage-card {
+  background: var(--surface);
+  border: 1px solid var(--color-pending);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: 14px 13px;
+}
+.power-outage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.power-outage-title {
+  font: 700 15px Manrope, system-ui, sans-serif;
+  color: var(--ink);
+  margin: 0;
+}
+.power-outage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.power-outage-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+}
+.power-outage-item + .power-outage-item {
+  border-top: 1px solid var(--line);
+}
+.power-outage-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.power-outage-name {
+  font-size: 13px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.power-outage-sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+.power-outage-remaining {
+  font: 700 13px 'DM Sans', system-ui, sans-serif;
+  color: var(--color-pending);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.power-outage-item-depleted .power-outage-remaining {
+  color: var(--color-overdue);
+}
+
 /* SISP-59: Dashboard Package Upgrade Suggestions card — upsell
    candidates with the projected +Rs/month ARPU lift and a 1-tap
    WhatsApp offer per row. Theme tokens only (light + dark); the gain

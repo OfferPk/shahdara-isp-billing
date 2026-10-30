@@ -1084,6 +1084,34 @@ body.field-mode-open { overflow: hidden; }
 .suspense-empty { color: var(--muted); font-size: 13px; }
 .suspense-receipt-panel { margin-top: 16px; }
 .suspense-receipt-text { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 13px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* SISP-62: Power Backup (UPS / WAPDA outage timer) modal — theme
+   tokens only, so it renders correctly in dark mode. Status colours
+   reuse the semantic tokens: pending = on battery, overdue = battery
+   depleted, paid = power OK. */
+.power-intro { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.power-form { display: grid; gap: 8px; margin: 0 0 16px; }
+.power-form h3 { margin: 0 0 4px; color: var(--ink); }
+.power-zones-label { font-size: 13px; color: var(--ink); }
+.power-zones { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.power-zone { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink); }
+.power-zones-empty { font-size: 13px; color: var(--muted); }
+.power-list { display: grid; gap: 12px; }
+.power-empty { color: var(--muted); font-size: 13px; }
+.power-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.power-card p { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 8px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.power-card p strong { color: var(--ink); text-align: right; }
+.power-card-outage { border-color: var(--color-pending); }
+.power-card-depleted { border-color: var(--color-overdue); }
+.power-card .power-status-ok { color: var(--color-paid); }
+.power-card .power-status-outage { color: var(--color-pending); }
+.power-card .power-status-depleted { color: var(--color-overdue); }
+.power-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.power-history { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
+.power-history-title { font-size: 12px; font-weight: 700; color: var(--ink); }
+.power-history p { margin: 4px 0 0; font-size: 12px; }
+@media (max-width: 480px) {
+  .power-actions .primary-button, .power-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }
+}
 @media (max-width: 480px) {
   .suspense-actions .primary-button, .suspense-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }
   .suspense-claim-bar .primary-button, .suspense-claim-bar .secondary-button { width: 100%; text-align: center; justify-content: center; }

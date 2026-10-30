@@ -575,6 +575,14 @@
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openLinemanScorecardModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_lineman">🧑‍🔧 Scorecard</button>
           </div>
+        </article>
+        <article class="summary-card summary-power-backup ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="pwr_card_label">🔋 Power Backup</p>
+          <strong id="dashboardPowerValue" class="summary-value">No UPS nodes yet</strong>
+          <p id="dashboardPowerPeriod" class="summary-period">UPS runtime &amp; WAPDA outage timer</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPowerBackupModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="pwr_btn_open">🔋 Power Nodes</button>
+          </div>
         </article>        <article class="summary-card summary-month-collection ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">💵</span><p class="summary-label" data-i18n="dash_card_month_coll">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
         <article class="summary-card summary-month-revenue ds-stat ds-stat--info"><span class="ds-stat__icon" aria-hidden="true">📊</span><p class="summary-label" data-i18n="dash_card_month_billed">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
         <article class="summary-card summary-expenses ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">💸</span><p class="summary-label" data-i18n="dash_card_expenses">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
@@ -677,6 +685,15 @@
           </div>
           <p class="upsell-sub" data-i18n="upsell_sub">Active customers on 5 Mbps or slower who reported slow speed or pay on time — one tap sends the upgrade offer on WhatsApp.</p>
           <ul id="upsellList" class="upsell-list" aria-label="Package upgrade candidates"></ul>
+        </div>
+      </section>
+      <section id="powerOutageSection" class="power-outage-section" aria-labelledby="powerOutageHeading" hidden>
+        <div class="power-outage-card">
+          <div class="power-outage-header">
+            <h3 id="powerOutageHeading" class="power-outage-title" data-i18n="pwr_section_title">⚡ WAPDA Outage — Running on Battery</h3>
+            <button id="powerOutageManageBtn" class="recent-payments-all" type="button" data-i18n="pwr_btn_manage">Manage →</button>
+          </div>
+          <ul id="powerOutageList" class="power-outage-list" aria-label="Active power outages"></ul>
         </div>
       </section>
       <details id="homeChartsCollapsible" class="home-collapsible-section dashboard-charts-collapsible">
@@ -21593,6 +21610,38 @@
             <button id="suspensePrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
           </div>
         </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="powerBackupModal" class="billing-modal power-backup-modal" aria-labelledby="powerBackupModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="powerBackupModalTitle" data-i18n="pwr_title">🔋 Power Backup — UPS &amp; WAPDA Timer</h2>
+        <button id="powerBackupCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="power-intro" data-i18n="pwr_intro">Register the main OLT and street switches with their rated UPS backup. When WAPDA goes, start the timer with one tap — the app counts down the battery, and if it runs out before power returns, an area outage is logged in the Complaint Register by itself.</p>
+        <form id="powerNodeForm" class="power-form">
+          <h3 id="powerNodeFormTitle" data-i18n="pwr_add_title">Add a power node</h3>
+          <label for="powerNodeName" data-i18n="pwr_name_label">Node name</label>
+          <input id="powerNodeName" class="form-input" type="text" maxlength="80" required aria-label="Power node name" placeholder="e.g. Main OLT — Shahdara">
+          <label for="powerNodeKind" data-i18n="pwr_kind_label">Type</label>
+          <select id="powerNodeKind" class="form-input" aria-label="Power node type">
+            <option value="OLT" data-i18n="pwr_kind_olt">Main OLT</option>
+            <option value="Switch" data-i18n="pwr_kind_switch">Street switch</option>
+            <option value="Other" data-i18n="pwr_kind_other">Other</option>
+          </select>
+          <label for="powerNodeHours" data-i18n="pwr_hours_label">Rated battery backup (hours)</label>
+          <input id="powerNodeHours" class="form-input" type="number" min="0.25" step="any" required aria-label="Rated battery backup in hours" placeholder="e.g. 4">
+          <span class="power-zones-label" data-i18n="pwr_zones_label">Areas this node feeds</span>
+          <div id="powerNodeZones" class="power-zones"></div>
+          <div class="power-actions">
+            <button id="powerNodeSubmitBtn" class="action-btn-sm daily-slip-btn" type="submit" data-i18n="pwr_save_node">➕ Save node</button>
+            <button id="powerNodeCancelEditBtn" class="secondary-button" type="button" data-i18n="pwr_cancel_edit" hidden>Cancel edit</button>
+          </div>
+        </form>
+        <h3 data-i18n="pwr_nodes_title">Power nodes</h3>
+        <div id="powerNodesList" class="power-list"></div>
       </div>
     </div>
   </dialog>

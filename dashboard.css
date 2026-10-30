@@ -4669,6 +4669,49 @@
   padding: 8px 0 2px;
 }
 
+/* SISP-75: Dashboard Daily Partner Digest card — one tap copies the
+   Roman Urdu partner summary for WhatsApp. Theme tokens only (light +
+   dark); the copy button never shrinks so its label stays fully
+   visible at phone widths. */
+.partner-digest-section {
+  margin-top: 10px;
+}
+.partner-digest-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: 14px 13px;
+}
+.partner-digest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.partner-digest-title {
+  font: 700 15px Manrope, system-ui, sans-serif;
+  color: var(--ink);
+  margin: 0;
+}
+.partner-digest-copy {
+  font: 600 12px 'DM Sans', system-ui, sans-serif;
+  color: var(--green);
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 7px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.partner-digest-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+
 /* SISP-69: Dashboard Hardware / Optical Bottleneck Audit panel —
    active >= 15 Mbps customers whose last RX reading is below the
    -26.0 dBm weak-signal line. Theme tokens only (light + dark); the

@@ -14,7 +14,8 @@ import {
   calculatePaymentAllocations,
   derivedBillStatus,
   monthsForHistory,
-  formatPKR
+  formatPKR,
+  identitySearchMatches
 } from './core.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { trapModalFocus } from './nav-accessibility.js';
@@ -176,7 +177,10 @@ export function searchFastCustomers(state, {
         (customer.phone && customer.phone.toLowerCase().includes(normalized)) ||
         (customer.area && customer.area.toLowerCase().includes(normalized)) ||
         (customer.mohalla && customer.mohalla.toLowerCase().includes(normalized)) ||
-        (customer.address && customer.address.toLowerCase().includes(normalized));
+        (customer.address && customer.address.toLowerCase().includes(normalized)) ||
+        // SISP-74: the global search also finds a customer by PPPoE
+        // username, static IP, MAC address or router serial number.
+        identitySearchMatches(customer, normalized);
 
       if (!matches) continue;
     }

@@ -342,6 +342,9 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const pppoePassword = cleanText(options.pppoePassword, 100, 'PPPoE password');
   const staticIp = cleanText(options.staticIp, 45, 'Static IP');
   const macAddress = cleanText(options.macAddress, 20, 'MAC address');
+  // SISP-74: a brand-new record may not take a PPPoE username / static IP
+  // that an active customer already holds (see findIdentityConflicts).
+  assertNoBlockingIdentityConflicts(state.customers, { pppoeUsername, staticIp, macAddress, serialNumber });
   // SISP-40: hamsaya referral link — the existing customer who brought
   // this one. Validated against the live list so a stored link always
   // points at a real record (a dangling id would queue credit for nobody).
@@ -373,6 +376,115 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
   return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+// ---------------------------------------------------------------------------
+// SISP-74: network-identity conflict guard + identity search.
+//
+// Four stored identifiers single out a customer's network identity: the
+// PPPoE username and static IP feed the MikroTik RouterOS export
+// (mikrotik-generator.js — a duplicate PPPoE secret or a duplicate IP /
+// ARP / queue target produces a broken router config), and the MAC
+// address plus the SISP-19 custody "Serial / MAC number" identify the
+// physical router/converter at the customer's house.
+//
+// Severity is chosen per field risk:
+//   - pppoeUsername, staticIp -> BLOCK. A save that newly assigns one of
+//     these while another ACTIVE (non-archived) customer holds it throws,
+//     naming the holder (assertNoBlockingIdentityConflicts, called by
+//     addCustomer and updateCustomerProfile).
+//   - macAddress, serialNumber -> WARN. Duplicates can be legitimate
+//     record-keeping (a swapped router not yet re-registered, a shared
+//     placeholder MAC), so core never throws for them; the profile save
+//     flow asks the operator with findIdentityConflicts + an explicit
+//     "Save anyway" confirm before writing.
+//
+// A customer never conflicts with itself, archived customers never block
+// or warn (their identifiers are free again), blank values never
+// conflict, and — on update — a value the record already had is not a new
+// assignment, so pre-guard duplicates never freeze unrelated edits.
+// ---------------------------------------------------------------------------
+const IDENTITY_FIELD_DEFS = Object.freeze([
+  { field: 'pppoeUsername', label: 'PPPoE username', severity: 'block' },
+  { field: 'staticIp', label: 'Static IP', severity: 'block' },
+  { field: 'macAddress', label: 'MAC address', severity: 'warn' },
+  { field: 'serialNumber', label: 'Serial / MAC number', severity: 'warn' }
+]);
+
+/**
+ * Canonical form of one identity value for duplicate comparison, using the
+ * house NFKC + trim normalization (SISP-31 / Feature-1 search): usernames
+ * and IPs compare case-insensitively, MACs compare as bare hex (so
+ * "AA:BB:CC:DD:EE:FF", "aa-bb-cc-dd-ee-ff" and "aabb.ccdd.eeff" are the
+ * same address), and serials compare with spaces/dashes removed and case
+ * folded (a serial typed with different separators is the same device).
+ */
+export function normalizeIdentityValue(field, value) {
+  const text = String(value ?? '').normalize('NFKC').trim();
+  if (!text) return '';
+  if (field === 'macAddress') return text.replace(/[^0-9a-f]/gi, '').toUpperCase();
+  if (field === 'serialNumber') return text.replace(/[\s-]+/g, '').toUpperCase();
+  return text.toLocaleLowerCase();
+}
+
+/**
+ * Every identity conflict a candidate assignment would create: one entry
+ * per field (the first active holder found), each naming the holder.
+ * `excludeCustomerId` is the record being saved (it never conflicts with
+ * itself); `previous` (the record's stored values before this save) makes
+ * unchanged values skip the check — only NEW assignments are guarded.
+ */
+export function findIdentityConflicts(customers, candidate = {}, { excludeCustomerId = null, previous = null } = {}) {
+  const list = Array.isArray(customers) ? customers : [];
+  const conflicts = [];
+  for (const def of IDENTITY_FIELD_DEFS) {
+    const wanted = normalizeIdentityValue(def.field, candidate?.[def.field]);
+    if (!wanted) continue;
+    if (previous && normalizeIdentityValue(def.field, previous[def.field]) === wanted) continue;
+    for (const other of list) {
+      if (!other || other.archived) continue;
+      if (excludeCustomerId !== null && excludeCustomerId !== undefined && other.id === excludeCustomerId) continue;
+      if (normalizeIdentityValue(def.field, other[def.field]) !== wanted) continue;
+      conflicts.push({
+        field: def.field,
+        label: def.label,
+        severity: def.severity,
+        value: String(candidate[def.field]).trim(),
+        customerId: other.id,
+        customerNumber: other.customerNumber ?? null,
+        customerName: other.name ?? ''
+      });
+      break;
+    }
+  }
+  return conflicts;
+}
+
+/** Throws (naming the holder) when a candidate assignment hard-conflicts. */
+function assertNoBlockingIdentityConflicts(customers, candidate, options = {}) {
+  const blocking = findIdentityConflicts(customers, candidate, options).filter(conflict => conflict.severity === 'block');
+  if (!blocking.length) return;
+  const conflict = blocking[0];
+  throw new Error(`${conflict.label} "${conflict.value}" is already assigned to ${conflict.customerName} (#${conflict.customerNumber}). PPPoE usernames and static IPs must be unique among active customers — change the ${conflict.label} before saving.`);
+}
+
+/**
+ * Search side of SISP-74: does the query match the customer's PPPoE
+ * username, static IP, MAC address or router serial? Substring matching
+ * (exact + partial, house style) plus a separator-insensitive MAC path —
+ * typing "aabbcc" finds a MAC stored as "AA:BB:CC:DD:EE:FF".
+ */
+export function identitySearchMatches(customer, query) {
+  const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+  if (!normalized || !customer) return false;
+  const values = [customer.pppoeUsername, customer.staticIp, customer.macAddress, customer.serialNumber];
+  if (values.some(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase().includes(normalized))) return true;
+  const hexQuery = normalized.replace(/[^0-9a-f]/g, '');
+  if (hexQuery.length < 4) return false;
+  return [customer.macAddress, customer.serialNumber].some(value => {
+    const hex = String(value ?? '').replace(/[^0-9a-f]/gi, '').toLocaleLowerCase();
+    return hex.length >= 4 && hex.includes(hexQuery);
+  });
+}
+
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
@@ -381,6 +493,9 @@ function customerMatchesQuery(customer, query, allocations = null) {
   const fields = [customer.name, ...phoneValues, ...cnicValues, customer.address, customer.customerAddress, customer.customerNumber, customer.id]
     .map(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase());
   if (fields.some(value => value.includes(normalized))) return true;
+  // SISP-74: global search also matches the network identifiers (PPPoE
+  // username, static IP, MAC, router serial), incl. separator-free MACs.
+  if (identitySearchMatches(customer, normalized)) return true;
   const digitsQuery = normalized.replace(/\D/g, '');
   if (/^[+\d\s().-]+$/.test(normalized) && digitsQuery.length >= 3 && phoneValues.some(value => String(value ?? '').replace(/\D/g, '').includes(digitsQuery))) return true;
   if (digitsQuery.length >= 4 && cnicValues.some(value => String(value ?? '').replace(/\D/g, '').includes(digitsQuery))) return true;
@@ -614,6 +729,12 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     pauseStartDate: checkOptionalDate(valueOrCurrent('pauseStartDate'), 'Pause start date'),
     autoResumeDate: checkOptionalDate(valueOrCurrent('autoResumeDate'), 'Auto-resume date')
   };
+  // SISP-74: hard-block a save that newly assigns a PPPoE username or
+  // static IP already held by another active customer. Values the record
+  // already had (previous === current) are not re-blocked, so legacy
+  // duplicates never freeze unrelated edits; MAC / serial duplicates are
+  // warnings surfaced by the caller (findIdentityConflicts), never throws.
+  assertNoBlockingIdentityConflicts(state.customers, fields, { excludeCustomerId: customerId, previous: current });
   // SISP-7: a feeder link must point at a real customer, never at itself,
   // and never close a cycle back to this customer.
   const feederLinkError = validateUpstreamLink(state.customers, customerId, fields.upstreamCustomerId);

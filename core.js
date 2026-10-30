@@ -17,6 +17,7 @@ import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
 import { sanitizeUpsNodes } from './power-backup-monitor.js';
 import { sanitizeReferralCredits } from './referral-credits.js';
+import { sanitizeFieldTools } from './tool-custody-register.js';
 import { sanitizeSpliceClosures } from './fiber-splice-closure.js';
 import { sanitizeBadDebts } from './bad-debt-ledger.js';
 import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
@@ -3059,6 +3060,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeReferralCredits(options.referralCredits);
     if (cleaned.length) document.settings = { ...(document.settings || {}), referralCredits: cleaned };
   }
+  // SISP-82: field tool custody records live outside the ledger state
+  // (localStorage key sisp_field_tools_v1), so they travel in an
+  // optional `settings.fieldTools` section. Written only when at least
+  // one tool exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.fieldTools) && options.fieldTools.length) {
+    const cleaned = sanitizeFieldTools(options.fieldTools);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), fieldTools: cleaned };
+  }
   // SISP-78: joint closure (JC box) splice maps live outside the
   // ledger state (localStorage key sisp_splice_closures_v1), so they
   // travel in an optional `settings.spliceClosures` section. Written
@@ -3751,6 +3760,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Referral credit records differ from this device' });
     }
   }
+  // SISP-82 field tools: optional custody section (see
+  // createJsonBackup). Safe-merge rule, same as suspense payments:
+  // adopt the backup's records only when this device has none stored
+  // yet; when both sides hold different real records, keep existing +
+  // conflict (a custody history must never be silently overwritten).
+  let fieldTools = null;
+  const rawIncomingFieldTools = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.fieldTools
+    : undefined;
+  if (Array.isArray(rawIncomingFieldTools) && rawIncomingFieldTools.length) {
+    const incomingFieldTools = sanitizeFieldTools(rawIncomingFieldTools);
+    const currentFieldTools = (options && typeof options === 'object' && Array.isArray(options.currentFieldTools))
+      ? sanitizeFieldTools(options.currentFieldTools)
+      : [];
+    if (incomingFieldTools.length && sameJson(incomingFieldTools, currentFieldTools)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingFieldTools.length && (!options?.currentFieldToolsStored || currentFieldTools.length === 0)) {
+      fieldTools = incomingFieldTools;
+      counts.fieldToolsRestored = 1;
+      counts.changes++;
+    } else if (incomingFieldTools.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Field tool records differ from this device' });
+    }
+  }
   // SISP-78 splice closures: optional map section (see
   // createJsonBackup). Safe-merge rule, same as referral credits:
   // adopt the backup's closures only when this device has none stored
@@ -3933,5 +3966,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, badDebts, spliceClosures, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

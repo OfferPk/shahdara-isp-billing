@@ -1178,6 +1178,26 @@ body.field-mode-open { overflow: hidden; }
   .suspense-claim-bar .primary-button, .suspense-claim-bar .secondary-button { width: 100%; text-align: center; justify-content: center; }
 }
 
+/* SISP-82: Field tool custody register — theme tokens only, so the
+   dialog (var(--modal-surface) via the shared billing-modal rule) and
+   cards render correctly in dark mode. */
+.tool-custody-intro, .tool-custody-count-note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.tool-custody-form { display: grid; gap: 8px; margin: 0 0 16px; }
+.tool-custody-list { display: grid; gap: 12px; }
+.tool-custody-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.tool-custody-card-due { border-color: var(--color-overdue); }
+.tool-custody-card p { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 8px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.tool-custody-card p strong { color: var(--ink); text-align: right; }
+.tool-custody-badge { color: var(--color-overdue); font-weight: 600; display: block; }
+.tool-custody-actions { display: grid; gap: 8px; margin-top: 8px; }
+.tool-custody-history { margin-top: 10px; }
+.tool-custody-history h4 { margin: 0 0 6px; font-size: 13px; color: var(--ink); }
+.tool-custody-history ul { margin: 0; padding-inline-start: 18px; font-size: 12px; color: var(--muted); display: grid; gap: 4px; }
+.tool-custody-empty { color: var(--muted); font-size: 13px; }
+@media (max-width: 480px) {
+  .tool-custody-actions .primary-button, .tool-custody-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }
+}
+
 /* SISP-48: QR Khata camera scanner — theme tokens only (the dialog shell
    itself takes var(--modal-surface) from the shared billing-modal rule, so
    dark mode is covered); the viewfinder is a camera feed area. */

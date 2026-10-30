@@ -16,9 +16,10 @@
  *   (executeQuickCollection -> core addPayment). That keeps SISP-2 bill-cycle
  *   arrears/advance allocation, SISP-4 kist lines and the SISP-3 full-payment
  *   Waada auto-clear exactly as the Collect screen behaves. Shop methods
- *   ('Cash at Waseem Abbasi shop', 'Cash at Hassan shop') are picked up by
- *   the SISP-1 shop-settlement ledger automatically, because it derives
- *   collectors from recorded payment methods.
+ *   ('Cash at Waseem Abbasi shop', 'Cash at Hassan shop', 'Cash at Balla
+ *   shop' — SISP-86 full parity) are picked up by the SISP-1 shop-settlement
+ *   ledger automatically, because it derives collectors from recorded
+ *   payment methods.
  * - Waada chips reuse the SISP-3 pure flow (computeWaadaChipDate +
  *   setCustomerWaada on the customer record, same fields, same auto-clear).
  * - The WA Receipt link reuses the Quick Collect Urdu/English WhatsApp draft
@@ -308,8 +309,8 @@ export function fieldModeCollectedToday(state, zoneKey, todayStr) {
 }
 
 /**
- * Shop payment methods from the app's own PAYMENT_METHODS (Waseem + Hassan
- * today, any future "Cash at X shop" method automatically). Each entry is
+ * Shop payment methods from the app's own PAYMENT_METHODS (Waseem, Hassan
+ * and Balla today, any future "Cash at X shop" method automatically). Each entry is
  * { method, short } where short is the collector name for the button label.
  */
 export function fieldModeShopMethods() {

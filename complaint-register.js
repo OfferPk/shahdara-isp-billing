@@ -38,12 +38,21 @@
  * data on every render and is strictly read-only — it never mutates,
  * hides or auto-closes any complaint.
  *
+ * SISP-84: a complaint carries a stored priority ('Urgent' | 'Normal').
+ * A complaint logged for a commercial_vip customer (commercial-sla.js)
+ * is born 'Urgent', and on every render the queue is SLA-sorted: open
+ * complaints of VIP customers pin to the top with Urgent + "< 2 Hours
+ * SLA" badges (effective priority is derived live, so upgrading a
+ * customer re-prioritizes their open complaints; resolved complaints
+ * are never pinned or reordered).
+ *
  * All helpers are pure except load/saveComplaints and the modal setup.
  * Tests use synthetic data only.
  */
 
 import { t } from './nav-language.js';
 import { buildDaisyChainAlert, buildOutageQueueText, buildOutageQueue } from './outage-impact.js';
+import { effectiveQueuePriority, isSlaPinned, priorityForNewQueueItem, sortQueueBySla } from './commercial-sla.js';
 import { getWaTemplates } from './whatsapp-templates.js';
 
 export const COMPLAINTS_KEY = 'sisp_complaints_ledger_v1';
@@ -172,6 +181,10 @@ export function sanitizeComplaints(value) {
       resolvedAt,
       downtimeHours: Number.isFinite(downtime) && downtime >= 0 ? downtime : null,
       downtimeManual: entry.downtimeManual === true,
+      // SISP-84: stored priority — set to 'Urgent' at creation for
+      // commercial_vip customers; legacy records load as 'Normal' (the
+      // live SLA derivation can still raise an open VIP complaint).
+      priority: entry.priority === 'Urgent' ? 'Urgent' : 'Normal',
       status,
       resolutionNote: cleanText(entry.resolutionNote),
       // SISP-44: set only while this complaint's Resolved state was
@@ -237,6 +250,10 @@ export function createComplaint(input, existing, referenceDate = new Date()) {
     resolvedAt: '',
     downtimeHours: null,
     downtimeManual: false,
+    // SISP-84: the register modal passes priorityForNewQueueItem's
+    // verdict, so a commercial_vip customer's complaint is born
+    // 'Urgent'; any other explicit 'Urgent' request is honoured too.
+    priority: input?.priority === 'Urgent' ? 'Urgent' : 'Normal',
     status: 'Open',
     resolutionNote: cleanText(input?.resolutionNote),
     resolvedViaTicketId: '',
@@ -456,10 +473,21 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       listEl.innerHTML = '<p class="complaint-register-empty">No complaints recorded yet. Add the first one above.</p>';
       return;
     }
-    const sorted = [...rows].sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
     const state = getState() || { customers: [] };
     const allCustomers = Array.isArray(state.customers) ? state.customers : [];
+    // SISP-84: base order stays newest-reported first; the SLA pass
+    // then pins open commercial_vip complaints to the top (stable —
+    // residential and resolved rows keep their relative order).
+    const sorted = sortQueueBySla(
+      [...rows].sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || ''))),
+      allCustomers
+    );
     listEl.innerHTML = sorted.map((c) => {
+      // SISP-84: SLA badges — only while the complaint is open and its
+      // customer is commercial_vip (derived live on every render).
+      const slaBadges = isSlaPinned(c, allCustomers)
+        ? `<span class="ticket-priority-badge ticket-priority-urgent">${escapeHtml(effectiveQueuePriority(c, allCustomers))}</span><span class="sla-vip-badge">${escapeHtml(t('sla_vip_badge'))}</span><span class="sla-badge">${escapeHtml(t('sla_hours_badge'))}</span>`
+        : '';
       // SISP-49: daisy-chain alert banner — when this complaint's
       // customer feeds downstream homes, list every affected home and
       // offer the 1-tap bulk WhatsApp outage launch. Purely additive:
@@ -496,6 +524,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         <header class="complaint-register-head">
           <strong>${escapeHtml(c.id)}</strong>
           <span class="complaint-status-badge complaint-status-${c.status === 'Resolved' ? 'resolved' : c.status === 'In Progress' ? 'progress' : 'open'}">${escapeHtml(c.status)}</span>
+          ${slaBadges}
         </header>
         <p><span>Customer</span><strong>${escapeHtml(complaintCustomerLabel(c))}</strong></p>
         <p><span>Zone</span><strong>${escapeHtml(c.zone || 'Not set')}</strong></p>
@@ -556,6 +585,8 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         zone: $('complaintAddZone')?.value || (customer ? customer.zone : ''),
         issueCategory: $('complaintAddCategory')?.value || '',
         reportedAt: $('complaintAddReportedAt')?.value || '',
+        // SISP-84: a commercial_vip customer's complaint is born Urgent.
+        priority: priorityForNewQueueItem(customer),
         resolutionNote: $('complaintAddNote')?.value || ''
       }, loadComplaints())];
       persist(next);

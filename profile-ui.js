@@ -6,6 +6,7 @@ import { getAppLanguage, t } from './nav-language.js';
 import { paymentDayHabit } from './payment-day-advisor.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 import { prepaidUntilMonth } from './advance-prepay.js';
+import { isCommercialVip } from './commercial-sla.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
 import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
@@ -480,6 +481,17 @@ export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date(
   return `<span class="prepaid-until-badge">${label}</span>`;
 }
 
+/**
+ * SISP-84: the "🏢 Commercial VIP" tag for a commercial_vip customer's
+ * profile (their open complaints/tickets get SLA queue priority — see
+ * commercial-sla.js). Returns '' for residential customers, whose
+ * profiles render exactly as before.
+ */
+export function commercialVipBadgeHtml(customer) {
+  if (!isCommercialVip(customer)) return '';
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  return `<span class="sla-vip-badge">${esc(t('sla_vip_badge'))}</span>`;
+}
 const ordinalDay = (day) => {
   const n = Number(day);
   const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th'

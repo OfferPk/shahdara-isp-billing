@@ -17,6 +17,7 @@ import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
 import { sanitizeUpsNodes } from './power-backup-monitor.js';
 import { sanitizeReferralCredits } from './referral-credits.js';
+import { sanitizeSpliceClosures } from './fiber-splice-closure.js';
 import { sanitizeBadDebts } from './bad-debt-ledger.js';
 import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { sanitizeWaTemplates } from './whatsapp-templates.js';
@@ -3058,6 +3059,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeReferralCredits(options.referralCredits);
     if (cleaned.length) document.settings = { ...(document.settings || {}), referralCredits: cleaned };
   }
+  // SISP-78: joint closure (JC box) splice maps live outside the
+  // ledger state (localStorage key sisp_splice_closures_v1), so they
+  // travel in an optional `settings.spliceClosures` section. Written
+  // only when at least one closure exists; readers that predate it
+  // ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.spliceClosures) && options.spliceClosures.length) {
+    const cleaned = sanitizeSpliceClosures(options.spliceClosures);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), spliceClosures: cleaned };
+  }
   // SISP-64: bad-debt write-off records live outside the ledger state
   // (localStorage key sisp_bad_debts_v1), so they travel in an optional
   // `settings.badDebts` section. Written only when at least one entry
@@ -3741,6 +3751,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Referral credit records differ from this device' });
     }
   }
+  // SISP-78 splice closures: optional map section (see
+  // createJsonBackup). Safe-merge rule, same as referral credits:
+  // adopt the backup's closures only when this device has none stored
+  // yet; when both sides hold different real closures, keep existing +
+  // conflict (a recorded splice map must never be silently replaced).
+  let spliceClosures = null;
+  const rawIncomingSpliceClosures = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.spliceClosures
+    : undefined;
+  if (Array.isArray(rawIncomingSpliceClosures) && rawIncomingSpliceClosures.length) {
+    const incomingSpliceClosures = sanitizeSpliceClosures(rawIncomingSpliceClosures);
+    const currentSpliceClosures = (options && typeof options === 'object' && Array.isArray(options.currentSpliceClosures))
+      ? sanitizeSpliceClosures(options.currentSpliceClosures)
+      : [];
+    if (incomingSpliceClosures.length && sameJson(incomingSpliceClosures, currentSpliceClosures)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingSpliceClosures.length && (!options?.currentSpliceClosuresStored || currentSpliceClosures.length === 0)) {
+      spliceClosures = incomingSpliceClosures;
+      counts.spliceClosuresRestored = 1;
+      counts.changes++;
+    } else if (incomingSpliceClosures.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Splice closure records differ from this device' });
+    }
+  }
   // SISP-64 bad debts: optional register section (see
   // createJsonBackup). Safe-merge rule, same as referral credits: adopt
   // the backup's entries only when this device has none stored yet;
@@ -3899,5 +3933,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, badDebts, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, badDebts, spliceClosures, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

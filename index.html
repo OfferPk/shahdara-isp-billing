@@ -447,6 +447,7 @@
           <div id="splitterMapSummary" class="splitter-map-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_splitter">🔌 Splitter Port Map</button>
+            <button id="openSpliceClosureModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="jcmap_open_btn">🧵 JC Splice Map</button>
           </div>
         </article>
 
@@ -21215,6 +21216,37 @@
         <label for="splitterMapTechnicianInput">Lineman / technician (for attenuation tickets)</label>
         <input id="splitterMapTechnicianInput" class="form-input splitter-map-technician" type="text" autocomplete="off" placeholder="Lineman name">
         <div id="splitterMapWeakList" class="splitter-map-weak-list"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="spliceClosureModal" class="billing-modal splice-closure-modal" aria-labelledby="spliceClosureModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="spliceClosureModalTitle" data-i18n="jcmap_title">🧵 Joint Closure Splice Map</h2>
+        <button id="spliceClosureCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="jc-intro" data-i18n="jcmap_intro">Record which TIA-598 core of each street joint closure (JC box) is spliced to which splitter box, upstream PON or media converter — so a cut core can be traced without opening the box.</p>
+        <label for="jcClosureSelect" data-i18n="jcmap_select_label">Joint closure</label>
+        <select id="jcClosureSelect" class="form-input" aria-label="Joint closure"></select>
+        <p id="jcSummaryLine" class="jc-summary-line"></p>
+        <h3 data-i18n="jcmap_core_heading">Core map (TIA-598)</h3>
+        <div id="jcCoreList" class="jc-core-list"></div>
+        <datalist id="jcSplitterOptions"></datalist>
+        <div class="jc-actions">
+          <button id="jcPrintCardBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="jcmap_print_btn">🖨 Print field card</button>
+          <a id="jcWhatsAppCardBtn" class="secondary-button" href="#" target="_blank" rel="noopener" data-i18n="jcmap_wa_btn">💬 WhatsApp field card</a>
+          <button id="jcDeleteBtn" class="secondary-button" type="button" data-i18n="jcmap_delete_btn">🗑 Delete closure</button>
+        </div>
+        <h3 data-i18n="jcmap_add_title">Add joint closure</h3>
+        <form id="jcAddForm" class="jc-add-form">
+          <label for="jcNameInput" data-i18n="jcmap_name_label">Closure name</label>
+          <input id="jcNameInput" class="form-input" type="text" maxlength="100" autocomplete="off" data-i18n-placeholder="jcmap_name_placeholder" placeholder="e.g. JC-Barrian-01">
+          <label for="jcLandmarkInput" data-i18n="jcmap_landmark_label">Landmark / location</label>
+          <input id="jcLandmarkInput" class="form-input" type="text" maxlength="200" autocomplete="off" data-i18n-placeholder="jcmap_landmark_placeholder" placeholder="e.g. Pole near Masjid Quba, Barrian road">
+          <button id="jcAddBtn" class="action-btn-sm daily-slip-btn" type="submit" data-i18n="jcmap_add_btn">➕ Add closure</button>
+        </form>
       </div>
     </div>
   </dialog>

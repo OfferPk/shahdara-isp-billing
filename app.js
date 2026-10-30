@@ -5959,9 +5959,16 @@ setupPullToRefresh({
   containerSelector: '#customerPane',
   indicatorSelector: '#pullToRefreshIndicator',
   onRefresh: async () => {
+    // Re-render ONLY — a pull refresh saves nothing, so it stays silent.
+    // This callback used to toast a "ledger updated" message (which the
+    // toast system titles 'Saved'), and because #customerPane itself never
+    // scrolls — the inner .customer-list scrolls on desktop, the window on
+    // mobile — the handler's scrollTop guard never tripped, so ordinary
+    // downward drags (scrolling back to the top, overscroll) kept firing a
+    // false "Saved" toast during plain browsing (owner report 2026-10-30).
+    // The indicator text + haptic remain the gesture's feedback.
     renderCustomers();
     renderDashboard();
-    toast('Customer ledger updated');
   }
 });
 

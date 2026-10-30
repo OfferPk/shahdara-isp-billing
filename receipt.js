@@ -1,4 +1,4 @@
-import { calculatePaymentAllocations, paymentSenderLabel, paymentTicketChargeCents, prepayTermsOf, ticketChargeLinesOf } from './core.js';
+import { calculatePaymentAllocations, manualBaqayaSettlementLinesOf, paymentManualBaqayaCents, paymentSenderLabel, paymentTicketChargeCents, prepayTermsOf, ticketChargeLinesOf } from './core.js';
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
 import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle.js';
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
@@ -92,7 +92,7 @@ export function buildPaymentReceipt(customer, bill, payment) {
     // SISP-43: a receipt's balance math counts only the BILL portion of
     // each payment — the ticket-charge portion settled field work, not
     // this bill (the total cash received still prints as paidAmount).
-    const billPortionCents = (row) => Math.max(0, cents(positiveAmount(row.amount) ?? 0) - paymentTicketChargeCents(row));
+    const billPortionCents = (row) => Math.max(0, cents(positiveAmount(row.amount) ?? 0) - paymentTicketChargeCents(row) - paymentManualBaqayaCents(row));
     // FU4: SISP-34 voided payments settle nothing — a voided sibling
     // receipt (amount, discount and ticket-charge portions alike) never
     // counts toward what was received before this payment, and a voided
@@ -160,6 +160,12 @@ export function buildPaymentReceipt(customer, bill, payment) {
     // payment's stamp), printed as their own lines on every receipt.
     ticketCharges: ticketChargeLinesOf(payment),
     ticketChargesTotal: ticketChargeLinesOf(payment).reduce((sum, line) => sum + line.amount, 0),
+    // Owner feature (2026-10-29): manual baqaya this payment settled
+    // (from the payment's stamp), printed as its own lines alongside
+    // the ticket charges — the cash total (paidAmount) already includes
+    // it; these lines only say what part of the cash cleared old dues.
+    manualBaqayaSettlements: manualBaqayaSettlementLinesOf(payment),
+    manualBaqayaTotal: manualBaqayaSettlementLinesOf(payment).reduce((sum, line) => sum + line.amount, 0),
     totalBilled: (nominalPrice !== null ? nominalPrice : 0) + lateFee,
     // SISP-61: a multi-month prepay prints its three money lines
     // separately — gross coverage, the upfront discount, and the cash
@@ -214,6 +220,14 @@ const prepayReceiptRows = (receipt, formatAmount) => {
 const ticketChargeReceiptRows = (receipt, formatAmount) => {
   const lines = Array.isArray(receipt?.ticketCharges) ? receipt.ticketCharges : [];
   return lines.map((line) => `<div class="receipt-field"><dt>Murammat / Material Charge (${escapeHtml(line.ticketId)}):</dt><dd>${formatAmount(line.amount)}</dd></div>`).join('');
+};
+
+// Owner feature (2026-10-29): manual baqaya rows for the HTML receipt
+// layouts. Empty when the payment settled no manual baqaya, so ordinary
+// receipts render exactly as before.
+const manualBaqayaReceiptRows = (receipt, formatAmount) => {
+  const lines = Array.isArray(receipt?.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [];
+  return lines.map((line) => `<div class="receipt-field"><dt>Manual Baqaya / دستی بقایا (${escapeHtml(line.entryId)}):</dt><dd>${formatAmount(line.amount)}</dd></div>`).join('');
 };
 
 // SISP-4: kist breakdown rows for the HTML receipt layouts. Empty when the
@@ -312,6 +326,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
+    ${manualBaqayaReceiptRows(receipt, formatAmount)}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
@@ -353,6 +368,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
+    ${manualBaqayaReceiptRows(receipt, formatAmount)}
     ${receipt.lateFee > 0 || receipt.discount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
@@ -391,6 +407,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.referralCreditAmount > 0 ? [['Hamsaya Referral Credit', `-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${receipt.referralCreditReason})` : ''}`]] : []),
     ...(receipt.depositOffsetAmount > 0 ? [['Security Deposit Offset', `-${formatAmount(receipt.depositOffsetAmount)}`]] : []),
     ...(Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges.map((line) => [`Murammat / Material Charge (${line.ticketId})`, formatAmount(line.amount)]) : []),
+    ...(Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements.map((line) => [`Manual Baqaya / دستی بقایا (${line.entryId})`, formatAmount(line.amount)]) : []),
     ...(receipt.prepay ? [['Prepay Coverage', `${formatAmount(receipt.prepay.gross)} (${receipt.prepay.months} months from ${receipt.prepay.startMonth})`], ...(receipt.prepay.discount > 0 ? [['Prepay Discount', `-${formatAmount(receipt.prepay.discount)}`]] : []), ['Prepay Cash Paid', formatAmount(receipt.prepay.cashPaid)]] : []),
     ...(receipt.discount > 0 && !receipt.prepay ? [['Concession / Discount', `-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${receipt.discountReason})` : ''}`]] : []),
     ...(receipt.arrearsBreakdown ? [

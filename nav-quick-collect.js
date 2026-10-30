@@ -25,6 +25,8 @@ import {
   generateMonthlyBillsThroughCurrentMonth,
   saveBillMonth,
   autoPackageFromPayment,
+  manualBaqayaOutstandingCents,
+  planManualBaqayaSettlement,
   paymentSenderLabel
 } from './core.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
@@ -256,7 +258,13 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
       }
     }
 
-    const totalDues = Math.max(0, totalDuesCents / 100);
+    // Owner feature (2026-10-29): the entry's total dues are the SHARED
+    // total — engine bill dues plus unpaid manual baqaya — so the
+    // picker, Field Mode and Bulk Collect all show (and collect) the
+    // baqaya with the bills. The bill-only figure stays on the entry
+    // for surfaces that split the two.
+    const manualBaqayaDueCents = manualBaqayaOutstandingCents(customer);
+    const totalDues = Math.max(0, (totalDuesCents + manualBaqayaDueCents) / 100);
     const targetDue = Math.max(0, targetDueCents / 100);
 
     // Apply filter criteria
@@ -287,6 +295,8 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
       address: customer.address || '',
       serviceStatus: customer.serviceStatus || 'not-set',
       totalDues,
+      billDues: Math.max(0, totalDuesCents / 100),
+      manualBaqayaDue: manualBaqayaDueCents / 100,
       targetMonth,
       targetDue,
       currentMonthBalance: Math.max(0, currentMonthBalanceCents / 100),
@@ -396,8 +406,14 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
   const ticketChargeLines = Array.isArray(tickets) ? pendingTicketChargeLines(tickets, customerId) : [];
   const ticketChargesPendingCents = ticketChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
   const ticketChargesPending = ticketChargesPendingCents / 100;
-  const payableTotal = (totalDuesCents + ticketChargesPendingCents) / 100;
-  if (ticketChargesPending > 0 && payableTotal > 0) {
+  // Owner feature (2026-10-29): unpaid manual baqaya joins the payable
+  // the same way — it lives on the customer record, so no caller list
+  // is needed. The suggested amount covers it too, so one collection
+  // settles bills + baqaya (executeQuickCollection stamps the split).
+  const manualBaqayaPendingCents = manualBaqayaOutstandingCents(customer);
+  const manualBaqayaPending = manualBaqayaPendingCents / 100;
+  const payableTotal = (totalDuesCents + ticketChargesPendingCents + manualBaqayaPendingCents) / 100;
+  if ((ticketChargesPending > 0 || manualBaqayaPending > 0) && payableTotal > 0) {
     suggestedAmount = payableTotal;
   }
 
@@ -415,6 +431,7 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     totalDues,
     ticketChargeLines,
     ticketChargesPending,
+    manualBaqayaPending,
     payableTotal,
     todayDate: getPakistanLocalDate(referenceDate),
     defaultMethod: lastMethod,
@@ -609,16 +626,34 @@ export function executeQuickCollection(state, {
   // settled lines are stamped onto the payment itself (core keeps that
   // portion out of bill allocation), so the cash has exactly one ledger
   // record and the tickets are marked paid against it below.
+  // Owner feature (2026-10-29): unpaid manual baqaya settles from the
+  // SAME remainder, BEFORE ticket charges take from it — the owner's
+  // model is oldest dues first, and a baqaya entry is by definition an
+  // old due. FIFO date order, partial settlement of the last entry
+  // reached allowed; the settled lines are stamped onto the payment
+  // (payment.manualBaqayaSettlements), core keeps that portion out of
+  // bill allocation, the remaining baqaya is always derived from the
+  // stamps, and a void therefore restores it exactly. Advance-tagged
+  // collections never settle baqaya (advance money is pre-payment
+  // credit by definition).
   let settledTicketLines = [];
-  if (Array.isArray(tickets)) {
+  let settledBaqayaLines = [];
+  {
     const preAllocations = calculatePaymentAllocations(state);
     let preDuesCents = 0;
     for (const b of (customer.bills ?? [])) {
       const s = preAllocations.forMonth(customerId, b.month);
       if (s?.balanceDueCents && s.balanceDueCents > 0) preDuesCents += s.balanceDueCents;
     }
-    const remainderCents = Math.max(0, Math.round(numAmount * 100) - preDuesCents);
-    settledTicketLines = planTicketChargeSettlement(tickets, customerId, remainderCents).lines;
+    let remainderCents = Math.max(0, Math.round(numAmount * 100) - preDuesCents);
+    if (kind !== 'advance') {
+      const baqayaPlan = planManualBaqayaSettlement(customer, remainderCents);
+      settledBaqayaLines = baqayaPlan.lines;
+      remainderCents -= baqayaPlan.totalCents;
+    }
+    if (Array.isArray(tickets)) {
+      settledTicketLines = planTicketChargeSettlement(tickets, customerId, remainderCents).lines;
+    }
   }
 
   // Create immutable payment entry through core function. An explicit
@@ -644,7 +679,8 @@ export function executeQuickCollection(state, {
     senderDigits: senderDigits ? String(senderDigits).trim() : undefined,
     referenceOverrideReason: cleanReason || undefined,
     screenshot: (typeof screenshot === 'string' && screenshot.startsWith('data:image/')) ? screenshot : undefined,
-    ticketCharges: settledTicketLines.length > 0 ? settledTicketLines : undefined
+    ticketCharges: settledTicketLines.length > 0 ? settledTicketLines : undefined,
+    manualBaqayaSettlements: settledBaqayaLines.length > 0 ? settledBaqayaLines : undefined
   }, referenceDate);
 
   // Auto package follow (owner feature, 2026-10-29): when this collect
@@ -695,7 +731,9 @@ export function executeQuickCollection(state, {
     ticketChargesPendingAfter = billedTicketChargesPending(nextTickets ?? tickets, customerId);
   }
   const ticketChargesTotal = settledTicketLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0) / 100;
-  const payableRemaining = Math.round((newTotalDues + ticketChargesPendingAfter) * 100) / 100;
+  const manualBaqayaSettledTotal = settledBaqayaLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0) / 100;
+  const manualBaqayaPendingAfter = manualBaqayaOutstandingCents(updatedCustomer) / 100;
+  const payableRemaining = Math.round((newTotalDues + ticketChargesPendingAfter + manualBaqayaPendingAfter) * 100) / 100;
 
   const receipt = {
     success: true,
@@ -725,8 +763,11 @@ export function executeQuickCollection(state, {
     ticketCharges: settledTicketLines,
     ticketChargesTotal,
     ticketChargesPending: ticketChargesPendingAfter,
+    manualBaqayaSettlements: settledBaqayaLines,
+    manualBaqayaSettledTotal,
+    manualBaqayaPending: manualBaqayaPendingAfter,
     payableRemaining,
-    isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0,
+    isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0 && manualBaqayaPendingAfter <= 0,
     packageAutoSet: autoPackage,
     collectedAt: new Date().toISOString()
   };
@@ -757,6 +798,10 @@ export function formatQuickCollectWhatsAppReceipt(receipt) {
   // SISP-43: settled ticket charges print as their own receipt lines.
   const ticketChargeLines = (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : [])
     .map(line => `🔧 *Murammat / Material Charge (${line.ticketId}):* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
+  // Owner feature (2026-10-29): manual baqaya settled by this payment
+  // prints as its own receipt lines too (bilingual, like the charges).
+  const baqayaLines = (Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [])
+    .map(line => `🧾 *Manual Baqaya / دستی بقایا (${line.entryId}):* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
 
   const lines = [
     `*SHAHDARA FIBER NETWORK & ISP BILLING*`,
@@ -772,6 +817,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt) {
     ``,
     `💵 *Amount Received:* PKR ${amountStr}`,
     ...ticketChargeLines,
+    ...baqayaLines,
     `💳 *Payment Method:* ${receipt.method}`,
     receipt.transactionId ? `🔢 *Transaction ID / Ref:* ${receipt.transactionId}` : null,
     receipt.senderLabel ? `👤 *Sender / بھیجنے والا:* ${receipt.senderLabel}` : null,
@@ -1057,6 +1103,13 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           <span class="qc-meta-label">Murammat / Material Charge (${escapeHtml(line.ticketId)})</span>
           <strong class="qc-meta-val">PKR ${Number(line.amount).toLocaleString('en-PK')}</strong>
         </div>`).join('');
+  // Owner feature (2026-10-29): manual baqaya settled by this receipt,
+  // one row per entry.
+  const baqayaRows = (Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : []).map(line => `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">${escapeHtml(t('baqaya_receipt_line', null, { id: line.entryId }))}</span>
+          <strong class="qc-meta-val">PKR ${Number(line.amount).toLocaleString('en-PK')}</strong>
+        </div>`).join('');
   return `
     <div class="qc-receipt-card" role="region" aria-label="Payment Receipt Slip">
       <div class="qc-receipt-header">
@@ -1092,6 +1145,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           </strong>
         </div>
         ${ticketChargeRows}
+        ${baqayaRows}
         ${receipt.packageAutoSet ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Package</span>
@@ -1583,9 +1637,15 @@ export function setupQuickCollectModal({
         // the full payable (bills + charges) with the split spelled out,
         // so the collector sees exactly what the 1-tap amount covers.
         const hasTicketCharges = activeDefaults.ticketChargesPending > 0;
-        const chargeLines = hasTicketCharges
-          ? activeDefaults.ticketChargeLines.map(line => `<span class="qc-head-charge-line" style="display:block;">🔧 Murammat / Material Charge (${escapeHtml(line.ticketId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`).join('')
-          : '';
+        // Owner feature (2026-10-29): pending manual baqaya joins the
+        // header payable the same way, with its own split line, so the
+        // collector sees the old dues inside the 1-tap amount.
+        const hasBaqaya = activeDefaults.manualBaqayaPending > 0;
+        const hasExtras = hasTicketCharges || hasBaqaya;
+        const chargeLines = [
+          ...activeDefaults.ticketChargeLines.map(line => `<span class="qc-head-charge-line" style="display:block;">🔧 Murammat / Material Charge (${escapeHtml(line.ticketId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
+          ...(hasBaqaya ? [`<span class="qc-head-charge-line" style="display:block;">🧾 ${escapeHtml(t('baqaya_qc_line', null, { amount: `PKR ${Number(activeDefaults.manualBaqayaPending).toLocaleString('en-PK')}` }))}</span>`] : [])
+        ].join('');
         customerHeader.innerHTML = `
           <div class="qc-active-cust-bar">
             <div class="qc-cust-identity">
@@ -1594,11 +1654,11 @@ export function setupQuickCollectModal({
               <span class="qc-head-area">${escapeHtml(activeDefaults.area)}${activeDefaults.phone ? ' · ' + escapeHtml(activeDefaults.phone) : ''}</span>
             </div>
             <div class="qc-head-due-box">
-              <span class="qc-box-label">${hasTicketCharges ? 'Total Payable' : 'Total Dues'}</span>
-              <strong class="qc-box-amt">PKR ${(hasTicketCharges ? activeDefaults.payableTotal : activeDefaults.totalDues).toLocaleString('en-PK')}</strong>
+              <span class="qc-box-label">${hasExtras ? 'Total Payable' : 'Total Dues'}</span>
+              <strong class="qc-box-amt">PKR ${(hasExtras ? activeDefaults.payableTotal : activeDefaults.totalDues).toLocaleString('en-PK')}</strong>
             </div>
           </div>
-          ${hasTicketCharges ? `<div class="qc-head-charges" style="margin-top:6px;font-size:0.85rem;"><span class="qc-head-charge-line" style="display:block;">🧾 Bill dues: PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}</span>${chargeLines}</div>` : ''}
+          ${hasExtras ? `<div class="qc-head-charges" style="margin-top:6px;font-size:0.85rem;"><span class="qc-head-charge-line" style="display:block;">🧾 Bill dues: PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}</span>${chargeLines}</div>` : ''}
         `;
       }
 
@@ -1636,7 +1696,7 @@ export function setupQuickCollectModal({
       // advance credit — pre-tick the box so the 2-tap flow keeps working
       // for early payers instead of hitting core's fully-paid guard.
       if (advanceCheckbox) {
-        advanceCheckbox.checked = activeDefaults.totalDues <= 0 && activeDefaults.ticketChargesPending <= 0;
+        advanceCheckbox.checked = activeDefaults.totalDues <= 0 && activeDefaults.ticketChargesPending <= 0 && activeDefaults.manualBaqayaPending <= 0;
       }
 
       // Advance month target: current month onward, next month
@@ -1675,7 +1735,8 @@ export function setupQuickCollectModal({
       if (quickAmountChips && activeDefaults) {
         // SISP-43: the "Full" chip covers the whole payable when ticket
         // charges are pending (bills + charges), not just the bill dues.
-        const baseBal = activeDefaults.ticketChargesPending > 0
+        // Owner feature (2026-10-29): same when manual baqaya is pending.
+        const baseBal = (activeDefaults.ticketChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
           ? activeDefaults.payableTotal
           : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
         const curBal = (activeDefaults.currentMonthBalance && activeDefaults.currentMonthBalance > 0)
@@ -1896,7 +1957,7 @@ export function setupQuickCollectModal({
     chip.addEventListener('click', () => {
       if (!amountInput || !activeDefaults) return;
       const type = chip.getAttribute('data-quick-amount');
-      const baseBalance = activeDefaults.ticketChargesPending > 0
+      const baseBalance = (activeDefaults.ticketChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
         ? activeDefaults.payableTotal
         : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
 
@@ -2059,7 +2120,8 @@ export function setupQuickCollectModal({
       // flow records after a bill is paid).
       if (!advanceCheckbox?.checked
         && normalPaymentBlockReason(state, activeCustomerId, monthVal) === 'fully-paid'
-        && billedTicketChargesPending(loadTickets(), activeCustomerId) <= 0) {
+        && billedTicketChargesPending(loadTickets(), activeCustomerId) <= 0
+        && manualBaqayaOutstandingCents(state.customers.find(c => c.id === activeCustomerId)) <= 0) {
         if (typeof onToast === 'function') onToast(t('adv_blocked_paid'), { type: 'error' });
         return;
       }
@@ -2296,10 +2358,18 @@ export function setupQuickCollectModal({
           method: activeReceipt.method || '',
           reference: activeReceipt.transactionId || '',
           // SISP-43: settled ticket charges print on the slip too.
-          ticketCharges: (activeReceipt.ticketCharges ?? []).map(line => ({
-            label: `Murammat (${line.ticketId})`,
-            value: money(line.amount)
-          })),
+          // Owner feature (2026-10-29): settled manual baqaya rides the
+          // same slip rows with its own short label.
+          ticketCharges: [
+            ...(activeReceipt.ticketCharges ?? []).map(line => ({
+              label: `Murammat (${line.ticketId})`,
+              value: money(line.amount)
+            })),
+            ...(activeReceipt.manualBaqayaSettlements ?? []).map(line => ({
+              label: `Baqaya (${line.entryId})`,
+              value: money(line.amount)
+            }))
+          ],
           balanceDue: money(activeReceipt.payableRemaining ?? activeReceipt.newBalanceDue),
           statusLabel: activeReceipt.isSettled ? 'PAID' : 'PARTIAL'
         });

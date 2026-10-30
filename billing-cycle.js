@@ -18,7 +18,7 @@
 // All helpers are pure except load/saveBillingCycles and the modal setup.
 // Tests use synthetic data only; no customer, bill or payment data is ever
 // fabricated here.
-import { calculatePaymentAllocations, formatPKR, localDateTimeValue, paymentTicketChargeCents } from './core.js';
+import { calculatePaymentAllocations, formatPKR, localDateTimeValue, paymentManualBaqayaCents, paymentTicketChargeCents } from './core.js';
 import { advancePlansForBilledLines, advancePlansForCoveredKist, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
 import { REFERRAL_CREDIT_REASON, applyReferralApplications, loadReferralCredits, planReferralApplications, queuedReferralTotalFor, reconcileReferralCredits, saveReferralCredits } from './referral-credits.js';
@@ -592,7 +592,9 @@ export function allocateFifoForBill(customer, bill) {
     const remainingBefore = { arrears: rupees(remArrears), package: rupees(remPkg), kist: rupees(remKist) };
     // SISP-43: the ticket-charge portion of a receipt settled field-work
     // charges, not any FIFO bucket — the split sees the bill portion only.
-    const effective = Math.max(0, (Number(payment.amount) || 0) - paymentTicketChargeCents(payment) / 100) + (Number(payment.discount) || 0);
+    // Owner feature (2026-10-29): the manual baqaya portion settled
+    // off-book dues the same way — never a FIFO bucket either.
+    const effective = Math.max(0, (Number(payment.amount) || 0) - paymentTicketChargeCents(payment) / 100 - paymentManualBaqayaCents(payment) / 100) + (Number(payment.discount) || 0);
     const alloc = allocateFifoPayment({
       previousArrears: remainingBefore.arrears,
       currentMonthBill: remainingBefore.package,

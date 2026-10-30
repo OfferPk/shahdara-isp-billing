@@ -31,6 +31,12 @@
  *   record — it never alters underlying bills, receipts or expenses,
  *   and re-opening it replaces the slip for that month, not the ledger.
  *
+ * - SISP-68: shop handovers a partner kept (SISP-1 settlements stamped
+ *   receivedInto) are mirrored into this ledger as linked drawings by
+ *   syncShopPickupDrawings — a convergent reconcile keyed by the
+ *   settlement id, so a pickup is counted in the reconciliation exactly
+ *   once no matter how often the sync runs.
+ *
  * Backup: both record sets travel inside JSON backups via the
  * `settings.partnerLedger` / `settings.partnerSettlements` sections (see
  * core.js createJsonBackup / previewJsonBackupMerge, same safe-merge rule
@@ -129,6 +135,13 @@ export function sanitizePartnerLedgerEntries(value) {
     if (type !== 'drawing' && type !== 'capital') continue;
     if (!Number.isFinite(amount) || amount <= 0) continue;
     if (!validDate(entry.date)) continue;
+    // SISP-68: shop-pickup mirror entries carry their link back to the
+    // SISP-1 settlement record (source + settlementId) so the reconcile
+    // below can own them. Manual entries never carry these fields.
+    const linked = entry.source === SHOP_PICKUP_SOURCE
+      && typeof entry.settlementId === 'string' && entry.settlementId
+      ? { source: SHOP_PICKUP_SOURCE, settlementId: entry.settlementId }
+      : {};
     out.push({
       id: typeof entry.id === 'string' && entry.id ? entry.id : entryId(),
       partner,
@@ -137,7 +150,8 @@ export function sanitizePartnerLedgerEntries(value) {
       date: entry.date,
       month: entry.date.slice(0, 7),
       note: typeof entry.note === 'string' ? entry.note : '',
-      createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
+      createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : '',
+      ...linked
     });
   }
   return out;
@@ -204,6 +218,115 @@ export function upsertPartnerLedgerEntry(entries, entry) {
 /** Pure: removes one entry by id. */
 export function deletePartnerLedgerEntry(entries, id) {
   return sanitizePartnerLedgerEntries(entries).filter((row) => row.id !== id);
+}
+
+/**
+ * SISP-68: Shop Cash Handover → Partner Pickup Attribution.
+ *
+ * When a shop handover is recorded with "Received Into: Kept by Nasir /
+ * Aqib" (shop-settlement.js stamps receivedInto on the settlement
+ * record), the cash never reaches the Roznamcha drawer — the partner
+ * holds it, which is exactly a mid-month drawing. This reconcile mirrors
+ * every partner-kept settlement as exactly ONE ledger drawing:
+ *
+ * - deterministic id `partner-ledger-shop-<settlementId>` plus the
+ *   source/settlementId link fields, so the mirror is keyed by the
+ *   settlement record, never by amount or date;
+ * - convergent, in the SISP-45/56 shape: a re-run with unchanged inputs
+ *   reports changed:false, a corrected settlement updates its drawing in
+ *   place, and a settlement that disappears (or returns to the drawer)
+ *   removes its drawing. Manual ledger entries are never touched;
+ * - the drawing is an ordinary type:'drawing' entry, so the monthly
+ *   reconciliation above (and the SISP-60 voucher book) count it exactly
+ *   once with no parallel computation.
+ */
+export const SHOP_PICKUP_SOURCE = 'shop-settlement';
+
+export function shopPickupDrawingId(settlementId) {
+  return `partner-ledger-shop-${settlementId}`;
+}
+
+/** True for ledger entries owned by the shop-pickup mirror. */
+export function isShopPickupEntry(entry) {
+  if (!entry || typeof entry !== 'object') return false;
+  if (entry.source === SHOP_PICKUP_SOURCE && typeof entry.settlementId === 'string' && entry.settlementId) return true;
+  return typeof entry.id === 'string' && entry.id.startsWith('partner-ledger-shop-');
+}
+
+function pickupForSettlement(record) {
+  if (!record || typeof record !== 'object') return null;
+  const into = String(record.receivedInto ?? '').trim().toLowerCase();
+  const partner = into === 'nasir' ? 'Nasir' : into === 'aqib' ? 'Aqib' : null;
+  if (!partner) return null;
+  if (typeof record.id !== 'string' || !record.id) return null;
+  const amount = wholeRupees(record.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  if (!validDate(record.date)) return null;
+  return {
+    settlementId: record.id,
+    partner,
+    amount,
+    date: record.date,
+    shop: typeof record.shop === 'string' && record.shop ? record.shop : 'Shop',
+    createdAt: typeof record.createdAt === 'string' ? record.createdAt : ''
+  };
+}
+
+function shopPickupEntry(pickup) {
+  return {
+    id: shopPickupDrawingId(pickup.settlementId),
+    partner: pickup.partner,
+    type: 'drawing',
+    amount: pickup.amount,
+    date: pickup.date,
+    month: pickup.date.slice(0, 7),
+    note: `Shop cash pickup — ${pickup.shop} handover (${pickup.settlementId})`,
+    createdAt: pickup.createdAt,
+    source: SHOP_PICKUP_SOURCE,
+    settlementId: pickup.settlementId
+  };
+}
+
+export function syncShopPickupDrawings(entries, settlements) {
+  const current = sanitizePartnerLedgerEntries(entries);
+  const desired = new Map();
+  for (const record of (Array.isArray(settlements) ? settlements : [])) {
+    const pickup = pickupForSettlement(record);
+    if (pickup && !desired.has(pickup.settlementId)) desired.set(pickup.settlementId, pickup);
+  }
+  let added = 0;
+  let updated = 0;
+  let removed = 0;
+  const seen = new Set();
+  const next = [];
+  for (const row of current) {
+    if (!isShopPickupEntry(row)) { next.push(row); continue; }
+    const linkedId = typeof row.settlementId === 'string' && row.settlementId
+      ? row.settlementId
+      : row.id.slice('partner-ledger-shop-'.length);
+    const want = desired.get(linkedId);
+    if (!want || seen.has(linkedId)) { removed += 1; continue; }
+    seen.add(linkedId);
+    const synced = shopPickupEntry(want);
+    const identical = row.id === synced.id
+      && row.partner === synced.partner
+      && row.type === 'drawing'
+      && row.amount === synced.amount
+      && row.date === synced.date
+      && row.note === synced.note
+      && row.source === SHOP_PICKUP_SOURCE
+      && row.settlementId === synced.settlementId;
+    if (identical) next.push(row);
+    else { updated += 1; next.push(synced); }
+  }
+  for (const [settlementId, want] of desired) {
+    if (seen.has(settlementId)) continue;
+    seen.add(settlementId);
+    added += 1;
+    next.push(shopPickupEntry(want));
+  }
+  next.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  return { entries: next, changed: added + updated + removed > 0, added, updated, removed };
 }
 
 /** Entries whose date falls in `month` (YYYY-MM), newest first. */

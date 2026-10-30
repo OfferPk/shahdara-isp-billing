@@ -11750,6 +11750,26 @@ html, body {
   color: #dcfce7;
 }
 
+/* SISP-68: shop-pickup drawing badge in the partner ledger table.
+   Token-only so it follows light/dark themes automatically. */
+.partner-ledger-pickup-badge {
+  display: inline-block;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.partner-ledger-pickup-locked {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .expense-roznamcha-hint {
   color: #94a3b8;
   font-size: 11px;

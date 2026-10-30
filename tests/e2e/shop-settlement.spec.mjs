@@ -71,3 +71,30 @@ test('dashboard shop card shows unsettled cash and modal settles it', async ({ p
   expect(overflow).toBe(0);
   expect(errors).toEqual([]);
 });
+
+test('SISP-68: handover kept by Nasir records a linked partner drawing', async ({ page }) => {
+  const errors = trackErrors(page);
+  await boot(page);
+  await seedShopPayment(page);
+
+  await page.click('#openShopSettlementModalBtn');
+  await expect(page.locator('#shopSettlementModal')).toBeVisible();
+  await page.selectOption('#shopSettlementShopSelect', { label: /Waseem Abbasi Shop/ });
+  await page.fill('#shopSettlementAmountInput', '3000');
+  await page.selectOption('#shopSettlementReceivedIntoSelect', 'nasir');
+  await page.click('#shopSettlementSubmitBtn');
+  await expect(page.locator('#shopSettlementReceiptText')).toContainText('Kept by Nasir (Partner Drawing)');
+
+  const settlements = JSON.parse(await page.evaluate(() => localStorage.getItem('sisp_shop_settlements_v1')));
+  expect(settlements).toHaveLength(1);
+  expect(settlements[0].receivedInto).toBe('nasir');
+  expect(settlements[0].amount).toBe(3000);
+
+  const ledger = JSON.parse(await page.evaluate(() => localStorage.getItem('sisp_partner_ledger_v1')));
+  expect(ledger).toHaveLength(1);
+  expect(ledger[0].partner).toBe('Nasir');
+  expect(ledger[0].type).toBe('drawing');
+  expect(ledger[0].amount).toBe(3000);
+  expect(ledger[0].settlementId).toBe(settlements[0].id);
+  expect(errors).toEqual([]);
+});

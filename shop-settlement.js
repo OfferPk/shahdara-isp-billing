@@ -20,11 +20,54 @@
  * here would create a module cycle. PKR formatting and PKT dates are small
  * local helpers mirroring core.js (Intl en-PK / Asia/Karachi).
  *
+ * SISP-68 adds the "Received Into" choice on the handover form: cash kept
+ * by Nasir or Aqib is stamped on the settlement record (receivedInto) and
+ * mirrored into the SISP-22 partner ledger as a linked drawing by
+ * partner-settlement.js syncShopPickupDrawings (convergent reconcile —
+ * re-running it never double-records). Drawer handovers behave exactly
+ * as SISP-1 shipped them.
+ *
  * All helpers are pure except load/saveShopSettlements and the modal setup.
  * Tests use synthetic data only.
  */
 
+import {
+  loadPartnerLedgerEntries,
+  savePartnerLedgerEntries,
+  syncShopPickupDrawings
+} from './partner-settlement.js';
+
 export const SHOP_SETTLEMENTS_KEY = 'sisp_shop_settlements_v1';
+
+/**
+ * SISP-68: where a handover's cash actually went. 'drawer' is the
+ * historical behaviour (cash enters the ISP Roznamcha drawer; records
+ * written before SISP-68 carry no field and mean 'drawer'). 'nasir' /
+ * 'aqib' mean that partner kept the cash, which partner-settlement.js
+ * mirrors as a linked Partner Cash Drawing (type 'drawing') in the
+ * SISP-22 ledger. The field is only persisted for partner pickups, so
+ * legacy drawer records stay byte-identical.
+ */
+export const RECEIVED_INTO_VALUES = Object.freeze(['drawer', 'nasir', 'aqib']);
+
+export function normalizeReceivedInto(value) {
+  const cleaned = String(value ?? '').trim().toLowerCase();
+  return RECEIVED_INTO_VALUES.includes(cleaned) ? cleaned : 'drawer';
+}
+
+/** 'Nasir' / 'Aqib' when that partner kept the cash, else null (drawer). */
+export function partnerForReceivedInto(value) {
+  const into = normalizeReceivedInto(value);
+  if (into === 'nasir') return 'Nasir';
+  if (into === 'aqib') return 'Aqib';
+  return null;
+}
+
+/** Display label for receipts and summaries. */
+export function receivedIntoLabel(value) {
+  const partner = partnerForReceivedInto(value);
+  return partner ? `Kept by ${partner} (Partner Drawing)` : 'ISP Roznamcha Drawer';
+}
 
 const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -271,12 +314,16 @@ export function sanitizeShopSettlements(value) {
     if (typeof entry.shop !== 'string' || !entry.shop.trim()) continue;
     if (!Number.isFinite(amount) || amount <= 0) continue;
     if (typeof entry.date !== 'string' || !DATE_RE.test(entry.date)) continue;
+    const receivedInto = normalizeReceivedInto(entry.receivedInto);
     out.push({
       id: typeof entry.id === 'string' && entry.id ? entry.id : `shop-settle-${Date.now()}`,
       shop: entry.shop,
       amount,
       date: entry.date,
       note: typeof entry.note === 'string' ? entry.note : '',
+      // SISP-68: persisted only for partner pickups; absence means the
+      // cash went into the Roznamcha drawer (legacy records unchanged).
+      ...(receivedInto !== 'drawer' ? { receivedInto } : {}),
       allocations: Array.isArray(entry.allocations)
         ? entry.allocations.filter((a) => a && typeof a === 'object' && Number.isFinite(Number(a.amount)) && Number(a.amount) > 0).map((a) => ({
             customerId: a.customerId ?? null,
@@ -336,7 +383,7 @@ export function allocateSettlement(shopPayments, amount) {
  * settlementIds) plus the settlement record to persist via
  * saveShopSettlements. Throws on a non-positive amount or an unknown shop.
  */
-export function applySettlement(state, shop, amount, date, note = '') {
+export function applySettlement(state, shop, amount, date, note = '', options = {}) {
   const total = moneyValue(amount);
   if (!Number.isFinite(total) || total <= 0) throw new Error('Settlement amount must be greater than zero.');
   const pending = pendingShopReceipts(state, shop);
@@ -345,12 +392,17 @@ export function applySettlement(state, shop, amount, date, note = '') {
   if (covered <= 0) throw new Error(`No unsettled cash found for ${shop}.`);
   const id = settlementId();
   const handoverDate = typeof date === 'string' && DATE_RE.test(date) ? date : pakistanToday();
+  const receivedInto = normalizeReceivedInto(options?.receivedInto);
   const settlement = {
     id,
     shop,
     amount: covered,
     date: handoverDate,
     note: typeof note === 'string' ? note : '',
+    // SISP-68: partner pickups are stamped so the partner-ledger mirror
+    // and the Roznamcha drawer can each follow the cash. Drawer (the
+    // default) adds no field, keeping legacy-shaped records identical.
+    ...(receivedInto !== 'drawer' ? { receivedInto } : {}),
     allocations,
     createdAt: new Date().toISOString()
   };
@@ -387,6 +439,11 @@ export function generateShopSettlementReceiptText({ shop, settlement, remainingU
   lines.push(`Shop: ${shop}`);
   lines.push(`Handover date: ${settlement?.date || ''}`);
   lines.push(`Amount received: ${formatShopPKR(settlement?.amount)}`);
+  // SISP-68: partner pickups say so on the receipt; drawer receipts are
+  // unchanged from the SISP-1 text.
+  if (partnerForReceivedInto(settlement?.receivedInto)) {
+    lines.push(`Received into: ${receivedIntoLabel(settlement.receivedInto)}`);
+  }
   if (settlement?.note) lines.push(`Note: ${settlement.note}`);
   lines.push('');
   lines.push('Settled receipts:');
@@ -422,6 +479,7 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
   const amountInput = $('shopSettlementAmountInput');
   const dateInput = $('shopSettlementDateInput');
   const noteInput = $('shopSettlementNoteInput');
+  const receivedIntoSelect = $('shopSettlementReceivedIntoSelect');
   const receiptBox = $('shopSettlementReceiptText');
   const receiptActions = $('shopSettlementReceiptActions');
   let currentShop = null;
@@ -499,17 +557,29 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
     const state = getState() || { customers: [] };
     const shop = shopSelect ? shopSelect.value : currentShop;
     const amount = Number(amountInput ? amountInput.value : 0);
+    const receivedInto = normalizeReceivedInto(receivedIntoSelect ? receivedIntoSelect.value : 'drawer');
     try {
       const { state: next, settlement, leftover } = applySettlement(
-        state, shop, amount, dateInput ? dateInput.value : '', noteInput ? noteInput.value : ''
+        state, shop, amount, dateInput ? dateInput.value : '', noteInput ? noteInput.value : '',
+        { receivedInto }
       );
       const settlements = [...loadShopSettlements(), settlement];
       saveShopSettlements(settlements);
       onSettlementsSaved && onSettlementsSaved(settlements);
+      // SISP-68: a partner pickup lands in the SISP-22 partner ledger as
+      // a linked drawing. The reconcile is convergent (keyed by the
+      // settlement id), so running it here — and again at startup or
+      // after a backup restore — records the drawing exactly once.
+      const pickupPartner = partnerForReceivedInto(receivedInto);
+      if (pickupPartner) {
+        const mirror = syncShopPickupDrawings(loadPartnerLedgerEntries(), settlements);
+        if (mirror.changed) savePartnerLedgerEntries(mirror.entries);
+      }
       onUpdateState && onUpdateState(next);
       const remaining = buildShopSummaries(next, settlements).find((s) => s.shop === shop)?.unsettled ?? 0;
       showReceipt(settlement, remaining);
       if (leftover > 0) onToast && onToast(`Only ${formatShopPKR(settlement.amount)} was unsettled; ${formatShopPKR(leftover)} was not recorded.`);
+      else if (pickupPartner) onToast && onToast(`Received ${formatShopPKR(settlement.amount)} from ${shop} — kept by ${pickupPartner}; partner drawing recorded.`);
       else onToast && onToast(`Received ${formatShopPKR(settlement.amount)} from ${shop}.`);
       renderShops();
     } catch (error) {

@@ -20948,6 +20948,12 @@
           <input id="shopSettlementDateInput" class="form-input" type="date" required>
           <label for="shopSettlementNoteInput">Note (optional)</label>
           <input id="shopSettlementNoteInput" class="form-input" type="text" placeholder="e.g. Cash received at home">
+          <label for="shopSettlementReceivedIntoSelect" data-i18n="shop_pickup_received_into">Received into</label>
+          <select id="shopSettlementReceivedIntoSelect" class="form-input">
+            <option value="drawer" data-i18n="shop_pickup_into_drawer">ISP Roznamcha Drawer</option>
+            <option value="nasir" data-i18n="shop_pickup_into_nasir">Kept by Nasir (Partner Drawing)</option>
+            <option value="aqib" data-i18n="shop_pickup_into_aqib">Kept by Aqib (Partner Drawing)</option>
+          </select>
           <button id="shopSettlementSubmitBtn" class="primary-button" type="submit">Receive Cash / Settle Shop</button>
         </form>
         <div id="shopSettlementReceiptActions" hidden>

@@ -14,7 +14,9 @@
  *   settlement records (sisp_shop_settlements_v1, settlement.date === day).
  *   Shop-method bill payments are NOT direct drawer cash — they only enter
  *   the drawer when the shop hands the cash over, so they are never counted
- *   twice.
+ *   twice. Since SISP-68 a handover recorded as kept by Nasir or Aqib
+ *   (receivedInto on the settlement) never enters the drawer at all: it is
+ *   mirrored as that partner's drawing in the SISP-22 ledger instead.
  * - The persistent day ledger (localStorage sisp_roznamcha_v1) stores only
  *   what the drawer itself owns: petty-cash outflows plus, once closed, a
  *   frozen snapshot (opening, inflows, expected closing, counted cash,
@@ -38,7 +40,7 @@
  * shop-settlement.js. Tests use synthetic data only.
  */
 
-import { loadShopSettlements } from './shop-settlement.js';
+import { loadShopSettlements, partnerForReceivedInto } from './shop-settlement.js';
 
 export const ROZNAMCHA_KEY = 'sisp_roznamcha_v1';
 
@@ -227,11 +229,18 @@ export function collectDirectCashPayments(state, date) {
   return payments;
 }
 
-/** Shop cash handed over on this date (SISP-1 settlement records). */
+/**
+ * Shop cash handed over on this date (SISP-1 settlement records).
+ * SISP-68: a handover a partner kept (receivedInto Nasir/Aqib) never
+ * enters the drawer — it is mirrored as that partner's drawing in the
+ * SISP-22 ledger instead — so it is excluded here. Drawer handovers and
+ * legacy records (no receivedInto field) count exactly as before.
+ */
 export function collectShopHandovers(settlements, date) {
   const handovers = [];
   for (const settlement of Array.isArray(settlements) ? settlements : []) {
     if (settlement?.date === date) {
+      if (partnerForReceivedInto(settlement?.receivedInto)) continue;
       const amount = moneyValue(settlement.amount);
       if (amount > 0) {
         handovers.push({ shop: cleanText(settlement.shop, 100), amount: round2(amount) });

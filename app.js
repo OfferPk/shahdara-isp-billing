@@ -147,7 +147,7 @@ import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
-import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl } from './partner-settlement.js';
+import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
@@ -389,6 +389,22 @@ function recordSaadPaymentSync() {
   if (!result.expensesChanged) return;
   state = { ...state, expenses: result.expenses };
   if (storageAvailable) { try { persistState(state, localStorage); } catch { /* next pass retries */ } }
+}
+
+// SISP-68 wiring: mirror shop handovers a partner kept (SISP-1
+// settlements stamped receivedInto) into the SISP-22 partner ledger as
+// linked drawings (partner-settlement.js syncShopPickupDrawings). The
+// pass is a convergent reconcile keyed by the settlement id — the
+// settlement records are the source of truth and re-running it changes
+// nothing — so it runs at startup, in the shop settlement modal itself,
+// and after a backup restore without ever double-recording a pickup.
+function recordShopPickupDrawingSync() {
+  let result;
+  try {
+    result = syncShopPickupDrawings(loadPartnerLedgerEntries(), loadShopSettlements());
+  } catch { return; }
+  if (!result.changed) return;
+  try { savePartnerLedgerEntries(result.entries); } catch { /* next pass retries */ }
 }
 
 const $ = selector => document.querySelector(selector);
@@ -4325,6 +4341,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.shopSettlements) {
       saveShopSettlements(pendingBackupPreview.shopSettlements);
+      // SISP-68: mirror any restored partner-kept handovers into the
+      // partner ledger as linked drawings, exactly once.
+      recordShopPickupDrawingSync();
     }
     if (pendingBackupPreview.complaints) {
       saveComplaints(pendingBackupPreview.complaints);
@@ -4382,6 +4401,10 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
       saveMonthlyClosingNotes(pendingBackupPreview.monthlyClosingNotes);    }
     if (pendingBackupPreview.partnerLedger) {
       savePartnerLedgerEntries(pendingBackupPreview.partnerLedger);
+      // SISP-68: converge the restored ledger against the shop
+      // settlements on this device (adds missing pickup drawings,
+      // drops ones whose settlement is gone).
+      recordShopPickupDrawingSync();
     }
     if (pendingBackupPreview.partnerSettlements) {
       savePartnerSettlements(pendingBackupPreview.partnerSettlements);
@@ -7544,7 +7567,17 @@ function renderPartnerSettlement() {
   const table = $('#partnerLedgerTable');
   const emptyEl = $('#partnerLedgerEmpty');
   if (table) {
-    table.innerHTML = report.entries.map(row => `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.partner)}</td><td>${escapeHtml(row.type === 'drawing' ? 'Drawing — cash taken' : 'Capital — out-of-pocket')}</td><td>${escapeHtml(formatAmount(row.amount))}</td><td>${escapeHtml(row.note || '—')}</td><td><button class="text-button" type="button" data-edit-partner-ledger="${escapeHtml(row.id)}">Edit</button> <button class="text-button" type="button" data-delete-partner-ledger="${escapeHtml(row.id)}">Delete</button></td></tr>`).join('');
+    table.innerHTML = report.entries.map(row => {
+      // SISP-68: shop-pickup drawings are owned by the SISP-1 settlement
+      // record (convergent mirror) — badged and locked here like the
+      // SISP-45/56 synced expense rows; edit them via the shop handover.
+      const pickup = isShopPickupEntry(row);
+      const noteCell = `${escapeHtml(row.note || '—')}${pickup ? ` <span class="partner-ledger-pickup-badge">${escapeHtml(t('partner_shop_pickup_badge'))}</span>` : ''}`;
+      const actions = pickup
+        ? '<span class="partner-ledger-pickup-locked">Synced from shop handover</span>'
+        : `<button class="text-button" type="button" data-edit-partner-ledger="${escapeHtml(row.id)}">Edit</button> <button class="text-button" type="button" data-delete-partner-ledger="${escapeHtml(row.id)}">Delete</button>`;
+      return `<tr><td>${escapeHtml(row.date)}</td><td>${escapeHtml(row.partner)}</td><td>${escapeHtml(row.type === 'drawing' ? 'Drawing — cash taken' : 'Capital — out-of-pocket')}</td><td>${escapeHtml(formatAmount(row.amount))}</td><td>${noteCell}</td><td>${actions}</td></tr>`;
+    }).join('');
     table.querySelectorAll('[data-edit-partner-ledger]').forEach(button => button.addEventListener('click', () => {
       const entry = loadPartnerLedgerEntries().find(row => row.id === button.dataset.editPartnerLedger);
       if (!entry) return;
@@ -10857,6 +10890,10 @@ if (typeof document !== 'undefined') {
   // before this wiring existed (or restored) mirror into Expenses and
   // the Roznamcha exactly once.
   recordSaadPaymentSync();
+  // SISP-68: one shop-pickup sync pass at startup so partner-kept shop
+  // handovers recorded before this wiring existed (or restored) mirror
+  // into the partner ledger as drawings exactly once.
+  recordShopPickupDrawingSync();
   downtimeAnalyticsModalController = setupDowntimeAnalyticsModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });

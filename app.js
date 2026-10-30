@@ -5,7 +5,7 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation, applyConcessionToBill, removeConcessionFromBill,
-  calculateMethodCollectionTotals, findDuplicatePaymentReference, paymentSenderLabel,
+  calculateMethodCollectionTotals, findDuplicatePaymentReference, findIdentityConflicts, paymentSenderLabel,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
   autoPackageFromPayment,
   addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining
@@ -5604,6 +5604,23 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       const confirmed = await appConfirm({ tone:'warning', title:'Possible duplicate customer', subject:`#${dup.customer.customerNumber} ${dup.customer.name}`, message:`This ${reasonLabel} matches that existing customer. Save anyway?`, confirmLabel:'Save anyway' });
       if (!confirmed) return;
     }
+  }
+
+  // SISP-74: warn before saving when a NEWLY assigned MAC address or
+  // hardware serial already belongs to another active customer (core
+  // hard-blocks duplicate PPPoE usernames / static IPs inside
+  // updateCustomerProfile; MAC / serial are operator's choice — the save
+  // proceeds only on an explicit "Save anyway").
+  const identityWarnings = findIdentityConflicts(state.customers, {
+    pppoeUsername: $('#pppoeUsernameInput') ? $('#pppoeUsernameInput').value : (current.pppoeUsername ?? ''),
+    staticIp: $('#staticIpInput') ? $('#staticIpInput').value : (current.staticIp ?? ''),
+    macAddress: $('#macAddressInput') ? $('#macAddressInput').value : (current.macAddress ?? ''),
+    serialNumber: $('#serialNumberInput') ? $('#serialNumberInput').value : (current.serialNumber ?? '')
+  }, { excludeCustomerId: current.id, previous: current }).filter(conflict => conflict.severity === 'warn');
+  if (identityWarnings.length) {
+    const conflict = identityWarnings[0];
+    const confirmed = await appConfirm({ tone:'warning', title: t('idguard_warn_title'), subject: `#${conflict.customerNumber} ${conflict.customerName}`, message: t('idguard_warn_message', null, { label: conflict.label, value: conflict.value }), confirmLabel: t('idguard_save_anyway'), cancelLabel: t('idguard_cancel') });
+    if (!confirmed) return;
   }
 
   const currentCustomer = selectedCustomer();

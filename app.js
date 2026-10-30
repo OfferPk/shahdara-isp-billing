@@ -23,7 +23,8 @@ import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveL
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
-import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml, buildReceiptPaymentReceivedMessage, buildReceiptBillNoticeMessage } from './receipt.js?v=1.11.0';
+import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, generateReceiptNumber, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml, buildReceiptPaymentReceivedMessage, buildReceiptBillNoticeMessage } from './receipt.js?v=1.11.0';
+import { setupReceiptVerifyModal } from './receipt-verifier.js';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
@@ -462,6 +463,7 @@ export let toolCustodyModalController = null;
 export let spliceClosureModalController = null;
 export let powerBackupModalController = null;
 export let qrScannerModalController = null;
+export let receiptVerifyModalController = null;
 export let linemanScorecardModalController = null;
 export let lateFeeModalController = null;export let worklistsModalController = null;
 export let staffPerformanceModalController = null;
@@ -11275,6 +11277,17 @@ if (typeof document !== 'undefined') {
   });
   $('#qrScanTopbarBtn')?.addEventListener('click', () => qrScannerModalController?.open());
   $('#fieldModeScanQrBtn')?.addEventListener('click', () => qrScannerModalController?.open());
+  // SISP-83: receipt verification lookup — the operator types the VER
+  // code (or receipt number) printed on a paper receipt; the pure
+  // lookup in receipt-verifier.js recomputes codes from the saved
+  // ledger. generateReceiptNumber is injected as the ref deriver so
+  // payments without a stored receiptNumber resolve exactly like
+  // buildPaymentReceipt resolves them (no module cycle).
+  receiptVerifyModalController = setupReceiptVerifyModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts),
+    deriveReceiptNumber: generateReceiptNumber
+  });
+  $('#openReceiptVerifyModalBtn')?.addEventListener('click', () => receiptVerifyModalController?.open());
   // SISP-37: suspense (unidentified) wallet payment register — claim
   // reuses quick collection, then persists exactly like a single quick
   // collection; the register entry is marked claimed, never deleted.

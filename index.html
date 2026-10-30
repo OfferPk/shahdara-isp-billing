@@ -569,6 +569,14 @@
             <button id="openSuspensePaymentsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_suspense">🧾 Suspense Register</button>
           </div>
         </article>
+        <article class="summary-card summary-receipt-verify ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="rverify_card">🔎 Receipt Verification</p>
+          <strong class="summary-value" data-i18n="rverify_card_value">VER code check</strong>
+          <p class="summary-period" data-i18n="rverify_card_period">Confirm a printed receipt is genuine and not voided</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openReceiptVerifyModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="rverify_btn">🔎 Verify Receipt</button>
+          </div>
+        </article>
         <article class="summary-card summary-field-tools ds-stat ds-stat--info">
           <p class="summary-label" data-i18n="dash_card_tools">🔧 Field Tools</p>
           <strong id="dashboardToolsValue" class="summary-value">No tools registered</strong>
@@ -21984,6 +21992,25 @@
             <button class="secondary-button" type="submit" data-i18n="qrscan_manual_open">Open</button>
           </div>
         </form>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="receiptVerifyModal" class="billing-modal receipt-verify-modal" aria-labelledby="receiptVerifyModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="receiptVerifyModalTitle" data-i18n="rverify_title">🔎 Verify Receipt Code</h2>
+        <button id="receiptVerifyCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="receipt-verify-hint" data-i18n="rverify_hint">Type the 6-character VER code printed on the receipt (or the full receipt number). The app recomputes the code from the saved ledger and also checks the payment was not voided. Compare the amount below with the paper receipt — they must match.</p>
+        <form id="receiptVerifyForm" class="receipt-verify-form">
+          <label for="receiptVerifyInput" data-i18n="rverify_input_label">VER code or receipt number</label>
+          <div class="receipt-verify-row">
+            <input id="receiptVerifyInput" class="form-input" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="VER code or receipt number" data-i18n-placeholder="rverify_placeholder" placeholder="e.g. AB3F-9K">
+            <button class="secondary-button" type="submit" data-i18n="rverify_check_btn">Verify</button>
+          </div>
+        </form>
+        <div id="receiptVerifyResult" class="receipt-verify-result" role="status" aria-live="polite" hidden></div>
       </div>
     </div>
   </dialog>

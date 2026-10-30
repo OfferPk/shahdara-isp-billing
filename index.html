@@ -21812,7 +21812,7 @@
         <button id="groupBillingCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
       </header>
       <div class="modal-body">
-        <p class="group-billing-intro">Ek landlord ya family ki kayi connections ko ek group me link karein — har connection ka apna record, bill aur history waisa ka waisa rehta hai. Group ka total un sab ka is mahine ka baqaya jama kar ke banta hai, aur "Collect Group Total" se sab ka bill ek tap me paid hota hai, ek combined receipt ke saath.</p>
+        <p class="group-billing-intro">Ek landlord ya family ki kayi connections ko ek group me link karein — har connection ka apna record, bill aur history waisa ka waisa rehta hai. Group ka total un sab ka is mahine ka baqaya jama kar ke banta hai, aur "Collect Group Total" se sab ka bill ek tap me paid hota hai, ek combined receipt ke saath. Cash kam mile to "Amount received" likh dein — cash group order me pehle wale members par pehle lagega, aur jo baqi reh jayein un ke liye Waada Tareekh chip mil jayegi.</p>
         <p id="groupBillingCountNote" class="group-billing-count-note"></p>
         <form id="groupBillingForm" class="group-billing-form">
           <input id="groupBillingEditId" type="hidden" value="">
@@ -21831,6 +21831,8 @@
         <div class="group-billing-collect-bar">
           <label for="groupBillingCollectDate">Date</label>
           <input id="groupBillingCollectDate" class="form-input" type="date" aria-label="Collection date">
+          <label for="groupBillingCollectAmount">Amount received (Rs.)</label>
+          <input id="groupBillingCollectAmount" class="form-input" type="number" min="0" step="any" aria-label="Amount received for a partial group collection" placeholder="Khali = pura total (full)">
           <label for="groupBillingCollectMethod">Method</label>
           <select id="groupBillingCollectMethod" class="form-input" aria-label="Collection method">
             <option value="Cash">Cash</option>
@@ -21853,6 +21855,10 @@
             <button id="groupBillingCopyBtn" class="secondary-button" type="button">📋 Copy receipt</button>
             <a id="groupBillingWhatsAppBtn" class="secondary-button" href="#" target="_blank" rel="noopener">💬 WhatsApp receipt</a>
             <button id="groupBillingPrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
+          </div>
+          <div id="groupBillingWaadaPanel" class="group-billing-waada-panel" hidden>
+            <h4>📅 Baqi members ke liye Waada Tareekh</h4>
+            <div id="groupBillingWaadaChips" class="group-billing-waada-chips"></div>
           </div>
         </div>
       </div>

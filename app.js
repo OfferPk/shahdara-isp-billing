@@ -180,6 +180,7 @@ import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-sco
 import { buildRecentPayments } from './recent-payments.js';
 import { buildAdvanceDashboard } from './advance-dashboard.js';
 import { buildCollectionForecast } from './collection-forecaster.js';
+import { buildDailyPartnerDigest, dailyPartnerDigestWhatsAppUrl } from './daily-partner-digest.js';
 import { setupMultiMonthMatrix } from './multi-month-comparison.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
 import { buildBottleneckSuspects, buildBottleneckSummary, bottleneckForCustomer } from './hardware-speed-audit.js';
@@ -938,6 +939,33 @@ function renderDashboard() {
         return `<li class="upsell-item"><button type="button" class="upsell-row" data-upsell-customer-id="${escapeHtml(row.customerId)}"><span class="upsell-main"><strong class="upsell-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="upsell-sub-line">${escapeHtml(t('upsell_pkg_line', null, { current: row.currentLabel, fee: formatAmount(row.currentFee), target: row.targetLabel, price: formatAmount(row.targetPrice) }))}</span><span class="upsell-sub-line">${escapeHtml(reasons)}</span></span><strong class="upsell-gain">${escapeHtml(t('upsell_gain', null, { amount: formatAmount(row.gainPerMonth) }))}</strong></button>${row.whatsappUrl ? `<a class="upsell-offer-btn" href="${escapeHtml(row.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('upsell_offer'))}</a>` : ''}</li>`;
       }).join('');
     upsellListEl.querySelectorAll('[data-upsell-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.upsellCustomerId)));
+  }
+  // SISP-75: Daily Partner Digest — one tap builds today's Roman Urdu
+  // partner summary (direct cash, per-shop unsettled cash, roznamcha
+  // drawer, remaining defaulters, today's complaints) from the pure
+  // builder and copies it for WhatsApp; when the clipboard is
+  // unavailable the WhatsApp share sheet opens instead. Read-only.
+  const partnerDigestBtn = $('#copyPartnerDigestBtn');
+  if (partnerDigestBtn && !partnerDigestBtn.dataset.wired) {
+    partnerDigestBtn.dataset.wired = 'true';
+    partnerDigestBtn.addEventListener('click', async () => {
+      const text = buildDailyPartnerDigest(state, pakistanToday(), {
+        settlements: loadShopSettlements(),
+        roznamchaDays: loadRoznamchaDays(),
+        complaints: loadComplaints()
+      });
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          toast(t('digest_copied'));
+          return;
+        }
+        throw new Error('clipboard unavailable');
+      } catch {
+        const shareWindow = window.open(dailyPartnerDigestWhatsAppUrl(text), '_blank');
+        toast(t(shareWindow ? 'digest_copied' : 'digest_failed'), shareWindow ? {} : { type: 'warning' });
+      }
+    });
   }
   // SISP-69: Hardware / Optical Bottleneck Audit — active customers on
   // >= 15 Mbps catalogue packages whose last recorded optical RX is

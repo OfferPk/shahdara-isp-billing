@@ -44,6 +44,19 @@
  * device has none stored yet; differing records on both sides are kept
  * as a conflict, never overwritten).
  *
+ * SISP-73 adds the Installation CapEx toggle (settings key
+ * sisp_partner_settings_v1, travelling as `settings.partnerSettings`):
+ * the month's NET installation surplus/subsidy comes from SISP-23's
+ * installation-cost accounting (buildMonthlyInstallationSummary in
+ * installation-cost.js — the spec's connection-profitability.js never
+ * existed on main; installation-cost.js is the real SISP-23 source).
+ * With the toggle ON, the month's net subsidy is deducted from the
+ * month's profit BEFORE the 50/50 split, so the distributable profit —
+ * and each partner's share — falls by exactly the subsidy. With it OFF
+ * (the default), the installation figures are still computed and shown,
+ * tracked separately, and the split is byte-for-byte the PR #395 rule:
+ * share = 50% of positive profit, 0 on a loss month.
+ *
  * This module imports nothing from core.js on purpose: core.js imports
  * the sanitizers from here for backup restore, and a core import here
  * would create a module cycle. All helpers are pure except the
@@ -51,9 +64,11 @@
  */
 
 import { buildPartnerShareReport, PARTNER_SHARE_RATE } from './phase3.js';
+import { buildMonthlyInstallationSummary } from './installation-cost.js';
 
 export const PARTNER_LEDGER_KEY = 'sisp_partner_ledger_v1';
 export const PARTNER_SETTLEMENTS_KEY = 'sisp_partner_settlements_v1';
+export const PARTNER_SETTINGS_KEY = 'sisp_partner_settings_v1';
 export const PARTNERS = Object.freeze(['Nasir', 'Aqib']);
 export const PARTNER_LEDGER_TYPES = Object.freeze(['drawing', 'capital']);
 
@@ -119,6 +134,44 @@ export function partnerMonthLabel(month) {
       .format(new Date(`${month}-01T00:00:00Z`));
   } catch {
     return String(month);
+  }
+}
+
+/**
+ * SISP-73: the partner settings object — today it carries only the
+ * Installation CapEx split toggle. Default OFF: the PR #395 50/50 rule
+ * applies untouched until the owner explicitly includes installation
+ * CapEx in the split. Anything but a literal boolean true sanitizes to
+ * false, so a corrupt or hand-edited store can never silently change
+ * how profit is split.
+ */
+export function sanitizePartnerSettings(value) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return { includeInstallationCapexInSplit: source.includeInstallationCapexInSplit === true };
+}
+
+/** Reads partner settings; defaults (toggle OFF) on missing/corrupt storage. */
+export function loadPartnerSettings(storage) {
+  try {
+    const store = storage || (typeof globalThis !== 'undefined' ? globalThis.localStorage : null);
+    if (!store) return sanitizePartnerSettings(null);
+    const raw = store.getItem(PARTNER_SETTINGS_KEY);
+    if (!raw) return sanitizePartnerSettings(null);
+    return sanitizePartnerSettings(JSON.parse(raw));
+  } catch {
+    return sanitizePartnerSettings(null);
+  }
+}
+
+/** Persists partner settings (sanitized first); never throws. */
+export function savePartnerSettings(settings, storage) {
+  try {
+    const store = storage || (typeof globalThis !== 'undefined' ? globalThis.localStorage : null);
+    if (!store) return false;
+    store.setItem(PARTNER_SETTINGS_KEY, JSON.stringify(sanitizePartnerSettings(settings)));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -359,15 +412,40 @@ export function totalsForPartner(entries, month, partner) {
  * nothing is recomputed here. Net Payout = share + capital − drawings.
  * A negative net payout is reported as a Receivable (partner owes the
  * business) with its full amount; it is never clamped to zero.
+ *
+ * SISP-73: `options.includeInstallationCapexInSplit` (the persisted
+ * partner-settings toggle, passed in by the caller) deducts the month's
+ * net installation subsidy (buildMonthlyInstallationSummary, SISP-23
+ * accounting) from the profit before the split: distributable profit =
+ * profit − subsidy, share = 50% of positive distributable profit, else
+ * 0 — the PR #395 rule applied to the adjusted figure, so a loss month
+ * (or a subsidy that wipes the profit out) still pays 0. Without the
+ * option the report is exactly the pre-SISP-73 one.
  */
-export function buildPartnerSettlementReport(state, selectedMonth, entries, referenceDate = new Date()) {
+export function buildPartnerSettlementReport(state, selectedMonth, entries, referenceDate = new Date(), options = {}) {
   const shareReport = buildPartnerShareReport(state, selectedMonth, referenceDate);
   const month = shareReport.month;
   const summary = shareReport.summary || {};
   const monthEntries = entriesForMonth(entries, month);
+  const installation = buildMonthlyInstallationSummary(state?.customers, month);
+  const installationCapex = {
+    included: Boolean(options && typeof options === 'object' && options.includeInstallationCapexInSplit === true),
+    installCount: installation.installCount,
+    recordedCount: installation.recordedCount,
+    connectionFees: wholeRupees(installation.connectionFees),
+    totalCost: wholeRupees(installation.totalCost),
+    net: wholeRupees(installation.net),
+    surplus: wholeRupees(installation.surplus),
+    subsidy: wholeRupees(installation.subsidy),
+    hasPartial: installation.hasPartial === true
+  };
+  const profit = wholeRupees(summary.profit || 0);
+  const distributableProfit = installationCapex.included ? profit - installationCapex.subsidy : profit;
+  const share = installationCapex.included
+    ? (distributableProfit > 0 ? Math.round(distributableProfit * PARTNER_SHARE_RATE) : 0)
+    : wholeRupees(summary.share || 0);
   const perPartner = PARTNERS.map((partner) => {
     const totals = totalsForPartner(entries, month, partner);
-    const share = wholeRupees(summary.share || 0);
     const netPayout = share + totals.capital - totals.drawings;
     return {
       partner,
@@ -387,9 +465,11 @@ export function buildPartnerSettlementReport(state, selectedMonth, entries, refe
     months: shareReport.months || [],
     revenue: wholeRupees(summary.revenue || 0),
     expenses: wholeRupees(summary.expenses || 0),
-    profit: wholeRupees(summary.profit || 0),
+    profit,
     isLoss: summary.isLoss === true,
-    share: wholeRupees(summary.share || 0),
+    share,
+    distributableProfit,
+    installationCapex,
     receiptCount: summary.receiptCount || 0,
     expenseCount: summary.expenseCount || 0,
     entries: monthEntries,
@@ -397,7 +477,9 @@ export function buildPartnerSettlementReport(state, selectedMonth, entries, refe
     totalDrawings: perPartner.reduce((sum, row) => sum + row.drawings, 0),
     totalCapital: perPartner.reduce((sum, row) => sum + row.capital, 0),
     totalNetPayout: perPartner.reduce((sum, row) => sum + row.netPayout, 0),
-    basis: 'Profit, revenue and expenses are reused from the partner-share report (saved receipts by payment date minus dated expenses; share = 50% of positive profit, else 0). Net payout = share + out-of-pocket purchases − mid-month drawings. A negative net payout is a receivable: the partner owes the business that amount.'
+    basis: installationCapex.included
+      ? 'Profit, revenue and expenses are reused from the partner-share report (saved receipts by payment date minus dated expenses). Installation CapEx is INCLUDED in the split: the month’s net installation subsidy (SISP-23 installation-cost accounting) is deducted first, and the share is 50% of the remaining distributable profit, else 0. Net payout = share + out-of-pocket purchases − mid-month drawings. A negative net payout is a receivable: the partner owes the business that amount.'
+      : 'Profit, revenue and expenses are reused from the partner-share report (saved receipts by payment date minus dated expenses; share = 50% of positive profit, else 0). Net payout = share + out-of-pocket purchases − mid-month drawings. A negative net payout is a receivable: the partner owes the business that amount.'
   };
 }
 
@@ -428,6 +510,11 @@ export function sanitizePartnerSettlements(value) {
       revenue: wholeRupees(record.revenue),
       expenses: wholeRupees(record.expenses),
       profit: wholeRupees(record.profit),
+      // SISP-73 audit fields: the subsidy the split was charged with and
+      // whether the CapEx toggle was ON when the slip was confirmed.
+      // Slips saved before SISP-73 sanitize to 0 / false.
+      installationSubsidy: wholeRupees(record.installationSubsidy),
+      installationCapexIncluded: record.installationCapexIncluded === true,
       perPartner,
       note: typeof record.note === 'string' ? record.note : '',
       status: record.status === 'reopened' ? 'reopened' : 'confirmed',
@@ -484,6 +571,8 @@ export function createPartnerSettlement(report, { note = '', confirmedAt = null 
     revenue: wholeRupees(report.revenue),
     expenses: wholeRupees(report.expenses),
     profit: wholeRupees(report.profit),
+    installationSubsidy: wholeRupees(report.installationCapex?.subsidy || 0),
+    installationCapexIncluded: report.installationCapex?.included === true,
     perPartner: (report.perPartner || []).map((row) => ({
       partner: row.partner,
       share: wholeRupees(row.share),
@@ -532,6 +621,17 @@ export function generatePartnerSettlementWhatsAppText(report, settlement = null)
     ? `Net profit / خالص منافع: ${formatPartnerPKR(report.profit)}`
     : `Net loss / خالص نقصان: ${formatPartnerPKR(-report.profit)}`);
   lines.push(`Each partner share (50%) / ہر پارٹنر کا حصہ: ${formatPartnerPKR(report.share)}`);
+  // SISP-73: the month's installation position, and — only when the
+  // CapEx toggle was ON for this report — the distributable profit the
+  // shares were actually computed from.
+  if (report.installationCapex && (report.installationCapex.subsidy > 0 || report.installationCapex.surplus > 0)) {
+    lines.push(report.installationCapex.net >= 0
+      ? `Installation surplus / انسٹالیشن سرپلس: ${formatPartnerPKR(report.installationCapex.surplus)}`
+      : `Installation subsidy / انسٹالیشن سبسڈی: ${formatPartnerPKR(report.installationCapex.subsidy)}`);
+    if (report.installationCapex.included) {
+      lines.push(`Distributable profit (after installation subsidy) / قابلِ تقسیم منافع: ${formatPartnerPKR(report.distributableProfit)}`);
+    }
+  }
   lines.push('');
   for (const row of report.perPartner || []) {
     lines.push(`${row.partner}: share ${formatPartnerPKR(row.share)} + out-of-pocket ${formatPartnerPKR(row.capital)} − drawings ${formatPartnerPKR(row.drawings)} = ${row.isReceivable ? `Receivable (partner owes business) / وصولی: ${formatPartnerPKR(row.receivableAmount)}` : `Net payout / خالص ادائیگی: ${formatPartnerPKR(row.netPayout)}`}`);

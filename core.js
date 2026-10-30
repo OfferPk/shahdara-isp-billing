@@ -23,7 +23,7 @@ import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
-import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements } from './partner-settlement.js';
+import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements, sanitizePartnerSettings } from './partner-settlement.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
@@ -2975,6 +2975,16 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizePartnerSettlements(options.partnerSettlements);
     if (cleaned.length) document.settings = { ...(document.settings || {}), partnerSettlements: cleaned };
   }
+  // SISP-73: the partner settings object (the Installation CapEx split
+  // toggle, localStorage key sisp_partner_settings_v1) travels in an
+  // optional `settings.partnerSettings` section. Like the SISP-46
+  // branch-guard stamp it is written whenever the caller supplies it —
+  // the toggle IS the owner's split choice and must round-trip onto a
+  // fresh device. Readers that predate it ignore the unknown field.
+  // Placed before the checksum stamp so the checksum covers it.
+  if (options && typeof options === 'object' && options.partnerSettings && typeof options.partnerSettings === 'object' && !Array.isArray(options.partnerSettings)) {
+    document.settings = { ...(document.settings || {}), partnerSettings: sanitizePartnerSettings(options.partnerSettings) };
+  }
   // SISP-34: voided payment records live outside the ledger state
   // (localStorage key sisp_voided_payments_v1), so they travel in an
   // optional `settings.voidPayments` section. Written only when at least
@@ -3043,7 +3053,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
@@ -3715,6 +3725,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Partner settlement records differ from this device' });
     }
   }
+  // SISP-73: optional partner settings section (see createJsonBackup).
+  // Safe-merge rule, same as the fixed overheads: adopt the backup's
+  // settings only when this device has none stored yet; when both sides
+  // hold a stored settings object and they differ, keep existing +
+  // conflict — a restore must never silently flip how profit is split.
+  let partnerSettings = null;
+  const rawIncomingPartnerSettings = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.partnerSettings
+    : undefined;
+  if (rawIncomingPartnerSettings && typeof rawIncomingPartnerSettings === 'object' && !Array.isArray(rawIncomingPartnerSettings)) {
+    const incomingSettings = sanitizePartnerSettings(rawIncomingPartnerSettings);
+    const currentSettings = (options && typeof options === 'object' && options.currentPartnerSettings && typeof options.currentPartnerSettings === 'object')
+      ? sanitizePartnerSettings(options.currentPartnerSettings)
+      : sanitizePartnerSettings(null);
+    if (sameJson(incomingSettings, currentSettings)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (!options?.currentPartnerSettingsStored) {
+      partnerSettings = incomingSettings;
+      counts.partnerSettingsRestored = 1;
+      counts.changes++;
+    } else {
+      conflicts.push({ customerNumber:null, name:'', field:'Partner settings differ from this device' });
+    }
+  }
   // SISP-34: optional voided payment records section (see
   // createJsonBackup). Safe-merge rule, same as shop settlements: adopt
   // the backup's records only when this device has none stored yet;
@@ -3739,5 +3773,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, badDebts, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, badDebts, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

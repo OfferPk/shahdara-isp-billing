@@ -1212,6 +1212,23 @@ body.field-mode-open { overflow: hidden; }
 .qr-scanner-image-label { cursor: pointer; }
 .qr-scanner-manual { display: grid; gap: 8px; }
 .qr-scanner-manual label { color: var(--muted); font-size: 13px; }
+/* SISP-83: receipt verification dialog — the dialog surface itself takes
+   var(--modal-surface) from the shared billing-modal rule; only token
+   colours here so both themes render correctly. */
+.receipt-verify-modal .modal-body { display: grid; gap: 12px; }
+.receipt-verify-hint { color: var(--muted); font-size: 13px; margin: 0; }
+.receipt-verify-form { display: grid; gap: 8px; }
+.receipt-verify-form label { color: var(--muted); font-size: 13px; }
+.receipt-verify-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.receipt-verify-row .form-input { flex: 1 1 180px; text-transform: uppercase; }
+.receipt-verify-result { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.receipt-verify-result--verified { border-color: var(--color-paid); }
+.receipt-verify-result--void, .receipt-verify-result--not_found { border-color: var(--color-overdue); }
+.receipt-verify-headline { margin: 0; font-size: 14px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.receipt-verify-facts { margin: 0; display: grid; gap: 6px; }
+.receipt-verify-facts > div { display: flex; justify-content: space-between; gap: 12px; }
+.receipt-verify-facts dt { color: var(--muted); font-size: 13px; }
+.receipt-verify-facts dd { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink); text-align: end; overflow-wrap: anywhere; }
 .qr-scanner-manual-row { display: flex; gap: 8px; }
 .qr-scanner-manual-row .form-input { flex: 1 1 auto; min-width: 0; }
 @media (max-width: 480px) {

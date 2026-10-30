@@ -4,6 +4,7 @@ import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { receiptCodeForReceipt, receiptVerificationCode, verificationStampText } from './receipt-verifier.js';
 import { renderCustomWaTemplate } from './whatsapp-templates.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 
@@ -131,17 +132,30 @@ export function buildPaymentReceipt(customer, bill, payment) {
     billMonth: bill.month
   });
 
+  const receiptCustomerId = Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '';
+  // SISP-83: tamper-evident verification code (VER: XXXX-XX), computed
+  // at render from this receipt's own facts — never stored on the
+  // payment, so a re-print on any device re-derives the identical code.
+  const verificationCode = receiptVerificationCode({
+    receiptId: permanentReceiptNumber,
+    customerId: receiptCustomerId,
+    amountPaid: positiveAmount(payment.amount),
+    date: validStoredDate(payment.date)
+  });
+
   return {
     customerName:text(customer.name),
     // SISP-26: Urdu-script name for the bilingual receipt header ('' when
     // no override/transliteration exists — the header then shows Roman only).
     customerNameUrdu:urduNameFor(customer),
-    customerId:Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
+    customerId: receiptCustomerId,
     paymentDate:validStoredDate(payment.date),
     transactionId,
     senderLabel,
     receiptNumber: permanentReceiptNumber,
     permanentReceiptNumber,
+    // SISP-83: 'XXXX-XX' — stamped on every layout as "VER: XXXX-XX".
+    verificationCode,
     urduNote: RECEIPT_URDU_NOTE,
     package:packageLabel,
     speedMbps:packageSnapshot ? String(packageSnapshot.speedMbps) : speedMatch?.[1] ?? '',
@@ -318,6 +332,10 @@ export function generatePaymentReceiptHtml(receipt, {
   };
 
   const status = receipt.status || 'RECEIVED';
+  // SISP-83: the VER stamp. Receipts from buildPaymentReceipt carry the
+  // code; for a hand-built receipt object the code is re-derived from
+  // its own fields, so every printed layout is stamped.
+  const verStamp = verificationStampText(receipt.verificationCode || receiptCodeForReceipt(receipt));
   const statusClass = status === 'PAID' ? 'receipt-status-paid' : status === 'PARTIAL' ? 'receipt-status-partial' : '';
   const balanceStr = receipt.balanceDueCents === null ? 'PKR 0' : formatAmount(receipt.balanceDueCents / 100);
   const balanceLabel = receipt.balanceDueCents === 0 ? 'PKR 0 (مکمل ادا شدہ / Paid)' : `${balanceStr} (بقایا جات / Due)`;
@@ -355,6 +373,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance / بقایا:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}">${escapeHtml(status)}</dd></div>
+    ${verStamp ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>${escapeHtml(verStamp)}</strong></dd></div>` : ''}
   </dl>
   <div class="receipt-divider">--------------------------------</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(RECEIPT_URDU_NOTE)}</div>
@@ -398,6 +417,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field receipt-paid-field"><dt><strong>Amount Received / رقم موصول:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance Due / باقی واجبات:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Receipt Status / بل کی حالت:</dt><dd class="${statusClass}"><strong>${escapeHtml(status)}</strong></dd></div>
+    ${verStamp ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>${escapeHtml(verStamp)}</strong></dd></div>` : ''}
   </dl>
   <div class="receipt-divider">================================</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">
@@ -456,6 +476,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ['Service Period Start', receipt.servicePeriodStart],
     ['Service Period End', receipt.servicePeriodEnd],
     ['Receipt Status / کیفیت', receipt.status, statusClass],
+    ...(verStamp ? [['Verification Code / تصدیقی کوڈ', verStamp]] : []),
     ['Balance Due After Payment / باقی واجبات', balanceLabel, statusClass]
   ];
 
@@ -499,13 +520,23 @@ export function buildDownPaymentKistReceipt(customer, plan, payment) {
   if (!sane) throw new Error('A valid installment plan is required.');
   const paid = positiveAmount(payment.amount);
   if (paid === null) throw new Error('A valid down payment amount is required.');
+  const downPaymentCustomerId = Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '';
+  const downPaymentReceiptNumber = generateReceiptNumber({
+    customerNumber: customer.customerNumber,
+    paymentDate: validStoredDate(payment.date),
+    paymentId: payment.id
+  });
   return {
     customerName: text(customer.name),
-    customerId: Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
-    receiptNumber: generateReceiptNumber({
-      customerNumber: customer.customerNumber,
-      paymentDate: validStoredDate(payment.date),
-      paymentId: payment.id
+    customerId: downPaymentCustomerId,
+    receiptNumber: downPaymentReceiptNumber,
+    // SISP-83: same VER checksum as payment receipts, over this
+    // receipt's number + customer + down payment actually received.
+    verificationCode: receiptVerificationCode({
+      receiptId: downPaymentReceiptNumber,
+      customerId: downPaymentCustomerId,
+      amountPaid: paid,
+      date: validStoredDate(payment.date)
     }),
     paymentDate: validStoredDate(payment.date),
     paymentMethod: text(payment.method),
@@ -556,6 +587,7 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
     <div class="receipt-field receipt-paid-field"><dt><strong>Down Payment Received / موصولہ پیشگی:</strong></dt><dd><strong>${formatAmount(receipt.paidDownPayment)}</strong></dd></div>
     <div class="receipt-field"><dt>Monthly Kist / ماہانہ قسط:</dt><dd>${formatAmount(receipt.monthlyKist)} × ${receipt.totalMonths} months</dd></div>
     <div class="receipt-field"><dt>Remaining After Down Payment / بقایا:</dt><dd>${formatAmount(receipt.remainingAfterDownPayment)}</dd></div>
+    ${receipt.verificationCode ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>VER: ${escapeHtml(receipt.verificationCode)}</strong></dd></div>` : ''}
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Kist Schedule / قسطوں کی تفصیل:</dt><dd></dd></div>
     ${rows}

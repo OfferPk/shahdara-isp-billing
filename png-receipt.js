@@ -22,6 +22,7 @@
 // (buttons, dialogs) uses theme tokens.
 import { kistLineLabel } from './installment-plan.js';
 import { displayCustomerName } from './urdu-names.js';
+import { receiptCodeForReceipt } from './receipt-verifier.js';
 
 export const PNG_RECEIPT_WIDTH = 1600; // 800 CSS pt @ HiDPI 2x
 export const PNG_RECEIPT_HEIGHT = 2000; // 1000 CSS pt @ HiDPI 2x
@@ -134,6 +135,9 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     businessPhone: text(options.businessPhone) || '0300-1234567',
     areaName: text(options.areaName) || 'Shahdara',
     receiptNumber: text(receipt.receiptNumber),
+    // SISP-83: tamper-evident VER code, from the receipt snapshot when
+    // present, else re-derived from the receipt's own fields.
+    verificationCode: text(receipt.verificationCode) || receiptCodeForReceipt(receipt),
     paymentDate: text(receipt.paymentDate),
     month: text(receipt.servicePeriodStart)?.slice(0, 7) || '',
     customerName: romanName,
@@ -194,7 +198,10 @@ export function computePngReceiptLayout(model, measureFn) {
   y += 66;
   txt(`Receipt #: ${model.receiptNumber || '—'}`, W / 2, y, `500 40px ${FONT_LATIN}`, 'center', MUTED);
   y += 58;
-  txt(`Date: ${model.paymentDate || '—'}${model.month ? `  ·  Month: ${model.month}` : ''}`,
+  // SISP-83: the VER code rides the header meta line — a maximal
+  // receipt (kist + arrears) already ends exactly at the canvas foot,
+  // so the stamp must not add a flow line of its own.
+  txt(`Date: ${model.paymentDate || '—'}${model.month ? `  ·  Month: ${model.month}` : ''}${model.verificationCode ? `  ·  VER: ${model.verificationCode}` : ''}`,
     W / 2, y, `500 40px ${FONT_LATIN}`, 'center', MUTED);
   y += 52;
   line(M, y, W - M, y, HAIRLINE, 2);

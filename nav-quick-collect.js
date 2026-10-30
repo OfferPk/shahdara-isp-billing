@@ -31,6 +31,7 @@ import {
 } from './core.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
 import { billKistTotal } from './installment-plan.js';
+import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { isBillingPaused } from './pause-billing.js';
 import { loadComplaints } from './complaint-register.js';
 import {
@@ -1036,6 +1037,12 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
     && getPendingCollectionCustomers(state, '', 'all-dues').length === 0;
   const withoutFee = allCollected ? countCustomersWithoutFee(state) : 0;
   const needsSetup = allCollected && withoutFee > 0;
+  // SISP-77: same-name badges are computed against the FULL ledger (a
+  // namesake with no dues still makes this pick ambiguous), then handed
+  // to the list renderer keyed by customer id.
+  const nameIndex = buildSameNameIndex(state?.customers);
+  const byId = new Map((state?.customers ?? []).map((customer) => [customer.id, customer]));
+  const sameNameBadges = new Map(customers.map((entry) => [entry.id, sameNameBadgeHtml(state, byId.get(entry.id), new Date(), nameIndex)]));
   return {
     customers,
     allCollected,
@@ -1043,11 +1050,11 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
     withoutFee,
     html: needsSetup
       ? renderQuickCollectNeedsSetupHtml(withoutFee)
-      : allCollected ? renderQuickCollectAllCollectedHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId)
+      : allCollected ? renderQuickCollectAllCollectedHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges)
   };
 }
 
-export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null) {
+export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null, sameNameBadges = null) {
   if (!customers || customers.length === 0) {
     return `
       <div class="qc-empty-state" role="status">
@@ -1075,6 +1082,7 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
           <span class="qc-cust-num">#${escapeHtml(String(c.customerNumber))}</span>
           <div class="qc-cust-info">
             <span class="qc-cust-name">${escapeHtml(c.name)}</span>
+            ${sameNameBadges?.get(c.id) ?? ''}
             <span class="qc-cust-meta">${escapeHtml(c.area)}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</span>
           </div>
         </div>

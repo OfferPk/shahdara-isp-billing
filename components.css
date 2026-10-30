@@ -958,6 +958,7 @@ body.field-mode-open { overflow: hidden; }
 .advance-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-paid); color: var(--color-neutral-0); white-space: nowrap; }
 .free-connection-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-paid); color: var(--color-neutral-0); white-space: nowrap; }
 .prepaid-until-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--color-paid); border: 1px solid var(--color-paid); white-space: nowrap; }
+.same-name-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-pending-bg); color: var(--color-pending); border: 1px solid var(--color-pending); white-space: nowrap; }
 .prepay-section { border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); padding: 12px; margin-top: 12px; display: grid; gap: 8px; }
 .prepay-section legend { font-weight: 700; padding: 0 6px; }
 .void-payment { border: 1px solid var(--line); background: var(--color-neutral-0); color: var(--color-overdue); border-radius: 7px; padding: 7px 10px; font-size: 10px; font-weight: 600; cursor: pointer; white-space: nowrap; }

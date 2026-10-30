@@ -1114,6 +1114,9 @@ body.field-mode-open { overflow: hidden; }
 .group-billing-empty { color: var(--muted); font-size: 13px; }
 .group-billing-receipt-panel { margin-top: 16px; }
 .group-billing-receipt-text { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 13px; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; }
+.group-billing-waada-panel { margin-top: 12px; }
+.group-billing-waada-panel h4 { margin: 0 0 8px; font-size: 14px; color: var(--ink); }
+.group-billing-waada-chips { display: flex; gap: 8px; flex-wrap: wrap; }
 @media (max-width: 480px) {
   .group-billing-collect-bar { grid-template-columns: 1fr; }
   .group-billing-actions .primary-button, .group-billing-actions .secondary-button { width: 100%; text-align: center; justify-content: center; }

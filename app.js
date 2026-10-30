@@ -150,7 +150,7 @@ import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
-import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
+import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { applyFifoPaymentEventToState, buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
@@ -173,7 +173,7 @@ import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, 
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
-import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
+import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
 import { FIELD_TOOLS_KEY, fieldToolsSummary, loadFieldTools, saveFieldTools, setupToolCustodyModal } from './tool-custody-register.js';
 import { SPLICE_CLOSURES_KEY, loadSpliceClosures, saveSpliceClosures, setupSpliceClosureModal } from './fiber-splice-closure.js';
@@ -11272,6 +11272,10 @@ if (typeof document !== 'undefined') {
   poleLandmarkModalController = setupPoleLandmarkModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
+  // SISP-88: the group Waada chip reuses the SISP-3 Waada chip dialog,
+  // created lazily so it exists only when a partial collection leaves a
+  // member owing.
+  let groupWaadaDialog = null;
   // SISP-35: group billing modal — collect reuses quick collection per
   // member, then persists exactly like a single quick collection.
   groupBillingModalController = setupGroupBillingModal(() => state, {
@@ -11295,6 +11299,44 @@ if (typeof document !== 'undefined') {
         renderMonthlyReport();
       }
       return { ...result, receipt: buildGroupReceipt({ ...result, date, method }) };
+    },
+    // SISP-88: partial group collection — the waterfall settles members
+    // in stored group order through the same quick-collection path, then
+    // persists exactly like a full group collection.
+    onCollectGroupPartial: (group, { date, method, amountReceived }) => {
+      const month = monthsForHistory(new Date())[0];
+      const result = collectGroupPartial(state, group, {
+        date, method, amountReceived, month,
+        allocations: calculatePaymentAllocations(state),
+        execute: executeQuickCollection
+      });
+      if (result.collected) {
+        state = result.nextState;
+        save();
+        renderDetail();
+        renderTransactions();
+        renderMonthlyReport();
+      }
+      return { ...result, receipt: buildGroupReceipt({ ...result, date, method }) };
+    },
+    // SISP-88: a Waada chip for a still-owing member opens the SISP-3
+    // Waada chip dialog; applying a chip persists like every other
+    // waada write (replace the customer record, save, re-render).
+    onGroupWaada: (customerId) => {
+      if (!groupWaadaDialog) {
+        groupWaadaDialog = setupWaadaChipDialog({
+          getCustomer: (id) => (state.customers || []).find((c) => c.id === id) || null,
+          onApply: (updated) => {
+            const idx = state.customers.findIndex((c) => c.id === updated.id);
+            if (idx >= 0) state.customers[idx] = updated;
+            save();
+            renderDetail();
+          },
+          onToast: (msg, opts) => toast(msg, opts)
+        });
+      }
+      if (groupWaadaDialog) groupWaadaDialog.open(customerId);
+      else toast('Waada dialog is not available.');
     }
   });
   // SISP-39: lineman monthly scorecard — read-only aggregation over

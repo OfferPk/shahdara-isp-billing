@@ -29,6 +29,20 @@
  *   allocations update exactly as if collected singly. All-or-nothing:
  *   if any member's payment fails, nothing is saved (the immutable
  *   nextState chain is discarded and the error names the member).
+ * - SISP-88 "Collect Group Partial": when the cash handed over is LESS
+ *   than the group total, collectGroupPartial runs a deterministic
+ *   WATERFALL in the group's STORED member order (memberIds exactly as
+ *   saved in the group record): each payable member is settled through
+ *   the same quick-collection path for min(their due, cash left) until
+ *   the cash runs out — earlier members are paid in full first, a later
+ *   member may be left part-paid ('partial') or untouched ('unpaid').
+ *   Cash above the group total is never handed to the executor; the
+ *   excess is reported back as unallocatedCents. The combined receipt
+ *   then shows every member's exact paid + remaining lines, and members
+ *   still owing get a 1-tap Waada Tareekh chip (the SISP-3 waada path).
+ *   Partial collection stamps NOTHING group-level on any payment, so
+ *   voiding a member payment later behaves exactly as SISP-34 always
+ *   does, with no group side effects.
  * - The combined receipt shows the group total AND the per-member
  *   breakdown, in Urdu + English, as a WhatsApp draft text and as a
  *   plain-text thermal/print receipt. It never invents amounts: every
@@ -299,14 +313,119 @@ export function collectGroupFull(state, group, { date, method, paidBy, month, al
 }
 
 /**
+ * SISP-88: collects LESS than the group total — a deterministic waterfall
+ * in the group's STORED member order. Each payable member is settled
+ * through the same `execute` quick-collection path for
+ * min(member due, cash left) until the cash runs out. Members reached
+ * with cash left but less than their due end 'partial'; members never
+ * reached end 'unpaid' with their full due as remainingCents. Skips
+ * mirror collectGroupFull (archived / no-bill / already-paid consume no
+ * cash). Cash above the group total is never executed against anyone —
+ * it comes back as unallocatedCents. All-or-nothing on a member failure,
+ * exactly like collectGroupFull. `amountReceived` is in PKR.
+ */
+export function collectGroupPartial(state, group, { amountReceived, date, method, paidBy, month, allocations, execute } = {}) {
+  if (!group) throw new Error('Group is required.');
+  if (!month) throw new Error('Billing month is required.');
+  if (typeof execute !== 'function') throw new Error('A payment executor is required.');
+  const receivedCents = centsOf(amountReceived);
+  if (!(receivedCents > 0)) throw new Error('Enter the cash received (more than Rs. 0) for a partial group collection.');
+  const due = buildGroupDue(group, state?.customers ?? [], month, allocations);
+  const outcomes = [];
+  let next = state;
+  let cashLeft = receivedCents;
+  let allocatedCents = 0;
+  let paidCount = 0;
+  let partialCount = 0;
+  for (const member of due.members) {
+    if (member.archived) {
+      outcomes.push({ ...member, amountCents: 0, remainingCents: member.dueCents, outcome: 'skipped-archived' });
+      continue;
+    }
+    if (member.status === 'no-bill') {
+      outcomes.push({ ...member, amountCents: 0, remainingCents: 0, outcome: 'skipped-no-bill' });
+      continue;
+    }
+    if (member.dueCents <= 0) {
+      outcomes.push({ ...member, amountCents: 0, remainingCents: 0, outcome: 'skipped-paid' });
+      continue;
+    }
+    const allocate = Math.min(member.dueCents, cashLeft);
+    if (allocate <= 0) {
+      outcomes.push({ ...member, amountCents: 0, remainingCents: member.dueCents, outcome: 'unpaid' });
+      continue;
+    }
+    try {
+      const result = execute(next, {
+        customerId: member.customerId,
+        month,
+        amount: allocate / 100,
+        date,
+        method,
+        paidBy
+      });
+      next = result.nextState;
+    } catch (error) {
+      throw new Error(`${member.name}: ${error.message} — nothing was saved.`);
+    }
+    cashLeft -= allocate;
+    allocatedCents += allocate;
+    const remainingCents = member.dueCents - allocate;
+    if (remainingCents > 0) partialCount++;
+    else paidCount++;
+    outcomes.push({ ...member, amountCents: allocate, remainingCents, outcome: remainingCents > 0 ? 'partial' : 'paid' });
+  }
+  const remainingCents = outcomes.reduce(
+    (sum, o) => sum + (o.outcome === 'partial' || o.outcome === 'unpaid' ? o.remainingCents : 0), 0);
+  return {
+    nextState: next,
+    groupTitle: due.groupTitle,
+    billingGroupId: due.billingGroupId,
+    month,
+    outcomes,
+    totalCents: allocatedCents,
+    receivedCents,
+    unallocatedCents: cashLeft,
+    remainingCents,
+    paidCount,
+    partialCount,
+    collected: allocatedCents > 0
+  };
+}
+
+/**
+ * SISP-88: members who still owe after a group collection — the ones the
+ * modal offers a 1-tap Waada Tareekh chip for, in waterfall order.
+ */
+export function groupWaadaTargets(outcomes) {
+  return (outcomes ?? [])
+    .filter((o) => (o.outcome === 'partial' || o.outcome === 'unpaid') && o.remainingCents > 0)
+    .map((o) => ({
+      customerId: o.customerId,
+      customerNumber: o.customerNumber,
+      name: o.name,
+      remainingCents: o.remainingCents
+    }));
+}
+
+/**
  * ONE combined receipt: group total + per-member breakdown, Urdu + English.
  * Returns { text, whatsappText } — text is the plain thermal/print receipt,
  * whatsappText is the draft for wa.me (no number is guessed; the app opens
  * wa.me/?text= so the owner picks the recipient).
+ * SISP-88: when any outcome is 'partial' or 'unpaid' the receipt switches
+ * to detailed lines — every member shows exact paid + remaining — plus
+ * cash-received and still-due totals. Full collections keep the exact
+ * SISP-35 format.
  */
-export function buildGroupReceipt({ groupTitle, month, date, method, outcomes, totalCents }) {
+export function buildGroupReceipt({ groupTitle, month, date, method, outcomes, totalCents, receivedCents, remainingCents }) {
+  const detailed = (outcomes ?? []).some((o) => o.outcome === 'partial' || o.outcome === 'unpaid');
   const lines = (outcomes ?? []).map((o) => {
-    if (o.outcome === 'paid') return `• ${o.name} (#${o.customerNumber}): ${formatGroupPKR(o.amountCents)}`;
+    if (o.outcome === 'paid') return detailed
+      ? `• ${o.name} (#${o.customerNumber}): paid ${formatGroupPKR(o.amountCents)} · remaining Rs. 0`
+      : `• ${o.name} (#${o.customerNumber}): ${formatGroupPKR(o.amountCents)}`;
+    if (o.outcome === 'partial') return `• ${o.name} (#${o.customerNumber}): paid ${formatGroupPKR(o.amountCents)} · remaining ${formatGroupPKR(o.remainingCents)}`;
+    if (o.outcome === 'unpaid') return `• ${o.name} (#${o.customerNumber}): paid Rs. 0 · remaining ${formatGroupPKR(o.remainingCents)}`;
     if (o.outcome === 'skipped-paid') return `• ${o.name} (#${o.customerNumber}): Rs. 0 — already paid`;
     if (o.outcome === 'skipped-no-bill') return `• ${o.name} (#${o.customerNumber}): Rs. 0 — no bill`;
     return `• ${o.name} (#${o.customerNumber}): Rs. 0 — archived, skipped`;
@@ -321,6 +440,10 @@ export function buildGroupReceipt({ groupTitle, month, date, method, outcomes, t
     ...lines,
     '--------------------------------',
     totalLine,
+    ...(detailed ? [
+      `Cash received: ${formatGroupPKR(receivedCents ?? totalCents)}`,
+      `Still due: ${formatGroupPKR(remainingCents ?? 0)}`
+    ] : []),
     'Combined receipt: each member ledger also updated separately.'
   ].join('\n');
   const whatsappText = [
@@ -329,6 +452,7 @@ export function buildGroupReceipt({ groupTitle, month, date, method, outcomes, t
     `Billing month: ${month} · Date: ${date || ''} · Method: ${method || ''}`,
     ...lines,
     `کل رقم / Total: ${formatGroupPKR(totalCents)}`,
+    ...(detailed ? [`باقی رقم / Still due: ${formatGroupPKR(remainingCents ?? 0)}`] : []),
     'Shahdara Fiber Net — thank you! / شکریہ!'
   ].join('\n');
   return { text, whatsappText };
@@ -392,9 +516,14 @@ function pakistanToday() {
  * allocation engine; currentMonth supplies the billing month; onCollectGroup
  * is the app's collect implementation (quick-collection + persist) and
  * must return { ...collectResult, receipt } or throw.
+ * SISP-88: onCollectGroupPartial(group, { date, method, amountReceived })
+ * is the same for a partial (waterfall) collection, chosen automatically
+ * when the "Amount received" field holds less than the group total;
+ * onGroupWaada(customerId) opens the app's SISP-3 Waada chip dialog for a
+ * member who still owes after a partial collection.
  */
 export function setupGroupBillingModal(getState, {
-  onGroupsChanged, onToast, onConfirm, onCollectGroup, getAllocations, currentMonth
+  onGroupsChanged, onToast, onConfirm, onCollectGroup, onCollectGroupPartial, onGroupWaada, getAllocations, currentMonth
 } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('groupBillingModal') : null;
   if (!dialog) return null;
@@ -468,6 +597,24 @@ export function setupGroupBillingModal(getState, {
     const waBtn = $('groupBillingWhatsAppBtn');
     if (waBtn) waBtn.href = `https://wa.me/?text=${encodeURIComponent(receipt.whatsappText)}`;
     panel.scrollIntoView({ block: 'nearest' });
+  }
+
+  // SISP-88: 1-tap Waada chips for members who still owe after a partial
+  // collection. Cleared (panel hidden) whenever a full collection or a
+  // fresh render without a partial result happens.
+  function renderWaadaChips(result) {
+    const panel = $('groupBillingWaadaPanel');
+    const row = $('groupBillingWaadaChips');
+    if (!panel || !row) return;
+    const targets = groupWaadaTargets(result?.outcomes);
+    if (targets.length === 0 || typeof onGroupWaada !== 'function') {
+      panel.hidden = true;
+      row.innerHTML = '';
+      return;
+    }
+    row.innerHTML = targets.map((m) => `
+      <button type="button" class="secondary-button waada-chip-btn" data-group-waada="${escapeHtml(String(m.customerId))}">📅 Waada: ${escapeHtml(m.name)} (#${escapeHtml(String(m.customerNumber ?? ''))}) — ${escapeHtml(formatGroupPKR(m.remainingCents))} baqi</button>`).join('');
+    panel.hidden = false;
   }
 
   function render() {
@@ -555,6 +702,15 @@ export function setupGroupBillingModal(getState, {
       }
     });
   }
+  // SISP-88: Waada chip clicks open the app's SISP-3 Waada dialog for
+  // that member (wired through onGroupWaada).
+  const waadaPanel = $('groupBillingWaadaPanel');
+  if (waadaPanel) {
+    waadaPanel.addEventListener('click', (event) => {
+      const chip = event.target.closest('[data-group-waada]');
+      if (chip && typeof onGroupWaada === 'function') onGroupWaada(chip.dataset.groupWaada);
+    });
+  }
   const printBtn = $('groupBillingPrintBtn');
   if (printBtn) {
     printBtn.addEventListener('click', () => {
@@ -582,21 +738,58 @@ export function setupGroupBillingModal(getState, {
         if (collectBtn) {
           const group = loadBillingGroups().find((g) => String(g.billingGroupId) === String(collectBtn.dataset.groupCollect));
           if (!group) return;
+          const dateInput = $('groupBillingCollectDate');
+          const methodInput = $('groupBillingCollectMethod');
+          const amountInput = $('groupBillingCollectAmount');
+          const collectDate = dateInput?.value || pakistanToday();
+          const collectMethod = methodInput?.value || 'Cash';
+          // SISP-88: an entered amount below the group total takes the
+          // partial waterfall path; blank / full-or-more stays on the
+          // SISP-35 full path.
+          const rawAmount = amountInput?.value;
+          const amountReceived = rawAmount === '' || rawAmount === null || rawAmount === undefined ? NaN : Number(rawAmount);
+          if (Number.isFinite(amountReceived) && amountReceived > 0) {
+            const stateNow = typeof getState === 'function' ? getState() : null;
+            const dueNow = buildGroupDue(group, getCustomers(), getMonth(), getAlloc(stateNow));
+            if (Math.round(amountReceived * 100) < dueNow.totalCents) {
+              if (typeof onCollectGroupPartial !== 'function') {
+                if (typeof onToast === 'function') onToast('Partial group collection is not wired yet.');
+                return;
+              }
+              const result = await onCollectGroupPartial(group, {
+                date: collectDate,
+                method: collectMethod,
+                amountReceived
+              });
+              if (!result?.collected) {
+                if (typeof onToast === 'function') onToast('Nothing to collect — this group has no payable dues this month.');
+                render();
+                return;
+              }
+              if (amountInput) amountInput.value = '';
+              showReceipt(result.receipt);
+              renderWaadaChips(result);
+              render();
+              if (typeof onGroupsChanged === 'function') onGroupsChanged();
+              if (typeof onToast === 'function') onToast(`Group partial: ${formatGroupPKR(result.totalCents)} collected · ${formatGroupPKR(result.remainingCents)} still due.`);
+              return;
+            }
+          }
           if (typeof onCollectGroup !== 'function') {
             if (typeof onToast === 'function') onToast('Group collection is not wired yet.');
             return;
           }
-          const dateInput = $('groupBillingCollectDate');
-          const methodInput = $('groupBillingCollectMethod');
           const result = await onCollectGroup(group, {
-            date: dateInput?.value || pakistanToday(),
-            method: methodInput?.value || 'Cash'
+            date: collectDate,
+            method: collectMethod
           });
           if (!result?.collected) {
             if (typeof onToast === 'function') onToast('Nothing to collect — this group has no payable dues this month.');
             render();
             return;
           }
+          if (amountInput) amountInput.value = '';
+          renderWaadaChips(null);
           showReceipt(result.receipt);
           render();
           if (typeof onGroupsChanged === 'function') onGroupsChanged();
@@ -648,6 +841,7 @@ export function setupGroupBillingModal(getState, {
   const openBtn = typeof document !== 'undefined' ? document.getElementById('openGroupBillingModalBtn') : null;
   if (openBtn) openBtn.addEventListener('click', () => {
     renderMemberPicker('');
+    renderWaadaChips(null);
     render();
     dialog.showModal();
   });
@@ -655,6 +849,7 @@ export function setupGroupBillingModal(getState, {
   return {
     open() {
       renderMemberPicker('');
+      renderWaadaChips(null);
       render();
       dialog.showModal();
     },

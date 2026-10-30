@@ -159,7 +159,7 @@ import { assignTicketForComplaint, linkedTicketSummary, syncComplaintTicketLinks
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
 import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
-import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
+import { buildSplitterOverview, createAttenuationTicket, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } from './signal-history.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
@@ -10826,6 +10826,18 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts)
   });
   splitterMapModalController = setupSplitterMapModal(() => state, {
+    // SISP-66: the weak-port list's 1-click button creates the SISP-12
+    // attenuation ticket through the normal ticket store (deduped while
+    // an unresolved ticket for the same box + port exists).
+    onCreateAttenuationTicket: (payload) => {
+      const result = createAttenuationTicket(loadTickets(), payload);
+      if (result.created) {
+        saveTickets(result.tickets);
+        if (fieldTicketsModalController) fieldTicketsModalController.refresh();
+        renderDashboard();
+      }
+      return result;
+    },
     onToast: (msg, opts) => toast(msg, opts)
   });
   // OWNER-SIGNAL: per-mohalla average signal view (read-only).

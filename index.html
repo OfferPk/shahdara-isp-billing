@@ -21132,7 +21132,21 @@
         <p id="splitterMapSummaryLine" class="splitter-map-summary-line"></p>
         <h3>Port map</h3>
         <div id="splitterMapGrid" class="splitter-map-grid-wrap"></div>
+        <h3>Splitter box cut simulation</h3>
+        <p class="splitter-map-intro">Read-only: lists every subscriber fed by the selected box — its port customers plus all downstream homes — with a ready-to-send WhatsApp maintenance alert queue. A simulation never changes the network.</p>
+        <div class="splitter-sim-controls">
+          <button id="splitterMapSimulateBtn" class="action-btn-sm" type="button">⚡ Simulate Splitter Box Cut</button>
+          <label class="splitter-sim-script"><input type="radio" name="splitterMapSimScript" value="roman" checked> Roman Urdu</label>
+          <label class="splitter-sim-script"><input type="radio" name="splitterMapSimScript" value="urdu"> Urdu script</label>
+        </div>
+        <p id="splitterMapSimSummary" class="splitter-map-summary-line"></p>
+        <div id="splitterMapSimList" class="splitter-sim-list"></div>
+        <div class="splitter-sim-actions">
+          <button id="splitterMapSimCopyBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Copy alert queue</button>
+        </div>
         <h3>Weak signals — check attenuation</h3>
+        <label for="splitterMapTechnicianInput">Lineman / technician (for attenuation tickets)</label>
+        <input id="splitterMapTechnicianInput" class="form-input splitter-map-technician" type="text" autocomplete="off" placeholder="Lineman name">
         <div id="splitterMapWeakList" class="splitter-map-weak-list"></div>
       </div>
     </div>

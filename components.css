@@ -243,9 +243,23 @@
 .splitter-weak-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
 .splitter-weak-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
 .splitter-weak-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+/* SISP-66: splitter cut simulation + attenuation ticket — theme tokens
+   only, so the section follows dark mode like the rest of the modal. */
+.splitter-sim-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.splitter-sim-script { display: inline-flex; gap: 4px; align-items: center; font-size: 13px; color: var(--muted); }
+.splitter-sim-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0; }
+.splitter-sim-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.splitter-sim-card p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.splitter-sim-card p strong { color: var(--ink); overflow-wrap: anywhere; }
+.splitter-sim-message { color: var(--muted); font-size: 13px; }
+.splitter-sim-no-phone { font-size: 12px; color: var(--muted); }
+.splitter-sim-actions { margin: 8px 0 16px; }
+.splitter-map-technician { margin: 4px 0 8px; }
+.splitter-att-btn { margin-top: 8px; }
 @media (max-width: 480px) {
   .splitter-port-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .splitter-map-weak-list { grid-template-columns: 1fr; }
+  .splitter-sim-list { grid-template-columns: 1fr; }
   .splitter-weak-card p strong { text-align: left; }
 }
 /* OWNER-SIGNAL: profile signal history + record row, area signal modal.

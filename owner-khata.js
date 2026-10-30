@@ -54,9 +54,26 @@
  *   (roznamcha.js) over the day records passed in as
  *   inputs.roznamchaDays, anchored on the latest closed day with the
  *   still-open days rolled forward.
+ *
+ * SISP-73 extends the same report once more, again reused, never
+ * recomputed in a parallel path:
+ *
+ * - Installation CapEx (installation* fields + distributableProfit):
+ *   the month's net installation surplus/subsidy from SISP-23's
+ *   installation-cost accounting (buildMonthlyInstallationSummary in
+ *   installation-cost.js). When the owner's persisted toggle
+ *   (inputs.includeInstallationCapexInSplit — the modal passes the
+ *   SISP-22 partner-settings value) is ON, the month's net subsidy is
+ *   deducted from the profit before the 50/50 split, exactly as in
+ *   Partner Settlement, so both surfaces always agree: share = 50% of
+ *   the positive distributable profit, else 0 (the PR #395 rule). When
+ *   OFF, the installation figures are shown tracked separately and the
+ *   shares are the partner report's own, untouched.
  */
 
-import { buildPartnerShareReport, outstandingAtMonthEnd, paymentEntries } from './phase3.js';
+import { buildPartnerShareReport, outstandingAtMonthEnd, paymentEntries, PARTNER_SHARE_RATE } from './phase3.js';
+import { buildMonthlyInstallationSummary } from './installation-cost.js';
+import { loadPartnerSettings } from './partner-settlement.js';
 import { buildMonthlyDowntimeAnalytics } from './downtime-analytics.js';
 import { loadComplaints, pakistanMonthNow } from './complaint-register.js';
 import { loadShopSettlements, resolveShopCollector } from './shop-settlement.js';
@@ -194,6 +211,9 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
       collectionChannels: [], closingCashInHand: null,
       expenses: 0, expenseCount: 0, expenseCategories: [], bandwidthFieldExpenses: 0,
       profit: 0, isLoss: false, nasirShare: 0, aqibShare: 0,
+      installationNet: 0, installationSurplus: 0, installationSubsidy: 0,
+      installationCount: 0, installationRecordedCount: 0, installationPartial: false,
+      installationCapexIncluded: false, distributableProfit: 0,
       totalComplaints: 0, totalDowntime: 0, areaOutageComplaints: 0, areaOutageDowntime: 0,
       topCauses: [], savedSnapshot: null, note: '',
       badDebtWrittenOff: 0, badDebtCustomerCount: 0
@@ -203,6 +223,20 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
   // Financials — reused verbatim from the partner share report.
   const partner = buildPartnerShareReport(state, validMonth, referenceDate);
   const summary = partner.summary || {};
+
+  // SISP-73: installation CapEx position for the month (SISP-23
+  // accounting) and, when the owner's toggle is ON, the adjusted split —
+  // the same computation Partner Settlement performs, so the two
+  // surfaces can never disagree.
+  const installation = buildMonthlyInstallationSummary(state?.customers, validMonth);
+  const installationCapexIncluded = inputs.includeInstallationCapexInSplit === true;
+  const profit = wholeRupees(summary.profit);
+  const distributableProfit = installationCapexIncluded
+    ? profit - wholeRupees(installation.subsidy)
+    : profit;
+  const partnerShare = installationCapexIncluded
+    ? (distributableProfit > 0 ? Math.round(distributableProfit * PARTNER_SHARE_RATE) : 0)
+    : wholeRupees(summary.share);
   const expenseCategories = Array.isArray(summary.categoryBreakdown) ? summary.categoryBreakdown : [];
   const bandwidthFieldExpenses = expenseCategories
     .filter((row) => BANDWIDTH_FIELD_RE.test(String(row.category || '')))
@@ -272,10 +306,18 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
     expenseCount: Number(summary.expenseCount || 0),
     expenseCategories,
     bandwidthFieldExpenses,
-    profit: wholeRupees(summary.profit),
+    profit,
     isLoss: summary.isLoss === true,
-    nasirShare: wholeRupees(summary.share),
-    aqibShare: wholeRupees(summary.share),
+    nasirShare: partnerShare,
+    aqibShare: partnerShare,
+    installationNet: wholeRupees(installation.net),
+    installationSurplus: wholeRupees(installation.surplus),
+    installationSubsidy: wholeRupees(installation.subsidy),
+    installationCount: installation.installCount,
+    installationRecordedCount: installation.recordedCount,
+    installationPartial: installation.hasPartial === true,
+    installationCapexIncluded,
+    distributableProfit,
     totalComplaints: Number(network.totalComplaints || 0),
     totalDowntime: Number(network.totalDowntime || 0),
     areaOutageComplaints: Number(network.areaOutageComplaints || 0),
@@ -321,6 +363,17 @@ export function buildOwnerKhataWhatsAppText(report) {
   if (Array.isArray(report.collectionChannels) && report.collectionChannels.length) {
     lines.splice(2, 0, `Channel Split: ${report.collectionChannels.map((c) => `${c.channel} ${formatPKR(c.amount)}`).join(' · ')}`);
   }
+  // SISP-73: installation CapEx position, plus the distributable profit
+  // when the toggle was ON (fixed report language, like the rest of
+  // this summary — the modal UI carries the t() strings).
+  if (report.installationCount > 0 && (report.installationSubsidy > 0 || report.installationSurplus > 0)) {
+    lines.push(report.installationNet >= 0
+      ? `Installation surplus: ${formatPKR(report.installationSurplus)}`
+      : `Installation subsidy (borne by the ISP): ${formatPKR(report.installationSubsidy)}`);
+    if (report.installationCapexIncluded) {
+      lines.push(`Distributable profit (after installation subsidy): ${formatPKR(report.distributableProfit)}`);
+    }
+  }
   // SISP-64: declared-uncollectible money, shown only while any is
   // still written off so a clean book adds no line.
   if (report.badDebtWrittenOff > 0) {
@@ -344,6 +397,12 @@ export function buildOwnerKhataPrintHtml(report) {
     `<tr><td>${escapeHtml(row.channel)}</td><td>${escapeHtml(String(row.count))}</td><td>${escapeHtml(formatPKR(row.amount))}</td></tr>`).join('');
   const causeRows = report.topCauses.map((row) =>
     `<tr><td>${escapeHtml(row.category)}</td><td>${escapeHtml(String(row.incidents))}</td><td>${escapeHtml(String(row.totalDowntime))} h</td></tr>`).join('');
+  // SISP-73: installation CapEx pairs — shown whenever the month had
+  // new installations; the distributable-profit pair appears only when
+  // the toggle was ON and the shares above were computed from it.
+  const installationPairs = report.installationCount > 0 ? `
+  <div class="pair"><span>${report.installationNet >= 0 ? 'Net installation surplus' : 'Net installation subsidy (borne by the ISP)'} (${escapeHtml(String(report.installationCount))} new installation${report.installationCount === 1 ? '' : 's'})</span><strong>${escapeHtml(formatPKR(Math.abs(report.installationNet)))}</strong></div>${report.installationCapexIncluded ? `
+  <div class="pair"><span>Distributable profit (after installation subsidy)</span><strong>${escapeHtml(formatPKR(report.distributableProfit))}</strong></div>` : ''}` : '';
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Owner Khata Closing — ${escapeHtml(monthLabel(report.month))}</title><style>
     body{font-family:system-ui,Arial,sans-serif;color:#111;max-width:720px;margin:24px auto;padding:0 16px}
     h1{font-size:20px}h2{font-size:16px;margin-top:24px;border-bottom:1px solid #ccc;padding-bottom:4px}
@@ -361,7 +420,7 @@ export function buildOwnerKhataPrintHtml(report) {
   <div class="pair"><span>NayaPay Bandwidth + Field Expenses (keyword-matched)</span><strong>${escapeHtml(formatPKR(report.bandwidthFieldExpenses))}</strong></div>
   <div class="pair"><span>Net Profit${report.isLoss ? ' (loss)' : ''}</span><strong>${escapeHtml(formatPKR(report.profit))}</strong></div>
   <div class="pair"><span>Nasir share (50% of positive profit)</span><strong>${escapeHtml(formatPKR(report.nasirShare))}</strong></div>
-  <div class="pair"><span>Aqib share (50% of positive profit)</span><strong>${escapeHtml(formatPKR(report.aqibShare))}</strong></div>
+  <div class="pair"><span>Aqib share (50% of positive profit)</span><strong>${escapeHtml(formatPKR(report.aqibShare))}</strong></div>${installationPairs}
   ${shopRows ? `<h2>Shop cash settled by shop</h2><table><tr><th>Shop</th><th>Handovers</th><th>Amount</th></tr>${shopRows}</table>` : ''}
   ${channelRows ? `<h2>Collections by channel</h2><table><tr><th>Channel</th><th>Receipts</th><th>Amount</th></tr>${channelRows}</table>` : ''}
   ${report.closingCashInHand ? `<div class="pair"><span>Closing Cash-in-Hand (Roznamcha) — ${report.closingCashInHand.monthEndClosed ? `drawer closed ${escapeHtml(report.closingCashInHand.monthEndDate)}` : 'expected, month-end day not closed'}</span><strong>${escapeHtml(formatPKR(report.closingCashInHand.balance))}</strong></div>` : ''}
@@ -396,7 +455,10 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
       settlements: loadShopSettlements(),
       notes: loadMonthlyClosingNotes(),
       roznamchaDays: loadRoznamchaDays(),
-      savedSnapshot
+      savedSnapshot,
+      // SISP-73: the same persisted partner-settings toggle the
+      // Partner Settlement tab uses, so both surfaces agree.
+      includeInstallationCapexInSplit: loadPartnerSettings().includeInstallationCapexInSplit
     });
   }
 
@@ -437,6 +499,9 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
           <p><span>Net Profit${report.isLoss ? ' (loss)' : ''}</span><strong>${escapeHtml(formatPKR(report.profit))}</strong></p>
           <p><span>Nasir share (50%)</span><strong>${escapeHtml(formatPKR(report.nasirShare))}</strong></p>
           <p><span>Aqib share (50%)</span><strong>${escapeHtml(formatPKR(report.aqibShare))}</strong></p>
+          ${report.installationCount > 0 ? `<p><span>${escapeHtml(t(report.installationNet >= 0 ? 'capex_net_surplus' : 'capex_net_subsidy'))}</span><strong>${escapeHtml(formatPKR(Math.abs(report.installationNet)))}</strong><small> · ${escapeHtml(t('capex_install_count', null, { count: report.installationCount }))}${report.installationPartial ? ` · ${escapeHtml(t('capex_partial_note'))}` : ''}</small></p>` : ''}
+          ${report.installationCount > 0 && report.installationCapexIncluded ? `<p><span>${escapeHtml(t('capex_distributable_profit'))}</span><strong>${escapeHtml(formatPKR(report.distributableProfit))}</strong></p>` : ''}
+          ${report.installationCount > 0 && !report.installationCapexIncluded ? `<p><span>${escapeHtml(t('capex_tracked_separately'))}</span></p>` : ''}
           ${cashInHandLine}
         </article>
         <article class="owner-khata-section"><h3>Network reliability</h3>

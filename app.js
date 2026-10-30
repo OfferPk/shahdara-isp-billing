@@ -147,7 +147,7 @@ import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
-import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
+import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, waadaBadgeLabel } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
@@ -3529,7 +3529,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), badDebts: loadBadDebts(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), badDebts: loadBadDebts(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -3549,6 +3549,7 @@ function backupRestoreOptions() {
   let badDebtsStored = false;
   let partnerLedgerStored = false;
   let partnerSettlementsStored = false;
+  let partnerSettingsStored = false;
   let homeBudgetStored = false;
   let loansStored = false;
   let overheadsStored = false;
@@ -3569,6 +3570,7 @@ function backupRestoreOptions() {
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
   try { partnerLedgerStored = localStorage.getItem(PARTNER_LEDGER_KEY) !== null; } catch { partnerLedgerStored = false; }
   try { partnerSettlementsStored = localStorage.getItem(PARTNER_SETTLEMENTS_KEY) !== null; } catch { partnerSettlementsStored = false; }
+  try { partnerSettingsStored = localStorage.getItem(PARTNER_SETTINGS_KEY) !== null; } catch { partnerSettingsStored = false; }
   try { homeBudgetStored = localStorage.getItem(HOME_BUDGET_KEY) !== null; } catch { homeBudgetStored = false; }
   try { loansStored = localStorage.getItem(LOAN_KEY) !== null; } catch { loansStored = false; }
   try { overheadsStored = localStorage.getItem(OVERHEAD_KEY) !== null; } catch { overheadsStored = false; }
@@ -3576,7 +3578,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentReferralCreditsStored: referralCreditsStored, currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -4445,6 +4447,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.partnerSettlements) {
       savePartnerSettlements(pendingBackupPreview.partnerSettlements);
+    }
+    if (pendingBackupPreview.partnerSettings) {
+      savePartnerSettings(pendingBackupPreview.partnerSettings);
     }
     if (pendingBackupPreview.overheads) {
       saveOverheads(pendingBackupPreview.overheads);
@@ -7562,7 +7567,9 @@ function renderPartnerSettlement() {
   if (!monthSelect || !host) return;
   const entries = loadPartnerLedgerEntries();
   const settlements = loadPartnerSettlements();
-  const report = buildPartnerSettlementReport(state, partnerSettlementMonth, entries, new Date());
+  // SISP-73: the persisted Installation CapEx toggle decides whether the
+  // month's net installation subsidy is deducted before the 50/50 split.
+  const report = buildPartnerSettlementReport(state, partnerSettlementMonth, entries, new Date(), { includeInstallationCapexInSplit: loadPartnerSettings().includeInstallationCapexInSplit });
   partnerSettlementMonth = report.month;
   const monthsKey = report.months.join(',');
   if (monthSelect.dataset.months !== monthsKey) {
@@ -7582,13 +7589,33 @@ function renderPartnerSettlement() {
       + detail + `</article>`;
   }).join('');
   const profitLabel = report.profit >= 0 ? 'Net profit' : 'Net loss';
+  // SISP-73: installation CapEx block — the toggle itself plus, when the
+  // month had new installations, the net surplus/subsidy position and
+  // (toggle ON) the distributable profit the shares came from.
+  const capex = report.installationCapex;
+  const capexBlock = `<div class="partner-capex-block"><label class="partner-capex-toggle"><input type="checkbox" id="partnerCapexToggle"${capex.included ? ' checked' : ''}> ${escapeHtml(t('capex_toggle_label'))}</label>`
+    + (capex.installCount > 0
+      ? partnerSettlementRow(capex.net >= 0 ? t('capex_net_surplus') : t('capex_net_subsidy'), `${formatAmount(Math.abs(capex.net))} · ${t('capex_install_count', null, { count: capex.installCount })}`)
+        + (capex.hasPartial ? `<p class="phase3-note">${escapeHtml(t('capex_partial_note'))}</p>` : '')
+        + (capex.included
+          ? partnerSettlementRow(t('capex_distributable_profit'), formatAmount(report.distributableProfit))
+          : `<p class="phase3-note">${escapeHtml(t('capex_tracked_separately'))}</p>`)
+      : '')
+    + `</div>`;
   host.innerHTML = `<div class="partner-share-grid">`
     + `<article class="phase3-metric"><span>Total revenue · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(report.revenue))}</strong><small>${report.receiptCount} bill collection receipt${report.receiptCount === 1 ? '' : 's'}</small></article>`
     + `<article class="phase3-metric"><span>Total expenses · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(report.expenses))}</strong><small>${report.expenseCount} recorded expense entr${report.expenseCount === 1 ? 'y' : 'ies'}</small></article>`
     + `<article class="phase3-metric"><span>${profitLabel}</span><strong>${escapeHtml(formatAmount(report.profit))}</strong><small>Revenue − expenses</small></article>`
     + `<article class="phase3-metric"><span>Each partner share (50%)</span><strong>${escapeHtml(formatAmount(report.share))}</strong><small>${report.profit > 0 ? '50% of this month’s profit' : 'No share on a loss / zero month'}</small></article></div>`
+    + capexBlock
     + `<div class="partner-settlement-cards">${cards}</div>`
     + `<p class="phase3-note">${escapeHtml(report.basis)}</p>`;
+  const capexToggle = $('#partnerCapexToggle');
+  if (capexToggle) capexToggle.addEventListener('change', () => {
+    savePartnerSettings({ includeInstallationCapexInSplit: capexToggle.checked });
+    toast(t(capexToggle.checked ? 'capex_toggle_on' : 'capex_toggle_off'));
+    renderPartnerSettlement();
+  });
   const statusEl = $('#partnerSettlementStatus');
   if (statusEl) {
     statusEl.textContent = slip
@@ -8627,7 +8654,7 @@ $('#partnerLedgerCancel')?.addEventListener('click',()=>{
 });
 $('#partnerSettlementConfirmBtn')?.addEventListener('click',()=>{
   try {
-    const report = buildPartnerSettlementReport(state, partnerSettlementMonth, loadPartnerLedgerEntries(), new Date());
+    const report = buildPartnerSettlementReport(state, partnerSettlementMonth, loadPartnerLedgerEntries(), new Date(), { includeInstallationCapexInSplit: loadPartnerSettings().includeInstallationCapexInSplit });
     const slip = createPartnerSettlement(report);
     savePartnerSettlements(upsertPartnerSettlement(loadPartnerSettlements(), slip));
     toast(`Settlement slip confirmed for ${monthName(report.month)}. Bills, receipts and expenses were not changed.`);

@@ -975,6 +975,9 @@ body.field-mode-open { overflow: hidden; }
 .partner-settlement-row span:first-child { min-width: 0; overflow-wrap: anywhere; color: var(--muted); }
 .partner-settlement-row strong { color: var(--ink); font-variant-numeric: var(--numeric); text-align: right; overflow-wrap: anywhere; }
 .partner-settlement-receivable strong { color: var(--color-overdue); }
+.partner-capex-block { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 12px 0; min-width: 0; }
+.partner-capex-toggle { display: flex; align-items: center; gap: 8px; color: var(--ink); font-weight: 600; cursor: pointer; overflow-wrap: anywhere; }
+.partner-capex-toggle input { width: 20px; height: 20px; accent-color: var(--green); flex: none; }
 .partner-settlement-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
 .partner-settlement-card h4 { margin: 0 0 8px; color: var(--ink); overflow-wrap: anywhere; }
 .partner-settlement-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 8px 0 12px; }

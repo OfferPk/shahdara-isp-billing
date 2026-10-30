@@ -224,6 +224,17 @@ export function pngReceiptButtonMarkup(customerId, month, paymentId, customerNum
   return `<button class="print-receipt-button png-receipt-button" type="button" data-png-receipt data-customer-id="${escapeHtml(customerId)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(paymentId)}" aria-label="${t('prof_hist_png_receipt_aria', null, { number: customerNumber })}">${t('prof_hist_png_receipt')}</button>`;
 }
 
+// SISP-65: the [🔊 Speak Due] button for the profile heading actions.
+// Markup-only helper, the same pattern as pngReceiptButtonMarkup
+// above: app.js binds [data-speak-due] clicks to speakCustomerDue
+// (field-mode.js), which speaks the customer's name + net due built
+// from the SAME allocation-engine figures Field Mode shows
+// (fieldModeCustomerStatus) — no second balance computation lives
+// here; this helper only owns the markup so the label/i18n stay put.
+export function speakDueButtonMarkup(customerNumber) {
+  return `<button class="secondary-button speak-due-button" type="button" data-speak-due aria-label="${t('speak_due_aria', null, { number: customerNumber })}">${t('speak_due_btn')}</button>`;
+}
+
 /** Bind each actual receipt only to its owning profile's saved number and identity. */
 export function resolveReceiptWhatsAppAction(customer, receipt) {
   if (!customer?.id || !receipt || receipt.customerId !== customer.id) return { type:'unavailable', reason:'customer-mismatch' };

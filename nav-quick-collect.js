@@ -24,7 +24,8 @@ import {
   updateCustomerProfile,
   generateMonthlyBillsThroughCurrentMonth,
   saveBillMonth,
-  autoPackageFromPayment
+  autoPackageFromPayment,
+  paymentSenderLabel
 } from './core.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
 import { billKistTotal } from './installment-plan.js';
@@ -556,6 +557,8 @@ export function executeQuickCollection(state, {
   method,
   paidBy,
   transactionId,
+  senderTitle,
+  senderDigits,
   referenceOverrideReason,
   screenshot,
   strictDigitalReference,
@@ -634,6 +637,11 @@ export function executeQuickCollection(state, {
     targetMonth: kind === 'advance' ? advanceTargetMonth : undefined,
     paidBy: paidBy ? String(paidBy).trim() : undefined,
     transactionId: cleanTxnId || undefined,
+    // SISP-63: sender proof metadata rides alongside the TID; core's
+    // validatePayment sanitizes it and keeps it for digital methods
+    // only, so a cash collection never stores sender fields.
+    senderTitle: senderTitle ? String(senderTitle).trim() : undefined,
+    senderDigits: senderDigits ? String(senderDigits).trim() : undefined,
     referenceOverrideReason: cleanReason || undefined,
     screenshot: (typeof screenshot === 'string' && screenshot.startsWith('data:image/')) ? screenshot : undefined,
     ticketCharges: settledTicketLines.length > 0 ? settledTicketLines : undefined
@@ -704,6 +712,11 @@ export function executeQuickCollection(state, {
     method: pMethod,
     paidBy: paidBy ? String(paidBy).trim() : '',
     transactionId: cleanTxnId,
+    // SISP-63: read back from the STORED payment so the receipt shows
+    // exactly what validatePayment kept (sanitized, digital-only).
+    senderTitle: newPayment?.senderTitle || '',
+    senderDigits: newPayment?.senderDigits || '',
+    senderLabel: paymentSenderLabel(newPayment),
     referenceOverrideReason: cleanReason,
     screenshot: (typeof screenshot === 'string' && screenshot.startsWith('data:image/')) ? screenshot : '',
     isDigital,
@@ -761,6 +774,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt) {
     ...ticketChargeLines,
     `💳 *Payment Method:* ${receipt.method}`,
     receipt.transactionId ? `🔢 *Transaction ID / Ref:* ${receipt.transactionId}` : null,
+    receipt.senderLabel ? `👤 *Sender / بھیجنے والا:* ${receipt.senderLabel}` : null,
     receipt.referenceOverrideReason ? `📝 *Ref Note:* ${receipt.referenceOverrideReason}` : null,
     receipt.paidBy ? `✍️ *Paid By:* ${receipt.paidBy}` : null,
     ``,
@@ -1088,6 +1102,11 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           <span class="qc-meta-label">Transaction ID / Ref</span>
           <strong class="qc-meta-val"><code class="qc-txnid-code">${escapeHtml(receipt.transactionId)}</code></strong>
         </div>` : ''}
+        ${receipt.senderLabel ? `
+        <div class="qc-receipt-item full-width" data-qc-receipt-sender>
+          <span class="qc-meta-label">${escapeHtml(t('spay_sender_name_label'))}</span>
+          <strong class="qc-meta-val">${escapeHtml(receipt.senderLabel)}</strong>
+        </div>` : ''}
         ${receipt.referenceOverrideReason ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Ref Note / Override</span>
@@ -1181,6 +1200,10 @@ export function setupQuickCollectModal({
   // Digital Payment Elements
   const digitalFieldsContainer = document.getElementById('quickCollectDigitalFields');
   const transactionIdInput = document.getElementById('quickCollectTransactionIdInput');
+  // SISP-63: sender proof metadata inputs (null on host pages that
+  // predate them — every use below is optional-chained).
+  const senderNameInput = document.getElementById('quickCollectSenderNameInput');
+  const senderDigitsInput = document.getElementById('quickCollectSenderDigitsInput');
   const overrideDetails = document.getElementById('quickCollectOverrideDetails');
   const overrideReasonInput = document.getElementById('quickCollectOverrideReasonInput');
   const screenshotInput = document.getElementById('quickCollectScreenshotInput');
@@ -1638,6 +1661,8 @@ export function setupQuickCollectModal({
 
       // Reset digital fields
       if (transactionIdInput) transactionIdInput.value = '';
+      if (senderNameInput) senderNameInput.value = '';
+      if (senderDigitsInput) senderDigitsInput.value = '';
       if (overrideReasonInput) overrideReasonInput.value = '';
       if (overrideDetails) overrideDetails.open = false;
       currentScreenshotDataUrl = '';
@@ -2049,6 +2074,8 @@ export function setupQuickCollectModal({
         advanceTargetMonth: advanceCheckbox?.checked ? (advanceTargetSelect?.value || undefined) : undefined,
         paidBy: paidByVal,
         transactionId: txnIdVal,
+        senderTitle: (senderNameInput?.value || '').trim(),
+        senderDigits: (senderDigitsInput?.value || '').trim(),
         referenceOverrideReason: (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim()) ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : '')) : overrideReasonVal,
         screenshot: currentScreenshotDataUrl,
         // SISP-43: the live ticket list, so billed ticket charges can

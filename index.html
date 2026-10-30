@@ -19471,6 +19471,27 @@
                      class="qc-input qc-txnid-input">
             </div>
 
+            <div class="qc-field-group">
+              <label for="quickCollectSenderNameInput" class="qc-label" data-i18n="spay_sender_name_label">Sender Name (as on wallet)</label>
+              <input id="quickCollectSenderNameInput"
+                     type="text"
+                     maxlength="100"
+                     data-i18n-placeholder="spay_sender_name_ph"
+                     placeholder="e.g. Ali Raza"
+                     class="qc-input">
+            </div>
+
+            <div class="qc-field-group">
+              <label for="quickCollectSenderDigitsInput" class="qc-label" data-i18n="spay_sender_digits_label">Sender Account Last 4 Digits</label>
+              <input id="quickCollectSenderDigitsInput"
+                     type="text"
+                     inputmode="numeric"
+                     maxlength="19"
+                     data-i18n-placeholder="spay_sender_digits_ph"
+                     placeholder="e.g. 3310"
+                     class="qc-input">
+            </div>
+
             <details id="quickCollectOverrideDetails" class="qc-override-details">
               <summary class="qc-override-summary">No Transaction ID? Enter override reason</summary>
               <input id="quickCollectOverrideReasonInput"

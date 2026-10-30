@@ -975,7 +975,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, senderTitle, senderDigits } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -1011,6 +1011,20 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   // so untagged records remain byte-identical to before.
   const cleanNote = String(note ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
   if (cleanNote.length > 200) throw new Error('Payment note must be 200 characters or fewer.');
+  // SISP-63: sender proof metadata — WHO sent a digital payment (the
+  // sender's wallet/account title) and the last 4 digits of the account
+  // or mobile it came from, recorded ALONGSIDE the TID (SISP-21) so a
+  // wallet payment can be matched to its sender on statements and
+  // receipts without opening the proof screenshot. Digital methods only
+  // (the isDigitalPaymentMethod set: Easypaisa / JazzCash / NayaPay /
+  // Bank / Raast …); on any other method the fields are dropped, never
+  // stored, so cash records stay byte-identical to before. The digits
+  // are normalized to digits-only and only the last 4 survive — a full
+  // account number typed by mistake is never persisted whole.
+  const cleanSenderTitle = String(senderTitle ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
+  if (cleanSenderTitle.length > 100) throw new Error('Sender name must be 100 characters or fewer.');
+  const cleanSenderDigits = String(senderDigits ?? '').replace(/\D/g, '').slice(-4);
+  const digitalSender = isDigitalPaymentMethod(method);
   // SISP-61: multi-month prepay terms ride the payment record ONLY on a
   // targeted advance (the recordPrepay path) and only as a complete,
   // sane triple — months from the fixed 2/3/6/12 picker, the gross
@@ -1042,6 +1056,8 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
     ...(ref ? { transactionId: ref, reference: ref } : {}),
+    ...(digitalSender && cleanSenderTitle ? { senderTitle: cleanSenderTitle } : {}),
+    ...(digitalSender && cleanSenderDigits ? { senderDigits: cleanSenderDigits } : {}),
     ...(overrideReason ? { referenceOverrideReason: overrideReason } : {}),
     // SISP-21: wallet statement verification rides the payment record. Only
     // an explicit true is kept; anything else reads as "Pending Screenshot
@@ -1049,6 +1065,27 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(walletVerified === true ? { walletVerified: true } : {}),
     ...(screenshot && typeof screenshot === 'string' && screenshot.startsWith('data:image/') ? { screenshot: screenshot.slice(0, 350000) } : {})
   };
+}
+
+/**
+ * SISP-63: sender proof metadata readers — the single sanitization
+ * point for display. validatePayment already cleans these fields on
+ * write; the readers re-apply the same rules defensively so a legacy
+ * or hand-edited record can never leak a newline, a >100-char title,
+ * or more than the last 4 sender digits into a statement or receipt.
+ */
+export function paymentSenderTitle(payment) {
+  return String(payment?.senderTitle ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100);
+}
+export function paymentSenderDigits(payment) {
+  return String(payment?.senderDigits ?? '').replace(/\D/g, '').slice(-4);
+}
+/** Display label: "Hamza (…3310)", "Hamza", "…3310", or '' when absent. */
+export function paymentSenderLabel(payment) {
+  const title = paymentSenderTitle(payment);
+  const digits = paymentSenderDigits(payment);
+  if (title && digits) return `${title} (…${digits})`;
+  return title || (digits ? `…${digits}` : '');
 }
 
 export function findDuplicatePaymentReference(state, transactionId, excludePaymentId = null) {
@@ -1246,7 +1283,12 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // attached proof (same rule as walletVerified above). Proofs are
     // attached at save time; there is deliberately no replace/remove
     // path short of voiding and re-recording the payment.
-    screenshot: fields.screenshot !== undefined ? fields.screenshot : existingPayment.screenshot
+    screenshot: fields.screenshot !== undefined ? fields.screenshot : existingPayment.screenshot,
+    // SISP-63: sender proof metadata — same carry-over rule: a caller
+    // that does not pass the sender fields (e.g. a form without them)
+    // must never silently strip who sent the payment.
+    senderTitle: fields.senderTitle !== undefined ? fields.senderTitle : existingPayment.senderTitle,
+    senderDigits: fields.senderDigits !== undefined ? fields.senderDigits : existingPayment.senderDigits
   };
   let payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
   // SISP-43: a correction restates the receipt, never its ticket-charge
@@ -2330,6 +2372,13 @@ function validateBackupState(source) {
         // historical spread behaviour — void stamps and later fields
         // ride this spread on purpose.)
         if (!('screenshot' in validatedPayment)) delete mergedPayment.screenshot;
+        // SISP-63: same rule for sender proof metadata — when
+        // validatePayment drops the sender fields (cash method, blank,
+        // digits with no digits), the raw backup values must not be
+        // resurrected by the spread; when it keeps them, the SANITIZED
+        // values in validatedPayment win over the raw backup ones.
+        if (!('senderTitle' in validatedPayment)) delete mergedPayment.senderTitle;
+        if (!('senderDigits' in validatedPayment)) delete mergedPayment.senderDigits;
         return mergedPayment;
       });
       for (const correction of bill.amountHistory ?? []) {

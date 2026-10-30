@@ -44,6 +44,7 @@
 
 import { t } from './nav-language.js';
 import { buildDaisyChainAlert, buildOutageQueueText, buildOutageQueue } from './outage-impact.js';
+import { getWaTemplates } from './whatsapp-templates.js';
 
 export const COMPLAINTS_KEY = 'sisp_complaints_ledger_v1';
 
@@ -588,7 +589,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
           return;
         }
         const st = getState() || { customers: [] };
-        const queue = buildOutageQueue(Array.isArray(st.customers) ? st.customers : [], complaint.customerId);
+        const queue = buildOutageQueue(Array.isArray(st.customers) ? st.customers : [], complaint.customerId, { templates: getWaTemplates() });
         const text = buildOutageQueueText(queue);
         (async () => {
           try {

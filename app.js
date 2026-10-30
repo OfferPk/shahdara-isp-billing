@@ -23,7 +23,7 @@ import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveL
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, speakDueButtonMarkup, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
-import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml } from './receipt.js?v=1.11.0';
+import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml, buildReceiptPaymentReceivedMessage, buildReceiptBillNoticeMessage } from './receipt.js?v=1.11.0';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
@@ -216,7 +216,7 @@ import {
   buildCampaignQueue,
   markCustomerLastReminded
 } from './reminder-queue.js?v=1.11.0';
-import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor } from './whatsapp-templates.js?v=1.11.0';
+import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor, renderCustomWaTemplate } from './whatsapp-templates.js?v=1.11.0';
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
 // recovered, the device comes BACK into stock. This runs AFTER the
@@ -9013,7 +9013,14 @@ batchPreviewContainer?.addEventListener('click', (e) => {
     }
   });
 
-  const phoneRes = formatWhatsAppUrl(customer.phone || '', msg);
+  // SISP-71 bridge: a due (not overdue) batch slip is a bill notice — a
+  // customized Template Studio "Bill Generated" template replaces the
+  // built-in wording; an untouched studio keeps the message above.
+  const waMsg = balance > dueAmount
+    ? msg
+    : (buildReceiptBillNoticeMessage(customer, { totalDue: balance }, getWaTemplates()) ?? msg);
+
+  const phoneRes = formatWhatsAppUrl(customer.phone || '', waMsg);
   if (phoneRes.validPhone && phoneRes.url) {
     window.open(phoneRes.url, '_blank');
     toast(`Opening WhatsApp reminder draft for ${customer.name}...`);
@@ -9551,8 +9558,18 @@ function renderReminderContent() {
     billingData
   });
 
+  // SISP-71 bridge: customized Template Studio templates fill the draft
+  // for the Payment Received acknowledgement and the polite due reminder;
+  // every other type — and any untouched template — keeps the built-in
+  // wording above. The operator can still edit the draft before sending.
+  const waBridgedMsg = templateType === 'payment'
+    ? (buildReceiptPaymentReceivedMessage(c, { amount: billingData.paidAmount ?? null }, getWaTemplates()) ?? msg)
+    : templateType === 'due'
+      ? (renderCustomWaTemplate(getWaTemplates(), 'politeReminder', c, { totalDue: balance }, 'roman') ?? msg)
+      : msg;
+
   if (reminderMessageText) {
-    reminderMessageText.value = msg;
+    reminderMessageText.value = waBridgedMsg;
   }
   updateReminderCharCount();
 

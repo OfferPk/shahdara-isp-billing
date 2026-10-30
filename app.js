@@ -160,6 +160,7 @@ import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDownt
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
 import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
 import { buildSplitterOverview, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
+import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } from './signal-history.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
 import { INVENTORY_ITEM_IDS, INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
@@ -415,6 +416,7 @@ export let complaintRegisterModalController = null;
 export let fieldTicketsModalController = null;
 export let downtimeAnalyticsModalController = null;
 export let splitterMapModalController = null;
+export let areaSignalModalController = null;
 export let monthlyComplaintReportModalController = null;
 export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
@@ -2781,7 +2783,16 @@ function renderCustomerProfileView(customer) {
     : opticalStatus === 'healthy'
       ? `<span class="safety-badge badge-healthy">${t('prof_optical_ok')}</span>`
       : '';
-  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_optical_aria')}"><h4>${t('prof_optical_heading')}</h4><p>${escapeHtml(t('prof_optical_box', null, { id: opticalFields.splitterBoxId || t('prof_not_recorded') }))}${opticalFields.splitterPort !== null ? escapeHtml(t('prof_optical_port', null, { port: opticalFields.splitterPort })) : ''}</p><p>${escapeHtml(t('prof_optical_pon', null, { port: opticalFields.oltPonPort || t('prof_not_recorded') }))}${escapeHtml(t('prof_optical_rx', null, { rx: formatRxDbm(opticalFields.lastRxDbm) }))} ${opticalBadge}</p><button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">${t('prof_optical_open')}</button></section>`;
+  // OWNER-SIGNAL: signal reading history (newest first) under the
+  // SISP-24 optical facts, plus the quick "record a reading" row. The
+  // history is append-only; every append also refreshes lastRxDbm, so
+  // the current-signal line above and this list can never disagree.
+  const signalSourceLabels = { manual: t('sig_source_manual'), install: t('sig_source_install'), 'complaint-before': t('sig_source_complaint_before'), 'complaint-after': t('sig_source_complaint_after') };
+  const signalHistoryRows = signalReadingsNewestFirst(customer);
+  const signalHistoryHtml = signalHistoryRows.length === 0
+    ? `<p class="signal-history-empty">${t('sig_history_empty')}</p>`
+    : `<ul class="signal-history-list">${signalHistoryRows.map((reading) => `<li class="signal-history-row"><span>${escapeHtml(humanDate(reading.date))} · ${escapeHtml(signalSourceLabels[reading.source] || reading.source)}${reading.complaintId ? ` · ${escapeHtml(reading.complaintId)}` : ''}${reading.note ? ` · ${escapeHtml(reading.note)}` : ''}</span><strong>${escapeHtml(formatRxDbm(reading.dbm))}</strong>${reading.weak ? `<span class="safety-badge badge-danger">${escapeHtml(t('sig_weak_badge'))}</span>` : ''}</li>`).join('')}</ul>`;
+  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_optical_aria')}"><h4>${t('prof_optical_heading')}</h4><p>${escapeHtml(t('prof_optical_box', null, { id: opticalFields.splitterBoxId || t('prof_not_recorded') }))}${opticalFields.splitterPort !== null ? escapeHtml(t('prof_optical_port', null, { port: opticalFields.splitterPort })) : ''}</p><p>${escapeHtml(t('prof_optical_pon', null, { port: opticalFields.oltPonPort || t('prof_not_recorded') }))}${escapeHtml(t('prof_optical_rx', null, { rx: formatRxDbm(opticalFields.lastRxDbm) }))} ${opticalBadge}</p><button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">${t('prof_optical_open')}</button><h5 class="signal-history-heading">${t('sig_history_title')}</h5>${signalHistoryHtml}<div class="signal-record-row"><label class="field-label" for="profileSignalDbmInput">${t('sig_dbm_label')}</label><input id="profileSignalDbmInput" class="form-input" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="-19.4"><label class="field-label" for="profileSignalNoteInput">${t('sig_note_label')}</label><input id="profileSignalNoteInput" class="form-input" type="text" maxlength="200"><button type="button" class="primary-button" id="profileSignalRecordBtn">${t('sig_record_btn')}</button></div></section>`;
   // SISP-32: pole & landmark directory — where the drop and box live.
   const poleFields = normalizePoleFields(customer);
   const poleSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_pole_aria')}"><h4>${t('prof_pole_heading')}</h4><p>${escapeHtml(t('prof_pole_number', null, { value: poleFields.poleNumber || t('prof_not_recorded') }))}</p><p>${escapeHtml(t('prof_pole_box', null, { value: poleFields.boxLocationNote || t('prof_not_recorded') }))}${escapeHtml(t('prof_pole_wire', null, { value: poleFields.dropWireCoreColor || t('prof_not_recorded') }))}</p><p class="profile-pole-note">${t('prof_pole_note')}</p></section>`;
@@ -2904,6 +2915,24 @@ function renderCustomerProfileView(customer) {
   const profileSplitterBtn = $('#customerProfileView').querySelector('#profileOpenSplitterMapBtn');
   if (profileSplitterBtn) profileSplitterBtn.addEventListener('click', () => {
     if (splitterMapModalController) splitterMapModalController.open({ boxId: normalizeOpticalFields(customer).splitterBoxId });
+  });
+  // OWNER-SIGNAL: record a fresh manual signal reading from the profile
+  // — appends to the history and refreshes lastRxDbm in one save.
+  const profileSignalRecordBtn = $('#customerProfileView').querySelector('#profileSignalRecordBtn');
+  if (profileSignalRecordBtn) profileSignalRecordBtn.addEventListener('click', () => {
+    const view = $('#customerProfileView');
+    try {
+      const updated = appendSignalReading(customer, {
+        dbm: view.querySelector('#profileSignalDbmInput')?.value ?? '',
+        source: 'manual',
+        note: view.querySelector('#profileSignalNoteInput')?.value ?? ''
+      });
+      const idx = state.customers.findIndex(c => c.id === customer.id);
+      if (idx >= 0) state.customers[idx] = updated;
+      try { persistState(state, localStorage); } catch {}
+      renderDetail();
+      toast(t('sig_saved_toast', null, { dbm: updated.lastRxDbm }));
+    } catch (error) { toast(error.message || 'Signal reading could not be saved.'); }
   });
   // SISP-7: profile button traces this customer's downstream impact.
   const profileOutageTraceBtn = $('#customerProfileView').querySelector('#profileOutageTraceBtn');
@@ -5296,6 +5325,12 @@ function saveNewCustomer(allowDuplicateName = false) {
       return;
     }
     state = addCustomer(state, details.name, new Date(), { ...details, allowDuplicateName });
+    // OWNER-SIGNAL: an RX reading typed on the add form is the install
+    // measurement — journal it as the customer's first history entry.
+    const justAdded = state.customers.at(-1);
+    if (justAdded && justAdded.lastRxDbm !== null && justAdded.lastRxDbm !== undefined) {
+      state.customers[state.customers.length - 1] = appendSignalReading(justAdded, { dbm: justAdded.lastRxDbm, source: 'install' });
+    }
     $('#globalCustomerSearch').value = '';
     save();
     const addedCustomer = state.customers.at(-1);
@@ -5492,6 +5527,19 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       packageChangeStaffName:$('#packageChangeStaffNameInput').value,
       proRataAdjustment, proRatedBillAmount, voucherId
     });
+    // OWNER-SIGNAL: a CHANGED Last RX value saved from this form is a
+    // fresh manual measurement — journal it into the signal history so
+    // lastRxDbm and the history can never disagree. Re-saving the same
+    // value journals nothing, and clearing the field journals nothing
+    // (an erased value is not a measurement).
+    const previousRxDbm = currentCustomer?.lastRxDbm ?? null;
+    const savedCustomer = state.customers.find(c => c.id === selectedCustomerId);
+    const rxChanged = savedCustomer && savedCustomer.lastRxDbm !== null && savedCustomer.lastRxDbm !== undefined
+      && (previousRxDbm === null || Number(savedCustomer.lastRxDbm) !== Number(previousRxDbm));
+    if (rxChanged) {
+      const savedIdx = state.customers.findIndex(c => c.id === selectedCustomerId);
+      if (savedIdx >= 0) state.customers[savedIdx] = appendSignalReading(savedCustomer, { dbm: savedCustomer.lastRxDbm, source: 'manual' });
+    }
     profileEditMode = false;
     save(); renderDetail();
     if (splitterMapModalController) splitterMapModalController.refresh();
@@ -10659,6 +10707,23 @@ if (typeof document !== 'undefined') {
     // Log pre-filled from the resolved ticket; the logged-ticket list
     // (visits' ticketId links) drives the button's logged state.
     listLoggedVisitTicketIds: () => loadSaadVisits().map((v) => v.ticketId).filter(Boolean),
+    // OWNER-SIGNAL: a before/after signal saved on a ticket is a fresh
+    // measurement — journal it into that customer's signal history
+    // (which also refreshes their lastRxDbm) under the ticket's id.
+    onTicketSignal: (ticket, phase) => {
+      const dbm = phase === 'before' ? ticket.signalBeforeDbm : ticket.signalAfterDbm;
+      if (dbm === null || dbm === undefined) return;
+      const idx = state.customers.findIndex(c => String(c.id) === String(ticket.customerId));
+      if (idx < 0) return;
+      state.customers[idx] = appendSignalReading(state.customers[idx], {
+        dbm,
+        source: phase === 'before' ? 'complaint-before' : 'complaint-after',
+        complaintId: ticket.id
+      });
+      save();
+      renderDashboard();
+      renderDetail();
+    },
     onLogSaadVisit: (ticket) => {
       const prefill = buildVisitPrefillFromTicket(ticket, state.customers || []);
       if (prefill && saadVisitsModalController) saadVisitsModalController.open(prefill);
@@ -10684,6 +10749,10 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts)
   });
   splitterMapModalController = setupSplitterMapModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  // OWNER-SIGNAL: per-mohalla average signal view (read-only).
+  areaSignalModalController = setupAreaSignalModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
   monthlyComplaintReportModalController = setupMonthlyComplaintReportModal(() => state, {

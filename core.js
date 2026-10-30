@@ -26,6 +26,7 @@ import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements } from './part
 import { sanitizeOverheads } from './fixed-overheads.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { sanitizeSignalReadings } from './signal-history.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
@@ -179,6 +180,9 @@ export function readState(storage, key = STORAGE_KEY) {
       splitterPort:Number.isInteger(Number(customer.splitterPort)) && Number(customer.splitterPort) >= 1 && Number(customer.splitterPort) <= 16 ? Number(customer.splitterPort) : null,
       oltPonPort:typeof customer.oltPonPort === 'string' ? customer.oltPonPort.trim().slice(0, 100) : '',
       lastRxDbm:Number.isFinite(Number(customer.lastRxDbm)) && customer.lastRxDbm !== '' && customer.lastRxDbm !== null && customer.lastRxDbm !== undefined ? Math.round(Number(customer.lastRxDbm) * 10) / 10 : null,
+      // OWNER-SIGNAL: append-only signal reading history — old saves
+      // without it load as an empty history, never invented readings.
+      signalReadings:sanitizeSignalReadings(customer.signalReadings),
       // SISP-23: installation cost fields — optional, null when unrecorded.
       mediaConverterCost:normalizeMoneyOrNull(customer.mediaConverterCost),
       linemanInstallFee:normalizeMoneyOrNull(customer.linemanInstallFee),
@@ -2642,6 +2646,15 @@ function validateBackupState(source) {
       if (entry.extraFiberMeters !== null && entry.extraFiberMeters !== undefined && !Number.isFinite(Number(entry.extraFiberMeters))) throw new Error(`Backup customer #${customer.customerNumber} has an invalid relocation fiber length.`);
       validBackupAmount(entry.shiftingFee, 'relocation shifting fee', true);
     }
+    // OWNER-SIGNAL: signal readings travel with the customer; old backups
+    // without the field import as an empty history (backward compatible).
+    // Entries are cleaned by sanitizeSignalReadings in the return below —
+    // a malformed reading is dropped there, never invented or fatal.
+    const backupSignalReadings = customer.signalReadings ?? [];
+    if (!Array.isArray(backupSignalReadings)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid signal reading history.`);
+    for (const entry of backupSignalReadings) {
+      if (!entry || typeof entry !== 'object') throw new Error(`Backup customer #${customer.customerNumber} has an invalid signal reading.`);
+    }
     const scheduleMonths = new Set();
     for (const entry of schedule) {
       if (!entry || !validMonthString(entry.effectiveMonth) || scheduleMonths.has(entry.effectiveMonth)) throw new Error(`Backup customer #${customer.customerNumber} has a missing or duplicate price-effective month.`);
@@ -2742,7 +2755,10 @@ function validateBackupState(source) {
       hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },
       // SISP-32: pole & landmark fields travel with the customer in JSON backups.
       poleNumber:customer.poleNumber ?? '', boxLocationNote:customer.boxLocationNote ?? '', dropWireCoreColor:customer.dropWireCoreColor ?? '',
-      packageHistory, relocationLog, bills, incidents,      // SISP-4: installment plans travel with the customer; old backups
+      packageHistory, relocationLog, bills, incidents,
+      // OWNER-SIGNAL: the signal reading history travels with the
+      // customer, sanitized to the same shape readState produces.
+      signalReadings: sanitizeSignalReadings(customer.signalReadings),      // SISP-4: installment plans travel with the customer; old backups
       // without the field import as an empty plan list (backward compatible).
       installmentPlans: sanitizeInstallmentPlans(customer.installmentPlans),
       // Owner feature (2026-10-29): manual baqaya entries travel with
@@ -3088,6 +3104,13 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     customer.relocationLog = customer.relocationLog ?? [];
     for (const incomingEntry of backupCustomer.relocationLog ?? []) {
       if (!customer.relocationLog.some(existing => String(existing.id) === String(incomingEntry.id))) { customer.relocationLog.push(deepCopy(incomingEntry)); counts.changes++; }
+    }
+    // OWNER-SIGNAL: signal readings merge by reading id (never
+    // duplicated, and a differing reading with an id already on this
+    // device keeps the local copy — measurement history only ever grows).
+    customer.signalReadings = customer.signalReadings ?? [];
+    for (const incomingReading of backupCustomer.signalReadings ?? []) {
+      if (!customer.signalReadings.some(existing => String(existing.id) === String(incomingReading.id))) { customer.signalReadings.push(deepCopy(incomingReading)); counts.changes++; }
     }
     // Owner feature (2026-10-29): manual baqaya entries merge by entry
     // id — an entry only the backup holds is adopted; an entry both

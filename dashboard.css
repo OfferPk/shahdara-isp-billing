@@ -4808,6 +4808,108 @@
   padding: 8px 0 2px;
 }
 
+/* SISP-85: Dashboard Revenue Leak Audit card — zero-rate, expired
+   vacation-hold and missing-current-bill flags with the estimated
+   monthly leakage. Theme tokens only (light + dark); the amount
+   column never shrinks so full amounts stay visible at phone widths. */
+.revleak-section {
+  margin-top: 10px;
+}
+.revleak-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: 14px 13px;
+}
+.revleak-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.revleak-title {
+  font: 700 15px Manrope, system-ui, sans-serif;
+  color: var(--ink);
+  margin: 0;
+}
+.revleak-total {
+  font: 700 12px 'DM Sans', system-ui, sans-serif;
+  color: var(--color-overdue);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.revleak-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+.revleak-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.revleak-item + .revleak-item {
+  border-top: 1px solid var(--line);
+}
+.revleak-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 9px 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.revleak-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.revleak-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.revleak-sub-line {
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.revleak-flag {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-overdue);
+  overflow-wrap: anywhere;
+}
+.revleak-amount {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-overdue);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.revleak-no-estimate {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.revleak-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 8px 0 2px;
+}
+
 /* Owner feature 2026-10-29: Dashboard Advance Held KPI card + holders
    dialog rows. Theme tokens only, so light and dark modes both read
    correctly; the amount column never shrinks, so full amounts stay

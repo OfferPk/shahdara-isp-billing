@@ -96,6 +96,7 @@ import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOu
 import { t } from './nav-language.js';
 import { advanceBalanceCents, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { canonicalLocation } from './phase3.js';
+import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
 import {
   computeWaadaChipDate,
@@ -676,8 +677,11 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         : '<p class="field-mode-empty">No customers with dues here. Try another area or search.</p>';
       return;
     }
+    const nameState = typeof getState === 'function' ? getState() : null;
+    const nameIndex = buildSameNameIndex(nameState?.customers);
     listEl.innerHTML = visible.map(entry => {
       const badge = waadaBadgeLabel(liveCustomer(entry.id), todayStr());
+      const sameNameBadge = sameNameBadgeHtml(nameState, liveCustomer(entry.id), new Date(), nameIndex);
       const zone = fieldModeZoneOf(liveCustomer(entry.id) ?? entry);
       // SEARCH FIX colour coding: strip + word chip from the engine
       // figures — RED due, YELLOW advance credit waiting, GREEN paid.
@@ -699,6 +703,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         <span class="field-mode-customer-main">
           <strong>${escapeHtml(entry.name)}</strong>
           <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${creditNote}</small>
+          ${sameNameBadge}
           ${chip}
         </span>
         <span class="field-mode-customer-due">${escapeHtml(figure)}</span>

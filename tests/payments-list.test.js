@@ -48,3 +48,22 @@ test('app.js renders compact payment rows with every action kept, and delete has
   assert.match(app, /input:\{ label:'Reason \(optional, kept in the deletion log\)'/);
   assert.match(app, /askLabel:'WhatsApp receipt'/);
 });
+
+test('transactions advance badge sits on its own line in tx-main, never in the auto-width tx-side (FIX-TXN-NAME)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../payments-list.css', import.meta.url), 'utf8');
+  const defAt = app.indexOf('const advanceBadge = transaction.isAdvance');
+  assert.ok(defAt > -1, 'transactions advance badge definition exists');
+  const region = app.slice(defAt, app.indexOf("}).join('')", defAt));
+  const mainAt = region.indexOf('<span class="tx-main">');
+  const sideAt = region.indexOf('<span class="tx-side">');
+  const badgeAt = region.indexOf('${advanceBadge}');
+  assert.ok(mainAt > -1 && sideAt > mainAt, 'row renders tx-main before tx-side');
+  assert.ok(region.indexOf('transaction-customer') > mainAt && region.indexOf('transaction-customer') < badgeAt, 'customer name renders inside tx-main, above the badge line');
+  assert.ok(badgeAt > mainAt && badgeAt < sideAt, 'advance badge interpolates inside tx-main, before tx-side opens');
+  assert.equal(region.split('${advanceBadge}').length - 1, 1, 'advance badge is interpolated exactly once in the row');
+  const sideSlice = region.slice(sideAt, region.indexOf('<span class="tx-chevron"'));
+  assert.ok(!sideSlice.includes('${advanceBadge}'), 'tx-side carries amount/status only, so its auto width can never starve the name column');
+  assert.match(css, /\.tx-main > \.advance-badge \{ justify-self: start; \}/, 'badge hugs its content on its own tx-main line instead of stretching');
+});

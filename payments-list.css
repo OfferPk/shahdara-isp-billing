@@ -26,6 +26,11 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tx-main .transaction-customer-number { color: #5d7a6f; font-weight: 600; margin-right: 6px; }
+/* FIX-TXN-NAME: the advance badge gets its own line inside .tx-main (it used
+   to sit in the auto-width .tx-side, where the long "Advance · for <Month>"
+   variant starved the name column into an ellipsis). As a grid item it must
+   hug its content, not stretch the full column width. */
+.tx-main > .advance-badge { justify-self: start; }
 .tx-sub { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #4f6a60; min-width: 0; }
 .tx-date { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tx-method-chip {

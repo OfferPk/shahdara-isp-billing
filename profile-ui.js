@@ -485,3 +485,22 @@ export function upsellProfileHintHtml(candidate, formatAmountFn = (n) => String(
   const textLine = t('prof_upsell_text', null, { target: candidate.targetLabel, price: formatAmountFn(candidate.targetPrice), gain: formatAmountFn(candidate.gainPerMonth) });
   return `<section class="profile-referral-section" aria-label="${esc(t('prof_upsell_heading'))}"><h4>${esc(t('prof_upsell_heading'))}</h4><p>${esc(textLine)}</p>${candidate.whatsappUrl ? `<p><a class="secondary-button" href="${esc(candidate.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${esc(t('upsell_offer'))}</a></p>` : ''}</section>`;
 }
+
+/**
+ * SISP-69: profile bottleneck hint. Renders ONLY for a customer flagged
+ * by hardware-speed-audit.js (catalogue speed >= 15 Mbps AND last RX
+ * below the -26.0 dBm weak-signal line — computed read-only there; this
+ * helper just formats the row); returns '' for everyone else. The RX
+ * figure is formatted by the caller with splitter-map.js's own
+ * formatRxDbm so the profile optical section and this hint can never
+ * disagree on the reading.
+ */
+export function bottleneckProfileHintHtml(suspect, formatRxFn = (v) => String(v ?? '')) {
+  if (!suspect) return '';
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const textLine = t('prof_hwaudit_text', null, { label: suspect.packageLabel, rx: formatRxFn(suspect.lastRxDbm) });
+  const complaintsLine = suspect.slowSpeedComplaints > 0
+    ? t('hwaudit_complaints', null, { count: suspect.slowSpeedComplaints })
+    : t('hwaudit_no_complaints');
+  return `<section class="profile-referral-section" aria-label="${esc(t('prof_hwaudit_heading'))}"><h4>${esc(t('prof_hwaudit_heading'))}</h4><p>${esc(textLine)}</p><p>${esc(complaintsLine)}</p></section>`;
+}

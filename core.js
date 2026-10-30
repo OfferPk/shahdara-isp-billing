@@ -15,6 +15,7 @@ import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
+import { sanitizeUpsNodes } from './power-backup-monitor.js';
 import { sanitizeReferralCredits } from './referral-credits.js';
 import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { sanitizeWaTemplates } from './whatsapp-templates.js';
@@ -2520,6 +2521,17 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSuspensePayments(options.suspensePayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), suspensePayments: cleaned };
   }
+  // SISP-62: power backup nodes (OLT / feeder UPS registry + outage
+  // timers) live outside the ledger state (localStorage key
+  // sisp_ups_nodes_v1), so they travel in an optional
+  // `settings.upsNodes` section — including any running outage, so a
+  // restore mid-loadshedding keeps the battery timer honest. Written
+  // only when at least one node exists; readers that predate it
+  // ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.upsNodes) && options.upsNodes.length) {
+    const cleaned = sanitizeUpsNodes(options.upsNodes);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), upsNodes: cleaned };
+  }
   // SISP-40: referral credit queue entries live outside the ledger state
   // (localStorage key sisp_referral_credits_v1), so they travel in an
   // optional `settings.referralCredits` section. Written only when at
@@ -3128,6 +3140,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Suspense payment records differ from this device' });
     }
   }
+  // SISP-62 power backup nodes: optional registry section (see
+  // createJsonBackup). Safe-merge rule, same as suspense payments:
+  // adopt the backup's nodes only when this device has none stored
+  // yet; when both sides hold different real nodes, keep existing +
+  // conflict (a running outage timer must never be silently replaced).
+  let upsNodes = null;
+  const rawIncomingUpsNodes = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.upsNodes
+    : undefined;
+  if (Array.isArray(rawIncomingUpsNodes) && rawIncomingUpsNodes.length) {
+    const incomingUpsNodes = sanitizeUpsNodes(rawIncomingUpsNodes);
+    const currentUpsNodes = (options && typeof options === 'object' && Array.isArray(options.currentUpsNodes))
+      ? sanitizeUpsNodes(options.currentUpsNodes)
+      : [];
+    if (incomingUpsNodes.length && sameJson(incomingUpsNodes, currentUpsNodes)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingUpsNodes.length && (!options?.currentUpsNodesStored || currentUpsNodes.length === 0)) {
+      upsNodes = incomingUpsNodes;
+      counts.upsNodesRestored = 1;
+      counts.changes++;
+    } else if (incomingUpsNodes.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Power backup node records differ from this device' });
+    }
+  }
   // SISP-40 referral credits: optional queue section (see
   // createJsonBackup). Safe-merge rule, same as suspense payments: adopt
   // the backup's entries only when this device has none stored yet; when
@@ -3262,5 +3298,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, referralCredits, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

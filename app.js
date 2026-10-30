@@ -14,7 +14,7 @@ import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
-  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla
+  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla, DEFAULT_MOHALLAS
 } from './phase3.js?v=1.11.0';
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
@@ -152,7 +152,7 @@ import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, v
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { applyFifoPaymentEventToState, buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
-import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, complaintCustomerLabel, formatDowntimeHours, loadComplaints, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
+import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, buildVisitPrefillFromTicket, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment } from './complaint-tickets.js';
 import { assignTicketForComplaint, linkedTicketSummary, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
@@ -181,6 +181,7 @@ import { buildCollectionForecast } from './collection-forecaster.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { recordPrepay, prepayQuote, PREPAY_MONTH_OPTIONS } from './advance-prepay.js';
+import { UPS_NODES_KEY, activeOutages, checkUpsNodeDepletions, formatClockTime, loadUpsNodes, powerBackupSummary, saveUpsNodes, setupPowerBackupModal } from './power-backup-monitor.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
@@ -423,6 +424,7 @@ export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
+export let powerBackupModalController = null;
 export let qrScannerModalController = null;
 export let linemanScorecardModalController = null;
 export let lateFeeModalController = null;export let worklistsModalController = null;
@@ -778,6 +780,50 @@ function checkMonthlyBilling() {
   const updated = generateMonthlyBillsThroughCurrentMonth(state, new Date());
   if (updated !== state) { state = updated; save(); }
 }
+/**
+ * SISP-62: Power Backup dashboard surfaces — the summary card (node
+ * count / on-battery state / soonest battery to die) and the active
+ * outage strip (hidden unless an outage is running). Also called by
+ * the 30-second power tick so remaining times stay live without a
+ * full dashboard re-render.
+ */
+function renderPowerBackupDashboard(now = new Date()) {
+  const nodes = loadUpsNodes();
+  const summary = powerBackupSummary(nodes, now);
+  const valueEl = $('#dashboardPowerValue');
+  if (valueEl) {
+    valueEl.textContent = summary.nodeCount === 0
+      ? t('pwr_card_none')
+      : summary.activeCount > 0
+        ? t('pwr_card_outage', null, { count: summary.activeCount })
+        : t('pwr_card_ok', null, { count: summary.nodeCount });
+  }
+  const periodEl = $('#dashboardPowerPeriod');
+  if (periodEl) {
+    periodEl.textContent = summary.worst
+      ? (summary.worst.status.depleted
+        ? `${summary.worst.node.name} · ${t('pwr_row_depleted')}`
+        : t('pwr_card_next', null, { name: summary.worst.node.name, label: summary.worst.status.remainingLabel }))
+      : t('pwr_card_sub');
+  }
+  const section = $('#powerOutageSection');
+  if (section) {
+    const active = activeOutages(nodes, now);
+    section.hidden = active.length === 0;
+    const listEl = $('#powerOutageList');
+    if (listEl) {
+      listEl.innerHTML = active.map(({ node, status }) => `
+        <li class="power-outage-item${status.depleted ? ' power-outage-item-depleted' : ''}">
+          <span class="power-outage-main">
+            <strong class="power-outage-name" dir="auto">${escapeHtml(node.name)}</strong>
+            <span class="power-outage-sub">${escapeHtml(t('pwr_status_since', null, { time: formatClockTime(status.startedAt) }))}</span>
+          </span>
+          <strong class="power-outage-remaining">${escapeHtml(status.depleted ? t('pwr_row_depleted') : t('pwr_row_remaining', null, { label: status.remainingLabel }))}</strong>
+        </li>`).join('');
+    }
+  }
+}
+
 function renderDashboard() {
   const referenceDate = new Date();
   // SISP-27: upstream bandwidth bill due banner.
@@ -861,6 +907,8 @@ function renderDashboard() {
       }).join('');
     upsellListEl.querySelectorAll('[data-upsell-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.upsellCustomerId)));
   }
+  // SISP-62: power backup summary card + active outage strip.
+  renderPowerBackupDashboard(referenceDate);
   // SISP-2: monthly billing cycle card (last run + open the cycle modal).
   const cycleSummaryEl = $('#billingCycleSummary');
   if (cycleSummaryEl) {
@@ -3250,7 +3298,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), referralCredits: loadReferralCredits(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -3265,6 +3313,7 @@ function backupRestoreOptions() {
   let pendingWorksStored = false;
   let billingGroupsStored = false;
   let suspensePaymentsStored = false;
+  let upsNodesStored = false;
   let referralCreditsStored = false;
   let partnerLedgerStored = false;
   let partnerSettlementsStored = false;
@@ -3281,6 +3330,7 @@ function backupRestoreOptions() {
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   try { billingGroupsStored = localStorage.getItem(GROUP_BILLING_KEY) !== null; } catch { billingGroupsStored = false; }
   try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
+  try { upsNodesStored = localStorage.getItem(UPS_NODES_KEY) !== null; } catch { upsNodesStored = false; }
   try { referralCreditsStored = localStorage.getItem(REFERRAL_CREDITS_KEY) !== null; } catch { referralCreditsStored = false; }
   let notesStored = false;
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
@@ -3293,7 +3343,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentReferralCredits: loadReferralCredits(), currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -4138,6 +4188,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.suspensePayments) {
       saveSuspensePayments(pendingBackupPreview.suspensePayments);
+    }
+    if (pendingBackupPreview.upsNodes) {
+      saveUpsNodes(pendingBackupPreview.upsNodes);
     }
     if (pendingBackupPreview.referralCredits) {
       saveReferralCredits(pendingBackupPreview.referralCredits);
@@ -10663,6 +10716,47 @@ if (typeof document !== 'undefined') {
       };
     }
   });
+  // SISP-62: power backup monitor (head-end / feeder UPS registry +
+  // WAPDA outage timer). The depletion logger writes through the existing
+  // SISP-15 complaint register API — an AREA_OUTAGE entry whose
+  // reportedAt is the moment the battery actually ran out, even when
+  // the app was closed at that moment and only notices on this tick.
+  const logPowerDepletionComplaint = (node, depletedAtMs) => {
+    const complaints = loadComplaints();
+    const zone = node.fedZones.length ? node.fedZones.join(', ') : node.name;
+    const complaint = createComplaint({
+      customerId: AREA_OUTAGE_CUSTOMER_ID,
+      areaOutage: true,
+      zone,
+      issueCategory: 'WAPDA / Power Outage',
+      reportedAt: pakistanDateTimeNow(new Date(depletedAtMs)),
+      resolutionNote: `Auto-logged by the Power Backup monitor: the UPS battery for ${node.name} ran out during a WAPDA outage (rated backup ${node.ratedBatteryHours}h, WAPDA still off).`
+    }, complaints);
+    saveComplaints([...complaints, complaint]);
+    return complaint.id;
+  };
+  const runPowerBackupDepletionCheck = () => {
+    try {
+      const nodes = loadUpsNodes();
+      if (!nodes.some((node) => node.outage)) return;
+      const result = checkUpsNodeDepletions(nodes, new Date(), logPowerDepletionComplaint);
+      if (result.logged.length) {
+        saveUpsNodes(result.nodes);
+        result.logged.forEach((entry) => toast(t('pwr_toast_depleted', null, { name: entry.name }), { type: 'error' }));
+      }
+      renderPowerBackupDashboard(new Date());
+      if (powerBackupModalController) powerBackupModalController.refresh();
+    } catch {}
+  };
+  powerBackupModalController = setupPowerBackupModal(() => state, {
+    onNodesChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts),
+    getZones: () => [...DEFAULT_MOHALLAS, ...collectComplaintZones(state)],
+    logAreaOutage: logPowerDepletionComplaint
+  });
+  runPowerBackupDepletionCheck();
+  setInterval(runPowerBackupDepletionCheck, 30000);
   // SISP-19: pending hardware recovery modal (derived list, no new store).
   const hardwareRecoveryModal = $('#hardwareRecoveryModal');
   const hardwareRecoveryList = $('#hardwareRecoveryList');

@@ -56,6 +56,17 @@
  *   stamps are not work duration. The link is the visit's ticketId, so
  *   a ticket with a logged visit shows "Saad visit logged" instead of
  *   the button and can never be logged twice from here.
+ * - OWNER-SIGNAL (owner feature, 2026-10-30): a ticket may carry the
+ *   optical RX reading measured when the fault was reported
+ *   (signalBeforeDbm, prefilled from the customer's current lastRxDbm)
+ *   and the reading measured after the fix (signalAfterDbm, entered at
+ *   resolution). Both are OPTIONAL — resolving without an after reading
+ *   stays fully allowed — and both ride the ticket record through the
+ *   settings.tickets backup section via sanitizeTickets. The setup
+ *   controller reports each saved reading through the host's
+ *   onTicketSignal hook so the app can journal it into the customer's
+ *   signal history (signal-history.js); this module never touches the
+ *   customer ledger itself.
  * - This module imports nothing: it is self-contained so the backup merge
  *   in core.js can sanitize tickets without a module cycle.
  *
@@ -118,6 +129,27 @@ function clone(value) {
 
 function cleanText(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+/**
+ * OWNER-SIGNAL: ticket before/after RX readings follow the exact SISP-24
+ * rule (core.js checkRxDbm): '' / null / undefined means "not recorded"
+ * (null — never a faked 0); a recorded value must be finite and inside
+ * -60..+10 dBm, rounded to 1 decimal. This module imports nothing, so
+ * the rule is mirrored here in throwing + sanitizing twins.
+ */
+function checkTicketSignalDbm(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < -60 || number > 10) throw new Error('Optical RX signal must be between -60 and 10 dBm.');
+  return Math.round(number * 10) / 10;
+}
+
+function sanitizeTicketSignalDbm(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number < -60 || number > 10) return null;
+  return Math.round(number * 10) / 10;
 }
 
 function escapeHtml(str) {
@@ -250,6 +282,9 @@ export function sanitizeTickets(value) {
       // SISP-44: set only while this ticket's Resolved state was
       // produced by the complaint sync from that register complaint.
       resolvedViaComplaintId: COMPLAINT_ID_RE.test(String(entry.resolvedViaComplaintId || '')) ? String(entry.resolvedViaComplaintId) : '',
+      // OWNER-SIGNAL: before/after RX readings (null = not recorded).
+      signalBeforeDbm: sanitizeTicketSignalDbm(entry.signalBeforeDbm),
+      signalAfterDbm: sanitizeTicketSignalDbm(entry.signalAfterDbm),
       stockDeductions: Array.isArray(entry.stockDeductions) ? clone(entry.stockDeductions) : [],
       stockDeducted: entry.stockDeducted === true
     });
@@ -294,6 +329,9 @@ export function createTicket(input, existing, referenceDate = new Date()) {
   if (complaintId && !COMPLAINT_ID_RE.test(complaintId)) {
     throw new Error('Linked complaint id must look like CMP-101.');
   }
+  // OWNER-SIGNAL: the "signal right now" reading is optional; when one
+  // is supplied it must satisfy the SISP-24 range (throws otherwise).
+  const signalBeforeDbm = checkTicketSignalDbm(input?.signalBeforeDbm);
   return {
     id: nextTicketId(list),
     customerId,
@@ -314,6 +352,8 @@ export function createTicket(input, existing, referenceDate = new Date()) {
     chargePaidAt: '',
     chargePaymentId: '',
     resolvedViaComplaintId: '',
+    signalBeforeDbm,
+    signalAfterDbm: null,
     stockDeductions: [],
     stockDeducted: false
   };
@@ -373,7 +413,16 @@ export function resolveTicket(list, id, options = {}) {
     // A direct field resolution is a human decision, not a synced one:
     // clear the SISP-44 provenance stamp (the sync layer stamps it
     // again immediately after its own resolveTicket calls).
-    resolvedViaComplaintId: ''
+    resolvedViaComplaintId: '',
+    // OWNER-SIGNAL: the after-fix reading is optional (resolving
+    // without one stays fully allowed). A supplied value is validated
+    // exactly like SISP-24; re-resolving after a reopen without a
+    // fresh value keeps the previously recorded reading — the same
+    // "nothing about the field visit is silently lost" rule the
+    // materials and charges follow.
+    signalAfterDbm: options.signalAfterDbm !== undefined && options.signalAfterDbm !== null && options.signalAfterDbm !== ''
+      ? checkTicketSignalDbm(options.signalAfterDbm)
+      : (ticket.signalAfterDbm ?? null)
   };
   resolved.stockDeductions = ticketStockDeductions(resolved);
   resolved.stockDeducted = false;
@@ -728,6 +777,20 @@ export function applyTicketStockBridge(tickets, movements, addMovementFn, option
   return { tickets: nextTickets, movements: nextMovements, deducted, reversed, failures };
 }
 
+/**
+ * OWNER-SIGNAL: the ticket's signal pair as one honest line —
+ * "-24 → -19 dBm" when both sides were measured, the single recorded
+ * side on its own otherwise, and '' when nothing was measured.
+ */
+export function ticketSignalLabel(ticket) {
+  const before = sanitizeTicketSignalDbm(ticket?.signalBeforeDbm);
+  const after = sanitizeTicketSignalDbm(ticket?.signalAfterDbm);
+  if (before !== null && after !== null) return `${before} → ${after} dBm`;
+  if (before !== null) return `Before fix: ${before} dBm`;
+  if (after !== null) return `After fix: ${after} dBm`;
+  return '';
+}
+
 /** Fault label: preset, else the custom fault text. */
 export function ticketFaultLabel(ticket) {
   if (!ticket) return '';
@@ -748,7 +811,7 @@ function materialLineLabel(line) {
  * getState is the app state accessor (customers list); tickets live in
  * their own localStorage ledger, like the complaint register.
  */
-export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds } = {}) {
+export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds, onTicketSignal } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('fieldTicketsModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -810,6 +873,8 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         <label><input type="radio" name="ticketResolveBilling_${ticket.id}" value="free" checked> Free Maintenance</label>
         <label><input type="radio" name="ticketResolveBilling_${ticket.id}" value="billed"> Billed to Customer</label>
       </div>
+      <label class="field-label" for="ticketResolveSignalAfter_${ticket.id}">Signal after fix (dBm) — optional</label>
+      <input id="ticketResolveSignalAfter_${ticket.id}" class="form-input" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="e.g. -19.0" data-resolve-signal-after>
       <button class="primary-button" type="submit">Mark resolved</button>
     </form>`;
   }
@@ -886,6 +951,7 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         <p><span>Created</span><span>${escapeHtml(t.createdAt || 'not recorded')}</span></p>
         ${t.resolvedAt ? `<p><span>Resolved</span><span>${escapeHtml(t.resolvedAt)}</span></p>` : ''}
         ${t.note ? `<p><span>Note</span><span>${escapeHtml(t.note)}</span></p>` : ''}
+        ${ticketSignalLabel(t) ? `<p><span>Signal</span><strong>${escapeHtml(ticketSignalLabel(t))}</strong></p>` : ''}
         ${materials}${charge}${stock}
         <div class="ticket-card-actions">${statusButtons(t)}${chargeBtn}${saadVisitBtn}</div>
         <div class="ticket-resolve-slot" data-resolve-slot="${escapeHtml(t.id)}"></div>
@@ -927,6 +993,18 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
     btn.addEventListener('click', () => setAddPreset(btn.dataset.ticketPreset || ''));
   });
 
+  // OWNER-SIGNAL: picking the customer prefills the "signal now" field
+  // with their current last RX reading (still editable — clearing the
+  // field stores nothing, so an unmeasured visit records no reading).
+  const addCustomerSelect = $('ticketAddCustomer');
+  if (addCustomerSelect) addCustomerSelect.addEventListener('change', () => {
+    const signalInput = $('ticketAddSignalBefore');
+    if (!signalInput) return;
+    const state = getState() || { customers: [] };
+    const customer = (Array.isArray(state.customers) ? state.customers : []).find((c) => String(c.id) === String(addCustomerSelect.value));
+    signalInput.value = customer && customer.lastRxDbm !== null && customer.lastRxDbm !== undefined ? String(customer.lastRxDbm) : '';
+  });
+
   const addForm = $('ticketAddForm');
   if (addForm) addForm.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -944,10 +1022,14 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         customFault,
         technician: $('ticketAddTechnician')?.value || '',
         priority: $('ticketAddPriority')?.value || 'Normal',
-        note: $('ticketAddNote')?.value || ''
+        note: $('ticketAddNote')?.value || '',
+        signalBeforeDbm: $('ticketAddSignalBefore')?.value || ''
       }, loadTickets());
       const next = [...loadTickets(), ticket];
       persist(next);
+      // OWNER-SIGNAL: a saved before reading is a fresh measurement —
+      // the host journals it into the customer's signal history.
+      if (ticket.signalBeforeDbm !== null && typeof onTicketSignal === 'function') onTicketSignal(ticket, 'before');
       onToast && onToast(`Ticket ${ticket.id} recorded.`);
       addForm.reset();
       setAddPreset('');
@@ -1019,10 +1101,14 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
       }
       const billingInput = form.querySelector(`input[name="ticketResolveBilling_${CSS.escape(id)}"]:checked`);
       const billingType = billingInput ? billingInput.value : 'free';
+      const signalAfterRaw = form.querySelector('[data-resolve-signal-after]')?.value ?? '';
       try {
-        const next = resolveTicket(loadTickets(), id, { materialsUsed, billingType });
+        const next = resolveTicket(loadTickets(), id, { materialsUsed, billingType, signalAfterDbm: signalAfterRaw });
         persist(next);
         const entry = next.find((t) => t.id === id);
+        // OWNER-SIGNAL: a freshly entered after reading is journalled
+        // into the customer's signal history by the host.
+        if (signalAfterRaw !== '' && entry && entry.signalAfterDbm !== null && typeof onTicketSignal === 'function') onTicketSignal(entry, 'after');
         onToast && onToast(entry && entry.billingType === 'billed'
           ? `Ticket ${id} resolved — PKR ${entry.billedAmount} added to pending ticket charges.`
           : `Ticket ${id} resolved.`);

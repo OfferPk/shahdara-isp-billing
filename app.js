@@ -141,6 +141,7 @@ import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupZoneSheetDialog } from './lineman-sheet-print.js';
 import { setupExpenseVoucherDialog } from './expense-voucher-print.js';
+import { setupOwnerPinGuard, guardDecision, loadOwnerPinRecord } from './owner-pin-guard.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
@@ -429,6 +430,7 @@ export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let zoneSheetDialogController = null;
 export let expenseVoucherDialogController = null;
+export let ownerPinGuardController = null;
 export let multiMonthMatrixController = null;
 export let areaCollectionsModalController = null;
 export let packageRevenueModalController = null;
@@ -4827,6 +4829,26 @@ async function requestDeletePayment(customerId, month, paymentId) {
     toast(`${formatAmount(payment.amount)} from #${customer.customerNumber} ${customer.name} was removed from this device.`, { type:'success', title:'Payment deleted', duration:5000, actionLabel:'Undo', onAction:() => undoDeletePayment(customerId, month, removed, index) });
   } catch (error) { toast(error.message, { type:'error' }); }
 }
+// SISP-80: Owner PIN gate for the restricted money-oversight actions
+// (Partner Settlement, partner share tabs, expense deletion, payment
+// void). Disabled by default: with no PIN record on the device — or
+// Restricted Mode OFF — requireOwnerPin resolves true immediately and
+// no flow changes. The controller is set up lazily so gating works
+// whichever init path ran first; if the dialog is somehow unavailable
+// while the lock is ACTIVE, the gate fails closed instead of waving
+// the action through.
+function ensureOwnerPinGuard() {
+  if (!ownerPinGuardController && typeof document !== 'undefined' && document.getElementById('ownerPinDialog')) {
+    ownerPinGuardController = setupOwnerPinGuard({ onToast: (msg, opts) => toast(msg, opts) });
+  }
+  return ownerPinGuardController;
+}
+async function requireOwnerPin(action) {
+  const controller = ensureOwnerPinGuard();
+  if (controller) return controller.requireUnlock(action);
+  return !guardDecision(loadOwnerPinRecord(), action, { sessionUnlocked: false }).blocked;
+}
+
 // SISP-34: 1-click payment void with a required reason. The dialog is
 // markup in index.html (voidPaymentDialog); this controller only fills
 // it, validates the reason, and persists the void with a rollback guard:
@@ -4834,6 +4856,10 @@ async function requestDeletePayment(customerId, month, paymentId) {
 // fails, the previous ledger is written back so a void never half-applies.
 let pendingVoidTarget = null;
 function openVoidPaymentDialog(customerId, month, paymentId) {
+  // SISP-80: voiding is restricted while the Owner PIN lock is active.
+  requireOwnerPin('payment-void').then(ok => { if (ok) openVoidPaymentDialogUnlocked(customerId, month, paymentId); });
+}
+function openVoidPaymentDialogUnlocked(customerId, month, paymentId) {
   const customer = state.customers.find(item => item.id === customerId);
   const payment = customer?.bills.find(bill => bill.month === month)?.payments.find(item => item.id === paymentId);
   if (!customer || !payment) { toast('Payment not found.'); return; }
@@ -8257,6 +8283,8 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',async()=>{
     const row=allRows.find(item=>item.id===button.dataset.deleteExpense);
     if(!row)return;
+    // SISP-80: expense deletion is restricted while the Owner PIN lock is active.
+    if(!await requireOwnerPin('expense-delete'))return;
     const areaNote=row.area?` [${row.area}]`:'';
     if(!await appConfirm({tone:'danger',title:'Delete this expense?',subject:`${formatAmount(row.amount)} · ${row.category}${areaNote} · ${row.date}`,message:'It will be removed from this device\'s expense ledger, totals and exports.',confirmLabel:'Delete expense'}))return;
     try{
@@ -8712,7 +8740,7 @@ $('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
 });
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
-[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement'],['overheads','#expenseTabOverheads']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',()=>{expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key!=='ledger')renderPartnerShare(key);});});
+[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement'],['overheads','#expenseTabOverheads']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',async()=>{const pinAction=key==='settlement'?'partner-settlement':(key==='nasir'||key==='aqib')?'partner-shares':null;if(pinAction&&!await requireOwnerPin(pinAction))return;expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key!=='ledger')renderPartnerShare(key);});});
 $('#nasirShareMonth')?.addEventListener('change',event=>{nasirShareMonth=event.currentTarget.value;renderPartnerShare('nasir');});
 $('#aqibShareMonth')?.addEventListener('change',event=>{aqibShareMonth=event.currentTarget.value;renderPartnerShare('aqib');});
 $('#partnerSettlementMonth')?.addEventListener('change',event=>{partnerSettlementMonth=event.currentTarget.value;renderPartnerSettlement();});
@@ -10961,6 +10989,9 @@ if (typeof document !== 'undefined') {
     getPartnerEntries: () => loadPartnerLedgerEntries(),
     onToast: (msg, opts) => toast(msg, opts)
   });
+  ownerPinGuardController = setupOwnerPinGuard({
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   multiMonthMatrixController = setupMultiMonthMatrix(() => state, {
     getComplaints: () => loadComplaints()
   });
@@ -12178,6 +12209,13 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const ownerPinDialog = $('#ownerPinDialog');
+  if (ownerPinDialog && !ownerPinGuardController) {
+    ownerPinGuardController = setupOwnerPinGuard({
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
   if (!multiMonthMatrixController) {
     multiMonthMatrixController = setupMultiMonthMatrix(() => state, {
       getComplaints: () => loadComplaints()
@@ -12377,6 +12415,7 @@ if (typeof document !== 'undefined') {
     window.topDefaultersModalController = topDefaultersModalController;
     window.zoneSheetDialogController = zoneSheetDialogController;
     window.expenseVoucherDialogController = expenseVoucherDialogController;
+    window.ownerPinGuardController = ownerPinGuardController;
     window.areaCollectionsModalController = areaCollectionsModalController;
     window.packageRevenueModalController = packageRevenueModalController;
     window.pnlModalController = pnlModalController;

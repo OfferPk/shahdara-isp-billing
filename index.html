@@ -6545,6 +6545,7 @@
       <!-- Group 3: ⚙️ Settings & Tools -->
       <div class="more-menu-section-label" data-i18n="more_menu_group_settings">⚙️ Settings &amp; Tools</div>
       <button type="button" data-mobile-more="digital-settings" id="mobileMoreDigitalSettingsBtn">💳 Digital Payments &amp; QR Settings</button>
+      <button type="button" data-mobile-more="owner-pin" id="mobileMoreOwnerPinBtn" data-i18n="pin_menu_btn">🔐 Owner PIN &amp; Restricted Mode</button>
       <button type="button" data-mobile-more="bluetooth-printer" id="mobileMoreBluetoothPrinterBtn" hidden>🖨️ Bluetooth Printer</button>
       <button type="button" data-mobile-more="reminder-stages" id="mobileMoreReminderStagesBtn">⚙️ Reminder Stages Rules</button>
       <button type="button" data-mobile-more="waTemplates">💬 WhatsApp Templates &amp; Campaign</button>
@@ -20456,6 +20457,54 @@
       <div class="billing-modal-footer">
         <button id="voidPaymentCancelBtn" class="secondary-button" type="button">Cancel</button>
         <button id="voidPaymentConfirmBtn" class="primary-button" type="button">Void payment</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- SISP-80: Owner PIN lock. One dialog, two modes: a PIN prompt that
+       gates Partner Settlement, partner share tabs, expense deletion and
+       payment voiding while Restricted Mode is ON, and the settings mode
+       where the owner sets/changes/removes the PIN and toggles Restricted
+       Mode. The feature is disabled by default (no PIN set = no prompts,
+       anywhere). Only a salted SHA-256 hash is stored, device-local under
+       sisp_owner_pin_v1 — never in backups. -->
+  <dialog id="ownerPinDialog" class="billing-modal owner-pin-dialog" aria-labelledby="ownerPinDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <h2 id="ownerPinDialogTitle" data-i18n="pin_prompt_title">🔐 Owner PIN required</h2>
+        <button id="ownerPinCloseBtn" class="secondary-button" type="button" aria-label="Close owner PIN dialog">✕</button>
+      </header>
+      <div id="ownerPinPromptSection" class="owner-pin-body">
+        <p class="field-help" data-i18n="pin_prompt_help">This area is locked by the owner PIN. Enter the 4-digit PIN to continue.</p>
+        <label class="field-label full" for="ownerPinPromptInput" data-i18n="pin_label">Owner PIN</label>
+        <input id="ownerPinPromptInput" class="full owner-pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]*">
+        <p id="ownerPinPromptError" class="owner-pin-error" role="alert" hidden></p>
+        <div class="billing-modal-footer owner-pin-footer">
+          <button id="ownerPinPromptCancelBtn" class="secondary-button" type="button" data-i18n="pin_cancel">Cancel</button>
+          <button id="ownerPinUnlockBtn" class="primary-button" type="button" data-i18n="pin_unlock">Unlock</button>
+        </div>
+      </div>
+      <div id="ownerPinSettingsSection" class="owner-pin-body" hidden>
+        <p id="ownerPinStatusLine" class="owner-pin-status" role="status"></p>
+        <p class="field-help" data-i18n="pin_settings_help">When Restricted Mode is ON, the PIN is required to open Partner Settlement and partner shares, delete an expense, or void a payment. Customer search, Field Mode, Quick Collect, receipts and complaints always stay unlocked. The PIN is stored on this device only, as a salted hash — never in backups.</p>
+        <div id="ownerPinCurrentField">
+          <label class="field-label full" for="ownerPinCurrentInput" data-i18n="pin_current_label">Current PIN</label>
+          <input id="ownerPinCurrentInput" class="full owner-pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]*">
+        </div>
+        <label class="field-label full" for="ownerPinNewInput" data-i18n="pin_new_label">New PIN (4 digits)</label>
+        <input id="ownerPinNewInput" class="full owner-pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]*">
+        <label class="field-label full" for="ownerPinConfirmInput" data-i18n="pin_confirm_label">Confirm new PIN</label>
+        <input id="ownerPinConfirmInput" class="full owner-pin-input" type="password" inputmode="numeric" autocomplete="off" maxlength="4" pattern="[0-9]*">
+        <label class="owner-pin-toggle">
+          <input type="checkbox" id="ownerPinRestrictedToggle">
+          <span data-i18n="pin_restricted_label">Collector / Lineman Restricted Mode</span>
+        </label>
+        <p id="ownerPinSettingsError" class="owner-pin-error" role="alert" hidden></p>
+        <div class="billing-modal-footer owner-pin-footer">
+          <button id="ownerPinRemoveBtn" class="secondary-button text-button danger" type="button" data-i18n="pin_remove">Remove PIN</button>
+          <button id="ownerPinSettingsCloseBtn" class="secondary-button" type="button" data-i18n="pin_close">Close</button>
+          <button id="ownerPinSaveBtn" class="primary-button" type="button" data-i18n="pin_save">Save</button>
+        </div>
       </div>
     </div>
   </dialog>

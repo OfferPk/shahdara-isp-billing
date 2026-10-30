@@ -195,7 +195,8 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
       expenses: 0, expenseCount: 0, expenseCategories: [], bandwidthFieldExpenses: 0,
       profit: 0, isLoss: false, nasirShare: 0, aqibShare: 0,
       totalComplaints: 0, totalDowntime: 0, areaOutageComplaints: 0, areaOutageDowntime: 0,
-      topCauses: [], savedSnapshot: null, note: ''
+      topCauses: [], savedSnapshot: null, note: '',
+      badDebtWrittenOff: 0, badDebtCustomerCount: 0
     };
   }
 
@@ -241,6 +242,15 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
       }
     : null;
 
+  // SISP-64: bad-debt register totals, computed by the caller from
+  // bad-debt-ledger.js (badDebtSummary) and passed in — the register
+  // lives outside the ledger state, and a write-off is not a monthly
+  // figure: the report carries the CURRENT active written-off total
+  // so the owner sees how much of the book is declared uncollectible.
+  const badDebtInput = inputs.badDebt && typeof inputs.badDebt === 'object' ? inputs.badDebt : {};
+  const badDebtWrittenOff = wholeRupees(Number.isFinite(Number(badDebtInput.activeTotal)) ? Number(badDebtInput.activeTotal) : 0);
+  const badDebtCustomerCount = Number.isSafeInteger(Number(badDebtInput.activeCount)) && Number(badDebtInput.activeCount) > 0 ? Number(badDebtInput.activeCount) : 0;
+
   // Network reliability — reused verbatim from the downtime analytics.
   const network = buildMonthlyDowntimeAnalytics(complaints, validMonth);
 
@@ -273,6 +283,8 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
     topCauses: (Array.isArray(network.byCause) ? network.byCause : [])
       .filter((row) => Number(row.incidents || 0) > 0)
       .map((row) => ({ category: row.category, incidents: row.incidents, totalDowntime: row.totalDowntime })),
+    badDebtWrittenOff,
+    badDebtCustomerCount,
     savedSnapshot: savedSnapshot && savedSnapshot.month === validMonth
       ? {
           savedAt: String(savedSnapshot.savedAt || ''),
@@ -308,6 +320,11 @@ export function buildOwnerKhataWhatsAppText(report) {
   }
   if (Array.isArray(report.collectionChannels) && report.collectionChannels.length) {
     lines.splice(2, 0, `Channel Split: ${report.collectionChannels.map((c) => `${c.channel} ${formatPKR(c.amount)}`).join(' · ')}`);
+  }
+  // SISP-64: declared-uncollectible money, shown only while any is
+  // still written off so a clean book adds no line.
+  if (report.badDebtWrittenOff > 0) {
+    lines.push(`Bad Debt Written Off: ${formatPKR(report.badDebtWrittenOff)} (${report.badDebtCustomerCount} customer${report.badDebtCustomerCount === 1 ? '' : 's'})`);
   }
   if (report.note) lines.push(`Owner note: ${report.note}`);
   lines.push('Ye report sirf khulasa hai — is se koi bill, payment ya khata tabdeel nahi hota.');

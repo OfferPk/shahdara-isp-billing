@@ -13,13 +13,15 @@
 //
 // The ledger-derived balance follows the spec formula per customer,
 // applied bill by bill in month order with the app's own semantics:
-//   pendingBalance = Sum(Bills + Kists) - Sum(Valid Payments) - Sum(Concessions) - Sum(Referral Credits) - Sum(Feeder Host Credits) - Sum(Deposit Offsets)
+//   pendingBalance = Sum(Bills + Kists) - Sum(Valid Payments) - Sum(Concessions) - Sum(Referral Credits) - Sum(Feeder Host Credits) - Sum(Deposit Offsets) - Sum(Bad-Debt Write-Offs)
 // where a bill's charge is dueAmount (which already includes its kist
 // lines) + lateFee + shiftingFee, concessions reduce that bill's charge,
 // a SISP-40 referral credit (bill.referralCreditAmount) reduces it the
-// same way (capped at the post-concession due), and a SISP-50
+// same way (capped at the post-concession due), a SISP-50
 // disconnection deposit offset (bill.depositOffsetAmount) reduces what
-// remains,
+// remains, and a SISP-64 bad-debt write-off
+// (bill.badDebtWriteOffAmount) stamped on a churned customer's bill
+// reduces it the same way,
 // payment discounts count as payment-side reductions, excess payment on
 // one bill carries forward as credit to later bills only, and VOIDED
 // payments (SISP-34) are never valid payments — they are excluded from
@@ -107,6 +109,7 @@ export function computeLedgerBalance(customer) {
   let referralCreditsCents = 0;
   let feederHostCreditsCents = 0;
   let depositOffsetsCents = 0;
+  let badDebtWriteOffsCents = 0;
   let creditCents = 0;
   for (const bill of bills) {
     const payments = validPaymentsOf(bill);
@@ -149,6 +152,12 @@ export function computeLedgerBalance(customer) {
     const depositOffsetCents = Math.min(cents(bill.depositOffsetAmount || 0), dueCents);
     depositOffsetsCents += depositOffsetCents;
     dueCents -= depositOffsetCents;
+    // SISP-64: a bad-debt write-off waives what is left of the bill
+    // exactly like a deposit offset (clamped so it can never take the
+    // bill below zero after the offset above).
+    const badDebtCents = Math.min(cents(bill.badDebtWriteOffAmount || 0), dueCents);
+    badDebtWriteOffsCents += badDebtCents;
+    dueCents -= badDebtCents;
     const appliedCreditCents = Math.min(creditCents, dueCents);
     creditCents -= appliedCreditCents;
     dueCents -= appliedCreditCents;
@@ -174,7 +183,7 @@ export function computeLedgerBalance(customer) {
     }
     balanceCents += dueCents;
   }
-  return { balanceCents, chargesCents, paymentsCents, discountsCents, concessionsCents, referralCreditsCents, feederHostCreditsCents, depositOffsetsCents, creditCents };
+  return { balanceCents, chargesCents, paymentsCents, discountsCents, concessionsCents, referralCreditsCents, feederHostCreditsCents, depositOffsetsCents, badDebtWriteOffsCents, creditCents };
 }
 
 /**
@@ -236,7 +245,7 @@ function checkCustomer(customer, { settlementIds, cacheEntry }) {
 
   for (const bill of bills) {
     // NaN scan over the money fields the doctor (and the app) reads.
-    for (const field of ['dueAmount', 'lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount']) {
+    for (const field of ['dueAmount', 'lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount', 'badDebtWriteOffAmount']) {
       if (isCorruptMoney(bill?.[field])) {
         issues.push(issue('nan-value', 'error', `Bill ${bill.month} has an unreadable ${field} value.`, true, { month: bill.month, field }));
       }
@@ -399,7 +408,7 @@ export function repairKhataDoctor(state, { settlements = [], voidPayments = [], 
   for (const customer of next.customers ?? []) {
     for (const bill of customer?.bills ?? []) {
       if (!bill) continue;
-      for (const field of ['lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount']) {
+      for (const field of ['lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount', 'badDebtWriteOffAmount']) {
         if (isCorruptMoney(bill[field])) { bill[field] = 0; fixes.push(`Zeroed unreadable ${field} on ${customer.name ?? customer.id} bill ${bill.month}.`); }
       }
       if (isCorruptMoney(bill.dueAmount)) { bill.dueAmount = null; fixes.push(`Marked ${customer.name ?? customer.id} bill ${bill.month} unpriced — its amount was unreadable.`); }

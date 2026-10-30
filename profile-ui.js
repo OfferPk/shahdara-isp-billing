@@ -7,6 +7,7 @@ import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.j
 import { prepaidUntilMonth } from './advance-prepay.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
+import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
 
 const BILL_STATUS = Object.freeze({
   paid: { label:'Paid', className:'status-received' },
@@ -387,6 +388,40 @@ export function depositSettlementPresentation(customer, unpaidArrears = 0) {
     refundLabel: t('prof_dep_refund', null, { amount: formatPKR(quote.netDepositRefund) }),
     noteLabel: t('prof_dep_note'),
     settleLabel: t('prof_dep_settle_btn')
+  };
+}
+
+// SISP-64: bad-debt write-off presentation for the profile. Pure: it
+// reads the register's active entry (or the live quote from
+// bad-debt-ledger.js) and formats labels — it never decides the money;
+// badDebtWriteOffQuote does that, and app.js supplies the engine
+// arrears total. Visible only on archived (churned) customers who
+// still owe money, or who already carry a write-off.
+export function badDebtPresentation(customer, entries, unpaidArrears = 0) {
+  const active = customer ? activeBadDebtFor(entries, customer.id) : null;
+  if (active) {
+    return {
+      visible: true,
+      writtenOff: true,
+      canWriteOff: false,
+      amount: active.amount,
+      writtenOffLabel: t('bd_written_off', null, { amount: formatPKR(active.amount), date: active.writeOffDate }),
+      reasonLabel: active.writeOffReason ? t('bd_reason_line', null, { reason: active.writeOffReason }) : '',
+      noteLabel: t('bd_written_off_note')
+    };
+  }
+  const quote = badDebtWriteOffQuote(customer, entries, unpaidArrears);
+  if (!quote.eligible) return { visible: false, writtenOff: false, canWriteOff: false };
+  return {
+    visible: true,
+    writtenOff: false,
+    canWriteOff: true,
+    amount: quote.amount,
+    arrearsLabel: t('bd_arrears', null, { amount: formatPKR(quote.amount) }),
+    noteLabel: t('bd_note'),
+    reasonLabel: t('bd_reason_label'),
+    reasonPlaceholder: t('bd_reason_ph'),
+    writeOffLabel: t('bd_write_off_btn')
   };
 }
 

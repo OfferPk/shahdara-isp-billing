@@ -17,6 +17,7 @@ import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
 import { sanitizeUpsNodes } from './power-backup-monitor.js';
 import { sanitizeReferralCredits } from './referral-credits.js';
+import { sanitizeBadDebts } from './bad-debt-ledger.js';
 import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
@@ -2042,6 +2043,16 @@ export function calculatePaymentAllocations(state) {
       // the Khata Doctor formula gives it. The field is absent on every
       // legacy bill, so all existing allocations are unchanged.
       dueRemainingCents -= Math.min(moneyCents(bill.depositOffsetAmount || 0), billAmountCents);
+      // SISP-64: a bad-debt write-off waives what is left of this bill
+      // (audited bill fields stamped by bad-debt-ledger.js
+      // writeOffBadDebt). It reduces the due after the deposit offset
+      // and before advance credit and receipts apply — the same
+      // treatment the Khata Doctor formula gives it — so collection
+      // targets, the forecaster and defaulter lists stop counting
+      // money the operator has declared uncollectible. The field is
+      // absent on every legacy bill, so all existing allocations are
+      // unchanged.
+      dueRemainingCents -= Math.min(moneyCents(bill.badDebtWriteOffAmount || 0), Math.max(0, dueRemainingCents));
       // FU1b: the SISP-40 referral credit and the SISP-30 outage
       // concession ride as audited bill fields exactly like the
       // deposit offset — billing-cycle.js withReferralCredit and
@@ -2921,6 +2932,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeReferralCredits(options.referralCredits);
     if (cleaned.length) document.settings = { ...(document.settings || {}), referralCredits: cleaned };
   }
+  // SISP-64: bad-debt write-off records live outside the ledger state
+  // (localStorage key sisp_bad_debts_v1), so they travel in an optional
+  // `settings.badDebts` section. Written only when at least one entry
+  // exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.badDebts) && options.badDebts.length) {
+    const cleaned = sanitizeBadDebts(options.badDebts);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), badDebts: cleaned };
+  }
   // SISP-20: monthly closing notes live outside the ledger state
   // (localStorage key sisp_monthly_closing_notes_v1), so they travel in an
   // optional `settings.monthlyClosingNotes` section. Written only when at
@@ -3134,7 +3153,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
         customer.bills.push(deepCopy(incomingBill)); counts.addedBills++; counts.addedPayments+=incomingBill.payments.length; counts.changes++;
         continue;
       }
-      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt','referralCreditAmount','referralCreditReason','referralCreditAppliedAt','depositOffsetAmount','depositOffsetReason','depositOffsetAppliedAt']) {
+      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt','referralCreditAmount','referralCreditReason','referralCreditAppliedAt','depositOffsetAmount','depositOffsetReason','depositOffsetAppliedAt','badDebtWriteOffAmount','badDebtWriteOffReason','badDebtWriteOffAt']) {
         const oldValue = existingBill[key] ?? null; const newValue = incomingBill[key] ?? null;
         if (sameJson(oldValue,newValue)) continue;
         if (!nonempty(oldValue) && nonempty(newValue)) { existingBill[key]=deepCopy(newValue); counts.changes++; }
@@ -3586,6 +3605,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Referral credit records differ from this device' });
     }
   }
+  // SISP-64 bad debts: optional register section (see
+  // createJsonBackup). Safe-merge rule, same as referral credits: adopt
+  // the backup's entries only when this device has none stored yet;
+  // when both sides hold different real entries, keep existing +
+  // conflict (a write-off must never be silently overwritten).
+  let badDebts = null;
+  const rawIncomingBadDebts = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.badDebts
+    : undefined;
+  if (Array.isArray(rawIncomingBadDebts) && rawIncomingBadDebts.length) {
+    const incomingBadDebts = sanitizeBadDebts(rawIncomingBadDebts);
+    const currentBadDebts = (options && typeof options === 'object' && Array.isArray(options.currentBadDebts))
+      ? sanitizeBadDebts(options.currentBadDebts)
+      : [];
+    if (incomingBadDebts.length && sameJson(incomingBadDebts, currentBadDebts)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingBadDebts.length && (!options?.currentBadDebtsStored || currentBadDebts.length === 0)) {
+      badDebts = incomingBadDebts;
+      counts.badDebtsRestored = 1;
+      counts.changes++;
+    } else if (incomingBadDebts.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Bad debt records differ from this device' });
+    }
+  }
   let monthlyClosingNotes = null;
   const rawIncomingNotes = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
     ? document.settings.monthlyClosingNotes
@@ -3696,5 +3739,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, badDebts, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

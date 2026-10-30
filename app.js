@@ -20,7 +20,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, upsellProfileHintHtml, prepaidUntilBadgeHtml, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, badDebtPresentation, upsellProfileHintHtml, prepaidUntilBadgeHtml, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml } from './receipt.js?v=1.11.0';
@@ -183,6 +183,7 @@ import { buildCollectionForecast } from './collection-forecaster.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { recordPrepay, prepayQuote, PREPAY_MONTH_OPTIONS } from './advance-prepay.js';
+import { BAD_DEBTS_KEY, activeBadDebtFor, badDebtSummary, loadBadDebts, restoreBadDebt, saveBadDebts, writeOffBadDebt } from './bad-debt-ledger.js';
 import { manualBaqayaCardBadgeMarkup, manualBaqayaStatMarkup, manualBaqayaSectionMarkup } from './manual-baqaya.js';
 import { UPS_NODES_KEY, activeOutages, checkUpsNodeDepletions, formatClockTime, loadUpsNodes, powerBackupSummary, saveUpsNodes, setupPowerBackupModal } from './power-backup-monitor.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
@@ -1137,6 +1138,7 @@ function renderDashboard() {
       settlements: loadShopSettlements(),
       notes: loadMonthlyClosingNotes(),
       savedSnapshot: khataSaved,
+      badDebt: badDebtSummary(loadBadDebts()),
       referenceDate
     });
     const valueEl = $('#dashboardOwnerKhataValue');
@@ -1145,7 +1147,7 @@ function renderDashboard() {
     if (periodEl) periodEl.textContent = t('dash_khata_period', null, { month: displayMonthName(khataMonth), collected: formatAmount(khata.collected), arrears: formatAmount(khata.pendingArrears) });
     ownerKhataSummaryEl.innerHTML = khata.receiptCount === 0 && khata.expenseCount === 0 && khata.totalComplaints === 0
       ? ''
-      : `<p><span>${t('dash_khata_shares')}</span><strong>${escapeHtml(formatAmount(khata.nasirShare))} / ${escapeHtml(formatAmount(khata.aqibShare))}</strong><small> · ${t('dash_khata_partners')} · ${escapeHtml(t('dash_khata_detail', null, { complaints: khata.totalComplaints, hours: khata.totalDowntime }))}</small></p>`;
+      : `<p><span>${t('dash_khata_shares')}</span><strong>${escapeHtml(formatAmount(khata.nasirShare))} / ${escapeHtml(formatAmount(khata.aqibShare))}</strong><small> · ${t('dash_khata_partners')} · ${escapeHtml(t('dash_khata_detail', null, { complaints: khata.totalComplaints, hours: khata.totalDowntime }))}</small></p>${khata.badDebtWrittenOff > 0 ? `<p><span>${t('dash_khata_baddebt', null, { amount: formatAmount(khata.badDebtWrittenOff), count: khata.badDebtCustomerCount })}</span></p>` : ''}`;
   }
   // SISP-21: digital wallet ledger card (this-month wallet totals + flags).
   const walletSummaryEl = $('#walletLedgerSummary');
@@ -2845,11 +2847,20 @@ function renderCustomerProfileView(customer) {
     if (summary && typeof summary.balanceDueCents === 'number' && summary.balanceDueCents > 0) depositArrearsCents += summary.balanceDueCents;
   }
   const depositPres = depositSettlementPresentation(customer, depositArrearsCents / 100);
+  // SISP-64: bad-debt write-off block — visible only on archived
+  // (churned) customers who still owe money or already carry an active
+  // write-off. Arrears reuse the same engine snapshot as the deposit
+  // block above, so the amount offered for write-off is exactly the
+  // collectible balance every dues surface shows.
+  const badDebtPres = badDebtPresentation(customer, loadBadDebts(), depositArrearsCents / 100);
+  const badDebtSectionHtml = !badDebtPres.visible ? '' : (badDebtPres.writtenOff
+    ? `<section class="profile-custody-section profile-bad-debt-section" aria-label="${t('bd_aria')}"><h4>${t('bd_heading')}</h4><p class="custody-recovered">${escapeHtml(badDebtPres.writtenOffLabel)}</p>${badDebtPres.reasonLabel ? `<p>${escapeHtml(badDebtPres.reasonLabel)}</p>` : ''}<p class="profile-custody-note">${escapeHtml(badDebtPres.noteLabel)}</p></section>`
+    : `<section class="profile-custody-section profile-bad-debt-section" aria-label="${t('bd_aria')}"><h4>${t('bd_heading')}</h4><p>${escapeHtml(badDebtPres.arrearsLabel)}</p><p class="profile-custody-note">${escapeHtml(badDebtPres.noteLabel)}</p><div class="form-grid"><div class="form-cell profile-bad-debt-reason"><label class="field-label full" for="profileBadDebtReason">${escapeHtml(badDebtPres.reasonLabel)}</label><input id="profileBadDebtReason" class="full" type="text" maxlength="200" placeholder="${escapeHtml(badDebtPres.reasonPlaceholder)}"></div></div><button type="button" class="primary-button" id="profileBadDebtWriteOffBtn">${escapeHtml(badDebtPres.writeOffLabel)}</button></section>`);
   const depositSettlementHtml = !depositPres.visible ? '' : (depositPres.settled
     ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
     : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${prepaidUntilBadgeHtml(state, customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${custodySectionHtml}${depositSettlementHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${prepaidUntilBadgeHtml(state, customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button></div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${opticalSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${custodySectionHtml}${depositSettlementHtml}${badDebtSectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
@@ -3110,6 +3121,38 @@ function renderCustomerProfileView(customer) {
     });
     depositSection.querySelector('#profileDepositReceiptBtn')?.addEventListener('click', () => {
       printDepositSettlementReceipt(customer.id);
+    });
+  }
+  // SISP-64: wire the bad-debt write-off block (persist + re-render).
+  // The amount is recomputed from a FRESH allocation snapshot at click
+  // time, never from the rendered block, so a stale screen can never
+  // write off stale arrears.
+  const badDebtSection = $('#customerProfileView').querySelector('.profile-bad-debt-section');
+  if (badDebtSection) {
+    badDebtSection.querySelector('#profileBadDebtWriteOffBtn')?.addEventListener('click', async () => {
+      try {
+        const freshAllocations = calculatePaymentAllocations({ customers: [customer] });
+        let arrearsCents = 0;
+        const billBalances = [];
+        for (const bill of customer.bills ?? []) {
+          const summary = freshAllocations.forMonth(customer.id, bill.month);
+          if (summary && typeof summary.balanceDueCents === 'number' && summary.balanceDueCents > 0) {
+            arrearsCents += summary.balanceDueCents;
+            billBalances.push({ month: bill.month, balanceDue: summary.balanceDueCents / 100 });
+          }
+        }
+        const reason = badDebtSection.querySelector('#profileBadDebtReason')?.value ?? '';
+        const confirmed = await appConfirm({ tone: 'warning', title: t('bd_confirm_title'), subject: `${formatAmount(arrearsCents / 100)} · #${customer.customerNumber} ${customer.name}`, message: t('bd_confirm_msg', null, { amount: formatAmount(arrearsCents / 100), number: customer.customerNumber, name: customer.name }), confirmLabel: t('bd_confirm_btn') });
+        if (!confirmed) return;
+        const result = writeOffBadDebt(loadBadDebts(), customer, billBalances, { date: getTodayDateString(), reason });
+        saveBadDebts(result.entries);
+        const idx = state.customers.findIndex(c => c.id === customer.id);
+        if (idx >= 0) state.customers[idx] = result.customer;
+        try { persistState(state, localStorage); } catch {}
+        renderDetail();
+        renderDashboard();
+        toast(t('bd_toast_done', null, { amount: formatAmount(result.entry.amount) }));
+      } catch (err) { toast(err?.message || 'Could not write off this bad debt.'); }
     });
   }
 }
@@ -3390,7 +3433,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), badDebts: loadBadDebts(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -3407,6 +3450,7 @@ function backupRestoreOptions() {
   let suspensePaymentsStored = false;
   let upsNodesStored = false;
   let referralCreditsStored = false;
+  let badDebtsStored = false;
   let partnerLedgerStored = false;
   let partnerSettlementsStored = false;
   let homeBudgetStored = false;
@@ -3424,6 +3468,7 @@ function backupRestoreOptions() {
   try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
   try { upsNodesStored = localStorage.getItem(UPS_NODES_KEY) !== null; } catch { upsNodesStored = false; }
   try { referralCreditsStored = localStorage.getItem(REFERRAL_CREDITS_KEY) !== null; } catch { referralCreditsStored = false; }
+  try { badDebtsStored = localStorage.getItem(BAD_DEBTS_KEY) !== null; } catch { badDebtsStored = false; }
   let notesStored = false;
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
   try { partnerLedgerStored = localStorage.getItem(PARTNER_LEDGER_KEY) !== null; } catch { partnerLedgerStored = false; }
@@ -3435,7 +3480,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentReferralCreditsStored: referralCreditsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentReferralCreditsStored: referralCreditsStored, currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -4286,6 +4331,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.referralCredits) {
       saveReferralCredits(pendingBackupPreview.referralCredits);
+    }
+    if (pendingBackupPreview.badDebts) {
+      saveBadDebts(pendingBackupPreview.badDebts);
     }
     if (pendingBackupPreview.monthlyClosingNotes) {
       saveMonthlyClosingNotes(pendingBackupPreview.monthlyClosingNotes);    }
@@ -5607,10 +5655,31 @@ function renderProfileProrataPreview() {
     container.hidden = true;
   }
 }
-function restoreCustomer(customerId) {
+async function restoreCustomer(customerId) {
   try {
     state = unarchiveCustomer(state, customerId, new Date());
     save();
+    // SISP-64 reconnection guard: if this customer still carries an
+    // active bad-debt write-off, offer the one-shot restore of the
+    // written-off balance into active arrears. Declining keeps the
+    // write-off in place (it can still be restored on a later
+    // unarchive only while it stays active — the register entry is
+    // never silently dropped).
+    const badDebtEntries = loadBadDebts();
+    const activeEntry = activeBadDebtFor(badDebtEntries, customerId);
+    if (activeEntry) {
+      const restoredCustomer = state.customers.find(c => c.id === customerId);
+      const confirmed = await appConfirm({ tone: 'warning', title: t('bd_restore_title'), subject: `${formatAmount(activeEntry.amount)} · #${activeEntry.customerNumber ?? restoredCustomer?.customerNumber ?? ''} ${restoredCustomer?.name ?? ''}`, message: t('bd_restore_msg', null, { amount: formatAmount(activeEntry.amount), date: activeEntry.writeOffDate }), confirmLabel: t('bd_restore_btn') });
+      if (confirmed && restoredCustomer) {
+        try {
+          const restored = restoreBadDebt(badDebtEntries, restoredCustomer, { date: getTodayDateString() });
+          saveBadDebts(restored.entries);
+          state = { ...state, customers: state.customers.map(c => c.id === customerId ? restored.customer : c) };
+          save();
+          toast(t('bd_toast_restored', null, { amount: formatAmount(restored.restoredAmount) }));
+        } catch (err) { toast(err?.message || 'Could not restore the written-off balance.'); }
+      }
+    }
     if (selectedCustomerId === customerId) renderDetail();
     toast('Customer unarchived. Billing resumes from the current or next eligible month; archived months are not backfilled.');
   } catch (error) { toast(error.message); }

@@ -27,7 +27,8 @@
  *      set) contribute nothing — there is no priced obligation yet.
  *   2. arrearsCents — arrears carried INTO the month: for every bill
  *      of an earlier month, billAmountCents minus the SISP-50 deposit
- *      offset stamped on that bill minus everything the engine had
+ *      offset stamped on that bill minus the SISP-64 bad-debt
+ *      write-off stamped on that bill minus everything the engine had
  *      already applied to that bill from payments DATED BEFORE the
  *      selected month (same-month, carry-forward and discount
  *      allocations recorded on each payment's ledger). Measuring
@@ -89,7 +90,9 @@
  *  12. Every customer counts, archived included — the same basis as
  *      core.js monthlyClosingMetrics and the SISP-51 owner khata:
  *      an archived customer's unsettled bill is still money owed
- *      (a SISP-50 deposit offset reduces it through definition 2).
+ *      (a SISP-50 deposit offset reduces it through definition 2, and
+ *      a SISP-64 bad-debt write-off removes it the same way — money
+ *      declared uncollectible is no longer a collection target).
  *      FREE connections simply have no bills and contribute nothing.
  *
  * Tests use synthetic data only.
@@ -219,7 +222,8 @@ export function buildCollectionForecast(state, month, referenceDate = new Date()
         // Arrears: earlier bills, net of what was already applied
         // before this month began (definition 2).
         const settledBefore = (appliedBeforeMonth.get(`${customer.id}|${bill.month}`) ?? 0)
-          + cents(bill.depositOffsetAmount || 0);
+          + cents(bill.depositOffsetAmount || 0)
+          + cents(bill.badDebtWriteOffAmount || 0);
         add('arrearsCents', Math.max(0, summary.billAmountCents - settledBefore));
       }
       // Outstanding: the engine's live balance on every pool bill

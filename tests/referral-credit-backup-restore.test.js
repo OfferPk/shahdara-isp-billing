@@ -15,13 +15,21 @@
 // the other writers use. Amounts, credit logic and engine figures are
 // untouched; only the stamp string format changes.
 //
-// LEGACY PIN (last test): a backup exported from a PRE-FIX ledger still
-// carries the old ISO stamp in its stored bill, and restore validation
-// still rejects it — the writer fix cannot rewrite history inside an
-// already-exported file or an already-stored bill. That test pins the
-// current behaviour deliberately: if a restore-side normalization for
-// this one known writer's ISO shape is ever approved, the pin flips
-// loudly instead of the behaviour changing silently.
+// LEGACY PIN (last test) — FLIPPED BY FU5b: a backup exported from a
+// PRE-FIX ledger still carries the old ISO stamp in its stored bill,
+// and the writer fix alone cannot rewrite history inside an
+// already-exported file or an already-stored bill. FU5 originally
+// pinned that such a backup still fails restore validation. FU5b then
+// added the approved restore-side normalization for exactly this one
+// known writer's ISO shape: during backup validation, an
+// amountHistory entry of type 'referral_credit_applied' whose
+// changedAt is a strict ISO-8601 UTC timestamp naming a real instant
+// is converted via localDateTimeValue to the house local format (and
+// the bill's referralCreditAppliedAt with it) — so the last test now
+// pins the NEW behaviour: the legacy backup restores, with stamps
+// converted. The full positive/negative matrix (garbage, impossible
+// calendar values, non-UTC shapes and non-referral entries still
+// throw) lives in tests/referral-legacy-stamp-restore.test.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -100,7 +108,7 @@ test('FU5: referral figures are unchanged — only the stamp format moved', () =
   assert.equal(summary.balanceDueCents, 250000);
 });
 
-test('FU5 legacy pin: a pre-fix ISO-stamped backup still fails restore validation (documented)', () => {
+test('FU5 legacy pin (flipped by FU5b): a pre-fix ISO-stamped backup now restores, stamps normalized', () => {
   const { state, referrerId } = referralStampedState();
   // Simulate a ledger written by the shipped (pre-fix) code: rewrite
   // the referral stamps back into the old ISO shape, exactly as
@@ -111,8 +119,19 @@ test('FU5 legacy pin: a pre-fix ISO-stamped backup still fails restore validatio
   for (const entry of bill.amountHistory ?? []) {
     if (entry.type === 'referral_credit_applied') entry.changedAt = '2026-10-02T12:00:00.000Z';
   }
-  assert.throws(
-    () => previewJsonBackupMerge(createInitialState(), createJsonBackup(legacy, NOV2), {}),
-    /Backup contains an invalid bill correction date\./
-  );
+  // FU5b: restore-side validation converts ONLY this referral entry's
+  // strict-ISO-UTC stamp (and the bill's referralCreditAppliedAt) to
+  // the house local format — 12:00 UTC is 17:00 in Asia/Karachi — so
+  // the legacy backup restores instead of throwing. Money is
+  // untouched; only the stamp strings move. (Before FU5b this test
+  // pinned the throw; the full FU5b matrix is in
+  // tests/referral-legacy-stamp-restore.test.js.)
+  let preview;
+  assert.doesNotThrow(() => { preview = previewJsonBackupMerge(createInitialState(), createJsonBackup(legacy, NOV2), {}); });
+  const restoredBill = stampedBill(preview.state, referrerId);
+  assert.equal(restoredBill.referralCreditAmount, 500);
+  const entry = (restoredBill.amountHistory ?? []).find((row) => row.type === 'referral_credit_applied');
+  assert.equal(entry.changedAt, '2026-10-02T17:00');
+  assert.equal(restoredBill.referralCreditAppliedAt, '2026-10-02T17:00');
+  assert.match(entry.changedAt, LOCAL_DATETIME_RE);
 });

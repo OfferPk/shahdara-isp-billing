@@ -110,6 +110,7 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   }
   if (fields.discount) push(rowLine('Discount', fields.discount, width));
   if (fields.concession) push(rowLine('Outage concession', fields.concession, width));
+  if (fields.lateFeeWaived) push(rowLine('Late fee waived', fields.lateFeeWaived, width));
   if (fields.referralCredit) push(rowLine('Referral credit', fields.referralCredit, width));
   if (fields.feederHostCredit) push(rowLine('Feeder host credit', fields.feederHostCredit, width));
   if (fields.arrearsPackage || fields.arrearsPrevious || fields.arrearsTotal) {
@@ -191,6 +192,10 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     // stays gross, so subtract here for display; balanceDue above already
     // comes from the net balanceDueCents computed by buildPaymentReceipt).
     concession: receipt.concessionAmount ? money(receipt.concessionAmount) : '',
+    // SISP-101: the late fee this payment waived at collect time,
+    // printed next to the concession (the balance above already nets
+    // it — the bill's lateFee was zeroed by the waiver).
+    lateFeeWaived: receipt.waivedAmount ? money(receipt.waivedAmount) : '',
     // SISP-40: hamsaya referral credit line, printed next to the concession.
     referralCredit: receipt.referralCreditAmount ? money(receipt.referralCreditAmount) : '',
     // SISP-97: feeder-host bijli credit line, printed next to the referral credit.

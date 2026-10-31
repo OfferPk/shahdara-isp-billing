@@ -32,6 +32,7 @@ import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js'
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements, sanitizePartnerSettings } from './partner-settlement.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
+import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
 import { sanitizeSignalReadings } from './signal-history.js';
 import { sanitizeReceiptLang, sanitizeReceiptChannel, prefersSmsForChannel } from './receipt-preferences.js';
@@ -1443,7 +1444,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, senderTitle, senderDigits } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -1513,6 +1514,19 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     && prepayMoneyOrNull(prepayRate) !== null && prepayMoneyOrNull(prepayRate) > 0
     ? { prepayMonths: Number(prepayMonths), prepayGross: prepayMoneyOrNull(prepayGross), prepayRate: prepayMoneyOrNull(prepayRate) }
     : null;
+  // SISP-101: a late-fee waiver rides the payment that earned it — the
+  // audit pair (lateFeeWaived + waivedAmount) plus the reversal stamp of
+  // the bill's pre-waiver fee fields (waivedLateFee), sanitized by
+  // late-fee-waiver.js. Kept ONLY as a complete, sane triple: anything
+  // partial or malformed is dropped whole, never stored raw, so an
+  // ordinary payment stays byte-identical to before and a damaged
+  // record can never mint a fee restoration. The reader
+  // (lateFeeWaiverOf) applies the same rule everywhere else.
+  const waiverStamp = lateFeeWaived === true ? sanitizeWaivedLateFeeStamp(waivedLateFee) : null;
+  const waiverAmount = lateFeeWaived === true ? prepayMoneyOrNull(waivedAmount) : null;
+  const lateFeeWaiverTerms = waiverStamp && waiverAmount !== null && waiverAmount > 0
+    ? { lateFeeWaived: true, waivedAmount: waiverAmount, waivedLateFee: waiverStamp }
+    : null;
   return {
     date,
     amount: cents,
@@ -1524,6 +1538,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     // untargeted records stay byte-identical to before.
     ...(kind === ADVANCE_PAYMENT_KIND && validMonthString(targetMonth) ? { targetMonth } : {}),
     ...(prepayTerms ?? {}),
+    ...(lateFeeWaiverTerms ?? {}),
     ...(cleanNote ? { note: cleanNote } : {}),
     ...(ticketChargeLines.length > 0 ? { ticketCharges: ticketChargeLines } : {}),
     ...(manualBaqayaLines.length > 0 ? { manualBaqayaSettlements: manualBaqayaLines } : {}),
@@ -1750,6 +1765,13 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     prepayMonths: fields.prepayMonths !== undefined ? fields.prepayMonths : existingPayment.prepayMonths,
     prepayGross: fields.prepayGross !== undefined ? fields.prepayGross : existingPayment.prepayGross,
     prepayRate: fields.prepayRate !== undefined ? fields.prepayRate : existingPayment.prepayRate,
+    // SISP-101: the correction form carries no waiver fields either —
+    // correcting a waiver receipt must never silently strip its audit
+    // pair or its reversal stamp (same carry-over rule as the prepay
+    // terms above); the bill's fee stays waived, so the stamp must stay.
+    lateFeeWaived: fields.lateFeeWaived !== undefined ? fields.lateFeeWaived : existingPayment.lateFeeWaived,
+    waivedAmount: fields.waivedAmount !== undefined ? fields.waivedAmount : existingPayment.waivedAmount,
+    waivedLateFee: fields.waivedLateFee !== undefined ? fields.waivedLateFee : existingPayment.waivedLateFee,
     // SISP-21: a correction form carries no verification toggle, so a
     // correction must never silently drop an existing verification.
     walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified,
@@ -1806,6 +1828,14 @@ export function deletePayment(state, customerId, month, paymentId, referenceDate
   // every other caller must void instead (voiding reopens them too).
   if (ticketChargeLinesOf(bill.payments.find(payment => payment.id === paymentId)).length > 0 && options?.ticketChargesReverted !== true) {
     throw new Error('This payment settled a ticket charge. Void it instead so the ticket charge reopens.');
+  }
+  // SISP-101: deleting a payment that waived a late fee would leave the
+  // fee waived with no payment behind it. The quick-collect undo
+  // restores the fee from the payment's stamp first and passes
+  // lateFeeWaiverReverted; every other caller must void instead
+  // (voiding restores the fee too — see payment-void-audit.js).
+  if (lateFeeWaiverOf(bill.payments.find(payment => payment.id === paymentId)) && options?.lateFeeWaiverReverted !== true) {
+    throw new Error('This payment waived a late fee. Void it instead so the late fee is restored.');
   }
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : {
     ...c,
@@ -2965,7 +2995,10 @@ function validateBackupState(source) {
         validBackupAmount(correction.previousAmount, 'previous bill amount');
         validBackupAmount(correction.newAmount, 'corrected bill amount');
       }
-      const lateFee = bill.lateFee !== undefined && bill.lateFee !== null ? (validBackupAmount(bill.lateFee, `late fee for ${bill.month}`), Number(bill.lateFee) || 0) : undefined;
+      // Zero is a real value here: a waived fee is stored as lateFee: 0
+      // (SISP-101 / waiveLateFeeFromBill) and must round-trip like the
+      // SISP-28 shifting fee below, which already allows zero.
+      const lateFee = bill.lateFee !== undefined && bill.lateFee !== null ? (validBackupAmount(bill.lateFee, `late fee for ${bill.month}`, true), Number(bill.lateFee) || 0) : undefined;
       const lateFeeAppliedAt = bill.lateFeeAppliedAt ? String(bill.lateFeeAppliedAt) : undefined;
       const lateFeeReason = bill.lateFeeReason ? String(bill.lateFeeReason) : undefined;
       // SISP-28: shifting fees ride the bill like late fees; sanitize them

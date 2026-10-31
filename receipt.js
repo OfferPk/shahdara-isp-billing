@@ -1,4 +1,5 @@
 import { calculatePaymentAllocations, manualBaqayaSettlementLinesOf, paymentManualBaqayaCents, paymentSenderLabel, paymentTicketChargeCents, prepayTermsOf, ticketChargeLinesOf } from './core.js';
+import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
 import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle.js';
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
@@ -77,6 +78,12 @@ export function buildPaymentReceipt(customer, bill, payment) {
   // amount the customer actually still owed.
   const depositOffsetAmount = positiveAmount(bill.depositOffsetAmount) || 0;
   const depositOffsetReason = text(bill.depositOffsetReason);
+  // SISP-101: a payment that waived the bill's late fee at collect time
+  // carries the waiver on its own record (the bill's lateFee is already
+  // zeroed, so the balance above needs no further subtraction — the
+  // waived line is the audit trail, printed from the payment's stamp).
+  const lateFeeWaiver = lateFeeWaiverOf(payment);
+  const waivedAmount = lateFeeWaiver ? lateFeeWaiver.waivedAmount : 0;
   // SISP-97: a feeder-host bijli credit stamped by the billing cycle
   // waived part of this bill — subtracted here exactly like the
   // concession, the referral credit and the deposit offset, so the
@@ -178,6 +185,10 @@ export function buildPaymentReceipt(customer, bill, payment) {
     referralCreditReason,
     depositOffsetAmount,
     depositOffsetReason,
+    // SISP-101: the late fee this payment waived (false / 0 on every
+    // other receipt, so non-waiver receipts render exactly as before).
+    lateFeeWaived: lateFeeWaiver !== null,
+    waivedAmount,
     feederHostCreditAmount,
     feederHostCreditReason,
     // SISP-43: billed ticket charges this payment settled (from the
@@ -379,6 +390,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Billed / بل رقم:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
+    ${receipt.waivedAmount > 0 ? `<div class="receipt-field"><dt>Late Fee Waived:</dt><dd>-${formatAmount(receipt.waivedAmount)}</dd></div>` : ''}
     ${prepayReceiptRows(receipt, formatAmount)}
     ${receipt.discount > 0 && !receipt.prepay ? `<div class="receipt-field"><dt>Discount / رعایت:</dt><dd>-${formatAmount(receipt.discount)}</dd></div>` : ''}
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
@@ -423,6 +435,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Monthly Fee / ماہانہ واجبات:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge / تاخیری فیس:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
+    ${receipt.waivedAmount > 0 ? `<div class="receipt-field"><dt>Late Fee Waived / تاخیری فیس معاف:</dt><dd>-${formatAmount(receipt.waivedAmount)}</dd></div>` : ''}
     ${prepayReceiptRows(receipt, formatAmount)}
     ${receipt.discount > 0 && !receipt.prepay ? `<div class="receipt-field"><dt>Concession / رعایت بل:</dt><dd>-${formatAmount(receipt.discount)}${receipt.discountReason ? ` (${escapeHtml(receipt.discountReason)})` : ''}</dd></div>` : ''}
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
@@ -431,7 +444,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.feederHostCreditAmount > 0 ? `<div class="receipt-field"><dt>Feeder Host Credit / فیڈر ہوسٹ کریڈٹ:</dt><dd>-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${escapeHtml(receipt.feederHostCreditReason)})` : ''}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${manualBaqayaReceiptRows(receipt, formatAmount)}
-    ${receipt.lateFee > 0 || receipt.discount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
+    ${receipt.lateFee > 0 || receipt.discount > 0 || receipt.waivedAmount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>Amount Received / رقم موصول:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
@@ -465,6 +478,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ['Data Limit', receipt.dataLimit],
     ['Nominal Package Price', receipt.nominalPrice === null ? '' : formatAmount(receipt.nominalPrice)],
     ...(receipt.lateFee > 0 ? [['Late Fee Surcharge', `+${formatAmount(receipt.lateFee)}`]] : []),
+    ...(receipt.waivedAmount > 0 ? [['Late Fee Waived', `-${formatAmount(receipt.waivedAmount)}`]] : []),
     ...(receipt.lateFee > 0 ? [['Total Gross Payable', formatAmount(receipt.totalBilled)]] : []),
     ...(receipt.concessionAmount > 0 ? [['Outage Concession (Reaayat)', `-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${receipt.concessionReason})` : ''}`]] : []),
     ...(receipt.referralCreditAmount > 0 ? [['Hamsaya Referral Credit', `-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${receipt.referralCreditReason})` : ''}`]] : []),

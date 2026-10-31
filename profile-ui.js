@@ -249,6 +249,15 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
     lines.push('', ...ticketChargeLines);
   }
 
+  // SISP-101: a payment that waived the bill's late fee at collect time
+  // says so on the WhatsApp receipt too, when the caller attached the
+  // waived amount (app.js passes it from buildPaymentReceipt). Only a
+  // well-formed positive amount prints — a malformed value never does.
+  const waivedAmount = Number(receipt?.waivedAmount);
+  if (Number.isFinite(waivedAmount) && waivedAmount > 0) {
+    lines.push(`🎟️ ${t('lfw_whatsapp', null, { amount: formatPKR(waivedAmount) })}`);
+  }
+
   if (billStatus === 'paid') {
     const nextBillDueDate = nextCycleDueDateFromBillMonth(month);
     const nextBillDue = formatReceiptDate(nextBillDueDate) ?? L.notAvailable;

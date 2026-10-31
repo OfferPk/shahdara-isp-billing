@@ -32,6 +32,13 @@
  *   4. The void itself is logged in localStorage under VOIDED_PAYMENTS_KEY
  *      (sisp_voided_payments_v1) and travels in JSON backups via the
  *      `settings.voidPayments` section (see core.js createJsonBackup).
+ *   5. Late-fee waiver (SISP-101): a payment recorded with the Quick
+ *      Collect "Waive Late Fee" toggle carries the bill's pre-waiver
+ *      fee fields as a stamp (payment.waivedLateFee) and zeroed the
+ *      bill's lateFee. Voiding restores exactly that fee — but ONLY
+ *      when the bill carries no late fee now, so a void never clobbers
+ *      a fee the owner applied afterwards (the promise guard in 3,
+ *      applied to fees). The void record says lateFeeRestored.
  *
  * ATOMICITY: voidPayment is a pure function. It validates EVERYTHING
  * first (payment exists, not already voided, non-empty reason, no shop
@@ -56,6 +63,36 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 function moneyValue(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * SISP-101: local mirror of late-fee-waiver.js sanitizeWaivedLateFeeStamp
+ * + formatLocalMinute (kept local so this module stays dependency-free,
+ * like shopSettledAmountOf below). The stamp is the bill's pre-waiver
+ * fee fields { month, lateFee, lateFeeAppliedAt, lateFeeReason }; a
+ * malformed stamp reads as null and can never steer a restoration.
+ * Timestamps written into bill amountHistory must use the strict
+ * 'YYYY-MM-DDTHH:mm' local shape core's backup validation accepts.
+ */
+function sanitizeWaivedLateFeeStampLocal(value) {
+  if (!value || typeof value !== 'object') return null;
+  const month = typeof value.month === 'string' ? value.month : '';
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return null;
+  const lateFee = Number(value.lateFee);
+  if (!Number.isFinite(lateFee) || lateFee <= 0) return null;
+  return {
+    month,
+    lateFee: Math.round(lateFee * 100) / 100,
+    lateFeeAppliedAt: typeof value.lateFeeAppliedAt === 'string' && value.lateFeeAppliedAt ? value.lateFeeAppliedAt : null,
+    lateFeeReason: typeof value.lateFeeReason === 'string' ? value.lateFeeReason.replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100) : ''
+  };
+}
+
+function formatLocalMinuteLocal(isoValue) {
+  const parsed = new Date(isoValue);
+  const d = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function clone(value) {
@@ -148,6 +185,15 @@ export function sanitizeVoidPayments(value) {
       voidedAt: typeof entry.voidedAt === 'string' ? entry.voidedAt : '',
       promiseRestored: entry.promiseRestored === true,
       restoredPromiseDate: typeof entry.restoredPromiseDate === 'string' ? entry.restoredPromiseDate : '',
+      // SISP-101: the fee-restoration pair is emitted ONLY on records
+      // that actually restored a waived late fee — every pre-SISP-101
+      // void record stays byte-identical through this sanitizer.
+      ...(entry.lateFeeRestored === true ? {
+        lateFeeRestored: true,
+        restoredLateFeeAmount: Number.isFinite(Number(entry.restoredLateFeeAmount)) && Number(entry.restoredLateFeeAmount) > 0
+          ? Math.round(Number(entry.restoredLateFeeAmount) * 100) / 100
+          : 0
+      } : {}),
       createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
     });
   }
@@ -195,6 +241,17 @@ export function voidPayment(state, customerId, month, paymentId, options = {}) {
     && typeof stamp.promiseDate === 'string' && DATE_RE.test(stamp.promiseDate.trim())
     && !hasCurrentPromise;
 
+  // SISP-101: restore the waived late fee from the payment's stamp —
+  // only when the stamp names THIS bill and the bill carries no late
+  // fee now (a fee the owner applied after the waiver is never
+  // clobbered by a void, mirroring the promise guard above).
+  const waiverStamp = payment.lateFeeWaived === true
+    ? sanitizeWaivedLateFeeStampLocal(payment.waivedLateFee)
+    : null;
+  const restoreLateFee = !!waiverStamp
+    && waiverStamp.month === bill.month
+    && !(Number(bill.lateFee || 0) > 0);
+
   // Shop name for the log (same "Cash at X shop" derivation as
   // shop-settlement.js resolveShopCollector, kept local + dependency-free).
   let shop = '';
@@ -224,6 +281,10 @@ export function voidPayment(state, customerId, month, paymentId, options = {}) {
     voidedAt,
     promiseRestored: restorePromise,
     restoredPromiseDate: restorePromise ? stamp.promiseDate.trim() : '',
+    // SISP-101: stamped only when this void actually restored a waived
+    // late fee (same conditional-emission rule as the sanitizer above),
+    // so ordinary void records keep their pre-SISP-101 shape.
+    ...(restoreLateFee ? { lateFeeRestored: true, restoredLateFeeAmount: waiverStamp.lateFee } : {}),
     createdAt: voidedAt
   };
 
@@ -245,6 +306,20 @@ export function voidPayment(state, customerId, month, paymentId, options = {}) {
     if (typeof stamp.promiseNote === 'string' && stamp.promiseNote !== '') {
       nextCustomer.promiseNote = stamp.promiseNote;
     }
+  }
+  if (restoreLateFee) {
+    nextBill.lateFee = waiverStamp.lateFee;
+    nextBill.lateFeeAppliedAt = waiverStamp.lateFeeAppliedAt;
+    nextBill.lateFeeReason = waiverStamp.lateFeeReason;
+    const amountHistory = Array.isArray(nextBill.amountHistory) ? [...nextBill.amountHistory] : [];
+    amountHistory.push({
+      changedAt: formatLocalMinuteLocal(voidedAt),
+      type: 'late_fee_restored',
+      previousLateFee: 0,
+      lateFee: waiverStamp.lateFee,
+      note: 'Late fee restored (payment voided)'
+    });
+    nextBill.amountHistory = amountHistory;
   }
   return { state: next, voidRecord };
 }

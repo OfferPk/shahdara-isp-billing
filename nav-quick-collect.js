@@ -28,8 +28,10 @@ import {
   autoPackageFromPayment,
   manualBaqayaOutstandingCents,
   planManualBaqayaSettlement,
-  paymentSenderLabel
+  paymentSenderLabel,
+  prepayTermsOf
 } from './core.js';
+import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -825,6 +827,25 @@ export function executeQuickCollection(state, {
   const payableRemaining = Math.round((newTotalDues + ticketChargesPendingAfter + addonChargesPendingAfter + manualBaqayaPendingAfter) * 100) / 100;
 
 
+  // SISP-116: the derived advance credit THIS collection generated —
+  // the "khula paisa" kept when the tendered notes exceeded the dues.
+  // Read from the allocation engine's own ledger row for this payment
+  // (unappliedCreditCents — the exact figure advanceBalanceCents sums
+  // and Field Mode shows as waiting credit). It is never stamped on
+  // the payment record, so a manually typed overpayment reports the
+  // identical figure, the Khata Doctor agrees by construction, and
+  // voiding the payment removes the credit exactly. Advance-tagged
+  // collections and SISP-61 prepays report 0: their credit is already
+  // labelled by their own flows (a prepay's leftover also carries its
+  // discount coverage, printed by its own receipt lines).
+  let advanceCreditGenerated = 0;
+  if (kind !== 'advance' && newPayment && !prepayTermsOf(newPayment)) {
+    const ledger = newAllocations.byPaymentId.get(paymentId);
+    if (ledger && !ledger.billUnpriced) {
+      advanceCreditGenerated = looseChangeCreditCents(ledger) / 100;
+    }
+  }
+
   const receipt = {
     success: true,
     paymentId,
@@ -857,6 +878,7 @@ export function executeQuickCollection(state, {
     addonChargesTotal,
     addonChargesPending: addonChargesPendingAfter,
     payableRemaining,
+    advanceCreditGenerated,
     isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0 && addonChargesPendingAfter <= 0,
     // SISP-101: the late fee this collection waived (false / 0 on every
     // ordinary collection, so its receipts render exactly as before).
@@ -980,6 +1002,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     `🗓️ *${L.billingMonth}:* ${receipt.month}`,
     ``,
     `💵 *${L.amountReceived}:* PKR ${amountStr}`,
+    ...(Number(receipt.advanceCreditGenerated) > 0 ? [`🪙 *Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ:* PKR ${Number(receipt.advanceCreditGenerated).toLocaleString('en-PK')}`] : []),
     ...(Number(receipt.waivedAmount) > 0 ? [`🎟️ *${t('lfw_whatsapp', null, { amount: `PKR ${Number(receipt.waivedAmount).toLocaleString('en-PK')}` })}*`] : []),
     ...ticketChargeLines,
     ...addonChargeLines,
@@ -1330,6 +1353,11 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           </strong>
         </div>
         ${ticketChargeRows}
+        ${Number(receipt.advanceCreditGenerated) > 0 ? `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">🪙 ${escapeHtml(t('khula_credit_row'))}</span>
+          <strong class="qc-meta-val">PKR ${Number(receipt.advanceCreditGenerated).toLocaleString('en-PK')}</strong>
+        </div>` : ''}
         ${addonChargeRows}
         ${Number(receipt.waivedAmount) > 0 ? `
         <div class="qc-receipt-item full-width">
@@ -1454,6 +1482,26 @@ export function setupQuickCollectModal({
   const dueAmountVal = document.getElementById('quickCollectDueAmountVal');
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
+
+  // SISP-116: loose-change chip host (null when the host page predates it).
+  const looseChangeBox = typeof document !== 'undefined' ? document.getElementById('quickCollectLooseChangeChips') : null;
+
+  // SISP-116: renders the round-note tender chips for the amount owed.
+  // The chips only ever FILL the amount input with the tendered figure —
+  // recording still goes through the ordinary form submit, exactly like
+  // typing the amount, so the engine derives the kept change as advance
+  // credit. Hidden while the Advance tag is ticked (an advance has its
+  // own flow) and whenever no round-up exists.
+  function renderLooseChangeChips() {
+    if (!looseChangeBox) return;
+    const owed = advanceCheckbox?.checked ? 0 : Number(activeDefaults?.payableTotal ?? 0);
+    const markup = looseChangeChipsMarkup(owed, (tendered, change) => t('khula_chip', null, {
+      tendered: tendered.toLocaleString('en-PK'),
+      change: change.toLocaleString('en-PK')
+    }));
+    looseChangeBox.innerHTML = markup;
+    looseChangeBox.hidden = markup === '';
+  }
 
   // SISP-30: outage concession badge host (null when the host page predates it).
   const concessionBox = typeof document !== 'undefined' ? document.getElementById('quickCollectConcessionBox') : null;
@@ -2132,6 +2180,9 @@ export function setupQuickCollectModal({
         });
       }
 
+      // SISP-116: loose-change chips for the payable just computed.
+      renderLooseChangeChips();
+
       showStep('form');
       setTimeout(() => {
         amountInput?.focus();
@@ -2361,6 +2412,20 @@ export function setupQuickCollectModal({
       amountInput.focus();
     });
   });
+
+  // SISP-116: a loose-change chip tap fills the tendered round amount
+  // into the amount input — identical to typing it (the form's normal
+  // submit records it through executeQuickCollection).
+  looseChangeBox?.addEventListener('click', (event) => {
+    const chip = event.target?.closest?.('[data-loose-tender]');
+    if (!chip || !amountInput) return;
+    const tendered = Number(chip.getAttribute('data-loose-tender'));
+    if (!Number.isFinite(tendered) || tendered <= 0) return;
+    amountInput.value = tendered.toFixed(2);
+    amountInput.focus();
+  });
+  // The chips belong to the dues flow only; the Advance tag hides them.
+  advanceCheckbox?.addEventListener('change', renderLooseChangeChips);
 
   // Back to pick
   backToPickBtn?.addEventListener('click', () => {

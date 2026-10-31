@@ -117,6 +117,7 @@ import {
 } from './nav-quick-collect.js';
 import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOutstandingCents } from './core.js';
 import { receiptChannelPreference, receiptLangPreference } from './receipt-preferences.js';
+import { looseChangeSuggestions, isLooseChangeTender } from './loose-change-credit.js';
 import { t } from './nav-language.js';
 import { advanceBalanceCents, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { canonicalLocation } from './phase3.js';
@@ -369,6 +370,36 @@ export function collectFieldModePayment(state, entry, method, referenceDate = ne
   // language when one is set (the preference wins over the default).
   const customer = nextState.customers.find(c => c.id === entry.id);
   return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { lang: receiptLangPreference(customer) }) };
+}
+
+/**
+ * SISP-116: records a "khula paisa" loose-change collection — the
+ * customer tendered round notes above his total dues, and the change
+ * stays as his advance credit. The tender MUST be one of the chip's
+ * own round-up suggestions for the dues (looseChangeSuggestions), so
+ * this path can never become a back-door arbitrary-amount recorder.
+ * The payment itself is an ordinary untagged collection through the
+ * EXISTING executeQuickCollection: the allocation engine derives the
+ * excess as unapplied credit (advanceBalanceCents) — nothing is
+ * stamped, so the receipt, the Doctor and a later void all treat it
+ * exactly like a typed overpayment. Returns { nextState, receipt,
+ * whatsapp } like collectFieldModePayment.
+ */
+export function collectFieldModeLooseChange(state, entry, method, tenderedAmount, referenceDate = new Date()) {
+  if (!entry || !(Number(entry.totalDues) > 0)) {
+    throw new Error('No pending balance for this customer.');
+  }
+  const tendered = Number(tenderedAmount);
+  if (!isLooseChangeTender(entry.totalDues, tendered)) {
+    throw new Error('Choose one of the round-note amounts offered for this balance.');
+  }
+  const today = getPakistanLocalDate(referenceDate);
+  const { nextState, receipt } = executeQuickCollection(
+    state,
+    { ...fieldModeFullPaymentArgs(entry, method, today), amount: tendered },
+    referenceDate
+  );
+  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt) };
 }
 
 /**
@@ -800,6 +831,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         <h3>✅ Collected — ${escapeHtml(receipt.customerName)}</h3>
         ${lastReceiptAdvance ? `<p><span class="ds-chip ds-chip--pending">🟡 Advance</span> Tagged as advance credit${lastReceiptAdvanceTarget ? ` for ${escapeHtml(fieldModeMonthLabel(lastReceiptAdvanceTarget))}` : ' for the next bill'}.</p>` : ''}
         <p><strong>${escapeHtml(formatPKR(receipt.amount))}</strong> via ${escapeHtml(receipt.method)} · Receipt ${escapeHtml(receipt.receiptNumber)}</p>
+        ${Number(receipt.advanceCreditGenerated) > 0 ? `<p>🪙 ${escapeHtml(t('khula_credit_row'))}: <strong>${escapeHtml(formatPKR(receipt.advanceCreditGenerated))}</strong></p>` : ''}
         <p>Remaining balance: <strong>${escapeHtml(formatPKR(receipt.newTotalDues))}</strong> · ${settled ? 'PAID IN FULL' : 'PARTIAL'}</p>
         ${receiptChannel === 'sms' ? `${smsSlipMarkup}${waReceiptMarkup}` : `${waReceiptMarkup}${smsSlipMarkup}`}
         ${receiptActionButtons}
@@ -836,6 +868,11 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     const shopButtons = shops.map(shop =>
       `<button type="button" class="field-mode-action-btn" data-field-action="shop" data-field-method="${escapeHtml(shop.method)}" ${busy ? 'disabled' : ''}>🏪 ${escapeHtml(shop.short)} Full — ${escapeHtml(formatPKR(entry.totalDues))}</button>`
     ).join('');
+    // SISP-116: khula-paisa chips — tender round notes, the change
+    // stays as advance credit (derived by the engine, never stamped).
+    const looseChips = looseChangeSuggestions(entry.totalDues).map(s =>
+      `<button type="button" class="field-mode-loose-chip" data-field-action="loose-change" data-field-tender="${s.tendered}" ${busy ? 'disabled' : ''}>🪙 ${escapeHtml(t('khula_chip', null, { tendered: s.tendered.toLocaleString('en-PK'), change: s.change.toLocaleString('en-PK') }))}</button>`
+    ).join('');
     panelEl.innerHTML = `<section class="field-mode-actions" aria-label="Collection actions">
       <h3>${escapeHtml(entry.name)} <small>#${escapeHtml(entry.customerNumber)}</small></h3>
       <p class="field-mode-due-line">Full pending: <strong>${escapeHtml(formatPKR(entry.totalDues))}</strong>${entry.targetMonth ? ` · oldest unpaid: ${escapeHtml(entry.targetMonth)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${escapeHtml(habitNote)}</p>
@@ -845,6 +882,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         ${speakDueBtn()}
         <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="advance" ${busy ? 'disabled' : ''}>💰 Advance payment</button>
       </div>
+      ${looseChips ? `<div class="field-mode-loose-change">${looseChips}</div>` : ''}
       <div class="field-mode-waada">
         <p class="field-mode-waada-label">🤝 Waada (promise-to-pay)</p>
         <div class="field-mode-waada-chips">
@@ -1004,6 +1042,35 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     renderPanel();
     try {
       const { nextState, receipt, whatsapp } = collectFieldModePayment(state, fresh, method);
+      if (typeof onSaveState === 'function') onSaveState(nextState);
+      lastReceipt = { receipt, whatsapp };
+      lastReceiptAdvance = false;
+      lastReceiptAdvanceTarget = null;
+      toast(`${formatPKR(receipt.amount)} collected from ${receipt.customerName}.`);
+    } catch (err) {
+      toast(err?.message || 'Could not record payment.');
+    } finally {
+      busy = false;
+    }
+    render();
+  }
+
+  // SISP-116: 1-tap loose-change collection (Cash, round-note tender).
+  function collectLooseChange(tendered) {
+    if (busy || !selectedId) return;
+    const state = typeof getState === 'function' ? getState() : null;
+    if (!state) return;
+    const fresh = getPendingCollectionCustomers(state, '', 'all-dues').find(e => e.id === selectedId);
+    if (!fresh) {
+      toast('No pending balance for this customer.');
+      selectedId = null;
+      render();
+      return;
+    }
+    busy = true;
+    renderPanel();
+    try {
+      const { nextState, receipt, whatsapp } = collectFieldModeLooseChange(state, fresh, 'Cash', tendered);
       if (typeof onSaveState === 'function') onSaveState(nextState);
       lastReceipt = { receipt, whatsapp };
       lastReceiptAdvance = false;
@@ -1197,6 +1264,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       if (actionBtn) {
         const action = actionBtn.getAttribute('data-field-action');
         if (action === 'cash') collect('Cash');
+        else if (action === 'loose-change') collectLooseChange(Number(actionBtn.getAttribute('data-field-tender')));
         else if (action === 'shop') collect(actionBtn.getAttribute('data-field-method') || 'Cash');
         else if (action === 'advance') {
           panelMode = 'advance';

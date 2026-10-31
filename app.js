@@ -180,6 +180,7 @@ import { renderRelocationTimeline, setupRelocationModal } from './relocation-log
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { buildSystemHealthReport, setupSystemHealthCenter, summarizeSystemHealth } from './system-health-center.js';
 import { setupSpeedCounterEntryModal, submitSpeedEntryBatch } from './speed-counter-entry.js';
 import { COMMISSION_RULES_KEY, loadCommissionRules, saveCommissionRules, setupCommissionModal } from './collector-commission.js';
 import { FIELD_TOOLS_KEY, fieldToolsSummary, loadFieldTools, saveFieldTools, setupToolCustodyModal } from './tool-custody-register.js';
@@ -469,6 +470,7 @@ export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
+export let systemHealthCenterController = null;
 export let speedCounterEntryModalController = null;
 export let commissionModalController = null;
 export let toolCustodyModalController = null;
@@ -1382,6 +1384,21 @@ function renderDashboard() {
     suspenseSummaryEl.innerHTML = suspense.totalCount === 0
       ? ''
       : `<p><span>${t('dash_suspense_unclaimed')}</span><strong>${escapeHtml(formatAmount(suspense.unclaimedAmount))}</strong></p>`;
+  }
+  // SISP-100: System Health card — live totals across every ledger
+  // (read-only telemetry; detail lives in the Health Center dialog).
+  const healthValueEl = $('#dashboardSystemHealthValue');
+  if (healthValueEl) {
+    const health = summarizeSystemHealth(buildSystemHealthReport({ state, storage: localStorage }));
+    const healthPeriodEl = $('#dashboardSystemHealthPeriod');
+    healthValueEl.textContent = health.totalRecords === 0
+      ? t('dash_health_empty')
+      : t(health.totalRecords === 1 ? 'dash_health_record_sing' : 'dash_health_record_plur', null, { count: health.totalRecords });
+    if (healthPeriodEl) healthPeriodEl.textContent = health.unreadableCount > 0
+      ? t('dash_health_unreadable', null, { count: health.unreadableCount })
+      : health.totalRecords === 0
+        ? t('dash_health_period_empty')
+        : t('dash_health_period', null, { size: health.sizeLabel, ledgers: health.ledgerCount });
   }
   // SISP-82: field tool custody card (register totals; detail + actions
   // live in the tool custody modal).
@@ -11620,6 +11637,16 @@ if (typeof document !== 'undefined') {
         })
       };
     }
+  });
+  // SISP-100: System Health Center — read-only telemetry over every
+  // ledger. Archive Export reuses the shipped JSON backup download
+  // button's own handler (createJsonBackup + backupExtras), so the
+  // export is byte-for-byte the owner's normal backup.
+  systemHealthCenterController = setupSystemHealthCenter({
+    getState: () => state,
+    getStorage: () => localStorage,
+    onArchiveExport: () => { $('#downloadJsonBackupButton')?.click(); },
+    onToast: (msg, opts) => toast(msg, opts)
   });
   // SISP-99: keyboard-first speed batch counter entry — every row is
   // recorded through executeQuickCollection (the same payment path as a

@@ -21,6 +21,7 @@ import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPers
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
 import { captureCurrentPosition, loadSplitterBoxPins, saveSplitterBoxPins, SPLITTER_BOX_GPS_STORAGE_KEY } from './gps-pin-helper.js';
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
@@ -502,6 +503,11 @@ let customerEnrollmentWizard = null;
 let mobileActionSheetController = null;
 let profileEditMode = false;
 let selectedProfileTab = 'billing';
+// SISP-94: router-vault eye-toggle state — session-only, never persisted;
+// it resets whenever a different customer's profile is rendered, so a
+// revealed password is never left showing on the next profile.
+let routerCredRevealed = { wifi: false, admin: false };
+let routerCredRevealedFor = null;
 let selectedReportFilter = 'all';
 let selectedServiceFilter = 'all';
 let selectedBillingFilter = 'all';
@@ -3069,6 +3075,10 @@ function renderCustomerProfileView(customer) {
   // app never silently re-enables the secret.
   const holdRouter = vacationHoldRouterPresentation(customer, { todayStr: localDate() });
   const vacationHoldSectionHtml = holdRouter.visible ? `<section class="profile-mikrotik-section profile-vacation-hold-section" aria-label="${t('prof_hold_aria')}"><h4>${t('prof_hold_heading')}</h4><p class="profile-mikrotik-note">${escapeHtml(holdRouter.statusText)}</p><p class="profile-mikrotik-note">${t('prof_hold_note')}</p><textarea id="profileVacationHoldScript" class="mikrotik-script-box" readonly rows="7" aria-label="${t('prof_hold_textarea_aria')}">${escapeHtml(holdRouter.snippet)}</textarea><button type="button" class="secondary-button" id="profileVacationHoldCopyBtn">${escapeHtml(holdRouter.copyLabel)}</button></section>` : '';
+  // SISP-94: router credential vault — passwords masked by default; the
+  // markup builder only receives the reveal flags, so a masked render
+  // never contains the secrets at all.
+  const routerCredSectionHtml = routerCredentialsSectionHtml(customer, { revealWifi: routerCredRevealed.wifi, revealAdmin: routerCredRevealed.admin });
   const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), phone || t('prof_not_set')], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : t('prof_not_set')]])}${profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), customer.mohalla || t('prof_not_set')], [t('prof_field_zone'), customer.zone || t('prof_not_set')], [t('prof_field_address'), customer.address || t('prof_not_set'), true], [t('prof_field_notes'), customer.notes?.trim() || t('prof_not_set'), true]])}${profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), customer.ispProvider || t('prof_not_set')], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_package'), customer.packageSpeed || t('prof_not_set')], [t('prof_field_payday'), paydaySummary.label], [t('prof_field_purchase_cost'), formatAmount(customer.monthlyPurchaseCost)], [t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : t('prof_not_recorded')], [t('prof_field_conn_fee'), formatAmount(customer.connectionFee)], [t('prof_field_router'), customer.routerModel || t('prof_not_recorded')], [t('prof_field_router_price'), formatAmount(customer.routerPrice)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_mc_cost'), formatAmount(customer.mediaConverterCost)], [t('prof_field_lineman_fee'), formatAmount(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? t('prof_not_recorded') : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_pppoe'), customer.pppoeUsername || t('prof_not_set')], [t('prof_field_static_ip'), customer.staticIp || t('prof_not_set')], [t('prof_field_mac'), customer.macAddress || t('prof_not_set')], [t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : t('prof_not_recorded')], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : t('prof_not_recorded')]])}</div>`;
   // SISP-19: profile hardware custody — ownership fields on the record,
   // plus the disconnection recovery checklist once archived (archive is
@@ -3101,7 +3111,7 @@ function renderCustomerProfileView(customer) {
     ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
     : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${custodySectionHtml}${depositSettlementHtml}${badDebtSectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${badDebtSectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
@@ -3261,6 +3271,53 @@ function renderCustomerProfileView(customer) {
       toast(t('prof_hold_copy_failed'));
     }
   });
+  // SISP-94: wire the router credential vault — eye toggles re-render
+  // ONLY this section (the rest of the profile is untouched), copy reads
+  // the secret from state on the explicit tap, and the WhatsApp button
+  // opens the prefilled wa.me draft for the owner to review and send.
+  const wireRouterCredSection = () => {
+    const section = $('#customerProfileView').querySelector('.profile-router-cred-section');
+    if (!section) return;
+    section.querySelectorAll('[data-rcred-toggle]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const which = btn.getAttribute('data-rcred-toggle');
+        if (which === 'wifi') routerCredRevealed.wifi = !routerCredRevealed.wifi;
+        else if (which === 'admin') routerCredRevealed.admin = !routerCredRevealed.admin;
+        else return;
+        section.outerHTML = routerCredentialsSectionHtml(customer, { revealWifi: routerCredRevealed.wifi, revealAdmin: routerCredRevealed.admin });
+        wireRouterCredSection();
+      });
+    });
+    section.querySelectorAll('[data-rcred-copy]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const creds = routerCredentialsOf(customer);
+        const value = btn.getAttribute('data-rcred-copy') === 'wifi' ? creds.wifiPassword : creds.routerAdminPassword;
+        if (!value) return;
+        try {
+          if (navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(value);
+          } else {
+            const scratch = document.createElement('textarea');
+            scratch.value = value;
+            document.body.appendChild(scratch);
+            scratch.select();
+            document.execCommand('copy');
+            scratch.remove();
+          }
+          toast(t('rcred_copied'));
+        } catch {
+          toast(t('rcred_copy_failed'));
+        }
+      });
+    });
+    section.querySelector('#profileWifiWhatsappBtn')?.addEventListener('click', () => {
+      const action = resolveWifiWhatsAppAction(customer);
+      if (action.type === 'draft') window.open(action.draft.url, '_blank', 'noopener');
+      else if (action.type === 'phone-required') toast(t('rcred_wa_phone_toast'));
+      else toast(t('rcred_wa_no_details_toast'));
+    });
+  };
+  wireRouterCredSection();
   // SISP-4 + SISP-29: wire the profile kist form (add plan + remove
   // unbilled plan + optional down-payment record + early payoff).
   // Adding a plan only records it — billing happens in the cycle. Only
@@ -3502,6 +3559,11 @@ function renderDetail() {
   $('#welcomeState').hidden = !!customer;
   $('#customerDetail').hidden = !customer;
   if (!customer) return;
+  // SISP-94: switching profiles re-masks the router vault.
+  if (routerCredRevealedFor !== customer.id) {
+    routerCredRevealed = { wifi: false, admin: false };
+    routerCredRevealedFor = customer.id;
+  }
   $('#customerReceiptSummary').innerHTML = profileReceiptSummaryMarkup(customer);
   $('#customerReceiptSummary').querySelector('[data-edit-customer]')?.addEventListener('click', (event) => {
     const id = event.currentTarget.getAttribute('data-edit-customer');
@@ -3612,6 +3674,11 @@ function renderDetail() {
   if ($('#pppoePasswordInput')) $('#pppoePasswordInput').value = customer.pppoePassword ?? '';
   if ($('#staticIpInput')) $('#staticIpInput').value = customer.staticIp ?? '';
   if ($('#macAddressInput')) $('#macAddressInput').value = customer.macAddress ?? '';
+  // SISP-94: router credential vault fields.
+  if ($('#wifiSsidInput')) $('#wifiSsidInput').value = customer.wifiSsid ?? '';
+  if ($('#wifiPasswordInput')) $('#wifiPasswordInput').value = customer.wifiPassword ?? '';
+  if ($('#routerAdminPortInput')) $('#routerAdminPortInput').value = customer.routerAdminPort ?? '';
+  if ($('#routerAdminPasswordInput')) $('#routerAdminPasswordInput').value = customer.routerAdminPassword ?? '';
   // SISP-19: custody fields (ownership selects + serial + deposit).
   // normalizeCustodyFields guards legacy/invalid ownership values.
   const custodyEditFields = normalizeCustodyFields(customer);
@@ -5922,6 +5989,11 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       ...($('#pppoePasswordInput') ? { pppoePassword: $('#pppoePasswordInput').value } : {}),
       ...($('#staticIpInput') ? { staticIp: $('#staticIpInput').value } : {}),
       ...($('#macAddressInput') ? { macAddress: $('#macAddressInput').value } : {}),
+      // SISP-94: router credential vault fields.
+      ...($('#wifiSsidInput') ? { wifiSsid: $('#wifiSsidInput').value } : {}),
+      ...($('#wifiPasswordInput') ? { wifiPassword: $('#wifiPasswordInput').value } : {}),
+      ...($('#routerAdminPortInput') ? { routerAdminPort: $('#routerAdminPortInput').value } : {}),
+      ...($('#routerAdminPasswordInput') ? { routerAdminPassword: $('#routerAdminPasswordInput').value } : {}),
       // SISP-19: custody fields (recovery dates are never saved from here).
       routerOwnership:$('#routerOwnershipInput')?.value ?? '', mediaConverterOwnership:$('#mediaConverterOwnershipInput')?.value ?? '',
       serialNumber:$('#serialNumberInput')?.value ?? '', securityDeposit:$('#securityDepositInput')?.value ?? '',

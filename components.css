@@ -975,6 +975,13 @@ body.field-mode-open { overflow: hidden; }
 @media (max-width: 700px) {
   .hardware-recovery-head { flex-direction: column; }
 }
+/* SISP-94: router credential vault — token-only, no new hex colors. */
+.profile-router-cred-section { margin-top: 16px; }
+.profile-router-cred-section h4 { margin: 0 0 8px; }
+.profile-router-cred-section p { margin: 4px 0; }
+.profile-router-cred-note { color: var(--muted); font-size: 13px; }
+.router-cred-value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.router-cred-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 /* SISP-20: owner khata closing card + modal (theme tokens only, no hex). */
 .owner-khata-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
 .owner-khata-body .owner-khata-section { margin-bottom: 16px; }

@@ -1965,6 +1965,14 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     }
     payment = { ...payment, ticketCharges: settledTicketCharges };
   }
+  // SISP-121: a correction restates the receipt, never its split-tender
+  // link — the stamp is carried over verbatim (same rule as the ticket
+  // charges above), so correcting one leg can never silently unlink it
+  // from its sibling leg or from the combined receipt.
+  if (typeof existingPayment.splitGroupId === 'string' && existingPayment.splitGroupId
+    && (existingPayment.splitLeg === 1 || existingPayment.splitLeg === 2)) {
+    payment = { ...payment, splitGroupId: existingPayment.splitGroupId, splitLeg: existingPayment.splitLeg };
+  }
   // SISP-106: same carry-over rule for settled boost charges — a
   // correction restates the receipt, never its boost settlement.
   const settledAddonCharges = addonChargeLinesOf(existingPayment);

@@ -19742,6 +19742,52 @@
           </div>
 
           
+          <!-- SISP-121: Split tender — leg 1 is the main amount/method above;
+               this block adds leg 2. Hidden unless the split toggle is on,
+               so the ordinary 2-tap flow is unchanged. -->
+          <div class="qc-field-group" style="margin-top:8px;">
+            <label class="qc-label" for="quickCollectSplitToggle" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="quickCollectSplitToggle">
+              <span data-i18n="split_toggle_label">Split payment across 2 methods</span>
+            </label>
+          </div>
+          <div id="quickCollectSplitFields" class="qc-digital-fields" hidden>
+            <div class="qc-form-row">
+              <div class="qc-field-group">
+                <label for="quickCollectSplitAmountInput" class="qc-label" data-i18n="split_leg2_amount_label">Leg 2 Amount (PKR)</label>
+                <input id="quickCollectSplitAmountInput"
+                       type="number"
+                       step="0.01"
+                       min="0.01"
+                       max="999999"
+                       inputmode="decimal"
+                       placeholder="e.g. 1000"
+                       class="qc-input">
+              </div>
+              <div class="qc-field-group">
+                <label for="quickCollectSplitMethodSelect" class="qc-label" data-i18n="split_leg2_method_label">Leg 2 Method</label>
+                <select id="quickCollectSplitMethodSelect" class="qc-input"></select>
+              </div>
+            </div>
+            <div id="quickCollectSplitDigitalFields" hidden>
+              <div class="qc-field-group">
+                <label for="quickCollectSplitTransactionIdInput" class="qc-label" data-i18n="split_leg2_tid_label">Leg 2 Transaction ID / Ref</label>
+                <input id="quickCollectSplitTransactionIdInput"
+                       type="text"
+                       maxlength="64"
+                       placeholder="e.g. 12345678901 (JazzCash / Easypaisa / Raast ID)"
+                       class="qc-input qc-txnid-input">
+              </div>
+              <div class="qc-field-group">
+                <label for="quickCollectSplitOverrideReasonInput" class="qc-label" data-i18n="split_leg2_override_label">Leg 2 override reason (when no TID)</label>
+                <input id="quickCollectSplitOverrideReasonInput"
+                       type="text"
+                       maxlength="100"
+                       class="qc-input">
+              </div>
+            </div>
+          </div>
+
           <div id="quickCollectDuplicateWarning" class="qc-duplicate-card" hidden role="alert">
             <div class="qc-duplicate-title">⚠️ Duplicate Transaction ID Detected</div>
             <p id="quickCollectDuplicateMsg" class="qc-duplicate-msg"></p>

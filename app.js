@@ -1,6 +1,6 @@
 import {
   INITIAL_NAMES, PAYMENT_METHODS, MONTH_LIMIT, STORAGE_KEY, readState, persistState, monthsForHistory, generateMonthlyBillsThroughCurrentMonth,
-  addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
+  addCustomer, deleteCustomer, archiveCustomer, unarchiveCustomer, recordWinBackOfferSent, updateCustomerProfile, saveBillMonth, addPayment, correctPayment,
   deletePayment, setPaymentWalletVerified, recordedAmount, customerPackageProfit, calculateDashboard, searchCustomers, filterCustomersByStatus, derivedBillStatus,
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
@@ -21,7 +21,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
 import { captureCurrentPosition, loadSplitterBoxPins, saveSplitterBoxPins, SPLITTER_BOX_GPS_STORAGE_KEY } from './gps-pin-helper.js';
@@ -202,6 +202,7 @@ import { buildCollectionForecast } from './collection-forecaster.js';
 import { buildDailyPartnerDigest, dailyPartnerDigestWhatsAppUrl } from './daily-partner-digest.js';
 import { setupMultiMonthMatrix } from './multi-month-comparison.js';
 import { buildUpsellCandidates, buildUpsellSummary, upsellCandidateForCustomer } from './upsell-optimizer.js';
+import { buildWinBackQueue, buildDisconnectAnalytics, defaultWinBackEligible, DISCONNECT_REASONS, DISCONNECT_REASON_LABEL_KEYS } from './churn-winback.js';
 import { buildAtRiskLoyalCustomers, buildLoyaltySummary } from './loyalty-retention.js';
 import { buildRevenueLeakAudit, buildRevenueLeakSummary } from './revenue-leak-detector.js';
 import { setupBulkTariffDialog } from './bulk-tariff-updater.js';
@@ -1009,6 +1010,47 @@ function renderDashboard() {
         return `<li class="upsell-item"><button type="button" class="upsell-row" data-upsell-customer-id="${escapeHtml(row.customerId)}"><span class="upsell-main"><strong class="upsell-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="upsell-sub-line">${escapeHtml(t('upsell_pkg_line', null, { current: row.currentLabel, fee: formatAmount(row.currentFee), target: row.targetLabel, price: formatAmount(row.targetPrice) }))}</span><span class="upsell-sub-line">${escapeHtml(reasons)}</span></span><strong class="upsell-gain">${escapeHtml(t('upsell_gain', null, { amount: formatAmount(row.gainPerMonth) }))}</strong></button>${row.whatsappUrl ? `<a class="upsell-offer-btn" href="${escapeHtml(row.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('upsell_offer'))}</a>` : ''}</li>`;
       }).join('');
     upsellListEl.querySelectorAll('[data-upsell-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.upsellCustomerId)));
+  }
+  // SISP-108: Disconnect Reasons & Win-Back — analytics derived live
+  // from the archived records (per reason, this month + all time;
+  // reason-less legacy archives counted honestly as "Not recorded")
+  // and the Win-Back Queue of owner-marked eligible customers. The
+  // offer button opens a wa.me DRAFT (nothing auto-sends); tapping it
+  // stamps winBackOfferSentAt, but the customer stays queued until
+  // they actually reconnect (restore).
+  const winbackListEl = $('#winbackList');
+  if (winbackListEl) {
+    const winbackAnalytics = buildDisconnectAnalytics(state, referenceDate);
+    const winbackQueue = buildWinBackQueue(state);
+    const winbackCountEl = $('#winbackQueueCount');
+    if (winbackCountEl) winbackCountEl.textContent = winbackQueue.length > 0 ? t('winback_queue_count', null, { count: winbackQueue.length }) : '';
+    const winbackAnalyticsEl = $('#winbackAnalytics');
+    if (winbackAnalyticsEl) {
+      const analyticsRows = [
+        ...winbackAnalytics.byReason.filter(row => row.allTime > 0).map(row => ({ label: t(row.labelKey), allTime: row.allTime, thisMonth: row.thisMonth })),
+        ...(winbackAnalytics.notRecorded.allTime > 0 ? [{ label: t('winback_reason_not_recorded'), allTime: winbackAnalytics.notRecorded.allTime, thisMonth: winbackAnalytics.notRecorded.thisMonth }] : [])
+      ];
+      winbackAnalyticsEl.innerHTML = winbackAnalytics.totalArchived === 0 ? '' : analyticsRows.map(row => `<p><span>${escapeHtml(row.label)}</span><strong>${escapeHtml(String(row.allTime))}</strong><small> · ${escapeHtml(t('winback_analytics_month'))}: ${escapeHtml(String(row.thisMonth))}</small></p>`).join('');
+    }
+    winbackListEl.innerHTML = winbackQueue.length === 0
+      ? `<li class="winback-empty">${escapeHtml(t('winback_empty'))}</li>`
+      : winbackQueue.map((row) => {
+          const wa = formatWhatsAppUrl(row.phone || '', row.offerText);
+          const offerAction = wa.validPhone
+            ? `<a class="winback-offer-btn" href="${escapeHtml(wa.url)}" target="_blank" rel="noopener noreferrer" data-winback-offer-id="${escapeHtml(row.customerId)}">${escapeHtml(t('winback_offer'))}</a>`
+            : `<span class="winback-no-phone">${escapeHtml(t('winback_no_phone'))}</span>`;
+          const sentLine = row.winBackOfferSentAt ? `<span class="winback-sub-line">${escapeHtml(t('winback_offer_sent', null, { date: row.winBackOfferSentAt.slice(0, 10) }))}</span>` : '';
+          return `<li class="winback-item"><button type="button" class="winback-row" data-winback-customer-id="${escapeHtml(row.customerId)}"><span class="winback-main"><strong class="winback-name" dir="auto">${escapeHtml(row.customerName)}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="winback-sub-line">${escapeHtml(row.reasonLabel)}${row.archivedAt ? ` · ${escapeHtml(t('winback_row_archived', null, { date: row.archivedAt.slice(0, 10) }))}` : ''}</span>${sentLine}</span></button>${offerAction}</li>`;
+        }).join('');
+    winbackListEl.querySelectorAll('[data-winback-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.winbackCustomerId)));
+    winbackListEl.querySelectorAll('[data-winback-offer-id]').forEach(link => link.addEventListener('click', () => {
+      try {
+        state = recordWinBackOfferSent(state, link.dataset.winbackOfferId, new Date());
+        save();
+        // Re-render after the click so the wa.me draft still opens.
+        setTimeout(() => renderDashboard(), 50);
+      } catch { /* the draft still opened; the stamp is best-effort */ }
+    }));
   }
   // SISP-90: At-Risk Loyal Customers — 12+ month subscribers who
   // logged 2+ complaints this month or lost 12+ hours to downtime
@@ -3229,7 +3271,7 @@ function renderCustomerProfileView(customer) {
     ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
     : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${badDebtSectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -6509,9 +6551,9 @@ async function restoreCustomer(customerId) {
     toast('Customer unarchived. Billing resumes from the current or next eligible month; archived months are not backfilled.');
   } catch (error) { toast(error.message); }
 }
-function archiveSelectedCustomer(customer) {
+function archiveSelectedCustomer(customer, disconnectDetails = null) {
   try {
-    state = archiveCustomer(state, customer.id, new Date()); save(); renderDetail();
+    state = archiveCustomer(state, customer.id, new Date(), disconnectDetails); save(); renderDetail();
     toast('Customer archived. Existing history remains available.', { type:'success', title:`#${customer.customerNumber} ${customer.name} archived`, actionLabel:'Undo', onAction: () => restoreCustomer(customer.id) });
     // SISP-19: archiving IS disconnection — surface the recovery list
     // immediately when ISP-owned hardware is now pending.
@@ -6521,10 +6563,49 @@ function archiveSelectedCustomer(customer) {
   }
   catch (error) { toast(error.message); }
 }
-$('#archiveCustomerButton').addEventListener('click', async () => {
+// SISP-108: archiving captures the disconnect reason + win-back
+// eligibility INSIDE the archive flow itself — the archive button
+// opens this one dialog (reason select, eligibility checkbox whose
+// default follows the chosen reason, optional note) and confirming
+// runs the same archive action as before, capture included.
+let archiveDialogCustomerId = null;
+function openArchiveCustomerDialog(customer) {
+  archiveDialogCustomerId = customer.id;
+  const dialog = $('#archiveCustomerModal');
+  const subject = $('#archiveCustomerSubject');
+  if (subject) subject.textContent = `#${customer.customerNumber} ${customer.name}`;
+  const reasonSelect = $('#archiveReasonSelect');
+  if (reasonSelect) {
+    reasonSelect.innerHTML = [`<option value="">${escapeHtml(t('winback_archive_reason_choose'))}</option>`, ...DISCONNECT_REASONS.map(reason => `<option value="${escapeHtml(reason)}">${escapeHtml(t(DISCONNECT_REASON_LABEL_KEYS[reason]))}</option>`)].join('');
+    reasonSelect.value = '';
+  }
+  const eligibleBox = $('#archiveWinBackEligible');
+  if (eligibleBox) eligibleBox.checked = false;
+  const noteInput = $('#archiveDisconnectNote');
+  if (noteInput) noteInput.value = '';
+  if (dialog?.showModal) dialog.showModal();
+}
+$('#archiveReasonSelect')?.addEventListener('change', (event) => {
+  // Changing the reason re-applies the default (Temporary Travel
+  // pre-checks win-back); the owner can still flip the box afterwards.
+  const eligibleBox = $('#archiveWinBackEligible');
+  if (eligibleBox) eligibleBox.checked = defaultWinBackEligible(event.target.value);
+});
+$('#archiveCustomerCloseBtn')?.addEventListener('click', () => { $('#archiveCustomerModal')?.close(); });
+$('#archiveCustomerForm')?.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const customer = state.customers.find(entry => entry.id === archiveDialogCustomerId);
+  $('#archiveCustomerModal')?.close();
+  if (!customer) return;
+  archiveSelectedCustomer(customer, {
+    disconnectReason: $('#archiveReasonSelect')?.value ?? '',
+    winBackEligible: $('#archiveWinBackEligible')?.checked === true,
+    disconnectNote: $('#archiveDisconnectNote')?.value ?? ''
+  });
+});
+$('#archiveCustomerButton').addEventListener('click', () => {
   const customer = selectedCustomer();
-  if (!customer || !(await appConfirm({ tone:'warning', icon:'🗄', title:'Archive this customer?', subject:`#${customer.customerNumber} ${customer.name}`, message:'Existing bills, receipts, complaints, customer number and unused credit stay on this device; no new monthly bills will be generated while archived.', confirmLabel:'Archive' }))) return;
-  archiveSelectedCustomer(customer);
+  if (customer) openArchiveCustomerDialog(customer);
 });
 $('#unarchiveCustomerButton').addEventListener('click', () => { const customer = selectedCustomer(); if (customer) restoreCustomer(customer.id); });
 

@@ -35,6 +35,7 @@ import { sanitizeOverheads } from './fixed-overheads.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { sanitizeDisconnectDetails, sanitizeDisconnectHistory, sanitizeDisconnectDateTime, DISCONNECT_HISTORY_LIMIT } from './churn-winback.js';
 import { sanitizeSignalReadings } from './signal-history.js';
 import { sanitizeReceiptLang, sanitizeReceiptChannel, prefersSmsForChannel } from './receipt-preferences.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
@@ -236,6 +237,15 @@ export function readState(storage, key = STORAGE_KEY) {
       preferredReceiptChannel:sanitizeReceiptChannel(customer.preferredReceiptChannel),
       archived:customer.archived === true,
       archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
+      // SISP-108: disconnect capture — customers archived before this
+      // feature load with NO reason (never invented); the disconnect
+      // history survives restores because it is the record of past
+      // disconnections, not a property of the current archive.
+      disconnectReason:['shifted','competitor','affordability','temporary-travel'].includes(customer.disconnectReason) ? customer.disconnectReason : '',
+      winBackEligible:customer.winBackEligible === true,
+      disconnectNote:typeof customer.disconnectNote === 'string' ? customer.disconnectNote.trim().slice(0, 500) : '',
+      disconnectHistory:sanitizeDisconnectHistory(customer.disconnectHistory),
+      winBackOfferSentAt:sanitizeDisconnectDateTime(customer.winBackOfferSentAt),
       // SISP-8: vacation hold — corrupt values fall back to "no hold",
       // so old saves load exactly as before.
       paused:customer.paused === true,
@@ -432,7 +442,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const preferredReceiptChannel = sanitizeReceiptChannel(options.preferredReceiptChannel);
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -633,9 +643,29 @@ export function deleteCustomer(state, customerId) {
   return { ...state, customers: state.customers.filter(c => c.id !== customerId) };
 }
 
-export function archiveCustomer(state, customerId, referenceDate = new Date()) {
+export function archiveCustomer(state, customerId, referenceDate = new Date(), disconnectDetails = null) {
   customerOrThrow(state, customerId);
-  return { ...state, customers:state.customers.map(customer => customer.id === customerId ? { ...customer, archived:true, archivedAt:localDateTimeValue(referenceDate) } : customer) };
+  return { ...state, customers:state.customers.map(customer => {
+    if (customer.id !== customerId) return customer;
+    const archivedAt = localDateTimeValue(referenceDate);
+    // SISP-108: without capture details this is exactly the pre-SISP-108
+    // behaviour. With details (the archive dialog always passes them),
+    // the capture is stamped as the current disconnect record, appended
+    // to the disconnect history, and any earlier win-back offer stamp is
+    // cleared — the offer for THIS disconnect has not been sent yet.
+    if (disconnectDetails === null || disconnectDetails === undefined) return { ...customer, archived:true, archivedAt };
+    const details = sanitizeDisconnectDetails(disconnectDetails);
+    const disconnectHistory = [...sanitizeDisconnectHistory(customer.disconnectHistory), { archivedAt, ...details }].slice(-DISCONNECT_HISTORY_LIMIT);
+    return { ...customer, archived:true, archivedAt, disconnectReason:details.disconnectReason, winBackEligible:details.winBackEligible, disconnectNote:details.disconnectNote, disconnectHistory, winBackOfferSentAt:null };
+  }) };
+}
+
+// SISP-108: stamp that the win-back reconnection offer was sent (the
+// wa.me draft was opened). The customer stays in the Win-Back Queue —
+// only an actual restore/reconnect removes them.
+export function recordWinBackOfferSent(state, customerId, referenceDate = new Date()) {
+  customerOrThrow(state, customerId);
+  return { ...state, customers:state.customers.map(customer => customer.id === customerId ? { ...customer, winBackOfferSentAt:localDateTimeValue(referenceDate) } : customer) };
 }
 
 export function unarchiveCustomer(state, customerId, referenceDate = new Date()) {
@@ -3149,6 +3179,9 @@ function validateBackupState(source) {
       mohalla:customer.mohalla ?? '', zone:customer.zone ?? '', address:customer.address ?? '', phone:customer.phone ?? '', cnic:customer.cnic ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', serviceStatusHistory:sanitizeServiceStatusHistory(customer.serviceStatusHistory), packageSpeed:customer.packageSpeed ?? '',
       monthlySellingAmount:customer.monthlySellingAmount ?? null, monthlyPurchaseCost:customer.monthlyPurchaseCost ?? null,
       monthlyPriceSchedule:schedule, billingStartMonth:customer.billingStartMonth ?? null, archived:customer.archived === true, archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
+      // SISP-108: disconnect capture travels with the customer in JSON
+      // backups (sanitized — a corrupt reason imports as not recorded).
+      disconnectReason:sanitizeDisconnectDetails(customer).disconnectReason, winBackEligible:customer.winBackEligible === true, disconnectNote:sanitizeDisconnectDetails(customer).disconnectNote, disconnectHistory:sanitizeDisconnectHistory(customer.disconnectHistory), winBackOfferSentAt:sanitizeDisconnectDateTime(customer.winBackOfferSentAt),
       connectionDate:customer.connectionDate ?? null, expiryDate:customer.expiryDate ?? null, cancellationDate:customer.cancellationDate ?? null,
       connectionFee:customer.connectionFee ?? null, routerModel:customer.routerModel ?? '', routerPrice:customer.routerPrice ?? null, fiberMeters:customer.fiberMeters ?? null, mediaConverterCost:customer.mediaConverterCost ?? null, linemanInstallFee:customer.linemanInstallFee ?? null, fiberPerMeterRate:customer.fiberPerMeterRate ?? null,
       // SISP-19: custody fields travel with the customer in JSON backups.
@@ -3527,7 +3560,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','disconnectReason','disconnectNote','winBackOfferSentAt']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-84: connection type merges like serviceStatus's default —
     // 'commercial_vip' fills a local 'residential', and a local VIP tag
     // is never stripped by a merge. (The load sanitizer stamps
@@ -3577,6 +3610,26 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     customer.packageHistory = customer.packageHistory ?? [];
     for (const change of backupCustomer.packageHistory ?? []) if (!customer.packageHistory.some(existing=>sameJson(existing,change))) { customer.packageHistory.push(deepCopy(change)); counts.changes++; }
+    // SISP-108: win-back eligibility merges as an explicit boolean, NOT
+    // a mergeField fill: a legacy record without the field reads as
+    // false, so adopting an incoming false is shape normalization (no
+    // change counted — the hardwareRecovered container precedent);
+    // two explicit but different values conflict, local wins (the
+    // 'archived' boolean precedent).
+    if (customer.winBackEligible === undefined && backupCustomer.winBackEligible !== undefined) {
+      customer.winBackEligible = backupCustomer.winBackEligible === true;
+    } else if (customer.winBackEligible !== undefined && backupCustomer.winBackEligible !== undefined && (customer.winBackEligible === true) !== (backupCustomer.winBackEligible === true)) {
+      addConflict(backupCustomer, 'winBackEligible');
+    }
+    // SISP-108: disconnect history merges by union — an archive event
+    // recorded on either device stays recorded, and the same event is
+    // never stored twice.
+    {
+      const mergedDisconnectHistory = sanitizeDisconnectHistory(customer.disconnectHistory ?? []);
+      for (const entry of sanitizeDisconnectHistory(backupCustomer.disconnectHistory ?? [])) if (!mergedDisconnectHistory.some(existing => sameJson(existing, entry))) mergedDisconnectHistory.push(entry);
+      const cappedDisconnectHistory = mergedDisconnectHistory.slice(-DISCONNECT_HISTORY_LIMIT);
+      if (!sameJson(customer.disconnectHistory ?? [], cappedDisconnectHistory)) { customer.disconnectHistory = cappedDisconnectHistory; counts.changes++; }
+    }
     // Uptime tracking: service-status history merges by union on
     // (status, at) — a restore never loses a recorded status flip from
     // either side, and the same flip is never stored twice.

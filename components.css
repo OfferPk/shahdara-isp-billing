@@ -2095,3 +2095,51 @@ button.field-dispatch-item { cursor: pointer; }
   line-height: 1.65;
   margin: 0;
 }
+
+/* SISP-108: archive dialog disconnect capture (reason select, win-back
+   eligibility, optional note) inside the shared billing-modal shell —
+   theme tokens only, so it renders on var(--modal-surface) in both
+   light and dark modes. */
+.archive-customer-subject {
+  font-weight: 700;
+  color: var(--ink);
+  margin: 0 0 4px;
+}
+.archive-customer-message {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.archive-customer-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.archive-customer-form label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+.archive-eligible-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.archive-eligible-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.archive-customer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.profile-disconnect-section {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  margin-top: 8px;
+}

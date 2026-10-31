@@ -13,6 +13,7 @@ import { isCommercialVip } from './commercial-sla.js';
 
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
+import { disconnectDetailsOf, disconnectReasonLabel } from './churn-winback.js';
 import { computeWaadaScore } from './waada-queue.js';
 import { activeDownstreamCount, feederHostCreditOf, isFeederHost } from './feeder-host-credit.js';
 import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
@@ -704,6 +705,38 @@ export function upsellProfileHintHtml(candidate, formatAmountFn = (n) => String(
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const textLine = t('prof_upsell_text', null, { target: candidate.targetLabel, price: formatAmountFn(candidate.targetPrice), gain: formatAmountFn(candidate.gainPerMonth) });
   return `<section class="profile-referral-section" aria-label="${esc(t('prof_upsell_heading'))}"><h4>${esc(t('prof_upsell_heading'))}</h4><p>${esc(textLine)}</p>${candidate.whatsappUrl ? `<p><a class="secondary-button" href="${esc(candidate.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${esc(t('upsell_offer'))}</a></p>` : ''}</section>`;
+}
+
+/**
+ * SISP-108: profile disconnect section. For an archived customer it
+ * shows the CURRENT disconnect record (reason, note, win-back
+ * eligibility, offer stamp); earlier archive events are listed from
+ * disconnectHistory so a re-archive never rewrites the past. Returns ''
+ * for a customer who is active and has never been archived — nothing
+ * is invented for legacy or active records.
+ */
+export function disconnectProfileHtml(customer) {
+  if (!customer || typeof customer !== 'object') return '';
+  const details = disconnectDetailsOf(customer);
+  const archived = customer.archived === true;
+  const history = details.disconnectHistory;
+  if (!archived && history.length === 0) return '';
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const lines = [];
+  if (archived) {
+    lines.push(`<p>${esc(t('winback_prof_reason', null, { reason: disconnectReasonLabel(details.disconnectReason) }))}</p>`);
+    lines.push(`<p>${esc(t(details.winBackEligible ? 'winback_prof_eligible' : 'winback_prof_not_eligible'))}</p>`);
+    if (details.disconnectNote) lines.push(`<p>${esc(t('winback_prof_note', null, { note: details.disconnectNote }))}</p>`);
+    if (details.winBackEligible) lines.push(`<p>${esc(details.winBackOfferSentAt ? t('winback_prof_offer_sent', null, { date: details.winBackOfferSentAt.slice(0, 10) }) : t('winback_prof_offer_not_sent'))}</p>`);
+  }
+  // The latest history entry duplicates the current block above when
+  // archived, so the history list shows the earlier events only then.
+  const earlier = archived ? history.slice(0, -1) : history;
+  if (earlier.length > 0) {
+    lines.push(`<p><strong>${esc(t('winback_prof_history'))}</strong></p><ul>${earlier.map(entry => `<li>${esc(t('winback_prof_history_line', null, { date: entry.archivedAt.slice(0, 10), reason: disconnectReasonLabel(entry.disconnectReason) }))}</li>`).join('')}</ul>`);
+  }
+  if (lines.length === 0) return '';
+  return `<section class="profile-disconnect-section" aria-label="${esc(t('winback_prof_heading'))}"><h4>${esc(t('winback_prof_heading'))}</h4>${lines.join('')}</section>`;
 }
 
 // SISP-106: the profile Speed Boost section — the customer's boost log

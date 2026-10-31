@@ -6,6 +6,7 @@ import { getAppLanguage, t } from './nav-language.js';
 import { paymentDayHabit } from './payment-day-advisor.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 import { prepaidUntilMonth } from './advance-prepay.js';
+import { loyaltyInfoForCustomer } from './loyalty-retention.js';
 import { isCommercialVip } from './commercial-sla.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
@@ -481,6 +482,19 @@ export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date(
   return `<span class="prepaid-until-badge">${label}</span>`;
 }
 
+/**
+ * SISP-90: the "👑 1+ Yr Loyal" badge. Tenure comes from
+ * loyalty-retention.js's live derivation over the recorded start
+ * (connectionDate, else the profile-added date — never invented), and
+ * this helper returns '' the moment tenure is under 12 whole months
+ * or no honest start date exists, so the badge can never appear for a
+ * customer whose record does not prove a year of service.
+ */
+export function loyaltyBadgeHtml(customer, referenceDate = new Date()) {
+  const info = loyaltyInfoForCustomer(customer, referenceDate);
+  if (!info.isLoyal) return '';
+  return `<span class="loyalty-badge">${t('loyalty_badge')}</span>`;
+}
 /**
  * SISP-84: the "🏢 Commercial VIP" tag for a commercial_vip customer's
  * profile (their open complaints/tickets get SLA queue priority — see

@@ -743,6 +743,123 @@ export function applyFifoPaymentEventToState(state, customerId, month, paymentId
   return { ...state, customers: customers.map((row) => (row?.id !== customerId ? row : nextCustomer)) };
 }
 
+// ---------------------------------------------------------------- SISP-95
+// Pre-Cycle "What-If / Dry-Run" Next Month Billing Simulator.
+//
+// A PURE READ-ONLY forecast: it runs the exact same planner the real
+// cycle uses (planBillingCycle — billing-cycle pricing, SISP-4 kist via
+// installment-plan.js, SISP-8 pause via pause-billing.js, arrears and
+// advance via the allocation engine) and reshapes its totals into the
+// four owner-facing figures: projected Arrears Rollover, Active Kists,
+// Skipped Paused Connections, and Total Expected Next-Month Billing.
+// There is deliberately NO second billing math here, so a dry run can
+// never drift from the cycle it previews.
+//
+// Read-only is guaranteed by construction, not by discipline: the
+// planner only ever receives a deep clone of the caller's state, so the
+// live state object never reaches any code path that could mutate it.
+// Nothing is persisted — no bill is created, no cycle record is saved,
+// no plan counter advances — and the result is labelled a projection
+// everywhere it is shown, so it can never be mistaken for recorded
+// billing.
+
+/** The month after a valid YYYY-MM month ('2026-12' -> '2027-01'). */
+export function nextBillingMonth(month) {
+  if (!isBillingCycleMonth(month)) throw new Error('Choose a valid billing month (YYYY-MM).');
+  const [year, number] = month.split('-').map(Number);
+  const index = year * 12 + number;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`;
+}
+
+function cloneForForecast(value) {
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return value === undefined ? value : JSON.parse(JSON.stringify(value));
+}
+
+/**
+ * Dry-run forecast for one month. Returns the planner's own figures
+ * under forecast names:
+ *   packageBilling        — next month's package charges (plan totalBilled)
+ *   arrearsRollover       — unpaid earlier balances rolling into the
+ *                           month (plan totalArrears, from arrearsAndAdvance)
+ *   activeKistAmount      — kist falling due in the month (plan totalKist),
+ *                           with per-customer detail in activeKists
+ *   pausedSkipped         — connections the SISP-8 hold skips that month
+ *   totalExpected         — package + kist + arrears rollover: everything
+ *                           customers will owe for the month
+ *   netExpectedCollection — totalExpected after advance credit and any
+ *                           queued referral credit (the plan's own net)
+ * Throws on an invalid month, exactly like planBillingCycle.
+ */
+export function forecastBillingCycle(state, month, options = {}) {
+  if (!isBillingCycleMonth(month)) throw new Error('Choose a valid billing month (YYYY-MM).');
+  const source = state && typeof state === 'object' ? state : { customers: [] };
+  const plan = planBillingCycle(cloneForForecast(source), month, options);
+  const activeKists = [];
+  let kistInstallmentCount = 0;
+  for (const line of plan.lines) {
+    if (!(line.kistAmount > 0)) continue;
+    const lines = Array.isArray(line.kistLines) ? line.kistLines : [];
+    kistInstallmentCount += lines.length;
+    activeKists.push({
+      customerId: line.customerId,
+      customerNumber: line.customerNumber,
+      name: line.name,
+      amount: line.kistAmount,
+      newAmount: line.kistNewAmount ?? line.kistAmount,
+      installmentCount: lines.length,
+      labels: lines.map((row) => kistLineLabel(row))
+    });
+  }
+  const pausedSkipped = plan.skipped
+    .filter((line) => line.reason === 'paused')
+    .map((line) => ({ customerId: line.customerId, customerNumber: line.customerNumber, name: line.name }));
+  const totalExpected = rupees(cents(plan.totals.totalBilled) + cents(plan.totals.totalKist) + cents(plan.totals.totalArrears));
+  return {
+    month,
+    forecast: true,
+    packageBilling: plan.totals.totalBilled,
+    arrearsRollover: plan.totals.totalArrears,
+    activeKistAmount: plan.totals.totalKist,
+    activeKists,
+    kistCustomerCount: activeKists.length,
+    kistInstallmentCount,
+    advanceAvailable: plan.totals.totalAdvanceAvailable,
+    advanceApplied: plan.totals.totalAdvanceApplied,
+    referralCredit: plan.totals.totalReferralCredit,
+    totalExpected,
+    netExpectedCollection: plan.totals.netExpectedCollection,
+    billedCount: plan.totals.billedCount,
+    skippedCount: plan.totals.skippedCount,
+    pausedSkipped,
+    pausedSkippedCount: pausedSkipped.length,
+    lines: plan.lines,
+    skipped: plan.skipped,
+    defaulterBuckets: plan.defaulterBuckets
+  };
+}
+
+/** Dry-run forecast for the month after the reference date's PKT month. */
+export function forecastNextBillingMonth(state, referenceDate = new Date(), options = {}) {
+  return forecastBillingCycle(state, nextBillingMonth(pakistanMonthKey(referenceDate)), options);
+}
+
+/** Plain-text forecast lines (receipt/briefing style), clearly labelled
+ *  as a projection — no bills exist for these figures yet. */
+export function forecastTextLines(forecast) {
+  if (!forecast) return [];
+  return [
+    `Dry-Run Forecast ${forecast.month} (projection — no bills created)`,
+    `Mahana Package Billing: ${formatPKR(forecast.packageBilling)}`,
+    `Sabiqa Baqaya Rollover (Arrears): ${formatPKR(forecast.arrearsRollover)}`,
+    `Kist (installments due): ${formatPKR(forecast.activeKistAmount)}`,
+    `Kul Mutawaqa Billing (Total Expected): ${formatPKR(forecast.totalExpected)}`,
+    ...(forecast.advanceApplied > 0 ? [`Advance Credit Applied: ${formatPKR(forecast.advanceApplied)}`] : []),
+    `Net Mutawaqa Wusool (Net Expected Collection): ${formatPKR(forecast.netExpectedCollection)}`,
+    `Paused — skip shuda connections: ${forecast.pausedSkippedCount}`
+  ];
+}
+
 // ---------------------------------------------------------------- modal
 export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('billingCycleModal') : null;

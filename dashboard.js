@@ -2,6 +2,7 @@ import { calculateDashboard, calculatePaymentAllocations, derivedBillStatus, bui
 import { calculateDuesByArea, calculateAreaDetailedBreakdown, calculateAreaCollectionHeatmap } from './dashboard-charts.js';
 import { calculateDuesAgingBreakdown } from './dashboard-dues-aging.js';
 import { runKhataDoctor, repairKhataDoctor } from './qa-khata-doctor.js';
+import { forecastNextBillingMonth } from './billing-cycle.js';
 
 function escapeXml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
@@ -537,6 +538,22 @@ export {
   generateHandoverWhatsAppText,
   generateHandoverPrintHtml
 } from './dashboard-daily-closing.js';
+
+/**
+ * SISP-95: next-month dry-run forecast for the Billing Cycle dashboard
+ * card. A thin dashboard seam over billing-cycle.js's pure forecast —
+ * the planner runs on a deep clone, so rendering this card can never
+ * mutate the ledger, create a bill, or persist anything. Returns null
+ * instead of throwing so a dashboard render never breaks on it; the
+ * card simply hides when there is no forecast.
+ */
+export function calculateNextMonthForecast(state, referenceDate = new Date()) {
+  try {
+    return forecastNextBillingMonth(state, referenceDate);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * SISP-36: Khata Doctor card (inside the footer backup controls).

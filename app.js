@@ -48,7 +48,7 @@ import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerC
 import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate, recordBackupHealthExport, shareBackupOffDevice } from './backup-health.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
-import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard } from './dashboard.js?v=1.11.0';
+import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast } from './dashboard.js?v=1.11.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
 
 import {
@@ -1114,6 +1114,25 @@ function renderDashboard() {
     if (periodEl) periodEl.textContent = latest ? t('dash_cycle_bills', null, { count: latest.totals.billedCount, amount: formatAmount(latest.totals.netExpectedCollection) }) : t('dash_cycle_period_empty');
     cycleSummaryEl.innerHTML = latest
       ? `<p><span>${escapeHtml(displayMonthName(latest.month))}</span><strong>${escapeHtml(t('dash_cycle_billed', null, { amount: formatAmount(latest.totals.totalBilled) }))}</strong><small> · ${escapeHtml(t('dash_cycle_arrears', null, { amount: formatAmount(latest.totals.totalArrears) }))} · ${escapeHtml(latest.ranAt || '')}</small></p>`
+      : '';
+  }
+  // SISP-95: next-month dry-run forecast on the same card. Pure
+  // projection — the planner runs on a deep clone inside
+  // billing-cycle.js, so rendering this creates no bill, saves no
+  // cycle record and touches no state; the note line says so.
+  const forecastEl = $('#billingCycleForecast');
+  if (forecastEl) {
+    const forecast = calculateNextMonthForecast(state, referenceDate);
+    forecastEl.innerHTML = forecast ? `
+      <p><span>${escapeHtml(t('dryrun_heading'))}</span><strong>${escapeHtml(t('dryrun_month', null, { month: displayMonthName(forecast.month) }))}</strong></p>
+      <p><span>${escapeHtml(t('dryrun_package'))}</span><strong>${escapeHtml(formatAmount(forecast.packageBilling))}</strong></p>
+      <p><span>${escapeHtml(t('dryrun_arrears'))}</span><strong>${escapeHtml(formatAmount(forecast.arrearsRollover))}</strong></p>
+      ${forecast.activeKistAmount > 0 ? `<p><span>${escapeHtml(t('dryrun_kist'))}</span><strong>${escapeHtml(formatAmount(forecast.activeKistAmount))}</strong><small> · ${escapeHtml(t('dryrun_kist_detail', null, { installments: forecast.kistInstallmentCount, customers: forecast.kistCustomerCount }))}</small></p>` : ''}
+      <p><span>${escapeHtml(t('dryrun_total'))}</span><strong>${escapeHtml(formatAmount(forecast.totalExpected))}</strong></p>
+      ${forecast.advanceApplied > 0 ? `<p><span>${escapeHtml(t('dryrun_advance'))}</span><strong>-${escapeHtml(formatAmount(forecast.advanceApplied))}</strong></p>` : ''}
+      <p><span>${escapeHtml(t('dryrun_net'))}</span><strong>${escapeHtml(formatAmount(forecast.netExpectedCollection))}</strong></p>
+      ${forecast.pausedSkippedCount > 0 ? `<p><span>${escapeHtml(t('dryrun_paused', null, { count: forecast.pausedSkippedCount }))}</span></p>` : ''}
+      <p><small>${escapeHtml(t('dryrun_note'))}</small></p>`
       : '';
   }
   // SISP-15: complaint register card (open faults + this-month downtime).

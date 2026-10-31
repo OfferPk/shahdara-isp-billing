@@ -137,6 +137,7 @@
 .commission-totals { font-size: 13px; font-weight: 600; color: var(--ink); margin: 4px 0 0; }
 /* SISP-2: monthly billing cycle card + modal. Theme tokens only. */
 .billing-cycle-summary { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; }
+.billing-cycle-forecast { border-top: 1px solid var(--line); padding-top: 8px; }
 .billing-cycle-summary p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 13px; color: var(--muted); }
 .billing-cycle-summary p span { color: var(--ink); font-weight: 600; }
 .billing-cycle-summary p strong { color: var(--ink); font-variant-numeric: var(--numeric); }

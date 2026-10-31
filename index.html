@@ -405,6 +405,7 @@
           <div id="shopSettlementSummary" class="shop-settlement-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_shop_settlement">🏪 Shop Settlement</button>
+            <button id="openCommissionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="comm_btn_open">💰 Collector Commission</button>
           </div>
         </article>
         <article class="summary-card summary-billing-cycle ds-stat ds-stat--info">
@@ -21162,6 +21163,24 @@
       </div>
     </div>
   </dialog>
+  <!-- SISP-93: Collector Commission Calculator Dialog -->
+  <dialog id="commissionModal" class="billing-modal commission-modal" aria-labelledby="commissionModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="commissionModalTitle" data-i18n="comm_title">💰 Collector Commission</h2>
+        <button id="commissionCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="shop-settlement-intro" data-i18n="comm_intro">Set one commission rule per shop or field collector — a fixed amount per receipt, or a percentage of what they collected. Commission is computed from recorded payments only, and can be posted to Monthly Expenses once per collector per month.</p>
+        <label class="field-label" for="commissionMonthInput"><span data-i18n="comm_month_label">Month</span>
+          <input id="commissionMonthInput" class="form-input" type="month" required>
+        </label>
+        <div id="commissionRows" class="shop-settlement-cards commission-cards"></div>
+        <p id="commissionTotals" class="commission-totals" role="status"></p>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="billingCycleModal" class="billing-modal billing-cycle-modal" aria-labelledby="billingCycleModalTitle">
     <div class="modal-card">
       <header class="modal-header">

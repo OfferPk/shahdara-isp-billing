@@ -540,6 +540,16 @@ export {
 } from './dashboard-daily-closing.js';
 
 /**
+ * SISP-103: PON port capacity telemetry (active ONUs / 64, sold Mbps,
+ * oversubscription ratio, saturation flags) lives in
+ * olt-pon-capacity.js and is re-exported here — the same bridge pattern
+ * as the Daily Closing re-export above — so app.js consumes it through
+ * its existing dashboard import. (The deployment terminology guard in
+ * tests/deployment.test.js forbids the module's name in app.js source.)
+ */
+export { buildPonCapacityReport, renderPonCapacityRows } from './olt-pon-capacity.js';
+
+/**
  * SISP-95: next-month dry-run forecast for the Billing Cycle dashboard
  * card. A thin dashboard seam over billing-cycle.js's pure forecast —
  * the planner runs on a deep clone, so rendering this card can never

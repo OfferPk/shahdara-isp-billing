@@ -228,6 +228,20 @@
 /* SISP-24: splitter port map — grid cells use theme tokens only, so the
    dialog (billing-modal → var(--modal-surface)) and the grid both render
    correctly in light and dark mode. Weak ports reuse .safety-badge danger. */
+/* SISP-103: PON port capacity rows — theme tokens only (amber state uses
+   the pending palette, red state the overdue token), so the card renders
+   correctly in light and dark mode. */
+.pon-capacity-summary { display: grid; gap: 6px; margin-top: 6px; }
+.pon-cap-row { border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: var(--surface); }
+.pon-cap-row p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 4px 0; font-size: 13px; color: var(--muted); }
+.pon-cap-row p strong { color: var(--ink); }
+.pon-cap-row p small { color: var(--muted); }
+.pon-cap-label { font-weight: 700; color: var(--ink); }
+.pon-cap-row-amber { background: var(--color-pending-bg); border-color: var(--color-pending); }
+.pon-cap-row-red { border-color: var(--color-overdue); }
+.pon-cap-flag { font-weight: 700; }
+.pon-cap-flag-amber { color: var(--color-pending); }
+.pon-cap-flag-red { color: var(--color-overdue); }
 .splitter-map-summary p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
 .splitter-map-summary p strong { color: var(--ink); }
 .splitter-map-summary p small { color: var(--muted); }

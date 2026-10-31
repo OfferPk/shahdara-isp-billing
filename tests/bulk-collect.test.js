@@ -9,7 +9,7 @@ import { getPendingCollectionCustomers, renderQuickCollectPickerHtml, executeQui
 import { customersWithoutFee, assignPackage, generateBillsNow } from '../collect-setup.js';
 
 const now = new Date();
-const month = now.toISOString().slice(0, 7);
+const month = new Date(now.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 7); // PKT — the app derives the billing month in Asia/Karachi; plain toISOString() (UTC) is a month behind between 00:00–05:00 PKT on the 1st
 const today = new Date(now.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10); // PKT
 const customer = (id, n, extra = {}) => ({ id, customerNumber: n, name: `Customer ${n}`, phone: `0300000000${n}`, area: n % 2 ? 'Jia Musa' : 'Begum Kot', archived: false, bills: [], ...extra });
 

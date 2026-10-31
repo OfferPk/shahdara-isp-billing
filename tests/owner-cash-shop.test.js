@@ -168,7 +168,7 @@ test('unification: handover, Roznamcha and Owner Khata all read the unified name
 
 test('speed entry: H and B rows keep legacy strings and settle onto the unified collector', () => {
   const now = new Date();
-  const month = now.toISOString().slice(0, 7);
+  const month = new Date(now.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 7); // PKT — the app derives the billing month in Asia/Karachi; plain toISOString() (UTC) is a month behind between 00:00–05:00 PKT on the 1st
   const today = new Date(now.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
   let state = {
     customers: [

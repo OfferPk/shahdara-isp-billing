@@ -21,6 +21,7 @@ import {
   isCashPaymentMethod,
   findDuplicatePaymentReference,
   removeConcessionFromBill,
+  waiveLateFeeFromBill,
   updateCustomerProfile,
   generateMonthlyBillsThroughCurrentMonth,
   saveBillMonth,
@@ -44,6 +45,7 @@ import {
   unsettleTicketChargesForPayment
 } from './complaint-tickets.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
+import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFeeWaiverOf, restoreWaivedLateFee } from './late-fee-waiver.js';
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
@@ -586,7 +588,8 @@ export function executeQuickCollection(state, {
   enforceDigitalReference,
   tickets,
   kind,
-  advanceTargetMonth
+  advanceTargetMonth,
+  waiveLateFee
 }, referenceDate = new Date()) {
   if (!customerId) throw new Error('Customer ID is required.');
   const numAmount = Number(amount);
@@ -660,12 +663,48 @@ export function executeQuickCollection(state, {
     }
   }
 
+  // SISP-101: the 1-click late-fee waiver. The gate is planned from the
+  // PRE-payment allocation summary of the target bill (the full-
+  // principal rule lives in late-fee-waiver.js); a waiver that fails
+  // the gate refuses the whole collection, so a ticked box can never
+  // silently record an ordinary payment. The deduction lands on the
+  // BILL via core's waiveLateFeeFromBill BEFORE the payment is
+  // recorded: the allocation engine reads bill.lateFee, so it settles
+  // this payment against the fee-free bill exactly once (and a full
+  // settlement still clears the Waada promise inside addPayment, as
+  // before). The payment itself carries the audit pair
+  // (lateFeeWaived + waivedAmount) and the reversal stamp of the bill's
+  // pre-waiver fee fields — voiding or undoing the payment restores
+  // exactly that fee. An advance collection can never carry a waiver:
+  // its money is tagged for a future month, not for this bill.
+  let waiverPlan = null;
+  let waiverStamp = null;
+  if (waiveLateFee) {
+    if (kind === 'advance') {
+      throw new Error('A late fee cannot be waived on an advance collection. Collect against the bill it settles instead.');
+    }
+    const waiverBill = customer.bills?.find(b => b.month === targetMonth);
+    const waiverSummary = calculatePaymentAllocations(state).forMonth(customerId, targetMonth);
+    waiverPlan = planLateFeeWaiver({
+      bill: waiverBill,
+      balanceDueCents: waiverSummary?.balanceDueCents,
+      lateFeeCents: waiverSummary?.lateFeeCents,
+      paymentAmountCents: Math.round(numAmount * 100)
+    });
+    if (!waiverPlan.eligible) throw new Error(lateFeeWaiverRefusal(waiverPlan));
+    waiverStamp = waivedLateFeeStampFor(waiverBill);
+    if (!waiverStamp) throw new Error('This bill has no late fee to waive.');
+  }
+  const collectBaseState = waiverPlan
+    ? waiveLateFeeFromBill(state, customerId, targetMonth, { reason: 'Late fee waived on full payment (Quick Collect)' }, referenceDate)
+    : state;
+
   // Create immutable payment entry through core function. An explicit
   // kind:'advance' tags the collection as advance credit (the only way
   // core accepts money against an already-paid bill); anything else
   // stays an ordinary untagged payment, exactly as before.
   const beforePaymentIds = new Set((customer.bills?.find(b => b.month === targetMonth)?.payments ?? []).map(p => p.id));
-  let nextState = addPayment(state, customerId, targetMonth, {
+  let nextState = addPayment(collectBaseState, customerId, targetMonth, {
     date: pDate,
     amount: numAmount,
     method: pMethod,
@@ -683,6 +722,9 @@ export function executeQuickCollection(state, {
     senderDigits: senderDigits ? String(senderDigits).trim() : undefined,
     referenceOverrideReason: cleanReason || undefined,
     screenshot: (typeof screenshot === 'string' && screenshot.startsWith('data:image/')) ? screenshot : undefined,
+    // SISP-101: the waiver audit pair + reversal stamp (core's
+    // validatePayment keeps them only as a complete, sane triple).
+    ...(waiverPlan ? { lateFeeWaived: true, waivedAmount: waiverPlan.waivedAmountCents / 100, waivedLateFee: waiverStamp } : {}),
     ticketCharges: settledTicketLines.length > 0 ? settledTicketLines : undefined,
     manualBaqayaSettlements: settledBaqayaLines.length > 0 ? settledBaqayaLines : undefined
   }, referenceDate);
@@ -767,6 +809,10 @@ export function executeQuickCollection(state, {
     ticketCharges: settledTicketLines,
     ticketChargesTotal,
     ticketChargesPending: ticketChargesPendingAfter,
+    // SISP-101: the late fee this collection waived (false / 0 on every
+    // ordinary collection, so its receipts render exactly as before).
+    lateFeeWaived: waiverPlan !== null,
+    waivedAmount: waiverPlan ? waiverPlan.waivedAmountCents / 100 : 0,
     manualBaqayaSettlements: settledBaqayaLines,
     manualBaqayaSettledTotal,
     manualBaqayaPending: manualBaqayaPendingAfter,
@@ -880,6 +926,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     `🗓️ *${L.billingMonth}:* ${receipt.month}`,
     ``,
     `💵 *${L.amountReceived}:* PKR ${amountStr}`,
+    ...(Number(receipt.waivedAmount) > 0 ? [`🎟️ *${t('lfw_whatsapp', null, { amount: `PKR ${Number(receipt.waivedAmount).toLocaleString('en-PK')}` })}*`] : []),
     ...ticketChargeLines,
     ...baqayaLines,
     `💳 *${L.method}:* ${receipt.method}`,
@@ -1220,6 +1267,11 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           </strong>
         </div>
         ${ticketChargeRows}
+        ${Number(receipt.waivedAmount) > 0 ? `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">Late Fee</span>
+          <strong class="qc-meta-val">🎟️ ${escapeHtml(t('lfw_card', null, { amount: `PKR ${Number(receipt.waivedAmount).toLocaleString('en-PK')}` }))}</strong>
+        </div>` : ''}
         ${baqayaRows}
         ${receipt.packageAutoSet ? `
         <div class="qc-receipt-item full-width">
@@ -1341,6 +1393,9 @@ export function setupQuickCollectModal({
   // SISP-30: outage concession badge host (null when the host page predates it).
   const concessionBox = typeof document !== 'undefined' ? document.getElementById('quickCollectConcessionBox') : null;
 
+  // SISP-101: late-fee waiver toggle host (null when the host page predates it).
+  const waiverBox = typeof document !== 'undefined' ? document.getElementById('quickCollectLateFeeWaiverBox') : null;
+
   // Owner feature: Change Package host in the payment step (null when
   // the host page predates it).
   const packageBox = typeof document !== 'undefined' ? document.getElementById('quickCollectPackageBox') : null;
@@ -1392,6 +1447,12 @@ export function setupQuickCollectModal({
   const goToTransactionsBtn = document.getElementById('quickCollectGoToTransactionsBtn');
 
   let activeFilter = 'all-dues';
+  // SISP-101: the operator's waiver tick for the currently open form.
+  // Kept outside the waiver box's DOM because the box re-renders on
+  // every amount keystroke; reset per customer and per month change.
+  // executeQuickCollection re-plans the gate from live state at submit,
+  // so this flag alone can never force a waiver through.
+  let waiverTicked = false;
   // Owner feature: a package change applies synchronously; this flag only
   // guards against a double-tap while the click is being handled, so a
   // change can never be applied twice or land mid payment-save.
@@ -1550,6 +1611,22 @@ export function setupQuickCollectModal({
   monthSelect?.addEventListener('change', () => {
     if (activeCustomerId) renderConcessionBox(activeCustomerId, monthSelect.value);
     if (activeCustomerId) renderUptimeLine(activeCustomerId, monthSelect.value);
+    // SISP-101: the waiver tick belongs to one bill's fee — a month
+    // switch resets it and re-plans against the newly picked bill.
+    waiverTicked = false;
+    if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect.value);
+  });
+
+  // SISP-101: the waiver gate depends on the amount being collected, so
+  // the box re-plans on every amount edit (chips re-render explicitly —
+  // they set the value programmatically and fire no input event).
+  amountInput?.addEventListener('input', () => {
+    if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
+  });
+  advanceCheckbox?.addEventListener('change', () => {
+    // An advance collection can never carry a waiver (see
+    // executeQuickCollection) — the box hides while Advance is ticked.
+    if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
   });
 
   // Populate payment methods select once
@@ -1687,6 +1764,65 @@ export function setupQuickCollectModal({
       });
     } catch {
       concessionBox.innerHTML = '';
+    }
+  }
+
+  // SISP-101: 1-click late-fee waiver toggle for the selected bill.
+  // Renders only when that bill still carries an unpaid late fee: an
+  // enabled checkbox when the amount in the form covers the full
+  // principal (ticking snaps the amount to the principal still due —
+  // the concession Apply precedent), a disabled checkbox with the
+  // principal figure when it does not. Hidden for advance collections
+  // and while SISP-43 ticket charges are pending (that combined-
+  // payable flow owns the sheet). The submit re-plans the gate inside
+  // executeQuickCollection, so this box is presentation + intent only.
+  function renderWaiverBox(customerId, month) {
+    if (!waiverBox) return;
+    waiverBox.innerHTML = '';
+    try {
+      if (advanceCheckbox?.checked) return;
+      const state = getState();
+      if (!state || !customerId || !month) return;
+      const customer = state.customers.find(c => c.id === customerId);
+      const bill = customer?.bills?.find(b => b.month === month);
+      if (!customer || !bill) return;
+      if (activeDefaults && activeDefaults.customerId === customerId && activeDefaults.ticketChargesPending > 0) return;
+      const summary = calculatePaymentAllocations(state).forMonth(customerId, month);
+      const plan = planLateFeeWaiver({
+        bill,
+        balanceDueCents: summary?.balanceDueCents,
+        lateFeeCents: summary?.lateFeeCents,
+        paymentAmountCents: Math.round(Number(amountInput?.value || 0) * 100)
+      });
+      if (!plan.eligible && plan.reason !== 'partial-principal') return;
+      const feeStr = `PKR ${(plan.waivedAmountCents / 100).toLocaleString('en-PK')}`;
+      if (plan.eligible) {
+        waiverBox.innerHTML = `
+          <label class="qc-late-fee-waiver-row">
+            <input type="checkbox" data-qc-waive-late-fee${waiverTicked ? ' checked' : ''}>
+            <span>${escapeHtml(t('lfw_toggle', null, { amount: feeStr }))}</span>
+          </label>
+          <p class="qc-late-fee-waiver-note">${escapeHtml(t('lfw_note_full'))}</p>`;
+        const checkbox = waiverBox.querySelector('[data-qc-waive-late-fee]');
+        checkbox?.addEventListener('change', () => {
+          waiverTicked = checkbox.checked === true;
+          if (!amountInput) return;
+          const targetCents = waiverTicked ? plan.principalDueCents : plan.balanceDueCents;
+          if (typeof targetCents === 'number' && targetCents > 0) {
+            amountInput.value = (targetCents / 100).toFixed(2);
+          }
+          renderWaiverBox(customerId, month);
+        });
+      } else {
+        waiverBox.innerHTML = `
+          <label class="qc-late-fee-waiver-row is-disabled">
+            <input type="checkbox" data-qc-waive-late-fee disabled${waiverTicked ? ' checked' : ''}>
+            <span>${escapeHtml(t('lfw_toggle', null, { amount: feeStr }))}</span>
+          </label>
+          <p class="qc-late-fee-waiver-note">${escapeHtml(t('lfw_note_partial', null, { amount: `PKR ${(plan.principalDueCents / 100).toLocaleString('en-PK')}` }))}</p>`;
+      }
+    } catch {
+      waiverBox.innerHTML = '';
     }
   }
 
@@ -1869,6 +2005,11 @@ export function setupQuickCollectModal({
 
       // SISP-30: concession badge for the target month (refreshes on month change).
       renderConcessionBox(customerId, activeDefaults.targetMonth);
+
+      // SISP-101: late-fee waiver toggle for the target month — the
+      // tick never carries over between customers.
+      waiverTicked = false;
+      renderWaiverBox(customerId, activeDefaults.targetMonth);
 
       // Uptime tracking: month-end online/offline one-liner for the
       // same target month (refreshes on month change too).
@@ -2140,6 +2281,9 @@ export function setupQuickCollectModal({
           amountInput.value = val.toFixed(2);
         }
       }
+      // SISP-101: chips set the amount programmatically (no input
+      // event), so the waiver gate re-plans explicitly.
+      if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
       amountInput.focus();
     });
   });
@@ -2167,11 +2311,26 @@ export function setupQuickCollectModal({
       // settled, first — only then may the payment itself be deleted
       // (core refuses to delete a charge-settling payment otherwise).
       const settledLines = Array.isArray(ticketCharges) ? ticketCharges : [];
+      // SISP-101: an undone waiver collection first restores the late
+      // fee from the payment's reversal stamp — only then may the
+      // payment be deleted (core refuses to delete a waiver payment
+      // otherwise), so the fee can never stay waived with no payment
+      // behind it. Both restorations compose on the same working
+      // state; nothing persists unless the delete itself succeeds.
+      const undoPayment = state.customers.find(c => c.id === customerId)
+        ?.bills.find(b => b.month === month)
+        ?.payments.find(p => p.id === paymentId);
+      const hasWaiver = !!lateFeeWaiverOf(undoPayment);
+      const workingState = hasWaiver
+        ? restoreWaivedLateFee(state, customerId, undoPayment, { note: 'Late fee restored (payment undone)' }).state
+        : state;
       let nextState;
       if (settledLines.length > 0) {
         const { tickets: revertedTickets } = unsettleTicketChargesForPayment(loadTickets(), { id: paymentId, ticketCharges: settledLines });
         saveTickets(revertedTickets);
-        nextState = deletePayment(state, customerId, month, paymentId, new Date(), { ticketChargesReverted: true });
+        nextState = deletePayment(workingState, customerId, month, paymentId, new Date(), { ticketChargesReverted: true, ...(hasWaiver ? { lateFeeWaiverReverted: true } : {}) });
+      } else if (hasWaiver) {
+        nextState = deletePayment(workingState, customerId, month, paymentId, new Date(), { lateFeeWaiverReverted: true });
       } else {
         nextState = deletePayment(state, customerId, month, paymentId);
       }
@@ -2295,6 +2454,9 @@ export function setupQuickCollectModal({
         amount: amountVal,
         date: dateVal,
         method: methodVal,
+        // SISP-101: the waiver tick (never on an advance collection —
+        // executeQuickCollection refuses that combination outright).
+        waiveLateFee: waiverTicked && !advanceCheckbox?.checked,
         kind: advanceCheckbox?.checked ? 'advance' : undefined,
         advanceTargetMonth: advanceCheckbox?.checked ? (advanceTargetSelect?.value || undefined) : undefined,
         paidBy: paidByVal,

@@ -123,6 +123,11 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     }
   }
   if (receipt.lateFee > 0) financial.push({ label: L('Late Fee Surcharge'), value: `+${money(receipt.lateFee)}` });
+  // SISP-101: the late fee this payment waived at collect time. The
+  // balance needs no subtraction here — buildPaymentReceipt already
+  // nets it (the bill's lateFee was zeroed by the waiver); this line is
+  // the printed audit trail, like the concession line below.
+  if (receipt.waivedAmount > 0) financial.push({ label: 'Late Fee Waived', value: `-${money(receipt.waivedAmount)}` });
   // SISP-61: a prepay receipt shows coverage + discount as their own
   // rows; 'Amount Paid' below stays the NET cash received.
   if (receipt.prepay) financial.push({ label: L('Prepay Coverage / پیشگی کوریج'), value: money(receipt.prepay.gross) });

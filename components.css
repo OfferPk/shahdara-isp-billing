@@ -1560,6 +1560,41 @@ body.field-mode-open { overflow: hidden; }
   color: var(--muted);
 }
 
+/* SISP-101: 1-click late-fee waiver toggle inside the Quick Collect
+   payment step. Theme tokens only, so light and dark render alike;
+   the row is a full-width tap target and hides when empty. */
+.qc-late-fee-waiver-box {
+  margin: 10px 0 0;
+}
+.qc-late-fee-waiver-box:empty {
+  display: none;
+}
+.qc-late-fee-waiver-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+.qc-late-fee-waiver-row input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  accent-color: var(--green);
+}
+.qc-late-fee-waiver-row.is-disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.qc-late-fee-waiver-note {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
 /* OWNER-CASH-SHOP: "Cash received at" sub-row inside the Quick Collect
    payment step — appears under the method chips while a cash method is
    selected. Theme tokens only, so light and dark render alike. */

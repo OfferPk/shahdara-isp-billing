@@ -232,6 +232,29 @@
 .profile-referral-section p strong { color: var(--ink); }
 .profile-referral-list { margin: 6px 0; padding-inline-start: 18px; font-size: 13px; color: var(--muted); }
 .profile-referral-list li { margin: 3px 0; }
+/* SISP-117: upstream SLA & rebate claim log. Theme tokens only — no hardcoded surfaces, so dark mode stays correct. */
+.upstream-sla-summary { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; }
+.upstream-sla-summary p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 13px; color: var(--muted); }
+.upstream-sla-summary p span { color: var(--ink); font-weight: 600; }
+.upstream-sla-summary p strong { color: var(--ink); font-variant-numeric: var(--numeric); }
+.upstream-sla-summary p small { color: var(--muted); }
+.upstream-sla-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.upstream-sla-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.upstream-sla-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.upstream-sla-total-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.upstream-sla-total-card p { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: 13px; color: var(--muted); }
+.upstream-sla-total-card p strong { color: var(--ink); font-size: 16px; font-variant-numeric: var(--numeric); overflow-wrap: anywhere; }
+.upstream-sla-total-card p small { color: var(--muted); }
+.upstream-sla-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.upstream-sla-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.upstream-sla-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.upstream-sla-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.upstream-sla-empty { color: var(--muted); font-size: 13px; }
+@media (max-width: 480px) {
+  .upstream-sla-totals { grid-template-columns: 1fr; }
+  .upstream-sla-list { grid-template-columns: 1fr; }
+  .upstream-sla-card p strong { text-align: left; }
+}
 /* SISP-24: splitter port map — grid cells use theme tokens only, so the
    dialog (billing-modal → var(--modal-surface)) and the grid both render
    correctly in light and dark mode. Weak ports reuse .safety-badge danger. */

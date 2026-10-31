@@ -51,7 +51,7 @@ import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerC
 import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate, recordBackupHealthExport, shareBackupOffDevice } from './backup-health.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
-import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast } from './dashboard.js?v=1.11.0';
+import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast, buildPonCapacityReport, renderPonCapacityRows } from './dashboard.js?v=1.11.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
 
 import {
@@ -1201,6 +1201,27 @@ function renderDashboard() {
     splitterSummaryEl.innerHTML = overview.weakCustomers.length === 0
       ? ''
       : `<p><span>${t('dash_splitter_weakest')}</span><strong>${escapeHtml(overview.weakCustomers[0].customerName || t('dash_fallback_unnamed'))} · ${escapeHtml(formatRxDbm(overview.weakCustomers[0].lastRxDbm))}</strong><small> · ${escapeHtml(overview.weakCustomers[0].boxId)} ${escapeHtml(t('dash_splitter_port', null, { port: overview.weakCustomers[0].splitterPort ?? overview.weakCustomers[0].port ?? '' }))}</small></p>`;
+  }
+  // SISP-103: PON port capacity card (active ONUs / 64, sold Mbps,
+  // oversubscription ratio, >= 56/64 saturation flags). Read-only
+  // telemetry derived from the recorded PON-port fields.
+  const ponSummaryEl = $('#ponCapacitySummary');
+  if (ponSummaryEl) {
+    const ponReport = buildPonCapacityReport(state.customers);
+    const ponValueEl = $('#dashboardPonCapacityValue');
+    const ponPeriodEl = $('#dashboardPonCapacityPeriod');
+    if (ponValueEl) ponValueEl.textContent = ponReport.totals.activeOnus === 0
+      ? t('poncap_empty')
+      : t('poncap_value', null, { ports: ponReport.totals.portCount, onus: ponReport.totals.activeOnus });
+    if (ponPeriodEl) {
+      const periodParts = [];
+      if (ponReport.totals.activeOnus === 0) periodParts.push(t('poncap_period_empty'));
+      else if (ponReport.totals.saturatedPorts.length) periodParts.push(t('poncap_period_warn', null, { ports: ponReport.totals.saturatedPorts.join(', ') }));
+      else periodParts.push(t('poncap_period_ok'));
+      if (ponReport.unassigned.activeOnus > 0) periodParts.push(t('poncap_period_unassigned', null, { count: ponReport.unassigned.activeOnus }));
+      ponPeriodEl.textContent = periodParts.join(' · ');
+    }
+    ponSummaryEl.innerHTML = renderPonCapacityRows(ponReport, (key, params) => t(key, null, params));
   }
   // Owner feature (2026-10-29): Mohalla dashboard — one card per mohalla
   // that actually has users (zero-user mohallas render no card). Counts go

@@ -30,6 +30,7 @@ import { sanitizeOverheads } from './fixed-overheads.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
 import { sanitizeSignalReadings } from './signal-history.js';
+import { sanitizeReceiptLang, sanitizeReceiptChannel, prefersSmsForChannel } from './receipt-preferences.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
@@ -201,6 +202,12 @@ export function readState(storage, key = STORAGE_KEY) {
       // SISP-76: SMS-first contact preference — legacy records load
       // as WhatsApp-default (false), never as an invented opt-in.
       prefersSms:customer.prefersSms === true,
+      // SISP-91: receipt language/channel preferences — legacy records
+      // load as unset (null), never as an invented preference. The
+      // channel composes with prefersSms at read time through the ONE
+      // mapping in receipt-preferences.js (receiptChannelPreference).
+      preferredReceiptLang:sanitizeReceiptLang(customer.preferredReceiptLang),
+      preferredReceiptChannel:sanitizeReceiptChannel(customer.preferredReceiptChannel),
       archived:customer.archived === true,
       archivedAt:customer.archived === true ? customer.archivedAt ?? null : null,
       // SISP-8: vacation hold — corrupt values fall back to "no hold",
@@ -381,9 +388,14 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // Uptime tracking: a customer created already Active or Offline gets
   // the first stamp of its service-status history at creation time, so
   // an offline span can accrue from day one.
+  // SISP-91: optional receipt language/channel preferences. An explicit
+  // channel composes the SISP-76 prefersSms flag through the ONE mapping
+  // in receipt-preferences.js (prefersSmsForChannel).
+  const preferredReceiptLang = sanitizeReceiptLang(options.preferredReceiptLang);
+  const preferredReceiptChannel = sanitizeReceiptChannel(options.preferredReceiptChannel);
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:options.prefersSms === true, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -744,10 +756,23 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     fiberZone: normalizeFiberZone(valueOrCurrent('fiberZone') ?? ''),
     // SISP-76: contact preference edited on the profile form.
     prefersSms: valueOrCurrent('prefersSms') === true,
+    // SISP-91: receipt language/channel preferences edited on the same
+    // form (optional; unset/corrupt values store as null).
+    preferredReceiptLang: sanitizeReceiptLang(valueOrCurrent('preferredReceiptLang')),
+    preferredReceiptChannel: sanitizeReceiptChannel(valueOrCurrent('preferredReceiptChannel')),
     paused: valueOrCurrent('paused') === true,
     pauseStartDate: checkOptionalDate(valueOrCurrent('pauseStartDate'), 'Pause start date'),
     autoResumeDate: checkOptionalDate(valueOrCurrent('autoResumeDate'), 'Auto-resume date')
   };
+  // SISP-91: a save that SETS an explicit receipt channel rewrites the
+  // SISP-76 prefersSms flag from it ('sms' -> true, any other channel
+  // -> false), so the stored boolean and the stored channel can never
+  // disagree (the ONE mapping in receipt-preferences.js). A save that
+  // does not mention the channel leaves prefersSms exactly as edited,
+  // so the legacy SISP-76 checkbox path is untouched.
+  if (Object.hasOwn(values, 'preferredReceiptChannel') && fields.preferredReceiptChannel) {
+    fields.prefersSms = fields.preferredReceiptChannel === 'sms';
+  }
   // SISP-74: hard-block a save that newly assigns a PPPoE username or
   // static IP already held by another active customer. Values the record
   // already had (previous === current) are not re-blocked, so legacy

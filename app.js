@@ -196,6 +196,7 @@ import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, ad
 import { recordPrepay, prepayQuote, PREPAY_MONTH_OPTIONS } from './advance-prepay.js';
 import { sameNameBadgeHtml } from './name-disambiguator.js';
 import { buildSmsReceiptUrl, buildSmsReminderUrl, customerPrefersSms } from './sms-fallback.js';
+import { receiptChannelPreference } from './receipt-preferences.js';
 import { BAD_DEBTS_KEY, activeBadDebtFor, badDebtSummary, loadBadDebts, restoreBadDebt, saveBadDebts, writeOffBadDebt } from './bad-debt-ledger.js';
 import { manualBaqayaCardBadgeMarkup, manualBaqayaStatMarkup, manualBaqayaSectionMarkup } from './manual-baqaya.js';
 import { UPS_NODES_KEY, activeOutages, checkUpsNodeDepletions, formatClockTime, loadUpsNodes, powerBackupSummary, saveUpsNodes, setupPowerBackupModal } from './power-backup-monitor.js';
@@ -2293,7 +2294,9 @@ function receiptWhatsAppActionMarkup(customer, receipt, { askLabel = null } = {}
   if (action.type !== 'draft') return smsMarkup || '<span class="whatsapp-receipt-unavailable">Receipt draft unavailable for this customer.</span>';
   const whatsappMarkup = `<span class="receipt-whatsapp-action-wrap"><a class="receipt-whatsapp-action" href="${escapeHtml(action.draft.url)}" target="_blank" rel="noopener noreferrer" aria-label="Review WhatsApp receipt draft for customer #${escapeHtml(customer.customerNumber)} ${escapeHtml(customer.name)}; an internet connection is required to open WhatsApp; it will not send automatically" title="Draft prepared locally; internet is required to open WhatsApp.">WhatsApp receipt</a><small class="receipt-network-note">Internet required to open WhatsApp.</small></span>`;
   // SISP-76: an SMS-preference customer sees the SMS slip first.
-  return customerPrefersSms(customer) ? `${smsMarkup}${whatsappMarkup}` : `${whatsappMarkup}${smsMarkup}`;
+  // SISP-91: decided by the ONE channel mapping (receiptChannelPreference),
+  // so an explicit 'sms' channel and the legacy prefersSms flag agree.
+  return receiptChannelPreference(customer) === 'sms' ? `${smsMarkup}${whatsappMarkup}` : `${whatsappMarkup}${smsMarkup}`;
 }
 function editCustomerPhoneFromReceipt(customerId) {
   if (!customerId || !state.customers.some(customer => customer.id === customerId)) return;
@@ -3511,6 +3514,9 @@ function renderDetail() {
   const pauseSummary = pauseBillingSummary(customer);
   if ($('#pauseBillingCheckbox')) $('#pauseBillingCheckbox').checked = customer.paused === true;
   if ($('#prefersSmsCheckbox')) $('#prefersSmsCheckbox').checked = customer.prefersSms === true;
+  // SISP-91: receipt language/channel preference selects (unset = Default).
+  if ($('#preferredReceiptLangSelect')) $('#preferredReceiptLangSelect').value = customer.preferredReceiptLang ?? '';
+  if ($('#preferredReceiptChannelSelect')) $('#preferredReceiptChannelSelect').value = customer.preferredReceiptChannel ?? '';
   if ($('#pauseStartDateInput')) $('#pauseStartDateInput').value = customer.pauseStartDate ?? '';
   if ($('#autoResumeDateInput')) $('#autoResumeDateInput').value = customer.autoResumeDate ?? '';
   const pauseBadge = $('#pauseStateBadge');
@@ -5877,6 +5883,11 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       paused: $('#pauseBillingCheckbox')?.checked === true,
       // SISP-76: SMS-first contact preference.
       prefersSms: $('#prefersSmsCheckbox')?.checked === true,
+      // SISP-91: receipt language/channel preferences. Setting an
+      // explicit channel here syncs prefersSms in core (channel 'sms'
+      // -> true, any other channel -> false); '' clears the channel.
+      preferredReceiptLang: $('#preferredReceiptLangSelect')?.value || '',
+      preferredReceiptChannel: $('#preferredReceiptChannelSelect')?.value || '',
       pauseStartDate: $('#pauseStartDateInput')?.value || '',
       autoResumeDate: $('#autoResumeDateInput')?.value || '',
       packageChangeStaffName:$('#packageChangeStaffNameInput').value,

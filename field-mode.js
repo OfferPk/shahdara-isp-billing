@@ -106,6 +106,7 @@ import {
   getPakistanLocalDate
 } from './nav-quick-collect.js';
 import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOutstandingCents } from './core.js';
+import { receiptChannelPreference, receiptLangPreference } from './receipt-preferences.js';
 import { t } from './nav-language.js';
 import { advanceBalanceCents, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { canonicalLocation } from './phase3.js';
@@ -355,7 +356,10 @@ export function collectFieldModePayment(state, entry, method, referenceDate = ne
     fieldModeFullPaymentArgs(entry, method, today),
     referenceDate
   );
-  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt) };
+  // SISP-91: the WhatsApp draft renders in the customer's saved receipt
+  // language when one is set (the preference wins over the default).
+  const customer = nextState.customers.find(c => c.id === entry.id);
+  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { lang: receiptLangPreference(customer) }) };
 }
 
 /**
@@ -526,7 +530,9 @@ export function collectFieldModeAdvance(state, entry, { amount, method, targetMo
     },
     referenceDate
   );
-  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt) };
+  // SISP-91: same saved-language rule as the full-payment path above.
+  const customer = nextState.customers.find(c => c.id === entry.id);
+  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { lang: receiptLangPreference(customer) }) };
 }
 
 /** 'November 2026'-style label for a 'YYYY-MM' key (sheet convention). */
@@ -585,14 +591,19 @@ function nullFieldModeController() {
  *  button renders only when its host callback exists, so neither button can
  *  ever be dead. Uses the existing field-mode-action-btn class (theme
  *  tokens only, dark-mode safe, <=480px safe) — no new CSS. */
-export function fieldModeReceiptActionMarkup({ hasPrint58 = false, hasPngReceipt = false } = {}) {
+export function fieldModeReceiptActionMarkup({ hasPrint58 = false, hasPngReceipt = false, preferredChannel = null } = {}) {
   const print58Button = hasPrint58
     ? `<button type="button" class="field-mode-action-btn" data-field-action="print58">🖨️ 58mm Slip</button>`
     : '';
   const pngReceiptButton = hasPngReceipt
     ? `<button type="button" class="field-mode-action-btn" data-field-action="pngReceipt">🖼️ PNG Receipt</button>`
     : '';
-  return `${print58Button}${pngReceiptButton}`;
+  // SISP-91: the customer's saved channel leads the card — 'wa_png'
+  // puts the PNG receipt first; 'thermal_58' (and every other case)
+  // keeps the 58mm slip first, the pre-SISP-91 order.
+  return preferredChannel === 'wa_png'
+    ? `${pngReceiptButton}${print58Button}`
+    : `${print58Button}${pngReceiptButton}`;
 }
 
 export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, onPngReceipt, onSmsSlipUrl } = {}) {
@@ -749,21 +760,27 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       // The host supplies the sms: URL ('' when the phone cannot take
       // an SMS), so the button never renders as a dead link.
       const smsSlipUrl = typeof onSmsSlipUrl === 'function' ? (onSmsSlipUrl(receipt) || '') : '';
+      // SISP-91: the customer's saved channel leads the receipt card —
+      // 'sms' offers the SMS slip before the WhatsApp draft, and the
+      // saved channel orders the slip/PNG buttons (see the markup fn).
+      const receiptChannel = receiptChannelPreference(liveCustomer(receipt.customerId));
       const receiptActionButtons = fieldModeReceiptActionMarkup({
         hasPrint58: typeof onPrint58mm === 'function',
-        hasPngReceipt: typeof onPngReceipt === 'function'
+        hasPngReceipt: typeof onPngReceipt === 'function',
+        preferredChannel: receiptChannel
       });
+      const waReceiptMarkup = whatsapp.url
+        ? `<a class="field-mode-action-btn field-mode-whatsapp-btn" href="${escapeHtml(whatsapp.url)}" target="_blank" rel="noopener noreferrer">📲 WA Receipt</a>`
+        : '<p class="field-mode-note">Save the customer\'s full phone number (with country code) to enable the WhatsApp receipt.</p>';
+      const smsSlipMarkup = smsSlipUrl
+        ? `<a class="field-mode-action-btn field-mode-sms-btn" href="${escapeHtml(smsSlipUrl)}">💬 SMS Slip</a>`
+        : '';
       panelEl.innerHTML = `<section class="field-mode-receipt" aria-label="Collection receipt">
         <h3>✅ Collected — ${escapeHtml(receipt.customerName)}</h3>
         ${lastReceiptAdvance ? `<p><span class="ds-chip ds-chip--pending">🟡 Advance</span> Tagged as advance credit${lastReceiptAdvanceTarget ? ` for ${escapeHtml(fieldModeMonthLabel(lastReceiptAdvanceTarget))}` : ' for the next bill'}.</p>` : ''}
         <p><strong>${escapeHtml(formatPKR(receipt.amount))}</strong> via ${escapeHtml(receipt.method)} · Receipt ${escapeHtml(receipt.receiptNumber)}</p>
         <p>Remaining balance: <strong>${escapeHtml(formatPKR(receipt.newTotalDues))}</strong> · ${settled ? 'PAID IN FULL' : 'PARTIAL'}</p>
-        ${whatsapp.url
-          ? `<a class="field-mode-action-btn field-mode-whatsapp-btn" href="${escapeHtml(whatsapp.url)}" target="_blank" rel="noopener noreferrer">📲 WA Receipt</a>`
-          : '<p class="field-mode-note">Save the customer\'s full phone number (with country code) to enable the WhatsApp receipt.</p>'}
-        ${smsSlipUrl
-          ? `<a class="field-mode-action-btn field-mode-sms-btn" href="${escapeHtml(smsSlipUrl)}">💬 SMS Slip</a>`
-          : ''}
+        ${receiptChannel === 'sms' ? `${smsSlipMarkup}${waReceiptMarkup}` : `${waReceiptMarkup}${smsSlipMarkup}`}
         ${receiptActionButtons}
         <button type="button" class="field-mode-action-btn" data-field-action="next">Next customer →</button>
       </section>`;

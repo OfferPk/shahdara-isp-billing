@@ -125,6 +125,13 @@
 .shop-settlement-form { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 16px; }
 .shop-settlement-form label { font-size: 13px; font-weight: 600; color: var(--ink); }
 .shop-settlement-receipt-text { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; color: var(--ink); }
+.shop-passbook-section { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 12px; }
+.shop-passbook-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin: 8px 0 12px; }
+.shop-passbook-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.shop-passbook-rows { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.shop-passbook-rows li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--ink); min-width: 0; }
+.shop-passbook-rows li small { color: var(--muted); overflow-wrap: anywhere; }
+.shop-passbook-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 @media (max-width: 480px) {
   .shop-settlement-cards { grid-template-columns: 1fr; }
   .shop-settlement-card p strong { text-align: left; }

@@ -50,6 +50,28 @@ export function manualBaqayaCardBadgeMarkup(customer) {
   return `<span class="manual-baqaya-badge">${escapeHtml(t('baqaya_card_badge', null, { amount: formatPKR(outstandingCents / 100) }))}</span>`;
 }
 
+/**
+ * OWNER-ADDPEND (2026-11-01): the quick-edit controls rendered next to
+ * the Pending badge (Customers card controls row + profile summary).
+ * The additional amount IS the outstanding manual baqaya — this markup
+ * only DISPLAYS the shared derived figures (totalOutstandingFigures)
+ * and offers the editor; it never stores a second number.
+ *  - No baqaya outstanding: only the subtle "＋ Additional" affordance.
+ *  - Baqaya outstanding: the TOTAL pending (bill + additional) with a
+ *    breakdown line and an ✎ edit button on the additional chip.
+ * FREE connections and archived customers get '' (the core refuses
+ * them; there is nothing to offer).
+ */
+export function additionalPendingControlsMarkup(customer, allocations = null) {
+  if (!customer || customer.archived || customer.isFreeConnection === true) return '';
+  const figures = totalOutstandingFigures(customer, allocations);
+  const button = `<button type="button" class="additional-pending-btn" data-additional-pending="${escapeHtml(customer.id)}" aria-label="${escapeHtml(t('addpend_edit'))}">`;
+  if (figures.manualBaqayaCents <= 0) {
+    return `<span class="additional-pending-controls">${button}${escapeHtml(t('addpend_add'))}</button></span>`;
+  }
+  return `<span class="additional-pending-controls"><span class="additional-pending-total">${escapeHtml(t('addpend_total_label', null, { amount: formatPKR(figures.totalCents / 100) }))}</span><span class="additional-pending-breakdown">${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(figures.billDuesCents / 100), additional: formatPKR(figures.manualBaqayaCents / 100) }))}</span>${button}✎</button></span>`;
+}
+
 /** Profile summary stat article ('' when no baqaya is unpaid). */
 export function manualBaqayaStatMarkup(customer) {
   const outstandingCents = manualBaqayaOutstandingCents(customer);
@@ -58,7 +80,12 @@ export function manualBaqayaStatMarkup(customer) {
 }
 
 function entryStatus(entry) {
-  if (entry.remainingCents <= 0) return { key: 'paid', label: t('baqaya_status_paid') };
+  if (entry.remainingCents <= 0) {
+    // OWNER-ADDPEND: an entry closed purely by an owner adjustment was
+    // not paid — say so instead of claiming a payment settled it.
+    if (entry.settledCents <= 0 && (entry.adjustedCents ?? 0) > 0) return { key: 'adjusted', label: t('baqaya_status_adjusted') };
+    return { key: 'paid', label: t('baqaya_status_paid') };
+  }
   if (entry.settledCents > 0) return { key: 'partial', label: t('baqaya_status_partial') };
   return { key: 'pending', label: t('baqaya_status_pending') };
 }
@@ -80,12 +107,15 @@ export function manualBaqayaSectionMarkup(customer, { archived = false } = {}) {
     const settledLine = entry.settledCents > 0
       ? `<small class="manual-baqaya-settled">${escapeHtml(t('baqaya_entry_settled_part', null, { amount: formatPKR(entry.settledCents / 100) }))}</small>`
       : '';
+    const adjustedLine = (entry.adjustedCents ?? 0) > 0
+      ? `<small class="manual-baqaya-settled">${escapeHtml(t('baqaya_entry_adjusted_part', null, { amount: formatPKR(entry.adjustedCents / 100) }))}</small>`
+      : '';
     const actions = entry.settledCents > 0
       ? `<span class="manual-baqaya-locked">${escapeHtml(t('baqaya_locked_note'))}</span>`
       : (canEdit ? `<span class="manual-baqaya-actions"><button type="button" class="text-button" data-edit-baqaya="${escapeHtml(entry.id)}">${escapeHtml(t('baqaya_edit'))}</button><button type="button" class="text-button danger" data-remove-baqaya="${escapeHtml(entry.id)}">${escapeHtml(t('baqaya_remove'))}</button></span>` : '');
     return `<li class="manual-baqaya-row">
       <span class="manual-baqaya-main"><strong>${escapeHtml(formatPKR(entry.amount))}</strong><small>${escapeHtml(t('baqaya_entry_for', null, { date: formatEntryDate(entry.date) }))}</small>${entry.note ? `<small class="manual-baqaya-note" dir="auto">${escapeHtml(entry.note)}</small>` : ''}</span>
-      <span class="manual-baqaya-side"><span class="manual-baqaya-status manual-baqaya-status-${status.key}">${escapeHtml(status.label)}</span><strong>${escapeHtml(t('baqaya_entry_remaining', null, { amount: formatPKR(entry.remainingCents / 100) }))}</strong>${settledLine}${actions}</span>
+      <span class="manual-baqaya-side"><span class="manual-baqaya-status manual-baqaya-status-${status.key}">${escapeHtml(status.label)}</span><strong>${escapeHtml(t('baqaya_entry_remaining', null, { amount: formatPKR(entry.remainingCents / 100) }))}</strong>${settledLine}${adjustedLine}${actions}</span>
     </li>`;
   }).join('');
   return `<div class="manual-baqaya-heading"><h3>${escapeHtml(t('baqaya_title'))}</h3>${canEdit ? `<button type="button" class="secondary-button" data-add-baqaya>${escapeHtml(t('baqaya_add'))}</button>` : ''}</div>

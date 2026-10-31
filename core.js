@@ -1343,6 +1343,36 @@ const MANUAL_BAQAYA_ID_RE = /^MBQ-\d+$/;
 const cleanBaqayaNote = (value) => String(value ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 200);
 
 /**
+ * OWNER-ADDPEND (2026-11-01): owner adjustments on a manual baqaya
+ * entry. When the owner lowers the Additional Pending total in the
+ * quick editor, the reduction is NOT an edit of history: it is stamped
+ * on the entry as an adjustment ({ amount, date, note, createdAt },
+ * rupees) and the remaining derivation subtracts adjustments exactly
+ * like settlement stamps — with ONE difference: adjustments are owner
+ * decisions, so voiding a payment never restores them (only the
+ * payment's settlement stamps unwind on a void). Sanitized leniently
+ * like the entries themselves; the field is stored ONLY when non-empty
+ * so a legacy entry stays byte-identical.
+ */
+export function sanitizeManualBaqayaAdjustments(value) {
+  if (!Array.isArray(value)) return [];
+  const adjustments = [];
+  for (const adjustment of value.slice(0, 50)) {
+    const amount = Number(adjustment?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    const date = validDateOrNull(adjustment?.date);
+    if (!date) continue;
+    adjustments.push({
+      amount: Math.round(amount * 100) / 100,
+      date,
+      note: cleanBaqayaNote(adjustment?.note),
+      createdAt: typeof adjustment?.createdAt === 'string' && adjustment.createdAt ? adjustment.createdAt : date
+    });
+  }
+  return adjustments;
+}
+
+/**
  * Sanitizes the stored entry list of a customer record. Lenient by
  * design (load/backup path): a malformed entry is dropped, never
  * invented and never fatal — a corrupt manual entry must not brick the
@@ -1360,12 +1390,14 @@ export function sanitizeManualBaqayaEntries(value) {
     const date = validDateOrNull(entry?.date);
     if (!date) continue;
     seen.add(id);
+    const adjustments = sanitizeManualBaqayaAdjustments(entry?.adjustments);
     entries.push({
       id,
       amount: Math.round(amount * 100) / 100,
       date,
       note: cleanBaqayaNote(entry?.note),
-      createdAt: typeof entry?.createdAt === 'string' && entry.createdAt ? entry.createdAt : date
+      createdAt: typeof entry?.createdAt === 'string' && entry.createdAt ? entry.createdAt : date,
+      ...(adjustments.length > 0 ? { adjustments } : {})
     });
   }
   return entries;
@@ -1432,7 +1464,12 @@ export function manualBaqayaEntriesWithRemaining(customer) {
   return sanitizeManualBaqayaEntries(customer?.manualBaqaya)
     .map((entry) => {
       const settledCents = Math.min(settled.get(entry.id) ?? 0, moneyCents(entry.amount));
-      return { ...entry, settledCents, remainingCents: Math.max(0, moneyCents(entry.amount) - settledCents) };
+      // OWNER-ADDPEND: owner adjustments subtract exactly like settled
+      // stamps in the remaining derivation (but, unlike settlements,
+      // they are never restored by a payment void — see the adjustment
+      // block above). Legacy entries carry no adjustments → 0.
+      const adjustedCents = (entry.adjustments ?? []).reduce((sum, adjustment) => sum + moneyCents(adjustment.amount), 0);
+      return { ...entry, settledCents, adjustedCents, remainingCents: Math.max(0, moneyCents(entry.amount) - settledCents - adjustedCents) };
     })
     .sort((a, b) => a.date.localeCompare(b.date) || String(a.createdAt).localeCompare(String(b.createdAt)) || a.id.localeCompare(b.id));
 }
@@ -1524,6 +1561,63 @@ export function updateManualBaqayaEntry(state, customerId, entryId, fields, refe
   const clean = cleanManualBaqayaFields(fields, referenceDate);
   const nextEntries = sanitizeManualBaqayaEntries(customer.manualBaqaya)
     .map(entry => entry.id === entryId ? { ...entry, ...clean } : entry);
+  return replaceCustomer(state, customerId, { ...customer, manualBaqaya: nextEntries });
+}
+
+/**
+ * OWNER-ADDPEND (2026-11-01): set the customer's TOTAL outstanding
+ * manual baqaya to an exact amount — the write path of the Additional
+ * Pending quick editor. The editor manages the total, never a single
+ * entry, and history is never rewritten:
+ *  - Increase: ONE new entry is created for the difference, through
+ *    addManualBaqayaEntry itself (same guards, id and date rules).
+ *  - Decrease: the difference is stamped as owner adjustments against
+ *    the NEWEST open entries first (LIFO), capped at each entry's
+ *    remaining — settled portions stay settled, the total can reach 0
+ *    but never below it.
+ *  - Equal: the SAME state reference is returned (no write at all).
+ * Guards mirror addManualBaqayaEntry (FREE / archived refuse). The
+ * amount must be finite and >= 0; anything else throws before any
+ * state is produced.
+ */
+export function setManualBaqayaOutstanding(state, customerId, fields, referenceDate = new Date()) {
+  const customer = customerOrThrow(state, customerId);
+  if (customer.archived) throw new Error('Archived customers cannot take a new manual baqaya entry. Unarchive the customer first.');
+  if (customer.isFreeConnection === true) throw new Error('Free connections never owe anything — a manual baqaya entry cannot be added.');
+  const amount = Number(fields?.amount);
+  if (!Number.isFinite(amount) || amount < 0) throw new Error('Enter an additional pending amount of zero or more.');
+  const targetCents = moneyCents(amount);
+  const currentCents = manualBaqayaOutstandingCents(customer);
+  if (targetCents === currentCents) return state;
+  const date = fields?.date ? checkOptionalDate(fields.date, 'Additional pending date') : dateKey(referenceDate);
+  if (!date) throw new Error('Enter the date this additional pending belongs to.');
+  if (date > dateKey(referenceDate)) throw new Error('Additional pending date cannot be in the future.');
+  const note = cleanBaqayaNote(fields?.note);
+  if (targetCents > currentCents) {
+    return addManualBaqayaEntry(state, customerId, { amount: (targetCents - currentCents) / 100, date, note }, referenceDate);
+  }
+  let reductionLeftCents = currentCents - targetCents;
+  const openNewestFirst = manualBaqayaEntriesWithRemaining(customer)
+    .filter(entry => entry.remainingCents > 0)
+    .reverse();
+  const adjustmentsByEntry = new Map();
+  for (const entry of openNewestFirst) {
+    if (reductionLeftCents <= 0) break;
+    const appliedCents = Math.min(entry.remainingCents, reductionLeftCents);
+    if (appliedCents <= 0) continue;
+    adjustmentsByEntry.set(entry.id, {
+      amount: appliedCents / 100,
+      date,
+      note,
+      createdAt: localDateTimeValue(referenceDate)
+    });
+    reductionLeftCents -= appliedCents;
+  }
+  const nextEntries = sanitizeManualBaqayaEntries(customer.manualBaqaya).map((entry) => {
+    const adjustment = adjustmentsByEntry.get(entry.id);
+    if (!adjustment) return entry;
+    return { ...entry, adjustments: [...(entry.adjustments ?? []), adjustment] };
+  });
   return replaceCustomer(state, customerId, { ...customer, manualBaqaya: nextEntries });
 }
 

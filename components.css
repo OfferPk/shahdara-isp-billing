@@ -2207,6 +2207,13 @@ button.field-dispatch-item { cursor: pointer; }
 .manual-baqaya-empty { margin: 8px 0 0; color: var(--muted); }
 .manual-baqaya-hint { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
 .manual-baqaya-badge { display: inline-block; margin-top: 2px; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-pending-bg); color: var(--color-overdue); white-space: nowrap; }
+.manual-baqaya-status-adjusted { background: var(--surface-soft); color: var(--muted); }
+.additional-pending-controls { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.additional-pending-btn { border: 1px solid var(--line); background: var(--surface-soft); color: var(--ink); border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 700; cursor: pointer; min-height: 28px; }
+.additional-pending-total { font-weight: 700; color: var(--color-overdue); font-variant-numeric: var(--numeric); white-space: nowrap; }
+.additional-pending-breakdown { font-size: 12px; color: var(--muted); font-variant-numeric: var(--numeric); white-space: nowrap; }
+.additional-pending-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.additional-pending-warning { margin: 8px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--color-pending-bg); color: var(--color-overdue); font-size: 13px; }
 .manual-baqaya-stat strong { color: var(--color-overdue); }
 
 /* OWNER-HELP: per-feature ℹ️ guide buttons + shared popup body.

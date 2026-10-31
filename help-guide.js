@@ -67,6 +67,7 @@ export const HELP_TOPICS = Object.freeze({
   uptime: { titleKey: 'help_uptime_title', bodyKey: 'help_uptime_body' },
   revenue_leak: { titleKey: 'help_revenue_leak_title', bodyKey: 'help_revenue_leak_body' },
   loyalty: { titleKey: 'help_loyalty_title', bodyKey: 'help_loyalty_body' },
+  additional_pending: { titleKey: 'help_additional_pending_title', bodyKey: 'help_additional_pending_body' },
 });
 
 /** All registered topic keys, in registry order. */

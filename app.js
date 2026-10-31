@@ -8,7 +8,7 @@ import {
   calculateMethodCollectionTotals, findDuplicatePaymentReference, findIdentityConflicts, paymentSenderLabel,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
   autoPackageFromPayment,
-  addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining,
+  addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining, setManualBaqayaOutstanding,
   whatsappPhoneFor
 } from './core.js?v=1.11.0';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
@@ -225,7 +225,7 @@ import { sameNameBadgeHtml } from './name-disambiguator.js';
 import { buildSmsReceiptUrl, buildSmsReminderUrl, customerPrefersSms } from './sms-fallback.js';
 import { receiptChannelPreference } from './receipt-preferences.js';
 import { BAD_DEBTS_KEY, activeBadDebtFor, badDebtSummary, loadBadDebts, restoreBadDebt, saveBadDebts, writeOffBadDebt } from './bad-debt-ledger.js';
-import { manualBaqayaCardBadgeMarkup, manualBaqayaStatMarkup, manualBaqayaSectionMarkup } from './manual-baqaya.js';
+import { manualBaqayaCardBadgeMarkup, manualBaqayaStatMarkup, manualBaqayaSectionMarkup, additionalPendingControlsMarkup, totalOutstandingFigures } from './manual-baqaya.js';
 import { UPS_NODES_KEY, activeOutages, checkUpsNodeDepletions, formatClockTime, loadUpsNodes, powerBackupSummary, saveUpsNodes, setupPowerBackupModal } from './power-backup-monitor.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
@@ -2083,7 +2083,15 @@ function profileReceiptSummaryMarkup(customer) {
   const healthCategoryKey = { 'Good': 'prof_health_cat_good', 'Risk': 'prof_health_cat_risk', 'Critical': 'prof_health_cat_critical' }[health?.category];
   const scoreText = health?.score === null || health?.score === undefined ? t('prof_health_score_null') : t('prof_health_score', null, { score: health.score, category: healthCategoryKey ? t(healthCategoryKey) : health.category });
   const scoreReasons = (health?.reasons ?? []).map(reason => `<li>${escapeHtml(reason)}</li>`).join('');
-  const behaviorCards = behavior ? `<article class="profile-summary-stat"><span>${t('prof_receipts_outstanding')}</span><strong>${escapeHtml(formatAmount(behavior.totalOutstanding))}</strong><small>${t('prof_stat_credit_tracked')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_credit')}</span><strong>${pendingCreditCents ? escapeHtml(formatAmount(pendingCreditCents / 100)) : t('prof_none_recorded')}</strong><small>${t('prof_stat_prepaid')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_avg')}</span><strong>${behavior.averageMonthlyPayment===null?t('prof_stat_not_calc'):escapeHtml(formatAmount(behavior.averageMonthlyPayment))}</strong><small>${escapeHtml(profileAvgPaymentBasis(customer))}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_delay')}</span><strong>${behavior.averagePaymentDelayDays===null?t('prof_not_recorded'):t('prof_stat_delay_days', null, { days: behavior.averagePaymentDelayDays })}</strong><small>${t('prof_stat_delay_pairs', null, { count: behavior.delaySampleCount })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_range')}</span><strong>${behavior.highestPayment===null?t('prof_not_recorded'):`${escapeHtml(formatAmount(behavior.lowestPayment))}–${escapeHtml(formatAmount(behavior.highestPayment))}`}</strong><small>${t('prof_stat_range_sub')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_late')}</span><strong>${behavior.latePaymentCount} / ${behavior.partialPaymentCount}</strong><small>${t('prof_stat_late_sub', null, { count: behavior.totalPayments })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_consistency')}</span><strong>${behavior.paymentConsistency===null?t('prof_health_cat_insufficient'):`${behavior.paymentConsistency}%`}</strong><small>${t('prof_stat_consistency_sub', null, { settled: behavior.consistencySettledMonths, bill: behavior.consistencyBillMonths })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_last')}</span><strong>${lastPayment?escapeHtml(formatAmount(lastPayment.amount)):t('prof_not_recorded')}</strong><small>${lastPayment?escapeHtml(t('prof_stat_last_receipt', null, { date: humanDate(lastPayment.date) })): t('prof_stat_last_none')}</small></article>` : '';
+  // OWNER-ADDPEND: while additional pending (manual baqaya) is unpaid,
+  // the profile Outstanding stat shows the COMBINED total from the
+  // shared figures helper, with the Bill + Additional breakdown as its
+  // sub-line. With no baqaya it stays exactly the behaviour figure.
+  const outstandingFigures = totalOutstandingFigures(customer, allocations);
+  const profileOutstandingStat = outstandingFigures.manualBaqayaCents > 0
+    ? `<article class="profile-summary-stat"><span>${t('prof_receipts_outstanding')}</span><strong>${escapeHtml(formatAmount(outstandingFigures.total))}</strong><small>${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(outstandingFigures.billDues), additional: formatPKR(outstandingFigures.manualBaqaya) }))}</small></article>`
+    : `<article class="profile-summary-stat"><span>${t('prof_receipts_outstanding')}</span><strong>${escapeHtml(formatAmount(behavior?.totalOutstanding ?? 0))}</strong><small>${t('prof_stat_credit_tracked')}</small></article>`;
+  const behaviorCards = behavior ? `${profileOutstandingStat}<article class="profile-summary-stat"><span>${t('prof_receipts_credit')}</span><strong>${pendingCreditCents ? escapeHtml(formatAmount(pendingCreditCents / 100)) : t('prof_none_recorded')}</strong><small>${t('prof_stat_prepaid')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_avg')}</span><strong>${behavior.averageMonthlyPayment===null?t('prof_stat_not_calc'):escapeHtml(formatAmount(behavior.averageMonthlyPayment))}</strong><small>${escapeHtml(profileAvgPaymentBasis(customer))}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_delay')}</span><strong>${behavior.averagePaymentDelayDays===null?t('prof_not_recorded'):t('prof_stat_delay_days', null, { days: behavior.averagePaymentDelayDays })}</strong><small>${t('prof_stat_delay_pairs', null, { count: behavior.delaySampleCount })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_range')}</span><strong>${behavior.highestPayment===null?t('prof_not_recorded'):`${escapeHtml(formatAmount(behavior.lowestPayment))}–${escapeHtml(formatAmount(behavior.highestPayment))}`}</strong><small>${t('prof_stat_range_sub')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_late')}</span><strong>${behavior.latePaymentCount} / ${behavior.partialPaymentCount}</strong><small>${t('prof_stat_late_sub', null, { count: behavior.totalPayments })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_consistency')}</span><strong>${behavior.paymentConsistency===null?t('prof_health_cat_insufficient'):`${behavior.paymentConsistency}%`}</strong><small>${t('prof_stat_consistency_sub', null, { settled: behavior.consistencySettledMonths, bill: behavior.consistencyBillMonths })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_last')}</span><strong>${lastPayment?escapeHtml(formatAmount(lastPayment.amount)):t('prof_not_recorded')}</strong><small>${lastPayment?escapeHtml(t('prof_stat_last_receipt', null, { date: humanDate(lastPayment.date) })): t('prof_stat_last_none')}</small></article>` : '';
   return `<section class="customer-receipt-summary" aria-label="${t('prof_receipts_aria')}"><div class="profile-summary-heading"><h3>${t('prof_receipts_heading')}</h3><button type="button" class="secondary-button profile-summary-edit-btn" data-edit-customer="${escapeHtml(customer.id)}">✏️ ${t('prof_receipts_edit')}</button></div><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>${t('prof_receipts_total')}</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : t('prof_receipts_none')}</strong><small>${receipts.receiptCount ? (receipts.receiptCount === 1 ? t('prof_stat_total_small_1', null, { count: receipts.receiptCount }) : t('prof_stat_total_small_n', null, { count: receipts.receiptCount })) : t('prof_stat_receipts_none_note')}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>${t('prof_receipts_tenure')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article>${profileAgeMarkup(customer)}${behaviorCards}</div><section class="customer-health-summary" aria-label="${t('prof_health_aria')}"><strong>${escapeHtml(scoreText)}</strong><details><summary>${t('prof_health_basis')}</summary><ul>${scoreReasons || `<li>${t('prof_health_none')}</li>`}</ul></details></section><div class="receipt-month-history"><div class="receipt-month-heading"><strong>${t('prof_receipts_by_month')}</strong><span>${t('prof_receipts_by_month_sub')}</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="${t('prof_receipts_by_month_aria')}">${receiptRows}</ul>` : `<p class="receipt-month-empty">${t('prof_receipts_by_month_empty')}</p>`}</div></section>`;
 }
 function customerCardMarkup(customer, archived = false, allocations = calculatePaymentAllocations(state)) {
@@ -2112,7 +2120,7 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
     const selected = status === customer.serviceStatus;
     return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="${t('cust_service_button_aria', null, { number: customer.customerNumber, status: label })}">${label}</button>`;
   }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''} ${prepaidUntilBadgeHtml(state, customer)} ${loyaltyBadgeHtml(customer)} ${sameNameBadgeHtml(state, customer)}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>${manualBaqayaCardBadgeMarkup(customer)}</span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span><div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div>${liveSessionMarkup(customer)}</div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''} ${prepaidUntilBadgeHtml(state, customer)} ${loyaltyBadgeHtml(customer)} ${sameNameBadgeHtml(state, customer)}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>${manualBaqayaCardBadgeMarkup(customer)}</span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span>${additionalPendingControlsMarkup(customer, allocations)}<div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div>${liveSessionMarkup(customer)}</div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
@@ -2358,6 +2366,7 @@ function renderCustomers() {
   document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.customerBillingFilter === selectedBillingFilter ? 'true' : 'false'));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
   for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-set-service]').forEach(button => button.addEventListener('click', () => setManualServiceStatus(button.dataset.setService, button.dataset.serviceStatus)));
+  for (const list of [customerList,$('#archivedCustomerList')]) list.querySelectorAll('[data-additional-pending]').forEach(button => button.addEventListener('click', (event) => { event.stopPropagation(); openAdditionalPendingDialog(button.dataset.additionalPending); }));
   $('#archivedCustomerList').querySelectorAll('[data-unarchive-customer]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); restoreCustomer(button.dataset.unarchiveCustomer); }));
   renderNewCustomersPanel();
   updateNavigationBadges(state);
@@ -3831,6 +3840,37 @@ function openManualBaqayaDialog(customerId, entryId = null) {
   $('#manualBaqayaNote').value = existing?.note ?? '';
   $('#manualBaqayaDialog').showModal();
 }
+// OWNER-ADDPEND (2026-11-01): Additional Pending quick editor. One
+// small dialog reused from the Customers card and the profile: it
+// manages the TOTAL outstanding manual baqaya of one customer through
+// core's setManualBaqayaOutstanding (increase = one new entry for the
+// difference; decrease = auditable LIFO adjustments). The bill side is
+// shown read-only from the shared derived figures, with the explicit
+// warning that bill arrears must never be typed here again.
+let additionalPendingDialogCustomerId = null;
+function refreshAdditionalPendingTotal() {
+  const customer = state.customers.find((entry) => entry.id === additionalPendingDialogCustomerId);
+  if (!customer) return;
+  const figures = totalOutstandingFigures(customer, calculatePaymentAllocations(state));
+  const typed = Number($('#additionalPendingAmount')?.value);
+  const additionalCents = Number.isFinite(typed) && typed > 0 ? Math.round(typed * 100) : 0;
+  const totalEl = $('#additionalPendingTotal');
+  if (totalEl) totalEl.textContent = formatAmount((figures.billDuesCents + additionalCents) / 100);
+}
+function openAdditionalPendingDialog(customerId) {
+  const customer = state.customers.find((entry) => entry.id === customerId);
+  if (!customer) return;
+  if (customer.archived || customer.isFreeConnection === true) return;
+  additionalPendingDialogCustomerId = customerId;
+  const figures = totalOutstandingFigures(customer, calculatePaymentAllocations(state));
+  $('#additionalPendingBillDue').textContent = formatAmount(figures.billDues);
+  $('#additionalPendingWarning').textContent = t('addpend_warning', null, { amount: formatAmount(figures.billDues) });
+  $('#additionalPendingAmount').value = figures.manualBaqaya > 0 ? figures.manualBaqaya : '';
+  $('#additionalPendingNote').value = '';
+  refreshAdditionalPendingTotal();
+  $('#additionalPendingDialog').showModal();
+}
+
 async function removeManualBaqayaEntryFlow(customerId, entryId) {
   const customer = state.customers.find((entry) => entry.id === customerId);
   const target = (customer?.manualBaqaya ?? []).find((entry) => entry.id === entryId);
@@ -3871,6 +3911,13 @@ function renderDetail() {
   const baqayaStat = manualBaqayaStatMarkup(customer);
   if (baqayaStat) $('#customerReceiptSummary .profile-summary-grid')?.insertAdjacentHTML('beforeend', baqayaStat);
   renderManualBaqayaSection(customer);
+  // OWNER-ADDPEND: the same quick-edit controls the Customers card
+  // shows, under the profile summary ('' for FREE / archived).
+  const addPendMarkup = additionalPendingControlsMarkup(customer);
+  if (addPendMarkup) {
+    $('#customerReceiptSummary')?.insertAdjacentHTML('beforeend', `<div class="additional-pending-row">${addPendMarkup}</div>`);
+    $('#customerReceiptSummary [data-additional-pending]')?.addEventListener('click', () => openAdditionalPendingDialog(customer.id));
+  }
   $('#profileAvatar').textContent = initials(customer.name);
   $('#detailCustomerNumber').textContent = t('prof_customer_number', null, { n: customer.customerNumber });
   const shownName = displayCustomerName(customer, currentAppLanguage());
@@ -6415,6 +6462,37 @@ $('#manualBaqayaForm').addEventListener('submit', event => {
     save();
     $('#manualBaqayaDialog').close();
     toast(t('baqaya_saved'));
+    renderDetail();
+    renderCustomers();
+  } catch (error) {
+    toast(error.message, { type: 'error' });
+  }
+});
+// OWNER-ADDPEND: Additional Pending editor wiring (same shape as the
+// baqaya dialog above; core enforces the FREE / archived / amount
+// guards and the no-op rule — an unchanged total writes nothing).
+document.querySelectorAll('#additionalPendingDialog [data-close-dialog]').forEach(button => button.addEventListener('click', () => $('#additionalPendingDialog').close()));
+$('#additionalPendingDialog')?.addEventListener('click', (e) => {
+  if (e.target === $('#additionalPendingDialog')) $('#additionalPendingDialog').close();
+});
+$('#additionalPendingAmount')?.addEventListener('input', refreshAdditionalPendingTotal);
+$('#additionalPendingForm').addEventListener('submit', event => {
+  event.preventDefault();
+  const customerId = additionalPendingDialogCustomerId;
+  if (!customerId) return;
+  const rawAmount = $('#additionalPendingAmount').value.trim();
+  const amount = rawAmount === '' ? NaN : Number(rawAmount);
+  if (!Number.isFinite(amount) || amount < 0) { toast(t('addpend_invalid'), { type: 'error' }); return; }
+  try {
+    const before = state;
+    state = setManualBaqayaOutstanding(state, customerId, {
+      amount,
+      date: pakistanToday(),
+      note: $('#additionalPendingNote').value.trim() || t('addpend_default_note')
+    });
+    if (state !== before) save();
+    $('#additionalPendingDialog').close();
+    toast(t('addpend_saved'));
     renderDetail();
     renderCustomers();
   } catch (error) {

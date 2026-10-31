@@ -79,6 +79,14 @@ export function buildPaymentReceipt(customer, bill, payment) {
   // amount the customer actually still owed.
   const depositOffsetAmount = positiveAmount(bill.depositOffsetAmount) || 0;
   const depositOffsetReason = text(bill.depositOffsetReason);
+  // SISP-111: a cross-customer advance credit transfer satisfied part
+  // of this bill with another customer's advance credit — subtracted
+  // here exactly like the deposit offset, so the balance (and the
+  // PAID / PARTIAL seal) reflect what the customer actually still
+  // owed. It is printed as its own line below, never as a payment:
+  // no cash moved when it was applied.
+  const creditTransferInAmount = positiveAmount(bill.creditTransferInAmount) || 0;
+  const creditTransferInReason = text(bill.creditTransferInReason);
   // SISP-101: a payment that waived the bill's late fee at collect time
   // carries the waiver on its own record (the bill's lateFee is already
   // zeroed, so the balance above needs no further subtraction — the
@@ -102,7 +110,7 @@ export function buildPaymentReceipt(customer, bill, payment) {
   let status = 'RECEIVED';
   let balanceDueCents = null;
   if (billDue !== null && selectedIndex >= 0) {
-    const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount) - cents(referralCreditAmount) - cents(depositOffsetAmount) - cents(feederHostCreditAmount));
+    const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount) - cents(referralCreditAmount) - cents(depositOffsetAmount) - cents(creditTransferInAmount) - cents(feederHostCreditAmount));
     const allocations = calculatePaymentAllocations({ customers:[customer] });
     const summary = allocations.forMonth(customer.id, matchingBill.month);
     const carryInCents = Math.min(dueCents, Math.max(0, Number(summary?.creditAppliedCents) || 0));
@@ -188,6 +196,8 @@ export function buildPaymentReceipt(customer, bill, payment) {
     referralCreditReason,
     depositOffsetAmount,
     depositOffsetReason,
+    creditTransferInAmount,
+    creditTransferInReason,
     // SISP-101: the late fee this payment waived (false / 0 on every
     // other receipt, so non-waiver receipts render exactly as before).
     lateFeeWaived: lateFeeWaiver !== null,
@@ -411,6 +421,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
+    ${receipt.creditTransferInAmount > 0 ? `<div class="receipt-field"><dt>Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر:</dt><dd>-${formatAmount(receipt.creditTransferInAmount)}</dd></div>` : ''}
     ${receipt.feederHostCreditAmount > 0 ? `<div class="receipt-field"><dt>Feeder Host Credit / فیڈر ہوسٹ کریڈٹ:</dt><dd>-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${escapeHtml(receipt.feederHostCreditReason)})` : ''}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${addonChargeReceiptRows(receipt, formatAmount)}
@@ -458,6 +469,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
+    ${receipt.creditTransferInAmount > 0 ? `<div class="receipt-field"><dt>Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر:</dt><dd>-${formatAmount(receipt.creditTransferInAmount)}</dd></div>` : ''}
     ${receipt.feederHostCreditAmount > 0 ? `<div class="receipt-field"><dt>Feeder Host Credit / فیڈر ہوسٹ کریڈٹ:</dt><dd>-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${escapeHtml(receipt.feederHostCreditReason)})` : ''}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${addonChargeReceiptRows(receipt, formatAmount)}
@@ -502,6 +514,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.concessionAmount > 0 ? [['Outage Concession (Reaayat)', `-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${receipt.concessionReason})` : ''}`]] : []),
     ...(receipt.referralCreditAmount > 0 ? [['Hamsaya Referral Credit', `-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${receipt.referralCreditReason})` : ''}`]] : []),
     ...(receipt.depositOffsetAmount > 0 ? [['Security Deposit Offset', `-${formatAmount(receipt.depositOffsetAmount)}`]] : []),
+    ...(receipt.creditTransferInAmount > 0 ? [['Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر', `-${formatAmount(receipt.creditTransferInAmount)}`]] : []),
     ...(receipt.feederHostCreditAmount > 0 ? [['Feeder Host Bijli Credit', `-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${receipt.feederHostCreditReason})` : ''}`]] : []),
     ...(Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges.map((line) => [`Murammat / Material Charge (${line.ticketId})`, formatAmount(line.amount)]) : []),
     ...(Array.isArray(receipt.addonCharges) ? receipt.addonCharges.map((line) => [`Speed Boost / سپیڈ بوسٹ (${line.boostId})`, formatAmount(line.amount)]) : []),

@@ -21,6 +21,7 @@ import { sanitizeSupplierKhata } from './supplier-khata.js';
 import { sanitizeCommissionRules } from './collector-commission.js';
 import { sanitizeUpsNodes } from './power-backup-monitor.js';
 import { sanitizeReferralCredits } from './referral-credits.js';
+import { sanitizeCreditTransfers } from './credit-transfer.js';
 import { sanitizeFieldTools } from './tool-custody-register.js';
 import { sanitizeSpliceClosures } from './fiber-splice-closure.js';
 import { sanitizeBadDebts } from './bad-debt-ledger.js';
@@ -2397,6 +2398,29 @@ export function calculatePaymentAllocations(state) {
   const byCustomerMonth = new Map();
   for (const customer of state.customers) {
     const pendingCredits = [];
+    // SISP-111: deduct one bill's credit-transfer-out stamps from the
+    // pending-credit entries THIS bill's payments generated. Each
+    // stamp names the exact source payment (credit-transfer.js
+    // distributed the transfer over the payments holding unapplied
+    // credit), so the transferred value leaves the pool at its
+    // source and can never be spent twice by a later bill. A stamp
+    // whose payment no longer holds credit here (the payment was
+    // voided afterwards, or the data was edited) deducts nothing —
+    // the pool simply reports what is really left, exactly like the
+    // Khata Doctor's clamped deduction. Bills without the field
+    // (every legacy bill) skip this entirely.
+    const applyCreditTransferOutStamps = (stampedBill, summary) => {
+      const stamps = Array.isArray(stampedBill?.creditTransferOut) ? stampedBill.creditTransferOut : [];
+      for (const stamp of stamps) {
+        const amountCents = moneyCents(stamp?.amount || 0);
+        if (!(amountCents > 0) || typeof stamp?.paymentId !== 'string' || !stamp.paymentId) continue;
+        const entry = pendingCredits.find((credit) => credit.sourceSummary === summary && credit.paymentLedger.paymentId === stamp.paymentId);
+        if (!entry || entry.remainingCents <= 0) continue;
+        const appliedCents = Math.min(entry.remainingCents, amountCents);
+        entry.remainingCents -= appliedCents;
+        entry.paymentLedger.creditTransferredOutCents = (entry.paymentLedger.creditTransferredOutCents ?? 0) + appliedCents;
+      }
+    };
     const bills = [...(customer.bills ?? [])].sort((a,b) => a.month.localeCompare(b.month));
     for (const bill of bills) {
       const key = monthAllocationKey(customer.id, bill.month);
@@ -2438,6 +2462,7 @@ export function calculatePaymentAllocations(state) {
             pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:creditCents, targetMonth:paymentLedger.targetMonth });
           }
         }
+        applyCreditTransferOutStamps(bill, summary);
         continue;
       }
 
@@ -2457,6 +2482,16 @@ export function calculatePaymentAllocations(state) {
       // the Khata Doctor formula gives it. The field is absent on every
       // legacy bill, so all existing allocations are unchanged.
       dueRemainingCents -= Math.min(moneyCents(bill.depositOffsetAmount || 0), billAmountCents);
+      // SISP-111: a cross-customer advance credit transfer stamped on
+      // this bill (credit-transfer.js executeCreditTransfer) satisfies
+      // part of the due with another customer's advance credit — no
+      // cash moved and no payment was recorded, so collection and
+      // drawer totals never see it. It reduces the due after the
+      // deposit offset and before advance credit and receipts apply —
+      // the same treatment the Khata Doctor formula gives it. The
+      // field is absent on every legacy bill, so all existing
+      // allocations are unchanged.
+      dueRemainingCents -= Math.min(moneyCents(bill.creditTransferInAmount || 0), Math.max(0, dueRemainingCents));
       // SISP-64: a bad-debt write-off waives what is left of this bill
       // (audited bill fields stamped by bad-debt-ledger.js
       // writeOffBadDebt). It reduces the due after the deposit offset
@@ -2573,6 +2608,7 @@ export function calculatePaymentAllocations(state) {
           pendingCredits.push({ paymentLedger, sourceSummary:summary, remainingCents:forwardedCents, targetMonth:paymentLedger.targetMonth });
         }
       }
+      applyCreditTransferOutStamps(bill, summary);
       summary.balanceDueCents = Math.max(0, dueRemainingCents);
     }
     for (const credit of pendingCredits) {
@@ -3385,6 +3421,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeReferralCredits(options.referralCredits);
     if (cleaned.length) document.settings = { ...(document.settings || {}), referralCredits: cleaned };
   }
+  // SISP-111: cross-customer credit transfer records live outside the
+  // ledger state (localStorage key sisp_credit_transfers_v1), so they
+  // travel in an optional `settings.creditTransfers` section. Written
+  // only when at least one entry exists; readers that predate it
+  // ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.creditTransfers) && options.creditTransfers.length) {
+    const cleaned = sanitizeCreditTransfers(options.creditTransfers);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), creditTransfers: cleaned };
+  }
   // SISP-82: field tool custody records live outside the ledger state
   // (localStorage key sisp_field_tools_v1), so they travel in an
   // optional `settings.fieldTools` section. Written only when at least
@@ -3681,7 +3726,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
         customer.bills.push(deepCopy(incomingBill)); counts.addedBills++; counts.addedPayments+=incomingBill.payments.length; counts.changes++;
         continue;
       }
-      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt','referralCreditAmount','referralCreditReason','referralCreditAppliedAt','depositOffsetAmount','depositOffsetReason','depositOffsetAppliedAt','badDebtWriteOffAmount','badDebtWriteOffReason','badDebtWriteOffAt','feederHostCreditAmount','feederHostCreditReason','feederHostCreditAppliedAt']) {
+      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt','referralCreditAmount','referralCreditReason','referralCreditAppliedAt','depositOffsetAmount','depositOffsetReason','depositOffsetAppliedAt','creditTransferInAmount','creditTransferInReason','creditTransferInAppliedAt','creditTransferOut','badDebtWriteOffAmount','badDebtWriteOffReason','badDebtWriteOffAt','feederHostCreditAmount','feederHostCreditReason','feederHostCreditAppliedAt']) {
         const oldValue = existingBill[key] ?? null; const newValue = incomingBill[key] ?? null;
         if (sameJson(oldValue,newValue)) continue;
         if (!nonempty(oldValue) && nonempty(newValue)) { existingBill[key]=deepCopy(newValue); counts.changes++; }
@@ -4236,6 +4281,31 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Referral credit records differ from this device' });
     }
   }
+  // SISP-111 credit transfers: optional register section (see
+  // createJsonBackup). Safe-merge rule, same as referral credits: adopt
+  // the backup's entries only when this device has none stored yet;
+  // when both sides hold different real entries, keep existing +
+  // conflict (a transfer audit record must never be silently
+  // overwritten or duplicated).
+  let creditTransfers = null;
+  const rawIncomingCreditTransfers = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.creditTransfers
+    : undefined;
+  if (Array.isArray(rawIncomingCreditTransfers) && rawIncomingCreditTransfers.length) {
+    const incomingCreditTransfers = sanitizeCreditTransfers(rawIncomingCreditTransfers);
+    const currentCreditTransfers = (options && typeof options === 'object' && Array.isArray(options.currentCreditTransfers))
+      ? sanitizeCreditTransfers(options.currentCreditTransfers)
+      : [];
+    if (incomingCreditTransfers.length && sameJson(incomingCreditTransfers, currentCreditTransfers)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingCreditTransfers.length && (!options?.currentCreditTransfersStored || currentCreditTransfers.length === 0)) {
+      creditTransfers = incomingCreditTransfers;
+      counts.creditTransfersRestored = 1;
+      counts.changes++;
+    } else if (incomingCreditTransfers.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Credit transfer records differ from this device' });
+    }
+  }
   // SISP-82 field tools: optional custody section (see
   // createJsonBackup). Safe-merge rule, same as suspense payments:
   // adopt the backup's records only when this device has none stored
@@ -4467,5 +4537,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

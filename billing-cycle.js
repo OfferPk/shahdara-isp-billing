@@ -131,6 +131,13 @@ export function applicablePriceForMonth(customer, month) {
  * only the earlier bills. Scoping matters: unapplied credit is only
  * "advance" if no earlier bill consumed it, and earlier balances are final
  * before the cycle month is processed (later bills never rewrite them).
+ *
+ * SISP-111 needs no change here: a cross-customer credit transfer
+ * consumes the source's payments through the engine's own ledger
+ * (creditTransferOut stamps reduce unappliedCreditCents before this
+ * function ever reads it) and settles the target's bills through
+ * their balanceDueCents, so cycle arrears and advance both follow
+ * automatically.
  */
 export function arrearsAndAdvance(customer, month) {
   const scoped = { ...customer, bills: (customer?.bills ?? []).filter((bill) => bill && bill.month < month) };

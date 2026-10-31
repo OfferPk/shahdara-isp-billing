@@ -7,6 +7,7 @@ import { getAppLanguage, t } from './nav-language.js';
 import { paymentDayHabit } from './payment-day-advisor.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 import { prepaidUntilMonth } from './advance-prepay.js';
+import { transfersForCustomer } from './credit-transfer.js';
 import { addonChargesPending, speedBoostStatus, speedBoostsOf } from './speed-addon.js';
 import { loyaltyInfoForCustomer } from './loyalty-retention.js';
 import { isCommercialVip } from './commercial-sla.js';
@@ -529,6 +530,44 @@ export function depositSettlementPresentation(customer, unpaidArrears = 0) {
     refundLabel: t('prof_dep_refund', null, { amount: formatPKR(quote.netDepositRefund) }),
     noteLabel: t('prof_dep_note'),
     settleLabel: t('prof_dep_settle_btn')
+  };
+}
+
+/**
+ * SISP-111: profile presentation for cross-customer advance credit
+ * transfers. Pure formatting over the register: every transfer that
+ * touched this customer becomes one labelled row (transfer-in rows
+ * name the source, transfer-out rows name the target — the transfer
+ * is never disguised as a cash payment), and `canTransfer` mirrors
+ * the executor's guards that a profile can know without allocations
+ * (not archived, not a FREE connection, and the caller-supplied live
+ * available credit — computed by app.js from the allocation engine
+ * for the current month — is positive).
+ */
+export function creditTransferPresentation(customer, transfers = [], availableCredit = 0) {
+  const rows = transfersForCustomer(transfers, customer?.id).map((entry) => {
+    const outgoing = entry.fromCustomerId === String(customer?.id);
+    return {
+      transferId: entry.transferId,
+      outgoing,
+      status: entry.status,
+      date: entry.date,
+      amount: entry.amount,
+      label: outgoing
+        ? t('trf_out_label', null, { name: entry.toCustomerName, number: entry.toCustomerNumber ?? '' })
+        : t('trf_in_label', null, { name: entry.fromCustomerName, number: entry.fromCustomerNumber ?? '' }),
+      amountLabel: formatPKR(entry.amount),
+      reversedLabel: entry.status === 'reversed' ? t('trf_reversed_badge') : ''
+    };
+  });
+  const canTransfer = !!customer && !customer.archived && !customer.isFreeConnection && Number(availableCredit) > 0;
+  return {
+    visible: rows.length > 0 || canTransfer,
+    canTransfer,
+    rows,
+    headingLabel: t('trf_section_heading'),
+    availableLabel: t('trf_available', null, { amount: formatPKR(Number(availableCredit) || 0) }),
+    transferLabel: t('trf_transfer_btn')
   };
 }
 

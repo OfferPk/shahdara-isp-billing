@@ -22,6 +22,7 @@ import { calculatePaymentAllocations, formatPKR, localDateTimeValue, paymentManu
 import { advancePlansForBilledLines, advancePlansForCoveredKist, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
 import { REFERRAL_CREDIT_REASON, applyReferralApplications, loadReferralCredits, planReferralApplications, queuedReferralTotalFor, reconcileReferralCredits, saveReferralCredits } from './referral-credits.js';
+import { FEEDER_HOST_CREDIT_REASON, clampFeederHostCredit, eligibleFeederHostCredit } from './feeder-host-credit.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 
 export const BILLING_CYCLES_KEY = 'sisp_billing_cycles_v1';
@@ -76,6 +77,7 @@ export function sanitizeBillingCycles(value) {
         totalAdvanceAvailable: num('totalAdvanceAvailable'),
         totalAdvanceApplied: num('totalAdvanceApplied'),
         totalReferralCredit: num('totalReferralCredit'),
+        totalFeederHostCredit: num('totalFeederHostCredit'),
         netExpectedCollection: num('netExpectedCollection'),
         billedCount: Number.isSafeInteger(totals.billedCount) ? totals.billedCount : 0,
         skippedCount: Number.isSafeInteger(totals.skippedCount) ? totals.skippedCount : 0
@@ -158,7 +160,7 @@ export function arrearsAndAdvance(customer, month) {
   return { previousArrears: rupees(arrearsCents), advanceCredit: rupees(advanceCents), arrearsMonths };
 }
 
-export function planCustomerCycleLine(customer, month, referralQueued = 0) {
+export function planCustomerCycleLine(customer, month, referralQueued = 0, feederHostCredit = 0) {
   const base = { customerId: customer?.id ?? null, customerNumber: customer?.customerNumber ?? null, name: customer?.name ?? '' };
   if (!customer || customer.archived) return { ...base, skipped: true, reason: 'archived' };
   // Owner rule: free connections (isFreeConnection) never get a bill —
@@ -205,7 +207,19 @@ export function planCustomerCycleLine(customer, month, referralQueued = 0) {
   const referralCreditApplied = alreadyCredited
     ? 0
     : Math.min(Math.max(0, rupees(cents(Number(referralQueued) || 0))), rupees(cents(gross)));
-  const advanceApplied = Math.min(advanceCredit, Math.max(0, gross - referralCreditApplied));
+  // SISP-97: a feeder host's monthly bijli credit waives part of THIS
+  // month's package fee. The caller passes the LIVE-derived eligible
+  // amount (feeder-host-credit.js — 0 unless the house currently feeds
+  // at least one active downstream home); it is clamped to this month's
+  // package price, deducts after the referral credit and before the
+  // customer's own advance money, and a bill that already carries the
+  // stamp never receives a second one (the adopt-not-duplicate rule,
+  // same as the referral credit above).
+  const alreadyFeederCredited = existing ? Number(existing.feederHostCreditAmount) > 0 : false;
+  const feederCreditApplied = alreadyFeederCredited
+    ? 0
+    : clampFeederHostCredit(feederHostCredit, price);
+  const advanceApplied = Math.min(advanceCredit, Math.max(0, gross - referralCreditApplied - feederCreditApplied));
   return {
     ...base,
     skipped: false,
@@ -216,8 +230,9 @@ export function planCustomerCycleLine(customer, month, referralQueued = 0) {
     previousArrears,
     advanceCredit,
     referralCreditApplied,
+    feederCreditApplied,
     advanceApplied,
-    netDue: Math.max(0, gross - referralCreditApplied - advanceCredit),
+    netDue: Math.max(0, gross - referralCreditApplied - feederCreditApplied - advanceCredit),
     remainingAdvance: Math.max(0, advanceCredit - advanceApplied),
     arrearsMonths,
     existingBillId: existing?.id ?? null
@@ -229,10 +244,14 @@ export function planBillingCycle(state, month, options = {}) {
   // SISP-40: the referral queue is an optional input — callers that pass
   // no credits get exactly the pre-SISP-40 plan.
   const referralCredits = Array.isArray(options?.referralCredits) ? options.referralCredits : [];
+  const allCustomers = state?.customers ?? [];
   const lines = [];
   const skipped = [];
   for (const customer of state?.customers ?? []) {
-    const line = planCustomerCycleLine(customer, month, queuedReferralTotalFor(referralCredits, customer?.id));
+    // SISP-97: feeder-host eligibility is derived live from the whole
+    // roster at plan time — a host whose last downstream link was
+    // removed gets no credit this cycle, with no stored flag to clear.
+    const line = planCustomerCycleLine(customer, month, queuedReferralTotalFor(referralCredits, customer?.id), eligibleFeederHostCredit(allCustomers, customer));
     if (!line.skipped && line.referralCreditApplied > 0) {
       line.referralApplications = planReferralApplications(referralCredits, customer.id, line.referralCreditApplied);
     }
@@ -247,6 +266,7 @@ export function planBillingCycle(state, month, options = {}) {
     totalAdvanceAvailable: sum('advanceCredit'),
     totalAdvanceApplied: lines.reduce((total, line) => total + (line.advanceApplied ?? Math.min(line.advanceCredit, line.currentMonthBill + (line.kistAmount || 0) + line.previousArrears)), 0),
     totalReferralCredit: sum('referralCreditApplied'),
+    totalFeederHostCredit: sum('feederCreditApplied'),
     netExpectedCollection: sum('netDue'),
     billedCount: lines.length,
     skippedCount: skipped.length
@@ -288,6 +308,43 @@ function withReferralCredit(bill, amount, referenceDate) {
   };
 }
 
+// SISP-97: PKT wall-clock stamp in the stored local format
+// (YYYY-MM-DDTHH:mm) — the shape core.js uses for bill stamps
+// (localDateTimeValue), which backup validation accepts.
+function pakistanLocalStamp(date = new Date()) {
+  const safe = date instanceof Date ? date : new Date();
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(safe);
+    const get = (type) => parts.find((part) => part.type === type)?.value ?? '';
+    return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
+  } catch {
+    return safe.toISOString().slice(0, 16);
+  }
+}
+
+// SISP-97: stamp a cycle-applied feeder-host bijli credit onto a bill,
+// mirroring the SISP-30 concession shape — the bill amount itself is
+// never rewritten; the credit rides as audited bill fields plus an
+// amountHistory entry, and presentation layers subtract it from the
+// net due. (The stamp uses the concession's local datetime format, not
+// the referral stamp's ISO string, so a stamped bill stays valid
+// through backup validation.)
+function withFeederHostCredit(bill, amount, referenceDate) {
+  const stamp = pakistanLocalStamp(referenceDate instanceof Date ? referenceDate : new Date());
+  return {
+    ...bill,
+    feederHostCreditAmount: amount,
+    feederHostCreditReason: FEEDER_HOST_CREDIT_REASON,
+    feederHostCreditAppliedAt: stamp,
+    amountHistory: [...(bill.amountHistory ?? []), {
+      changedAt: stamp,
+      type: 'feeder_host_credit_applied',
+      feederHostCredit: amount,
+      note: FEEDER_HOST_CREDIT_REASON
+    }]
+  };
+}
+
 /**
  * Apply a planned cycle to state. Existing bills are adopted untouched;
  * missing priced bills are created in the exact auto-generator shape
@@ -305,6 +362,7 @@ export function applyBillingCycle(state, month, referenceDate = new Date(), opti
     const line = byCustomerId.get(customer.id);
     if (!line) return customer;
     const referralAmount = line.referralCreditApplied || 0;
+    const feederAmount = line.feederCreditApplied || 0;
     if (referralAmount > 0 && Array.isArray(line.referralApplications)) {
       for (const application of line.referralApplications) {
         referralApplications.push({ ...application, referrerCustomerId: customer.id, month });
@@ -315,7 +373,7 @@ export function applyBillingCycle(state, month, referenceDate = new Date(), opti
     // plan's monthsBilled advances). Lines already on the bill are never
     // re-added — dueKistLines excluded them from the plan.
     if (line.existingBillId) {
-      if (!line.kistLines?.length && !(referralAmount > 0)) return customer;
+      if (!line.kistLines?.length && !(referralAmount > 0) && !(feederAmount > 0)) return customer;
       const bills = (customer.bills ?? []).map((bill) => {
         if (bill?.id !== line.existingBillId) return bill;
         let next = bill;
@@ -332,6 +390,9 @@ export function applyBillingCycle(state, month, referenceDate = new Date(), opti
         // SISP-40: an adopted bill receives the referral credit fields
         // exactly like a created one — the amount itself stays untouched.
         if (referralAmount > 0) next = withReferralCredit(next, referralAmount, referenceDate);
+        // SISP-97: an adopted bill receives the feeder-host credit
+        // fields exactly like a created one — amount itself untouched.
+        if (feederAmount > 0) next = withFeederHostCredit(next, feederAmount, referenceDate);
         return next;
       });
       changed = true;
@@ -356,7 +417,8 @@ export function applyBillingCycle(state, month, referenceDate = new Date(), opti
       kistLines: line.kistLines ?? [],
       kistTotal: rupees((line.kistLines ?? []).reduce((sum, row) => sum + cents(row.amount), 0))
     };
-    const bill = referralAmount > 0 ? withReferralCredit(createdBill, referralAmount, referenceDate) : createdBill;
+    const referralBill = referralAmount > 0 ? withReferralCredit(createdBill, referralAmount, referenceDate) : createdBill;
+    const bill = feederAmount > 0 ? withFeederHostCredit(referralBill, feederAmount, referenceDate) : referralBill;
     createdBillIds.push(bill.id);
     changed = true;
     return {
@@ -445,6 +507,13 @@ export function buildArrearsBreakdown(customer, bill) {
   const depositOffsetAmount = Number.isFinite(Number(bill.depositOffsetAmount)) && Number(bill.depositOffsetAmount) > 0
     ? rupees(cents(bill.depositOffsetAmount))
     : 0;
+  // SISP-97: a feeder-host bijli credit stamped by the cycle waived
+  // part of this bill — exposed for receipt renderers exactly like the
+  // referral credit / deposit offset above (the breakdown balance
+  // itself stays gross of bill-field waivers, by house convention).
+  const feederHostCreditAmount = Number.isFinite(Number(bill.feederHostCreditAmount)) && Number(bill.feederHostCreditAmount) > 0
+    ? rupees(cents(bill.feederHostCreditAmount))
+    : 0;
   return {
     month: bill.month,
     packageAmount: Math.max(0, rupees(cents(amount) - cents(kistAmount))),
@@ -456,6 +525,7 @@ export function buildArrearsBreakdown(customer, bill) {
     discountApplied,
     referralCreditAmount,
     depositOffsetAmount,
+    feederHostCreditAmount,
     balanceDue: Math.max(0, totalDue - paidAmount - discountApplied)
   };
 }
@@ -471,6 +541,7 @@ export function arrearsBreakdownTextLines(breakdown) {
     `Sabiqa Baqaya (Previous Arrears): ${formatPKR(breakdown.previousArrears)}`,
     ...(breakdown.referralCreditAmount > 0 ? [`Hamsaya Referral Credit: -${formatPKR(breakdown.referralCreditAmount)}`] : []),
     ...(breakdown.depositOffsetAmount > 0 ? [`Security Deposit Offset: -${formatPKR(breakdown.depositOffsetAmount)}`] : []),
+    ...(breakdown.feederHostCreditAmount > 0 ? [`Feeder Host Bijli Credit: -${formatPKR(breakdown.feederHostCreditAmount)}`] : []),
     `Kul Qabil-e-Ada (Total Due): ${formatPKR(breakdown.totalDue)}`,
     `Wusool Paya (Paid): ${formatPKR(breakdown.paidAmount)}`,
     `Baqi Rehta (Balance): ${formatPKR(breakdown.balanceDue)}`
@@ -924,6 +995,7 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
       <p><span>Total arrears carried forward</span><strong>${money(plan.totals.totalArrears)}</strong></p>
       <p><span>Advance available / applied</span><strong>${money(plan.totals.totalAdvanceAvailable)} / ${money(plan.totals.totalAdvanceApplied)}</strong></p>
       ${plan.totals.totalReferralCredit > 0 ? `<p><span>Hamsaya referral credits applied</span><strong>${money(plan.totals.totalReferralCredit)}</strong></p>` : ''}
+      ${plan.totals.totalFeederHostCredit > 0 ? `<p><span>Feeder host bijli credits applied</span><strong>${money(plan.totals.totalFeederHostCredit)}</strong></p>` : ''}
       <p><span>Net expected collection</span><strong>${money(plan.totals.netExpectedCollection)}</strong></p>
       <p><span>Defaulters by age</span><strong>Current ${buckets.current} · 1 month ${buckets.oneMonth} · 2–3 months ${buckets.twoToThreeMonths} · 4+ months ${buckets.fourPlusMonths}</strong></p>
     </div>
@@ -972,7 +1044,7 @@ export function setupBillingCycleModal(getState, { onUpdateState, onToast } = {}
       currentPlan = null;
       if (confirmBtn) confirmBtn.hidden = true;
       if (previewBox) previewBox.innerHTML = '';
-      if (resultBox) resultBox.innerHTML = `<p class="billing-cycle-success">✅ Billing cycle for ${escapeHtml(cycle.month)} ran: ${cycle.totals.billedCount} bills · ${money(cycle.totals.totalBilled)} billed${cycle.totals.totalKist > 0 ? ` · ${money(cycle.totals.totalKist)} kist included` : ''} · ${money(cycle.totals.totalArrears)} arrears carried${cycle.totals.totalReferralCredit > 0 ? ` · ${money(cycle.totals.totalReferralCredit)} referral credit applied` : ''} · ${money(cycle.totals.netExpectedCollection)} net expected.</p>`;
+      if (resultBox) resultBox.innerHTML = `<p class="billing-cycle-success">✅ Billing cycle for ${escapeHtml(cycle.month)} ran: ${cycle.totals.billedCount} bills · ${money(cycle.totals.totalBilled)} billed${cycle.totals.totalKist > 0 ? ` · ${money(cycle.totals.totalKist)} kist included` : ''} · ${money(cycle.totals.totalArrears)} arrears carried${cycle.totals.totalReferralCredit > 0 ? ` · ${money(cycle.totals.totalReferralCredit)} referral credit applied` : ''}${cycle.totals.totalFeederHostCredit > 0 ? ` · ${money(cycle.totals.totalFeederHostCredit)} feeder host bijli credit applied` : ''} · ${money(cycle.totals.netExpectedCollection)} net expected.</p>`;
       renderLastRun();
       if (onToast) onToast(`Billing cycle for ${cycle.month} ran: ${cycle.totals.billedCount} bills.`);
     } catch (error) {

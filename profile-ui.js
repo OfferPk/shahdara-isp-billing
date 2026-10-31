@@ -11,6 +11,7 @@ import { loyaltyInfoForCustomer } from './loyalty-retention.js';
 import { isCommercialVip } from './commercial-sla.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
+import { activeDownstreamCount, feederHostCreditOf, isFeederHost } from './feeder-host-credit.js';
 import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
 
@@ -454,6 +455,29 @@ export function referralBillingSummary(customer, state, credits) {
     queuedLabel: totals.queuedTotal > 0 ? t('prof_ref_queued', null, { amount: formatPKR(totals.queuedTotal) }) : '',
     appliedLabel: totals.appliedTotal > 0 ? t('prof_ref_applied', null, { amount: formatPKR(totals.appliedTotal) }) : '',
     hasContent: Boolean(referrer) || earned.length > 0
+  };
+}
+
+// SISP-97: feeder-host bijli credit presentation for the profile feeder
+// section. Pure: it reads the configured amount and the LIVE topology
+// (feeder-host-credit.js) and formats the line — it never decides the
+// money; the SISP-2 cycle derives eligibility again at plan time.
+// Visible whenever an amount is configured, so a credit whose last
+// downstream link was removed stays visible with its ineligible label
+// instead of silently vanishing.
+export function feederHostCreditPresentation(customer, customers) {
+  const list = Array.isArray(customers) ? customers : [];
+  const creditPKR = feederHostCreditOf(customer);
+  const activeDownstream = customer ? activeDownstreamCount(list, customer.id) : 0;
+  const eligible = isFeederHost(list, customer);
+  return {
+    creditPKR,
+    activeDownstream,
+    eligible,
+    show: creditPKR > 0,
+    label: creditPKR > 0
+      ? t(eligible ? 'fhost_profile_applied' : 'fhost_profile_ineligible', null, { amount: formatPKR(creditPKR) })
+      : ''
   };
 }
 

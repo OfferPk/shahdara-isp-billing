@@ -664,6 +664,46 @@ body.field-mode-open { overflow: hidden; }
   font-weight: 700;
   cursor: pointer;
 }
+/* SISP-116: khula-paisa loose-change chips (Field Mode + Quick Collect).
+   Token-only colours (pending/amber family) so both themes follow. */
+.field-mode-loose-change {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  min-width: 0;
+}
+.field-mode-loose-chip {
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-pending);
+  background: var(--color-pending-bg);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.field-mode-loose-chip:disabled { opacity: .55; cursor: default; }
+.qc-loose-change-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.qc-loose-change-chips[hidden] { display: none; }
+.loose-change-chip {
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--color-pending);
+  background: var(--color-pending-bg);
+  color: var(--ink);
+  cursor: pointer;
+}
 .field-mode-waada-date {
   min-height: 44px;
   min-width: 0;

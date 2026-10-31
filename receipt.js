@@ -1,5 +1,6 @@
-import { addonChargeLinesOf, calculatePaymentAllocations, manualBaqayaSettlementLinesOf, paymentAddonChargeCents, paymentManualBaqayaCents, paymentSenderLabel, paymentTicketChargeCents, prepayTermsOf, ticketChargeLinesOf } from './core.js';
+import { addonChargeLinesOf, calculatePaymentAllocations, isAdvancePayment, manualBaqayaSettlementLinesOf, paymentAddonChargeCents, paymentManualBaqayaCents, paymentSenderLabel, paymentTicketChargeCents, prepayTermsOf, ticketChargeLinesOf } from './core.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
+import { looseChangeCreditCents } from './loose-change-credit.js';
 
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
 import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle.js';
@@ -109,9 +110,24 @@ export function buildPaymentReceipt(customer, bill, payment) {
 
   let status = 'RECEIVED';
   let balanceDueCents = null;
+  // SISP-116: the derived advance credit THIS payment generated — the
+  // "khula paisa" left over after every generated bill was settled,
+  // read from the allocation engine's ledger row for this payment
+  // (unappliedCreditCents, the figure advanceBalanceCents sums). It is
+  // derived on every build, never stored: a manually typed overpayment
+  // reports the same figure, and voiding the payment (the engine drops
+  // voided rows) zeroes it exactly. Advance-tagged payments and
+  // SISP-61 prepays stay 0 — their credit is already explained by
+  // their own receipt treatment (a prepay's leftover also carries its
+  // discount coverage, printed as Prepay Coverage above).
+  let looseChangeCreditValue = 0;
   if (billDue !== null && selectedIndex >= 0) {
     const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount) - cents(referralCreditAmount) - cents(depositOffsetAmount) - cents(creditTransferInAmount) - cents(feederHostCreditAmount));
     const allocations = calculatePaymentAllocations({ customers:[customer] });
+    if (!isAdvancePayment(payment) && !prepayTermsOf(payment)) {
+      const ledger = allocations.byPaymentId.get(payment.id);
+      if (ledger && !ledger.billUnpriced) looseChangeCreditValue = looseChangeCreditCents(ledger) / 100;
+    }
     const summary = allocations.forMonth(customer.id, matchingBill.month);
     const carryInCents = Math.min(dueCents, Math.max(0, Number(summary?.creditAppliedCents) || 0));
     // SISP-43: a receipt's balance math counts only the BILL portion of
@@ -230,6 +246,9 @@ export function buildPaymentReceipt(customer, bill, payment) {
       if (!terms) return null;
       return { months: terms.months, gross: terms.gross, rate: terms.rate, startMonth: terms.startMonth, discount: positiveAmount(payment.discount) || 0, cashPaid: positiveAmount(payment.amount) };
     })(),
+    // SISP-116: khula-paisa change kept as advance credit (0 on every
+    // ordinary receipt, so non-overpayment receipts stay byte-identical).
+    looseChangeCredit: looseChangeCreditValue,
     discount: positiveAmount(payment.discount) || 0,
     discountReason: text(payment.discountReason),
     paidAmount:positiveAmount(payment.amount),
@@ -268,6 +287,16 @@ const prepayReceiptRows = (receipt, formatAmount) => {
   const rows = [`<div class="receipt-field"><dt>Prepay Coverage / پیشگی کوریج (${receipt.prepay.months} months · from ${escapeHtml(receipt.prepay.startMonth)}):</dt><dd>${formatAmount(receipt.prepay.gross)}</dd></div>`];
   if (receipt.prepay.discount > 0) rows.push(`<div class="receipt-field"><dt>Prepay Discount / پیشگی رعایت:</dt><dd>-${formatAmount(receipt.prepay.discount)}</dd></div>`);
   return rows.join('');
+};
+
+// SISP-116: the khula-paisa line for the HTML receipt layouts — the
+// change the customer left as next-month advance credit, printed next
+// to the PAID row (which already shows the full cash received). Empty
+// unless the payment generated credit, so ordinary receipts render
+// exactly as before.
+const looseChangeReceiptRows = (receipt, formatAmount) => {
+  if (!(receipt?.looseChangeCredit > 0)) return '';
+  return `<div class="receipt-field"><dt>Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ:</dt><dd>+${formatAmount(receipt.looseChangeCredit)}</dd></div>`;
 };
 
 const ticketChargeReceiptRows = (receipt, formatAmount) => {
@@ -430,6 +459,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
+    ${looseChangeReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance / بقایا:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}">${escapeHtml(status)}</dd></div>
     ${verStamp ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>${escapeHtml(verStamp)}</strong></dd></div>` : ''}
@@ -479,6 +509,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>Amount Received / رقم موصول:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
+    ${looseChangeReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance Due / باقی واجبات:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Receipt Status / بل کی حالت:</dt><dd class="${statusClass}"><strong>${escapeHtml(status)}</strong></dd></div>
     ${verStamp ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>${escapeHtml(verStamp)}</strong></dd></div>` : ''}
@@ -541,6 +572,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ] : []),
     ['Package Date', receipt.packageDate],
     ['Amount Received / رقم موصول', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount), 'receipt-amount'],
+    ...(receipt.looseChangeCredit > 0 ? [['Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ', `+${formatAmount(receipt.looseChangeCredit)}`]] : []),
     ['Payment Method / ذریعہ ادائیگی', receipt.paymentMethod],
     ['Service Period Start', receipt.servicePeriodStart],
     ['Service Period End', receipt.servicePeriodEnd],

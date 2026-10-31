@@ -157,6 +157,9 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     financial.push({ label: L(`Manual Baqaya / دستی بقایا (${line.entryId})`), value: money(line.amount) });
   }
   financial.push({ label: L('Amount Paid / Wusool Paya'), value: money(receipt.paidAmount), strong: true });
+  // SISP-116: the khula-paisa change kept as advance credit, right
+  // after the full cash received above (paidAmount stays the tender).
+  if (receipt.looseChangeCredit > 0) financial.push({ label: 'Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ', value: `+${money(receipt.looseChangeCredit)}` });
   financial.push({ label: L('Payment Method / طریقہ'), value: method || '—' });
 
   const grossRemaining = breakdown

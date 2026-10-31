@@ -503,6 +503,7 @@
           <div id="outageImpactSummary" class="outage-impact-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_trace_outage">⚡ Trace Outage Impact</button>
+            <button id="openStormInspectionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="storm_btn_open">🌦️ Post-Storm Checklist</button>
           </div>
         </article>
         <article class="summary-card summary-saad-visits ds-stat ds-stat--pending">
@@ -21722,6 +21723,23 @@
         </fieldset>
         <div id="outageImpactResultList" class="outage-impact-result-list"></div>
         <button id="outageImpactCopyAllBtn" class="secondary-button" type="button" disabled>Copy full message list</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="stormInspectionModal" class="billing-modal storm-inspection-modal" aria-labelledby="stormInspectionModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="stormInspectionModalTitle" data-i18n="storm_title">🌦️ Post-Storm Inspection Checklist</h2>
+        <button id="stormInspectionCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="storm-inspection-intro" data-i18n="storm_intro">After a storm or heavy rain, walk the plant zone by zone: main feeder nodes, splitter boxes, and the upstream homes feeding the most neighbours. Mark each point 🟢 Checked OK, or tap 🔴 Create Ticket to open a real repair ticket for the lineman.</p>
+        <label for="stormTechnician" data-i18n="storm_technician_label">Lineman / technician (for repair tickets)</label>
+        <input id="stormTechnician" class="form-input" type="text" placeholder="e.g. Saad" aria-label="Lineman / technician for repair tickets">
+        <button id="stormGenerateBtn" class="primary-button" type="button" data-i18n="storm_generate_btn">🌦️ Generate checklist</button>
+        <p id="stormRunMeta" class="storm-inspection-run-meta"></p>
+        <p id="stormSummaryLine" class="storm-inspection-summary-line"></p>
+        <div id="stormChecklist" class="storm-inspection-list"></div>
       </div>
     </div>
   </dialog>

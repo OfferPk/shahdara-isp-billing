@@ -447,6 +447,15 @@
             <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_downtime">📉 Downtime Analytics</button>
           </div>
         </article>
+        <article class="summary-card summary-upstream-sla ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</p>
+          <strong id="dashboardUpslaValue" class="summary-value">No upstream outages</strong>
+          <p id="dashboardUpslaPeriod" class="summary-period">Uplink downtime, availability and rebate claim for this month</p>
+          <div id="upstreamSlaSummary" class="upstream-sla-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openUpstreamSlaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</button>
+          </div>
+        </article>
 
         <article class="summary-card summary-splitter-map ds-stat ds-stat--brand">
           <p class="summary-label" data-i18n="dash_card_splitter">🔌 Splitter Port Map</p>
@@ -21484,6 +21493,24 @@
         <div id="downtimeAnalyticsCauseList" class="downtime-analytics-cause-list"></div>
         <h3>Per-customer downtime</h3>
         <div id="downtimeAnalyticsCustomerList" class="downtime-analytics-customer-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="upstreamSlaModal" class="billing-modal upstream-sla-modal" aria-labelledby="upstreamSlaModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="upstreamSlaModalTitle" data-i18n="upsla_title">📡 Upstream SLA & Rebate Claim Log</h2>
+        <button id="upstreamSlaCloseBtn" class="close-btn" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="upstream-sla-intro" data-i18n="upsla_intro">Every Main Uplink / NayaPay Down incident recorded in the complaint register for the month, the total uplink downtime and availability, and a suggested pro-rata rebate claim against the recorded upstream bandwidth bill. Suggestion only — nothing is posted or changed automatically.</p>
+        <label for="upstreamSlaMonth" data-i18n="upsla_month_label">Month</label>
+        <input id="upstreamSlaMonth" class="form-input" type="month" aria-label="Claim month">
+        <p id="upstreamSlaSummaryLine" class="upstream-sla-summary-line"></p>
+        <div id="upstreamSlaTotals" class="upstream-sla-totals"></div>
+        <h3 data-i18n="upsla_incidents_heading">Upstream incidents</h3>
+        <div id="upstreamSlaIncidentList" class="upstream-sla-list"></div>
+        <button id="upstreamSlaExportBtn" class="secondary-button" type="button" data-i18n="upsla_export_btn">⬇ Export claim log (CSV)</button>
       </div>
     </div>
   </dialog>

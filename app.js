@@ -175,6 +175,7 @@ import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, s
 import { buildSplitterOverview, createAttenuationTicket, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } from './signal-history.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
+import { buildUpstreamSlaLog, setupUpstreamSlaModal } from './upstream-sla-log.js';
 import { setupPostRepairCheckinModal } from './post-repair-checkin.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
 import { INVENTORY_ITEM_IDS, INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
@@ -495,6 +496,7 @@ export let downtimeAnalyticsModalController = null;
 export let splitterMapModalController = null;
 export let areaSignalModalController = null;
 export let monthlyComplaintReportModalController = null;
+export let upstreamSlaModalController = null;
 export let postRepairCheckinModalController = null;
 export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
@@ -1267,6 +1269,20 @@ function renderDashboard() {
     downtimeSummaryEl.innerHTML = analytics.totalComplaints === 0
       ? ''
       : `<p><span>${t('dash_downtime_top')}</span><strong>${escapeHtml(analytics.perCustomer.length ? `${analytics.perCustomer[0].customerName} · ${analytics.perCustomer[0].totalDowntime} h` : '—')}</strong><small> · ${escapeHtml(t('dash_downtime_detail', null, { count: analytics.areaOutageComplaints, hours: analytics.areaOutageDowntime }))}</small></p>`;
+  }
+  // SISP-117: upstream SLA card (this-month uplink downtime, availability
+  // % and the suggested pro-rata rebate claim against the recorded
+  // bandwidth bill — read-only, derived fresh from the register).
+  const upslaSummaryEl = $('#upstreamSlaSummary');
+  if (upslaSummaryEl) {
+    const claim = buildUpstreamSlaLog(loadComplaints(), loadOverheads(), state, pakistanMonthNow(referenceDate));
+    const valueEl = $('#dashboardUpslaValue');
+    const periodEl = $('#dashboardUpslaPeriod');
+    if (valueEl) valueEl.textContent = claim.incidentCount === 0 ? t('dash_upsla_empty') : t('dash_upsla_value', null, { hours: claim.totalDowntimeHours });
+    if (periodEl) periodEl.textContent = claim.incidentCount === 0 ? t('dash_upsla_period_empty') : t('dash_upsla_period', null, { count: claim.incidentCount, pct: claim.availabilityPct });
+    upslaSummaryEl.innerHTML = claim.incidentCount === 0
+      ? ''
+      : `<p><span>${t('dash_upsla_rebate')}</span><strong>${claim.suggestedRebate === null ? escapeHtml(t('dash_upsla_rebate_na')) : `PKR ${claim.suggestedRebate}`}</strong><small> · ${escapeHtml(t('dash_upsla_downtime', null, { hours: claim.totalDowntimeHours, total: claim.monthHours }))}</small></p>`;
   }
   // SISP-24: splitter port map card (boxes mapped, ports used, weak signals).
   const splitterSummaryEl = $('#splitterMapSummary');
@@ -11873,6 +11889,7 @@ if (typeof document !== 'undefined') {
       renderDetail();
       if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.refresh();
       if (monthlyComplaintReportModalController) monthlyComplaintReportModalController.refresh();
+      if (upstreamSlaModalController) upstreamSlaModalController.refresh();
       if (postRepairCheckinModalController) postRepairCheckinModalController.refresh();
     },
     // SISP-44: the register card shows the linked ticket (or the
@@ -11978,6 +11995,9 @@ if (typeof document !== 'undefined') {
     onConfirm: (opts) => appConfirm(opts)
   });
   monthlyComplaintReportModalController = setupMonthlyComplaintReportModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  upstreamSlaModalController = setupUpstreamSlaModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
   // SISP-104: post-repair check-in queue — reads the complaint

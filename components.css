@@ -1832,6 +1832,9 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-102: delta merge conflict rows (theme tokens / inherited colours only) */
+.delta-merge-conflict { margin-bottom: 10px; }
+.delta-merge-conflict select { display: block; margin-top: 4px; min-height: 40px; max-width: 100%; }
 /* SISP-100: System Health Center dialog (token-only; the dialog itself
    uses the shared .billing-modal shell → var(--modal-surface)). */
 .system-health-intro { color: var(--muted); font-size: 13px; margin: 0 0 12px; }

@@ -203,6 +203,7 @@ import { buildBottleneckSuspects, buildBottleneckSummary, bottleneckForCustomer 
 import { buildFieldDispatchBoard, DISPATCH_ITEM_TYPES, UNASSIGNED_ZONE_KEY } from './field-dispatch-board.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { recordPrepay, prepayQuote, PREPAY_MONTH_OPTIONS } from './advance-prepay.js';
+import { planDeltaMergeSections, applyDeltaMergeSections, findIncomingVoidNotices } from './delta-merge-sync.js';
 import { sameNameBadgeHtml } from './name-disambiguator.js';
 import { buildSmsReceiptUrl, buildSmsReminderUrl, customerPrefersSms } from './sms-fallback.js';
 import { receiptChannelPreference } from './receipt-preferences.js';
@@ -528,6 +529,7 @@ let newCustomersMonth = '';
 let selectedPayrollMonth = monthsForHistory()[0];
 let pendingBackupPreview = null;
 let pendingBackupSourceText = '';
+let pendingDeltaMerge = null;
 let toastTimer;
 let refreshOwnerCenter = () => {};
 let customerDraftController = null;
@@ -3911,6 +3913,35 @@ function backupRestoreOptions() {
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
   return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
+// SISP-102: the device's current sibling collections, in the same shapes a
+// backup's settings sections carry — the delta merge's local side. Read
+// fresh at preview AND at apply time (never the export path: producing a
+// backup advances the branch-guard head, a preview must not).
+function currentDeltaSections() {
+  return { shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), waTemplates: getStoredWaTemplates(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks(), billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), referralCredits: loadReferralCredits(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments() };
+}
+const DELTA_MERGE_SAVE = {
+  shopSettlements: (value) => saveShopSettlements(value),
+  complaints: (value) => saveComplaints(value),
+  homeBudget: (value) => saveHomeBudgetExpenses(value),
+  roznamchaDays: (value) => saveRoznamchaDays(value),
+  tickets: (value) => saveTickets(value),
+  inventory: (value) => saveInventory(value),
+  loans: (value) => saveLoans(value),
+  waTemplates: (value) => saveWaTemplates(localStorage, value),
+  saadVisits: (value) => saveSaadVisits(value),
+  saadPayments: (value) => saveSaadPayments(value),
+  installRequests: (value) => saveInstallRequests(value),
+  pendingWorks: (value) => savePendingWorks(value),
+  billingGroups: (value) => saveBillingGroups(value),
+  suspensePayments: (value) => saveSuspensePayments(value),
+  referralCredits: (value) => saveReferralCredits(value),
+  monthlyClosingNotes: (value) => saveMonthlyClosingNotes(value),
+  partnerLedger: (value) => savePartnerLedgerEntries(value),
+  partnerSettlements: (value) => savePartnerSettlements(value),
+  overheads: (value) => saveOverheads(value),
+  voidPayments: (value) => saveVoidPayments(value)
+};
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
   warning.hidden = persistenceBlocked || storageAvailable;
@@ -4819,6 +4850,158 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     closeBackupDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
     toast('The reviewed safe merge was saved on this device. No existing conflicting values were overwritten.');
   } catch (error) { toast(`Restore could not be saved: ${error.message}`); }
+});
+
+// SISP-102: Multi-Device Delta Merge. Two-step like the shipped restore:
+// pick a checksum-verified backup from the other device → preview (state
+// via the shipped previewJsonBackupMerge, sibling ledgers via the delta
+// union plan) → apply. The apply FIRST saves a pre-merge safety snapshot
+// through createSafetySnapshot and aborts when it cannot — a delta merge
+// with no snapshot does not proceed. Nothing is ever deleted; conflicts
+// keep the local record unless the owner picks the incoming copy per
+// record in the preview.
+function openDeltaMergePreview(backupText) {
+  const currentSections = currentDeltaSections();
+  const sectionPlan = planDeltaMergeSections({ backupText, currentSections });
+  if (!sectionPlan.ok) {
+    toast(t('dmerge_refused_toast', null, { error: sectionPlan.error }), { type: 'error', title: t('dmerge_title') });
+    return;
+  }
+  let statePreview;
+  try {
+    statePreview = previewJsonBackupMerge(state, backupText, { currentBranchGuard: ensureBranchGuard(localStorage) });
+  } catch (error) {
+    toast(t('dmerge_refused_toast', null, { error: error.message }), { type: 'error', title: t('dmerge_title') });
+    return;
+  }
+  const provisional = applyDeltaMergeSections({ currentSections, plan: sectionPlan });
+  const voidNotices = findIncomingVoidNotices(provisional.sections, statePreview.state);
+  const guardBlocked = statePreview.branchGuard?.blocked === true;
+  const counts = statePreview.counts;
+  const stateCounters = counts.addedCustomers + counts.addedBills + counts.addedPayments + counts.addedIncidents
+    + counts.addedInventoryItems + counts.addedInventoryMovements + counts.addedExpenses
+    + counts.addedSaadAttendanceDays + counts.addedUmairWorkdays + counts.addedMonthlyClosings + counts.filledProfileFields;
+  const canApply = !guardBlocked && (stateCounters > 0 || sectionPlan.totals.added > 0 || sectionPlan.totals.conflicts > 0);
+  pendingDeltaMerge = { sectionPlan, statePreview, canApply };
+  renderDeltaMergePreview({ sectionPlan, statePreview, voidNotices, guardBlocked, canApply });
+}
+
+function renderDeltaMergePreview({ sectionPlan, statePreview, voidNotices, guardBlocked, canApply }) {
+  const counts = statePreview.counts;
+  const stateSummary = t('dmerge_state_summary', null, {
+    customers: counts.addedCustomers, bills: counts.addedBills, payments: counts.addedPayments,
+    stateConflicts: statePreview.conflicts.length
+  });
+  $('#deltaMergeSummary').textContent = t('dmerge_summary', null, {
+    exportedAt: sectionPlan.exportedAt || '—', stateSummary,
+    added: sectionPlan.totals.added, unchanged: sectionPlan.totals.unchanged, conflicts: sectionPlan.totals.conflicts
+  });
+  const guardNote = $('#deltaMergeGuardNote');
+  if (guardNote) {
+    guardNote.textContent = guardBlocked ? t('dmerge_blocked_guard') : '';
+    guardNote.className = 'backup-checksum-note checksum-mismatch';
+    guardNote.hidden = !guardBlocked;
+  }
+  const familyList = $('#deltaMergeFamilyList');
+  familyList.replaceChildren();
+  for (const [familyKey, familyPlan] of Object.entries(sectionPlan.families)) {
+    if (!familyPlan.added.length && !familyPlan.conflicts.length) continue;
+    const item = document.createElement('li');
+    item.textContent = t('dmerge_family_line', null, {
+      family: t(`dmerge_fam_${familyKey}`), added: familyPlan.added.length, conflicts: familyPlan.conflicts.length
+    });
+    familyList.append(item);
+  }
+  const conflictList = $('#deltaMergeConflictList');
+  conflictList.replaceChildren();
+  const allConflicts = Object.values(sectionPlan.families).flatMap((familyPlan) => familyPlan.conflicts);
+  for (const conflict of allConflicts.slice(0, 50)) {
+    const wrap = document.createElement('div');
+    wrap.className = 'delta-merge-conflict';
+    const label = document.createElement('span');
+    label.textContent = t('dmerge_conflict_label', null, { family: t(`dmerge_fam_${conflict.family}`), id: conflict.id });
+    const select = document.createElement('select');
+    select.className = 'form-input';
+    select.dataset.conflictKey = conflict.key;
+    const keepOption = document.createElement('option');
+    keepOption.value = 'local';
+    keepOption.textContent = t('dmerge_keep_mine');
+    const incomingOption = document.createElement('option');
+    incomingOption.value = 'incoming';
+    incomingOption.textContent = t('dmerge_use_incoming');
+    select.append(keepOption, incomingOption);
+    wrap.append(label, select);
+    conflictList.append(wrap);
+  }
+  const voidTitle = $('#deltaMergeVoidTitle');
+  const voidList = $('#deltaMergeVoidList');
+  voidList.replaceChildren();
+  if (voidNotices.length) {
+    voidTitle.textContent = t('dmerge_void_notice_title');
+    voidTitle.hidden = false;
+    for (const notice of voidNotices.slice(0, 25)) {
+      const item = document.createElement('li');
+      item.textContent = t('dmerge_void_notice_line', null, {
+        paymentId: notice.paymentId, customerNumber: notice.customerNumber ?? '—', name: notice.customerName,
+        amount: formatPKR(notice.amount), month: notice.billMonth
+      });
+      voidList.append(item);
+    }
+  } else {
+    voidTitle.textContent = '';
+    voidTitle.hidden = true;
+  }
+  $('#applyDeltaMergeButton').disabled = !canApply;
+  $('#deltaMergeDialog').showModal();
+}
+
+function closeDeltaMergeDialog() {
+  pendingDeltaMerge = null;
+  $('#deltaMergeDialog').close();
+}
+$('#deltaMergeCloseButton')?.addEventListener('click', closeDeltaMergeDialog);
+$('#cancelDeltaMergeButton')?.addEventListener('click', closeDeltaMergeDialog);
+$('#deltaMergeButton')?.addEventListener('click', () => { $('#deltaMergeFileInput')?.click(); });
+$('#deltaMergeFileInput')?.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file) return;
+  if (persistenceBlocked) { toast('Saved data could not be read; a delta merge would be unsafe.'); return; }
+  let backupText;
+  try { backupText = await file.text(); }
+  catch { toast(t('dmerge_refused_toast', null, { error: 'The selected file could not be read.' }), { type: 'error', title: t('dmerge_title') }); return; }
+  openDeltaMergePreview(backupText);
+});
+$('#applyDeltaMergeButton')?.addEventListener('click', async () => {
+  const pending = pendingDeltaMerge;
+  if (!pending?.canApply) return;
+  // Hard gate: the pre-merge snapshot must actually save (stricter than
+  // the warn-only snapshotBeforeDestructiveAction used by restores).
+  const snapshot = await createSafetySnapshot();
+  if (!snapshot) {
+    toast(t('dmerge_snapshot_failed'), { type: 'error', title: t('dmerge_title') });
+    return;
+  }
+  try {
+    const resolutions = {};
+    document.querySelectorAll('#deltaMergeConflictList select[data-conflict-key]').forEach((select) => {
+      if (select.value === 'incoming') resolutions[select.dataset.conflictKey] = 'incoming';
+    });
+    const { sections, applied } = applyDeltaMergeSections({ currentSections: currentDeltaSections(), plan: pending.sectionPlan, resolutions });
+    const restored = generateMonthlyBillsThroughCurrentMonth(pending.statePreview.state, new Date());
+    persistState(restored, localStorage);
+    state = restored; storageAvailable = true; persistenceBlocked = false; readFailureMessage = '';
+    for (const familyKey of Object.keys(pending.sectionPlan.families)) {
+      DELTA_MERGE_SAVE[familyKey]?.(sections[familyKey]);
+    }
+    if (applied.perFamily.roznamchaDays?.added) recordRoznamchaExpenseSync();
+    if (applied.perFamily.saadPayments?.added) recordSaadPaymentSync();
+    const addedTotal = applied.added + pending.statePreview.counts.addedCustomers + pending.statePreview.counts.addedBills
+      + pending.statePreview.counts.addedPayments + pending.statePreview.counts.addedIncidents;
+    const keptTotal = applied.keptLocal + pending.statePreview.conflicts.length;
+    closeDeltaMergeDialog(); renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
+    toast(t('dmerge_applied_toast', null, { added: addedTotal, resolved: applied.resolvedIncoming, kept: keptTotal }));
+  } catch (error) { toast(`Delta merge could not be saved: ${error.message}`); }
 });
 
 let pendingCsvImportPreview = null;

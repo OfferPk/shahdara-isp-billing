@@ -7176,6 +7176,7 @@
         <div id="billsActionsBar" class="bills-actions-bar" role="group" aria-label="Monthly bills actions" data-i18n-aria-label="bill_actions_aria">
           <button id="generateBillsBtn" class="primary-button" type="button" data-i18n="bill_generate">Generate this month's bills</button>
           <button id="billsInvoicesBtn" class="secondary-button" type="button" data-i18n="bill_invoices">Print / WhatsApp invoices</button>
+          <button id="billVouchersBtn" class="secondary-button" type="button" data-i18n="bvouch_open_btn">🧾 Bill Vouchers</button>
           <button id="unbilledCustomersBtn" class="secondary-button" type="button" data-i18n="bill_unbilled">Unbilled customers (Not set)</button>
           <button id="bulkTariffOpenBtn" class="secondary-button" type="button" data-i18n="tariff_open_btn">📈 Bulk Tariff Update</button>
           <p id="billsActionsNote" class="chart-caption" role="status" aria-live="polite"></p>
@@ -20537,6 +20538,40 @@
           <button id="expenseVoucherPrintBtn" class="secondary-button" type="button" data-i18n="evouch_print_a4">📄 Print A4</button>
         </div>
         <button id="expenseVoucherCloseBtn2" class="primary-button" type="button" data-i18n="evouch_close">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- SISP-115: A4 4-Up Tear-Off Monthly Bill Vouchers dialog (opened from
+       the Monthly Billing actions bar). Read-only: voucher figures are
+       derived from the allocation engine at render time and printing
+       never writes any record. -->
+  <dialog id="billVoucherDialog" class="billing-modal bill-voucher-modal" aria-labelledby="billVoucherDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="billVoucherDialogTitle" data-i18n="bvouch_title">Monthly Bill Vouchers</h2>
+          <span class="urdu-subtitle">ماہانہ بل واؤچر پرنٹ</span>
+        </div>
+        <button id="billVoucherCloseBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="billing-modal-body">
+        <p class="bill-voucher-help" data-i18n="bvouch_help">Print tear-off bill vouchers for one zone (or all zones) — four on an A4 page. Each voucher shows the package, kist, arrears and total due with the customer's QR Khata code.</p>
+        <div class="bill-voucher-controls">
+          <label class="bill-voucher-field" for="billVoucherZoneSelect"><span data-i18n="bvouch_zone_label">Zone / Mohalla</span>
+            <select id="billVoucherZoneSelect" class="bill-voucher-select"></select>
+          </label>
+          <label class="bill-voucher-field" for="billVoucherMonthInput"><span data-i18n="bvouch_month_label">Bill month</span>
+            <input id="billVoucherMonthInput" class="bill-voucher-month-input" type="month">
+          </label>
+        </div>
+        <p id="billVoucherPreview" class="bill-voucher-preview" role="status"></p>
+      </div>
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="billVoucherPrintBtn" class="secondary-button" type="button" data-i18n="bvouch_print_a4">📄 Print A4</button>
+        </div>
+        <button id="billVoucherCloseBtn2" class="primary-button" type="button" data-i18n="bvouch_close">Close</button>
       </footer>
     </div>
   </dialog>

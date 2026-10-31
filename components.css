@@ -1254,6 +1254,24 @@ body.field-mode-open { overflow: hidden; }
   .suspense-claim-bar .primary-button, .suspense-claim-bar .secondary-button { width: 100%; text-align: center; justify-content: center; }
 }
 
+/* SISP-107: Supplier Khata (wholesale credit purchases) — theme tokens
+   only, mirroring the suspense register cards, so dark mode is covered
+   by the shared billing-modal surface. */
+.supplier-khata-intro { color: var(--muted); font-size: 13px; }
+.supplier-khata-summary-line { color: var(--ink); font-size: 13px; font-weight: 600; }
+.supplier-khata-form { display: grid; gap: 8px; margin-bottom: 16px; }
+.supplier-khata-list { display: grid; gap: 10px; }
+.supplier-khata-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.supplier-khata-card p { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 8px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.supplier-khata-card p strong { color: var(--ink); text-align: right; }
+.supplier-khata-card-settled { opacity: 0.85; }
+.supplier-khata-settled span { color: var(--green); font-weight: 600; }
+.supplier-khata-pay-bar { display: grid; gap: 8px; margin-top: 8px; }
+.supplier-khata-empty { color: var(--muted); font-size: 13px; }
+@media (max-width: 480px) {
+  .supplier-khata-pay-bar .primary-button { width: 100%; text-align: center; justify-content: center; }
+}
+
 /* SISP-82: Field tool custody register — theme tokens only, so the
    dialog (var(--modal-surface) via the shared billing-modal rule) and
    cards render correctly in dark mode. */

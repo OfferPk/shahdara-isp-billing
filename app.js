@@ -186,6 +186,7 @@ import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonCharges
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { SUPPLIER_KHATA_KEY, addSupplierPayout, addSupplierPurchase, loadSupplierKhata, saveSupplierKhata, setupSupplierKhataModal, stampStockMovement, syncSupplierKhataExpenses } from './supplier-khata.js';
 import { buildSystemHealthReport, setupSystemHealthCenter, summarizeSystemHealth } from './system-health-center.js';
 import { setupSpeedCounterEntryModal, submitSpeedEntryBatch } from './speed-counter-entry.js';
 import { COMMISSION_RULES_KEY, loadCommissionRules, saveCommissionRules, setupCommissionModal } from './collector-commission.js';
@@ -419,6 +420,25 @@ function recordSaadPaymentSync() {
   if (storageAvailable) { try { persistState(state, localStorage); } catch { /* next pass retries */ } }
 }
 
+// SISP-107 wiring: mirror recorded Supplier Khata payments (the upfront
+// payment on a credit purchase and each later balance payout) into the
+// main Expenses ledger — exactly one row per payment, keyed by
+// supplierPayoutId — so monthly P&L counts supplier cash-outs once, when
+// the cash actually leaves. Convergent reconcile in the SISP-45/56
+// shape: the khata is the source of truth, re-running changes nothing,
+// so it can run at startup, after every purchase/payout, and after a
+// backup restore without ever double-counting. The Expenses screen
+// shows the synced rows with a Supplier Khata badge and no edit/delete.
+function recordSupplierKhataExpenseSync() {
+  let result;
+  try {
+    result = syncSupplierKhataExpenses(state.expenses ?? [], loadSupplierKhata());
+  } catch { return; }
+  if (!result.changed) return;
+  state = { ...state, expenses: result.expenses };
+  if (storageAvailable) { try { persistState(state, localStorage); } catch { /* next pass retries */ } }
+}
+
 // SISP-68 wiring: mirror shop handovers a partner kept (SISP-1
 // settlements stamped receivedInto) into the SISP-22 partner ledger as
 // linked drawings (partner-settlement.js syncShopPickupDrawings). The
@@ -478,6 +498,7 @@ export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
+export let supplierKhataModalController = null;
 export let systemHealthCenterController = null;
 export let speedCounterEntryModalController = null;
 export let commissionModalController = null;
@@ -3931,7 +3952,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -3946,6 +3967,7 @@ function backupRestoreOptions() {
   let pendingWorksStored = false;
   let billingGroupsStored = false;
   let suspensePaymentsStored = false;
+  let supplierKhataStored = false;
   let commissionRulesStored = false;
   let upsNodesStored = false;
   let referralCreditsStored = false;
@@ -3969,6 +3991,7 @@ function backupRestoreOptions() {
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   try { billingGroupsStored = localStorage.getItem(GROUP_BILLING_KEY) !== null; } catch { billingGroupsStored = false; }
   try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
+  try { supplierKhataStored = localStorage.getItem(SUPPLIER_KHATA_KEY) !== null; } catch { supplierKhataStored = false; }
   try { commissionRulesStored = localStorage.getItem(COMMISSION_RULES_KEY) !== null; } catch { commissionRulesStored = false; }
   try { upsNodesStored = localStorage.getItem(UPS_NODES_KEY) !== null; } catch { upsNodesStored = false; }
   try { referralCreditsStored = localStorage.getItem(REFERRAL_CREDITS_KEY) !== null; } catch { referralCreditsStored = false; }
@@ -3990,7 +4013,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 // SISP-102: the device's current sibling collections, in the same shapes a
 // backup's settings sections carry — the delta merge's local side. Read
@@ -4870,6 +4893,11 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.suspensePayments) {
       saveSuspensePayments(pendingBackupPreview.suspensePayments);
+    }
+    if (pendingBackupPreview.supplierKhata) {
+      saveSupplierKhata(pendingBackupPreview.supplierKhata);
+      // SISP-107: mirror the restored supplier payments into Expenses.
+      recordSupplierKhataExpenseSync();
     }
     if (pendingBackupPreview.commissionRules) {
       saveCommissionRules(pendingBackupPreview.commissionRules);
@@ -8824,9 +8852,12 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
     // and get the same treatment, with their own badge and hint.
     const synced = typeof row.roznamchaEntryId === 'string' && row.roznamchaEntryId !== '';
     const saadSynced = typeof row.saadPaymentId === 'string' && row.saadPaymentId !== '';
-    const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_roznamcha_badge'))}</span>` : ''}${saadSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_saad_badge'))}</span>` : ''}`;
-    const actionsCell = (synced || saadSynced)
-      ? `<span class="expense-roznamcha-hint">${escapeHtml(t(synced ? 'exp_roznamcha_synced_hint' : 'exp_saad_synced_hint'))}</span>`
+    // SISP-107: rows mirrored from the Supplier Khata carry
+    // supplierPayoutId and get the same badge + locked treatment.
+    const supplierSynced = typeof row.supplierPayoutId === 'string' && row.supplierPayoutId !== '';
+    const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_roznamcha_badge'))}</span>` : ''}${saadSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_saad_badge'))}</span>` : ''}${supplierSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_supplier_badge'))}</span>` : ''}`;
+    const actionsCell = (synced || saadSynced || supplierSynced)
+      ? `<span class="expense-roznamcha-hint">${escapeHtml(t(synced ? 'exp_roznamcha_synced_hint' : saadSynced ? 'exp_saad_synced_hint' : 'exp_supplier_synced_hint'))}</span>`
       : `<button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button>`;
     return `<tr><td>${phase3Cell(row.date)}</td><th scope="row">${phase3Cell(row.category)}</th><td>${phase3Cell(formatAmount(row.amount))}</td><td>${row.area ? `<span class="expense-area-badge">${escapeHtml(row.area)}</span>` : '<span class="expense-area-unallocated">Unallocated</span>'}</td><td>${notesCell}</td><td class="expense-actions">${actionsCell}</td></tr>`;
   }).join('');
@@ -8976,6 +9007,9 @@ $('#expenseForm').addEventListener('submit',async event=>{
     // SISP-56: same for a Saad-Visit-Log-synced expense — the payment
     // record owns it and the next sync pass would restore its values.
     if(previous?.saadPaymentId){toast(t('exp_saad_edit_blocked_toast'));return;}
+    // SISP-107: same for a Supplier-Khata-synced expense — the khata
+    // payment owns it and the next sync pass would restore its values.
+    if(previous?.supplierPayoutId){toast(t('exp_supplier_edit_blocked_toast'));return;}
     if(previous&&!await appConfirm({tone:'warning',title:'Save this expense correction?',subject:`${formatAmount(previous.amount)} ${previous.category} · ${previous.date}`,message:`Change it to ${formatAmount(Number(fields.amount))} ${fields.category} on ${fields.date}.`,confirmLabel:'Save correction'}))return;
     state=id?updateExpense(state,id,fields):addExpense(state,fields);
     save();
@@ -11721,6 +11755,10 @@ if (typeof document !== 'undefined') {
   // before this wiring existed (or restored) mirror into Expenses and
   // the Roznamcha exactly once.
   recordSaadPaymentSync();
+  // SISP-107: one supplier-khata expense sync pass at startup so khata
+  // payments recorded before this wiring existed (or restored) mirror
+  // into Expenses exactly once.
+  recordSupplierKhataExpenseSync();
   // SISP-68: one shop-pickup sync pass at startup so partner-kept shop
   // handovers recorded before this wiring existed (or restored) mirror
   // into the partner ledger as drawings exactly once.
@@ -11944,6 +11982,42 @@ if (typeof document !== 'undefined') {
           receiptNumber: result.paymentReceipt?.receiptNumber ?? ''
         })
       };
+    }
+  });
+  // SISP-107: supplier payable khata — logging a purchase runs the
+  // SISP-18 stock-in path (addMovement -> sisp_inventory_v1) and stamps
+  // the resulting movement id onto the khata record; the upfront payment
+  // and every later payout mirror into Expenses via
+  // recordSupplierKhataExpenseSync, so P&L counts each rupee once.
+  supplierKhataModalController = setupSupplierKhataModal(() => state, {
+    onRecordsChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts),
+    onLogPurchase: (fields) => {
+      const { records, purchase } = addSupplierPurchase(loadSupplierKhata(), fields);
+      const movements = addMovement(loadInventory(), {
+        itemId: purchase.itemId,
+        kind: 'in',
+        qty: purchase.qty,
+        date: purchase.date,
+        customerName: purchase.supplierName,
+        note: `Supplier khata ${purchase.purchaseId}`
+      });
+      const movement = movements[movements.length - 1];
+      const stamped = stampStockMovement(records, purchase.purchaseId, movement?.id ?? '');
+      saveSupplierKhata(stamped);
+      saveInventory(movements);
+      recordSupplierKhataExpenseSync();
+      save();
+      renderDashboard();
+      return stamped.find((r) => r.purchaseId === purchase.purchaseId) ?? purchase;
+    },
+    onRecordPayout: (purchaseId, payload) => {
+      const result = addSupplierPayout(loadSupplierKhata(), purchaseId, payload);
+      saveSupplierKhata(result.records);
+      recordSupplierKhataExpenseSync();
+      save();
+      renderDashboard();
+      return result;
     }
   });
   // SISP-100: System Health Center — read-only telemetry over every

@@ -16,6 +16,7 @@ import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
+import { sanitizeSupplierKhata } from './supplier-khata.js';
 import { sanitizeCommissionRules } from './collector-commission.js';
 import { sanitizeUpsNodes } from './power-backup-monitor.js';
 import { sanitizeReferralCredits } from './referral-credits.js';
@@ -3306,6 +3307,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSuspensePayments(options.suspensePayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), suspensePayments: cleaned };
   }
+  // SISP-107: supplier credit purchases (payable khata) live outside
+  // the ledger state (localStorage key sisp_supplier_khata_v1), so they
+  // travel in an optional `settings.supplierKhata` section. Written
+  // only when at least one purchase exists; readers that predate it
+  // ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.supplierKhata) && options.supplierKhata.length) {
+    const cleaned = sanitizeSupplierKhata(options.supplierKhata);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), supplierKhata: cleaned };
+  }
   // SISP-93: collector commission rules live outside the ledger state
   // (localStorage key sisp_commission_rules_v1), so they travel in an
   // optional `settings.commissionRules` section. Written only when at
@@ -4042,6 +4052,31 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Suspense payment records differ from this device' });
     }
   }
+  // SISP-107 supplier khata: optional register section (see
+  // createJsonBackup). Safe-merge rule, same as suspense payments:
+  // adopt the backup's records only when this device has none stored
+  // yet; when both sides hold different real records, keep existing +
+  // conflict (a recorded supplier payment must never be silently
+  // overwritten or duplicated).
+  let supplierKhata = null;
+  const rawIncomingSupplierKhata = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.supplierKhata
+    : undefined;
+  if (Array.isArray(rawIncomingSupplierKhata) && rawIncomingSupplierKhata.length) {
+    const incomingSupplierKhata = sanitizeSupplierKhata(rawIncomingSupplierKhata);
+    const currentSupplierKhata = (options && typeof options === 'object' && Array.isArray(options.currentSupplierKhata))
+      ? sanitizeSupplierKhata(options.currentSupplierKhata)
+      : [];
+    if (incomingSupplierKhata.length && sameJson(incomingSupplierKhata, currentSupplierKhata)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingSupplierKhata.length && (!options?.currentSupplierKhataStored || currentSupplierKhata.length === 0)) {
+      supplierKhata = incomingSupplierKhata;
+      counts.supplierKhataRestored = 1;
+      counts.changes++;
+    } else if (incomingSupplierKhata.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Supplier khata records differ from this device' });
+    }
+  }
   // SISP-93 commission rules: optional section (see createJsonBackup).
   // Safe-merge rule, same as suspense payments: adopt the backup's rules
   // only when this device has none stored yet; when both sides hold
@@ -4345,5 +4380,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, commissionRules, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, supplierKhata, commissionRules, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

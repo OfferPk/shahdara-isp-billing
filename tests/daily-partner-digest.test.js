@@ -118,7 +118,8 @@ const PIN_DIGEST = [
   '📊 Shahdara Fiber Net — Rozana Partner Digest (29 Oct 2026)',
   '💵 Aaj ki direct cash collection: PKR 5,000',
   '🏪 Waseem Abbasi Shop: unsettled cash PKR 2,000',
-  '🏪 Hassan Shop: unsettled cash PKR 1,500',
+  // OWNER-CASH-SHOP: the digest names the ONE unified shop.
+  '🏪 Hassan Balla Shop: unsettled cash PKR 1,500',
   '🧾 Aaj ka roznamcha kharcha (petty cash): PKR 800',
   '🗄️ Drawer closing balance: PKR 14,200',
   '⚠️ Baqi defaulters: 1 (kul PKR 6,000)',
@@ -136,7 +137,7 @@ test('summary model: every figure matches its source module', () => {
   assert.equal(s.directCashCount, 1);
   assert.deepEqual(s.shops, [
     { shop: 'Waseem Abbasi Shop', unsettled: 2000, unsettledReceiptCount: 1 },
-    { shop: 'Hassan Shop', unsettled: 1500, unsettledReceiptCount: 1 }
+    { shop: 'Hassan Balla Shop', unsettled: 1500, unsettledReceiptCount: 1 }
   ]);
   assert.equal(s.pettyCashOut, 800);
   // Opening 10,000 (yesterday's counted closing) + 5,000 cash in − 800 out.

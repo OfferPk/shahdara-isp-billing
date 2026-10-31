@@ -57,12 +57,17 @@ function ballaFixture() {
   return { customers: [customer('c1', 11, 'Synthetic Customer 11', [bill('2026-10', payments)])], expenses: [] };
 }
 
-const ballaRule = { collectorKey: 'shop:Balla Shop', kind: 'shop', label: 'Balla Shop', mode: 'perReceipt', perReceiptFixed: 25, percentageOfCollection: 0 };
+// OWNER-CASH-SHOP: the fixture's Balla-shop receipts derive to the ONE
+// canonical collector "Hassan Balla Shop", so the rule is keyed by it.
+// (A rule stored under the legacy 'shop:Balla Shop' key still applies —
+// sanitizeCommissionRules canonicalizes shop rule identity; that legacy
+// path is pinned in tests/owner-cash-shop.test.js.)
+const ballaRule = { collectorKey: 'shop:Hassan Balla Shop', kind: 'shop', label: 'Hassan Balla Shop', mode: 'perReceipt', perReceiptFixed: 25, percentageOfCollection: 0 };
 
 test('SPEC PIN: Rs 25 per receipt x 40 receipts in 2026-10 = Rs 1,000 commission', () => {
   const report = buildMonthlyCommission(ballaFixture(), [ballaRule], '2026-10');
-  const row = report.rows.find((r) => r.key === 'shop:Balla Shop');
-  assert.ok(row, 'Balla Shop row exists');
+  const row = report.rows.find((r) => r.key === 'shop:Hassan Balla Shop');
+  assert.ok(row, 'Hassan Balla Shop row exists');
   assert.equal(row.receipts, 40, 'voided receipt and September receipt are excluded');
   assert.equal(row.collected, 40000);
   assert.equal(row.commission, 1000);
@@ -86,7 +91,7 @@ test('percentage mode: 5% of PKR 40,000 collected = PKR 2,000, rounded to the ce
 
 test('default is inert: no rule means zero commission, and posting zero throws', () => {
   const report = buildMonthlyCommission(ballaFixture(), [], '2026-10');
-  const row = report.rows.find((r) => r.key === 'shop:Balla Shop');
+  const row = report.rows.find((r) => r.key === 'shop:Hassan Balla Shop');
   assert.equal(row.commission, 0);
   assert.equal(row.perReceiptFixed, 0);
   assert.throws(() => postCommissionExpense(ballaFixture(), row, '2026-10'), /No commission to post/);
@@ -138,7 +143,7 @@ test('collectFieldPayments skips shop payments and voided payments', () => {
 test('expense posting is idempotent: second post reports alreadyPosted and adds nothing', () => {
   const state = ballaFixture();
   const report = buildMonthlyCommission(state, [ballaRule], '2026-10');
-  const row = report.rows.find((r) => r.key === 'shop:Balla Shop');
+  const row = report.rows.find((r) => r.key === 'shop:Hassan Balla Shop');
   const refDate = new Date('2026-10-31T12:00:00+05:00');
 
   const first = postCommissionExpense(state, row, '2026-10', refDate);
@@ -149,7 +154,7 @@ test('expense posting is idempotent: second post reports alreadyPosted and adds 
   assert.equal(expense.category, COMMISSION_EXPENSE_CATEGORY);
   assert.ok(EXPENSE_CATEGORIES.includes(expense.category), 'posts through the existing expense categories');
   assert.equal(expense.date, '2026-10-31', 'dated at month end so the month P&L counts it');
-  assert.equal(expense.commissionRef, commissionExpenseRef('shop:Balla Shop', '2026-10'));
+  assert.equal(expense.commissionRef, commissionExpenseRef('shop:Hassan Balla Shop', '2026-10'));
   assert.equal(expense.commissionMonth, '2026-10');
   assert.equal(state.expenses.length, 0, 'input state is never mutated');
 
@@ -161,7 +166,7 @@ test('expense posting is idempotent: second post reports alreadyPosted and adds 
   const after = buildMonthlyCommission(first.state, [ballaRule], '2026-10');
   assert.equal(after.rows[0].posted, true);
   assert.equal(after.rows[0].postedExpenseId, expense.id);
-  assert.equal(findCommissionExpense(first.state, 'shop:Balla Shop', '2026-10').id, expense.id);
+  assert.equal(findCommissionExpense(first.state, 'shop:Hassan Balla Shop', '2026-10').id, expense.id);
 
   // The stamped expense survives the app's own backup state validation.
   const validated = validatePhase3State({ ...first.state, inventoryItems: [], inventoryMovements: [], saadAttendanceDays: [], umairWorkdays: [] });
@@ -216,7 +221,8 @@ test('backup safe-merge: rules travel in settings.commissionRules and restore on
   const backupText = createJsonBackup(createInitialState(), new Date('2026-10-31T12:00:00+05:00'), { commissionRules: rules });
   const parsed = JSON.parse(backupText);
   assert.equal(parsed.settings.commissionRules.length, 1);
-  assert.equal(parsed.settings.commissionRules[0].collectorKey, 'shop:Balla Shop');
+  // OWNER-CASH-SHOP: backups carry the canonical shop rule key.
+  assert.equal(parsed.settings.commissionRules[0].collectorKey, 'shop:Hassan Balla Shop');
 
   const preview = previewJsonBackupMerge(createInitialState(), backupText);
   assert.equal(preview.commissionRules.length, 1);

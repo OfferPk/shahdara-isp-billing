@@ -28,16 +28,20 @@ test('isPhysicalCashMethod, resolveShopLocation, and resolveCollectorName classi
 
   assert.equal(resolveShopLocation('Cash at Waseem Abbasi shop'), 'Waseem Abbasi Shop');
   assert.equal(resolveShopLocation('Cash', 'Waseem Abbasi'), 'Waseem Abbasi Shop');
-  assert.equal(resolveShopLocation('Cash at Hassan shop'), 'Hassan Shop');
-  assert.equal(resolveShopLocation('Cash', 'Hassan Counter'), 'Hassan Shop');
-  assert.equal(resolveShopLocation('Cash at Balla shop'), 'Balla Shop');
-  assert.equal(resolveShopLocation('Cash', 'Balla'), 'Balla Shop');
+  // OWNER-CASH-SHOP: Hassan and Balla are ONE shop — every legacy
+  // spelling resolves to the single location "Hassan Balla Shop", and
+  // the collector behind both shop methods is the same person, Hassan.
+  assert.equal(resolveShopLocation('Cash at Hassan shop'), 'Hassan Balla Shop');
+  assert.equal(resolveShopLocation('Cash', 'Hassan Counter'), 'Hassan Balla Shop');
+  assert.equal(resolveShopLocation('Cash at Balla shop'), 'Hassan Balla Shop');
+  assert.equal(resolveShopLocation('Cash at Hassan Balla shop'), 'Hassan Balla Shop');
+  assert.equal(resolveShopLocation('Cash', 'Balla'), 'Hassan Balla Shop');
   assert.equal(resolveShopLocation('Cash'), 'Direct Field / Doorstep Cash');
   assert.equal(resolveShopLocation('JazzCash'), 'Digital & Online Wallets');
 
   assert.equal(resolveCollectorName('Cash at Waseem Abbasi shop'), 'Waseem Abbasi');
   assert.equal(resolveCollectorName('Cash at Hassan shop'), 'Hassan');
-  assert.equal(resolveCollectorName('Cash at Balla shop'), 'Balla');
+  assert.equal(resolveCollectorName('Cash at Balla shop'), 'Hassan');
   assert.equal(resolveCollectorName('Cash', 'Saad Collector'), 'Saad Collector');
   assert.equal(resolveCollectorName('Cash'), 'Direct / Counter Till');
   assert.equal(resolveCollectorName('Easypaisa'), 'Online / Digital Settlement');
@@ -130,7 +134,7 @@ test('calculateDailyClosingSummary computes accurate collections, channels, shop
   assert.equal(waseemShop.amount, 2000);
   assert.equal(waseemShop.count, 1);
 
-  const hassanShop = summary.shops.find(s => s.name === 'Hassan Shop');
+  const hassanShop = summary.shops.find(s => s.name === 'Hassan Balla Shop');
   assert.ok(hassanShop);
   assert.equal(hassanShop.amount, 1000);
   assert.equal(hassanShop.count, 1);
@@ -222,7 +226,7 @@ test('generateDailyClosingWhatsApp creates rich bilingual Urdu and English text'
   assert.ok(text.includes('شاہدرہ آئی ایس پی — یومیہ رجسٹر کلوزنگ'));
   assert.ok(text.includes('SHAHDARA ISP — DAILY REGISTER CLOSING'));
   assert.ok(text.includes('Net Cash in Hand:'));
-  assert.ok(text.includes('Hassan Shop'));
+  assert.ok(text.includes('Hassan Balla Shop'));
   assert.ok(text.includes('Cable:'));
 });
 

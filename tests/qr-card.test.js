@@ -98,7 +98,8 @@ test('print HTML: wallet card shows name, connection, rate, shops and QR image',
   assert.match(html, /#42/);
   assert.match(html, /1,500/);
   assert.match(html, /Waseem Abbasi Shop/);
-  assert.match(html, /Hassan Shop/);
+  // OWNER-CASH-SHOP: the printed shop line names the ONE unified shop.
+  assert.match(html, /Hassan Balla Shop/);
   assert.match(html, /data:image\/png;base64,QRDATA/);
   assert.match(html, /width:58mm/);
   const noQr = buildKhataCardPrintHtml(model, null);

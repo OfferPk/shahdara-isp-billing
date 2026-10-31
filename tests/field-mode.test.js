@@ -118,11 +118,12 @@ test('SISP-5 shop methods: derived from PAYMENT_METHODS, Waseem + Hassan present
   const shops = fieldModeShopMethods();
   const methods = shops.map(s => s.method);
   assert.ok(methods.includes('Cash at Waseem Abbasi shop'));
-  assert.ok(methods.includes('Cash at Hassan shop'));
-  assert.ok(methods.includes('Cash at Balla shop'));
+  // OWNER-CASH-SHOP: ONE button per distinct canonical collector — the
+  // old Hassan/Balla pair collapses into the single unified shop, whose
+  // button records the canonical method.
+  assert.deepEqual(methods, ['Cash at Waseem Abbasi shop', 'Cash at Hassan Balla shop']);
   assert.ok(shops.find(s => s.method === 'Cash at Waseem Abbasi shop').short.includes('Waseem'));
-  assert.ok(shops.find(s => s.method === 'Cash at Hassan shop').short.includes('Hassan'));
-  assert.ok(shops.find(s => s.method === 'Cash at Balla shop').short.includes('Balla'));
+  assert.ok(shops.find(s => s.method === 'Cash at Hassan Balla shop').short.includes('Hassan Balla'));
 });
 
 test('SISP-5 Cash Full (tap 2): one payment of total dues settles every priced bill via the existing flow', () => {

@@ -66,6 +66,7 @@ import {
   announcePaymentSuccess,
   trapModalFocus
 } from './nav-accessibility.js';
+import { resolveShopCollector, shopCollectorMethods } from './shop-settlement.js';
 
 export const QUICK_COLLECT_STORAGE_KEY = 'shahdara_quick_collect_last_used_v1';
 export const QUICK_COLLECT_AUDIT_KEY = 'shahdara_quick_collect_audits_v1';
@@ -1256,6 +1257,29 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
 }
 
 /**
+ * OWNER-CASH-SHOP (2026-10-31): the Quick Collect "Cash received at"
+ * choices. First is Owner Office — cash handed over at the owner's own
+ * office, recorded as plain 'Cash' and selected by default whenever the
+ * form opens or Cash is (re)selected. Then one choice per DISTINCT
+ * canonical shop collector derived from PAYMENT_METHODS through
+ * shop-settlement's shopCollectorMethods — never a hardcoded list, so a
+ * future "Cash at X shop" method surfaces as its own chip automatically.
+ * Each shop choice carries the exact method string the save records.
+ */
+export function quickCollectShopChoices() {
+  return [
+    { key: 'office', shop: null, method: 'Cash', labelKey: 'cashshop_owner_office', label: null },
+    ...shopCollectorMethods(PAYMENT_METHODS).map(({ shop, method }) => ({
+      key: `shop:${shop}`,
+      shop,
+      method,
+      labelKey: null,
+      label: shop
+    }))
+  ];
+}
+
+/**
  * Sets up and manages the Quick Collect Modal Dialog controller.
  *
  * @param {Object} options
@@ -1320,6 +1344,13 @@ export function setupQuickCollectModal({
   // Owner feature: Change Package host in the payment step (null when
   // the host page predates it).
   const packageBox = typeof document !== 'undefined' ? document.getElementById('quickCollectPackageBox') : null;
+
+  // OWNER-CASH-SHOP: "Cash received at" sub-row hosts (null when the
+  // host page predates them — every use below is guarded).
+  const shopRowEl = typeof document !== 'undefined' ? document.getElementById('quickCollectShopRow') : null;
+  const shopChipsEl = typeof document !== 'undefined' ? document.getElementById('quickCollectShopChips') : null;
+  const shopLabelEl = typeof document !== 'undefined' ? document.getElementById('quickCollectShopLabel') : null;
+  let shopChipButtons = [];
 
   // Uptime tracking: one-line online/offline summary host for the
   // selected bill month (null when the host page predates it).
@@ -1442,6 +1473,59 @@ export function setupQuickCollectModal({
     quickMethodChips.forEach(chip => {
       const isMatch = chip.getAttribute('data-method') === val;
       chip.classList.toggle('is-active', isMatch);
+    });
+    syncShopChips();
+  }
+
+  // OWNER-CASH-SHOP: render the "Cash received at" chips from
+  // quickCollectShopChoices(). The hidden method select stays the single
+  // source of truth — a chip click writes that choice's method string
+  // into it, so the form submit (executeQuickCollection) records it with
+  // no new save branch. Shop names are brand strings (untranslated, the
+  // SISP-86 precedent); only the prompt and the Owner Office label
+  // localise.
+  function renderShopChips() {
+    if (!shopChipsEl) return;
+    if (shopLabelEl) shopLabelEl.textContent = t('cashshop_where_label');
+    shopChipsEl.setAttribute('aria-label', t('cashshop_where_label'));
+    shopChipsEl.innerHTML = '';
+    shopChipButtons = quickCollectShopChoices().map((choice) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'qc-shop-chip';
+      btn.setAttribute('data-shop-method', choice.method);
+      btn.setAttribute('role', 'radio');
+      btn.textContent = choice.labelKey ? t(choice.labelKey) : choice.label;
+      btn.addEventListener('click', () => {
+        if (methodSelect) methodSelect.value = choice.method;
+        syncShopChips();
+      });
+      shopChipsEl.appendChild(btn);
+      return btn;
+    });
+    syncShopChips();
+  }
+
+  // Shows the sub-row only while a cash-family method is selected and
+  // marks the chip matching the select's current value: the shop whose
+  // canonical collector it resolves to (a legacy shop method lights the
+  // unified shop's chip), or Owner Office for plain 'Cash'.
+  function syncShopChips() {
+    if (!shopRowEl) return;
+    const current = methodSelect ? String(methodSelect.value || 'Cash') : 'Cash';
+    const cashFamily = isCashPaymentMethod(current);
+    shopRowEl.hidden = !cashFamily;
+    if (!cashFamily) return;
+    const activeShop = resolveShopCollector(current);
+    // A shop method has no method chip of its own — keep Cash lit.
+    quickMethodChips.forEach(chip => {
+      if (chip.getAttribute('data-method') === 'Cash') chip.classList.toggle('is-active', true);
+    });
+    shopChipButtons.forEach(btn => {
+      const shop = resolveShopCollector(btn.getAttribute('data-shop-method'));
+      const isActive = shop ? shop === activeShop : activeShop === null;
+      btn.classList.toggle('is-active', isActive);
+      btn.setAttribute('aria-checked', String(isActive));
     });
   }
 
@@ -1804,6 +1888,11 @@ export function setupQuickCollectModal({
       if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = true;
       if (screenshotPreview) screenshotPreview.src = '';
       updateDigitalVisibility(activeDefaults.defaultMethod || 'Cash');
+
+      // OWNER-CASH-SHOP: fresh "Cash received at" chips per open — the
+      // default method above decides the row's visibility and which chip
+      // starts active (Owner Office unless the default is a shop method).
+      renderShopChips();
 
       // Update quick amount chips dynamic amounts (#281)
       if (quickAmountChips && activeDefaults) {

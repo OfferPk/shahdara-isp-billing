@@ -173,7 +173,8 @@ test('PINNED: submitting 3 batch rows records all 3 payments across ledgers and 
   assert.equal(balanceDue(before, 'a'), 3000);
   assert.equal(balanceDue(before, 'b'), 3000);
   assert.equal(balanceDue(before, 'c'), 3000);
-  const ballaBefore = buildShopSummaries(before, []).find((s) => s.shop === 'Balla Shop');
+  // OWNER-CASH-SHOP: B-letter receipts land on the ONE unified collector.
+  const ballaBefore = buildShopSummaries(before, []).find((s) => s.shop === 'Hassan Balla Shop');
   assert.equal(ballaBefore?.unsettled ?? 0, 0);
 
   const rows = [
@@ -200,8 +201,9 @@ test('PINNED: submitting 3 batch rows records all 3 payments across ledgers and 
   assert.equal(paymentsOf(nextState, 'c')[0].amount, 1500);
   assert.equal(paymentsOf(nextState, 'c')[0].method, 'Easypaisa');
 
-  // Shop balances: the Balla slip now sits as unsettled cash at Balla Shop.
-  const ballaAfter = buildShopSummaries(nextState, []).find((s) => s.shop === 'Balla Shop');
+  // Shop balances: the Balla slip now sits as unsettled cash at the
+  // unified Hassan Balla Shop (the recorded method string is unchanged).
+  const ballaAfter = buildShopSummaries(nextState, []).find((s) => s.shop === 'Hassan Balla Shop');
   assert.equal(ballaAfter.totalCollected, 3000);
   assert.equal(ballaAfter.unsettled, 3000);
   assert.equal(ballaAfter.unsettledReceiptCount, 1);

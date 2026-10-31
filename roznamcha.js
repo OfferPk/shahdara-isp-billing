@@ -40,7 +40,7 @@
  * shop-settlement.js. Tests use synthetic data only.
  */
 
-import { loadShopSettlements, partnerForReceivedInto } from './shop-settlement.js';
+import { canonicalShopName, loadShopSettlements, partnerForReceivedInto } from './shop-settlement.js';
 
 export const ROZNAMCHA_KEY = 'sisp_roznamcha_v1';
 
@@ -243,7 +243,10 @@ export function collectShopHandovers(settlements, date) {
       if (partnerForReceivedInto(settlement?.receivedInto)) continue;
       const amount = moneyValue(settlement.amount);
       if (amount > 0) {
-        handovers.push({ shop: cleanText(settlement.shop, 100), amount: round2(amount) });
+        // OWNER-CASH-SHOP: handovers read under the ONE canonical shop
+        // name even when the settlement record was stored under a legacy
+        // one ('Hassan Shop' / 'Balla Shop'); the record is not rewritten.
+        handovers.push({ shop: canonicalShopName(cleanText(settlement.shop, 100)), amount: round2(amount) });
       }
     }
   }

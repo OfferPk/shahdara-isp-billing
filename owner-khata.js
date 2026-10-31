@@ -42,7 +42,7 @@
  *   same set whose amounts sum to `collected`) is classified into
  *   exactly one channel: a shop channel when SISP-1's
  *   resolveShopCollector recognises the method/paidBy (Waseem Abbasi
- *   Shop, Hassan Shop, Balla Shop, or any data-derived "Cash at X shop"
+ *   Shop, Hassan Balla Shop, or any data-derived "Cash at X shop"
  *   collector), a wallet channel for SISP-21 digital wallet methods
  *   (canonical labels from wallet-reconciliation.js), and Direct Cash
  *   for everything else (plain Cash and any legacy/custom method), so
@@ -76,7 +76,7 @@ import { buildMonthlyInstallationSummary } from './installation-cost.js';
 import { loadPartnerSettings } from './partner-settlement.js';
 import { buildMonthlyDowntimeAnalytics } from './downtime-analytics.js';
 import { loadComplaints, pakistanMonthNow } from './complaint-register.js';
-import { loadShopSettlements, resolveShopCollector } from './shop-settlement.js';
+import { canonicalShopName, loadShopSettlements, resolveShopCollector } from './shop-settlement.js';
 import {
   DIGITAL_BREAKDOWN_METHODS,
   canonicalWalletLabel,
@@ -252,7 +252,9 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
     Number.isFinite(Number(record.amount)) && Number(record.amount) > 0);
   const shopMap = new Map();
   for (const record of monthSettlements) {
-    const shop = String(record.shop || 'Unknown shop');
+    // OWNER-CASH-SHOP: settlements stored under a legacy shop name read
+    // into the ONE unified row; stored records are not rewritten.
+    const shop = canonicalShopName(String(record.shop || '')) || 'Unknown shop';
     const entry = shopMap.get(shop) ?? { shop, amount: 0, count: 0 };
     entry.amount += wholeRupees(record.amount);
     entry.count += 1;

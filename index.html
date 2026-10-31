@@ -19572,6 +19572,15 @@
                 <button type="button" class="quick-method-chip" data-method="Raast">⚡ Raast</button>
               </div>
               <select id="quickCollectMethodSelect" required class="qc-input" style="display:none;"></select>
+              <!-- OWNER-CASH-SHOP: where was this cash received? Shown only
+                   while a cash method is selected; chips are rendered by
+                   nav-quick-collect.js from PAYMENT_METHODS via
+                   shop-settlement's shopCollectorMethods (Owner Office is
+                   the default and records plain 'Cash'). -->
+              <div id="quickCollectShopRow" class="qc-shop-row" hidden>
+                <span id="quickCollectShopLabel" class="qc-shop-label">Cash received at</span>
+                <div id="quickCollectShopChips" class="qc-shop-chips" role="radiogroup" aria-label="Cash received at"></div>
+              </div>
             </div>
           </div>
 

@@ -37,7 +37,8 @@ test('Collector & Staff Performance - resolveCollectorName handles shop attribut
   assert.equal(resolveCollectorName('Cash', 'Umair Collector'), 'Umair Collector');
   assert.equal(resolveCollectorName('Cash at Waseem Abbasi shop'), 'Waseem Abbasi');
   assert.equal(resolveCollectorName('Cash at Hassan shop'), 'Hassan');
-  assert.equal(resolveCollectorName('Cash at Balla shop'), 'Balla');
+  // OWNER-CASH-SHOP: the Balla-shop method belongs to the same collector.
+  assert.equal(resolveCollectorName('Cash at Balla shop'), 'Hassan');
   assert.equal(resolveCollectorName('Cash'), 'Direct / Counter Till');
   assert.equal(resolveCollectorName('Easypaisa'), 'Online / Digital Settlement');
   assert.equal(resolveCollectorName('JazzCash'), 'Online / Digital Settlement');

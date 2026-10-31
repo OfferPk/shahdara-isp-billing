@@ -71,17 +71,21 @@ test('receivedInto helpers: drawer is the default, partners resolve by name', ()
 test('PIN: Rs. 15,000 Hassan handover kept by Nasir settles the shop and records one Nasir drawing', () => {
   const state = hassanFixture();
   const before = buildShopSummaries(state, [], new Date(Date.UTC(2026, 9, 27, 7)));
-  assert.equal(before.find((s) => s.shop === 'Hassan Shop').unsettled, 15000);
+  // OWNER-CASH-SHOP: the Hassan-method receipts sit under the ONE
+  // canonical collector "Hassan Balla Shop"; the legacy call below keeps
+  // working because applySettlement canonicalizes its shop argument.
+  assert.equal(before.find((s) => s.shop === 'Hassan Balla Shop').unsettled, 15000);
 
   const { state: next, settlement, leftover } = applySettlement(
     state, 'Hassan Shop', 15000, '2026-10-27', '', { receivedInto: 'nasir' }
   );
   assert.equal(leftover, 0);
   assert.equal(settlement.amount, 15000);
+  assert.equal(settlement.shop, 'Hassan Balla Shop', 'new handovers record the canonical shop name');
   assert.equal(settlement.receivedInto, 'nasir');
 
   const after = buildShopSummaries(next, [settlement], new Date(Date.UTC(2026, 9, 27, 7)));
-  assert.equal(after.find((s) => s.shop === 'Hassan Shop').unsettled, 0, 'shop unsettled drops by the full Rs. 15,000');
+  assert.equal(after.find((s) => s.shop === 'Hassan Balla Shop').unsettled, 0, 'shop unsettled drops by the full Rs. 15,000');
 
   const mirror = syncShopPickupDrawings([], [settlement]);
   assert.equal(mirror.changed, true);
@@ -165,7 +169,7 @@ test('drawer choice behaves exactly as SISP-1: no field stamped, no drawing, dra
     const mirror = syncShopPickupDrawings([], [settlement]);
     assert.equal(mirror.entries.length, 0);
     assert.equal(mirror.changed, false);
-    assert.deepEqual(collectShopHandovers([settlement], '2026-10-27'), [{ shop: 'Hassan Shop', amount: 15000 }]);
+    assert.deepEqual(collectShopHandovers([settlement], '2026-10-27'), [{ shop: 'Hassan Balla Shop', amount: 15000 }]);
   }
 });
 
@@ -174,8 +178,11 @@ test('partner-kept cash never enters the Roznamcha drawer; legacy records still 
   const drawer = { id: 's-drawer', shop: 'Hassan Shop', amount: 5000, date: '2026-10-27', note: '', allocations: [], createdAt: '' };
   const legacy = { id: 's-legacy', shop: 'Waseem Abbasi Shop', amount: 2000, date: '2026-10-27', note: '', allocations: [], createdAt: '' };
   const handovers = collectShopHandovers([nasirKept, drawer, legacy], '2026-10-27');
+  // OWNER-CASH-SHOP: the stored records above keep their legacy
+  // shop:'Hassan Shop' bytes; the Roznamcha derivation reads them under
+  // the ONE canonical name.
   assert.deepEqual(handovers, [
-    { shop: 'Hassan Shop', amount: 5000 },
+    { shop: 'Hassan Balla Shop', amount: 5000 },
     { shop: 'Waseem Abbasi Shop', amount: 2000 }
   ]);
   const day = buildRoznamchaDay({ customers: [] }, [], '2026-10-27', [nasirKept, drawer, legacy]);

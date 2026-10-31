@@ -201,7 +201,9 @@ export function voidPayment(state, customerId, month, paymentId, options = {}) {
   const methodLower = String(payment.method || '').toLowerCase();
   const paidByLower = String(payment.paidBy || '').toLowerCase();
   if (methodLower.includes('waseem') || paidByLower.includes('waseem')) shop = 'Waseem Abbasi Shop';
-  else if (methodLower.includes('hassan') || paidByLower.includes('hassan')) shop = 'Hassan Shop';
+  // OWNER-CASH-SHOP: hassan/balla are the ONE shop "Hassan Balla Shop",
+  // mirroring the unified resolveShopCollector derivation.
+  else if (methodLower.includes('hassan') || paidByLower.includes('hassan') || methodLower.includes('balla') || paidByLower.includes('balla')) shop = 'Hassan Balla Shop';
   else {
     const custom = String(payment.method || '').match(/cash\s+at\s+(.+?)\s+shop/i);
     if (custom && custom[1].trim()) shop = `${custom[1].trim()} Shop`;

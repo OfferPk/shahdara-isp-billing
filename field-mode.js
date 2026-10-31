@@ -131,13 +131,12 @@ import {
   waadaBadgeLabel
 } from './waada-queue.js';
 import { captureCurrentPosition, formatGpsDistance, sortEntriesByNearest } from './gps-pin-helper.js';
+import { shopCollectorMethods } from './shop-settlement.js';
 
 /** Deep link that opens field mode, mirroring #/bulk-collect. */
 export const FIELD_MODE_HASH = '#/field-mode';
 /** Zone-filter value meaning "every area/zone". */
 export const FIELD_MODE_ALL_ZONES = 'all';
-
-const SHOP_METHOD_PATTERN = /cash\s+at\s+(.+?)\s+shop/i;
 
 /** True for the field-mode route: #/field-mode (also #field-mode). */
 export function isFieldModeHash(hash = '') {
@@ -321,18 +320,17 @@ export function fieldModeCollectedToday(state, zoneKey, todayStr) {
 }
 
 /**
- * Shop payment methods from the app's own PAYMENT_METHODS (Waseem, Hassan
- * and Balla today, any future "Cash at X shop" method automatically). Each entry is
- * { method, short } where short is the collector name for the button label.
+ * Shop payment methods from the app's own PAYMENT_METHODS, one entry per
+ * DISTINCT canonical shop collector via shop-settlement's
+ * shopCollectorMethods (Waseem Abbasi and Hassan Balla today — the old
+ * Hassan/Balla split is ONE shop since OWNER-CASH-SHOP — and any future
+ * "Cash at X shop" method automatically). Each entry is { method, short }
+ * where short is the collector name for the button label and method is
+ * the canonical method string recorded for that shop.
  */
 export function fieldModeShopMethods() {
-  return PAYMENT_METHODS
-    .filter(method => SHOP_METHOD_PATTERN.test(String(method)))
-    .map(method => {
-      const match = String(method).match(SHOP_METHOD_PATTERN);
-      const short = (match?.[1] ?? '').trim();
-      return { method, short: short || method };
-    });
+  return shopCollectorMethods(PAYMENT_METHODS)
+    .map(({ shop, method }) => ({ method, short: shop.replace(/\s+Shop$/, '') || method }));
 }
 
 /**

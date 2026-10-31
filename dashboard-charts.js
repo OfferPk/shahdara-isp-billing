@@ -23,6 +23,9 @@ export const METHOD_COLORS = {
   'Cash at Waseem Abbasi shop': '#d97706',
   'Cash at Hassan shop': '#7c3aed',
   'Cash at Balla shop': '#0891b2',
+  // OWNER-CASH-SHOP: the ONE unified shop method gets its own colour
+  // entry; the two legacy keys stay for old payments' exact lookups.
+  'Cash at Hassan Balla shop': '#0891b2',
   'Other': '#64748b'
 };
 

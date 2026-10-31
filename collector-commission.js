@@ -56,7 +56,7 @@
  * setup. Tests use synthetic data only.
  */
 
-import { collectShopPayments, resolveShopCollector, formatShopPKR, pakistanToday, pakistanMonth } from './shop-settlement.js';
+import { canonicalShopName, collectShopPayments, resolveShopCollector, formatShopPKR, pakistanToday, pakistanMonth } from './shop-settlement.js';
 import { addExpense, EXPENSE_CATEGORIES } from './phase3.js';
 import { t } from './nav-language.js';
 
@@ -170,11 +170,19 @@ export function sanitizeCommissionRules(value) {
     if (!entry || typeof entry !== 'object') continue;
     const kind = entry.kind === 'shop' ? 'shop' : entry.kind === 'field' ? 'field' : null;
     if (!kind) continue;
-    const label = typeof entry.label === 'string' ? entry.label.trim().slice(0, 120) : '';
+    // OWNER-CASH-SHOP: a shop rule's identity is the CANONICAL collector,
+    // so a rule stored for the legacy 'Hassan Shop' / 'Balla Shop' keeps
+    // applying to the one unified "Hassan Balla Shop" (first rule wins
+    // when both legacy names were configured). Field rules pass through.
+    const label = kind === 'shop'
+      ? canonicalShopName(typeof entry.label === 'string' ? entry.label.trim().slice(0, 120) : '')
+      : (typeof entry.label === 'string' ? entry.label.trim().slice(0, 120) : '');
     if (!label) continue;
-    const collectorKey = typeof entry.collectorKey === 'string' && entry.collectorKey.trim()
-      ? entry.collectorKey.trim().slice(0, 200)
-      : commissionCollectorKey(kind, label);
+    const collectorKey = kind === 'shop'
+      ? commissionCollectorKey('shop', label)
+      : (typeof entry.collectorKey === 'string' && entry.collectorKey.trim()
+        ? entry.collectorKey.trim().slice(0, 200)
+        : commissionCollectorKey(kind, label));
     if (seen.has(collectorKey)) continue;
     seen.add(collectorKey);
     const perReceiptFixedRaw = Number(entry.perReceiptFixed);

@@ -56,10 +56,14 @@ import { t } from './nav-language.js';
  * member of core PAYMENT_METHODS (the batch tests pin this):
  *  C — 'Cash'                        (core.js PAYMENT_METHODS)
  *  W — 'Cash at Waseem Abbasi shop'  (shop-settlement.js collector)
- *  H — 'Cash at Hassan shop'         (shop-settlement.js collector)
- *  B — 'Cash at Balla shop'          (shop-settlement.js collector)
+ *  H — 'Cash at Hassan shop'         (legacy string, kept per SISP-99)
+ *  B — 'Cash at Balla shop'          (legacy string, kept per SISP-99)
  *  E — 'Easypaisa'                   (core.js PAYMENT_METHODS)
  *  N — 'NayaPay'                     (core.js PAYMENT_METHODS)
+ *
+ * OWNER-CASH-SHOP: H and B keep their legacy recorded strings (the
+ * letters' meaning never changed), and both settle onto the ONE unified
+ * collector "Hassan Balla Shop" through resolveShopCollector.
  */
 export const SPEED_ENTRY_METHOD_KEYS = Object.freeze({
   C: 'Cash',

@@ -119,8 +119,9 @@ export function resolveCollectorName(method, paidBy = '') {
   }
   const m = String(method || '').toLowerCase();
   if (m.includes('waseem')) return 'Waseem Abbasi';
-  if (m.includes('hassan')) return 'Hassan';
-  if (m.includes('balla')) return 'Balla';
+  // OWNER-CASH-SHOP: both legacy shop methods belong to the same
+  // collector — Hassan (of the famous Balla shop) — one person, one row.
+  if (m.includes('hassan') || m.includes('balla')) return 'Hassan';
   if (isPhysicalCashMethod(method)) return 'Direct / Counter Till';
   return 'Online / Digital Settlement';
 }
@@ -135,7 +136,7 @@ export function resolveCollectorCategory(collectorName, method) {
   const name = String(collectorName || '').toLowerCase();
   const m = String(method || '').toLowerCase();
 
-  if (name.includes('waseem') || name.includes('hassan') || m.includes('waseem') || m.includes('hassan')) {
+  if (name.includes('waseem') || name.includes('hassan') || name.includes('balla') || m.includes('waseem') || m.includes('hassan') || m.includes('balla')) {
     return STAFF_PERFORMANCE_CONSTANTS.CATEGORIES.SHOP;
   }
   if (name === 'direct / counter till' || (isPhysicalCashMethod(method) && !name)) {

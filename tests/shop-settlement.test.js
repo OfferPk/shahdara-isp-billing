@@ -58,9 +58,12 @@ function fixture() {
 
 test('shop collector detection: known shops, custom shops, non-shop methods', () => {
   assert.equal(resolveShopCollector('Cash at Waseem Abbasi shop'), 'Waseem Abbasi Shop');
-  assert.equal(resolveShopCollector('Cash at Hassan shop'), 'Hassan Shop');
-  assert.equal(resolveShopCollector('Cash at Balla shop'), 'Balla Shop');
-  assert.equal(resolveShopCollector('Cash', 'Balla'), 'Balla Shop');
+  // OWNER-CASH-SHOP: Hassan and Balla are ONE shop — both legacy methods
+  // (and the new unified one) resolve to the single canonical collector.
+  assert.equal(resolveShopCollector('Cash at Hassan shop'), 'Hassan Balla Shop');
+  assert.equal(resolveShopCollector('Cash at Balla shop'), 'Hassan Balla Shop');
+  assert.equal(resolveShopCollector('Cash at Hassan Balla shop'), 'Hassan Balla Shop');
+  assert.equal(resolveShopCollector('Cash', 'Balla'), 'Hassan Balla Shop');
   assert.equal(resolveShopCollector('Cash at New Town shop'), 'New Town Shop');
   assert.equal(resolveShopCollector('Cash', 'Waseem'), 'Waseem Abbasi Shop');
   assert.equal(resolveShopCollector('Cash'), null);
@@ -131,8 +134,10 @@ test('per-shop separation: settling one shop never touches the other', () => {
   const { state: next } = applySettlement(state, 'Waseem Abbasi Shop', 4500, '2026-10-27', '');
   const summaries = buildShopSummaries(next, [], new Date(Date.UTC(2026, 9, 27, 7)));
   assert.equal(summaries.find((s) => s.shop === 'Waseem Abbasi Shop').unsettled, 0);
-  assert.equal(summaries.find((s) => s.shop === 'Hassan Shop').unsettled, 2000);
-  assert.equal(collectShopPayments(next).filter((p) => p.shop === 'Hassan Shop' && p.shopSettled).length, 0);
+  // OWNER-CASH-SHOP: the fixture's Hassan-method receipts now sit under
+  // the unified collector name; amounts and separation are unchanged.
+  assert.equal(summaries.find((s) => s.shop === 'Hassan Balla Shop').unsettled, 2000);
+  assert.equal(collectShopPayments(next).filter((p) => p.shop === 'Hassan Balla Shop' && p.shopSettled).length, 0);
 });
 
 test('allocation caps at the unsettled total and reports the leftover', () => {
@@ -226,13 +231,15 @@ test('JSON backup carries shop settlements and restores them under safe-merge ru
   assert.ok(kept.conflicts.some((c) => c.field === 'Shop settlement records differ from this device'));
 });
 
-test('Balla Shop: a Rs. 2,000 Cash at Balla shop payment raises Balla unsettled by Rs. 2,000', () => {
+test('Balla Shop: a Rs. 2,000 Cash at Balla shop payment raises the unified shop unsettled by Rs. 2,000', () => {
+  // OWNER-CASH-SHOP: the legacy 'Cash at Balla shop' method now lands on
+  // the ONE canonical collector "Hassan Balla Shop" (Hassan's Balla shop).
   const state = { customers: [customer('c1', 11, 'Test Customer 11', [
     bill('2026-10', [payment('p1', { date: '2026-10-06', amount: 2000, method: 'Cash at Balla shop' })])
   ])] };
   const summaries = buildShopSummaries(state, [], new Date(Date.UTC(2026, 9, 27, 7)));
   assert.equal(summaries.length, 1);
-  assert.equal(summaries[0].shop, 'Balla Shop');
+  assert.equal(summaries[0].shop, 'Hassan Balla Shop');
   assert.equal(summaries[0].unsettled, 2000);
   assert.equal(summaries[0].totalCollected, 2000);
   assert.equal(summaries[0].collectedThisMonth, 2000);

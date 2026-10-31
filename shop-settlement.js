@@ -27,6 +27,15 @@
  * re-running it never double-records). Drawer handovers behave exactly
  * as SISP-1 shipped them.
  *
+ * OWNER-CASH-SHOP (2026-10-31): the person is Hassan and his famous shop
+ * is "Balla" — ONE shop, written "Hassan Balla Shop". The historical
+ * split ('Cash at Hassan shop' / 'Cash at Balla shop', PR #452) is
+ * unified at derivation/display level ONLY: resolveShopCollector maps
+ * both legacy methods (and the new 'Cash at Hassan Balla shop') to the
+ * single canonical collector "Hassan Balla Shop", and settlement records
+ * stored under a legacy shop name join that same summary when read.
+ * Stored payment and settlement records are NEVER rewritten.
+ *
  * All helpers are pure except load/saveShopSettlements and the modal setup.
  * Tests use synthetic data only.
  */
@@ -129,12 +138,18 @@ function escapeHtml(str) {
 
 /**
  * Resolves the shop collector for a payment from its method / paidBy strings.
- * Known shops first (Waseem Abbasi, Hassan, Balla — the app's PAYMENT_METHODS values),
- * then any custom shop collector derived from the data itself: a method like
- * "Cash at <Name> shop" yields "<Name> Shop". Returns null for non-shop
- * payments (plain Cash, digital wallets, bank transfers, ...).
+ * Known shops first (Waseem Abbasi, Hassan Balla — the app's PAYMENT_METHODS
+ * values), then any custom shop collector derived from the data itself: a
+ * method like "Cash at <Name> shop" yields "<Name> Shop". Returns null for
+ * non-shop payments (plain Cash, digital wallets, bank transfers, ...).
  *
- * Mirrors dashboard-daily-closing.js resolveShopLocation for the two known
+ * OWNER-CASH-SHOP unification: 'hassan' and 'balla' are the SAME shop —
+ * Hassan's famous "Balla" shop — so either mention (in the method or the
+ * paidBy note) resolves to the one canonical collector "Hassan Balla
+ * Shop". Legacy method strings on stored payments stay untouched; only
+ * this derivation changed.
+ *
+ * Mirrors dashboard-daily-closing.js resolveShopLocation for the known
  * shops, extended with the generic "Cash at X shop" pattern so custom shop
  * collectors are never silently dropped.
  *
@@ -146,14 +161,60 @@ export function resolveShopCollector(method, paidBy = '') {
   const m = String(method || '').toLowerCase();
   const p = String(paidBy || '').toLowerCase();
   if (m.includes('waseem') || p.includes('waseem')) return 'Waseem Abbasi Shop';
-  if (m.includes('hassan') || p.includes('hassan')) return 'Hassan Shop';
-  if (m.includes('balla') || p.includes('balla')) return 'Balla Shop';
+  if (m.includes('hassan') || p.includes('hassan') || m.includes('balla') || p.includes('balla')) {
+    return 'Hassan Balla Shop';
+  }
   const custom = String(method || '').match(/cash\s+at\s+(.+?)\s+shop/i);
   if (custom) {
     const name = custom[1].trim();
     if (name) return `${name} Shop`;
   }
   return null;
+}
+
+/**
+ * OWNER-CASH-SHOP: canonical display name for a shop name as STORED on a
+ * settlement record (or any other stored shop label). Only the three
+ * spellings of the one shop's name unify — 'Hassan Shop' and 'Balla
+ * Shop' (the legacy split) and 'Hassan Balla Shop' itself all read as
+ * "Hassan Balla Shop" — while every other stored label (other shops,
+ * short names, custom shops) passes through byte-identical, exactly as
+ * summaries grouped stored records before. Deliberately narrower than
+ * resolveShopCollector: payment derivation substring-matches free text
+ * (methods, paidBy notes), but a stored shop label is an identity, and
+ * only this one identity was ever split. Read-time only: the stored
+ * record itself is never modified.
+ */
+export function canonicalShopName(name) {
+  const raw = String(name || '').trim();
+  if (!raw) return raw;
+  return /^(?:hassan shop|balla shop|hassan balla shop)$/i.test(raw) ? 'Hassan Balla Shop' : raw;
+}
+
+/**
+ * OWNER-CASH-SHOP: the distinct canonical shop collectors behind a
+ * payment-method list (core.js PAYMENT_METHODS), in first-appearance
+ * order, each paired with the method string that RECORDS a payment at
+ * that shop. The canonical method is the exact "Cash at <Collector>"
+ * spelling when the list carries one ('Cash at Hassan Balla shop' for
+ * the unified shop); otherwise the first method resolving to that
+ * collector. This is the derivation seam behind the Quick Collect cash
+ * shop chips: a future "Cash at X shop" method surfaces automatically.
+ * The list is a parameter (not an import) because this module must not
+ * import core.js (module-cycle rule, see header).
+ */
+export function shopCollectorMethods(methods) {
+  const byShop = new Map();
+  for (const method of (Array.isArray(methods) ? methods : [])) {
+    const shop = resolveShopCollector(method);
+    if (!shop) continue;
+    const text = String(method);
+    const isCanonicalSpelling = text.toLowerCase() === `cash at ${shop.toLowerCase()}`;
+    const existing = byShop.get(shop);
+    if (!existing) byShop.set(shop, { shop, method: text });
+    else if (isCanonicalSpelling) existing.method = text;
+  }
+  return [...byShop.values()];
 }
 
 export function isShopPayment(payment) {
@@ -257,7 +318,10 @@ export function buildShopSummaries(state, settlements, referenceDate = new Date(
   }
   for (const record of list) {
     if (!record || typeof record !== 'object' || !record.shop) continue;
-    const s = ensure(record.shop);
+    // OWNER-CASH-SHOP: a settlement stored under a legacy shop name
+    // ('Hassan Shop' / 'Balla Shop') joins the ONE unified summary when
+    // read; the stored record keeps its original name byte-identically.
+    const s = ensure(canonicalShopName(record.shop));
     if (typeof record.date === 'string' && DATE_RE.test(record.date)) {
       if (!s.lastHandoverDate || record.date > s.lastHandoverDate) s.lastHandoverDate = record.date;
     }
@@ -276,7 +340,8 @@ export function buildShopSummaries(state, settlements, referenceDate = new Date(
 
 /** Pending (partly or fully unsettled) receipts for one shop, oldest first. */
 export function pendingShopReceipts(state, shop) {
-  return collectShopPayments(state).filter((p) => p.shop === shop && p.remaining > 0);
+  const canonical = canonicalShopName(shop);
+  return collectShopPayments(state).filter((p) => p.shop === canonical && p.remaining > 0);
 }
 
 /** Reads settlement records; [] on missing/corrupt storage. */
@@ -386,16 +451,20 @@ export function allocateSettlement(shopPayments, amount) {
 export function applySettlement(state, shop, amount, date, note = '', options = {}) {
   const total = moneyValue(amount);
   if (!Number.isFinite(total) || total <= 0) throw new Error('Settlement amount must be greater than zero.');
-  const pending = pendingShopReceipts(state, shop);
-  if (pending.length === 0) throw new Error(`No unsettled cash found for ${shop}.`);
+  // OWNER-CASH-SHOP: the handover is recorded under the canonical shop
+  // name even when a caller still passes a legacy one ('Hassan Shop' /
+  // 'Balla Shop') — one shop, one ledger name, from now on.
+  const canonicalShop = canonicalShopName(shop);
+  const pending = pendingShopReceipts(state, canonicalShop);
+  if (pending.length === 0) throw new Error(`No unsettled cash found for ${canonicalShop}.`);
   const { allocations, covered, leftover } = allocateSettlement(pending, total);
-  if (covered <= 0) throw new Error(`No unsettled cash found for ${shop}.`);
+  if (covered <= 0) throw new Error(`No unsettled cash found for ${canonicalShop}.`);
   const id = settlementId();
   const handoverDate = typeof date === 'string' && DATE_RE.test(date) ? date : pakistanToday();
   const receivedInto = normalizeReceivedInto(options?.receivedInto);
   const settlement = {
     id,
-    shop,
+    shop: canonicalShop,
     amount: covered,
     date: handoverDate,
     note: typeof note === 'string' ? note : '',

@@ -493,6 +493,7 @@
           <div id="inventoryBookSummary" class="inventory-book-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_stock">📦 Stock Book</button>
+            <button id="openSupplierKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="supkhata_btn_open">🏭 Supplier Khata</button>
           </div>
         </article>
         <article class="summary-card summary-outage-impact ds-stat ds-stat--overdue">
@@ -21655,6 +21656,37 @@
         </form>
         <h3>Movement log</h3>
         <div id="inventoryBookLogList" class="inventory-book-log-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="supplierKhataModal" class="billing-modal supplier-khata-modal" aria-labelledby="supplierKhataModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="supplierKhataModalTitle" data-i18n="supkhata_title">🏭 Supplier Khata — ادھار خریداری کھاتہ</h2>
+        <button id="supplierKhataCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="supplier-khata-intro" data-i18n="supkhata_intro">Wholesale hardware bought on credit: log the purchase here — the stock enters the Stock Book, what you pay now is expensed at once, and the balance stays as a supplier payable until you pay it off here.</p>
+        <p id="supplierKhataSummaryLine" class="supplier-khata-summary-line"></p>
+        <form id="supplierKhataForm" class="supplier-khata-form">
+          <label for="supplierKhataSupplier" data-i18n="supkhata_supplier_label">Supplier name</label>
+          <input id="supplierKhataSupplier" class="form-input" type="text" maxlength="100" required aria-label="Supplier name">
+          <label for="supplierKhataItem" data-i18n="supkhata_item_label">Stock item</label>
+          <select id="supplierKhataItem" class="form-input" aria-label="Stock item"></select>
+          <label for="supplierKhataQty" data-i18n="supkhata_qty_label">Quantity</label>
+          <input id="supplierKhataQty" class="form-input" type="number" min="0" step="any" required aria-label="Quantity">
+          <label for="supplierKhataTotalBill" data-i18n="supkhata_total_bill_label">Total bill (Rs.)</label>
+          <input id="supplierKhataTotalBill" class="form-input" type="number" min="1" step="any" required aria-label="Total bill in rupees">
+          <label for="supplierKhataPaidNow" data-i18n="supkhata_paid_now_label">Paid now (Rs.)</label>
+          <input id="supplierKhataPaidNow" class="form-input" type="number" min="0" step="any" aria-label="Amount paid now in rupees" placeholder="0">
+          <label for="supplierKhataDate" data-i18n="supkhata_date_label">Purchase date</label>
+          <input id="supplierKhataDate" class="form-input" type="date" required aria-label="Purchase date">
+          <label for="supplierKhataNote" data-i18n="supkhata_note_input_label">Note (optional)</label>
+          <input id="supplierKhataNote" class="form-input" type="text" maxlength="300" aria-label="Note">
+          <button id="supplierKhataSubmitBtn" class="action-btn-sm daily-slip-btn" type="submit" data-i18n="supkhata_log_btn">➕ Log credit purchase</button>
+        </form>
+        <h3 data-i18n="supkhata_register_heading">Purchases</h3>
+        <div id="supplierKhataList" class="supplier-khata-list"></div>
       </div>
     </div>
   </dialog>

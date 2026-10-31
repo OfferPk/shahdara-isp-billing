@@ -18,6 +18,14 @@
  * attenuation warning (red badge). Anything at or above -26.0 is healthy;
  * a missing reading is unknown, never healthy and never weak.
  *
+ * SISP-92 adds a GPS pin row for the selected box: [📍 Capture GPS]
+ * stores the box's position, [🗺️ Open in Maps] opens it. A box is a
+ * splitterBoxId string shared by its customers — it has no record of
+ * its own — so its pin lives in the gps-pin-helper.js box-pin store
+ * (pins only, keyed by box id); the port map below still derives from
+ * the customers array exactly as before. Capture is fail-safe: denial
+ * or an unsupported device toasts and changes nothing.
+ *
  * All helpers are pure except the modal controller's DOM wiring. Tests use
  * synthetic data only.
  *
@@ -31,6 +39,15 @@
  * existing createTicket flow (no parallel store).
  */
 
+import {
+  captureCurrentPosition,
+  clearSplitterBoxPin,
+  formatGpsCoords,
+  getSplitterBoxPin,
+  googleMapsUrl,
+  normalizeGpsPin,
+  setSplitterBoxPin
+} from './gps-pin-helper.js';
 import { t } from './nav-language.js';
 import { buildOutageMessage, traceDownstreamImpact } from './outage-impact.js';
 import { formatWhatsAppUrl } from './form-validation.js';
@@ -379,6 +396,27 @@ export function renderSplitterPortGrid(box) {
 }
 
 /**
+ * SISP-92: the GPS pin row for one splitter box. `pin` is the stored
+ * { lat, lng } pair or null. Without a pin there is no Maps link and no
+ * Remove button (never a dead control); with one, the coordinates and
+ * both actions render. Pure markup — the modal controller wires the
+ * [data-splitter-gps] actions.
+ */
+export function renderSplitterBoxGpsRow(boxId, pin) {
+  const cleanBoxId = cleanText(boxId);
+  if (!cleanBoxId) return '';
+  const normalized = pin ? normalizeGpsPin(pin) : null;
+  const mapsUrl = normalized ? googleMapsUrl(normalized) : null;
+  return `<p class="splitter-map-gps-title"><strong>${escapeHtml(t('gpspin_box_title'))}</strong></p>`
+    + `<p class="splitter-map-gps-line">${normalized ? escapeHtml(formatGpsCoords(normalized)) : escapeHtml(t('gpspin_not_recorded'))}</p>`
+    + '<div class="splitter-map-gps-actions">'
+    + `<button type="button" class="secondary-button" data-splitter-gps="capture">${escapeHtml(t(normalized ? 'gpspin_recapture' : 'gpspin_capture'))}</button>`
+    + (mapsUrl ? `<a class="secondary-button" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('gpspin_open_maps'))}</a>` : '')
+    + (normalized ? `<button type="button" class="secondary-button" data-splitter-gps="clear">${escapeHtml(t('gpspin_clear'))}</button>` : '')
+    + '</div>';
+}
+
+/**
  * Modal controller, mirroring setupDowntimeAnalyticsModal: a box selector,
  * the visual port grid, and the weak-signal list. getState supplies the
  * live app state ({ customers }); nothing is cached between renders.
@@ -410,6 +448,12 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
       summaryEl.textContent = !box
         ? 'No splitter box recorded yet — add a splitter box id and port on a customer profile to start the map.'
         : `${box.boxId} · 1:${box.portCount} PLC · ${box.occupiedCount} occupied · ${box.freeCount} spare${box.weakCount ? ` · ${box.weakCount} weak signal${box.weakCount === 1 ? '' : 's'} (below ${WEAK_RX_DBM_THRESHOLD} dBm)` : ''}${box.outOfRange.length ? ` · ${box.outOfRange.length} assignment${box.outOfRange.length === 1 ? '' : 's'} need attention` : ''}`;
+    }
+    const gpsEl = $('splitterMapGpsRow');
+    if (gpsEl) {
+      gpsEl.innerHTML = box
+        ? renderSplitterBoxGpsRow(box.boxId, getSplitterBoxPin(box.boxId))
+        : '';
     }
     const gridEl = $('splitterMapGrid');
     if (gridEl) gridEl.innerHTML = renderSplitterPortGrid(box);
@@ -476,6 +520,32 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
       selectedBoxId = select.value;
       simulated = false;
       render();
+    });
+  }
+  // SISP-92: box GPS actions (delegated — the row re-renders per box).
+  const gpsRowEl = $('splitterMapGpsRow');
+  if (gpsRowEl) {
+    gpsRowEl.addEventListener('click', async (event) => {
+      const btn = event.target.closest?.('[data-splitter-gps]');
+      if (!btn || !selectedBoxId) return;
+      const action = btn.getAttribute('data-splitter-gps');
+      if (action === 'clear') {
+        clearSplitterBoxPin(selectedBoxId);
+        if (onToast) onToast(t('gpspin_cleared'));
+        render();
+        return;
+      }
+      if (action === 'capture') {
+        btn.disabled = true;
+        const result = await captureCurrentPosition();
+        btn.disabled = false;
+        if (result.ok && setSplitterBoxPin(selectedBoxId, { lat: result.lat, lng: result.lng })) {
+          if (onToast) onToast(t('gpspin_saved'));
+        } else if (onToast) {
+          onToast(t(result.reason === 'unsupported' ? 'gpspin_unsupported' : 'gpspin_failed'));
+        }
+        render();
+      }
     });
   }
   const simulateBtn = $('splitterMapSimulateBtn');

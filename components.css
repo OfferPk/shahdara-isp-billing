@@ -242,8 +242,13 @@
   .jc-core-row { grid-template-columns: 22px 1fr; }
 }
 .splitter-map-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.splitter-map-gps-row { margin: 0 0 12px; }
+.splitter-map-gps-title { margin: 0 0 4px; font-size: 13px; color: var(--ink); }
+.splitter-map-gps-line { margin: 0 0 8px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.splitter-map-gps-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .splitter-map-empty { color: var(--muted); font-size: 13px; }
 .profile-splitter-section { margin-top: 16px; }
+.profile-gps-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .profile-splitter-section h4 { margin: 0 0 8px; color: var(--ink); }
 .profile-splitter-section p { margin: 6px 0; font-size: 13px; color: var(--muted); }
 .profile-splitter-section p strong { color: var(--ink); }
@@ -419,6 +424,20 @@ body.field-mode-open { overflow: hidden; }
   background: var(--green);
   border-color: var(--green);
   color: var(--surface);
+}
+.field-mode-sort-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+.field-mode-nearest-status {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 .field-mode-target {
   margin: 0 0 12px;

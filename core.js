@@ -21,6 +21,7 @@ import { sanitizeFieldTools } from './tool-custody-register.js';
 import { sanitizeSpliceClosures } from './fiber-splice-closure.js';
 import { sanitizeBadDebts } from './bad-debt-ledger.js';
 import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import { sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
+import { sanitizeSplitterBoxGps } from './gps-pin-helper.js';
 import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
@@ -101,6 +102,24 @@ function sanitizeServiceStatusHistory(value) {
 
 export function createInitialState(names = INITIAL_NAMES) {
   return { version: 1, nextCustomerNumber: names.length + 1, customers: names.map((name, index) => ({ id: `seed-${String(index + 1).padStart(3, '0')}`, customerNumber: index + 1, name, mohalla: '', zone:'', address: '', phone: '', ispProvider:'', serviceStatus:'not-set', serviceStatusHistory:[], packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, bills: [], incidents: [] })), inventoryItems:[],inventoryMovements:[],expenses:[],saadAttendanceDays:[],umairWorkdays:[],monthlyClosings:[] };
+}
+
+// SISP-92: load-time GPS pin sanitize — a stored pin survives only when
+// BOTH coordinates are finite in-range numbers; anything missing,
+// half-recorded or malformed loads as no pin (null pair), never as
+// invented coordinates and never as a load failure.
+function sanitizeGpsPair(source) {
+  const lat = source?.gpsLat;
+  const lng = source?.gpsLng;
+  const latOk = lat !== '' && lat !== null && lat !== undefined
+    && Number.isFinite(Number(lat)) && Number(lat) >= -90 && Number(lat) <= 90;
+  const lngOk = lng !== '' && lng !== null && lng !== undefined
+    && Number.isFinite(Number(lng)) && Number(lng) >= -180 && Number(lng) <= 180;
+  if (!latOk || !lngOk) return { gpsLat: null, gpsLng: null };
+  return {
+    gpsLat: Math.round(Number(lat) * 1e6) / 1e6,
+    gpsLng: Math.round(Number(lng) * 1e6) / 1e6
+  };
 }
 
 export function readState(storage, key = STORAGE_KEY) {
@@ -184,6 +203,8 @@ export function readState(storage, key = STORAGE_KEY) {
       splitterPort:Number.isInteger(Number(customer.splitterPort)) && Number(customer.splitterPort) >= 1 && Number(customer.splitterPort) <= 16 ? Number(customer.splitterPort) : null,
       oltPonPort:typeof customer.oltPonPort === 'string' ? customer.oltPonPort.trim().slice(0, 100) : '',
       lastRxDbm:Number.isFinite(Number(customer.lastRxDbm)) && customer.lastRxDbm !== '' && customer.lastRxDbm !== null && customer.lastRxDbm !== undefined ? Math.round(Number(customer.lastRxDbm) * 10) / 10 : null,
+      // SISP-92: GPS pin — old saves without it load as a null pair.
+      ...sanitizeGpsPair(customer),
       // OWNER-SIGNAL: append-only signal reading history — old saves
       // without it load as an empty history, never invented readings.
       signalReadings:sanitizeSignalReadings(customer.signalReadings),
@@ -346,6 +367,8 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const splitterPort = checkSplitterPort(options.splitterPort);
   const oltPonPort = cleanText(options.oltPonPort, 100, 'PON port');
   const lastRxDbm = checkRxDbm(options.lastRxDbm);
+  // SISP-92: GPS pin (optional pair; absent reads back as nulls).
+  const { gpsLat, gpsLng } = checkGpsPair(options.gpsLat, options.gpsLng);
   // SISP-32: pole & landmark directory (all optional).
   const poleNumber = cleanText(options.poleNumber, 100, 'Pole / landmark');
   const boxLocationNote = cleanText(options.boxLocationNote, 200, 'Box location note');
@@ -395,7 +418,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const preferredReceiptChannel = sanitizeReceiptChannel(options.preferredReceiptChannel);
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -662,6 +685,21 @@ function checkRxDbm(value) {
   if (!Number.isFinite(number) || number < -60 || number > 10) throw new Error('Optical RX signal must be between -60 and 10 dBm.');
   return Math.round(number * 10) / 10;
 }
+// SISP-92: GPS pin coordinates (WGS84 degrees). A pin is a PAIR: both
+// empty clears / omits the pin; a lone latitude or longitude is a caller
+// bug, never half a location. Coordinates round to 6 decimals (~0.1 m),
+// which is all a phone GPS fix can honestly claim.
+function checkGpsPair(latValue, lngValue) {
+  const latEmpty = latValue === '' || latValue === null || latValue === undefined;
+  const lngEmpty = lngValue === '' || lngValue === null || lngValue === undefined;
+  if (latEmpty && lngEmpty) return { gpsLat: null, gpsLng: null };
+  if (latEmpty !== lngEmpty) throw new Error('GPS pin needs both latitude and longitude.');
+  const lat = Number(latValue);
+  const lng = Number(lngValue);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) throw new Error('GPS latitude must be between -90 and 90.');
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) throw new Error('GPS longitude must be between -180 and 180.');
+  return { gpsLat: Math.round(lat * 1e6) / 1e6, gpsLng: Math.round(lng * 1e6) / 1e6 };
+}
 function checkServiceStatus(value) {
   if (!['active','offline','not-set'].includes(value)) throw new Error('Choose Active, Offline, or Not set for manual service status.');
   return value;
@@ -725,6 +763,9 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     splitterPort: checkSplitterPort(valueOrCurrent('splitterPort')),
     oltPonPort: cleanText(valueOrCurrent('oltPonPort') ?? '', 100, 'OLT PON port'),
     lastRxDbm: checkRxDbm(valueOrCurrent('lastRxDbm')),
+    // SISP-92: GPS pin (pair-validated; passing both empty clears it,
+    // omitting both keeps the saved pin via valueOrCurrent).
+    ...checkGpsPair(valueOrCurrent('gpsLat'), valueOrCurrent('gpsLng')),
     // SISP-32: pole & landmark directory (optional; absent on older
     // records, which read back as empty).
     poleNumber: cleanText(valueOrCurrent('poleNumber') ?? '', 100, 'Pole / landmark'),
@@ -3130,6 +3171,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeMonthlyClosingNotes(options.monthlyClosingNotes);
     if (Object.keys(cleaned).length) document.settings = { ...(document.settings || {}), monthlyClosingNotes: cleaned };
   }
+  // SISP-92: splitter-box GPS pins live outside the ledger state
+  // (localStorage key sisp_splitter_box_gps_v1), so they travel in an
+  // optional `settings.splitterBoxGps` section. Written only when at
+  // least one pin exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && options.splitterBoxGps && typeof options.splitterBoxGps === 'object' && !Array.isArray(options.splitterBoxGps)) {
+    const cleaned = sanitizeSplitterBoxGps(options.splitterBoxGps);
+    if (Object.keys(cleaned).length) document.settings = { ...(document.settings || {}), splitterBoxGps: cleaned };
+  }
   // SISP-27: fixed overhead templates + postings live outside the ledger
   // state (localStorage key sisp_overheads_v1), so they travel in an
   // optional `settings.overheads` section. Written only when a default
@@ -3235,7 +3284,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
@@ -3897,6 +3946,31 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Monthly closing notes differ from this device' });
     }
   }
+  // SISP-92 splitter-box GPS pins: optional map section (see
+  // createJsonBackup). Safe-merge rule, same as monthly closing notes:
+  // adopt the backup's pins only when this device has none stored yet;
+  // when both sides hold different real pins, keep existing + conflict
+  // (a box pin must never be silently replaced). A backup without the
+  // section leaves this device's pins completely untouched.
+  let splitterBoxGps = null;
+  const rawIncomingSplitterBoxGps = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.splitterBoxGps
+    : undefined;
+  if (rawIncomingSplitterBoxGps && typeof rawIncomingSplitterBoxGps === 'object' && !Array.isArray(rawIncomingSplitterBoxGps) && Object.keys(rawIncomingSplitterBoxGps).length) {
+    const incomingSplitterBoxGps = sanitizeSplitterBoxGps(rawIncomingSplitterBoxGps);
+    const currentSplitterBoxGps = (options && typeof options === 'object' && options.currentSplitterBoxGps && typeof options.currentSplitterBoxGps === 'object')
+      ? sanitizeSplitterBoxGps(options.currentSplitterBoxGps)
+      : {};
+    if (Object.keys(incomingSplitterBoxGps).length && sameJson(incomingSplitterBoxGps, currentSplitterBoxGps)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (Object.keys(incomingSplitterBoxGps).length && (!options?.currentSplitterBoxGpsStored || Object.keys(currentSplitterBoxGps).length === 0)) {
+      splitterBoxGps = incomingSplitterBoxGps;
+      counts.splitterBoxGpsRestored = 1;
+      counts.changes++;
+    } else if (Object.keys(incomingSplitterBoxGps).length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Splitter box GPS pins differ from this device' });
+    }
+  }
   // SISP-27: optional fixed-overheads section (see createJsonBackup).
   // Safe-merge rule, same as the monthly closing notes: adopt the
   // backup's records only when this device has none stored yet; when
@@ -4012,5 +4086,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

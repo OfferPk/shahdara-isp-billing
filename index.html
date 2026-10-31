@@ -209,6 +209,10 @@
         <button id="fieldModeSearchClearBtn" class="secondary-button" type="button">Clear</button>
         <button id="fieldModeScanQrBtn" class="secondary-button" type="button" data-i18n="qrscan_button">📷 Scan QR Card</button>
       </div>
+      <div class="field-mode-sort-row">
+        <button id="fieldModeNearestBtn" class="field-mode-zone-chip" type="button" aria-pressed="false">📍 Nearest first</button>
+        <span id="fieldModeNearestStatus" class="field-mode-nearest-status" aria-live="polite"></span>
+      </div>
       <div id="fieldModeZoneFilters" class="field-mode-zone-filters" role="group" aria-label="Filter by area or zone"></div>
       <p id="fieldModeZoneTarget" class="field-mode-target" aria-live="polite"></p>
       <div id="fieldModeCustomerList" class="field-mode-list"></div>
@@ -21336,6 +21340,7 @@
         <label for="splitterMapBoxSelect">Splitter box</label>
         <select id="splitterMapBoxSelect" class="form-input" aria-label="Splitter box"></select>
         <p id="splitterMapSummaryLine" class="splitter-map-summary-line"></p>
+        <div id="splitterMapGpsRow" class="splitter-map-gps-row"></div>
         <h3>Port map</h3>
         <div id="splitterMapGrid" class="splitter-map-grid-wrap"></div>
         <h3>Splitter box cut simulation</h3>

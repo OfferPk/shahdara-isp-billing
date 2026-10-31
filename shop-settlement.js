@@ -36,6 +36,11 @@
  * stored under a legacy shop name join that same summary when read.
  * Stored payment and settlement records are NEVER rewritten.
  *
+ * SISP-105 adds the Monthly Shop Collector Passbook Statement at the end
+ * of this module: a read-only, derived monthly statement per shop built
+ * from the SAME records (collectShopPayments + settlement records) — no
+ * second arithmetic, no writes, no stamps.
+ *
  * All helpers are pure except load/saveShopSettlements and the modal setup.
  * Tests use synthetic data only.
  */
@@ -45,6 +50,7 @@ import {
   savePartnerLedgerEntries,
   syncShopPickupDrawings
 } from './partner-settlement.js';
+import { t } from './nav-language.js';
 
 export const SHOP_SETTLEMENTS_KEY = 'sisp_shop_settlements_v1';
 
@@ -388,6 +394,7 @@ export function sanitizeShopSettlements(value) {
       note: typeof entry.note === 'string' ? entry.note : '',
       // SISP-68: persisted only for partner pickups; absence means the
       // cash went into the Roznamcha drawer (legacy records unchanged).
+      // The SISP-105 passbook reads this enum via receivedIntoLabel.
       ...(receivedInto !== 'drawer' ? { receivedInto } : {}),
       allocations: Array.isArray(entry.allocations)
         ? entry.allocations.filter((a) => a && typeof a === 'object' && Number.isFinite(Number(a.amount)) && Number(a.amount) > 0).map((a) => ({
@@ -534,6 +541,394 @@ export function shopSettlementWhatsAppUrl(text) {
   return `https://wa.me/?text=${encodeURIComponent(String(text || ''))}`;
 }
 
+// ---------------------------------------------------------------------------
+// SISP-105: Monthly Shop Collector Passbook Statement.
+//
+// A read-only monthly statement for ONE shop, derived entirely from the
+// records this module already owns: collections come from
+// collectShopPayments (voided receipts already excluded) and handovers
+// from the sisp_shop_settlements_v1 records. Nothing is written, stamped
+// or renumbered — a statement is a report, not a receipt.
+//
+//   Opening unsettled = (collections dated before the month)
+//                     − (handovers dated before the month)
+//   Closing unsettled = Opening + month collections − month handovers
+//
+// Only records with a valid YYYY-MM-DD date can be placed in a month, so
+// undated records never enter any statement (they cannot be ordered
+// chronologically). All money is accumulated in integer cents so the
+// printed opening/closing figures are exact.
+// ---------------------------------------------------------------------------
+
+const PASSBOOK_MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+// 58mm thermal rolls fit 32 Font-A chars per line — mirrors
+// THERMAL_WIDTH_CHARS in thermal-printer.js (kept local, like the other
+// small helpers in this module).
+const PASSBOOK_THERMAL_WIDTH = 32;
+
+function centsOf(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n * 100) : 0;
+}
+
+function passbookMonthLabel(month) {
+  if (!PASSBOOK_MONTH_RE.test(String(month || ''))) return String(month || '');
+  const [year, mon] = String(month).split('-').map(Number);
+  return new Intl.DateTimeFormat('en-PK', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC'
+  }).format(new Date(Date.UTC(year, mon - 1, 1)));
+}
+
+/**
+ * Every shop that actually exists in the recorded data on this device:
+ * shops seen on collected payments plus shops with settlement records.
+ * Sorted by name. The spec's Waseem / Hassan / Balla shops are examples —
+ * the list always comes from the data, never from a hardcoded list.
+ */
+export function listShopPassbookShops(state, settlements) {
+  const names = new Set();
+  for (const payment of collectShopPayments(state)) names.add(payment.shop);
+  // OWNER-CASH-SHOP: legacy settlement records stored under a split name
+  // ('Hassan Shop' / 'Balla Shop') join the unified shop at read time —
+  // the same canonicalShopName seam buildShopSummaries uses.
+  for (const record of sanitizeShopSettlements(settlements)) names.add(canonicalShopName(record.shop));
+  return [...names].sort((a, b) => a.localeCompare(b));
+}
+
+/** Stored receipt refs (payment.receiptNumber) keyed like the ledger walk. */
+function receiptRefByPaymentKey(state) {
+  const map = new Map();
+  for (const customer of (state && Array.isArray(state.customers) ? state.customers : [])) {
+    if (!customer || typeof customer !== 'object') continue;
+    for (const bill of (Array.isArray(customer.bills) ? customer.bills : [])) {
+      if (!bill || typeof bill !== 'object') continue;
+      for (const payment of (Array.isArray(bill.payments) ? bill.payments : [])) {
+        if (!payment || typeof payment !== 'object') continue;
+        const ref = typeof payment.receiptNumber === 'string' ? payment.receiptNumber.trim() : '';
+        if (ref) map.set(`${String(customer.id)}|${bill.month}|${String(payment.id)}`, ref);
+      }
+    }
+  }
+  return map;
+}
+
+/**
+ * Builds the passbook model for one shop + month ('YYYY-MM'; an invalid
+ * month falls back to the current PKT month). Pure and read-only.
+ *
+ * Rows are chronological; on the same date collections list before
+ * handovers (cash is collected, then handed over). Each row carries its
+ * running unsettled balance after the row applies. A handover row keeps
+ * its settlementId and, for SISP-68 partner pickups, its receivedInto
+ * attribution. A collection row's receiptRef is the payment's stored
+ * receiptNumber when one exists, else the payment's ledger id — a real
+ * reference either way, never an invented one.
+ */
+export function buildShopPassbook(state, settlements, shop, month) {
+  const targetShop = canonicalShopName(typeof shop === 'string' ? shop : '');
+  const targetMonth = PASSBOOK_MONTH_RE.test(String(month || '')) ? String(month) : pakistanMonth();
+  const refs = receiptRefByPaymentKey(state);
+  const payments = collectShopPayments(state)
+    .filter((p) => p.shop === targetShop && DATE_RE.test(p.date));
+  const handovers = sanitizeShopSettlements(settlements)
+    .filter((record) => canonicalShopName(record.shop) === targetShop)
+    .sort((a, b) => {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      const ca = String(a.createdAt || '');
+      const cb = String(b.createdAt || '');
+      if (ca !== cb) return ca < cb ? -1 : 1;
+      return String(a.id) < String(b.id) ? -1 : 1;
+    });
+
+  let openingCents = 0;
+  for (const p of payments) {
+    if (p.date.slice(0, 7) < targetMonth) openingCents += centsOf(p.amount);
+  }
+  for (const h of handovers) {
+    if (h.date.slice(0, 7) < targetMonth) openingCents -= centsOf(h.amount);
+  }
+
+  const merged = [];
+  for (const p of payments) {
+    if (p.date.slice(0, 7) === targetMonth) merged.push({ kind: 0, date: p.date, payment: p });
+  }
+  for (const h of handovers) {
+    if (h.date.slice(0, 7) === targetMonth) merged.push({ kind: 1, date: h.date, handover: h });
+  }
+  // Stable sort: same date → collections before handovers; within a kind
+  // the underlying order (collectShopPayments order / handover order) is
+  // preserved.
+  merged.sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+    return a.kind - b.kind;
+  });
+
+  let balanceCents = openingCents;
+  let collectedCents = 0;
+  let handedCents = 0;
+  const rows = [];
+  for (const item of merged) {
+    if (item.kind === 0) {
+      const p = item.payment;
+      balanceCents += centsOf(p.amount);
+      collectedCents += centsOf(p.amount);
+      rows.push({
+        type: 'collection',
+        date: p.date,
+        customerId: p.customerId,
+        customerNumber: p.customerNumber,
+        customerName: p.customerName,
+        billMonth: p.billMonth,
+        paymentId: p.paymentId,
+        receiptRef: refs.get(`${String(p.customerId)}|${p.billMonth}|${String(p.paymentId)}`)
+          || (p.paymentId !== null && p.paymentId !== undefined ? String(p.paymentId) : ''),
+        amount: centsOf(p.amount) / 100,
+        balance: balanceCents / 100
+      });
+    } else {
+      const h = item.handover;
+      balanceCents -= centsOf(h.amount);
+      handedCents += centsOf(h.amount);
+      rows.push({
+        type: 'handover',
+        date: h.date,
+        settlementId: h.id,
+        amount: centsOf(h.amount) / 100,
+        note: h.note || '',
+        // SISP-68 stores receivedInto as an enum ('nasir' / 'aqib'; drawer
+        // handovers carry no field). Resolve partner pickups to the shipped
+        // display label — the same seam generateShopSettlementReceiptText
+        // uses — so the statement prints "Kept by Nasir (Partner Drawing)"
+        // instead of the raw stored value.
+        receivedInto: partnerForReceivedInto(h.receivedInto) ? receivedIntoLabel(h.receivedInto) : '',
+        allocationCount: Array.isArray(h.allocations) ? h.allocations.length : 0,
+        balance: balanceCents / 100
+      });
+    }
+  }
+
+  return {
+    shop: targetShop,
+    month: targetMonth,
+    monthLabel: passbookMonthLabel(targetMonth),
+    openingUnsettled: openingCents / 100,
+    rows,
+    totalCollected: collectedCents / 100,
+    totalHandedOver: handedCents / 100,
+    closingUnsettled: balanceCents / 100
+  };
+}
+
+function passbookRowDetailLines(row, lang) {
+  if (row.type === 'collection') {
+    const head = `${t('shop_passbook_receipt', lang)} ${row.receiptRef || ''}`.trim();
+    const who = `#${row.customerNumber ?? ''} ${row.customerName || ''}`.trim();
+    const bill = row.billMonth ? t('shop_passbook_bill', lang, { month: row.billMonth }) : '';
+    return { head, sub: [who, bill].filter(Boolean).join(' · ') };
+  }
+  const head = `${t('shop_passbook_handover', lang)} ${row.settlementId || ''}`.trim();
+  const sub = [];
+  if (row.receivedInto) sub.push(t('shop_passbook_received_into', lang, { target: row.receivedInto }));
+  if (row.note) sub.push(row.note);
+  return { head, sub: sub.join(' · ') };
+}
+
+/** Plain-text passbook statement (copy + WhatsApp share). */
+export function generateShopPassbookText(passbook, { lang = null } = {}) {
+  const book = passbook || {};
+  const rows = Array.isArray(book.rows) ? book.rows : [];
+  const lines = [];
+  lines.push(`Shahdara ISP Billing — ${t('shop_passbook_title', lang)}`);
+  lines.push(`${t('shop_passbook_shop', lang)}: ${book.shop || ''}`);
+  lines.push(`${book.monthLabel || ''} (${book.month || ''})`);
+  lines.push(`${t('shop_passbook_opening', lang)}: ${formatShopPKR(book.openingUnsettled)}`);
+  lines.push('----------------------------------------');
+  if (rows.length === 0) {
+    lines.push(t('shop_passbook_empty', lang));
+  } else {
+    for (const row of rows) {
+      const { head, sub } = passbookRowDetailLines(row, lang);
+      lines.push(`${row.date} · ${head}`);
+      if (sub) lines.push(`  ${sub}`);
+      const label = row.type === 'collection'
+        ? t('shop_passbook_col_collected', lang)
+        : t('shop_passbook_col_handed', lang);
+      lines.push(`  ${label} ${formatShopPKR(row.amount)} · ${t('shop_passbook_col_balance', lang)} ${formatShopPKR(row.balance)}`);
+    }
+  }
+  lines.push('----------------------------------------');
+  lines.push(`${t('shop_passbook_collected_month', lang)}: ${formatShopPKR(book.totalCollected)}`);
+  lines.push(`${t('shop_passbook_handed_month', lang)}: ${formatShopPKR(book.totalHandedOver)}`);
+  lines.push(`${t('shop_passbook_closing', lang)}: ${formatShopPKR(book.closingUnsettled)}`);
+  return lines.join('\n');
+}
+
+function wrapPassbookText(text, width) {
+  const words = String(text ?? '').split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    if (word.length > width) {
+      if (line) { lines.push(line); line = ''; }
+      for (let i = 0; i < word.length; i += width) lines.push(word.slice(i, i + width));
+      continue;
+    }
+    if (!line) line = word;
+    else if (line.length + 1 + word.length <= width) line += ` ${word}`;
+    else { lines.push(line); line = word; }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : [''];
+}
+
+function centerPassbookText(text, width) {
+  const value = String(text ?? '').slice(0, width);
+  const pad = Math.max(0, Math.floor((width - value.length) / 2));
+  return ' '.repeat(pad) + value;
+}
+
+/**
+ * 58mm thermal rendering of the passbook: the same figures and rows,
+ * wrapped to the thermal line width (32 chars by default). This is the
+ * statement's thermal format — the app's ESC/POS byte builder is shaped
+ * for single payment receipts, so the statement's thermal output is this
+ * width-disciplined plain text (preview / copy / share).
+ */
+export function generateShopPassbookThermalText(passbook, { lang = null, widthChars = PASSBOOK_THERMAL_WIDTH } = {}) {
+  const book = passbook || {};
+  const rows = Array.isArray(book.rows) ? book.rows : [];
+  const width = Math.max(16, Math.floor(widthChars) || PASSBOOK_THERMAL_WIDTH);
+  const divider = '-'.repeat(width);
+  const lines = [];
+  const pushWrapped = (text) => { for (const l of wrapPassbookText(text, width)) lines.push(l); };
+  lines.push(centerPassbookText('SHAHDARA ISP BILLING', width));
+  lines.push(centerPassbookText(t('shop_passbook_title', lang), width));
+  pushWrapped(`${t('shop_passbook_shop', lang)}: ${book.shop || ''}`);
+  pushWrapped(`${book.monthLabel || ''} (${book.month || ''})`);
+  lines.push(divider);
+  pushWrapped(`${t('shop_passbook_opening', lang)}: ${formatShopPKR(book.openingUnsettled)}`);
+  lines.push(divider);
+  if (rows.length === 0) {
+    pushWrapped(t('shop_passbook_empty', lang));
+  } else {
+    for (const row of rows) {
+      const { head, sub } = passbookRowDetailLines(row, lang);
+      pushWrapped(`${row.date} ${head}`);
+      if (sub) pushWrapped(sub);
+      const sign = row.type === 'collection' ? '+' : '-';
+      pushWrapped(`${sign}${formatShopPKR(row.amount)} · ${t('shop_passbook_col_balance', lang)} ${formatShopPKR(row.balance)}`);
+    }
+  }
+  lines.push(divider);
+  pushWrapped(`${t('shop_passbook_collected_month', lang)}: ${formatShopPKR(book.totalCollected)}`);
+  pushWrapped(`${t('shop_passbook_handed_month', lang)}: ${formatShopPKR(book.totalHandedOver)}`);
+  pushWrapped(`${t('shop_passbook_closing', lang)}: ${formatShopPKR(book.closingUnsettled)}`);
+  return lines.join('\n');
+}
+
+/**
+ * Printable A4 passbook statement: a standalone HTML document, black on
+ * white, following the house print conventions (SISP-60 voucher book).
+ * Recorded data (shop name, customer names, refs, notes) prints as
+ * stored; labels follow the requested language via t().
+ */
+export function generateShopPassbookPrintHtml({ passbook, lang = null, generatedDate = '' } = {}) {
+  const book = passbook || {};
+  const rows = Array.isArray(book.rows) ? book.rows : [];
+  const bodyRows = rows.map((row) => {
+    const { head, sub } = passbookRowDetailLines(row, lang);
+    const detail = sub ? `${escapeHtml(head)}<br><small>${escapeHtml(sub)}</small>` : escapeHtml(head);
+    const collected = row.type === 'collection' ? escapeHtml(formatShopPKR(row.amount)) : '';
+    const handed = row.type === 'handover' ? escapeHtml(formatShopPKR(row.amount)) : '';
+    return `
+      <tr>
+        <td class="date">${escapeHtml(row.date)}</td>
+        <td>${detail}</td>
+        <td class="amt">${collected}</td>
+        <td class="amt">${handed}</td>
+        <td class="amt">${escapeHtml(formatShopPKR(row.balance))}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>${escapeHtml(t('shop_passbook_title', lang))} — ${escapeHtml(book.shop || '')} — ${escapeHtml(book.month || '')}</title>
+      <style>
+        @page { size: A4; margin: 12mm; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; color: #111; font-size: 12px; line-height: 1.4; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }
+        .brand { font-size: 19px; font-weight: 800; }
+        .title { font-size: 14px; font-weight: 700; }
+        .meta { font-size: 11px; text-align: right; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #999; padding: 5px 6px; text-align: left; vertical-align: top; }
+        th { background: #eee; font-size: 11px; }
+        td.date { white-space: nowrap; }
+        td.amt, th.amt { text-align: right; white-space: nowrap; }
+        tr.subtotal td { background: #f3f3f3; font-weight: 700; }
+        tr.grand td { border-top: 2px solid #000; font-weight: 800; font-size: 13px; }
+        .empty { text-align: center; padding: 22px; font-size: 12px; }
+        small { color: #444; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div>
+          <div class="brand">SHAHDARA FIBER NET</div>
+          <div class="title">${escapeHtml(t('shop_passbook_title', lang))}</div>
+          <div>${escapeHtml(t('shop_passbook_shop', lang))}: ${escapeHtml(book.shop || '')} · ${escapeHtml(book.monthLabel || '')} (${escapeHtml(book.month || '')})</div>
+        </div>
+        <div class="meta">
+          <div>${escapeHtml(t('shop_passbook_generated_on', lang, { date: generatedDate || '—' }))}</div>
+          <div>${escapeHtml(t('shop_passbook_opening', lang))}: ${escapeHtml(formatShopPKR(book.openingUnsettled))}</div>
+        </div>
+      </div>
+      ${rows.length ? `
+      <table>
+        <thead>
+          <tr>
+            <th>${escapeHtml(t('shop_passbook_col_date', lang))}</th>
+            <th>${escapeHtml(t('shop_passbook_col_details', lang))}</th>
+            <th class="amt">${escapeHtml(t('shop_passbook_col_collected', lang))}</th>
+            <th class="amt">${escapeHtml(t('shop_passbook_col_handed', lang))}</th>
+            <th class="amt">${escapeHtml(t('shop_passbook_col_balance', lang))}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="subtotal">
+            <td colspan="4">${escapeHtml(t('shop_passbook_opening', lang))}</td>
+            <td class="amt">${escapeHtml(formatShopPKR(book.openingUnsettled))}</td>
+          </tr>
+          ${bodyRows}
+          <tr class="subtotal">
+            <td colspan="2">${escapeHtml(t('shop_passbook_collected_month', lang))}</td>
+            <td class="amt">${escapeHtml(formatShopPKR(book.totalCollected))}</td>
+            <td></td>
+            <td></td>
+          </tr>
+          <tr class="subtotal">
+            <td colspan="2">${escapeHtml(t('shop_passbook_handed_month', lang))}</td>
+            <td></td>
+            <td class="amt">${escapeHtml(formatShopPKR(book.totalHandedOver))}</td>
+            <td></td>
+          </tr>
+          <tr class="grand">
+            <td colspan="4">${escapeHtml(t('shop_passbook_closing', lang))}</td>
+            <td class="amt">${escapeHtml(formatShopPKR(book.closingUnsettled))}</td>
+          </tr>
+        </tbody>
+      </table>` : `<div class="empty">${escapeHtml(t('shop_passbook_empty', lang))}</div>
+      <p><strong>${escapeHtml(t('shop_passbook_opening', lang))}: ${escapeHtml(formatShopPKR(book.openingUnsettled))} · ${escapeHtml(t('shop_passbook_closing', lang))}: ${escapeHtml(formatShopPKR(book.closingUnsettled))}</strong></p>`}
+    </body>
+    </html>
+  `;
+}
+
 /**
  * Wires the shop settlement modal (dialog in index.html). Pure logic lives
  * above; this controller only renders and delegates persistence to the app
@@ -608,6 +1003,114 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
     };
     if (waBtn) waBtn.onclick = () => window.open(shopSettlementWhatsAppUrl(text), '_blank');
     if (printBtn) printBtn.onclick = () => window.print();
+  }
+
+  // SISP-105: Monthly Shop Passbook Statement controls. The section's
+  // markup is rendered here so every label goes through t(); the static
+  // index.html only carries the empty #shopPassbookSection container.
+  // Generating, copying, sharing or printing a statement writes nothing.
+  const passbookSection = typeof document !== 'undefined' ? document.getElementById('shopPassbookSection') : null;
+  let passbookModel = null;
+  let passbookThermalView = false;
+  if (passbookSection) {
+    passbookSection.innerHTML = `
+      <h3>${escapeHtml(t('shop_passbook_title'))}</h3>
+      <div class="shop-passbook-controls">
+        <label for="shopPassbookMonthInput">${escapeHtml(t('shop_passbook_month'))}
+          <input id="shopPassbookMonthInput" class="form-input" type="month">
+        </label>
+        <button id="shopPassbookGenerateBtn" class="secondary-button" type="button">${escapeHtml(t('shop_passbook_generate'))}</button>
+      </div>
+      <div id="shopPassbookOutput"></div>
+      <pre id="shopPassbookText" class="shop-settlement-receipt-text" hidden></pre>
+      <div id="shopPassbookActions" class="shop-passbook-actions" hidden>
+        <button id="shopPassbookCopyBtn" class="secondary-button" type="button">${escapeHtml(t('shop_passbook_copy'))}</button>
+        <button id="shopPassbookWhatsAppBtn" class="secondary-button" type="button">${escapeHtml(t('shop_passbook_whatsapp'))}</button>
+        <button id="shopPassbookPrintBtn" class="secondary-button" type="button">${escapeHtml(t('shop_passbook_print'))}</button>
+        <button id="shopPassbookThermalBtn" class="secondary-button" type="button">${escapeHtml(t('shop_passbook_thermal'))}</button>
+      </div>`;
+    const monthInput = passbookSection.querySelector('#shopPassbookMonthInput');
+    const outputBox = passbookSection.querySelector('#shopPassbookOutput');
+    const textBox = passbookSection.querySelector('#shopPassbookText');
+    const actionsBox = passbookSection.querySelector('#shopPassbookActions');
+    if (monthInput && !monthInput.value) monthInput.value = pakistanMonth();
+
+    const currentPassbookText = () => (passbookThermalView
+      ? generateShopPassbookThermalText(passbookModel)
+      : generateShopPassbookText(passbookModel));
+
+    const renderPassbook = () => {
+      if (!passbookModel) return;
+      const book = passbookModel;
+      if (outputBox) {
+        const rowsHtml = book.rows.length === 0
+          ? `<p class="shop-settlement-empty">${escapeHtml(t('shop_passbook_empty'))}</p>`
+          : `<ul class="shop-passbook-rows">${book.rows.map((row) => {
+            const { head, sub } = passbookRowDetailLines(row, null);
+            const signed = `${row.type === 'collection' ? '+' : '−'}${escapeHtml(formatShopPKR(row.amount))}`;
+            return `<li><span><strong>${escapeHtml(row.date)} · ${escapeHtml(head)}</strong>${sub ? `<br><small>${escapeHtml(sub)}</small>` : ''}</span><span>${signed}<br><small>${escapeHtml(t('shop_passbook_col_balance'))} ${escapeHtml(formatShopPKR(row.balance))}</small></span></li>`;
+          }).join('')}</ul>`;
+        outputBox.innerHTML = `
+          <div class="shop-settlement-summary">
+            <p><span>${escapeHtml(t('shop_passbook_shop'))}</span><strong>${escapeHtml(book.shop)}</strong><small>${escapeHtml(book.monthLabel)} (${escapeHtml(book.month)})</small></p>
+            <p><span>${escapeHtml(t('shop_passbook_opening'))}</span><strong>${escapeHtml(formatShopPKR(book.openingUnsettled))}</strong></p>
+            <p><span>${escapeHtml(t('shop_passbook_collected_month'))}</span><strong>${escapeHtml(formatShopPKR(book.totalCollected))}</strong></p>
+            <p><span>${escapeHtml(t('shop_passbook_handed_month'))}</span><strong>${escapeHtml(formatShopPKR(book.totalHandedOver))}</strong></p>
+            <p><span>${escapeHtml(t('shop_passbook_closing'))}</span><strong>${escapeHtml(formatShopPKR(book.closingUnsettled))}</strong></p>
+          </div>
+          ${rowsHtml}`;
+      }
+      if (textBox) {
+        textBox.textContent = currentPassbookText();
+        textBox.hidden = false;
+      }
+      if (actionsBox) actionsBox.hidden = false;
+      const thermalBtn = passbookSection.querySelector('#shopPassbookThermalBtn');
+      if (thermalBtn) thermalBtn.textContent = passbookThermalView ? t('shop_passbook_standard') : t('shop_passbook_thermal');
+    };
+
+    const generateBtn = passbookSection.querySelector('#shopPassbookGenerateBtn');
+    if (generateBtn) generateBtn.addEventListener('click', () => {
+      if (!currentShop) {
+        onToast && onToast(t('shop_passbook_pick_shop'));
+        return;
+      }
+      const month = monthInput && PASSBOOK_MONTH_RE.test(monthInput.value || '') ? monthInput.value : pakistanMonth();
+      passbookModel = buildShopPassbook(getState() || { customers: [] }, loadShopSettlements(), currentShop, month);
+      passbookThermalView = false;
+      renderPassbook();
+    });
+    const copyBtn = passbookSection.querySelector('#shopPassbookCopyBtn');
+    if (copyBtn) copyBtn.addEventListener('click', async () => {
+      if (!passbookModel) return;
+      try { await navigator.clipboard.writeText(currentPassbookText()); onToast && onToast(t('shop_passbook_copied')); }
+      catch { onToast && onToast(t('shop_passbook_copy_failed')); }
+    });
+    const waBtn = passbookSection.querySelector('#shopPassbookWhatsAppBtn');
+    if (waBtn) waBtn.addEventListener('click', () => {
+      if (!passbookModel) return;
+      window.open(shopSettlementWhatsAppUrl(currentPassbookText()), '_blank');
+    });
+    const printBtn = passbookSection.querySelector('#shopPassbookPrintBtn');
+    if (printBtn) printBtn.addEventListener('click', () => {
+      if (!passbookModel) return;
+      const html = generateShopPassbookPrintHtml({ passbook: passbookModel, generatedDate: pakistanToday() });
+      const win = window.open('', '_blank');
+      if (win) {
+        win.document.write(html);
+        win.document.close();
+        win.focus();
+        win.print();
+      } else if (onToast) {
+        onToast(t('shop_passbook_popup_blocked'));
+      }
+    });
+    const thermalBtn = passbookSection.querySelector('#shopPassbookThermalBtn');
+    if (thermalBtn) thermalBtn.addEventListener('click', () => {
+      if (!passbookModel) return;
+      passbookThermalView = !passbookThermalView;
+      renderPassbook();
+    });
   }
 
   if (shopSelect) shopSelect.addEventListener('change', () => { currentShop = shopSelect.value || null; renderReceipts(); });

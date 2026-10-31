@@ -26,6 +26,7 @@ import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';import 
 import { sanitizeSplitterBoxGps } from './gps-pin-helper.js';
 import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
+import { isFeederHost, sanitizeFeederHostCreditPKR } from './feeder-host-credit.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements, sanitizePartnerSettings } from './partner-settlement.js';
@@ -816,6 +817,10 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     // zone value coerces to '' rather than blocking an unrelated save.
     upstreamCustomerId: cleanText(valueOrCurrent('upstreamCustomerId') ?? '', 100, 'Upstream customer'),
     fiberZone: normalizeFiberZone(valueOrCurrent('fiberZone') ?? ''),
+    // SISP-97: monthly feeder-host bijli credit (PKR) configured on an
+    // upstream host house. Sanitized here; the eligibility guard below
+    // zeroes it when the house feeds no active downstream home.
+    feederHostCreditPKR: sanitizeFeederHostCreditPKR(valueOrCurrent('feederHostCreditPKR')),
     // SISP-76: contact preference edited on the profile form.
     prefersSms: valueOrCurrent('prefersSms') === true,
     // SISP-91: receipt language/channel preferences edited on the same
@@ -845,6 +850,14 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
   // and never close a cycle back to this customer.
   const feederLinkError = validateUpstreamLink(state.customers, customerId, fields.upstreamCustomerId);
   if (feederLinkError) throw new Error(feederLinkError);
+  // SISP-97: a house that feeds no active downstream home can never
+  // hold a feeder-host credit. Zero it instead of refusing the save —
+  // a downstream link removed on another record must not freeze this
+  // house's unrelated profile edits. (Cycle-time eligibility is derived
+  // live regardless; this keeps the stored value honest too.)
+  if (fields.feederHostCreditPKR > 0 && !isFeederHost(state.customers, current)) {
+    fields.feederHostCreditPKR = 0;
+  }
   const pauseError = validatePauseFields(fields);
   if (pauseError) throw new Error(pauseError);
   // Customer rename: only when the caller explicitly passes a name (the
@@ -3355,7 +3368,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-84: connection type merges like serviceStatus's default —
     // 'commercial_vip' fills a local 'residential', and a local VIP tag
     // is never stripped by a merge. (The load sanitizer stamps
@@ -3447,7 +3460,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
         customer.bills.push(deepCopy(incomingBill)); counts.addedBills++; counts.addedPayments+=incomingBill.payments.length; counts.changes++;
         continue;
       }
-      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt','referralCreditAmount','referralCreditReason','referralCreditAppliedAt','depositOffsetAmount','depositOffsetReason','depositOffsetAppliedAt','badDebtWriteOffAmount','badDebtWriteOffReason','badDebtWriteOffAt']) {
+      for (const key of ['dueAmount','dueDate','status','generated','priceSnapshot','packageSnapshot','lateFee','lateFeeAppliedAt','lateFeeReason','concessionAmount','concessionReason','concessionAppliedAt','referralCreditAmount','referralCreditReason','referralCreditAppliedAt','depositOffsetAmount','depositOffsetReason','depositOffsetAppliedAt','badDebtWriteOffAmount','badDebtWriteOffReason','badDebtWriteOffAt','feederHostCreditAmount','feederHostCreditReason','feederHostCreditAppliedAt']) {
         const oldValue = existingBill[key] ?? null; const newValue = incomingBill[key] ?? null;
         if (sameJson(oldValue,newValue)) continue;
         if (!nonempty(oldValue) && nonempty(newValue)) { existingBill[key]=deepCopy(newValue); counts.changes++; }

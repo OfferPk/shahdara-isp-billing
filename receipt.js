@@ -77,6 +77,12 @@ export function buildPaymentReceipt(customer, bill, payment) {
   // amount the customer actually still owed.
   const depositOffsetAmount = positiveAmount(bill.depositOffsetAmount) || 0;
   const depositOffsetReason = text(bill.depositOffsetReason);
+  // SISP-97: a feeder-host bijli credit stamped by the billing cycle
+  // waived part of this bill — subtracted here exactly like the
+  // concession, the referral credit and the deposit offset, so the
+  // balance (and the PAID / PARTIAL seal) reflect the net due.
+  const feederHostCreditAmount = positiveAmount(bill.feederHostCreditAmount) || 0;
+  const feederHostCreditReason = text(bill.feederHostCreditReason);
   const nominalPrice = packageSnapshot?.nominalPrice ?? billDue ?? positiveAmount(bill.priceSnapshot);
   const packageType = packageSnapshot?.packageType ?? classifyPackagePrice(nominalPrice);
   const customerBills = Array.isArray(customer.bills) ? customer.bills : [];
@@ -88,7 +94,7 @@ export function buildPaymentReceipt(customer, bill, payment) {
   let status = 'RECEIVED';
   let balanceDueCents = null;
   if (billDue !== null && selectedIndex >= 0) {
-    const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount) - cents(referralCreditAmount) - cents(depositOffsetAmount));
+    const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount) - cents(referralCreditAmount) - cents(depositOffsetAmount) - cents(feederHostCreditAmount));
     const allocations = calculatePaymentAllocations({ customers:[customer] });
     const summary = allocations.forMonth(customer.id, matchingBill.month);
     const carryInCents = Math.min(dueCents, Math.max(0, Number(summary?.creditAppliedCents) || 0));
@@ -172,6 +178,8 @@ export function buildPaymentReceipt(customer, bill, payment) {
     referralCreditReason,
     depositOffsetAmount,
     depositOffsetReason,
+    feederHostCreditAmount,
+    feederHostCreditReason,
     // SISP-43: billed ticket charges this payment settled (from the
     // payment's stamp), printed as their own lines on every receipt.
     ticketCharges: ticketChargeLinesOf(payment),
@@ -376,6 +384,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
+    ${receipt.feederHostCreditAmount > 0 ? `<div class="receipt-field"><dt>Feeder Host Credit / فیڈر ہوسٹ کریڈٹ:</dt><dd>-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${escapeHtml(receipt.feederHostCreditReason)})` : ''}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${manualBaqayaReceiptRows(receipt, formatAmount)}
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
@@ -419,6 +428,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.concessionAmount > 0 ? `<div class="receipt-field"><dt>Outage Concession / رعایت:</dt><dd>-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${escapeHtml(receipt.concessionReason)})` : ''}</dd></div>` : ''}
     ${receipt.referralCreditAmount > 0 ? `<div class="receipt-field"><dt>Referral Credit / ہمسایہ ریفرل:</dt><dd>-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${escapeHtml(receipt.referralCreditReason)})` : ''}</dd></div>` : ''}
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
+    ${receipt.feederHostCreditAmount > 0 ? `<div class="receipt-field"><dt>Feeder Host Credit / فیڈر ہوسٹ کریڈٹ:</dt><dd>-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${escapeHtml(receipt.feederHostCreditReason)})` : ''}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${manualBaqayaReceiptRows(receipt, formatAmount)}
     ${receipt.lateFee > 0 || receipt.discount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
@@ -459,6 +469,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.concessionAmount > 0 ? [['Outage Concession (Reaayat)', `-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${receipt.concessionReason})` : ''}`]] : []),
     ...(receipt.referralCreditAmount > 0 ? [['Hamsaya Referral Credit', `-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${receipt.referralCreditReason})` : ''}`]] : []),
     ...(receipt.depositOffsetAmount > 0 ? [['Security Deposit Offset', `-${formatAmount(receipt.depositOffsetAmount)}`]] : []),
+    ...(receipt.feederHostCreditAmount > 0 ? [['Feeder Host Bijli Credit', `-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${receipt.feederHostCreditReason})` : ''}`]] : []),
     ...(Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges.map((line) => [`Murammat / Material Charge (${line.ticketId})`, formatAmount(line.amount)]) : []),
     ...(Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements.map((line) => [`Manual Baqaya / دستی بقایا (${line.entryId})`, formatAmount(line.amount)]) : []),
     ...(receipt.prepay ? [['Prepay Coverage', `${formatAmount(receipt.prepay.gross)} (${receipt.prepay.months} months from ${receipt.prepay.startMonth})`], ...(receipt.prepay.discount > 0 ? [['Prepay Discount', `-${formatAmount(receipt.prepay.discount)}`]] : []), ['Prepay Cash Paid', formatAmount(receipt.prepay.cashPaid)]] : []),

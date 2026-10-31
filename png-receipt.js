@@ -134,6 +134,8 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   if (receipt.referralCreditAmount > 0) financial.push({ label: L('Referral Credit / ہمسایہ ریفرل'), value: `-${money(receipt.referralCreditAmount)}` });
   // SISP-50: the disconnection security-deposit offset line, same place.
   if (receipt.depositOffsetAmount > 0) financial.push({ label: L('Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ'), value: `-${money(receipt.depositOffsetAmount)}` });
+  // SISP-97: the feeder-host bijli credit line, next to the deposit offset.
+  if (receipt.feederHostCreditAmount > 0) financial.push({ label: L('Feeder Host Credit / فیڈر ہوسٹ کریڈٹ'), value: `-${money(receipt.feederHostCreditAmount)}` });
   // SISP-43: billed ticket charges this payment settled, one line each.
   for (const line of Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []) {
     financial.push({ label: L(`Murammat / Material Charge (${line.ticketId})`), value: money(line.amount) });
@@ -149,7 +151,7 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     ? breakdown.balanceDue
     : (receipt.balanceDueCents === null || receipt.balanceDueCents === undefined
       ? null : receipt.balanceDueCents / 100);
-  const remaining = grossRemaining === null ? null : Math.max(0, grossRemaining - (receipt.concessionAmount > 0 && breakdown ? receipt.concessionAmount : 0) - (receipt.referralCreditAmount > 0 && breakdown ? receipt.referralCreditAmount : 0) - (receipt.depositOffsetAmount > 0 && breakdown ? receipt.depositOffsetAmount : 0));
+  const remaining = grossRemaining === null ? null : Math.max(0, grossRemaining - (receipt.concessionAmount > 0 && breakdown ? receipt.concessionAmount : 0) - (receipt.referralCreditAmount > 0 && breakdown ? receipt.referralCreditAmount : 0) - (receipt.depositOffsetAmount > 0 && breakdown ? receipt.depositOffsetAmount : 0) - (receipt.feederHostCreditAmount > 0 && breakdown ? receipt.feederHostCreditAmount : 0));
   financial.push({
     label: L('Remaining Balance / Baqi Rehta'),
     value: remaining === null ? '—' : money(remaining),

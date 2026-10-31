@@ -111,6 +111,7 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   if (fields.discount) push(rowLine('Discount', fields.discount, width));
   if (fields.concession) push(rowLine('Outage concession', fields.concession, width));
   if (fields.referralCredit) push(rowLine('Referral credit', fields.referralCredit, width));
+  if (fields.feederHostCredit) push(rowLine('Feeder host credit', fields.feederHostCredit, width));
   if (fields.arrearsPackage || fields.arrearsPrevious || fields.arrearsTotal) {
     push(rowLine('Monthly pkg', fields.arrearsPackage, width));
     if (fields.arrearsKist) push(rowLine('Kist', fields.arrearsKist, width));
@@ -192,6 +193,8 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     concession: receipt.concessionAmount ? money(receipt.concessionAmount) : '',
     // SISP-40: hamsaya referral credit line, printed next to the concession.
     referralCredit: receipt.referralCreditAmount ? money(receipt.referralCreditAmount) : '',
+    // SISP-97: feeder-host bijli credit line, printed next to the referral credit.
+    feederHostCredit: receipt.feederHostCreditAmount ? money(receipt.feederHostCreditAmount) : '',
     // SISP-43: billed ticket charges settled by this payment (short
     // label — the 32-char slip cannot fit the full receipt wording).
     // Owner feature (2026-10-29): manual baqaya settled by this payment
@@ -212,10 +215,11 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     arrearsPrevious: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.previousArrears) : '',
     arrearsTotal: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.totalDue) : '',
     arrearsPaid: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.paidAmount) : '',
-    arrearsBalance: receipt.arrearsBreakdown ? money(Math.max(0, receipt.arrearsBreakdown.balanceDue - (receipt.concessionAmount || 0) - (receipt.referralCreditAmount || 0) - (receipt.depositOffsetAmount || 0))) : '',
+    arrearsBalance: receipt.arrearsBreakdown ? money(Math.max(0, receipt.arrearsBreakdown.balanceDue - (receipt.concessionAmount || 0) - (receipt.referralCreditAmount || 0) - (receipt.depositOffsetAmount || 0) - (receipt.feederHostCreditAmount || 0))) : '',
     footerNote: 'Thank you! Please keep this receipt.',
     // SISP-96: owner-configured footer lines ([] when unconfigured).
     footerLines: buildReceiptFooterLines(receiptFooter)
+
   };
 }
 

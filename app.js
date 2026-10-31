@@ -21,9 +21,10 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
 import { captureCurrentPosition, loadSplitterBoxPins, saveSplitterBoxPins, SPLITTER_BOX_GPS_STORAGE_KEY } from './gps-pin-helper.js';
+
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, generateReceiptNumber, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml, buildReceiptPaymentReceivedMessage, buildReceiptBillNoticeMessage } from './receipt.js?v=1.11.0';
@@ -3080,7 +3081,11 @@ function renderCustomerProfileView(customer) {
     ? state.customers.find((c) => String(c.id) === String(feederFields.upstreamCustomerId)) ?? null
     : null;
   const feederDownstream = traceDownstreamImpact(state.customers, customer.id);
-  const feederSectionHtml = `<section class="profile-outage-section" aria-label="${t('prof_feeder_aria')}"><h4>${t('prof_feeder_heading')}</h4><p>${escapeHtml(t('prof_feeder_fed_by', null, { name: feederUpstream ? (feederUpstream.name || t('prof_feeder_unknown')) : (feederFields.upstreamCustomerId ? t('prof_feeder_not_found') : t('prof_feeder_direct')) }))}${escapeHtml(t('prof_feeder_zone', null, { zone: feederFields.fiberZone || t('prof_not_set') }))}</p><p>${escapeHtml(feederDownstream.length === 1 ? t('prof_feeder_down_1', null, { count: feederDownstream.length }) : t('prof_feeder_down_n', null, { count: feederDownstream.length }))}${feederDownstream.length > 0 ? `${escapeHtml(t('prof_feeder_names', null, { names: feederDownstream.slice(0, 3).map((c) => c.name || t('prof_feeder_unknown')).join(', ') }))}${feederDownstream.length > 3 ? escapeHtml(t('prof_feeder_more', null, { count: feederDownstream.length - 3 })) : ''}` : ''}</p><button type="button" class="secondary-button" id="profileOutageTraceBtn">${t('prof_feeder_trace')}</button></section>`;
+  // SISP-97: feeder-host bijli credit line — shown when an amount is
+  // configured; the label says whether the live topology still lets it
+  // deduct (eligibility is derived, never a stored flag).
+  const feederHostCredit = feederHostCreditPresentation(customer, state.customers);
+  const feederSectionHtml = `<section class="profile-outage-section" aria-label="${t('prof_feeder_aria')}"><h4>${t('prof_feeder_heading')}</h4><p>${escapeHtml(t('prof_feeder_fed_by', null, { name: feederUpstream ? (feederUpstream.name || t('prof_feeder_unknown')) : (feederFields.upstreamCustomerId ? t('prof_feeder_not_found') : t('prof_feeder_direct')) }))}${escapeHtml(t('prof_feeder_zone', null, { zone: feederFields.fiberZone || t('prof_not_set') }))}</p><p>${escapeHtml(feederDownstream.length === 1 ? t('prof_feeder_down_1', null, { count: feederDownstream.length }) : t('prof_feeder_down_n', null, { count: feederDownstream.length }))}${feederDownstream.length > 0 ? `${escapeHtml(t('prof_feeder_names', null, { names: feederDownstream.slice(0, 3).map((c) => c.name || t('prof_feeder_unknown')).join(', ') }))}${feederDownstream.length > 3 ? escapeHtml(t('prof_feeder_more', null, { count: feederDownstream.length - 3 })) : ''}` : ''}</p>${feederHostCredit.show ? `<p>${escapeHtml(feederHostCredit.label)}</p>` : ''}<button type="button" class="secondary-button" id="profileOutageTraceBtn">${t('prof_feeder_trace')}</button></section>`;
   // (paid = billed installments whose bill month is fully settled, FIFO),
   // plus the add-plan form. Plans are separate from the one-time
   // connection/router/fiber fields above; they only ever bill through the
@@ -3698,6 +3703,9 @@ function renderDetail() {
     fiberZoneSelect.innerHTML = `<option value="">${t('prof_not_set')}</option>` + FIBER_ZONES.map((z) => `<option value="${escapeHtml(z)}"${z === (feederSaved.fiberZone ?? '') ? ' selected' : ''}>${escapeHtml(z)}</option>`).join('');
     fiberZoneSelect.value = feederSaved.fiberZone ?? '';
   }
+  // SISP-97: feeder-host bijli credit (core zeroes it on save when this
+  // house feeds no active downstream home).
+  if ($('#feederHostCreditInput')) $('#feederHostCreditInput').value = customer.feederHostCreditPKR ?? '';
   if ($('#pppoeUsernameInput')) $('#pppoeUsernameInput').value = customer.pppoeUsername ?? '';
   if ($('#pppoePasswordInput')) $('#pppoePasswordInput').value = customer.pppoePassword ?? '';
   if ($('#staticIpInput')) $('#staticIpInput').value = customer.staticIp ?? '';
@@ -6018,6 +6026,8 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       ...($('#linemanInstallFeeInput') ? { linemanInstallFee: $('#linemanInstallFeeInput').value } : {}),
       ...($('#fiberPerMeterRateInput') ? { fiberPerMeterRate: $('#fiberPerMeterRateInput').value } : {}),      upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
       fiberZone:$('#fiberZoneInput') ? $('#fiberZoneInput').value : '',
+      // SISP-97: feeder-host bijli credit configured on this house.
+      ...($('#feederHostCreditInput') ? { feederHostCreditPKR: $('#feederHostCreditInput').value } : {}),
       ...($('#pppoeUsernameInput') ? { pppoeUsername: $('#pppoeUsernameInput').value } : {}),
       ...($('#pppoePasswordInput') ? { pppoePassword: $('#pppoePasswordInput').value } : {}),
       ...($('#staticIpInput') ? { staticIp: $('#staticIpInput').value } : {}),

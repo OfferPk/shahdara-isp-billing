@@ -241,6 +241,9 @@ export function readState(storage, key = STORAGE_KEY) {
       pauseStartDate:validDateOrNull(customer.pauseStartDate),
       autoResumeDate:validDateOrNull(customer.autoResumeDate),
       pauseSkippedMonths:Array.isArray(customer.pauseSkippedMonths) ? [...new Set(customer.pauseSkippedMonths.filter((month) => validMonthString(month)))].sort() : [],
+      // SISP-106: the speed-boost log rides the customer record; legacy
+      // saves without it load with an empty log, never invented boosts.
+      speedBoosts: sanitizeSpeedBoosts(customer.speedBoosts),
       bills,
       // Owner feature (2026-10-29): manual baqaya entries ride the
       // customer record; legacy saves without the field load as none.
@@ -1059,7 +1062,10 @@ function applicableScheduleAmount(customer, month) {
  * The fee actually taken for one month, in cents: every non-voided,
  * non-advance receipt on the month's bill, minus the SISP-43
  * ticket-charge portion of each receipt (ticket money is consumed by
- * the tickets, never bill money — the allocation engine's own split).
+ * the tickets, never bill money — the allocation engine's own split)
+ * and minus the SISP-106 boost-charge portion (boost money is consumed
+ * by the boost log, never package-fee money, so collecting a boost can
+ * never pose as the month's package fee for the auto-package follow).
  */
 export function monthFeeTakenCents(customer, month) {
   const bill = (customer?.bills ?? []).find(b => b.month === month);
@@ -1067,7 +1073,8 @@ export function monthFeeTakenCents(customer, month) {
   let takenCents = 0;
   for (const payment of bill.payments ?? []) {
     if (!payment || payment.voided === true || isAdvancePayment(payment)) continue;
-    takenCents += Math.max(0, moneyCents(payment.amount) - paymentTicketChargeCents(payment) - paymentManualBaqayaCents(payment));
+    takenCents += Math.max(0, moneyCents(payment.amount) - paymentTicketChargeCents(payment) - paymentAddonChargeCents(payment) - paymentManualBaqayaCents(payment));
+
   }
   return takenCents;
 }
@@ -1160,6 +1167,78 @@ export function ticketChargeLinesOf(payment) {
 /** The ticket-charge portion of a payment, in cents. */
 export function paymentTicketChargeCents(payment) {
   return ticketChargeLinesOf(payment).reduce((sum, line) => sum + moneyCents(line.amount), 0);
+}
+
+// SISP-106: temporary speed boosts are logged ON THE CUSTOMER record
+// (`speedBoosts: [...]`, owned by speed-addon.js). Each boost's add-on
+// fee is a one-time charge settled exactly like a SISP-43 ticket charge:
+// the settled lines ride the payment as `addonCharges: [{ boostId,
+// amount }]`, the allocation engine keeps that portion out of bill
+// money and advance credit, and void/undo reopens exactly the boosts
+// its stamp settled. The base package price is never touched by a
+// boost. Legacy records carry no speedBoosts and load with none.
+const BOOST_ID_RE = /^BST-\d+$/;
+function validBoostDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value ? null : value;
+}
+/** Load-safe cleanup of a customer's boost log ([] when absent/corrupt). */
+export function sanitizeSpeedBoosts(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set();
+  const boosts = [];
+  for (const entry of value) {
+    const boostId = typeof entry?.boostId === 'string' ? entry.boostId.trim() : '';
+    if (!BOOST_ID_RE.test(boostId) || seen.has(boostId)) continue;
+    const boostMbps = Number(entry?.boostMbps);
+    const durationDays = Number(entry?.durationDays);
+    const addonFeePKR = Number(entry?.addonFeePKR);
+    const startDate = validBoostDate(entry?.startDate);
+    const expiryDate = validBoostDate(entry?.expiryDate);
+    if (!Number.isFinite(boostMbps) || boostMbps <= 0 || boostMbps > 10000) continue;
+    if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 365) continue;
+    if (!Number.isFinite(addonFeePKR) || addonFeePKR <= 0) continue;
+    if (!startDate || !expiryDate || expiryDate < startDate) continue;
+    seen.add(boostId);
+    boosts.push({
+      boostId,
+      boostMbps: Math.round(boostMbps * 100) / 100,
+      durationDays,
+      addonFeePKR: Math.round(addonFeePKR * 100) / 100,
+      startDate,
+      expiryDate,
+      chargePaid: entry?.chargePaid === true,
+      chargePaidAt: typeof entry?.chargePaidAt === 'string' ? entry.chargePaidAt.slice(0, 40) : '',
+      chargePaymentId: typeof entry?.chargePaymentId === 'string' ? entry.chargePaymentId.slice(0, 100) : ''
+    });
+  }
+  return boosts;
+}
+export function sanitizeAddonChargeLines(value) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error('Boost charge lines must be a list.');
+  if (value.length > 20) throw new Error('Too many boost charge lines on one payment.');
+  const seen = new Set();
+  const lines = [];
+  for (const entry of value) {
+    const boostId = typeof entry?.boostId === 'string' ? entry.boostId.trim() : '';
+    if (!BOOST_ID_RE.test(boostId)) throw new Error('A boost charge line needs a boost id like BST-101.');
+    if (seen.has(boostId)) throw new Error(`Boost charge ${boostId} is listed twice on one payment.`);
+    seen.add(boostId);
+    const amount = Number(entry?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error('A boost charge amount must be greater than zero.');
+    lines.push({ boostId, amount: Math.round(amount * 100) / 100 });
+  }
+  return lines;
+}
+/** Stored boost-charge stamp lines of a payment ([] when absent/unreadable). */
+export function addonChargeLinesOf(payment) {
+  try { return sanitizeAddonChargeLines(payment?.addonCharges); } catch { return []; }
+}
+/** The boost-charge portion of a payment, in cents. */
+export function paymentAddonChargeCents(payment) {
+  return addonChargeLinesOf(payment).reduce((sum, line) => sum + moneyCents(line.amount), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1380,6 +1459,7 @@ export function removeManualBaqayaEntry(state, customerId, entryId) {
   if (existing.settledCents > 0) throw new Error('This baqaya entry already has payments against it and cannot be removed. Void the payment first.');
   const nextEntries = sanitizeManualBaqayaEntries(customer.manualBaqaya).filter(entry => entry.id !== entryId);
   return replaceCustomer(state, customerId, { ...customer, manualBaqaya: nextEntries });
+
 }
 
 /**
@@ -1444,7 +1524,8 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
@@ -1475,12 +1556,18 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   const ticketChargeLines = sanitizeTicketChargeLines(ticketCharges);
   const ticketChargeTotalCents = ticketChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
   if (ticketChargeTotalCents > Math.round(cents * 100)) throw new Error('Ticket charges on a payment cannot exceed the amount collected.');
+  // SISP-106: settled boost-charge lines ride the payment the same way
+  // (see above). Ticket + boost portions together can never exceed the
+  // cash actually collected.
+  const addonChargeLines = sanitizeAddonChargeLines(addonCharges);
+  const addonChargeTotalCents = addonChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
   // Owner feature (2026-10-29): settled manual baqaya lines ride the
   // payment the same way (see the manual baqaya block above). Together
   // the two non-bill portions can never exceed the cash collected.
   const manualBaqayaLines = sanitizeManualBaqayaSettlementLines(manualBaqayaSettlements);
   const manualBaqayaTotalCents = manualBaqayaLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
-  if (ticketChargeTotalCents + manualBaqayaTotalCents > Math.round(cents * 100)) throw new Error('Settled charges and baqaya on a payment cannot exceed the amount collected.');
+  if (ticketChargeTotalCents + addonChargeTotalCents + manualBaqayaTotalCents > Math.round(cents * 100)) throw new Error('Settled charges and baqaya on a payment cannot exceed the amount collected.');
+
   // Advance tag: only the exact 'advance' kind is kept — any other value
   // (including a missing one, i.e. every legacy payment) stays untagged,
   // so untagged records remain byte-identical to before.
@@ -1541,7 +1628,9 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(lateFeeWaiverTerms ?? {}),
     ...(cleanNote ? { note: cleanNote } : {}),
     ...(ticketChargeLines.length > 0 ? { ticketCharges: ticketChargeLines } : {}),
+    ...(addonChargeLines.length > 0 ? { addonCharges: addonChargeLines } : {}),
     ...(manualBaqayaLines.length > 0 ? { manualBaqayaSettlements: manualBaqayaLines } : {}),
+
     ...(payer ? { paidBy:payer } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -1799,6 +1888,15 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     }
     payment = { ...payment, ticketCharges: settledTicketCharges };
   }
+  // SISP-106: same carry-over rule for settled boost charges — a
+  // correction restates the receipt, never its boost settlement.
+  const settledAddonCharges = addonChargeLinesOf(existingPayment);
+  if (settledAddonCharges.length > 0) {
+    if (moneyCents(payment.amount) <= settledAddonCharges.reduce((sum, line) => sum + moneyCents(line.amount), 0)) {
+      throw new Error('This payment settled a speed boost charge. Void it and record a fresh payment to change the amount.');
+    }
+    payment = { ...payment, addonCharges: settledAddonCharges };
+  }
   // Owner feature (2026-10-29): the manual baqaya settlement stamp is
   // carried over verbatim under the same rule — a correction restates
   // the receipt, never what its cash settled; the corrected amount must
@@ -1806,11 +1904,13 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   const settledBaqayaLines = manualBaqayaSettlementLinesOf(existingPayment);
   if (settledBaqayaLines.length > 0) {
     const settledNonBillCents = settledTicketCharges.reduce((sum, line) => sum + moneyCents(line.amount), 0)
-      + settledBaqayaLines.reduce((sum, line) => sum + moneyCents(line.amount), 0);
+      + settledBaqayaLines.reduce((sum, line) => sum + moneyCents(line.amount), 0)
+      + settledAddonCharges.reduce((sum, line) => sum + moneyCents(line.amount), 0);
     if (moneyCents(payment.amount) <= settledNonBillCents) {
       throw new Error('This payment settled manual baqaya. Void it and record a fresh payment to change the amount.');
     }
     payment = { ...payment, manualBaqayaSettlements: settledBaqayaLines };
+
   }
   assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId, { prepayCoverage: prepayTermsOf(payment) !== null });
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };
@@ -1829,6 +1929,12 @@ export function deletePayment(state, customerId, month, paymentId, referenceDate
   if (ticketChargeLinesOf(bill.payments.find(payment => payment.id === paymentId)).length > 0 && options?.ticketChargesReverted !== true) {
     throw new Error('This payment settled a ticket charge. Void it instead so the ticket charge reopens.');
   }
+  // SISP-106: same guard for boost charges — deleting a payment that
+  // settled one would leave the boost marked paid with no cash behind
+  // it. The quick-collect undo reopens them first (addonChargesReverted).
+  if (addonChargeLinesOf(bill.payments.find(payment => payment.id === paymentId)).length > 0 && options?.addonChargesReverted !== true) {
+    throw new Error('This payment settled a speed boost charge. Void it instead so the boost charge reopens.');
+  }
   // SISP-101: deleting a payment that waived a late fee would leave the
   // fee waived with no payment behind it. The quick-collect undo
   // restores the fee from the payment's stamp first and passes
@@ -1836,6 +1942,7 @@ export function deletePayment(state, customerId, month, paymentId, referenceDate
   // (voiding restores the fee too — see payment-void-audit.js).
   if (lateFeeWaiverOf(bill.payments.find(payment => payment.id === paymentId)) && options?.lateFeeWaiverReverted !== true) {
     throw new Error('This payment waived a late fee. Void it instead so the late fee is restored.');
+
   }
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : {
     ...c,
@@ -2277,17 +2384,22 @@ export function calculatePaymentAllocations(state) {
           // SISP-43: the ticket-charge portion of the receipt is consumed
           // by the tickets — only the rest is unused credit here.
           const ticketChargeCents = paymentTicketChargeCents(payment);
+          // SISP-106: the boost-charge portion is consumed by the boost
+          // log the same way — it is never unused credit either.
+          const addonChargeCents = paymentAddonChargeCents(payment);
           // Owner feature (2026-10-29): the manual baqaya portion of a
           // receipt is likewise consumed by the baqaya entries — only
           // the rest is unused credit here.
           const manualBaqayaCents = paymentManualBaqayaCents(payment);
+
           // SISP-61: on an unpriced bill a prepay's upfront discount is
           // pure coverage (nothing has been applied yet) — it joins the
           // credit in full, reserved for its target month below, so the
           // customer is credited cash + discount = the full gross.
           const prepayDiscountCents = prepayTermsOf(payment) ? moneyCents(payment.discount || 0) : 0;
-          const creditCents = Math.max(0, amountCents - ticketChargeCents - manualBaqayaCents) + prepayDiscountCents;
-          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents, manualBaqayaCents, targetMonth:advancePaymentTargetMonth(payment), ...(prepayDiscountCents > 0 ? { prepayDiscountCreditCents:prepayDiscountCents } : {}) };
+          const creditCents = Math.max(0, amountCents - ticketChargeCents - addonChargeCents - manualBaqayaCents) + prepayDiscountCents;
+          const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:creditCents, unappliedCreditCents:0, billUnpriced:true, ticketChargeCents, addonChargeCents, manualBaqayaCents, targetMonth:advancePaymentTargetMonth(payment), ...(prepayDiscountCents > 0 ? { prepayDiscountCreditCents:prepayDiscountCents } : {}) };
+
           byPaymentId.set(payment.id, paymentLedger);
           if (creditCents > 0) {
             summary.excessGeneratedCents += creditCents;
@@ -2385,9 +2497,13 @@ export function calculatePaymentAllocations(state) {
         // entries — it is never bill money and never becomes credit.
         const ticketChargeCents = paymentTicketChargeCents(payment);
         const manualBaqayaCents = paymentManualBaqayaCents(payment);
-        const billPortionCents = Math.max(0, amountCents - ticketChargeCents - manualBaqayaCents);
+        // SISP-106: the boost-charge portion is spent on the boosts
+        // named in the payment's stamp, exactly like the ticket portion.
+        const addonChargeCents = paymentAddonChargeCents(payment);
+        const billPortionCents = Math.max(0, amountCents - ticketChargeCents - addonChargeCents - manualBaqayaCents);
         const discountCents = moneyCents(payment.discount || 0);
-        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false, ticketChargeCents, manualBaqayaCents, targetMonth:advancePaymentTargetMonth(payment) };
+        const paymentLedger = { paymentId:payment.id, customerId:customer.id, customerNumber:customer.customerNumber, customerName:customer.name, originMonth:bill.month, date:payment.date, method:payment.method, amount:Number(payment.amount), discount:payment.discount ? Number(payment.discount) : 0, discountReason:payment.discountReason || '', allocations:[], excessCents:0, unappliedCreditCents:0, billUnpriced:false, ticketChargeCents, addonChargeCents, manualBaqayaCents, targetMonth:advancePaymentTargetMonth(payment) };
+
         byPaymentId.set(payment.id, paymentLedger);
 
         // SISP-61: a prepay's upfront discount is NOT a discount on

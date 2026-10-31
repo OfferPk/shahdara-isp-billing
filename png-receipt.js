@@ -145,6 +145,10 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   for (const line of Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []) {
     financial.push({ label: L(`Murammat / Material Charge (${line.ticketId})`), value: money(line.amount) });
   }
+  // SISP-106: speed-boost add-on fees this payment settled, one line each.
+  for (const line of Array.isArray(receipt.addonCharges) ? receipt.addonCharges : []) {
+    financial.push({ label: `Speed Boost / سپیڈ بوسٹ (${line.boostId})`, value: money(line.amount) });
+  }
   // Owner feature (2026-10-29): manual baqaya this payment settled, one
   // line each, next to the ticket charges.
   for (const line of Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : []) {
@@ -152,6 +156,7 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   }
   financial.push({ label: L('Amount Paid / Wusool Paya'), value: money(receipt.paidAmount), strong: true });
   financial.push({ label: L('Payment Method / طریقہ'), value: method || '—' });
+
   const grossRemaining = breakdown
     ? breakdown.balanceDue
     : (receipt.balanceDueCents === null || receipt.balanceDueCents === undefined

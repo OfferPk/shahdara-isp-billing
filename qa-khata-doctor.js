@@ -71,7 +71,8 @@
 
 import { canonicalize, crc32Hex } from './backup-health.js';
 import { billKistTotal, sanitizeInstallmentPlan } from './installment-plan.js';
-import { paymentManualBaqayaCents, paymentTicketChargeCents, prepayTermsOf } from './core.js';
+import { paymentAddonChargeCents, paymentManualBaqayaCents, paymentTicketChargeCents, prepayTermsOf } from './core.js';
+
 
 export const KHATA_DOCTOR_VERSION = 1;
 
@@ -121,7 +122,8 @@ export function computeLedgerBalance(customer) {
       // SISP-61: a prepay's upfront discount is coverage, not a
       // discount on any bill — on an unpriced bill it is unused credit
       // in full, exactly like the engine's rule.
-      creditCents += payments.reduce((sum, payment) => sum + Math.max(0, cents(payment.amount) - paymentTicketChargeCents(payment) - paymentManualBaqayaCents(payment)) + (prepayTermsOf(payment) ? cents(payment.discount || 0) : 0), 0);
+      creditCents += payments.reduce((sum, payment) => sum + Math.max(0, cents(payment.amount) - paymentTicketChargeCents(payment) - paymentAddonChargeCents(payment) - paymentManualBaqayaCents(payment)) + (prepayTermsOf(payment) ? cents(payment.discount || 0) : 0), 0);
+
       continue;
     }
     const chargeCents = cents(bill.dueAmount) + cents(bill.lateFee || 0) + cents(bill.shiftingFee || 0);
@@ -173,7 +175,9 @@ export function computeLedgerBalance(customer) {
       // SISP-43: only the bill portion of a receipt applies to the bill
       // or becomes credit — the ticket-charge portion settled field
       // work. paymentsCents still reports the full valid cash received.
-      const billPortionCents = Math.max(0, cents(payment.amount) - paymentTicketChargeCents(payment) - paymentManualBaqayaCents(payment));
+      // SISP-106: the boost-charge portion is excluded identically.
+      const billPortionCents = Math.max(0, cents(payment.amount) - paymentTicketChargeCents(payment) - paymentAddonChargeCents(payment) - paymentManualBaqayaCents(payment));
+
       const appliedCents = Math.min(billPortionCents, dueCents);
       paymentsCents += cents(payment.amount);
       dueCents -= appliedCents;

@@ -756,6 +756,17 @@
           <ul id="upsellList" class="upsell-list" aria-label="Package upgrade candidates"></ul>
         </div>
       </section>
+      <section class="winback-section" aria-labelledby="winbackHeading">
+        <div class="winback-card">
+          <div class="winback-header">
+            <h3 id="winbackHeading" class="winback-title" data-i18n="winback_title">📥 Disconnect Reasons & Win-Back</h3>
+            <span id="winbackQueueCount" class="winback-total"></span>
+          </div>
+          <p class="winback-sub" data-i18n="winback_sub">Why customers left, and the ones you marked for a free-reconnection offer — one tap opens the WhatsApp draft, nothing sends itself.</p>
+          <div id="winbackAnalytics" class="winback-analytics"></div>
+          <ul id="winbackList" class="winback-list" aria-label="Win-back offer queue"></ul>
+        </div>
+      </section>
       <section class="upsell-section loyalty-section" aria-labelledby="loyaltyHeading">
         <div class="upsell-card">
           <div class="upsell-header">
@@ -22022,6 +22033,31 @@
             <div id="groupBillingWaadaChips" class="group-billing-waada-chips"></div>
           </div>
         </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="archiveCustomerModal" class="billing-modal archive-customer-modal" aria-labelledby="archiveCustomerModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="archiveCustomerModalTitle" data-i18n="winback_archive_title">Archive this customer?</h2>
+        <button id="archiveCustomerCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p id="archiveCustomerSubject" class="archive-customer-subject"></p>
+        <p class="archive-customer-message" data-i18n="winback_archive_message">Existing bills, receipts, complaints, customer number and unused credit stay on this device; no new monthly bills will be generated while archived.</p>
+        <form id="archiveCustomerForm" class="archive-customer-form">
+          <label for="archiveReasonSelect" data-i18n="winback_archive_reason_label">Disconnect reason</label>
+          <select id="archiveReasonSelect" class="form-input" aria-label="Disconnect reason"></select>
+          <label class="archive-eligible-row" for="archiveWinBackEligible">
+            <input id="archiveWinBackEligible" type="checkbox">
+            <span data-i18n="winback_archive_eligible_label">Eligible for a win-back offer (free reconnection on WhatsApp)</span>
+          </label>
+          <label for="archiveDisconnectNote" data-i18n="winback_archive_note_label">Note (optional)</label>
+          <input id="archiveDisconnectNote" class="form-input" type="text" maxlength="500" data-i18n-placeholder="winback_archive_note_placeholder" placeholder="e.g. Shifted to another city, may return in March">
+          <div class="archive-customer-actions">
+            <button id="archiveCustomerConfirmBtn" class="primary-button" type="submit" data-i18n="winback_archive_confirm">Archive</button>
+          </div>
+        </form>
       </div>
     </div>
   </dialog>

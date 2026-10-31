@@ -4910,6 +4910,121 @@
   padding: 8px 0 2px;
 }
 
+/* SISP-108: Dashboard Disconnect Reasons & Win-Back card — per-reason
+   analytics derived from the archived records plus the win-back offer
+   queue. Theme tokens only (light + dark). */
+.winback-section {
+  margin-top: 10px;
+}
+.winback-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: 14px 13px;
+}
+.winback-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+.winback-title {
+  font: 700 15px Manrope, system-ui, sans-serif;
+  color: var(--ink);
+  margin: 0;
+}
+.winback-total {
+  font: 700 12px 'DM Sans', system-ui, sans-serif;
+  color: var(--green);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.winback-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+.winback-analytics p {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+  padding: 3px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.winback-analytics p strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+.winback-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.winback-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.winback-item + .winback-item {
+  border-top: 1px solid var(--line);
+}
+.winback-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 9px 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.winback-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.winback-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.winback-sub-line {
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.winback-offer-btn {
+  flex-shrink: 0;
+  font: 600 12px 'DM Sans', system-ui, sans-serif;
+  color: var(--green);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 8px 10px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.winback-no-phone {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.winback-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 8px 0 2px;
+}
+
 /* Owner feature 2026-10-29: Dashboard Advance Held KPI card + holders
    dialog rows. Theme tokens only, so light and dark modes both read
    correctly; the amount column never shrinks, so full amounts stay

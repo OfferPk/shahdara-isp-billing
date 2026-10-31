@@ -15,6 +15,7 @@ import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
+import { sanitizeCommissionRules } from './collector-commission.js';
 import { sanitizeUpsNodes } from './power-backup-monitor.js';
 import { sanitizeReferralCredits } from './referral-credits.js';
 import { sanitizeFieldTools } from './tool-custody-register.js';
@@ -3119,6 +3120,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSuspensePayments(options.suspensePayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), suspensePayments: cleaned };
   }
+  // SISP-93: collector commission rules live outside the ledger state
+  // (localStorage key sisp_commission_rules_v1), so they travel in an
+  // optional `settings.commissionRules` section. Written only when at
+  // least one rule exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.commissionRules) && options.commissionRules.length) {
+    const cleaned = sanitizeCommissionRules(options.commissionRules);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), commissionRules: cleaned };
+  }
   // SISP-62: power backup nodes (OLT / feeder UPS registry + outage
   // timers) live outside the ledger state (localStorage key
   // sisp_ups_nodes_v1), so they travel in an optional
@@ -3284,7 +3293,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
@@ -3807,6 +3816,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Suspense payment records differ from this device' });
     }
   }
+  // SISP-93 commission rules: optional section (see createJsonBackup).
+  // Safe-merge rule, same as suspense payments: adopt the backup's rules
+  // only when this device has none stored yet; when both sides hold
+  // different real rules, keep existing + conflict (a configured rule
+  // must never be silently overwritten).
+  let commissionRules = null;
+  const rawIncomingCommissionRules = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.commissionRules
+    : undefined;
+  if (Array.isArray(rawIncomingCommissionRules) && rawIncomingCommissionRules.length) {
+    const incomingCommissionRules = sanitizeCommissionRules(rawIncomingCommissionRules);
+    const currentCommissionRules = (options && typeof options === 'object' && Array.isArray(options.currentCommissionRules))
+      ? sanitizeCommissionRules(options.currentCommissionRules)
+      : [];
+    if (incomingCommissionRules.length && sameJson(incomingCommissionRules, currentCommissionRules)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingCommissionRules.length && (!options?.currentCommissionRulesStored || currentCommissionRules.length === 0)) {
+      commissionRules = incomingCommissionRules;
+      counts.commissionRulesRestored = 1;
+      counts.changes++;
+    } else if (incomingCommissionRules.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Commission rule records differ from this device' });
+    }
+  }
   // SISP-62 power backup nodes: optional registry section (see
   // createJsonBackup). Safe-merge rule, same as suspense payments:
   // adopt the backup's nodes only when this device has none stored
@@ -4086,5 +4119,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, commissionRules, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

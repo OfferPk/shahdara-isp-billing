@@ -23,6 +23,7 @@
 import { kistLineLabel } from './installment-plan.js';
 import { displayCustomerName } from './urdu-names.js';
 import { receiptCodeForReceipt } from './receipt-verifier.js';
+import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
 
 export const PNG_RECEIPT_WIDTH = 1600; // 800 CSS pt @ HiDPI 2x
 export const PNG_RECEIPT_HEIGHT = 2000; // 1000 CSS pt @ HiDPI 2x
@@ -46,6 +47,25 @@ const money = (value) => {
 };
 const sanitizeFilePart = (value) =>
   text(value).replace(/[^A-Za-z0-9-_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+
+const ARABIC_SCRIPT = /[\u0600-\u06FF]/;
+/**
+ * SISP-91: collapse a bilingual 'English / اردو' slip label to the
+ * customer's saved receipt language. 'urdu' keeps the Urdu-script
+ * segment, 'english' keeps the Latin segment; 'roman' or unset keep
+ * the bilingual pair exactly as before (the PNG is the formal slip —
+ * its Roman reading is the Latin half). Labels without a matching
+ * segment (single-language labels, Roman-Urdu pairs) stay whole.
+ */
+export function localizePngLabel(label, lang) {
+  if (lang !== 'urdu' && lang !== 'english') return label;
+  const parts = String(label).split(' / ');
+  if (parts.length < 2) return label;
+  const picked = lang === 'urdu'
+    ? parts.find((part) => ARABIC_SCRIPT.test(part))
+    : parts.find((part) => !ARABIC_SCRIPT.test(part));
+  return picked ?? label;
+}
 
 /**
  * Seal decision (spec: green PAID stamp when the balance is cleared,
@@ -71,6 +91,11 @@ export function pngReceiptFilename(modelOrReceipt) {
  */
 export function buildPngReceiptModel(receipt, customer, options = {}) {
   if (!receipt || typeof receipt !== 'object') throw new Error('A payment receipt is required.');
+  // SISP-91: the slip renders in the customer's saved receipt language
+  // (options.lang overrides) — bilingual labels collapse to the saved
+  // language's segment; unset/'roman' keeps the bilingual slip.
+  const lang = sanitizeReceiptLang(options.lang ?? receiptLangPreference(customer));
+  const L = (label) => localizePngLabel(label, lang);
   const breakdown = receipt.arrearsBreakdown ?? null;
   const romanName = text(receipt.customerName) || text(customer?.name);
   const urduName = displayCustomerName(customer ?? {}, 'ur');
@@ -82,48 +107,48 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
 
   const financial = [];
   if (breakdown) {
-    financial.push({ label: 'Previous Balance / Sabiqa Baqaya', value: money(breakdown.previousArrears) });
+    financial.push({ label: L('Previous Balance / Sabiqa Baqaya'), value: money(breakdown.previousArrears) });
   }
   financial.push({
-    label: 'Current Month Bill / Mahana Package',
+    label: L('Current Month Bill / Mahana Package'),
     value: money(breakdown ? breakdown.packageAmount : receipt.nominalPrice),
   });
   if (breakdown?.kistAmount > 0) {
-    financial.push({ label: 'Hardware / Kist', value: money(breakdown.kistAmount) });
+    financial.push({ label: L('Hardware / Kist'), value: money(breakdown.kistAmount) });
     for (const line of Array.isArray(breakdown.kistLines) ? breakdown.kistLines : []) {
       financial.push({ label: kistLineLabel(line), value: money(line.amount), indent: true });
     }
   }
-  if (receipt.lateFee > 0) financial.push({ label: 'Late Fee Surcharge', value: `+${money(receipt.lateFee)}` });
+  if (receipt.lateFee > 0) financial.push({ label: L('Late Fee Surcharge'), value: `+${money(receipt.lateFee)}` });
   // SISP-61: a prepay receipt shows coverage + discount as their own
   // rows; 'Amount Paid' below stays the NET cash received.
-  if (receipt.prepay) financial.push({ label: 'Prepay Coverage / پیشگی کوریج', value: money(receipt.prepay.gross) });
-  if (receipt.discount > 0) financial.push({ label: receipt.prepay ? 'Prepay Discount / پیشگی رعایت' : 'Discount / رعایت', value: `-${money(receipt.discount)}` });
+  if (receipt.prepay) financial.push({ label: L('Prepay Coverage / پیشگی کوریج'), value: money(receipt.prepay.gross) });
+  if (receipt.discount > 0) financial.push({ label: L(receipt.prepay ? 'Prepay Discount / پیشگی رعایت' : 'Discount / رعایت'), value: `-${money(receipt.discount)}` });
   // SISP-30: the concession line, and the remaining balance is net of it —
   // the SISP-2 breakdown itself stays gross, so subtract here for display.
-  if (receipt.concessionAmount > 0) financial.push({ label: 'Outage Concession / رعایت', value: `-${money(receipt.concessionAmount)}` });
+  if (receipt.concessionAmount > 0) financial.push({ label: L('Outage Concession / رعایت'), value: `-${money(receipt.concessionAmount)}` });
   // SISP-40: the hamsaya referral credit line, next to the concession.
-  if (receipt.referralCreditAmount > 0) financial.push({ label: 'Referral Credit / ہمسایہ ریفرل', value: `-${money(receipt.referralCreditAmount)}` });
+  if (receipt.referralCreditAmount > 0) financial.push({ label: L('Referral Credit / ہمسایہ ریفرل'), value: `-${money(receipt.referralCreditAmount)}` });
   // SISP-50: the disconnection security-deposit offset line, same place.
-  if (receipt.depositOffsetAmount > 0) financial.push({ label: 'Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ', value: `-${money(receipt.depositOffsetAmount)}` });
+  if (receipt.depositOffsetAmount > 0) financial.push({ label: L('Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ'), value: `-${money(receipt.depositOffsetAmount)}` });
   // SISP-43: billed ticket charges this payment settled, one line each.
   for (const line of Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []) {
-    financial.push({ label: `Murammat / Material Charge (${line.ticketId})`, value: money(line.amount) });
+    financial.push({ label: L(`Murammat / Material Charge (${line.ticketId})`), value: money(line.amount) });
   }
   // Owner feature (2026-10-29): manual baqaya this payment settled, one
   // line each, next to the ticket charges.
   for (const line of Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : []) {
-    financial.push({ label: `Manual Baqaya / دستی بقایا (${line.entryId})`, value: money(line.amount) });
+    financial.push({ label: L(`Manual Baqaya / دستی بقایا (${line.entryId})`), value: money(line.amount) });
   }
-  financial.push({ label: 'Amount Paid / Wusool Paya', value: money(receipt.paidAmount), strong: true });
-  financial.push({ label: 'Payment Method / طریقہ', value: method || '—' });
+  financial.push({ label: L('Amount Paid / Wusool Paya'), value: money(receipt.paidAmount), strong: true });
+  financial.push({ label: L('Payment Method / طریقہ'), value: method || '—' });
   const grossRemaining = breakdown
     ? breakdown.balanceDue
     : (receipt.balanceDueCents === null || receipt.balanceDueCents === undefined
       ? null : receipt.balanceDueCents / 100);
   const remaining = grossRemaining === null ? null : Math.max(0, grossRemaining - (receipt.concessionAmount > 0 && breakdown ? receipt.concessionAmount : 0) - (receipt.referralCreditAmount > 0 && breakdown ? receipt.referralCreditAmount : 0) - (receipt.depositOffsetAmount > 0 && breakdown ? receipt.depositOffsetAmount : 0));
   financial.push({
-    label: 'Remaining Balance / Baqi Rehta',
+    label: L('Remaining Balance / Baqi Rehta'),
     value: remaining === null ? '—' : money(remaining),
     strong: true,
   });
@@ -131,6 +156,16 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   return {
     width: PNG_RECEIPT_WIDTH,
     height: PNG_RECEIPT_HEIGHT,
+    // SISP-91: saved receipt language + the slip's localized headings.
+    lang,
+    title: L('Payment Receipt / رسید ادائیگی'),
+    detailsTitle: L('Amount Details / رقم کی تفصیل'),
+    subLabels: {
+      customer: L('Customer / صارف'),
+      connection: L('Connection ID / کھاتہ'),
+      area: L('Area / Zone'),
+      package: L('Package / پیکیج')
+    },
     businessName: text(options.businessName) || 'Shahdara ISP',
     businessPhone: text(options.businessPhone) || '0300-1234567',
     areaName: text(options.areaName) || 'Shahdara',
@@ -194,7 +229,7 @@ export function computePngReceiptLayout(model, measureFn) {
   y = 130;
   txt(model.businessName.toUpperCase(), W / 2, y, `700 58px ${FONT_LATIN}`, 'center', INK);
   y += 76;
-  txt('Payment Receipt / رسید ادائیگی', W / 2, y, `600 46px ${FONT_LATIN}`, 'center', ACCENT);
+  txt(model.title ?? 'Payment Receipt / رسید ادائیگی', W / 2, y, `600 46px ${FONT_LATIN}`, 'center', ACCENT);
   y += 66;
   txt(`Receipt #: ${model.receiptNumber || '—'}`, W / 2, y, `500 40px ${FONT_LATIN}`, 'center', MUTED);
   y += 58;
@@ -209,13 +244,13 @@ export function computePngReceiptLayout(model, measureFn) {
 
   // Subscriber box.
   const subRows = [
-    { label: 'Customer / صارف', value: model.customerName || '—', font: `700 50px ${FONT_LATIN}` },
+    { label: model.subLabels?.customer ?? 'Customer / صارف', value: model.customerName || '—', font: `700 50px ${FONT_LATIN}` },
     ...(model.urduName
       ? [{ label: '', value: model.urduName, font: `500 58px ${FONT_URDU}`, direction: 'rtl' }]
       : []),
-    { label: 'Connection ID / کھاتہ', value: model.connectionId ? `#${model.connectionId}` : '—', font: `500 44px ${FONT_LATIN}` },
-    { label: 'Area / Zone', value: model.areaZone, font: `500 44px ${FONT_LATIN}` },
-    { label: 'Package / پیکیج', value: model.packageLine || '—', font: `500 44px ${FONT_LATIN}` },
+    { label: model.subLabels?.connection ?? 'Connection ID / کھاتہ', value: model.connectionId ? `#${model.connectionId}` : '—', font: `500 44px ${FONT_LATIN}` },
+    { label: model.subLabels?.area ?? 'Area / Zone', value: model.areaZone, font: `500 44px ${FONT_LATIN}` },
+    { label: model.subLabels?.package ?? 'Package / پیکیج', value: model.packageLine || '—', font: `500 44px ${FONT_LATIN}` },
   ];
   const subPitch = 78;
   const subH = 56 + subRows.length * subPitch + 20;
@@ -235,7 +270,7 @@ export function computePngReceiptLayout(model, measureFn) {
   const finH = 56 + model.financial.length * finPitch + 20;
   const finY = y;
   rect(M, finY, contentW, finH, PAPER, HAIRLINE);
-  txt('Amount Details / رقم کی تفصیل', M + 44, finY + 52, `700 40px ${FONT_LATIN}`, 'left', INK);
+  txt(model.detailsTitle ?? 'Amount Details / رقم کی تفصیل', M + 44, finY + 52, `700 40px ${FONT_LATIN}`, 'left', INK);
   let fy = finY + 56;
   for (const row of model.financial) {
     const x = M + 44 + (row.indent ? 56 : 0);

@@ -46,6 +46,7 @@ import {
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
+import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
 import { t } from './nav-language.js';
 import {
   getDigitalPaymentsSettings,
@@ -786,50 +787,110 @@ export function executeQuickCollection(state, {
 }
 
 /**
- * Builds bilingual (Urdu & English) WhatsApp payment receipt draft.
+ * Builds the WhatsApp payment receipt draft. Default (no saved
+ * preference) is the bilingual (Urdu & English) draft, byte-identical
+ * to the pre-SISP-91 text. SISP-91: when the customer carries a saved
+ * receipt language (preferredReceiptLang — callers pass it via
+ * options.lang or receipt.receiptLang), the draft renders in that one
+ * language instead: Urdu script, Roman Urdu, or English only. The
+ * saved preference wins over the UI language.
  *
  * @param {Object} receipt
+ * @param {Object} [options]
+ * @param {string} [options.lang] - 'urdu' | 'roman' | 'english'
  * @returns {{ text: string, url: string }}
  */
-export function formatQuickCollectWhatsAppReceipt(receipt) {
+const QC_RECEIPT_TEXT = Object.freeze({
+  bilingual: {
+    title: 'PAYMENT RECEIPT / ادائیگی کی رسید',
+    receiptNo: 'Receipt No', date: 'Date', customer: 'Customer', phone: 'Phone', area: 'Area',
+    billingMonth: 'Billing Month', amountReceived: 'Amount Received',
+    ticketCharge: (ticketId) => `Murammat / Material Charge (${ticketId})`,
+    baqaya: (entryId) => `Manual Baqaya / دستی بقایا (${entryId})`,
+    method: 'Payment Method', txnId: 'Transaction ID / Ref', sender: 'Sender / بھیجنے والا',
+    refNote: 'Ref Note', paidBy: 'Paid By', remaining: 'Remaining Balance', status: 'Status',
+    statusPaid: 'مکمل ادا شدہ (PAID IN FULL)', statusPartial: 'جزوی ادائیگی (PARTIAL)',
+    thanks: 'Shukriya! Thank you for your prompt payment.',
+    ops: 'Shahdara NOC & Field Billing Operations'
+  },
+  urdu: {
+    title: 'ادائیگی کی رسید',
+    receiptNo: 'رسید نمبر', date: 'تاریخ', customer: 'صارف', phone: 'فون', area: 'علاقہ',
+    billingMonth: 'بل کا مہینہ', amountReceived: 'موصولہ رقم',
+    ticketCharge: (ticketId) => `مرمت / سامان چارج (${ticketId})`,
+    baqaya: (entryId) => `دستی بقایا (${entryId})`,
+    method: 'طریقہ ادائیگی', txnId: 'ٹرانزیکشن نمبر', sender: 'بھیجنے والا',
+    refNote: 'حوالہ نوٹ', paidBy: 'ادا کنندہ', remaining: 'باقی بقایا', status: 'کیفیت',
+    statusPaid: 'مکمل ادا شدہ', statusPartial: 'جزوی ادائیگی',
+    thanks: 'شکریہ! بروقت ادائیگی کا شکریہ۔',
+    ops: 'شاہدرہ این او سی و فیلڈ بلنگ آپریشنز'
+  },
+  roman: {
+    title: 'ADAIGI KI RASEED',
+    receiptNo: 'Raseed No', date: 'Tareekh', customer: 'Customer', phone: 'Phone', area: 'Ilaqa',
+    billingMonth: 'Bill ka maheena', amountReceived: 'Wasool shuda raqam',
+    ticketCharge: (ticketId) => `Murammat / Material Charge (${ticketId})`,
+    baqaya: (entryId) => `Manual Baqaya (${entryId})`,
+    method: 'Adaigi ka tareeqa', txnId: 'Transaction ID / Ref', sender: 'Sender',
+    refNote: 'Ref Note', paidBy: 'Ada karne wala', remaining: 'Baqi baqaya', status: 'Status',
+    statusPaid: 'Mukammal ada shuda (PAID IN FULL)', statusPartial: 'Juzwi adaigi (PARTIAL)',
+    thanks: 'Shukriya! Waqt par adaigi ka shukriya.',
+    ops: 'Shahdara NOC & Field Billing Operations'
+  },
+  english: {
+    title: 'PAYMENT RECEIPT',
+    receiptNo: 'Receipt No', date: 'Date', customer: 'Customer', phone: 'Phone', area: 'Area',
+    billingMonth: 'Billing Month', amountReceived: 'Amount Received',
+    ticketCharge: (ticketId) => `Repair / Material Charge (${ticketId})`,
+    baqaya: (entryId) => `Manual Balance (${entryId})`,
+    method: 'Payment Method', txnId: 'Transaction ID / Ref', sender: 'Sender',
+    refNote: 'Ref Note', paidBy: 'Paid By', remaining: 'Remaining Balance', status: 'Status',
+    statusPaid: 'PAID IN FULL', statusPartial: 'PARTIAL',
+    thanks: 'Thank you for your prompt payment.',
+    ops: 'Shahdara NOC & Field Billing Operations'
+  }
+});
+
+export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   const amountStr = Number(receipt.amount).toLocaleString('en-PK');
   const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
   const balanceStr = Number(remainingPayable).toLocaleString('en-PK');
-  const statusUrdu = (remainingPayable <= 0) ? 'مکمل ادا شدہ (PAID IN FULL)' : 'جزوی ادائیگی (PARTIAL)';
+  const L = QC_RECEIPT_TEXT[sanitizeReceiptLang(options.lang ?? receipt?.receiptLang)] ?? QC_RECEIPT_TEXT.bilingual;
+  const statusText = (remainingPayable <= 0) ? L.statusPaid : L.statusPartial;
   // SISP-43: settled ticket charges print as their own receipt lines.
   const ticketChargeLines = (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : [])
-    .map(line => `🔧 *Murammat / Material Charge (${line.ticketId}):* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
+    .map(line => `🔧 *${L.ticketCharge(line.ticketId)}:* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
   // Owner feature (2026-10-29): manual baqaya settled by this payment
   // prints as its own receipt lines too (bilingual, like the charges).
   const baqayaLines = (Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [])
-    .map(line => `🧾 *Manual Baqaya / دستی بقایا (${line.entryId}):* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
+    .map(line => `🧾 *${L.baqaya(line.entryId)}:* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
 
   const lines = [
     `*SHAHDARA FIBER NETWORK & ISP BILLING*`,
     `━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `*PAYMENT RECEIPT / ادائیگی کی رسید*`,
+    `*${L.title}*`,
     ``,
-    `🧾 *Receipt No:* ${receipt.receiptNumber}`,
-    `📅 *Date:* ${receipt.date}`,
-    `👤 *Customer:* ${receipt.customerName} (#${receipt.customerNumber})`,
-    receipt.phone ? `📱 *Phone:* ${receipt.phone}` : null,
-    `📍 *Area:* ${receipt.area}`,
-    `🗓️ *Billing Month:* ${receipt.month}`,
+    `🧾 *${L.receiptNo}:* ${receipt.receiptNumber}`,
+    `📅 *${L.date}:* ${receipt.date}`,
+    `👤 *${L.customer}:* ${receipt.customerName} (#${receipt.customerNumber})`,
+    receipt.phone ? `📱 *${L.phone}:* ${receipt.phone}` : null,
+    `📍 *${L.area}:* ${receipt.area}`,
+    `🗓️ *${L.billingMonth}:* ${receipt.month}`,
     ``,
-    `💵 *Amount Received:* PKR ${amountStr}`,
+    `💵 *${L.amountReceived}:* PKR ${amountStr}`,
     ...ticketChargeLines,
     ...baqayaLines,
-    `💳 *Payment Method:* ${receipt.method}`,
-    receipt.transactionId ? `🔢 *Transaction ID / Ref:* ${receipt.transactionId}` : null,
-    receipt.senderLabel ? `👤 *Sender / بھیجنے والا:* ${receipt.senderLabel}` : null,
-    receipt.referenceOverrideReason ? `📝 *Ref Note:* ${receipt.referenceOverrideReason}` : null,
-    receipt.paidBy ? `✍️ *Paid By:* ${receipt.paidBy}` : null,
+    `💳 *${L.method}:* ${receipt.method}`,
+    receipt.transactionId ? `🔢 *${L.txnId}:* ${receipt.transactionId}` : null,
+    receipt.senderLabel ? `👤 *${L.sender}:* ${receipt.senderLabel}` : null,
+    receipt.referenceOverrideReason ? `📝 *${L.refNote}:* ${receipt.referenceOverrideReason}` : null,
+    receipt.paidBy ? `✍️ *${L.paidBy}:* ${receipt.paidBy}` : null,
     ``,
-    `⚖️ *Remaining Balance:* PKR ${balanceStr}`,
-    `📌 *Status:* ${statusUrdu}`,
+    `⚖️ *${L.remaining}:* PKR ${balanceStr}`,
+    `📌 *${L.status}:* ${statusText}`,
     ``,
-    `Shukriya! Thank you for your prompt payment.`,
-    `Shahdara NOC & Field Billing Operations`,
+    L.thanks,
+    L.ops,
     formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings()) ? `ℹ️ ${formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings())}` : null,
     `━━━━━━━━━━━━━━━━━━━━━━━━`
   ];
@@ -2243,7 +2304,10 @@ export function setupQuickCollectModal({
   // WhatsApp receipt dispatch
   whatsAppBtn?.addEventListener('click', async () => {
     if (!activeReceipt) return;
-    const { url, text } = formatQuickCollectWhatsAppReceipt(activeReceipt);
+    // SISP-91: render the draft in the customer's saved receipt
+    // language when set (the preference wins over the default draft).
+    const receiptCustomer = getState()?.customers?.find(c => c.id === activeReceipt.customerId);
+    const { url, text } = formatQuickCollectWhatsAppReceipt(activeReceipt, { lang: receiptLangPreference(receiptCustomer) });
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
       markReceiptShared(activeReceipt.id, {

@@ -11,6 +11,7 @@ import { isCommercialVip } from './commercial-sla.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
 import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
+import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
 
 const BILL_STATUS = Object.freeze({
   paid: { label:'Paid', className:'status-received' },
@@ -129,7 +130,59 @@ export function createWhatsAppFollowupDraft(phone, customer, details, template =
 }
 
 /** Return a user-reviewed wa.me composer URL for one saved receipt; never sends a message. */
-export function createReceiptWhatsAppDraft(phone, receipt) {
+// SISP-91: the draft renders in the customer's saved receipt language
+// (preferredReceiptLang) when one is set — the preference wins over the
+// UI language and over this builder's English default. With no saved
+// preference (or 'english') the English text below is byte-identical to
+// the pre-SISP-91 draft. The SISP-2 breakdown and SISP-33 FIFO lines
+// come from the shared billing-cycle helpers in every language, exactly
+// as before; dates, PKR amounts and method names keep their formats.
+const RECEIPT_DRAFT_TEXT = Object.freeze({
+  english: {
+    header: '🧾 SHAHDARA ISP — PAYMENT RECEIPT',
+    customer: '👤 Customer', customerNumber: '🆔 Customer #', paidBy: 'Paid by',
+    amountPaid: '💰 Amount Paid', amountReceived: '💰 Amount Received',
+    receivedDate: '📅 Received date', method: '💳 Method', billingMonth: '📆 Billing Month',
+    packageDate: '📦 Package date', renewalNote: '(renewal day: 1st of every month)',
+    breakdownHeading: '📋 Bill breakdown:', fifoHeading: '💠 FIFO taqseem:',
+    ticketCharge: (ticketId) => `🔧 Murammat / Material Charge (${ticketId})`,
+    statusPaid: '✅ Status: PAID', statusPartial: '🟠 Status: PARTIAL',
+    outstanding: '💵 Outstanding', outstandingZero: '💵 Outstanding: PKR 0',
+    nextBillDue: '📅 Next Bill Due', billAmount: '💳 Bill Amount', currentBillDue: '📅 Current Bill Due',
+    payBy5: '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰',
+    notAvailable: 'Not available', notRecorded: 'Not recorded'
+  },
+  urdu: {
+    header: '🧾 شاہدرہ آئی ایس پی — ادائیگی کی رسید',
+    customer: '👤 صارف', customerNumber: '🆔 صارف نمبر', paidBy: 'ادا کنندہ',
+    amountPaid: '💰 رقم ادا شدہ', amountReceived: '💰 رقم موصول',
+    receivedDate: '📅 وصولی کی تاریخ', method: '💳 طریقہ ادائیگی', billingMonth: '📆 بل کا مہینہ',
+    packageDate: '📦 پیکیج کی تاریخ', renewalNote: '(تجدید ہر مہینے کی 1 تاریخ کو)',
+    breakdownHeading: '📋 بل کی تفصیل:', fifoHeading: '💠 فائیفو تقسیم:',
+    ticketCharge: (ticketId) => `🔧 مرمت / سامان چارج (${ticketId})`,
+    statusPaid: '✅ کیفیت: مکمل ادا شدہ', statusPartial: '🟠 کیفیت: جزوی ادائیگی',
+    outstanding: '💵 بقایا رقم', outstandingZero: '💵 بقایا رقم: PKR 0',
+    nextBillDue: '📅 اگلے بل کی آخری تاریخ', billAmount: '💳 بل کی رقم', currentBillDue: '📅 موجودہ بل کی آخری تاریخ',
+    payBy5: '⚠️ سروس کی بندش سے بچنے کے لیے ہر مہینے کی 5 تاریخ تک ادائیگی فرمائیں۔ شکریہ 🥰',
+    notAvailable: 'دستیاب نہیں', notRecorded: 'درج نہیں'
+  },
+  roman: {
+    header: '🧾 SHAHDARA ISP — ADAIGI KI RASEED',
+    customer: '👤 Customer', customerNumber: '🆔 Customer #', paidBy: 'Ada karne wala',
+    amountPaid: '💰 Raqam Ada', amountReceived: '💰 Raqam Wasool',
+    receivedDate: '📅 Wasooli ki tareekh', method: '💳 Tareeqa-e-Adaigi', billingMonth: '📆 Bill ka maheena',
+    packageDate: '📦 Package ki tareekh', renewalNote: '(tajdeed har maheenay ki 1 tareekh ko)',
+    breakdownHeading: '📋 Bill ki tafseel:', fifoHeading: '💠 FIFO taqseem:',
+    ticketCharge: (ticketId) => `🔧 Murammat / Material Charge (${ticketId})`,
+    statusPaid: '✅ Status: MUKAMMAL ADA SHUDA', statusPartial: '🟠 Status: JUZWI ADAIGI',
+    outstanding: '💵 Baqaya raqam', outstandingZero: '💵 Baqaya raqam: PKR 0',
+    nextBillDue: '📅 Aglay bill ki aakhri tareekh', billAmount: '💳 Bill ki raqam', currentBillDue: '📅 Mojooda bill ki aakhri tareekh',
+    payBy5: '⚠️ Service bandish se bachne ke liye har maheenay ki 5 tareekh tak adaigi kar dein. Shukriya 🥰',
+    notAvailable: 'Dastiyab nahi', notRecorded: 'Darj nahi'
+  }
+});
+
+export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
   const target = contactActionTargets(phone)?.whatsapp;
   const amount = Number(receipt?.amount);
   const name = safeLine(receipt?.customerName);
@@ -139,6 +192,12 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
   const month = String(receipt?.month ?? '');
   if (!target || !name || !Number.isSafeInteger(customerNumber) || customerNumber < 1 || !Number.isFinite(amount) || amount <= 0 || !validCalendarDate(date) || !validMonth(month) || !PAYMENT_METHODS.includes(method)) return null;
 
+  const lang = sanitizeReceiptLang(options.lang ?? receipt?.receiptLang);
+  const L = RECEIPT_DRAFT_TEXT[lang] ?? RECEIPT_DRAFT_TEXT.english;
+  // The default/English layout keeps its long-standing literal lines
+  // verbatim (tests/deployment.test.js source-pins them); the urdu and
+  // roman layouts render the same lines through the dictionary above.
+  const englishLayout = lang !== 'urdu' && lang !== 'roman';
   const billAmount = Number(receipt?.billAmount);
   const balanceDueCents = Number(receipt?.balanceDueCents);
   const hasBillContext = Number.isFinite(billAmount) && billAmount > 0 && Number.isSafeInteger(balanceDueCents) && balanceDueCents >= 0;
@@ -149,31 +208,31 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
         : null
     : null;
   const paidBy = safeLine(receipt?.paidBy, 100);
-  const packageDate = formatReceiptDate(receiptMonthDate(month, 1)) ?? 'Not available';
+  const packageDate = formatReceiptDate(receiptMonthDate(month, 1)) ?? L.notAvailable;
   const lines = [
-    '🧾 SHAHDARA ISP — PAYMENT RECEIPT',
+    L.header,
     '',
-    `👤 Customer: ${name}`,
-    `🆔 Customer #: ${customerNumber}`,
-    ...(paidBy ? [`Paid by: ${paidBy}`] : []),
+    `${L.customer}: ${name}`,
+    `${L.customerNumber}: ${customerNumber}`,
+    ...(paidBy ? [`${L.paidBy}: ${paidBy}`] : []),
     '',
-    `💰 Amount ${billStatus === 'paid' ? 'Paid' : 'Received'}: ${formatPKR(amount)}`,
-    `📅 Received date: ${formatReceiptDate(date)}`,
-    `💳 Method: ${method}`,
-    `📆 Billing Month: ${formatReceiptMonth(month)}`,
-    `📦 Package date: ${packageDate} (renewal day: 1st of every month)`
+    `${billStatus === 'paid' ? L.amountPaid : L.amountReceived}: ${formatPKR(amount)}`,
+    englishLayout ? `📅 Received date: ${formatReceiptDate(date)}` : `${L.receivedDate}: ${formatReceiptDate(date)}`,
+    `${L.method}: ${method}`,
+    `${L.billingMonth}: ${formatReceiptMonth(month)}`,
+    englishLayout ? `📦 Package date: ${packageDate} (renewal day: 1st of every month)` : `${L.packageDate}: ${packageDate} ${L.renewalNote}`
   ];
 
   // SISP-2: itemized arrears breakdown on the WhatsApp receipt, when the
   // caller attached one (app.js computes it per bill month).
   if (receipt?.arrearsBreakdown) {
-    lines.push('', '📋 Bill breakdown:', ...arrearsBreakdownTextLines(receipt.arrearsBreakdown));
+    lines.push('', L.breakdownHeading, ...arrearsBreakdownTextLines(receipt.arrearsBreakdown));
   }
 
   // SISP-33: FIFO split of this payment plus the remaining split, when
   // the caller attached them (app.js passes them from buildPaymentReceipt).
   if (receipt?.fifoAllocation && receipt?.fifoRemaining && receipt?.fifoShow) {
-    lines.push('', '💠 FIFO taqseem:', ...fifoTextLines(receipt.fifoAllocation, receipt.fifoRemaining));
+    lines.push('', L.fifoHeading, ...fifoTextLines(receipt.fifoAllocation, receipt.fifoRemaining));
   }
 
   // SISP-43: billed ticket charges this payment settled, when the caller
@@ -181,33 +240,33 @@ export function createReceiptWhatsAppDraft(phone, receipt) {
   // well-formed lines print — a malformed stamp never breaks the draft.
   const ticketChargeLines = (Array.isArray(receipt?.ticketCharges) ? receipt.ticketCharges : [])
     .filter((line) => /^TKT-\d+$/.test(String(line?.ticketId ?? '')) && Number.isFinite(Number(line?.amount)) && Number(line.amount) > 0)
-    .map((line) => `🔧 Murammat / Material Charge (${line.ticketId}): ${formatPKR(Number(line.amount))}`);
+    .map((line) => `${L.ticketCharge(line.ticketId)}: ${formatPKR(Number(line.amount))}`);
   if (ticketChargeLines.length > 0) {
     lines.push('', ...ticketChargeLines);
   }
 
   if (billStatus === 'paid') {
     const nextBillDueDate = nextCycleDueDateFromBillMonth(month);
-    const nextBillDue = formatReceiptDate(nextBillDueDate) ?? 'Not available';
+    const nextBillDue = formatReceiptDate(nextBillDueDate) ?? L.notAvailable;
     lines.push(
       '',
-      '✅ Status: PAID',
-      '💵 Outstanding: PKR 0',
+      L.statusPaid,
+      L.outstandingZero,
       '',
       '━━━━━━━━━━━━━━',
-      `📅 Next Bill Due: ${nextBillDue}`,
+      englishLayout ? `📅 Next Bill Due: ${nextBillDue}` : `${L.nextBillDue}: ${nextBillDue}`,
       '',
-      '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰'
+      L.payBy5
     );
   } else if (billStatus === 'partial') {
-    const currentBillDue = formatReceiptDate(receipt?.billDueDate) ?? 'Not recorded';
+    const currentBillDue = formatReceiptDate(receipt?.billDueDate) ?? L.notRecorded;
     lines.push(
       '',
-      '🟠 Status: PARTIAL',
-      `💵 Outstanding: ${formatPKR(balanceDueCents / 100)}`,
-      `💳 Bill Amount: ${formatPKR(billAmount)}`,
-      `📅 Current Bill Due: ${currentBillDue}`,
-      '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰'
+      L.statusPartial,
+      `${L.outstanding}: ${formatPKR(balanceDueCents / 100)}`,
+      `${L.billAmount}: ${formatPKR(billAmount)}`,
+      englishLayout ? `📅 Current Bill Due: ${currentBillDue}` : `${L.currentBillDue}: ${currentBillDue}`,
+      L.payBy5
     );
   }
 
@@ -247,7 +306,7 @@ export function resolveReceiptWhatsAppAction(customer, receipt) {
     ...receipt,
     customerName:customer.name,
     customerNumber:customer.customerNumber
-  });
+  }, { lang: receiptLangPreference(customer) });
   return draft ? { type:'draft', draft } : { type:'unavailable', reason:'invalid-receipt' };
 }
 

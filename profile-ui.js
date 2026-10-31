@@ -14,6 +14,7 @@ import { isCommercialVip } from './commercial-sla.js';
 
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
+import { evaluateStarTimelyPayer } from './star-subscribers.js';
 import { isRandomizedMac, macOuiVendor } from './mac-oui-lookup.js';
 import { disconnectDetailsOf, disconnectReasonLabel } from './churn-winback.js';
 import { computeWaadaScore } from './waada-queue.js';
@@ -288,6 +289,12 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
     );
   }
 
+  // SISP-120: the fixed thank-you line rides only on a starred
+  // customer's draft (the resolver attaches the live-derived flag).
+  if (receipt?.starTimelyPayer === true) {
+    lines.push('', t('star_receipt_thanks'));
+  }
+
   // SISP-96: the owner-configured receipt footer (built once by
   // receipt-footer-studio.js, passed in by the host as receiptFooterText)
   // closes the draft verbatim. Absent/empty on unconfigured setups, so
@@ -334,7 +341,8 @@ export function resolveReceiptWhatsAppAction(customer, receipt) {
   const draft = createReceiptWhatsAppDraft(phone, {
     ...receipt,
     customerName:customer.name,
-    customerNumber:customer.customerNumber
+    customerNumber:customer.customerNumber,
+    starTimelyPayer: evaluateStarTimelyPayer({ customers:[customer] }, customer).starred
   }, { lang: receiptLangPreference(customer) });
   return draft ? { type:'draft', draft } : { type:'unavailable', reason:'invalid-receipt' };
 }
@@ -674,6 +682,17 @@ export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date(
   if (!until) return '';
   const label = t('prepaid_badge', null, { month: formatReceiptMonth(until) ?? until });
   return `<span class="prepaid-until-badge">${label}</span>`;
+}
+
+/**
+ * SISP-120: the Star Timely Payer badge for the profile heading. The
+ * star itself is derived live by star-subscribers.js from the last three
+ * completed billed months and the recorded Waada history — this helper
+ * only formats the result and returns '' for everyone else.
+ */
+export function starTimelyPayerBadgeHtml(state, customer, referenceDate = new Date()) {
+  if (!evaluateStarTimelyPayer(state, customer, referenceDate).starred) return '';
+  return `<span class="star-timely-payer-badge">${escapeHtml(t('star_badge'))}</span>`;
 }
 
 /**

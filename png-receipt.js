@@ -218,6 +218,9 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     seal: decideSeal(receipt),
     status: text(receipt.status) || 'RECEIVED',
     urduNote: text(receipt.urduNote),
+    // SISP-120: carried from buildPaymentReceipt's live star derivation;
+    // empty for non-starred customers, whose PNG commands are unchanged.
+    starThankYouNote: text(receipt.starThankYouNote),
     issuedAt: text(options.issuedAt) || new Date().toISOString(),
   };
 }
@@ -324,6 +327,14 @@ export function computePngReceiptLayout(model, measureFn) {
     label: model.seal.label, urdu: model.seal.urdu, sub: model.seal.sub, color: model.seal.color,
   });
   y += 210;
+
+  // SISP-120: a starred customer's thank-you line, above the footer.
+  if (model.starThankYouNote) {
+    const starIsUrdu = /[\u0600-\u06FF]/.test(model.starThankYouNote);
+    txt(model.starThankYouNote, W / 2, y, `700 42px ${starIsUrdu ? FONT_URDU : FONT_LATIN}`,
+      'center', ACCENT, starIsUrdu ? 'rtl' : undefined);
+    y += 62;
+  }
 
   // Footer: Urdu note (wrapped, centered) + issued line.
   const noteLines = model.urduNote ? wrapText({ measureText: (t) => ({ width: measure(t) }) }, model.urduNote, contentW - 160) : [];

@@ -7,6 +7,7 @@ import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { evaluateStarTimelyPayer, starReceiptThankYouNote } from './star-subscribers.js';
 import { buildReceiptFooterHtml } from './receipt-footer-studio.js';
 import { receiptCodeForReceipt, receiptVerificationCode, verificationStampText } from './receipt-verifier.js';
 import { renderCustomWaTemplate } from './whatsapp-templates.js';
@@ -173,6 +174,9 @@ export function buildPaymentReceipt(customer, bill, payment) {
     billMonth: bill.month
   });
 
+  // SISP-120: evaluated once from the live ledger; never stored.
+  const starTimelyPayer = evaluateStarTimelyPayer({ customers:[customer] }, customer).starred;
+
   const receiptCustomerId = Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '';
   // SISP-83: tamper-evident verification code (VER: XXXX-XX), computed
   // at render from this receipt's own facts — never stored on the
@@ -258,6 +262,11 @@ export function buildPaymentReceipt(customer, bill, payment) {
     servicePeriodEnd,
     status,
     balanceDueCents,
+    // SISP-120: the Star Timely Payer thank-you line, derived live from
+    // the customer's ledger by star-subscribers.js. Empty for everyone
+    // else, so non-starred receipts render byte-identically.
+    starTimelyPayer,
+    starThankYouNote: starTimelyPayer ? starReceiptThankYouNote() : '',
     // SISP-2: itemized arrears breakdown for this bill month (package,
     // previous arrears, total due, paid applied, balance). Null when the
     // bill has no price — the breakdown needs a priced bill month.
@@ -350,6 +359,12 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// SISP-120: one thank-you paragraph shared by all three HTML layouts.
+// Empty unless buildPaymentReceipt derived the star for this customer.
+const starThankYouReceiptHtml = (receipt) => receipt?.starThankYouNote
+  ? `<p class="receipt-reminder receipt-star-thanks">${escapeHtml(receipt.starThankYouNote)}</p>`
+  : '';
 
 /**
  * SISP-71 bridge — the operator-customized Template Studio "Payment
@@ -466,6 +481,7 @@ export function generatePaymentReceiptHtml(receipt, {
   </dl>
   <div class="receipt-divider">--------------------------------</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(RECEIPT_URDU_NOTE)}</div>
+  ${starThankYouReceiptHtml(receipt)}
   <footer class="receipt-terms">
     <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>${customFooterBlock}
   </footer>
@@ -518,6 +534,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">
     <p><strong>نوٹ:</strong> ${escapeHtml(RECEIPT_URDU_NOTE)}</p>
   </div>
+  ${starThankYouReceiptHtml(receipt)}
   <footer class="receipt-terms">
     <p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n', '<br>')}</p>
     <p class="receipt-footer-text">*** برائے مہربانی رسید سنبھال کر رکھیں۔ شکریہ! ***</p>${customFooterBlock}
@@ -597,6 +614,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">
     <strong>اہم معلوماتی نوٹ:</strong> ${escapeHtml(RECEIPT_URDU_NOTE)}
   </div>
+  ${starThankYouReceiptHtml(receipt)}
   ${status === 'PAID' ? '<p class="receipt-reminder">⚠️ Please pay by the 5th of each calendar month to avoid service interruption. Thanks 🥰</p>' : ''}
   <footer class="receipt-terms">
     <h2>Package Terms &amp; Conditions / شرائط پیکیج</h2>

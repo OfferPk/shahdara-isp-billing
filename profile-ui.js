@@ -7,8 +7,10 @@ import { getAppLanguage, t } from './nav-language.js';
 import { paymentDayHabit } from './payment-day-advisor.js';
 import { earlyPayoffAmount, sanitizeInstallmentPlan } from './installment-plan.js';
 import { prepaidUntilMonth } from './advance-prepay.js';
+import { addonChargesPending, speedBoostStatus, speedBoostsOf } from './speed-addon.js';
 import { loyaltyInfoForCustomer } from './loyalty-retention.js';
 import { isCommercialVip } from './commercial-sla.js';
+
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
 import { computeWaadaScore } from './waada-queue.js';
@@ -704,6 +706,31 @@ export function upsellProfileHintHtml(candidate, formatAmountFn = (n) => String(
   return `<section class="profile-referral-section" aria-label="${esc(t('prof_upsell_heading'))}"><h4>${esc(t('prof_upsell_heading'))}</h4><p>${esc(textLine)}</p>${candidate.whatsappUrl ? `<p><a class="secondary-button" href="${esc(candidate.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${esc(t('upsell_offer'))}</a></p>` : ''}</section>`;
 }
 
+// SISP-106: the profile Speed Boost section — the customer's boost log
+// (newest first) with its derived status (active / upcoming / expired,
+// never a stored flag) and charge state, the MikroTik snippet buttons
+// (wired in app.js via data attributes; the snippet text is generated
+// on click by mikrotik-generator.js), and the add-boost form. The base
+// package is never shown as changed here — a boost is an add-on only.
+// FREE customers get the explanatory note instead of the form (they
+// are never billed); archived customers get the log without the form.
+export function speedBoostProfileSectionHtml(customer, { todayStr = '', formatAmountFn = (n) => String(n ?? '') } = {}) {
+  if (!customer) return '';
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const boosts = [...speedBoostsOf(customer)].sort((a, b) => String(b.startDate).localeCompare(String(a.startDate)) || (Number(String(b.boostId).slice(4)) - Number(String(a.boostId).slice(4))));
+  const pending = addonChargesPending(customer);
+  const statusLabel = (status) => t(status === 'expired' ? 'boost_status_expired' : status === 'upcoming' ? 'boost_status_upcoming' : 'boost_status_active');
+  const rows = boosts.map((boost) => {
+    const status = speedBoostStatus(boost, todayStr);
+    const line = t('boost_line', null, { mbps: boost.boostMbps, days: boost.durationDays, fee: formatAmountFn(boost.addonFeePKR), start: boost.startDate, expiry: boost.expiryDate });
+    return `<li><span><strong>${esc(boost.boostId)}</strong> · ${esc(line)} · ${esc(statusLabel(status))}</span><span>${boost.chargePaid ? esc(t('boost_paid')) : esc(t('boost_unpaid'))}</span> <button type="button" class="secondary-button" data-boost-snippet="${esc(boost.boostId)}">${esc(t('boost_copy_snippet'))}</button>${status === 'expired' ? ` <button type="button" class="secondary-button" data-boost-restore="1">${esc(t('boost_copy_restore'))}</button>` : ''}</li>`;
+  }).join('');
+  const canAdd = customer.isFreeConnection !== true && customer.archived !== true;
+  const form = canAdd
+    ? `<div class="boost-add-form"><label for="profileBoostMbps">${esc(t('boost_form_mbps'))}</label><input id="profileBoostMbps" type="number" min="1" step="any" inputmode="decimal"><label for="profileBoostDays">${esc(t('boost_form_days'))}</label><input id="profileBoostDays" type="number" min="1" max="365" step="1" inputmode="numeric"><label for="profileBoostFee">${esc(t('boost_form_fee'))}</label><input id="profileBoostFee" type="number" min="1" step="any" inputmode="decimal"><label for="profileBoostStart">${esc(t('boost_form_start'))}</label><input id="profileBoostStart" type="date" value="${esc(todayStr)}"><button type="button" class="primary-button" id="profileBoostAddBtn">${esc(t('boost_add'))}</button></div>`
+    : (customer.isFreeConnection === true ? `<p class="profile-boost-note">${esc(t('boost_free_note'))}</p>` : '');
+  return `<section class="profile-boost-section" aria-label="${esc(t('boost_heading'))}"><h4>${esc(t('boost_heading'))}</h4>${pending > 0 ? `<p class="profile-boost-charges">${esc(t('boost_pending', null, { amount: formatAmountFn(pending) }))}</p>` : ''}${boosts.length === 0 ? `<p class="profile-boost-empty">${esc(t('boost_empty'))}</p>` : `<ul class="profile-boost-list">${rows}</ul>`}${form}</section>`;
+}
 /**
  * SISP-69: profile bottleneck hint. Renders ONLY for a customer flagged
  * by hardware-speed-audit.js (catalogue speed >= 15 Mbps AND last RX
@@ -721,4 +748,5 @@ export function bottleneckProfileHintHtml(suspect, formatRxFn = (v) => String(v 
     ? t('hwaudit_complaints', null, { count: suspect.slowSpeedComplaints })
     : t('hwaudit_no_complaints');
   return `<section class="profile-referral-section" aria-label="${esc(t('prof_hwaudit_heading'))}"><h4>${esc(t('prof_hwaudit_heading'))}</h4><p>${esc(textLine)}</p><p>${esc(complaintsLine)}</p></section>`;
+
 }

@@ -22,9 +22,11 @@ import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPers
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
 import { captureCurrentPosition, loadSplitterBoxPins, saveSplitterBoxPins, SPLITTER_BOX_GPS_STORAGE_KEY } from './gps-pin-helper.js';
 import { initHelpGuides, helpButtonMarkup } from './help-guide.js?v=1.11.0';
+
 
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
@@ -179,8 +181,10 @@ import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHour
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
-import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
+import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet, buildSpeedBoostRestoreSnippet, buildSpeedBoostSnippet } from './mikrotik-generator.js';
+import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonChargesForPayment } from './speed-addon.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
+
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
 import { buildSystemHealthReport, setupSystemHealthCenter, summarizeSystemHealth } from './system-health-center.js';
 import { setupSpeedCounterEntryModal, submitSpeedEntryBatch } from './speed-counter-entry.js';
@@ -3157,6 +3161,10 @@ function renderCustomerProfileView(customer) {
   // inside this copyable script (that is the point of the feature).
   const mikrotikSnippet = buildCustomerMikrotikSnippet(customer);
   const mikrotikSectionHtml = `<section class="profile-mikrotik-section" aria-label="${t('prof_mikrotik_aria')}"><h4>${t('prof_mikrotik_heading')} ${helpButtonMarkup('mikrotik')}</h4><p class="profile-mikrotik-note">${t('prof_mikrotik_note')}</p><textarea id="profileMikrotikScript" class="mikrotik-script-box" readonly rows="10" aria-label="${t('prof_mikrotik_textarea_aria')}">${escapeHtml(mikrotikSnippet)}</textarea><button type="button" class="secondary-button" id="profileMikrotikCopyBtn">${t('prof_mikrotik_copy')}</button></section>`;
+  // SISP-106: speed-boost log + add form + MikroTik snippet buttons
+  // (builder in profile-ui.js; wiring below with the other sections).
+  const boostSectionHtml = speedBoostProfileSectionHtml(customer, { todayStr: localDate(), formatAmountFn: formatAmount });
+
   // SISP-47: vacation-hold router snippet — shown only when a hold is
   // scheduled/active (disable snippet), its auto-resume date has passed,
   // or the customer was resumed after a recorded hold (enable snippet).
@@ -3200,7 +3208,8 @@ function renderCustomerProfileView(customer) {
     ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
     : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${badDebtSectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${badDebtSectionHtml}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
@@ -3343,6 +3352,50 @@ function renderCustomerProfileView(customer) {
       toast('Could not copy the script — select it and copy manually.');
     }
   });
+  // SISP-106: wire the Speed Boost section — snippet copy buttons
+  // (read-only router text, generated on click) and the add-boost
+  // form. Adding a boost only appends to the customer's boost log and
+  // makes its fee due with the bill; the base package never changes.
+  const boostSection = $('#customerProfileView').querySelector('.profile-boost-section');
+  if (boostSection) {
+    const copyBoostText = async (text) => {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+        }
+        toast(t('boost_copied'));
+      } catch {
+        toast(t('boost_copy_failed'));
+      }
+    };
+    boostSection.querySelectorAll('[data-boost-snippet]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const boost = speedBoostsOf(customer).find((b) => b.boostId === btn.getAttribute('data-boost-snippet'));
+        if (boost) await copyBoostText(buildSpeedBoostSnippet(customer, boost));
+      });
+    });
+    const boostRestoreBtn = boostSection.querySelector('[data-boost-restore]');
+    if (boostRestoreBtn) boostRestoreBtn.addEventListener('click', async () => {
+      await copyBoostText(buildSpeedBoostRestoreSnippet(customer));
+    });
+    const boostAddBtn = boostSection.querySelector('#profileBoostAddBtn');
+    if (boostAddBtn) boostAddBtn.addEventListener('click', () => {
+      try {
+        const result = addSpeedBoost(state, customer.id, {
+          boostMbps: boostSection.querySelector('#profileBoostMbps')?.value,
+          durationDays: boostSection.querySelector('#profileBoostDays')?.value,
+          addonFeePKR: boostSection.querySelector('#profileBoostFee')?.value,
+          startDate: boostSection.querySelector('#profileBoostStart')?.value || undefined
+        }, new Date());
+        state = result.state;
+        save();
+        toast(t('boost_added', null, { id: result.boost.boostId, fee: formatAmount(result.boost.addonFeePKR) }), { type: 'success' });
+        renderDetail();
+      } catch (err) {
+        toast(err.message, { type: 'error' });
+      }
+    });
+  }
   // SISP-47: copy the vacation-hold disable/enable snippet (read-only text).
   const profileVacationHoldCopyBtn = $('#customerProfileView').querySelector('#profileVacationHoldCopyBtn');
   if (profileVacationHoldCopyBtn) profileVacationHoldCopyBtn.addEventListener('click', async () => {
@@ -3590,8 +3643,11 @@ function renderCurrentBillSummary(customer) {
   // They live on the tickets, never inside bills, so they get their own
   // stat (with the combined payable) — shown only while charges pend.
   const ticketChargesPending = billedTicketChargesPending(loadTickets(), customer.id);
+  // SISP-106: pending boost fees live on the customer record — same
+  // treatment: their own stat, shown only while a fee pends.
+  const boostChargesPending = addonChargesPending(customer);
   const currentStatusKey = { paid: 'prof_current_status_paid', pending: 'prof_current_status_pending', partial: 'prof_current_status_partial', 'not-set': 'prof_not_set' }[summary.status];
-  $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>${t('prof_current_heading', null, { month: displayMonthName(month) })}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_current_help_label')}" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">${t('prof_current_help')}</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat"><span>${t('prof_current_monthly_bill')}</span><strong>${summary.billAmount === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.billAmount))}</strong></article><article class="current-bill-stat"><span>${t('prof_current_received')}</span><strong>${summary.receiptCount?escapeHtml(formatAmount(summary.receivedAmount)):t('prof_current_no_receipts')}</strong></article><article class="current-bill-stat"><span>${t('prof_current_status')}</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(currentStatusKey ? t(currentStatusKey) : summary.statusLabel)}</strong></article><article class="current-bill-stat"><span>${t('prof_current_net_due')}</span><strong>${summary.balanceDueCents === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.balanceDueCents / 100))}</strong></article><article class="current-bill-stat"><span>${t('prof_current_unused_credit')}</span><strong>${unusedCreditCents?escapeHtml(formatAmount(unusedCreditCents/100)):t('prof_none_recorded')}</strong></article>${ticketChargesPending > 0 ? `<article class="current-bill-stat"><span>${t('prof_current_ticket_charges')}</span><strong>${escapeHtml(formatAmount(ticketChargesPending))}</strong></article>` : ''}</div>${summary.fifo && (summary.fifo.previousArrears > 0 || summary.fifo.kistTotal > 0) ? `<div class="current-bill-grid" aria-label="${t('prof_fifo_aria')}"><article class="current-bill-stat"><span>${t('prof_fifo_arrears')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingArrears))}</strong></article><article class="current-bill-stat"><span>${t('prof_fifo_package')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingPackage))}</strong></article><article class="current-bill-stat"><span>${t('prof_fifo_kist')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingKist))}</strong></article></div>` : ''}`;
+  $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>${t('prof_current_heading', null, { month: displayMonthName(month) })}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_current_help_label')}" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">${t('prof_current_help')}</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat"><span>${t('prof_current_monthly_bill')}</span><strong>${summary.billAmount === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.billAmount))}</strong></article><article class="current-bill-stat"><span>${t('prof_current_received')}</span><strong>${summary.receiptCount?escapeHtml(formatAmount(summary.receivedAmount)):t('prof_current_no_receipts')}</strong></article><article class="current-bill-stat"><span>${t('prof_current_status')}</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(currentStatusKey ? t(currentStatusKey) : summary.statusLabel)}</strong></article><article class="current-bill-stat"><span>${t('prof_current_net_due')}</span><strong>${summary.balanceDueCents === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.balanceDueCents / 100))}</strong></article><article class="current-bill-stat"><span>${t('prof_current_unused_credit')}</span><strong>${unusedCreditCents?escapeHtml(formatAmount(unusedCreditCents/100)):t('prof_none_recorded')}</strong></article>${ticketChargesPending > 0 ? `<article class="current-bill-stat"><span>${t('prof_current_ticket_charges')}</span><strong>${escapeHtml(formatAmount(ticketChargesPending))}</strong></article>` : ''}${boostChargesPending > 0 ? `<article class="current-bill-stat"><span>${t('boost_current_charges')}</span><strong>${escapeHtml(formatAmount(boostChargesPending))}</strong></article>` : ''}</div>${summary.fifo && (summary.fifo.previousArrears > 0 || summary.fifo.kistTotal > 0) ? `<div class="current-bill-grid" aria-label="${t('prof_fifo_aria')}"><article class="current-bill-stat"><span>${t('prof_fifo_arrears')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingArrears))}</strong></article><article class="current-bill-stat"><span>${t('prof_fifo_package')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingPackage))}</strong></article><article class="current-bill-stat"><span>${t('prof_fifo_kist')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingKist))}</strong></article></div>` : ''}`;
 }
 // Owner feature (2026-10-29): Manual Baqaya profile flows. The
 // section lives in the Billing tab (mounted from #manualBaqayaSection);
@@ -5416,10 +5472,34 @@ function setupVoidPaymentDialog() {
           return;
         }
       }
+      // SISP-106: a voided payment's boost-charge settlements reopen
+      // the same way — the fee is due again because the cash behind it
+      // no longer exists. Boosts live on the customer in state, so the
+      // reopen is a state write under the same rollback discipline.
+      let addonChargesReopened = 0;
+      if (voidedPayment && Array.isArray(voidedPayment.addonCharges) && voidedPayment.addonCharges.length > 0) {
+        try {
+          const cust = state.customers.find(c => c.id === target.customerId);
+          if (cust) {
+            const { customer: reopenedCustomer, reopened } = unsettleAddonChargesForPayment(cust, voidedPayment);
+            if (reopened.length > 0) {
+              state = { ...state, customers: state.customers.map(c => (c.id === target.customerId ? reopenedCustomer : c)) };
+              save();
+            }
+            addonChargesReopened = reopened.length;
+          }
+        } catch {
+          state = previousState;
+          save();
+          saveVoidPayments(previousLog);
+          toast('Boost charges could not be reopened — nothing was changed. Check storage and try again.', { type: 'error' });
+          return;
+        }
+      }
       close();
       if (selectedCustomerId === target.customerId) renderDetail();
       renderTransactions();
-      toast(`Payment voided: ${formatAmount(voidRecord.amount)} restored to #${voidRecord.customerNumber} balance.${voidRecord.promiseRestored ? ' Waada promise restored.' : ''}${ticketChargesReopened > 0 ? ' Ticket charge reopened.' : ''}`, { type: 'success', title: 'Payment voided' });
+      toast(`Payment voided: ${formatAmount(voidRecord.amount)} restored to #${voidRecord.customerNumber} balance.${voidRecord.promiseRestored ? ' Waada promise restored.' : ''}${ticketChargesReopened > 0 ? ' Ticket charge reopened.' : ''}${addonChargesReopened > 0 ? ' Boost charge reopened.' : ''}`, { type: 'success', title: 'Payment voided' });
     } catch (error) {
       toast(error.message, { type: 'error' });
     }

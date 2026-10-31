@@ -12905,6 +12905,77 @@ dialog::backdrop {
     flex-wrap: wrap;
   }
 }
+/* SISP-106: profile speed-boost section — theme tokens only, so the
+ * log, status text and add form read correctly in light and dark mode. */
+.profile-boost-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.profile-boost-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.profile-boost-charges {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 10px;
+}
+.profile-boost-empty,
+.profile-boost-note {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+.profile-boost-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+.profile-boost-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.profile-boost-list li span {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.profile-boost-list li span:first-child {
+  color: var(--ink);
+  font-size: 13px;
+}
+.boost-add-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+.boost-add-form label {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.boost-add-form input {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  padding: 0 11px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.boost-add-form input:focus {
+  outline: 3px solid var(--line);
+  border-color: var(--green);
+}
 @media (max-width: 480px) {
   .waada-chip-row .waada-chip-btn {
     flex: 1 1 30%;

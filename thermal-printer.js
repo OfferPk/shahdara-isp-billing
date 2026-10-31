@@ -108,6 +108,13 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
       if (line && line.label) push(rowLine(line.label, line.value ?? '', width));
     }
   }
+  // SISP-106: speed-boost add-on fees settled by this receipt, one row
+  // per boost, same { label, value } shape, printed beside the tickets.
+  if (Array.isArray(fields.addonCharges)) {
+    for (const line of fields.addonCharges) {
+      if (line && line.label) push(rowLine(line.label, line.value ?? '', width));
+    }
+  }
   if (fields.discount) push(rowLine('Discount', fields.discount, width));
   if (fields.concession) push(rowLine('Outage concession', fields.concession, width));
   if (fields.lateFeeWaived) push(rowLine('Late fee waived', fields.lateFeeWaived, width));
@@ -210,6 +217,12 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
       ...(Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [])
         .map(line => ({ label: `Baqaya (${line.entryId})`, value: money(line.amount) }))
     ],
+    // SISP-106: speed-boost add-on fees settled by this payment (short
+    // label, same reasoning as the ticket lines above); the ESC/POS
+    // builder prints them beside the ticket rows.
+    addonCharges: (Array.isArray(receipt.addonCharges) ? receipt.addonCharges : [])
+      .map(line => ({ label: `Boost (${line.boostId})`, value: money(line.amount) })),
+
     balanceDue: balance,
     statusLabel: receipt.status || '',
     // SISP-2: itemized arrears breakdown (passed through from the receipt

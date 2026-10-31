@@ -44,6 +44,13 @@ import {
   settleTicketCharges,
   unsettleTicketChargesForPayment
 } from './complaint-tickets.js';
+import {
+  addonChargesPending,
+  pendingAddonChargeLines,
+  planAddonChargeSettlement,
+  settleAddonCharges,
+  unsettleAddonChargesForPayment
+} from './speed-addon.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
 import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFeeWaiverOf, restoreWaivedLateFee } from './late-fee-waiver.js';
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
@@ -412,14 +419,23 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
   const ticketChargeLines = Array.isArray(tickets) ? pendingTicketChargeLines(tickets, customerId) : [];
   const ticketChargesPendingCents = ticketChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
   const ticketChargesPending = ticketChargesPendingCents / 100;
+  // SISP-106: pending speed-boost add-on fees (logged on the customer
+  // record) join the payable the same way — but only on this surface,
+  // which is the charge-settling one (the caller passes the ticket
+  // list); without it the defaults stay bill + ticket only, exactly as
+  // before, so Field Mode / bulk collect never see boost charges.
+  const addonChargeLines = Array.isArray(tickets) ? pendingAddonChargeLines(customer) : [];
+  const addonChargesPendingCents = addonChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
+  const addonChargesPendingTotal = addonChargesPendingCents / 100;
   // Owner feature (2026-10-29): unpaid manual baqaya joins the payable
   // the same way — it lives on the customer record, so no caller list
   // is needed. The suggested amount covers it too, so one collection
   // settles bills + baqaya (executeQuickCollection stamps the split).
   const manualBaqayaPendingCents = manualBaqayaOutstandingCents(customer);
   const manualBaqayaPending = manualBaqayaPendingCents / 100;
-  const payableTotal = (totalDuesCents + ticketChargesPendingCents + manualBaqayaPendingCents) / 100;
-  if ((ticketChargesPending > 0 || manualBaqayaPending > 0) && payableTotal > 0) {
+  const payableTotal = (totalDuesCents + ticketChargesPendingCents + addonChargesPendingCents + manualBaqayaPendingCents) / 100;
+  if ((ticketChargesPending > 0 || addonChargesPendingTotal > 0 || manualBaqayaPending > 0) && payableTotal > 0) {
+
     suggestedAmount = payableTotal;
   }
 
@@ -437,7 +453,10 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     totalDues,
     ticketChargeLines,
     ticketChargesPending,
+    addonChargeLines,
+    addonChargesPending: addonChargesPendingTotal,
     manualBaqayaPending,
+
     payableTotal,
     todayDate: getPakistanLocalDate(referenceDate),
     defaultMethod: lastMethod,
@@ -645,7 +664,9 @@ export function executeQuickCollection(state, {
   // credit by definition).
   let settledTicketLines = [];
   let settledBaqayaLines = [];
+  let settledAddonLines = [];
   {
+
     const preAllocations = calculatePaymentAllocations(state);
     let preDuesCents = 0;
     for (const b of (customer.bills ?? [])) {
@@ -660,7 +681,12 @@ export function executeQuickCollection(state, {
     }
     if (Array.isArray(tickets)) {
       settledTicketLines = planTicketChargeSettlement(tickets, customerId, remainderCents).lines;
+      // SISP-106: pending boost fees settle from what the ticket plan
+      // left of the remainder — whole fees, oldest first, same rule.
+      const ticketSettledCents = settledTicketLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
+      settledAddonLines = planAddonChargeSettlement(customer, Math.max(0, remainderCents - ticketSettledCents)).lines;
     }
+
   }
 
   // SISP-101: the 1-click late-fee waiver. The gate is planned from the
@@ -726,7 +752,9 @@ export function executeQuickCollection(state, {
     // validatePayment keeps them only as a complete, sane triple).
     ...(waiverPlan ? { lateFeeWaived: true, waivedAmount: waiverPlan.waivedAmountCents / 100, waivedLateFee: waiverStamp } : {}),
     ticketCharges: settledTicketLines.length > 0 ? settledTicketLines : undefined,
+    addonCharges: settledAddonLines.length > 0 ? settledAddonLines : undefined,
     manualBaqayaSettlements: settledBaqayaLines.length > 0 ? settledBaqayaLines : undefined
+
   }, referenceDate);
 
   // Auto package follow (owner feature, 2026-10-29): when this collect
@@ -777,9 +805,25 @@ export function executeQuickCollection(state, {
     ticketChargesPendingAfter = billedTicketChargesPending(nextTickets ?? tickets, customerId);
   }
   const ticketChargesTotal = settledTicketLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0) / 100;
+
+  // SISP-106: mark the settled boosts paid against this payment. The
+  // boost log rides the customer record, so the settlement lands in
+  // nextState itself (no side store to persist) and the pending-after
+  // figure is read back off the settled customer.
+  let addonChargesPendingAfter = 0;
+  if (Array.isArray(tickets)) {
+    if (settledAddonLines.length > 0) {
+      const settledCustomer = settleAddonCharges(updatedCustomer, settledAddonLines, paymentId, pDate);
+      nextState = { ...nextState, customers: nextState.customers.map(c => (c.id === customerId ? settledCustomer : c)) };
+    }
+    const pendingCustomer = nextState.customers.find(c => c.id === customerId) ?? updatedCustomer;
+    addonChargesPendingAfter = pendingCustomer ? addonChargesPending(pendingCustomer) : 0;
+  }
+  const addonChargesTotal = settledAddonLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0) / 100;
   const manualBaqayaSettledTotal = settledBaqayaLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0) / 100;
   const manualBaqayaPendingAfter = manualBaqayaOutstandingCents(updatedCustomer) / 100;
-  const payableRemaining = Math.round((newTotalDues + ticketChargesPendingAfter + manualBaqayaPendingAfter) * 100) / 100;
+  const payableRemaining = Math.round((newTotalDues + ticketChargesPendingAfter + addonChargesPendingAfter + manualBaqayaPendingAfter) * 100) / 100;
+
 
   const receipt = {
     success: true,
@@ -809,6 +853,11 @@ export function executeQuickCollection(state, {
     ticketCharges: settledTicketLines,
     ticketChargesTotal,
     ticketChargesPending: ticketChargesPendingAfter,
+    addonCharges: settledAddonLines,
+    addonChargesTotal,
+    addonChargesPending: addonChargesPendingAfter,
+    payableRemaining,
+    isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0 && addonChargesPendingAfter <= 0,
     // SISP-101: the late fee this collection waived (false / 0 on every
     // ordinary collection, so its receipts render exactly as before).
     lateFeeWaived: waiverPlan !== null,
@@ -817,7 +866,8 @@ export function executeQuickCollection(state, {
     manualBaqayaSettledTotal,
     manualBaqayaPending: manualBaqayaPendingAfter,
     payableRemaining,
-    isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0 && manualBaqayaPendingAfter <= 0,
+    isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0 && addonChargesPendingAfter <= 0 && manualBaqayaPendingAfter <= 0,
+
     packageAutoSet: autoPackage,
     collectedAt: new Date().toISOString()
   };
@@ -908,10 +958,14 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   // SISP-43: settled ticket charges print as their own receipt lines.
   const ticketChargeLines = (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : [])
     .map(line => `🔧 *${L.ticketCharge(line.ticketId)}:* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
+  // SISP-106: settled boost fees print as their own receipt lines too.
+  const addonChargeLines = (Array.isArray(receipt.addonCharges) ? receipt.addonCharges : [])
+    .map(line => `⚡ *Speed Boost / سپیڈ بوسٹ (${line.boostId}):* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
   // Owner feature (2026-10-29): manual baqaya settled by this payment
   // prints as its own receipt lines too (bilingual, like the charges).
   const baqayaLines = (Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [])
     .map(line => `🧾 *${L.baqaya(line.entryId)}:* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
+
 
   const lines = [
     `*SHAHDARA FIBER NETWORK & ISP BILLING*`,
@@ -928,12 +982,14 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     `💵 *${L.amountReceived}:* PKR ${amountStr}`,
     ...(Number(receipt.waivedAmount) > 0 ? [`🎟️ *${t('lfw_whatsapp', null, { amount: `PKR ${Number(receipt.waivedAmount).toLocaleString('en-PK')}` })}*`] : []),
     ...ticketChargeLines,
+    ...addonChargeLines,
     ...baqayaLines,
     `💳 *${L.method}:* ${receipt.method}`,
     receipt.transactionId ? `🔢 *${L.txnId}:* ${receipt.transactionId}` : null,
     receipt.senderLabel ? `👤 *${L.sender}:* ${receipt.senderLabel}` : null,
     receipt.referenceOverrideReason ? `📝 *${L.refNote}:* ${receipt.referenceOverrideReason}` : null,
     receipt.paidBy ? `✍️ *${L.paidBy}:* ${receipt.paidBy}` : null,
+
     ``,
     `⚖️ *${L.remaining}:* PKR ${balanceStr}`,
     `📌 *${L.status}:* ${statusText}`,
@@ -1225,11 +1281,18 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           <span class="qc-meta-label">Murammat / Material Charge (${escapeHtml(line.ticketId)})</span>
           <strong class="qc-meta-val">PKR ${Number(line.amount).toLocaleString('en-PK')}</strong>
         </div>`).join('');
+  // SISP-106: boost fees settled by this receipt, one row per boost.
+  const addonChargeRows = (Array.isArray(receipt.addonCharges) ? receipt.addonCharges : []).map(line => `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">Speed Boost / سپیڈ بوسٹ (${escapeHtml(line.boostId)})</span>
+          <strong class="qc-meta-val">PKR ${Number(line.amount).toLocaleString('en-PK')}</strong>
+        </div>`).join('');
   // Owner feature (2026-10-29): manual baqaya settled by this receipt,
   // one row per entry.
   const baqayaRows = (Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : []).map(line => `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">${escapeHtml(t('baqaya_receipt_line', null, { id: line.entryId }))}</span>
+
           <strong class="qc-meta-val">PKR ${Number(line.amount).toLocaleString('en-PK')}</strong>
         </div>`).join('');
   return `
@@ -1267,12 +1330,14 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           </strong>
         </div>
         ${ticketChargeRows}
+        ${addonChargeRows}
         ${Number(receipt.waivedAmount) > 0 ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Late Fee</span>
           <strong class="qc-meta-val">🎟️ ${escapeHtml(t('lfw_card', null, { amount: `PKR ${Number(receipt.waivedAmount).toLocaleString('en-PK')}` }))}</strong>
         </div>` : ''}
         ${baqayaRows}
+
         ${receipt.packageAutoSet ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Package</span>
@@ -1930,16 +1995,20 @@ export function setupQuickCollectModal({
         // SISP-43: with billed ticket charges pending, the header shows
         // the full payable (bills + charges) with the split spelled out,
         // so the collector sees exactly what the 1-tap amount covers.
+        // SISP-106: pending boost fees join the same breakdown.
         const hasTicketCharges = activeDefaults.ticketChargesPending > 0;
+        const hasAddonCharges = activeDefaults.addonChargesPending > 0;
         // Owner feature (2026-10-29): pending manual baqaya joins the
         // header payable the same way, with its own split line, so the
         // collector sees the old dues inside the 1-tap amount.
         const hasBaqaya = activeDefaults.manualBaqayaPending > 0;
-        const hasExtras = hasTicketCharges || hasBaqaya;
+        const hasExtras = hasTicketCharges || hasAddonCharges || hasBaqaya;
         const chargeLines = [
           ...activeDefaults.ticketChargeLines.map(line => `<span class="qc-head-charge-line" style="display:block;">🔧 Murammat / Material Charge (${escapeHtml(line.ticketId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
+          ...activeDefaults.addonChargeLines.map(line => `<span class="qc-head-charge-line" style="display:block;">⚡ Speed Boost (${escapeHtml(line.boostId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
           ...(hasBaqaya ? [`<span class="qc-head-charge-line" style="display:block;">🧾 ${escapeHtml(t('baqaya_qc_line', null, { amount: `PKR ${Number(activeDefaults.manualBaqayaPending).toLocaleString('en-PK')}` }))}</span>`] : [])
         ].join('');
+
         customerHeader.innerHTML = `
           <div class="qc-active-cust-bar">
             <div class="qc-cust-identity">
@@ -1953,6 +2022,7 @@ export function setupQuickCollectModal({
             </div>
           </div>
           ${hasExtras ? `<div class="qc-head-charges" style="margin-top:6px;font-size:0.85rem;"><span class="qc-head-charge-line" style="display:block;">🧾 Bill dues: PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}</span>${chargeLines}</div>` : ''}
+
         `;
       }
 
@@ -1990,7 +2060,8 @@ export function setupQuickCollectModal({
       // advance credit — pre-tick the box so the 2-tap flow keeps working
       // for early payers instead of hitting core's fully-paid guard.
       if (advanceCheckbox) {
-        advanceCheckbox.checked = activeDefaults.totalDues <= 0 && activeDefaults.ticketChargesPending <= 0 && activeDefaults.manualBaqayaPending <= 0;
+        advanceCheckbox.checked = activeDefaults.totalDues <= 0 && activeDefaults.ticketChargesPending <= 0 && activeDefaults.addonChargesPending <= 0 && activeDefaults.manualBaqayaPending <= 0;
+
       }
 
       // Advance month target: current month onward, next month
@@ -2039,8 +2110,10 @@ export function setupQuickCollectModal({
       if (quickAmountChips && activeDefaults) {
         // SISP-43: the "Full" chip covers the whole payable when ticket
         // charges are pending (bills + charges), not just the bill dues.
+        // SISP-106: pending boost fees count the same way.
         // Owner feature (2026-10-29): same when manual baqaya is pending.
-        const baseBal = (activeDefaults.ticketChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
+        const baseBal = (activeDefaults.ticketChargesPending > 0 || activeDefaults.addonChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
+
           ? activeDefaults.payableTotal
           : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
         const curBal = (activeDefaults.currentMonthBalance && activeDefaults.currentMonthBalance > 0)
@@ -2261,7 +2334,8 @@ export function setupQuickCollectModal({
     chip.addEventListener('click', () => {
       if (!amountInput || !activeDefaults) return;
       const type = chip.getAttribute('data-quick-amount');
-      const baseBalance = (activeDefaults.ticketChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
+      const baseBalance = (activeDefaults.ticketChargesPending > 0 || activeDefaults.addonChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
+
         ? activeDefaults.payableTotal
         : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
 
@@ -2297,7 +2371,7 @@ export function setupQuickCollectModal({
 
   function executeUndo() {
     if (!activeUndoContext) return;
-    const { customerId, month, paymentId, amount, customerName, ticketCharges } = activeUndoContext;
+    const { customerId, month, paymentId, amount, customerName, ticketCharges, addonCharges } = activeUndoContext;
     activeUndoContext = null;
     if (undoTimeoutId) {
       clearTimeout(undoTimeoutId);
@@ -2321,14 +2395,31 @@ export function setupQuickCollectModal({
         ?.bills.find(b => b.month === month)
         ?.payments.find(p => p.id === paymentId);
       const hasWaiver = !!lateFeeWaiverOf(undoPayment);
-      const workingState = hasWaiver
+      let workingState = hasWaiver
         ? restoreWaivedLateFee(state, customerId, undoPayment, { note: 'Late fee restored (payment undone)' }).state
         : state;
+      // SISP-106: the same for boost charges — they live on the
+      // customer in state, so they reopen in the working state before
+      // the delete, under the same guard contract.
+      const settledAddonLines = Array.isArray(addonCharges) ? addonCharges : [];
       let nextState;
-      if (settledLines.length > 0) {
-        const { tickets: revertedTickets } = unsettleTicketChargesForPayment(loadTickets(), { id: paymentId, ticketCharges: settledLines });
-        saveTickets(revertedTickets);
-        nextState = deletePayment(workingState, customerId, month, paymentId, new Date(), { ticketChargesReverted: true, ...(hasWaiver ? { lateFeeWaiverReverted: true } : {}) });
+      if (settledLines.length > 0 || settledAddonLines.length > 0) {
+        if (settledLines.length > 0) {
+          const { tickets: revertedTickets } = unsettleTicketChargesForPayment(loadTickets(), { id: paymentId, ticketCharges: settledLines });
+          saveTickets(revertedTickets);
+        }
+        if (settledAddonLines.length > 0) {
+          const cust = workingState.customers.find(c => c.id === customerId);
+          if (cust) {
+            const { customer: reopenedCustomer } = unsettleAddonChargesForPayment(cust, { id: paymentId, addonCharges: settledAddonLines });
+            workingState = { ...workingState, customers: workingState.customers.map(c => (c.id === customerId ? reopenedCustomer : c)) };
+          }
+        }
+        nextState = deletePayment(workingState, customerId, month, paymentId, new Date(), {
+          ...(settledLines.length > 0 ? { ticketChargesReverted: true } : {}),
+          ...(settledAddonLines.length > 0 ? { addonChargesReverted: true } : {}),
+          ...(hasWaiver ? { lateFeeWaiverReverted: true } : {})
+        });
       } else if (hasWaiver) {
         nextState = deletePayment(workingState, customerId, month, paymentId, new Date(), { lateFeeWaiverReverted: true });
       } else {
@@ -2443,7 +2534,9 @@ export function setupQuickCollectModal({
       if (!advanceCheckbox?.checked
         && normalPaymentBlockReason(state, activeCustomerId, monthVal) === 'fully-paid'
         && billedTicketChargesPending(loadTickets(), activeCustomerId) <= 0
+        && addonChargesPending(state.customers.find(c => c.id === activeCustomerId)) <= 0
         && manualBaqayaOutstandingCents(state.customers.find(c => c.id === activeCustomerId)) <= 0) {
+
         if (typeof onToast === 'function') onToast(t('adv_blocked_paid'), { type: 'error' });
         return;
       }
@@ -2484,7 +2577,8 @@ export function setupQuickCollectModal({
         paymentId: receipt.paymentId,
         amount: amountVal,
         customerName: receipt.customerName,
-        ticketCharges: receipt.ticketCharges ?? []
+        ticketCharges: receipt.ticketCharges ?? [],
+        addonCharges: receipt.addonCharges ?? []
       };
 
       if (undoBtn) {
@@ -2698,8 +2792,14 @@ export function setupQuickCollectModal({
               value: money(line.amount)
             }))
           ],
+          // SISP-106: settled boost fees print on the slip too.
+          addonCharges: (activeReceipt.addonCharges ?? []).map(line => ({
+            label: `Boost (${line.boostId})`,
+            value: money(line.amount)
+          })),
           // SISP-96: owner-configured footer lines on the slip too.
           footerLines: buildReceiptFooterLines(getReceiptFooter()),
+
           balanceDue: money(activeReceipt.payableRemaining ?? activeReceipt.newBalanceDue),
           statusLabel: activeReceipt.isSettled ? 'PAID' : 'PARTIAL'
         });

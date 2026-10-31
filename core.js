@@ -16,6 +16,7 @@ import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
+import { sanitizeStormInspections } from './storm-inspection.js';
 import { sanitizeSupplierKhata } from './supplier-khata.js';
 import { sanitizeCommissionRules } from './collector-commission.js';
 import { sanitizeUpsNodes } from './power-backup-monitor.js';
@@ -3340,6 +3341,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSuspensePayments(options.suspensePayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), suspensePayments: cleaned };
   }
+  // SISP-109: post-storm inspection runs live outside the ledger state
+  // (localStorage key sisp_storm_inspections_v1), so they travel in an
+  // optional `settings.stormInspections` section. Written only when at
+  // least one dated run exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && options.stormInspections) {
+    const cleaned = sanitizeStormInspections(options.stormInspections);
+    if (cleaned.runs.length) document.settings = { ...(document.settings || {}), stormInspections: cleaned };
+  }
   // SISP-107: supplier credit purchases (payable khata) live outside
   // the ledger state (localStorage key sisp_supplier_khata_v1), so they
   // travel in an optional `settings.supplierKhata` section. Written
@@ -4105,6 +4114,31 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Suspense payment records differ from this device' });
     }
   }
+  // SISP-109 storm inspections: optional runs section (see
+  // createJsonBackup). Safe-merge rule, same as suspense payments: adopt
+  // the backup's runs only when this device has none stored yet; when
+  // both sides hold different real runs, keep existing + conflict (one
+  // device's inspection progress must never silently overwrite the
+  // other's).
+  let stormInspections = null;
+  const rawIncomingStormInspections = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.stormInspections
+    : undefined;
+  if (rawIncomingStormInspections && typeof rawIncomingStormInspections === 'object') {
+    const incomingStormInspections = sanitizeStormInspections(rawIncomingStormInspections);
+    const currentStormInspections = (options && typeof options === 'object' && options.currentStormInspections)
+      ? sanitizeStormInspections(options.currentStormInspections)
+      : { runs: [] };
+    if (incomingStormInspections.runs.length && sameJson(incomingStormInspections, currentStormInspections)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingStormInspections.runs.length && (!options?.currentStormInspectionsStored || currentStormInspections.runs.length === 0)) {
+      stormInspections = incomingStormInspections;
+      counts.stormInspectionsRestored = 1;
+      counts.changes++;
+    } else if (incomingStormInspections.runs.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Storm inspection records differ from this device' });
+    }
+  }
   // SISP-107 supplier khata: optional register section (see
   // createJsonBackup). Safe-merge rule, same as suspense payments:
   // adopt the backup's records only when this device has none stored
@@ -4433,5 +4467,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, supplierKhata, commissionRules, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

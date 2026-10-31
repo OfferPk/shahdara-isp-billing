@@ -849,6 +849,22 @@ body.field-mode-open { overflow: hidden; }
   .outage-impact-result-list { grid-template-columns: 1fr; }
   .outage-impact-card p strong { text-align: left; }
 }
+/* SISP-109: post-storm inspection checklist — theme tokens only. */
+.storm-inspection-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.storm-inspection-run-meta { color: var(--ink); font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+.storm-inspection-summary-line { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+.storm-inspection-list { display: grid; gap: 16px; margin: 8px 0 16px; }
+.storm-inspection-zone h3 { margin: 0 0 8px; font-size: 14px; color: var(--ink); }
+.storm-inspection-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.storm-inspection-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.storm-inspection-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.storm-inspection-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.storm-inspection-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.storm-inspection-empty { color: var(--muted); font-size: 13px; }
+@media (max-width: 480px) {
+  .storm-inspection-cards { grid-template-columns: 1fr; }
+  .storm-inspection-card p strong { text-align: left; }
+}
 
 /* Saad visit log: per-visit job record + month-end summary. Token-only. */
 .saad-visits-intro { color: var(--muted); font-size: 13px; margin: 0 0 12px; }

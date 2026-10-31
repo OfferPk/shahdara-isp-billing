@@ -26,6 +26,7 @@
 
 import { contactActionTargets } from './profile-ui.js';
 import { t } from './nav-language.js';
+import { helpButtonMarkup } from './help-guide.js?v=1.11.0';
 
 /** Fixed-length mask: identical for every stored secret, any length. */
 export const ROUTER_CREDENTIAL_MASK = '••••••••';
@@ -100,7 +101,7 @@ export function routerCredentialsSectionHtml(customer, { revealWifi = false, rev
     : action.type === 'phone-required'
       ? `<p class="profile-router-cred-note">${escapeHtml(t('rcred_wa_no_phone'))}</p>`
       : '';
-  return `<section class="profile-router-cred-section" aria-label="${escapeHtml(t('rcred_aria'))}"><h4>${escapeHtml(t('rcred_heading'))}</h4><p class="profile-router-cred-note">${escapeHtml(t('rcred_note'))}</p>${ssidRow}${wifiRow}${portRow}${adminRow}${whatsapp}</section>`;
+  return `<section class="profile-router-cred-section" aria-label="${escapeHtml(t('rcred_aria'))}"><h4>${escapeHtml(t('rcred_heading'))} ${helpButtonMarkup('router_vault')}</h4><p class="profile-router-cred-note">${escapeHtml(t('rcred_note'))}</p>${ssidRow}${wifiRow}${portRow}${adminRow}${whatsapp}</section>`;
 }
 
 /**

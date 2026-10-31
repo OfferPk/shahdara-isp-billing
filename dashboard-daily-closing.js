@@ -93,11 +93,11 @@ export function resolveShopLocation(method, paidBy = '') {
   if (m.includes('waseem') || p.includes('waseem')) {
     return 'Waseem Abbasi Shop';
   }
-  if (m.includes('hassan') || p.includes('hassan')) {
-    return 'Hassan Shop';
-  }
-  if (m.includes('balla') || p.includes('balla')) {
-    return 'Balla Shop';
+  // OWNER-CASH-SHOP: Hassan and his famous "Balla" shop are ONE shop —
+  // either mention resolves to the single location "Hassan Balla Shop",
+  // matching shop-settlement.js resolveShopCollector.
+  if (m.includes('hassan') || p.includes('hassan') || m.includes('balla') || p.includes('balla')) {
+    return 'Hassan Balla Shop';
   }
   if (isPhysicalCashMethod(method)) {
     return 'Direct Field / Doorstep Cash';
@@ -117,8 +117,9 @@ export function resolveCollectorName(method, paidBy = '') {
   }
   const m = String(method || '').toLowerCase();
   if (m.includes('waseem')) return 'Waseem Abbasi';
-  if (m.includes('hassan')) return 'Hassan';
-  if (m.includes('balla')) return 'Balla';
+  // OWNER-CASH-SHOP: the collector behind both legacy shop methods is
+  // the same person — Hassan (of the famous Balla shop).
+  if (m.includes('hassan') || m.includes('balla')) return 'Hassan';
   if (isPhysicalCashMethod(method)) return 'Direct / Counter Till';
   return 'Online / Digital Settlement';
 }

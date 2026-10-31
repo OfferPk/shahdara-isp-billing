@@ -186,7 +186,9 @@ test('collectors: shop cash collected per collector; voided and non-shop payment
   const collectors = buildCollectorScorecards(state, MONTH);
   assert.equal(collectors.length, 2);
   const waseem = collectors.find((c) => c.name === 'Waseem Abbasi Shop');
-  const hassan = collectors.find((c) => c.name === 'Hassan Shop');
+  // OWNER-CASH-SHOP: the Hassan-method receipts score under the ONE
+  // canonical collector name (the scorecard reads resolveShopCollector).
+  const hassan = collectors.find((c) => c.name === 'Hassan Balla Shop');
   assert.equal(waseem.cashCollected, 2000, 'voided Rs. 5,000 never counts');
   assert.equal(waseem.paymentCount, 1);
   assert.equal(hassan.cashCollected, 1500, 'September payment stays out of October');

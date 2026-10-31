@@ -39,7 +39,7 @@ import { sanitizeReceiptLang, sanitizeReceiptChannel, prefersSmsForChannel } fro
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
 export const INITIAL_NAMES = Object.freeze([]);
-export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','NayaPay','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop','Cash at Balla shop']);
+export const PAYMENT_METHODS = Object.freeze(['Cash','JazzCash','Easypaisa','NayaPay','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop','Cash at Balla shop','Cash at Hassan Balla shop']);
 
 export function isDigitalPaymentMethod(method) {
   if (!method) return false;

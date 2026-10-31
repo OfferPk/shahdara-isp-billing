@@ -168,7 +168,11 @@ test('history is limited to exactly 24 months and old months are rejected', () =
 
 test('accepts all existing payment methods and both added shop-cash choices', () => {
   const state = seededState(); const customerId = state.customers[0].id;
-  assert.deepEqual(PAYMENT_METHODS, ['Cash','JazzCash','Easypaisa','NayaPay','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop','Cash at Balla shop']);
+  // OWNER-CASH-SHOP (2026-10-31): the list genuinely grows by one — the
+  // owner's own naming unifies the historical Hassan/Balla split into a
+  // single shop method, 'Cash at Hassan Balla shop'. The two legacy
+  // strings stay valid so old records keep reading byte-identically.
+  assert.deepEqual(PAYMENT_METHODS, ['Cash','JazzCash','Easypaisa','NayaPay','Bank Transfer','Raast','Cash at Waseem Abbasi shop','Cash at Hassan shop','Cash at Balla shop','Cash at Hassan Balla shop']);
   for (const [index, method] of PAYMENT_METHODS.entries()) {
     const next = addPayment(state, customerId, currentMonth, payment({ method, amount:String(index + 1) }), referenceDate);
     assert.equal(next.customers[0].bills[0].payments[0].method, method);

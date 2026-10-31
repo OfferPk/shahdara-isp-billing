@@ -1560,6 +1560,47 @@ body.field-mode-open { overflow: hidden; }
   color: var(--muted);
 }
 
+/* OWNER-CASH-SHOP: "Cash received at" sub-row inside the Quick Collect
+   payment step — appears under the method chips while a cash method is
+   selected. Theme tokens only, so light and dark render alike. */
+.qc-shop-row {
+  margin-top: 10px;
+}
+.qc-shop-row[hidden] {
+  display: none;
+}
+.qc-shop-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.qc-shop-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.qc-shop-chip {
+  flex: 1 1 auto;
+  min-height: 40px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.qc-shop-chip.is-active {
+  background: var(--green);
+  color: var(--surface);
+  border-color: var(--green);
+}
+
 @media (max-width: 620px) {
   .home-kpi-card.ds-stat {
     padding: 10px;

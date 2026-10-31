@@ -76,9 +76,10 @@ test('SISP-51: every channel kind lands exactly once (shops, wallets, fallbacks)
     expenses: [],
   };
   const report = build(state);
-  // Hassan is reached both via the "Cash at" method and via paidBy.
-  assert.deepEqual(channelOf(report, 'Hassan Shop'), { channel: 'Hassan Shop', kind: 'shop', amount: 3000, count: 2 });
-  assert.deepEqual(channelOf(report, 'Balla Shop'), { channel: 'Balla Shop', kind: 'shop', amount: 500, count: 1 });
+  // OWNER-CASH-SHOP: Hassan is reached via the "Cash at" method and via
+  // paidBy — and the Balla-shop payment lands in the SAME channel now:
+  // one shop, one channel (1,000 + 2,000 + 500 = 3,500 over 3 receipts).
+  assert.deepEqual(channelOf(report, 'Hassan Balla Shop'), { channel: 'Hassan Balla Shop', kind: 'shop', amount: 3500, count: 3 });
   assert.equal(channelOf(report, 'JazzCash').amount, 700);
   assert.equal(channelOf(report, 'NayaPay').amount, 800);
   assert.equal(channelOf(report, 'Bank Transfer').amount, 900);

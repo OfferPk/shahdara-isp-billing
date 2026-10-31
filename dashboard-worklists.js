@@ -21,7 +21,8 @@
 import {
   calculatePaymentAllocations,
   formatPKR,
-  updateCustomerProfile
+  updateCustomerProfile,
+  whatsappPhoneFor
 } from './core.js';
 import {
   formatWhatsAppUrl,
@@ -253,7 +254,7 @@ export function calculateDisconnectReconnectWorklists(state, options = {}) {
             dueDate: oldestDueDateYmd || refYmd
           }
         });
-        const whatsappUrl = formatWhatsAppUrl(c.phone, whatsappMessage);
+        const whatsappUrl = formatWhatsAppUrl(whatsappPhoneFor(c), whatsappMessage);
 
         toDisconnect.push({
           id: c.id,
@@ -290,7 +291,7 @@ export function calculateDisconnectReconnectWorklists(state, options = {}) {
           `آپ کا انٹرنیٹ اکاؤنٹ نمبر #${c.customerNumber} کے تمام واجبات کلیئر ہو چکے ہیں۔\n\n` +
           `آپ کی سروس دوبارہ بحال کی جا رہی ہے۔ شکریہ!\n\n` +
           `_Shahdara Fiber Net & Cable Network_`;
-        const whatsappUrl = formatWhatsAppUrl(c.phone, greetingMsg);
+        const whatsappUrl = formatWhatsAppUrl(whatsappPhoneFor(c), greetingMsg);
 
         toReconnect.push({
           id: c.id,

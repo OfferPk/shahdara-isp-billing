@@ -18,7 +18,8 @@
 import {
   calculatePaymentAllocations,
   formatPKR,
-  monthsForHistory
+  monthsForHistory,
+  whatsappPhoneFor
 } from './core.js';
 import {
   formatWhatsAppUrl,
@@ -988,7 +989,7 @@ export function setupTopDefaultersModal(state, {
         const row = currentData?.accounts.find(a => a.id === custId);
         if (customer && row) {
           const msg = buildDefaulterWhatsAppMessage({ customer, defaulterRow: row });
-          const phoneRes = formatWhatsAppUrl(customer.phone, msg);
+          const phoneRes = formatWhatsAppUrl(whatsappPhoneFor(customer), msg);
           if (phoneRes.validPhone && phoneRes.url) {
             window.open(phoneRes.url, '_blank');
           } else {

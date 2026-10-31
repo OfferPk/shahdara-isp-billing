@@ -15,7 +15,8 @@ import {
   derivedBillStatus,
   monthsForHistory,
   formatPKR,
-  identitySearchMatches
+  identitySearchMatches,
+  whatsappPhoneFor
 } from './core.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { trapModalFocus } from './nav-accessibility.js';
@@ -276,12 +277,12 @@ export function renderFastCustomerSearchResultsHtml(customers, { isRecent = fals
                   title="View full profile of ${escapeHtml(c.name)}">
             👤 Profile
           </button>
-          ${c.phone ? `
+          ${c.phone || c.whatsappPhone ? `
           <button type="button"
                   class="fcs-action-btn fcs-wa-btn"
                   data-fcs-action="whatsapp"
                   data-customer-id="${escapeHtml(c.id)}"
-                  data-phone="${escapeHtml(c.phone)}"
+                  data-phone="${escapeHtml(whatsappPhoneFor(c))}"
                   title="Send WhatsApp message to ${escapeHtml(c.name)}">
             💬 WhatsApp
           </button>` : ''}

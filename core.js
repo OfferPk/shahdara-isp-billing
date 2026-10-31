@@ -359,6 +359,41 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
   return changed ? { ...state, customers } : state;
 }
 
+// SISP-118: digit-shape check mirroring normalizePakistaniWhatsAppPhone
+// (form-validation.js) — core.js cannot import that module (it imports
+// core), so the acceptance rules are restated here and the SISP-118 test
+// cross-checks this helper against the real normalizer on a battery of
+// numbers so the two can never silently drift apart.
+function usableWhatsAppDigits(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  if (!digits) return false;
+  if (digits.startsWith('0092')) return digits.length === 14 && digits.slice(2).startsWith('923');
+  if (digits.startsWith('92')) return digits.length === 12 && digits.startsWith('923');
+  if (digits.startsWith('03')) return digits.length === 11;
+  if (digits.startsWith('3')) return digits.length === 10;
+  return digits.length >= 10 && digits.length <= 15 && !digits.startsWith('0');
+}
+
+/**
+ * SISP-118: the ONE WhatsApp-number resolution seam. Every wa.me draft
+ * addressed to a customer (receipts, reminders, Waada follow-ups, outage
+ * alerts, Quick Collect / Field Mode receipt drafts) resolves its target
+ * through here: the customer's dedicated WhatsApp number wins when it is
+ * a usable WhatsApp number; an unusable WhatsApp number falls back to
+ * the primary phone so a draft is never aimed at a broken number; when
+ * neither is usable the preferred raw value is returned and each
+ * surface's existing formatter reports it invalid exactly as before.
+ * Voice calls never use this — they dial the primary (and alternate)
+ * numbers via contactActionTargets.
+ */
+export function whatsappPhoneFor(customer) {
+  const whatsapp = String(customer?.whatsappPhone ?? '').trim();
+  const primary = String(customer?.phone ?? '').trim();
+  if (whatsapp && usableWhatsAppDigits(whatsapp)) return whatsapp;
+  if (primary && usableWhatsAppDigits(primary)) return primary;
+  return whatsapp || primary;
+}
+
 export function addCustomer(state, name, referenceDate = new Date(), options = {}) {
   const cleaned = String(name ?? '').trim();
   if (!cleaned) throw new Error('Enter a customer name.');
@@ -370,6 +405,9 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   };
   const address = cleanText(options.address, 200, 'Address');
   const phone = cleanText(options.phone, 40, 'Phone number');
+  // SISP-118: optional separate WhatsApp + alternate voice numbers.
+  const whatsappPhone = cleanText(options.whatsappPhone, 40, 'WhatsApp number');
+  const alternatePhone = cleanText(options.alternatePhone, 40, 'Alternate phone number');
   const cnic = cleanText(options.cnic, 30, 'CNIC');
   const mohallaRaw = cleanText(options.mohalla, 100, 'Mohalla');
   const mohalla = canonicalMohalla(mohallaRaw)?.stored ?? mohallaRaw;
@@ -445,7 +483,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const preferredReceiptChannel = sanitizeReceiptChannel(options.preferredReceiptChannel);
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -802,6 +840,10 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     address: cleanText(valueOrCurrent('address') ?? '', 200, 'Address'),
     notes: cleanText(valueOrCurrent('notes') ?? '', 1000, 'Customer notes'),
     phone: cleanText(valueOrCurrent('phone') ?? '', 40, 'Phone number'),
+    // SISP-118: optional separate WhatsApp + alternate voice numbers
+    // (absent on older records, which read back as empty).
+    whatsappPhone: cleanText(valueOrCurrent('whatsappPhone') ?? '', 40, 'WhatsApp number'),
+    alternatePhone: cleanText(valueOrCurrent('alternatePhone') ?? '', 40, 'Alternate phone number'),
     cnic: cleanText(valueOrCurrent('cnic') ?? '', 30, 'CNIC'),
     ispProvider: cleanText(valueOrCurrent('ispProvider') ?? '', 100, 'ISP/provider name'),
     serviceStatus: checkServiceStatus(valueOrCurrent('serviceStatus') ?? 'not-set'),
@@ -3073,7 +3115,7 @@ function validateBackupState(source) {
     const normalizedName = customer.name.trim().toLocaleLowerCase();
     if (customerNames.has(normalizedName)) throw new Error(`Backup has duplicate customer names matching “${customer.name.trim()}”.`);
     customerNames.add(normalizedName);
-    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['notes',1000,'customer notes'],['phone',40,'phone number'],['cnic',30,'CNIC'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed'],['wifiSsid',64,'Wi-Fi SSID'],['wifiPassword',100,'Wi-Fi password'],['routerAdminPassword',100,'router admin password']]) {
+    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['notes',1000,'customer notes'],['phone',40,'phone number'],['whatsappPhone',40,'WhatsApp number'],['alternatePhone',40,'alternate phone number'],['cnic',30,'CNIC'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed'],['wifiSsid',64,'Wi-Fi SSID'],['wifiPassword',100,'Wi-Fi password'],['routerAdminPassword',100,'router admin password']]) {
       if (customer[field] !== undefined && (typeof customer[field] !== 'string' || customer[field].length > limit)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid ${label}.`);
     }
     // SISP-94: a stored router admin port must be a real TCP port.
@@ -3229,6 +3271,9 @@ function validateBackupState(source) {
       hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },
       // SISP-32: pole & landmark fields travel with the customer in JSON backups.
       poleNumber:customer.poleNumber ?? '', boxLocationNote:customer.boxLocationNote ?? '', dropWireCoreColor:customer.dropWireCoreColor ?? '',
+      // SISP-118: WhatsApp + alternate contact numbers travel with the
+      // customer in JSON backups (old backups import them as empty).
+      whatsappPhone:customer.whatsappPhone ?? '', alternatePhone:customer.alternatePhone ?? '',
       // SISP-94: router credential vault fields travel with the customer in JSON backups.
       wifiSsid:customer.wifiSsid ?? '', wifiPassword:customer.wifiPassword ?? '', routerAdminPort:customer.routerAdminPort ?? null, routerAdminPassword:customer.routerAdminPassword ?? '',
       packageHistory, relocationLog, bills, incidents,
@@ -3626,7 +3671,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','disconnectReason','disconnectNote','winBackOfferSentAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','disconnectReason','disconnectNote','winBackOfferSentAt']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-84: connection type merges like serviceStatus's default —
     // 'commercial_vip' fills a local 'residential', and a local VIP tag
     // is never stripped by a merge. (The load sanitizer stamps

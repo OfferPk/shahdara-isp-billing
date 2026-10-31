@@ -22,7 +22,8 @@
 import {
   calculatePaymentAllocations,
   formatPKR,
-  derivedBillStatus
+  derivedBillStatus,
+  whatsappPhoneFor
 } from './core.js';
 import {
   formatWhatsAppUrl,
@@ -811,7 +812,9 @@ export function getRemindersTodayQueue(state, options = {}) {
       if (customMessage) reminderMessage = customMessage;
     }
 
-    const wa = formatWhatsAppUrl(c.phone || '', reminderMessage);
+    // SISP-118: reminder drafts target the customer's WhatsApp number
+    // when one is recorded (the seam falls back to the primary phone).
+    const wa = formatWhatsAppUrl(whatsappPhoneFor(c), reminderMessage);
 
     totalDuesPkr += balance;
 
@@ -1169,7 +1172,10 @@ export function getPromiseToPayFollowupList(state, options = {}) {
       ...p,
       customerName: cust?.name || p.customerName || 'Subscriber',
       customerNumber: cust?.customerNumber ?? p.customerNumber,
-      phone: cust?.phone || p.phone || '',
+      // SISP-118: the follow-up list's send target prefers the live
+      // customer's WhatsApp number; the promise's own recorded phone
+      // stays as the fallback when the customer has none usable.
+      phone: (cust ? whatsappPhoneFor(cust) : '') || p.phone || '',
       area: cust?.area || cust?.mohalla || p.area || '',
       currentBalance,
       diffDays,

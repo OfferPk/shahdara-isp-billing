@@ -1,6 +1,7 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers } from './core.js';
 import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from './billing-cycle.js';
 import { sanitizePauseFields, vacationHoldState } from './pause-billing.js';
+import { normalizeGpsPin, googleMapsUrl, formatGpsCoords } from './gps-pin-helper.js';
 import { buildVacationHoldDisableSnippet, buildVacationHoldEnableSnippet } from './mikrotik-generator.js';
 import { getAppLanguage, t } from './nav-language.js';
 import { paymentDayHabit } from './payment-day-advisor.js';
@@ -308,6 +309,26 @@ export function resolveReceiptWhatsAppAction(customer, receipt) {
     customerNumber:customer.customerNumber
   }, { lang: receiptLangPreference(customer) });
   return draft ? { type:'draft', draft } : { type:'unavailable', reason:'invalid-receipt' };
+}
+
+/**
+ * SISP-92: GPS pin presentation for the profile view. Reads only the
+ * stored gpsLat / gpsLng pair — a customer without a pin reports
+ * hasPin false with no coordinates and no Maps link, never a guessed
+ * location. coordsLabel keeps Latin digits (house coordinate rule).
+ */
+export function gpsPinPresentation(customer) {
+  const pin = normalizeGpsPin(customer);
+  if (!pin) {
+    return { hasPin: false, lat: null, lng: null, coordsLabel: '', mapsUrl: null };
+  }
+  return {
+    hasPin: true,
+    lat: pin.lat,
+    lng: pin.lng,
+    coordsLabel: formatGpsCoords(pin),
+    mapsUrl: googleMapsUrl(pin)
+  };
 }
 
 // SISP-8: vacation-hold summary for the profile view (Service group row)

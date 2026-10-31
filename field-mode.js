@@ -94,6 +94,16 @@
  * engine never flows credit backward), and money owed is the truth the
  * collector must act on; the waiting credit still prints on the card.
  *
+ * SISP-92 adds, on the same list and the same no-dead-button rule: a
+ * "📍 Nearest first" toggle that captures the rider's live position
+ * (gps-pin-helper.js captureCurrentPosition — fail-safe: denial or an
+ * unsupported device just toasts and keeps the normal order) and sorts
+ * the visible entries by their customer's stored GPS pin via
+ * sortEntriesByNearest (Haversine meters). Customers without a pin sort
+ * last with NO distance label — a distance prints only when it was
+ * really computed. The sort layers on top of the existing search + zone
+ * filter; it never changes which customers are visible.
+ *
  * Pure helpers are DOM-free and unit-tested; setupFieldMode() is the DOM
  * controller (returns a no-op controller outside a browser, mirroring
  * setupQuickCollectModal's fallback).
@@ -120,6 +130,7 @@ import {
   clearCustomerWaada,
   waadaBadgeLabel
 } from './waada-queue.js';
+import { captureCurrentPosition, formatGpsDistance, sortEntriesByNearest } from './gps-pin-helper.js';
 
 /** Deep link that opens field mode, mirroring #/bulk-collect. */
 export const FIELD_MODE_HASH = '#/field-mode';
@@ -619,11 +630,17 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   const zoneTargetEl = document.getElementById('fieldModeZoneTarget');
   const listEl = document.getElementById('fieldModeCustomerList');
   const panelEl = document.getElementById('fieldModeActionPanel');
+  const nearestBtn = document.getElementById('fieldModeNearestBtn');
+  const nearestStatusEl = document.getElementById('fieldModeNearestStatus');
 
   let isOpen = false;
   let openedViaHash = false;
   let query = '';
   let zoneKey = FIELD_MODE_ALL_ZONES;
+  // SISP-92: the rider's captured position while "Nearest first" is on
+  // (null = normal order). Held only in memory — never persisted.
+  let nearestOrigin = null;
+  let nearestBusy = false;
   let likelyOnly = false;
   let selectedId = null;
   let lastReceipt = null;
@@ -737,11 +754,17 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const creditNote = status.key === 'due' && status.advanceCredit > 0
         ? ` · Advance ${formatPKR(status.advanceCredit)}`
         : '';
+      // SISP-92: a distance label prints ONLY when the nearest sort
+      // computed a real Haversine distance for this card — customers
+      // without a pin (distanceMeters null) never show one.
+      const distanceNote = Number.isFinite(entry.distanceMeters)
+        ? ` · 📍 ${escapeHtml(t('gpspin_distance_away', null, { distance: formatGpsDistance(entry.distanceMeters) }))}`
+        : '';
       return `<button type="button" class="field-mode-customer-btn field-mode-status--${status.key}${selectedId === entry.id ? ' is-selected' : ''}" data-field-customer-id="${escapeHtml(entry.id)}" aria-pressed="${selectedId === entry.id}">
         <span class="field-mode-status-strip" aria-hidden="true"></span>
         <span class="field-mode-customer-main">
           <strong>${escapeHtml(entry.name)}</strong>
-          <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${creditNote}</small>
+          <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${creditNote}${distanceNote}</small>
           ${sameNameBadge}
           ${chip}
           ${likelyChip}
@@ -883,6 +906,39 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     </section>`;
   }
 
+  function syncNearestButton() {
+    if (!nearestBtn) return;
+    nearestBtn.textContent = t('gpspin_nearest');
+    nearestBtn.classList.toggle('is-active', Boolean(nearestOrigin));
+    nearestBtn.setAttribute('aria-pressed', nearestOrigin ? 'true' : 'false');
+    if (nearestStatusEl && !nearestBusy) nearestStatusEl.textContent = '';
+  }
+
+  /**
+   * SISP-92: toggles the nearest-first sort. Turning it on captures ONE
+   * live fix; any failure (denied / unsupported / timeout) toasts and
+   * leaves the normal order untouched — never a dead end. Turning it
+   * off simply restores the normal order.
+   */
+  async function toggleNearest() {
+    if (nearestBusy) return;
+    if (nearestOrigin) {
+      nearestOrigin = null;
+      render();
+      return;
+    }
+    nearestBusy = true;
+    if (nearestStatusEl) nearestStatusEl.textContent = t('gpspin_locating');
+    const result = await captureCurrentPosition();
+    nearestBusy = false;
+    if (result.ok) {
+      nearestOrigin = { lat: result.lat, lng: result.lng };
+    } else {
+      toast(t('gpspin_location_failed'));
+    }
+    render();
+  }
+
   function render() {
     if (!isOpen) return;
     const state = typeof getState === 'function' ? getState() : null;
@@ -894,9 +950,15 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     // SISP-79: with the 🎯 toggle on, only customers whose habitual
     // pay window contains today stay in the list (zone filter first,
     // then the habit filter — the two compose).
-    const visible = likelyOnly
+    const habitFiltered = likelyOnly
       ? filterLikelyToPayEntries(zoneVisible, state?.customers ?? [], Number(todayStr().slice(8, 10)))
       : zoneVisible;
+    // SISP-92: nearest-first layers on top of search + zone filtering —
+    // it reorders the SAME visible set, it never adds or hides anyone.
+    const visible = nearestOrigin
+      ? sortEntriesByNearest(habitFiltered, state?.customers ?? [], nearestOrigin)
+      : habitFiltered;
+    syncNearestButton();
     // One engine pass shared by every card's colour status.
     const allocations = state ? calculatePaymentAllocations(state) : null;
     const statusById = new Map(visible.map(entry => [
@@ -1079,6 +1141,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       render();
       if (searchInput) searchInput.focus();
     });
+  }
+  if (nearestBtn) {
+    nearestBtn.addEventListener('click', () => { void toggleNearest(); });
   }
   if (zoneFiltersEl) {
     zoneFiltersEl.addEventListener('click', (event) => {

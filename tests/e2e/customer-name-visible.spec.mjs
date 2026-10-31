@@ -28,7 +28,7 @@ async function seedRealisticCustomers(page) {
   await page.evaluate(async (names) => {
     const core = await import('./core.js');
     let s = JSON.parse(localStorage.getItem(core.STORAGE_KEY));
-    const month = new Date().toISOString().slice(0, 7);
+    const month = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 7); // PKT — app billing month is Asia/Karachi; UTC ISO lags on the 1st 00:00–05:00 PKT
     s.customers.slice(0, 3).forEach((c, i) => {
       c.name = names[i];
       c.serviceStatus = 'active';

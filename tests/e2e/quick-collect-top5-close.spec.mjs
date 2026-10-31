@@ -29,7 +29,7 @@ async function seedOverdue(page) {
   await page.evaluate(async () => {
     const core = await import('./core.js');
     let s = JSON.parse(localStorage.getItem(core.STORAGE_KEY));
-    const month = new Date().toISOString().slice(0, 7);
+    const month = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 7); // PKT — app billing month is Asia/Karachi; UTC ISO lags on the 1st 00:00–05:00 PKT
     const ids = s.customers.filter(c => !c.archived).slice(0, 3).map(c => c.id);
     ids.forEach((id, i) => { s = core.saveBillMonth(s, id, { month, dueAmount: 1500 + i * 500, status: 'pending' }); });
     localStorage.setItem(core.STORAGE_KEY, JSON.stringify(s));

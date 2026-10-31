@@ -17,7 +17,7 @@ async function seedBills(page) {
     const core = await import('./core.js');
     let s = JSON.parse(localStorage.getItem(core.STORAGE_KEY));
     const now = new Date();
-    const month = now.toISOString().slice(0, 7);
+    const month = new Date(now.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 7); // PKT — app billing month is Asia/Karachi; UTC ISO lags on the 1st 00:00–05:00 PKT
     const today = new Date(now.getTime() + 5 * 3600 * 1000).toISOString().slice(0, 10);
     const ids = s.customers.filter(c => !c.archived).slice(0, 4).map(c => c.id);
     ids.forEach((id, i) => { s = core.saveBillMonth(s, id, { month, dueAmount: 1500 + i * 500, status: 'pending' }); });
@@ -102,7 +102,7 @@ test.describe('Quick Collect pending-only list', () => {
     await page.evaluate(async () => {
       const core = await import('./core.js');
       let s = JSON.parse(localStorage.getItem(core.STORAGE_KEY));
-      const month = new Date().toISOString().slice(0, 7);
+      const month = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 7); // PKT — app billing month is Asia/Karachi; UTC ISO lags on the 1st 00:00–05:00 PKT
       const today = new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10);
       const id = s.customers[0].id;
       s = core.updateCustomerProfile(s, id, { monthlySellingAmount: 1000 });

@@ -1756,6 +1756,26 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-100: System Health Center dialog (token-only; the dialog itself
+   uses the shared .billing-modal shell → var(--modal-surface)). */
+.system-health-intro { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.system-health-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 16px; }
+.system-health-totals { font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); margin: 0 0 12px; }
+.system-health-heading { color: var(--ink); font-size: 15px; margin: 16px 0 8px; }
+.system-health-note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.system-health-integrity-summary { color: var(--ink); font-size: 13px; font-weight: 700; margin: 0 0 8px; }
+.system-health-findings { margin: 0 0 8px; padding-inline-start: 20px; color: var(--ink); font-size: 13px; display: grid; gap: 6px; }
+.system-health-list { display: grid; gap: 12px; }
+.system-health-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.system-health-card p { display: flex; justify-content: space-between; gap: 8px; margin: 0 0 8px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.system-health-card p:last-child { margin-bottom: 0; }
+.system-health-card p strong { color: var(--ink); text-align: right; font-variant-numeric: var(--numeric); }
+.system-health-card .system-health-note { display: block; text-align: left; }
+.system-health-card-alert { border-color: var(--color-overdue); }
+.system-health-status-alert { color: var(--color-overdue) !important; }
+@media (max-width: 480px) {
+  .system-health-actions .daily-slip-btn { width: 100%; text-align: center; justify-content: center; }
+}
 /* SISP-99: Speed Batch Counter Entry sheet — token-only; the dialog
    reuses the shared .billing-modal / .modal-card shell, so its container
    already uses var(--modal-surface) in both themes. */

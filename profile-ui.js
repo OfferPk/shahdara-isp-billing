@@ -11,6 +11,7 @@ import { loyaltyInfoForCustomer } from './loyalty-retention.js';
 import { isCommercialVip } from './commercial-sla.js';
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
+import { computeWaadaScore } from './waada-queue.js';
 import { activeDownstreamCount, feederHostCreditOf, isFeederHost } from './feeder-host-credit.js';
 import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
@@ -595,6 +596,34 @@ export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date(
   return `<span class="prepaid-until-badge">${label}</span>`;
 }
 
+/**
+ * SISP-98: Waada reliability badge for the profile Waada section —
+ * "🤝 Waada Score: Kept X / Broken Y", derived live by
+ * waada-queue.computeWaadaScore from the customer's recorded promise
+ * resolutions (SISP-34 clearedWaada stamps + the live promise's tier).
+ * Outstanding is the allocation sum over priced bills — the same recipe
+ * core.addPayment uses to decide the promise auto-clear. Returns '' while
+ * the customer has no resolved waada on record (the house empty-stat
+ * pattern, like the prepaid badge above), so the section stays clean for
+ * customers who never promised. todayStr is a YYYY-MM-DD string; '' or a
+ * non-string falls back to the score module's own PKT today.
+ */
+export function waadaScoreBadgeHtml(state, customer, todayStr = '') {
+  if (!state || !customer || typeof customer !== 'object') return '';
+  const allocations = calculatePaymentAllocations(state);
+  let outstandingCents = 0;
+  for (const bill of Array.isArray(customer.bills) ? customer.bills : []) {
+    const summary = allocations.forMonth(customer.id, bill?.month);
+    if (summary && summary.balanceDueCents !== null && summary.balanceDueCents !== undefined) {
+      outstandingCents += summary.balanceDueCents;
+    }
+  }
+  const today = typeof todayStr === 'string' && todayStr.trim() !== '' ? todayStr.trim() : undefined;
+  const score = computeWaadaScore(customer, outstandingCents / 100, today);
+  if (score.total === 0) return '';
+  const label = t('wscore_badge', null, { kept: score.kept, broken: score.broken });
+  return `<p class="profile-waada-score"><span class="wada-badge waada-score-badge">${label}</span></p>`;
+}
 /**
  * SISP-90: the "👑 1+ Yr Loyal" badge. Tenure comes from
  * loyalty-retention.js's live derivation over the recorded start

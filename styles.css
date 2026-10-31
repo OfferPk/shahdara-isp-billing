@@ -12650,6 +12650,13 @@ dialog::backdrop {
   color: #166534;
   border: 1px solid #bbf7d0;
 }
+/* SISP-98: Waada reliability score badge (profile + defaulter rows).
+   Theme tokens only, so it renders correctly in light and dark mode. */
+.waada-score-badge {
+  background: var(--surface-soft);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
 .wada-card-body {
   display: flex;
   justify-content: space-between;

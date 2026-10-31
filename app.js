@@ -199,6 +199,7 @@ import { setupQrScannerModal } from './qr-scanner.js';
 import './bulk-customer-import.js'; // SISP-53: self-wiring Excel/CSV import wizard (dialog lives in index.html).
 import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
+import { buildFuelEfficiency, fuelEfficiencyCardHtml, normalizeFuelMonth } from './fuel-efficiency-tracker.js';
 import { buildRecentPayments } from './recent-payments.js';
 import { buildAdvanceDashboard } from './advance-dashboard.js';
 import { buildCollectionForecast } from './collection-forecaster.js';
@@ -1534,6 +1535,24 @@ function renderDashboard() {
     } else {
       linemanValueEl.textContent = t(totalResolved === 1 ? 'dash_lineman_resolved_sing' : 'dash_lineman_resolved_plur', null, { count: totalResolved });
       if (linemanPeriodEl) linemanPeriodEl.textContent = t('dash_lineman_period', null, { linemen: scorecard.linemen.length, collectors: scorecard.collectors.length });
+    }
+  }
+  // SISP-112: fuel efficiency card — monthly roznamcha petrol divided
+  // by field jobs (collections + Saad visits + resolved tickets), with
+  // unmatched fuel days flagged. Read-only; the month picker simply
+  // re-renders the dashboard for the chosen month.
+  const fuelBodyEl = $('#fuelEfficiencyBody');
+  if (fuelBodyEl) {
+    const fuelMonthInput = $('#fuelMonthInput');
+    const fuelMonth = normalizeFuelMonth(fuelMonthInput?.value, referenceDate);
+    if (fuelMonthInput && fuelMonthInput.value !== fuelMonth) fuelMonthInput.value = fuelMonth;
+    const fuel = buildFuelEfficiency({ state, roznamchaDays: loadRoznamchaDays(), saadVisits: loadSaadVisits(), tickets: loadTickets(), complaints: loadComplaints() }, fuelMonth, referenceDate);
+    fuelBodyEl.innerHTML = fuelEfficiencyCardHtml(fuel);
+    const fuelCostEl = $('#fuelEfficiencyCost');
+    if (fuelCostEl) fuelCostEl.textContent = fuel.fuelCostPerJob === null ? t('fuel_no_jobs') : t('fuel_cost_badge', null, { amount: formatAmount(fuel.fuelCostPerJob) });
+    if (fuelMonthInput && !fuelMonthInput.dataset.wired) {
+      fuelMonthInput.dataset.wired = 'true';
+      fuelMonthInput.addEventListener('change', () => renderDashboard());
     }
   }
   $('#serviceCountActive').textContent = totals.activeServiceCount;

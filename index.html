@@ -757,6 +757,17 @@
           <ul id="upsellList" class="upsell-list" aria-label="Package upgrade candidates"></ul>
         </div>
       </section>
+      <section class="fuel-efficiency-section" aria-labelledby="fuelEfficiencyHeading">
+        <div class="fuel-efficiency-card">
+          <div class="fuel-efficiency-header">
+            <h3 id="fuelEfficiencyHeading" class="fuel-efficiency-title" data-i18n="fuel_title">⛽ Fuel Cost per Field Job</h3>
+            <span id="fuelEfficiencyCost" class="fuel-efficiency-cost"></span>
+          </div>
+          <p class="fuel-efficiency-sub" data-i18n="fuel_sub">Monthly Roznamcha petrol divided by field jobs (collections + Saad visits + resolved tickets). Days with petrol but no recorded field activity are flagged.</p>
+          <label class="fuel-efficiency-month"><span data-i18n="fuel_month_label">Month</span><input id="fuelMonthInput" type="month"></label>
+          <div id="fuelEfficiencyBody"></div>
+        </div>
+      </section>
       <section class="winback-section" aria-labelledby="winbackHeading">
         <div class="winback-card">
           <div class="winback-header">

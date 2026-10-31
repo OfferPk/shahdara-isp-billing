@@ -426,6 +426,7 @@
           <div id="complaintRegisterSummary" class="complaint-register-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_complaint">🛠️ Complaint Register</button>
+            <button id="openPostRepairCheckinModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="prc_open_btn">🤝 Post-Repair Check-Ins</button>
           </div>
         </article>
         <article class="summary-card summary-field-tickets ds-stat ds-stat--pending">
@@ -21452,6 +21453,20 @@
         <label for="splitterMapTechnicianInput">Lineman / technician (for attenuation tickets)</label>
         <input id="splitterMapTechnicianInput" class="form-input splitter-map-technician" type="text" autocomplete="off" placeholder="Lineman name">
         <div id="splitterMapWeakList" class="splitter-map-weak-list"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="postRepairCheckinModal" class="billing-modal post-repair-checkin-modal" aria-labelledby="postRepairCheckinModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="postRepairCheckinModalTitle">🤝 <span data-i18n="prc_title">Post-Repair Check-Ins</span></h2>
+        <button id="postRepairCheckinCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="post-repair-checkin-intro" data-i18n="prc_intro">Customers whose complaint was fixed 24–48 hours ago and have not been checked on yet. Send a 1-tap WhatsApp check-in to ask whether the connection is working fine now.</p>
+        <p id="postRepairCheckinSummaryLine" class="post-repair-checkin-summary"></p>
+        <div id="postRepairCheckinList" class="post-repair-checkin-list"></div>
       </div>
     </div>
   </dialog>

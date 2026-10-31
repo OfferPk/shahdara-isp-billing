@@ -38,6 +38,15 @@
  * data on every render and is strictly read-only — it never mutates,
  * hides or auto-closes any complaint.
  *
+ * SISP-104: each record carries followUpSentAt (null until stamped) —
+ * the post-repair satisfaction check-in stamp owned by
+ * post-repair-checkin.js. The follow-up lives on the COMPLAINT (this
+ * register is the customer-facing record of the fault; a SISP-12
+ * ticket is the field work order that syncs into it). The stamp is
+ * historical: reopening a complaint never clears it, so a complaint
+ * that was already checked on never re-enters the check-in queue,
+ * even if it is resolved a second time.
+ *
  * SISP-84: a complaint carries a stored priority ('Urgent' | 'Normal').
  * A complaint logged for a commercial_vip customer (commercial-sla.js)
  * is born 'Urgent', and on every render the queue is SLA-sorted: open
@@ -194,6 +203,10 @@ export function sanitizeComplaints(value) {
       // deliberately reopened against that exact ticket resolution —
       // the sync must not slam it shut again (see sync module header).
       syncReopenGuard: /^TKT-\d+@\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(entry.syncReopenGuard || '')) ? String(entry.syncReopenGuard) : '',
+      // SISP-104: post-repair check-in stamp ("YYYY-MM-DDTHH:MM" PKT)
+      // or null when no check-in has been sent yet. Never erased by
+      // status changes — see the header note.
+      followUpSentAt: DATE_TIME_RE.test(String(entry.followUpSentAt || '')) ? String(entry.followUpSentAt) : null,
       createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
     });
   }
@@ -258,6 +271,7 @@ export function createComplaint(input, existing, referenceDate = new Date()) {
     resolutionNote: cleanText(input?.resolutionNote),
     resolvedViaTicketId: '',
     syncReopenGuard: '',
+    followUpSentAt: null,
     createdAt: new Date().toISOString()
   };
 }
@@ -318,6 +332,9 @@ export function setComplaintStatus(list, id, status, options = {}) {
     entry.resolvedAt = '';
     entry.downtimeHours = null;
     entry.downtimeManual = false;
+    // SISP-104: followUpSentAt is deliberately NOT cleared — the
+    // check-in was really sent, and the stamp keeps this complaint
+    // out of the post-repair queue even after a later re-resolution.
   }
   return next;
 }

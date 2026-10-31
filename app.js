@@ -179,6 +179,7 @@ import { renderRelocationTimeline, setupRelocationModal } from './relocation-log
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet } from './mikrotik-generator.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { setupSpeedCounterEntryModal, submitSpeedEntryBatch } from './speed-counter-entry.js';
 import { COMMISSION_RULES_KEY, loadCommissionRules, saveCommissionRules, setupCommissionModal } from './collector-commission.js';
 import { FIELD_TOOLS_KEY, fieldToolsSummary, loadFieldTools, saveFieldTools, setupToolCustodyModal } from './tool-custody-register.js';
 import { SPLICE_CLOSURES_KEY, loadSpliceClosures, saveSpliceClosures, setupSpliceClosureModal } from './fiber-splice-closure.js';
@@ -467,6 +468,7 @@ export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
+export let speedCounterEntryModalController = null;
 export let commissionModalController = null;
 export let toolCustodyModalController = null;
 export let spliceClosureModalController = null;
@@ -11617,6 +11619,32 @@ if (typeof document !== 'undefined') {
       };
     }
   });
+  // SISP-99: keyboard-first speed batch counter entry — every row is
+  // recorded through executeQuickCollection (the same payment path as a
+  // hand-entered Quick Collect), then persisted exactly like a single
+  // quick collection. Rows that fail are reported back per-row by the
+  // batch; already-recorded rows stay recorded.
+  speedCounterEntryModalController = setupSpeedCounterEntryModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts),
+    currentMonth: () => monthsForHistory(new Date())[0],
+    today: () => pakistanToday(),
+    onRecordBatch: (rows, { date, month }) => {
+      const result = submitSpeedEntryBatch(state, rows, {
+        date, month, execute: executeQuickCollection
+      });
+      if (result.recordedCount > 0) {
+        state = result.nextState;
+        save();
+        renderDetail();
+        renderTransactions();
+        renderMonthlyReport();
+        renderDashboard();
+      }
+      return result;
+    }
+  });
+  $('#speedEntryOpenBtn')?.addEventListener('click', () => speedCounterEntryModalController?.open());
   // SISP-82: field tool custody register — records live in their own
   // localStorage key (sisp_field_tools_v1); every change re-renders the
   // dashboard card.

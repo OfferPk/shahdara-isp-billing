@@ -75,6 +75,11 @@ import {
   renderReceiptSharedBadgeHtml
 } from './nav-quick-profile.js';
 import {
+  executeSplitTenderCollection,
+  formatSplitTenderWhatsAppText,
+  renderSplitReceiptCardHtml
+} from './split-tender-collect.js';
+import {
   announcePaymentSuccess,
   trapModalFocus
 } from './nav-accessibility.js';
@@ -1544,6 +1549,16 @@ export function setupQuickCollectModal({
   const removeScreenshotBtn = document.getElementById('quickCollectRemoveScreenshotBtn');
   const ownerPaymentInfo = document.getElementById('quickCollectOwnerPaymentInfo');
 
+  // SISP-121: split-tender leg-2 elements (all null-safe — markup that
+  // predates the split block simply keeps the single-payment flow).
+  const splitToggle = document.getElementById('quickCollectSplitToggle');
+  const splitFields = document.getElementById('quickCollectSplitFields');
+  const splitAmountInput = document.getElementById('quickCollectSplitAmountInput');
+  const splitMethodSelect = document.getElementById('quickCollectSplitMethodSelect');
+  const splitDigitalFields = document.getElementById('quickCollectSplitDigitalFields');
+  const splitTransactionIdInput = document.getElementById('quickCollectSplitTransactionIdInput');
+  const splitOverrideReasonInput = document.getElementById('quickCollectSplitOverrideReasonInput');
+
   // Duplicate Warning In-App Card (#279)
   const dupWarningCard = document.getElementById('quickCollectDuplicateWarning');
   const dupMsg = document.getElementById('quickCollectDuplicateMsg');
@@ -1753,6 +1768,25 @@ export function setupQuickCollectModal({
       `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`
     ).join('');
   }
+
+  // SISP-121: leg-2 method select (every real method, shop methods
+  // included) + split visibility. Leg 2 defaults to Easypaisa so the
+  // common cash + wallet split needs no method hunting; the module
+  // still refuses a same-method "split" at save time.
+  if (splitMethodSelect && splitMethodSelect.options.length === 0) {
+    splitMethodSelect.innerHTML = PAYMENT_METHODS.map(m =>
+      `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`
+    ).join('');
+    if (PAYMENT_METHODS.includes('Easypaisa')) splitMethodSelect.value = 'Easypaisa';
+  }
+  function updateSplitVisibility() {
+    const on = !!splitToggle?.checked;
+    if (splitFields) splitFields.hidden = !on;
+    const leg2Digital = on && isDigitalPaymentMethod(splitMethodSelect?.value || '');
+    if (splitDigitalFields) splitDigitalFields.hidden = !leg2Digital;
+  }
+  splitToggle?.addEventListener('change', updateSplitVisibility);
+  splitMethodSelect?.addEventListener('change', updateSplitVisibility);
 
   function updateCounts() {
     const state = getState();
@@ -2148,6 +2182,12 @@ export function setupQuickCollectModal({
       if (senderDigitsInput) senderDigitsInput.value = '';
       if (overrideReasonInput) overrideReasonInput.value = '';
       if (overrideDetails) overrideDetails.open = false;
+      // SISP-121: split always starts OFF for a fresh customer sheet.
+      if (splitToggle) splitToggle.checked = false;
+      if (splitAmountInput) splitAmountInput.value = '';
+      if (splitTransactionIdInput) splitTransactionIdInput.value = '';
+      if (splitOverrideReasonInput) splitOverrideReasonInput.value = '';
+      updateSplitVisibility();
       currentScreenshotDataUrl = '';
       if (screenshotInput) screenshotInput.value = '';
       if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = true;
@@ -2439,6 +2479,15 @@ export function setupQuickCollectModal({
     searchInput?.focus();
   });
 
+  // SISP-121: the success card shows the COMBINED receipt after a split
+  // collection (activeReceipt.splitTender), the ordinary card otherwise.
+  function renderActiveReceiptCard() {
+    if (!receiptCardContainer || !activeReceipt) return;
+    receiptCardContainer.innerHTML = activeReceipt.splitTender
+      ? renderSplitReceiptCardHtml(activeReceipt.splitTender)
+      : renderQuickCollectReceiptCardHtml(activeReceipt);
+  }
+
   function executeUndo() {
     if (!activeUndoContext) return;
     const { customerId, month, paymentId, amount, customerName, ticketCharges, addonCharges } = activeUndoContext;
@@ -2451,6 +2500,35 @@ export function setupQuickCollectModal({
     if (undoBtn) undoBtn.hidden = true;
     try {
       const state = getState();
+      // SISP-121: undoing a split collection removes BOTH legs, newest
+      // first, each with its own SISP-43 ticket-charge reopen — exactly
+      // reversing the order they were recorded in.
+      const splitLegs = Array.isArray(activeUndoContext.splitLegs) ? activeUndoContext.splitLegs : null;
+      if (splitLegs && splitLegs.length > 0) {
+        let workingTickets = loadTickets();
+        let workingState = state;
+        for (const leg of [...splitLegs].reverse()) {
+          const legLines = Array.isArray(leg.ticketCharges) ? leg.ticketCharges : [];
+          if (legLines.length > 0) {
+            const reverted = unsettleTicketChargesForPayment(workingTickets, { id: leg.paymentId, ticketCharges: legLines });
+            workingTickets = reverted.tickets;
+            workingState = deletePayment(workingState, customerId, month, leg.paymentId, new Date(), { ticketChargesReverted: true });
+          } else {
+            workingState = deletePayment(workingState, customerId, month, leg.paymentId);
+          }
+        }
+        saveTickets(workingTickets);
+        if (typeof onSaveState === 'function') {
+          onSaveState(workingState);
+        }
+        updateCounts();
+        renderList();
+        showStep('pick');
+        if (typeof onToast === 'function') {
+          onToast(`Payment of PKR ${amount.toLocaleString()} for ${customerName} undone. Ledger restored.`, { type: 'success', title: 'Undone' });
+        }
+        return;
+      }
       // SISP-43: an undone collection reopens the ticket charges it
       // settled, first — only then may the payment itself be deleted
       // (core refuses to delete a charge-settling payment otherwise).
@@ -2611,6 +2689,130 @@ export function setupQuickCollectModal({
         return;
       }
 
+      // SISP-121: split tender — leg 1 is the main form above (its TID
+      // checks and duplicate card already ran), leg 2 is the split
+      // block. Recording happens ONLY through
+      // executeSplitTenderCollection: both legs are validated before
+      // either is recorded and the chain is discarded whole on failure.
+      if (splitToggle?.checked) {
+        if (advanceCheckbox?.checked) {
+          if (typeof onToast === 'function') onToast(t('split_advance_conflict'), { type: 'error' });
+          return;
+        }
+        // The fully-paid guard applies to a split exactly as to a normal
+        // collection (a split is two ordinary payments, never advance).
+        if (normalPaymentBlockReason(state, activeCustomerId, monthVal) === 'fully-paid'
+          && billedTicketChargesPending(loadTickets(), activeCustomerId) <= 0) {
+          if (typeof onToast === 'function') onToast(t('adv_blocked_paid'), { type: 'error' });
+          return;
+        }
+        const leg2Method = splitMethodSelect?.value || 'Easypaisa';
+        const leg2Amount = Number(splitAmountInput?.value);
+        const leg2Txn = (splitTransactionIdInput?.value || '').trim();
+        const leg2Override = (splitOverrideReasonInput?.value || '').trim();
+        if (isDigitalPaymentMethod(leg2Method) && !leg2Txn && !leg2Override) {
+          if (typeof onToast === 'function') onToast(t('split_leg2_tid_required'), { type: 'error' });
+          splitTransactionIdInput?.focus();
+          return;
+        }
+        if (leg2Txn) {
+          const dup2 = findDuplicatePaymentReference(state, leg2Txn);
+          if (dup2) {
+            if (typeof onToast === 'function') onToast(`Leg 2 Transaction ID "${leg2Txn}" was already recorded on ${dup2.date || dup2.paymentDate || 'recently'} for ${dup2.customerName || 'a customer'} (#${dup2.customerNumber || '?'}). Give leg 2 its own Transaction ID.`, { type: 'error' });
+            splitTransactionIdInput?.focus();
+            return;
+          }
+        }
+        // Snapshot the recorder's device-local side effects (audit trail
+        // + last-method preference) so a failed split restores them too:
+        // the split is all-or-nothing, display log included.
+        let auditSnapshot;
+        let methodSnapshot;
+        try {
+          auditSnapshot = localStorage.getItem(QUICK_COLLECT_AUDIT_KEY);
+          methodSnapshot = localStorage.getItem(QUICK_COLLECT_STORAGE_KEY);
+        } catch { /* storage unavailable — nothing to snapshot */ }
+        try {
+          const leg1Reference = (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim())
+            ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : ''))
+            : overrideReasonVal;
+          const splitResult = executeSplitTenderCollection(state, {
+            customerId: activeCustomerId,
+            month: monthVal,
+            date: dateVal,
+            paidBy: paidByVal,
+            legs: [
+              { amount: amountVal, method: methodVal, transactionId: txnIdVal, referenceOverrideReason: leg1Reference, screenshot: currentScreenshotDataUrl },
+              { amount: leg2Amount, method: leg2Method, transactionId: leg2Txn, referenceOverrideReason: leg2Override }
+            ],
+            tickets: loadTickets()
+          }, { execute: executeQuickCollection });
+
+          if (splitResult.nextTickets) {
+            saveTickets(splitResult.nextTickets);
+          }
+          const [legReceipt1, legReceipt2] = splitResult.receipts;
+          const totalCollected = Math.round((Number(legReceipt1.amount) + Number(legReceipt2.amount)) * 100) / 100;
+          activeReceipt = { ...legReceipt2, splitTender: splitResult.combinedReceipt };
+          activeUndoContext = {
+            customerId: activeCustomerId,
+            month: monthVal,
+            paymentId: legReceipt2.paymentId,
+            amount: totalCollected,
+            customerName: legReceipt2.customerName,
+            ticketCharges: [],
+            splitLegs: [
+              { paymentId: legReceipt1.paymentId, ticketCharges: legReceipt1.ticketCharges ?? [] },
+              { paymentId: legReceipt2.paymentId, ticketCharges: legReceipt2.ticketCharges ?? [] }
+            ]
+          };
+          if (undoBtn) {
+            undoBtn.hidden = false;
+            undoBtn.disabled = false;
+            undoBtn.textContent = '↩ Undo Payment (5s)';
+          }
+          if (undoTimeoutId) clearTimeout(undoTimeoutId);
+          undoTimeoutId = setTimeout(() => {
+            undoTimeoutId = null;
+            activeUndoContext = null;
+            stopUndoCountdown();
+            if (undoBtn) undoBtn.hidden = true;
+          }, UNDO_WINDOW_MS);
+          startUndoCountdown();
+          if (typeof onSaveState === 'function') {
+            onSaveState(splitResult.nextState);
+          }
+          if (typeof onToast === 'function') {
+            onToast(t('split_saved_msg', null, { amount: totalCollected.toLocaleString('en-PK') }), {
+              type: 'success',
+              title: 'Payment recorded',
+              actionLabel: 'Undo',
+              onAction: () => {
+                executeUndo();
+              },
+              duration: UNDO_WINDOW_MS
+            });
+          }
+          renderActiveReceiptCard();
+          showStep('success');
+          updateCounts();
+          announcePaymentSuccess(activeReceipt);
+          setTimeout(() => {
+            const successHeading = document.getElementById('quickCollectSuccessHeading') || whatsAppBtn;
+            successHeading?.focus();
+          }, 60);
+        } catch (splitErr) {
+          try {
+            if (auditSnapshot === null || auditSnapshot === undefined) localStorage.removeItem(QUICK_COLLECT_AUDIT_KEY);
+            else localStorage.setItem(QUICK_COLLECT_AUDIT_KEY, auditSnapshot);
+            if (methodSnapshot === null || methodSnapshot === undefined) localStorage.removeItem(QUICK_COLLECT_STORAGE_KEY);
+            else localStorage.setItem(QUICK_COLLECT_STORAGE_KEY, methodSnapshot);
+          } catch { /* ignore storage issues */ }
+          if (typeof onToast === 'function') onToast(splitErr.message || t('split_not_saved_toast'), { type: 'error' });
+        }
+        return;
+      }
+
       const { nextState, receipt, nextTickets } = executeQuickCollection(state, {
         customerId: activeCustomerId,
         month: monthVal,
@@ -2684,9 +2886,7 @@ export function setupQuickCollectModal({
       }
 
       // Render success screen
-      if (receiptCardContainer) {
-        receiptCardContainer.innerHTML = renderQuickCollectReceiptCardHtml(receipt);
-      }
+      renderActiveReceiptCard();
 
       showStep('success');
       updateCounts();
@@ -2728,7 +2928,15 @@ export function setupQuickCollectModal({
     // SISP-91: render the draft in the customer's saved receipt
     // language when set (the preference wins over the default draft).
     const receiptCustomer = getState()?.customers?.find(c => c.id === activeReceipt.customerId);
-    const { url, text } = formatQuickCollectWhatsAppReceipt(activeReceipt, { whatsappPhone: receiptCustomer ? whatsappPhoneFor(receiptCustomer) : '', lang: receiptLangPreference(receiptCustomer) });
+    // SISP-121: a split collection shares the COMBINED receipt text
+    // (both legs, both real receipt numbers, one total).
+    const { url, text } = activeReceipt.splitTender
+      ? (() => {
+          const splitText = formatSplitTenderWhatsAppText(activeReceipt.splitTender);
+          const wa = formatWhatsAppUrl(activeReceipt.phone, splitText);
+          return { url: wa.url || '', text: splitText };
+        })()
+      : formatQuickCollectWhatsAppReceipt(activeReceipt, { whatsappPhone: receiptCustomer ? whatsappPhoneFor(receiptCustomer) : '', lang: receiptLangPreference(receiptCustomer) });
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
       markReceiptShared(activeReceipt.id, {
@@ -2759,16 +2967,24 @@ export function setupQuickCollectModal({
       }
     }
 
-    if (receiptCardContainer) {
-      receiptCardContainer.innerHTML = renderQuickCollectReceiptCardHtml(activeReceipt);
-    }
+    renderActiveReceiptCard();
   });
 
   // Share Receipt as Image / PNG download
   shareImageBtn?.addEventListener('click', async () => {
     if (!activeReceipt) return;
     try {
-      const blob = await generateReceiptImageBlob(activeReceipt);
+      // SISP-121: the canvas slip shows the split TOTAL and both leg
+      // methods (the combined card/HTML carries the full per-leg detail).
+      const imageReceipt = activeReceipt.splitTender
+        ? {
+            ...activeReceipt,
+            amount: activeReceipt.splitTender.totalReceived,
+            method: activeReceipt.splitTender.legs.map(leg => leg.method).join(' + '),
+            transactionId: activeReceipt.splitTender.legs.find(leg => leg.transactionId)?.transactionId || ''
+          }
+        : activeReceipt;
+      const blob = await generateReceiptImageBlob(imageReceipt);
       if (!blob) {
         if (typeof onToast === 'function') onToast('Receipt image creation is not supported in this environment.', { type: 'warning' });
         return;
@@ -2810,9 +3026,7 @@ export function setupQuickCollectModal({
         amount: activeReceipt.amount
       });
 
-      if (receiptCardContainer) {
-        receiptCardContainer.innerHTML = renderQuickCollectReceiptCardHtml(activeReceipt);
-      }
+      renderActiveReceiptCard();
 
       if (typeof onToast === 'function') {
         onToast('Receipt image ready (downloaded / shared).');
@@ -2840,6 +3054,10 @@ export function setupQuickCollectModal({
       try {
         if (!thermalPrinter.isConnected()) await thermalPrinter.connect();
         const money = (v) => `PKR ${Number(v || 0).toLocaleString('en-PK')}`;
+        // SISP-121: a split collection prints the combined total with
+        // one line per leg (the leg lines ride the slip's extra-lines
+        // slot, the same channel SISP-43 ticket charges use).
+        const split = activeReceipt.splitTender || null;
         const { bytes } = buildEscPosReceipt({
           businessName: 'Shahdara ISP',
           receiptNumber: activeReceipt.receiptNumber || '',
@@ -2847,13 +3065,18 @@ export function setupQuickCollectModal({
           customerNumber: activeReceipt.customerNumber ? String(activeReceipt.customerNumber) : '',
           monthLabel: activeReceipt.month || '',
           dateTimeLabel: activeReceipt.date || '',
-          amount: money(activeReceipt.amount),
-          method: activeReceipt.method || '',
-          reference: activeReceipt.transactionId || '',
+          amount: money(split ? split.totalReceived : activeReceipt.amount),
+          method: split ? 'Split' : (activeReceipt.method || ''),
+          reference: split ? (split.legs.find(leg => leg.transactionId)?.transactionId || '') : (activeReceipt.transactionId || ''),
           // SISP-43: settled ticket charges print on the slip too.
           // Owner feature (2026-10-29): settled manual baqaya rides the
           // same slip rows with its own short label.
-          ticketCharges: [
+          ticketCharges: split
+            ? split.legs.map(leg => ({
+                label: `${t('split_leg_label', null, { leg: leg.leg })} · ${leg.method}`,
+                value: money(leg.amount)
+              }))
+            : [
             ...(activeReceipt.ticketCharges ?? []).map(line => ({
               label: `Murammat (${line.ticketId})`,
               value: money(line.amount)
@@ -2871,8 +3094,8 @@ export function setupQuickCollectModal({
           // SISP-96: owner-configured footer lines on the slip too.
           footerLines: buildReceiptFooterLines(getReceiptFooter()),
 
-          balanceDue: money(activeReceipt.payableRemaining ?? activeReceipt.newBalanceDue),
-          statusLabel: activeReceipt.isSettled ? 'PAID' : 'PARTIAL'
+          balanceDue: money(split ? split.balanceDueCents / 100 : (activeReceipt.payableRemaining ?? activeReceipt.newBalanceDue)),
+          statusLabel: split ? split.status : (activeReceipt.isSettled ? 'PAID' : 'PARTIAL')
         });
         await thermalPrinter.print(bytes);
         if (typeof onToast === 'function') onToast('Receipt sent to the Bluetooth printer.');

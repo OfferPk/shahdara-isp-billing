@@ -1146,6 +1146,7 @@ body.field-mode-open { overflow: hidden; }
    kind:'advance'. Token-only (paid-green pair, like the free-connection
    badge), readable in light and dark mode. */
 .advance-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-paid); color: var(--color-neutral-0); white-space: nowrap; }
+.split-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--color-paid); border: 1px solid var(--color-paid); white-space: nowrap; }
 .free-connection-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-paid); color: var(--color-neutral-0); white-space: nowrap; }
 .prepaid-until-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--color-paid); border: 1px solid var(--color-paid); white-space: nowrap; }
 /* SISP-120: Star Timely Payer profile badge (theme tokens only). */

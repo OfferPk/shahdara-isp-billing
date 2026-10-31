@@ -505,6 +505,15 @@
             <button id="openSupplierKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="supkhata_btn_open">🏭 Supplier Khata</button>
           </div>
         </article>
+        <article class="summary-card summary-fiber-drums ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_drum_card">🧵 Fiber Drums</p>
+          <strong id="dashboardFiberDrumValue" class="summary-value">No drums tracked</strong>
+          <p id="dashboardFiberDrumPeriod" class="summary-period">Fiber drums &amp; jacket-mark cuts</p>
+          <div id="fiberDrumSummary" class="fiber-drum-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openFiberDrumModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_drum_btn">🧵 Drum Tracker</button>
+          </div>
+        </article>
         <article class="summary-card summary-outage-impact ds-stat ds-stat--overdue">
           <p class="summary-label" data-i18n="dash_card_outage">⚡ Feeder Outage Impact</p>
           <strong id="dashboardOutageValue" class="summary-value">No feeder links</strong>
@@ -21749,6 +21758,45 @@
         </form>
         <h3>Movement log</h3>
         <div id="inventoryBookLogList" class="inventory-book-log-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="fiberDrumModal" class="billing-modal fiber-drum-modal" aria-labelledby="fiberDrumModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="fiberDrumModalTitle" data-i18n="drum_title">🧵 Fiber Drum Tracker</h2>
+        <button id="fiberDrumCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="fiber-drum-intro" data-i18n="drum_intro">Each drum is measured by the meter marking printed on its cable jacket. Record a cut — the meters used are calculated for you and deducted from the drum, and from the Stock Book too when the drum is linked to a stock item.</p>
+        <p id="fiberDrumSummaryLine" class="fiber-drum-summary-line"></p>
+        <div id="fiberDrumList" class="fiber-drum-list"></div>
+        <h3 data-i18n="drum_add_heading">Add a drum</h3>
+        <form id="fiberDrumAddForm" class="fiber-drum-form">
+          <label for="fiberDrumLabel" data-i18n="drum_label">Drum label</label>
+          <input id="fiberDrumLabel" class="form-input" type="text" required aria-label="Drum label">
+          <label for="fiberDrumItem" data-i18n="drum_item">Linked stock item (cable)</label>
+          <select id="fiberDrumItem" class="form-input" aria-label="Linked stock item"></select>
+          <label for="fiberDrumInitial" data-i18n="drum_initial">Drum length (meters)</label>
+          <input id="fiberDrumInitial" class="form-input" type="number" min="0" step="any" required aria-label="Drum length in meters">
+          <label for="fiberDrumStartMark" data-i18n="drum_start_mark">Starting jacket mark (m)</label>
+          <input id="fiberDrumStartMark" class="form-input" type="number" min="0" step="any" aria-label="Starting jacket mark in meters">
+          <button class="action-btn-sm daily-slip-btn" type="submit" data-i18n="drum_add_btn">Add drum</button>
+        </form>
+        <h3 data-i18n="drum_cut_heading">Record a cut</h3>
+        <form id="fiberDrumCutForm" class="fiber-drum-form">
+          <label for="fiberDrumPick" data-i18n="drum_pick">Drum</label>
+          <select id="fiberDrumPick" class="form-input" aria-label="Drum for the cut"></select>
+          <label for="fiberDrumCutDate" data-i18n="drum_date">Date</label>
+          <input id="fiberDrumCutDate" class="form-input" type="date" required aria-label="Cut date">
+          <label for="fiberDrumCutStart" data-i18n="drum_cut_start">Start jacket mark (m)</label>
+          <input id="fiberDrumCutStart" class="form-input" type="number" min="0" step="any" required aria-label="Start jacket mark in meters">
+          <label for="fiberDrumCutEnd" data-i18n="drum_cut_end">End jacket mark (m)</label>
+          <input id="fiberDrumCutEnd" class="form-input" type="number" min="0" step="any" required aria-label="End jacket mark in meters">
+          <label for="fiberDrumCutNote" data-i18n="drum_note">Note / used for (optional)</label>
+          <input id="fiberDrumCutNote" class="form-input" type="text" aria-label="Cut note">
+          <button class="action-btn-sm daily-slip-btn" type="submit" data-i18n="drum_cut_btn">Record cut</button>
+        </form>
       </div>
     </div>
   </dialog>

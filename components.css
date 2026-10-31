@@ -893,6 +893,22 @@ body.field-mode-open { overflow: hidden; }
   .inventory-stock-card p strong { text-align: left; }
   .inventory-log-card p strong { text-align: left; }
 }
+/* SISP-119: Fiber Drum Tracker — token-only, mirrors the stock book cards. */
+.fiber-drum-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.fiber-drum-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.fiber-drum-summary p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.fiber-drum-summary p strong { color: var(--ink); overflow-wrap: anywhere; }
+.fiber-drum-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.fiber-drum-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.fiber-drum-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.fiber-drum-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.fiber-drum-form label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin: 10px 0 4px; }
+.fiber-drum-form .form-input { width: 100%; }
+.fiber-drum-empty { color: var(--muted); font-size: 13px; }
+@media (max-width: 700px) {
+  .fiber-drum-list { grid-template-columns: 1fr; }
+  .fiber-drum-card p strong { text-align: left; }
+}
 /* SISP-7: feeder outage impact — mirrors the downtime analytics cards. */
 .outage-impact-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
 .outage-impact-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }

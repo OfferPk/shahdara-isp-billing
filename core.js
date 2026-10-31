@@ -16,6 +16,7 @@ import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
+import { sanitizeFiberDrums } from './fiber-drum-tracker.js';
 import { sanitizeStormInspections } from './storm-inspection.js';
 import { sanitizeSupplierKhata } from './supplier-khata.js';
 import { sanitizeCommissionRules } from './collector-commission.js';
@@ -3423,6 +3424,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSuspensePayments(options.suspensePayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), suspensePayments: cleaned };
   }
+  // SISP-119: fiber drum records live outside the ledger state
+  // (localStorage key sisp_fiber_drums_v1), so they travel in an
+  // optional `settings.fiberDrums` section. Written only when at least
+  // one drum exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.fiberDrums) && options.fiberDrums.length) {
+    const cleaned = sanitizeFiberDrums(options.fiberDrums);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), fiberDrums: cleaned };
+  }
   // SISP-109: post-storm inspection runs live outside the ledger state
   // (localStorage key sisp_storm_inspections_v1), so they travel in an
   // optional `settings.stormInspections` section. Written only when at
@@ -4216,6 +4225,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Suspense payment records differ from this device' });
     }
   }
+  // SISP-119 fiber drums: optional registry section (see
+  // createJsonBackup). Safe-merge rule, same as the stock book: adopt
+  // the backup's drums only when this device has none stored yet; when
+  // both sides hold different real drums, keep existing + conflict (a
+  // drum's cut history must never be silently overwritten).
+  let fiberDrums = null;
+  const rawIncomingFiberDrums = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.fiberDrums
+    : undefined;
+  if (Array.isArray(rawIncomingFiberDrums) && rawIncomingFiberDrums.length) {
+    const incomingFiberDrums = sanitizeFiberDrums(rawIncomingFiberDrums);
+    const currentFiberDrums = (options && typeof options === 'object' && Array.isArray(options.currentFiberDrums))
+      ? sanitizeFiberDrums(options.currentFiberDrums)
+      : [];
+    if (incomingFiberDrums.length && sameJson(incomingFiberDrums, currentFiberDrums)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingFiberDrums.length && (!options?.currentFiberDrumsStored || currentFiberDrums.length === 0)) {
+      fiberDrums = incomingFiberDrums;
+      counts.fiberDrumsRestored = 1;
+      counts.changes++;
+    } else if (incomingFiberDrums.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Fiber drum records differ from this device' });
+    }
+  }
   // SISP-109 storm inspections: optional runs section (see
   // createJsonBackup). Safe-merge rule, same as suspense payments: adopt
   // the backup's runs only when this device has none stored yet; when
@@ -4620,6 +4653,6 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 
 }

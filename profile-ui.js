@@ -15,6 +15,7 @@ import { computeWaadaScore } from './waada-queue.js';
 import { activeDownstreamCount, feederHostCreditOf, isFeederHost } from './feeder-host-credit.js';
 import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
+import { helpButtonMarkup } from './help-guide.js';
 
 const BILL_STATUS = Object.freeze({
   paid: { label:'Paid', className:'status-received' },
@@ -607,6 +608,9 @@ export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date(
  * pattern, like the prepaid badge above), so the section stays clean for
  * customers who never promised. todayStr is a YYYY-MM-DD string; '' or a
  * non-string falls back to the score module's own PKT today.
+ * OWNER-HELP follow-up: the badge carries the waada_score ℹ️ mount — the
+ * score gets its own guide topic because the waada topic's text explains
+ * recording promises, not the Kept/Broken derivation.
  */
 export function waadaScoreBadgeHtml(state, customer, todayStr = '') {
   if (!state || !customer || typeof customer !== 'object') return '';
@@ -622,7 +626,7 @@ export function waadaScoreBadgeHtml(state, customer, todayStr = '') {
   const score = computeWaadaScore(customer, outstandingCents / 100, today);
   if (score.total === 0) return '';
   const label = t('wscore_badge', null, { kept: score.kept, broken: score.broken });
-  return `<p class="profile-waada-score"><span class="wada-badge waada-score-badge">${label}</span></p>`;
+  return `<p class="profile-waada-score"><span class="wada-badge waada-score-badge">${label}</span> ${helpButtonMarkup('waada_score')}</p>`;
 }
 /**
  * SISP-90: the "👑 1+ Yr Loyal" badge. Tenure comes from

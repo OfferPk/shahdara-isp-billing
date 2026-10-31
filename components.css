@@ -1910,3 +1910,36 @@ button.field-dispatch-item { cursor: pointer; }
 .manual-baqaya-hint { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
 .manual-baqaya-badge { display: inline-block; margin-top: 2px; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-pending-bg); color: var(--color-overdue); white-space: nowrap; }
 .manual-baqaya-stat strong { color: var(--color-overdue); }
+
+/* OWNER-HELP: per-feature ℹ️ guide buttons + shared popup body.
+   Token-only (dark-mode safe). The button is an info control, never a
+   close control — the popup itself uses the shared dialog.billing-modal
+   shell (var(--modal-surface)) and the unified .close-btn. */
+.help-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-inline-start: var(--space-2);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  line-height: 1;
+  cursor: pointer;
+  vertical-align: middle;
+  flex: none;
+}
+.help-info-btn:focus-visible {
+  outline: 3px solid var(--color-neutral-0);
+  outline-offset: 2px;
+}
+.help-guide-body {
+  color: var(--ink);
+  font-size: var(--text-md);
+  line-height: 1.65;
+  margin: 0;
+}

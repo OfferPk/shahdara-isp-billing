@@ -7410,6 +7410,11 @@
         <section id="partnerSettlementPanel" class="table-card partner-settlement-panel" role="tabpanel" aria-labelledby="expenseTabSettlement" hidden>
           <div class="table-heading"><div><p class="eyebrow">50/50 PARTNER · DRAWINGS &amp; CAPITAL · MONTHLY SLIP</p><h3>Partner settlement</h3></div><label class="payroll-month-label" for="partnerSettlementMonth">Selected month<select id="partnerSettlementMonth"></select></label></div>
           <p class="phase3-note">Record cash Nasir or Aqib drew mid-month, and ISP purchases either paid from personal funds. The month-end payout is then share (50% of profit) + out-of-pocket − drawings. A negative payout is shown as a receivable — the partner owes the business — never hidden. Confirming a slip only saves the slip; it never changes any bill, receipt or expense.</p>
+          <div class="charity-reserve-control">
+            <label class="charity-reserve-label" for="charityReservePctInput"><span id="charityReservePctLabel">Charity / Sadqah &amp; Emergency Reserve (%)</span><input id="charityReservePctInput" type="number" min="0" max="100" step="0.5" inputmode="decimal" value="0"></label>
+            <button id="charityReserveSaveBtn" class="secondary-button" type="button">Save reserve %</button>
+            <p id="charityReserveHint" class="phase3-note">Optional: this % of a positive monthly profit is set aside before the rest is split 50/50. 0% = off.</p>
+          </div>
           <div id="partnerSettlementContent" aria-live="polite"></div>
           <p id="partnerSettlementStatus" class="phase3-note" role="status" aria-live="polite"></p>
           <div class="partner-settlement-actions"><button id="partnerSettlementConfirmBtn" class="primary-button" type="button">Confirm monthly settlement slip</button><button id="partnerSettlementReopenBtn" class="secondary-button" type="button">Re-open saved slip</button><a id="partnerSettlementWhatsAppLink" class="secondary-button partner-settlement-whatsapp" href="https://wa.me/" target="_blank" rel="noopener">WhatsApp summary</a></div>

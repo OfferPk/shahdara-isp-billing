@@ -31,6 +31,21 @@
  *   record — it never alters underlying bills, receipts or expenses,
  *   and re-opening it replaces the slip for that month, not the ledger.
  *
+ * SISP-114: an OPTIONAL charity / sadqah & emergency reserve percentage
+ * (charity-reserve.js, device setting, default 0 = off) may be passed
+ * to buildPartnerSettlementReport (options.charityReservePct, or a
+ * bare number as the fifth argument). When it is > 0 and the month is
+ * in profit, round(distributableProfit * pct / 100) is set aside BEFORE
+ * the 50/50 split — the base is the SISP-73 distributable profit, i.e.
+ * profit minus the installation subsidy when the CapEx toggle is ON —
+ * each partner's share becomes 50% of the remainder and the report
+ * gains charityReservePct / charityReserve fields (its
+ * distributableProfit then reads as the post-reserve remainder), which
+ * a confirmed slip then records for audit. At 0% (or when the argument
+ * is omitted) the report, the slips and the WhatsApp text are
+ * byte-identical to the SISP-73 output. The reserve itself is a
+ * derived figure — no money record is stored.
+ *
  * - SISP-68: shop handovers a partner kept (SISP-1 settlements stamped
  *   receivedInto) are mirrored into this ledger as linked drawings by
  *   syncShopPickupDrawings — a convergent reconcile keyed by the
@@ -64,6 +79,7 @@
  */
 
 import { buildPartnerShareReport, PARTNER_SHARE_RATE } from './phase3.js';
+import { computeCharityReserve, sanitizeCharityReservePct } from './charity-reserve.js';
 import { buildMonthlyInstallationSummary } from './installation-cost.js';
 
 export const PARTNER_LEDGER_KEY = 'sisp_partner_ledger_v1';
@@ -421,6 +437,12 @@ export function totalsForPartner(entries, month, partner) {
  * 0 — the PR #395 rule applied to the adjusted figure, so a loss month
  * (or a subsidy that wipes the profit out) still pays 0. Without the
  * option the report is exactly the pre-SISP-73 one.
+ *
+ * SISP-114: `options.charityReservePct` (or a bare number passed as the
+ * fifth argument, the original SISP-114 calling convention) sets aside
+ * that percentage of the distributable profit above as a charity /
+ * sadqah & emergency reserve before the split — see charity-reserve.js.
+ * At 0% / omitted the report is exactly the SISP-73 one.
  */
 export function buildPartnerSettlementReport(state, selectedMonth, entries, referenceDate = new Date(), options = {}) {
   const shareReport = buildPartnerShareReport(state, selectedMonth, referenceDate);
@@ -441,9 +463,20 @@ export function buildPartnerSettlementReport(state, selectedMonth, entries, refe
   };
   const profit = wholeRupees(summary.profit || 0);
   const distributableProfit = installationCapex.included ? profit - installationCapex.subsidy : profit;
-  const share = installationCapex.included
-    ? (distributableProfit > 0 ? Math.round(distributableProfit * PARTNER_SHARE_RATE) : 0)
-    : wholeRupees(summary.share || 0);
+  // SISP-114 (merge composition with SISP-73): optional charity /
+  // sadqah reserve, set aside BEFORE the 50/50 split and computed on
+  // the SISP-73 distributable profit above — the percentage applies to
+  // profit minus any installation subsidy when the CapEx toggle is ON,
+  // never to raw profit; at 0% any ordering is identical. pct 0 /
+  // omitted -> charity stays null and every figure below is exactly
+  // the SISP-73 one (no new report keys either).
+  const pct = sanitizeCharityReservePct(typeof options === 'number' ? options : (options && typeof options === 'object' ? options.charityReservePct : 0));
+  const charity = pct > 0 ? computeCharityReserve(distributableProfit, pct) : null;
+  const share = charity
+    ? charity.shareEach
+    : installationCapex.included
+      ? (distributableProfit > 0 ? Math.round(distributableProfit * PARTNER_SHARE_RATE) : 0)
+      : wholeRupees(summary.share || 0);
   const perPartner = PARTNERS.map((partner) => {
     const totals = totalsForPartner(entries, month, partner);
     const netPayout = share + totals.capital - totals.drawings;
@@ -460,7 +493,7 @@ export function buildPartnerSettlementReport(state, selectedMonth, entries, refe
       payableAmount: netPayout >= 0 ? netPayout : 0
     };
   });
-  return {
+  const report = {
     month,
     months: shareReport.months || [],
     revenue: wholeRupees(summary.revenue || 0),
@@ -481,6 +514,15 @@ export function buildPartnerSettlementReport(state, selectedMonth, entries, refe
       ? 'Profit, revenue and expenses are reused from the partner-share report (saved receipts by payment date minus dated expenses). Installation CapEx is INCLUDED in the split: the month’s net installation subsidy (SISP-23 installation-cost accounting) is deducted first, and the share is 50% of the remaining distributable profit, else 0. Net payout = share + out-of-pocket purchases − mid-month drawings. A negative net payout is a receivable: the partner owes the business that amount.'
       : 'Profit, revenue and expenses are reused from the partner-share report (saved receipts by payment date minus dated expenses; share = 50% of positive profit, else 0). Net payout = share + out-of-pocket purchases − mid-month drawings. A negative net payout is a receivable: the partner owes the business that amount.'
   };
+  // SISP-114: the reserve fields exist ONLY when a reserve was actually
+  // set aside, so a 0% report stays byte-identical to the old shape.
+  if (charity && charity.charityReserve > 0) {
+    report.charityReservePct = charity.charityReservePct;
+    report.charityReserve = charity.charityReserve;
+    report.distributableProfit = charity.distributableProfit;
+    report.basis += ` Charity / Sadqah & Emergency Reserve: ${charity.charityReservePct}% of the distributable profit (${formatPartnerPKR(charity.charityReserve)}) is set aside BEFORE the 50/50 split, so each share above is 50% of the remaining ${formatPartnerPKR(charity.distributableProfit)}. The reserve is a computed figure only — no money record is stored.`;
+  }
+  return report;
 }
 
 /** Drops malformed settlement slips; keeps only known fields. */
@@ -504,7 +546,7 @@ export function sanitizePartnerSettlements(value) {
       perPartner.push({ partner, share: wholeRupees(share), drawings: wholeRupees(drawings), capital: wholeRupees(capital), netPayout: wholeRupees(netPayout) });
     }
     if (perPartner.length === 0) continue;
-    out.push({
+    const slip = {
       id: typeof record.id === 'string' && record.id ? record.id : `partner-settle-${record.month}`,
       month: record.month,
       revenue: wholeRupees(record.revenue),
@@ -521,7 +563,17 @@ export function sanitizePartnerSettlements(value) {
       confirmedAt: typeof record.confirmedAt === 'string' ? record.confirmedAt : '',
       reopenedAt: typeof record.reopenedAt === 'string' ? record.reopenedAt : '',
       createdAt: typeof record.createdAt === 'string' ? record.createdAt : ''
-    });
+    };
+    // SISP-114: a slip keeps its charity reserve audit figures only
+    // when a reserve was genuinely set aside for that month; legacy
+    // slips sanitize byte-identically (no new keys appear).
+    const slipCharityPct = Number(record.charityReservePct);
+    const slipCharityAmount = Number(record.charityReserve);
+    if (Number.isFinite(slipCharityPct) && slipCharityPct > 0 && Number.isFinite(slipCharityAmount) && slipCharityAmount > 0) {
+      slip.charityReservePct = sanitizeCharityReservePct(slipCharityPct);
+      slip.charityReserve = wholeRupees(slipCharityAmount);
+    }
+    out.push(slip);
   }
   return out;
 }
@@ -565,7 +617,7 @@ export function settlementForMonth(settlements, month) {
 export function createPartnerSettlement(report, { note = '', confirmedAt = null } = {}) {
   if (!report || !MONTH_RE.test(String(report.month || ''))) throw new Error('Choose a valid month to settle.');
   const now = confirmedAt || new Date().toISOString();
-  return {
+  const slip = {
     id: `partner-settle-${report.month}`,
     month: report.month,
     revenue: wholeRupees(report.revenue),
@@ -586,6 +638,13 @@ export function createPartnerSettlement(report, { note = '', confirmedAt = null 
     reopenedAt: '',
     createdAt: now
   };
+  // SISP-114: record the reserve on the slip only when one was set
+  // aside, so the locked figures stay auditable later.
+  if (Number(report.charityReserve) > 0 && Number(report.charityReservePct) > 0) {
+    slip.charityReservePct = sanitizeCharityReservePct(report.charityReservePct);
+    slip.charityReserve = wholeRupees(report.charityReserve);
+  }
+  return slip;
 }
 
 /** Pure: replaces (or adds) the slip for its month. */
@@ -620,6 +679,12 @@ export function generatePartnerSettlementWhatsAppText(report, settlement = null)
   lines.push(report.profit >= 0
     ? `Net profit / خالص منافع: ${formatPartnerPKR(report.profit)}`
     : `Net loss / خالص نقصان: ${formatPartnerPKR(-report.profit)}`);
+  // SISP-114: reserve lines appear only when a reserve was set aside;
+  // at 0% this text stays byte-identical to the pre-SISP-114 summary.
+  if (Number(report.charityReserve) > 0) {
+    lines.push(`Charity / Sadqah & Emergency Reserve (${report.charityReservePct}%) / صدقہ و ایمرجنسی ریزرو: ${formatPartnerPKR(report.charityReserve)}`);
+    lines.push(`Profit after reserve / ریزرو کے بعد منافع: ${formatPartnerPKR(report.profit - report.charityReserve)}`);
+  }
   lines.push(`Each partner share (50%) / ہر پارٹنر کا حصہ: ${formatPartnerPKR(report.share)}`);
   // SISP-73: the month's installation position, and — only when the
   // CapEx toggle was ON for this report — the distributable profit the

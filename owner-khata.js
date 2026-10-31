@@ -69,6 +69,17 @@
  *   the positive distributable profit, else 0 (the PR #395 rule). When
  *   OFF, the installation figures are shown tracked separately and the
  *   shares are the partner report's own, untouched.
+ *
+ * SISP-114 extends it once more: when inputs.charityReservePct > 0
+ * (the owner's optional charity / sadqah & emergency reserve setting,
+ * charity-reserve.js), round(distributableProfit * pct / 100) is set
+ * aside BEFORE the 50/50 split — the base is the SISP-73 distributable
+ * profit above, i.e. profit minus the installation subsidy when the
+ * CapEx toggle is ON — so nasirShare / aqibShare become 50% of the
+ * remainder and the report gains charityReservePct / charityReserve,
+ * its distributableProfit reading as the post-reserve remainder. At
+ * 0% or when the input is absent, the report is byte-identical to the
+ * SISP-73 shape — no new keys, same shares.
  */
 
 import { buildPartnerShareReport, outstandingAtMonthEnd, paymentEntries, PARTNER_SHARE_RATE } from './phase3.js';
@@ -83,6 +94,7 @@ import {
   isDigitalWalletMethod
 } from './wallet-reconciliation.js';
 import { buildMonthEndCashInHand, loadRoznamchaDays } from './roznamcha.js';
+import { computeCharityReserve, loadCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
 import { t } from './nav-language.js';
 import {
   getMonthlyClosingNote,
@@ -223,7 +235,6 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
   // Financials — reused verbatim from the partner share report.
   const partner = buildPartnerShareReport(state, validMonth, referenceDate);
   const summary = partner.summary || {};
-
   // SISP-73: installation CapEx position for the month (SISP-23
   // accounting) and, when the owner's toggle is ON, the adjusted split —
   // the same computation Partner Settlement performs, so the two
@@ -237,6 +248,17 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
   const partnerShare = installationCapexIncluded
     ? (distributableProfit > 0 ? Math.round(distributableProfit * PARTNER_SHARE_RATE) : 0)
     : wholeRupees(summary.share);
+
+  // SISP-114 (merge composition with SISP-73): optional charity /
+  // sadqah reserve, set aside BEFORE the 50/50 split and computed on
+  // the SISP-73 distributable profit above — the percentage applies to
+  // profit minus any installation subsidy when the CapEx toggle is ON,
+  // never to raw profit. Absent / 0% -> charity stays null and both
+  // shares are the SISP-73 partnerShare verbatim (byte-identical
+  // report shape).
+  const charityPct = sanitizeCharityReservePct(inputs.charityReservePct);
+  const charity = charityPct > 0 ? computeCharityReserve(distributableProfit, charityPct) : null;
+  const shareEach = charity ? charity.shareEach : partnerShare;
   const expenseCategories = Array.isArray(summary.categoryBreakdown) ? summary.categoryBreakdown : [];
   const bandwidthFieldExpenses = expenseCategories
     .filter((row) => BANDWIDTH_FIELD_RE.test(String(row.category || '')))
@@ -310,8 +332,13 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
     bandwidthFieldExpenses,
     profit,
     isLoss: summary.isLoss === true,
-    nasirShare: partnerShare,
-    aqibShare: partnerShare,
+    nasirShare: shareEach,
+    aqibShare: shareEach,
+    // SISP-114: reserve fields exist only when a reserve was set aside.
+    ...(charity && charity.charityReserve > 0 ? {
+      charityReservePct: charity.charityReservePct,
+      charityReserve: charity.charityReserve
+    } : {}),
     installationNet: wholeRupees(installation.net),
     installationSurplus: wholeRupees(installation.surplus),
     installationSubsidy: wholeRupees(installation.subsidy),
@@ -319,7 +346,9 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
     installationRecordedCount: installation.recordedCount,
     installationPartial: installation.hasPartial === true,
     installationCapexIncluded,
-    distributableProfit,
+    // SISP-114 composition: with a reserve set aside, the
+    // distributable profit reads as the post-reserve remainder.
+    distributableProfit: charity && charity.charityReserve > 0 ? charity.distributableProfit : distributableProfit,
     totalComplaints: Number(network.totalComplaints || 0),
     totalDowntime: Number(network.totalDowntime || 0),
     areaOutageComplaints: Number(network.areaOutageComplaints || 0),
@@ -355,6 +384,14 @@ export function buildOwnerKhataWhatsAppText(report) {
     `Nasir share (50%): ${formatPKR(report.nasirShare)} · Aqib share (50%): ${formatPKR(report.aqibShare)}`,
     `Complaints: ${report.totalComplaints} · Network Offline: ${report.totalDowntime} h (zone-wide: ${report.areaOutageComplaints} faults, ${report.areaOutageDowntime} h)`,
   ];
+  // SISP-114: reserve line (fixed report language, like the rest of
+  // this summary) only when a reserve was set aside; the share figures
+  // above already reflect it. Inserted before the shares line.
+  if (report.charityReserve > 0) {
+    const shareIdx = lines.findIndex((line) => line.startsWith('Nasir share'));
+    const reserveLine = `Charity / Sadqah & Emergency Reserve (${report.charityReservePct}%): ${formatPKR(report.charityReserve)} — set aside before the 50/50 split`;
+    if (shareIdx >= 0) lines.splice(shareIdx, 0, reserveLine); else lines.push(reserveLine);
+  }
   // SISP-51: channel split + closing cash-in-hand, right under the
   // collected line (these two builders use fixed report language, like
   // the rest of this summary — the modal UI carries the t() strings).
@@ -421,6 +458,7 @@ export function buildOwnerKhataPrintHtml(report) {
   <div class="pair"><span>Expenses (${escapeHtml(String(report.expenseCount))} entries)</span><strong>${escapeHtml(formatPKR(report.expenses))}</strong></div>
   <div class="pair"><span>NayaPay Bandwidth + Field Expenses (keyword-matched)</span><strong>${escapeHtml(formatPKR(report.bandwidthFieldExpenses))}</strong></div>
   <div class="pair"><span>Net Profit${report.isLoss ? ' (loss)' : ''}</span><strong>${escapeHtml(formatPKR(report.profit))}</strong></div>
+  ${report.charityReserve > 0 ? `<div class="pair"><span>Charity / Sadqah &amp; Emergency Reserve (${escapeHtml(String(report.charityReservePct))}% — set aside before the 50/50 split)</span><strong>${escapeHtml(formatPKR(report.charityReserve))}</strong></div>` : ''}
   <div class="pair"><span>Nasir share (50% of positive profit)</span><strong>${escapeHtml(formatPKR(report.nasirShare))}</strong></div>
   <div class="pair"><span>Aqib share (50% of positive profit)</span><strong>${escapeHtml(formatPKR(report.aqibShare))}</strong></div>${installationPairs}
   ${shopRows ? `<h2>Shop cash settled by shop</h2><table><tr><th>Shop</th><th>Handovers</th><th>Amount</th></tr>${shopRows}</table>` : ''}
@@ -457,6 +495,7 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
       settlements: loadShopSettlements(),
       notes: loadMonthlyClosingNotes(),
       roznamchaDays: loadRoznamchaDays(),
+      charityReservePct: loadCharityReserveSettings().charityReservePct,
       savedSnapshot,
       // SISP-73: the same persisted partner-settings toggle the
       // Partner Settlement tab uses, so both surfaces agree.
@@ -488,6 +527,12 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
       const cashInHandLine = report.closingCashInHand
         ? `<p><span>${escapeHtml(t('khata2_cash_in_hand'))}</span><strong>${escapeHtml(formatPKR(report.closingCashInHand.balance))}</strong><small> · ${escapeHtml(report.closingCashInHand.monthEndClosed ? t('khata2_cash_closed_through', null, { date: report.closingCashInHand.monthEndDate }) : t('khata2_cash_expected'))}</small></p>`
         : '';
+      // SISP-114: charity / sadqah reserve line, shown only when a
+      // reserve was set aside for the month (report carries the fields
+      // only then); the share lines below already reflect it.
+      const charityLine = report.charityReserve > 0
+        ? `<p><span>${escapeHtml(t('charity_reserve_label'))}</span><strong>${escapeHtml(formatPKR(report.charityReserve))}</strong><small> · ${escapeHtml(t('charity_reserve_share_note', null, { pct: report.charityReservePct }))}</small></p>`
+        : '';
       bodyEl.innerHTML = `
         <article class="owner-khata-section"><h3>Financials</h3>
           <p><span>Total Bills Collected</span><strong>${escapeHtml(formatPKR(report.collected))}</strong><small> · ${escapeHtml(String(report.receiptCount))} receipts</small></p>
@@ -499,6 +544,7 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
           <p><span>NayaPay Bandwidth + Field Expenses</span><strong>${escapeHtml(formatPKR(report.bandwidthFieldExpenses))}</strong><small> · keyword-matched categories</small></p>
           ${categoryLines}
           <p><span>Net Profit${report.isLoss ? ' (loss)' : ''}</span><strong>${escapeHtml(formatPKR(report.profit))}</strong></p>
+          ${charityLine}
           <p><span>Nasir share (50%)</span><strong>${escapeHtml(formatPKR(report.nasirShare))}</strong></p>
           <p><span>Aqib share (50%)</span><strong>${escapeHtml(formatPKR(report.aqibShare))}</strong></p>
           ${report.installationCount > 0 ? `<p><span>${escapeHtml(t(report.installationNet >= 0 ? 'capex_net_surplus' : 'capex_net_subsidy'))}</span><strong>${escapeHtml(formatPKR(Math.abs(report.installationNet)))}</strong><small> · ${escapeHtml(t('capex_install_count', null, { count: report.installationCount }))}${report.installationPartial ? ` · ${escapeHtml(t('capex_partial_note'))}` : ''}</small></p>` : ''}

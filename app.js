@@ -158,6 +158,7 @@ import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
+import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
@@ -1453,6 +1454,7 @@ function renderDashboard() {
       complaints: loadComplaints(),
       settlements: loadShopSettlements(),
       notes: loadMonthlyClosingNotes(),
+      charityReservePct: loadCharityReserveSettings().charityReservePct,
       savedSnapshot: khataSaved,
       badDebt: badDebtSummary(loadBadDebts()),
       referenceDate
@@ -4050,7 +4052,8 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -4107,6 +4110,8 @@ function backupRestoreOptions() {
   try { splitterBoxGpsStored = localStorage.getItem(SPLITTER_BOX_GPS_STORAGE_KEY) !== null; } catch { splitterBoxGpsStored = false; }
   try { partnerLedgerStored = localStorage.getItem(PARTNER_LEDGER_KEY) !== null; } catch { partnerLedgerStored = false; }
   try { partnerSettlementsStored = localStorage.getItem(PARTNER_SETTLEMENTS_KEY) !== null; } catch { partnerSettlementsStored = false; }
+  let charityReserveStored = false;
+  try { charityReserveStored = localStorage.getItem(CHARITY_RESERVE_KEY) !== null; } catch { charityReserveStored = false; }
   try { partnerSettingsStored = localStorage.getItem(PARTNER_SETTINGS_KEY) !== null; } catch { partnerSettingsStored = false; }
   try { homeBudgetStored = localStorage.getItem(HOME_BUDGET_KEY) !== null; } catch { homeBudgetStored = false; }
   try { loansStored = localStorage.getItem(LOAN_KEY) !== null; } catch { loansStored = false; }
@@ -4115,7 +4120,8 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+
 }
 // SISP-102: the device's current sibling collections, in the same shapes a
 // backup's settings sections carry — the delta merge's local side. Read
@@ -5042,6 +5048,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.partnerSettings) {
       savePartnerSettings(pendingBackupPreview.partnerSettings);
+    }
+    if (pendingBackupPreview.charityReserve) {
+      saveCharityReserveSettings(pendingBackupPreview.charityReserve);
     }
     if (pendingBackupPreview.overheads) {
       saveOverheads(pendingBackupPreview.overheads);
@@ -8448,9 +8457,12 @@ function renderPartnerSettlement() {
   if (!monthSelect || !host) return;
   const entries = loadPartnerLedgerEntries();
   const settlements = loadPartnerSettlements();
+  const charityPct = loadCharityReserveSettings().charityReservePct;
   // SISP-73: the persisted Installation CapEx toggle decides whether the
-  // month's net installation subsidy is deducted before the 50/50 split.
-  const report = buildPartnerSettlementReport(state, partnerSettlementMonth, entries, new Date(), { includeInstallationCapexInSplit: loadPartnerSettings().includeInstallationCapexInSplit });
+  // month's net installation subsidy is deducted before the 50/50 split;
+  // SISP-114: the charity reserve % then applies to that distributable
+  // profit — both options travel in the same options object.
+  const report = buildPartnerSettlementReport(state, partnerSettlementMonth, entries, new Date(), { includeInstallationCapexInSplit: loadPartnerSettings().includeInstallationCapexInSplit, charityReservePct: charityPct });
   partnerSettlementMonth = report.month;
   const monthsKey = report.months.join(',');
   if (monthSelect.dataset.months !== monthsKey) {
@@ -8458,6 +8470,17 @@ function renderPartnerSettlement() {
     monthSelect.dataset.months = monthsKey;
   }
   monthSelect.value = report.month;
+  // SISP-114: charity reserve % control — labels follow the app
+  // language; the input is only refilled when it is not being edited,
+  // so a re-render never eats the owner's typing.
+  const charityLabelEl = $('#charityReservePctLabel');
+  if (charityLabelEl) charityLabelEl.textContent = t('charity_reserve_pct_label');
+  const charityHintEl = $('#charityReserveHint');
+  if (charityHintEl) charityHintEl.textContent = t('charity_reserve_hint');
+  const charitySaveBtn = $('#charityReserveSaveBtn');
+  if (charitySaveBtn) charitySaveBtn.textContent = t('charity_reserve_save');
+  const charityInput = $('#charityReservePctInput');
+  if (charityInput && document.activeElement !== charityInput) charityInput.value = String(charityPct);
   const slip = settlementForMonth(settlements, report.month);
   const cards = report.perPartner.map(row => {
     const detail = row.isReceivable
@@ -8487,7 +8510,9 @@ function renderPartnerSettlement() {
     + `<article class="phase3-metric"><span>Total revenue · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(report.revenue))}</strong><small>${report.receiptCount} bill collection receipt${report.receiptCount === 1 ? '' : 's'}</small></article>`
     + `<article class="phase3-metric"><span>Total expenses · ${escapeHtml(monthName(report.month))}</span><strong>${escapeHtml(formatAmount(report.expenses))}</strong><small>${report.expenseCount} recorded expense entr${report.expenseCount === 1 ? 'y' : 'ies'}</small></article>`
     + `<article class="phase3-metric"><span>${profitLabel}</span><strong>${escapeHtml(formatAmount(report.profit))}</strong><small>Revenue − expenses</small></article>`
-    + `<article class="phase3-metric"><span>Each partner share (50%)</span><strong>${escapeHtml(formatAmount(report.share))}</strong><small>${report.profit > 0 ? '50% of this month’s profit' : 'No share on a loss / zero month'}</small></article></div>`
+    + `<article class="phase3-metric"><span>Each partner share (50%)</span><strong>${escapeHtml(formatAmount(report.share))}</strong><small>${report.profit > 0 ? '50% of this month’s profit' : 'No share on a loss / zero month'}</small></article>`
+    + (report.charityReserve > 0 ? `<article class="phase3-metric"><span>${escapeHtml(t('charity_reserve_metric', null, { pct: report.charityReservePct }))}</span><strong>${escapeHtml(formatAmount(report.charityReserve))}</strong><small>${escapeHtml(t('charity_reserve_metric_sub'))}</small></article>` : '')
+    + `</div>`
     + capexBlock
     + `<div class="partner-settlement-cards">${cards}</div>`
     + `<p class="phase3-note">${escapeHtml(report.basis)}</p>`;
@@ -9543,7 +9568,7 @@ $('#partnerLedgerCancel')?.addEventListener('click',()=>{
 });
 $('#partnerSettlementConfirmBtn')?.addEventListener('click',()=>{
   try {
-    const report = buildPartnerSettlementReport(state, partnerSettlementMonth, loadPartnerLedgerEntries(), new Date(), { includeInstallationCapexInSplit: loadPartnerSettings().includeInstallationCapexInSplit });
+    const report = buildPartnerSettlementReport(state, partnerSettlementMonth, loadPartnerLedgerEntries(), new Date(), { includeInstallationCapexInSplit: loadPartnerSettings().includeInstallationCapexInSplit, charityReservePct: loadCharityReserveSettings().charityReservePct });
     const slip = createPartnerSettlement(report);
     savePartnerSettlements(upsertPartnerSettlement(loadPartnerSettlements(), slip));
     toast(`Settlement slip confirmed for ${monthName(report.month)}. Bills, receipts and expenses were not changed.`);
@@ -9556,6 +9581,17 @@ $('#partnerSettlementReopenBtn')?.addEventListener('click',()=>{
     toast('Saved settlement slip re-opened. Confirm again to lock new figures.');
     renderPartnerSettlement();
   } catch (error) { toast(error.message, { type: 'error' }); }
+});
+// SISP-114: save the charity / sadqah reserve percentage (device
+// setting only — no ledger record changes). Out-of-range input is
+// clamped by the sanitizer and the clamped value is shown back.
+$('#charityReserveSaveBtn')?.addEventListener('click',()=>{
+  const input = $('#charityReservePctInput');
+  const pct = sanitizeCharityReservePct(input ? input.value : 0);
+  saveCharityReserveSettings({ charityReservePct: pct });
+  if (input) input.value = String(pct);
+  toast(t('charity_reserve_saved', null, { pct }));
+  renderPartnerSettlement();
 });
 $('#showAnalyticsButton').addEventListener('click',()=>{switchView('analytics');renderAnalytics();});
 $('#areaIntelMonth').addEventListener('change',event=>{

@@ -33,6 +33,7 @@ import { isFeederHost, sanitizeFeederHostCreditPKR } from './feeder-host-credit.
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements, sanitizePartnerSettings } from './partner-settlement.js';
+import { sanitizeCharityReserveSettings } from './charity-reserve.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
@@ -3508,6 +3509,16 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
   if (options && typeof options === 'object' && options.partnerSettings && typeof options.partnerSettings === 'object' && !Array.isArray(options.partnerSettings)) {
     document.settings = { ...(document.settings || {}), partnerSettings: sanitizePartnerSettings(options.partnerSettings) };
   }
+  // SISP-114: the optional charity / sadqah reserve percentage (device
+  // setting, localStorage key sisp_charity_reserve_v1) travels in an
+  // optional `settings.charityReserve` section. Written only when the
+  // percentage is above 0 — 0% is the default on every device, so
+  // there is nothing to carry — and placed before the checksum stamp
+  // so the stamp covers it. Readers that predate it ignore the field.
+  if (options && typeof options === 'object' && options.charityReserve && typeof options.charityReserve === 'object' && !Array.isArray(options.charityReserve)) {
+    const cleaned = sanitizeCharityReserveSettings(options.charityReserve);
+    if (cleaned.charityReservePct > 0) document.settings = { ...(document.settings || {}), charityReserve: cleaned };
+  }
   // SISP-34: voided payment records live outside the ledger state
   // (localStorage key sisp_voided_payments_v1), so they travel in an
   // optional `settings.voidPayments` section. Written only when at least
@@ -3587,7 +3598,8 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, receiptFooterRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, receiptFooterRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, charityReserveRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
@@ -4513,6 +4525,32 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Partner settings differ from this device' });
     }
   }
+  // SISP-114: optional charity / sadqah reserve setting (see
+  // createJsonBackup). STRICT safe-merge for a device setting: adopt
+  // the backup's percentage ONLY when this device has no charity
+  // setting stored at all. When a setting is already stored here and
+  // the backup's differs, the local value is kept and a conflict is
+  // reported — a restore can never silently enable, change or disable
+  // the reserve percentage.
+  let charityReserve = null;
+  const rawIncomingCharity = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.charityReserve
+    : undefined;
+  if (rawIncomingCharity && typeof rawIncomingCharity === 'object' && !Array.isArray(rawIncomingCharity)) {
+    const incomingCharity = sanitizeCharityReserveSettings(rawIncomingCharity);
+    const currentCharity = sanitizeCharityReserveSettings(
+      options && typeof options === 'object' ? options.currentCharityReserve : null
+    );
+    if (incomingCharity.charityReservePct > 0 && sameJson(incomingCharity, currentCharity)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingCharity.charityReservePct > 0 && !(options && options.currentCharityReserveStored)) {
+      charityReserve = incomingCharity;
+      counts.charityReserveRestored = 1;
+      counts.changes++;
+    } else if (incomingCharity.charityReservePct > 0) {
+      conflicts.push({ customerNumber:null, name:'', field:'Charity / Sadqah reserve setting differs from this device' });
+    }
+  }
   // SISP-34: optional voided payment records section (see
   // createJsonBackup). Safe-merge rule, same as shop settlements: adopt
   // the backup's records only when this device has none stored yet;
@@ -4537,5 +4575,6 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+
 }

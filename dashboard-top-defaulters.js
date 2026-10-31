@@ -26,8 +26,10 @@ import {
 } from './form-validation.js';
 import {
   getWaadaTier,
+  computeWaadaScore,
   setupWaadaChipDialog
 } from './waada-queue.js';
+import { t } from './nav-language.js';
 import {
   buildDefaulterLockScript,
   buildDefaulterRestoreScript,
@@ -211,6 +213,10 @@ export function calculateTopDefaulters(state, {
         promiseAmount: c.promiseAmount ?? null,
         promiseNote: c.promiseNote ?? '',
         waadaTier: getWaadaTier(c, totalOutstanding, refYmd),
+        // SISP-98: lifetime Waada reliability (kept vs broken promises),
+        // derived from recorded resolutions by waada-queue — the row
+        // badge below renders it next to the live promise badge.
+        waadaScore: computeWaadaScore(c, totalOutstanding, refYmd),
         // SISP-38: calendar-day escalation stage (grace / final-notice /
         // lock-due) for the reference date; null before the 5th.
         escalationStage: getEscalationStage(c, totalOutstanding, refYmd)?.stage ?? null,
@@ -894,6 +900,12 @@ export function setupTopDefaultersModal(state, {
               ? `<span class="wada-badge wada-badge-upcoming">Waada: ${escapeHtml(acc.promiseDate)}</span>`
               : '';
 
+          // SISP-98: Waada reliability score badge — rendered only once
+          // the customer has at least one resolved promise on record.
+          const waadaScoreBadge = acc.waadaScore && acc.waadaScore.total > 0
+            ? `<span class="wada-badge waada-score-badge">${escapeHtml(t('wscore_badge', null, { kept: acc.waadaScore.kept, broken: acc.waadaScore.broken }))}</span>`
+            : '';
+
           // SISP-38: calendar-day escalation badge (Grace / Final Notice /
           // Lock Due) for the modal's reference date.
           const escalationBadge = acc.escalationStage
@@ -916,6 +928,7 @@ export function setupTopDefaultersModal(state, {
                 <strong>#${acc.customerNumber}</strong> ${escapeHtml(acc.name)}
                 <div class="defaulter-subtext">${escapeHtml(acc.mohalla || acc.address || 'Shahdara')}</div>
                 ${waadaBadge ? `<div class="defaulter-waada-badge">${waadaBadge}</div>` : ''}
+                ${waadaScoreBadge ? `<div class="defaulter-waada-badge">${waadaScoreBadge}</div>` : ''}
                 ${escalationBadge ? `<div class="defaulter-escalation-badge">${escalationBadge}</div>` : ''}
                 ${vacationBadge ? `<div class="defaulter-waada-badge">${vacationBadge}</div>` : ''}
               </td>

@@ -233,6 +233,67 @@ export function clearWaadaOnFullPayment(customer, outstanding) {
 }
 
 // ============================================================================
+// WAADA RELIABILITY SCORE (SISP-98)
+// ============================================================================
+
+/**
+ * SISP-98: Waada reliability score — how many of a customer's promises were
+ * KEPT vs BROKEN, derived PURELY from recorded data. There are deliberately
+ * NO stored counters: the score is a pure function of the ledger, so
+ * re-renders, reloads and backup restores recompute the identical numbers
+ * and can never double-count a resolution.
+ *
+ *   kept   — a non-voided payment carries a SISP-34 `clearedWaada` stamp
+ *            (recording it fully settled the balance, so core.addPayment
+ *            auto-cleared the promise and stamped the payment with it) and
+ *            the payment's own date is on or before the stamped promise
+ *            date: the customer paid on/before the promised date.
+ *   broken — the mirror image: a stamped payment dated AFTER the stamped
+ *            promise date (the promise expired unpaid, then was paid
+ *            late), PLUS the customer's currently-live promise when its
+ *            tier is 'broken' right now (expired, still unpaid) — judged
+ *            by the same getWaadaTier definition the queues use, never a
+ *            second broken-promise definition.
+ *
+ * Void interplay (SISP-34): voided payments are skipped everywhere in this
+ * app, so a voided clearing payment's stamp counts for nothing — and the
+ * void itself restores the stamped promise onto the customer, where the
+ * live-tier term picks it up again while it is expired and unpaid. A void
+ * therefore unwinds the score exactly, with no bookkeeping of its own.
+ *
+ * Honest limits (nothing is invented): a promise enters the score only
+ * when it resolves ON THE RECORD. Kept/late-paid resolutions need the
+ * SISP-34 stamp, so promises cleared by payments recorded before that
+ * stamp existed leave no trace and are not reconstructed. Snoozing a
+ * promise replaces its date (setCustomerWaada), so a re-promised promise
+ * is judged at its new date — exactly how the queues judge it — and a
+ * promise the owner clears by hand without payment leaves no trace
+ * either.
+ *
+ * outstanding is the customer's total unpaid balance (PKR) from the same
+ * allocation engine the tiers use. Returns { kept, broken, total }.
+ */
+export function computeWaadaScore(customer, outstanding, todayStr = getWaadaTodayString()) {
+  const score = { kept: 0, broken: 0, total: 0 };
+  if (!customer || typeof customer !== 'object') return score;
+  for (const bill of Array.isArray(customer.bills) ? customer.bills : []) {
+    for (const payment of Array.isArray(bill?.payments) ? bill.payments : []) {
+      if (!payment || typeof payment !== 'object' || payment.voided === true) continue;
+      const stamp = payment.clearedWaada;
+      if (!stamp || typeof stamp !== 'object') continue;
+      const promised = typeof stamp.promiseDate === 'string' ? stamp.promiseDate.trim() : '';
+      const paidOn = typeof payment.date === 'string' ? payment.date.trim() : '';
+      if (!isValidWaadaDate(promised) || !isValidWaadaDate(paidOn)) continue;
+      if (paidOn <= promised) score.kept += 1;
+      else score.broken += 1;
+    }
+  }
+  if (getWaadaTier(customer, outstanding, todayStr) === WAADA_TIERS.BROKEN) score.broken += 1;
+  score.total = score.kept + score.broken;
+  return score;
+}
+
+// ============================================================================
 // CHIP DIALOG CONTROLLER (DOM; returns null outside a browser)
 // ============================================================================
 

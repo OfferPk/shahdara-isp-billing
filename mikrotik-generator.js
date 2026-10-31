@@ -23,6 +23,7 @@
 
 import { billPackageByLabel } from './package-catalog.js';
 import { sanitizePauseFields, vacationHoldState } from './pause-billing.js';
+import { isRandomizedMac } from './mac-oui-lookup.js';
 
 export const DEFAULTER_PROFILE = 'payment-reminder-pool';
 export const ACTIVE_PROFILE = 'default';
@@ -158,6 +159,12 @@ export function buildCustomerMikrotikSnippet(customer) {
     lines.push('# TODO: package speed not recognized — set a 3/5/15 Mbps package (or "<number> Mbps" text) in the profile, then regenerate for the /queue simple line.');
   } else {
     lines.push(`# TODO: no static IP stored — set one in the profile, then add: /queue simple add name=${routerOsQuoted(queueNameFor(c))} target=<static-ip>/32 max-limit=${rate}/${rate} comment=${routerOsQuoted(comment)}`);
+  }
+  if (mac && isRandomizedMac(mac)) {
+    // SISP-113: warn (never block) — a locally-administered MAC is a
+    // phone-style randomized address, so an ARP binding to it would
+    // never match the real router.
+    lines.push('# NOTE: this MAC looks like a randomized phone MAC (locally administered), not a router MAC — an ARP binding to it will not match the router. Save the real router MAC in the profile if available.');
   }
   if (staticIp && mac) {
     lines.push(`/ip arp add address=${staticIp} mac-address=${mac} comment=${routerOsQuoted(comment)}`);

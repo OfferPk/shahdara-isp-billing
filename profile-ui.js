@@ -14,6 +14,7 @@ import { isCommercialVip } from './commercial-sla.js';
 
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
+import { isRandomizedMac, macOuiVendor } from './mac-oui-lookup.js';
 import { disconnectDetailsOf, disconnectReasonLabel } from './churn-winback.js';
 import { computeWaadaScore } from './waada-queue.js';
 import { activeDownstreamCount, feederHostCreditOf, isFeederHost } from './feeder-host-credit.js';
@@ -641,6 +642,31 @@ export function kistSettlementPresentation(plan) {
  * and this helper returns '' the moment coverage no longer reaches the
  * current month, so the badge can never outlive the money.
  */
+/**
+ * SISP-113: plain-text suffix for the read-only profile MAC row, e.g.
+ * " · Tenda router" or " · ⚠ Randomized MAC — likely a phone, not a
+ * router". A randomized MAC's OUI is meaningless (locally administered
+ * addresses are not IEEE assignments), so the warning wins over the
+ * vendor. Unknown OUIs and missing/malformed MACs add nothing.
+ */
+export function macAddressDisplaySuffix(mac) {
+  if (isRandomizedMac(mac)) return ` · ⚠ ${t('macoui_random_short')}`;
+  const vendor = macOuiVendor(mac);
+  return vendor ? ` · ${t('macoui_vendor_suffix', null, { vendor })}` : '';
+}
+
+/**
+ * SISP-113: live hint under the profile form's MAC field — a vendor
+ * badge span, or the randomized-MAC warning span, or '' (hint hidden).
+ * Display only: saving is never blocked and the value is never changed.
+ */
+export function macOuiHintHtml(mac) {
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  if (isRandomizedMac(mac)) return `<span class="mac-oui-warning">${esc(t('macoui_random_warn'))}</span>`;
+  const vendor = macOuiVendor(mac);
+  return vendor ? `<span class="mac-oui-badge">${esc(t('macoui_vendor_label', null, { vendor }))}</span>` : '';
+}
+
 export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date()) {
   const until = prepaidUntilMonth(state, customer?.id, referenceDate);
   if (!until) return '';

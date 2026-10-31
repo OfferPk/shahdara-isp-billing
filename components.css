@@ -1904,6 +1904,23 @@ body.field-mode-open { overflow: hidden; }
 .zone-sheet-waada input { width: 18px; height: 18px; accent-color: var(--green); }
 .zone-sheet-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-115: Bill Vouchers dialog (token-only; the dialog itself uses the
+   shared .billing-modal shell → var(--modal-surface)). The printed A4
+   sheet is a separate standalone document (paper black-on-white). */
+.bill-voucher-help { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.bill-voucher-controls { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; }
+.bill-voucher-field { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-sm); color: var(--muted); min-width: 180px; flex: 1 1 180px; }
+.bill-voucher-select, .bill-voucher-month-input {
+  min-height: 42px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+.bill-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+
 /* SISP-60: Expense Voucher Book dialog (token-only; the dialog itself
    uses the shared .billing-modal shell → var(--modal-surface)). */
 .expense-voucher-help { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }

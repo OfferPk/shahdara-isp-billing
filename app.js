@@ -150,6 +150,7 @@ import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupZoneSheetDialog } from './lineman-sheet-print.js';
 import { setupExpenseVoucherDialog } from './expense-voucher-print.js';
+import { setupBillVoucherDialog } from './a4-voucher-grid-print.js';
 import { setupOwnerPinGuard, guardDecision, loadOwnerPinRecord } from './owner-pin-guard.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
@@ -477,6 +478,7 @@ export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let zoneSheetDialogController = null;
 export let expenseVoucherDialogController = null;
+export let billVoucherDialogController = null;
 export let bulkTariffDialogController = null;
 export let ownerPinGuardController = null;
 export let multiMonthMatrixController = null;
@@ -11794,6 +11796,9 @@ if (typeof document !== 'undefined') {
     getPartnerEntries: () => loadPartnerLedgerEntries(),
     onToast: (msg, opts) => toast(msg, opts)
   });
+  billVoucherDialogController = setupBillVoucherDialog(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   bulkTariffDialogController = setupBulkTariffDialog(() => state, {
     onUpdateState: (newState) => {
       state = newState;
@@ -13253,6 +13258,13 @@ if (typeof document !== 'undefined') {
     if (multiMonthMatrixController) multiMonthMatrixController.refresh();
   }
 
+  const billVoucherDialog = $('#billVoucherDialog');
+  if (billVoucherDialog && !billVoucherDialogController) {
+    billVoucherDialogController = setupBillVoucherDialog(() => state, {
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
   const areaCollectionsModal = $('#areaCollectionsModal');
   if (areaCollectionsModal && !areaCollectionsModalController) {
     areaCollectionsModalController = setupAreaCollectionsModal(() => state, {
@@ -13456,6 +13468,7 @@ if (typeof document !== 'undefined') {
     window.topDefaultersModalController = topDefaultersModalController;
     window.zoneSheetDialogController = zoneSheetDialogController;
     window.expenseVoucherDialogController = expenseVoucherDialogController;
+    window.billVoucherDialogController = billVoucherDialogController;
     window.ownerPinGuardController = ownerPinGuardController;
     window.areaCollectionsModalController = areaCollectionsModalController;
     window.packageRevenueModalController = packageRevenueModalController;

@@ -707,6 +707,15 @@ export function upsellProfileHintHtml(candidate, formatAmountFn = (n) => String(
   return `<section class="profile-referral-section" aria-label="${esc(t('prof_upsell_heading'))}"><h4>${esc(t('prof_upsell_heading'))}</h4><p>${esc(textLine)}</p>${candidate.whatsappUrl ? `<p><a class="secondary-button" href="${esc(candidate.whatsappUrl)}" target="_blank" rel="noopener noreferrer">${esc(t('upsell_offer'))}</a></p>` : ''}</section>`;
 }
 
+// SISP-110: the Welcome & Custody Slip button in the profile heading
+// actions. This helper owns the markup (the SISP-41 pngReceiptButtonMarkup
+// pattern) so the profile renders the exact same button everywhere; the
+// host binds #profileWelcomeSlipButton clicks to the welcome-slip modal
+// (welcome-agreement-slip.js builders, wired in app.js).
+export function welcomeSlipButtonMarkup() {
+  return `<button id="profileWelcomeSlipButton" class="secondary-button" type="button">${t('welcome_btn')}</button>`;
+}
+
 /**
  * SISP-108: profile disconnect section. For an archived customer it
  * shows the CURRENT disconnect record (reason, note, win-back

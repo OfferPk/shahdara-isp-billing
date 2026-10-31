@@ -271,6 +271,15 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
     );
   }
 
+  // SISP-96: the owner-configured receipt footer (built once by
+  // receipt-footer-studio.js, passed in by the host as receiptFooterText)
+  // closes the draft verbatim. Absent/empty on unconfigured setups, so
+  // the draft stays byte-identical to before.
+  const footerText = typeof receipt?.receiptFooterText === 'string' ? receipt.receiptFooterText.trim() : '';
+  if (footerText) {
+    lines.push('', footerText);
+  }
+
   const message = lines.join('\n');
   return { url:`${target}?text=${encodeURIComponent(message)}`, message };
 }

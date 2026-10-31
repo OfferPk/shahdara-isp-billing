@@ -6587,6 +6587,7 @@
       <!-- Group 3: ⚙️ Settings & Tools -->
       <div class="more-menu-section-label" data-i18n="more_menu_group_settings">⚙️ Settings &amp; Tools</div>
       <button type="button" data-mobile-more="digital-settings" id="mobileMoreDigitalSettingsBtn">💳 Digital Payments &amp; QR Settings</button>
+      <button type="button" data-mobile-more="receipt-footer" id="mobileMoreReceiptFooterBtn" data-i18n="rcptfoot_menu">🧾 Receipt Footer Studio</button>
       <button type="button" data-mobile-more="owner-pin" id="mobileMoreOwnerPinBtn" data-i18n="pin_menu_btn">🔐 Owner PIN &amp; Restricted Mode</button>
       <button type="button" data-mobile-more="bluetooth-printer" id="mobileMoreBluetoothPrinterBtn" hidden>🖨️ Bluetooth Printer</button>
       <button type="button" data-mobile-more="reminder-stages" id="mobileMoreReminderStagesBtn">⚙️ Reminder Stages Rules</button>
@@ -22780,6 +22781,57 @@
         <div class="modal-actions" style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
           <button id="saveDigitalPaymentsSettingsBtn" type="submit" class="primary-button">✓ Save Settings</button>
           <button id="cancelDigitalPaymentsSettingsBtn" type="button" class="secondary-button">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- Receipt Footer Studio Dialog (SISP-96) -->
+  <dialog id="receiptFooterStudioModal" class="modal-dialog receipt-footer-modal" aria-labelledby="receiptFooterStudioTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <div>
+          <h2 id="receiptFooterStudioTitle" class="modal-title" data-i18n="rcptfoot_title">🧾 Receipt Footer Studio</h2>
+          <p class="modal-subtitle" data-i18n="rcptfoot_subtitle">Custom footer text, EasyPaisa / NayaPay numbers, helpline and shops list — printed on every receipt</p>
+        </div>
+        <button id="closeReceiptFooterStudioModalBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+
+      <form id="receiptFooterStudioForm" class="receipt-footer-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="settingReceiptFooterText" class="field-label" data-i18n="rcptfoot_footer_text_label">Custom Footer Text (Urdu / Roman Urdu)</label>
+            <textarea id="settingReceiptFooterText" rows="3" maxlength="600" class="full" data-i18n-placeholder="rcptfoot_footer_text_placeholder" placeholder="e.g. Shukriya! Bill har mahine ki 5 tareekh tak ada karain."></textarea>
+            <span class="field-help" data-i18n="rcptfoot_footer_text_help">Printed word-for-word at the bottom of every receipt. Write it exactly as customers should read it.</span>
+          </div>
+
+          <div class="form-row form-row-2col">
+            <div class="form-group">
+              <label for="settingReceiptEasypaisaNumber" class="field-label" data-i18n="rcptfoot_easypaisa_label">EasyPaisa Account Number</label>
+              <input id="settingReceiptEasypaisaNumber" type="text" maxlength="34" class="full" data-i18n-placeholder="rcptfoot_account_placeholder" placeholder="e.g. 03451234567">
+            </div>
+            <div class="form-group">
+              <label for="settingReceiptNayapayNumber" class="field-label" data-i18n="rcptfoot_nayapay_label">NayaPay Account Number</label>
+              <input id="settingReceiptNayapayNumber" type="text" maxlength="34" class="full" data-i18n-placeholder="rcptfoot_account_placeholder" placeholder="e.g. 03451234567">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="settingReceiptHelplineWhatsapp" class="field-label" data-i18n="rcptfoot_helpline_label">Helpline WhatsApp Number</label>
+            <input id="settingReceiptHelplineWhatsapp" type="tel" maxlength="24" class="full" data-i18n-placeholder="rcptfoot_helpline_placeholder" placeholder="e.g. 03001234567">
+            <span class="field-help" data-i18n="rcptfoot_helpline_help">Printed on receipts so customers can reach you for help.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="settingReceiptShopsText" class="field-label" data-i18n="rcptfoot_shops_label">Collection Shops List</label>
+            <textarea id="settingReceiptShopsText" rows="3" maxlength="600" class="full" data-i18n-placeholder="rcptfoot_shops_placeholder" placeholder="e.g. Waseem Abbasi Shop — Main Bazaar"></textarea>
+            <span class="field-help" data-i18n="rcptfoot_shops_help">One shop per line. Printed on receipts so customers know where they can pay cash.</span>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top:16px; display:flex; gap:10px; justify-content:flex-end;">
+          <button id="saveReceiptFooterStudioBtn" type="submit" class="primary-button" data-i18n="rcptfoot_save">✓ Save Footer</button>
+          <button id="cancelReceiptFooterStudioBtn" type="button" class="secondary-button" data-i18n="rcptfoot_cancel">Cancel</button>
         </div>
       </form>
     </div>

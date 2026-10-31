@@ -11,6 +11,7 @@ import {
   addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining
 } from './core.js?v=1.11.0';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
+import { initReceiptFooterStudioModal, getReceiptFooter, saveReceiptFooter, buildReceiptFooterText, RECEIPT_FOOTER_STORAGE_KEY } from './receipt-footer-studio.js?v=1.11.0';
 import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
@@ -2311,7 +2312,12 @@ function receiptSmsSlipMarkup(customer, receipt) {
   if (!sms.valid) return '';
   return `<a class="receipt-whatsapp-action receipt-sms-action" href="${escapeHtml(sms.url)}" aria-label="${escapeHtml(t('sms_slip_aria', null, { number: customer.customerNumber, name: customer.name }))}">${escapeHtml(t('sms_slip_btn'))}</a>`;
 }
-function receiptWhatsAppActionMarkup(customer, receipt, { askLabel = null } = {}) {
+function receiptWhatsAppActionMarkup(customer, receiptInput, { askLabel = null } = {}) {
+  // SISP-96: the WhatsApp draft closes with the owner-configured receipt
+  // footer (ONE builder in receipt-footer-studio.js), attached here as
+  // receiptFooterText. '' when unconfigured — the draft then stays
+  // byte-identical to before.
+  const receipt = { ...receiptInput, receiptFooterText: buildReceiptFooterText(getReceiptFooter()) };
   const action = resolveReceiptWhatsAppAction(customer, receipt);
   const smsMarkup = receiptSmsSlipMarkup(customer, receipt);
   if (action.type === 'phone-required') {
@@ -2363,7 +2369,8 @@ function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, 
   area.innerHTML = generatePaymentReceiptHtml(receipt, {
     format: targetFormat,
     businessName: state.settings?.businessName || 'Shahdara ISP',
-    businessPhone: state.settings?.businessPhone || '0300-1234567'
+    businessPhone: state.settings?.businessPhone || '0300-1234567',
+    receiptFooter: getReceiptFooter()
   });
   area.hidden = false;
   document.body.classList.add('printing-receipt');
@@ -2437,6 +2444,7 @@ async function downloadPngReceipt(customerId, month, paymentId) {
     const png = await generateReceiptPNG(receipt, customer, {
       businessName: state.settings?.businessName || 'Shahdara ISP',
       businessPhone: state.settings?.businessPhone || '0300-1234567',
+      receiptFooter: getReceiptFooter(),
     });
     const outcome = await shareOrDownloadPng(png);
     toast(outcome === 'shared' ? 'PNG receipt shared.' : 'PNG receipt downloaded.');
@@ -2470,7 +2478,8 @@ async function printBluetoothReceipt(customerId, month, paymentId) {
     const receipt = buildPaymentReceipt(customer, bill, payment);
     const fields = escPosFieldsFromPaymentReceipt(receipt, {
       businessName: state.settings?.businessName || 'Shahdara ISP',
-      businessPhone: state.settings?.businessPhone || '0300-1234567'
+      businessPhone: state.settings?.businessPhone || '0300-1234567',
+      receiptFooter: getReceiptFooter()
     });
     await thermalPrinter.print(buildEscPosReceipt(fields).bytes);
     toast('Receipt sent to the Bluetooth printer.');
@@ -3802,7 +3811,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -3829,6 +3838,8 @@ function backupRestoreOptions() {
   let loansStored = false;
   let overheadsStored = false;
   try { stored = localStorage.getItem(DIGITAL_PAYMENTS_SETTINGS_KEY) !== null; } catch { stored = false; }  try { shopStored = localStorage.getItem(SHOP_SETTLEMENTS_KEY) !== null; } catch { shopStored = false; }  try { complaintsStored = localStorage.getItem(COMPLAINTS_KEY) !== null; } catch { complaintsStored = false; }
+  let receiptFooterStored = false;
+  try { receiptFooterStored = localStorage.getItem(RECEIPT_FOOTER_STORAGE_KEY) !== null; } catch { receiptFooterStored = false; }
   try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
   try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
   try { inventoryStored = localStorage.getItem(INVENTORY_KEY) !== null; } catch { inventoryStored = false; }
@@ -3859,7 +3870,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');
@@ -4163,7 +4174,7 @@ function renderBackupPreview(preview, sourceText = '') {
   if (plainSection) plainSection.hidden = false;
   const { counts, conflicts } = preview;
   const summary = [`Backup created: ${preview.exportedAt || 'date not recorded'}.`, `${counts.addedCustomers} new profiles`, `${counts.mergedCustomers} matching profiles checked`, `${counts.addedBills} new bills`, `${counts.addedPayments} new actual receipts`, `${counts.addedIncidents} new complaints/outages`, `${counts.filledProfileFields} blank profile fields filled`, `${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} preserved.`].join(' ');
-  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}${counts.shopSettlementsRestored ? ' Shop settlement records will also be restored.' : ''}${counts.voidPaymentsRestored ? ' Voided payment records will also be restored.' : ''}${counts.homeBudgetRestored ? ' Home budget records will also be restored.' : ''}${counts.waTemplatesRestored ? ' WhatsApp templates will also be restored.' : ''}`;
+  $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}${counts.receiptFooterRestored ? ' Receipt footer settings will also be restored.' : ''}${counts.shopSettlementsRestored ? ' Shop settlement records will also be restored.' : ''}${counts.voidPaymentsRestored ? ' Voided payment records will also be restored.' : ''}${counts.homeBudgetRestored ? ' Home budget records will also be restored.' : ''}${counts.waTemplatesRestored ? ' WhatsApp templates will also be restored.' : ''}`;
   // SISP-10: surface checksum verification in the preview. 'mismatch' can
   // never be applied (preview.canApply is false); 'unverified' means a
   // legacy backup without a checksum field.
@@ -4658,6 +4669,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
       saveDigitalPaymentsSettings(pendingBackupPreview.digitalPaymentsSettings);
       const ownerPhone = pendingBackupPreview.digitalPaymentsSettings.ownerPhone;
       if (ownerPhone) { try { localStorage.setItem('shahdara_owner_whatsapp_phone', ownerPhone); } catch { /* ignore */ } }
+    }
+    if (pendingBackupPreview.receiptFooter) {
+      saveReceiptFooter(pendingBackupPreview.receiptFooter);
     }
     if (pendingBackupPreview.shopSettlements) {
       saveShopSettlements(pendingBackupPreview.shopSettlements);
@@ -7126,6 +7140,13 @@ if (closePendingSecondaryBtn) {
 window.digitalPaymentsSettingsController = initDigitalPaymentsSettingsModal({
   onSave: () => {
     toast('✓ Digital payment receiving settings saved.');
+  }
+});
+
+// Setup Receipt Footer Studio Modal (SISP-96)
+window.receiptFooterStudioController = initReceiptFooterStudioModal({
+  onSave: () => {
+    toast(t('rcptfoot_saved'));
   }
 });
 

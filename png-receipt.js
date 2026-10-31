@@ -22,11 +22,14 @@
 // (buttons, dialogs) uses theme tokens.
 import { kistLineLabel } from './installment-plan.js';
 import { displayCustomerName } from './urdu-names.js';
+import { buildReceiptFooterLines } from './receipt-footer-studio.js';
 import { receiptCodeForReceipt } from './receipt-verifier.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
 
 export const PNG_RECEIPT_WIDTH = 1600; // 800 CSS pt @ HiDPI 2x
 export const PNG_RECEIPT_HEIGHT = 2000; // 1000 CSS pt @ HiDPI 2x
+// SISP-96: vertical pitch of one configured footer line on the PNG slip.
+export const PNG_FOOTER_LINE_PITCH = 56;
 export const PNG_RECEIPT_MIME = 'image/png';
 
 const PAPER = '#ffffff';
@@ -153,9 +156,22 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     strong: true,
   });
 
+  // SISP-96: the owner-configured receipt footer lines (ONE builder in
+  // receipt-footer-studio.js, shared by every receipt format). The slip
+  // canvas is exactly full at the standard height, so a configured
+  // footer grows the slip height by its own lines — with no footer the
+  // model (and the rendered PNG) stays byte-identical to before.
+  const footerLines = buildReceiptFooterLines(options.receiptFooter);
+  // Wrap estimate with the layout's default character measure, so a
+  // long footer line that wraps on the slip still fits the grown canvas.
+  const footerDrawnLines = footerLines.reduce(
+    (sum, line) => sum + Math.max(1, Math.ceil((line.length * 24) / (PNG_RECEIPT_WIDTH - 320))),
+    0
+  );
   return {
     width: PNG_RECEIPT_WIDTH,
-    height: PNG_RECEIPT_HEIGHT,
+    height: PNG_RECEIPT_HEIGHT + (footerDrawnLines ? footerDrawnLines * PNG_FOOTER_LINE_PITCH + 28 : 0),
+    footerLines,
     // SISP-91: saved receipt language + the slip's localized headings.
     lang,
     title: L('Payment Receipt / رسید ادائیگی'),
@@ -214,7 +230,7 @@ export function computePngReceiptLayout(model, measureFn) {
     ? measureFn
     : (t) => t.length * 24;
   const W = PNG_RECEIPT_WIDTH;
-  const H = PNG_RECEIPT_HEIGHT;
+  const H = model.height || PNG_RECEIPT_HEIGHT;
   const M = 80; // margin
   const contentW = W - M * 2;
   const commands = [];
@@ -297,6 +313,18 @@ export function computePngReceiptLayout(model, measureFn) {
   for (const noteLine of noteLines) {
     txt(noteLine, W / 2, y, `500 42px ${FONT_URDU}`, 'center', MUTED, 'rtl');
     y += 62;
+  }
+  // SISP-96: owner-configured footer lines (custom text verbatim,
+  // EasyPaisa / NayaPay / helpline, shops) under the note. Urdu-script
+  // lines use the Urdu font + rtl, the rest the Latin font. Absent on
+  // unconfigured models, so their layout stays byte-identical.
+  for (const footerLine of Array.isArray(model.footerLines) ? model.footerLines : []) {
+    const wrapped = wrapText({ measureText: (t) => ({ width: measure(t) }) }, footerLine, contentW - 160);
+    const isUrdu = /[\u0600-\u06FF]/.test(footerLine);
+    for (const part of wrapped) {
+      txt(part, W / 2, y + 14, `600 40px ${isUrdu ? FONT_URDU : FONT_LATIN}`, 'center', INK, isUrdu ? 'rtl' : undefined);
+      y += PNG_FOOTER_LINE_PITCH;
+    }
   }
   y += 10;
   txt(`Issued: ${model.issuedAt.slice(0, 16).replace('T', ' ')}  ·  Thank you! Shahdara ISP`,

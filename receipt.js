@@ -4,6 +4,7 @@ import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { buildReceiptFooterHtml } from './receipt-footer-studio.js';
 import { receiptCodeForReceipt, receiptVerificationCode, verificationStampText } from './receipt-verifier.js';
 import { renderCustomWaTemplate } from './whatsapp-templates.js';
 import { isVoidedPayment } from './payment-void-audit.js';
@@ -313,9 +314,18 @@ export function generatePaymentReceiptHtml(receipt, {
   format = 'a4',
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Lahore'
+  areaName = 'Shahdara, Lahore',
+  receiptFooter = null
 } = {}) {
   if (!receipt) return '';
+
+  // SISP-96: the owner-configured receipt footer (custom text, EasyPaisa /
+  // NayaPay numbers, helpline, shops list) from the ONE builder in
+  // receipt-footer-studio.js. The block carries its own leading newline
+  // and is '' when nothing is configured, so every layout below stays
+  // byte-identical to the pre-studio output.
+  const customFooterHtml = buildReceiptFooterHtml(receiptFooter);
+  const customFooterBlock = customFooterHtml ? `\n    ${customFooterHtml}` : '';
 
   // SISP-26 bilingual receipt name header: "Urdu name (Roman name)" when an
   // Urdu rendering exists and differs from the Roman name, else Roman only.
@@ -378,7 +388,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <div class="receipt-divider">--------------------------------</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(RECEIPT_URDU_NOTE)}</div>
   <footer class="receipt-terms">
-    <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>
+    <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>${customFooterBlock}
   </footer>
 </article>`;
   }
@@ -425,7 +435,7 @@ export function generatePaymentReceiptHtml(receipt, {
   </div>
   <footer class="receipt-terms">
     <p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n', '<br>')}</p>
-    <p class="receipt-footer-text">*** برائے مہربانی رسید سنبھال کر رکھیں۔ شکریہ! ***</p>
+    <p class="receipt-footer-text">*** برائے مہربانی رسید سنبھال کر رکھیں۔ شکریہ! ***</p>${customFooterBlock}
   </footer>
 </article>`;
   }
@@ -503,7 +513,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-signatures">
       <div class="receipt-sig-box"><span>دستخط وصول کنندہ / Collector</span></div>
       <div class="receipt-sig-box"><span>مہر و دستخط ادارہ / Shahdara ISP</span></div>
-    </div>
+    </div>${customFooterBlock}
   </footer>
 </article>`;
 }

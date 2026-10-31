@@ -54,6 +54,7 @@ import {
   formatDigitalPaymentReceiptNote,
   formatDigitalPaymentWhatsAppText
 } from './digital-payments-settings.js';
+import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } from './receipt-footer-studio.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
 import {
@@ -892,6 +893,10 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     L.thanks,
     L.ops,
     formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings()) ? `ℹ️ ${formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings())}` : null,
+    // SISP-96: owner-configured receipt footer (ONE builder in
+    // receipt-footer-studio.js), verbatim above the closing divider.
+    // Empty string when unconfigured -> filtered out, draft unchanged.
+    buildReceiptFooterText(getReceiptFooter()) || null,
     `━━━━━━━━━━━━━━━━━━━━━━━━`
   ];
 
@@ -2442,6 +2447,8 @@ export function setupQuickCollectModal({
               value: money(line.amount)
             }))
           ],
+          // SISP-96: owner-configured footer lines on the slip too.
+          footerLines: buildReceiptFooterLines(getReceiptFooter()),
           balanceDue: money(activeReceipt.payableRemaining ?? activeReceipt.newBalanceDue),
           statusLabel: activeReceipt.isSettled ? 'PAID' : 'PARTIAL'
         });

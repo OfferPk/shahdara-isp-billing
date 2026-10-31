@@ -381,6 +381,12 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const pppoePassword = cleanText(options.pppoePassword, 100, 'PPPoE password');
   const staticIp = cleanText(options.staticIp, 45, 'Static IP');
   const macAddress = cleanText(options.macAddress, 20, 'MAC address');
+  // SISP-94: router credential vault — the Wi-Fi/admin credentials the
+  // ISP itself set on the customer's router (all optional).
+  const wifiSsid = cleanText(options.wifiSsid, 64, 'Wi-Fi SSID');
+  const wifiPassword = cleanText(options.wifiPassword, 100, 'Wi-Fi password');
+  const routerAdminPort = checkAdminPort(options.routerAdminPort);
+  const routerAdminPassword = cleanText(options.routerAdminPassword, 100, 'Router admin password');
   // SISP-74: a brand-new record may not take a PPPoE username / static IP
   // that an active customer already holds (see findIdentityConflicts).
   assertNoBlockingIdentityConflicts(state.customers, { pppoeUsername, staticIp, macAddress, serialNumber });
@@ -419,7 +425,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const preferredReceiptChannel = sanitizeReceiptChannel(options.preferredReceiptChannel);
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -686,6 +692,14 @@ function checkRxDbm(value) {
   if (!Number.isFinite(number) || number < -60 || number > 10) throw new Error('Optical RX signal must be between -60 and 10 dBm.');
   return Math.round(number * 10) / 10;
 }
+// SISP-94: the customer router's remote-admin port (e.g. 8080) — a TCP
+// port number or nothing; anything else is a typo, not user data.
+function checkAdminPort(value) {
+  if (value === '' || value === null || value === undefined) return null;
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1 || number > 65535) throw new Error('Router admin port must be between 1 and 65535.');
+  return number;
+}
 // SISP-92: GPS pin coordinates (WGS84 degrees). A pin is a PAIR: both
 // empty clears / omits the pin; a lone latitude or longitude is a caller
 // bug, never half a location. Coordinates round to 6 decimals (~0.1 m),
@@ -789,6 +803,11 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     pppoePassword: cleanText(valueOrCurrent('pppoePassword') ?? '', 100, 'PPPoE password'),
     staticIp: cleanText(valueOrCurrent('staticIp') ?? '', 45, 'Static IP'),
     macAddress: cleanText(valueOrCurrent('macAddress') ?? '', 20, 'MAC address'),
+    // SISP-94: router credential vault fields, edited on the profile form.
+    wifiSsid: cleanText(valueOrCurrent('wifiSsid') ?? '', 64, 'Wi-Fi SSID'),
+    wifiPassword: cleanText(valueOrCurrent('wifiPassword') ?? '', 100, 'Wi-Fi password'),
+    routerAdminPort: checkAdminPort(valueOrCurrent('routerAdminPort')),
+    routerAdminPassword: cleanText(valueOrCurrent('routerAdminPassword') ?? '', 100, 'Router admin password'),
     expiryDate: checkOptionalDate(valueOrCurrent('expiryDate'), 'Expiry date'),
     cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date'),
     // SISP-7: feeder link — whose converter/switch feeds this customer, and
@@ -2825,9 +2844,11 @@ function validateBackupState(source) {
     const normalizedName = customer.name.trim().toLocaleLowerCase();
     if (customerNames.has(normalizedName)) throw new Error(`Backup has duplicate customer names matching “${customer.name.trim()}”.`);
     customerNames.add(normalizedName);
-    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['notes',1000,'customer notes'],['phone',40,'phone number'],['cnic',30,'CNIC'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed']]) {
+    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['notes',1000,'customer notes'],['phone',40,'phone number'],['cnic',30,'CNIC'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed'],['wifiSsid',64,'Wi-Fi SSID'],['wifiPassword',100,'Wi-Fi password'],['routerAdminPassword',100,'router admin password']]) {
       if (customer[field] !== undefined && (typeof customer[field] !== 'string' || customer[field].length > limit)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid ${label}.`);
     }
+    // SISP-94: a stored router admin port must be a real TCP port.
+    if (customer.routerAdminPort !== undefined && customer.routerAdminPort !== null && (!Number.isInteger(customer.routerAdminPort) || customer.routerAdminPort < 1 || customer.routerAdminPort > 65535)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid router admin port.`);
     if (customer.serviceStatus !== undefined && !['active','offline','not-set'].includes(customer.serviceStatus)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid manual service status.`);
     validBackupAmount(customer.monthlySellingAmount, `selling amount for customer #${customer.customerNumber}`);
     validBackupAmount(customer.monthlyPurchaseCost, `provider cost for customer #${customer.customerNumber}`, true);
@@ -2973,6 +2994,8 @@ function validateBackupState(source) {
       hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },
       // SISP-32: pole & landmark fields travel with the customer in JSON backups.
       poleNumber:customer.poleNumber ?? '', boxLocationNote:customer.boxLocationNote ?? '', dropWireCoreColor:customer.dropWireCoreColor ?? '',
+      // SISP-94: router credential vault fields travel with the customer in JSON backups.
+      wifiSsid:customer.wifiSsid ?? '', wifiPassword:customer.wifiPassword ?? '', routerAdminPort:customer.routerAdminPort ?? null, routerAdminPassword:customer.routerAdminPassword ?? '',
       packageHistory, relocationLog, bills, incidents,
       // OWNER-SIGNAL: the signal reading history travels with the
       // customer, sanitized to the same shape readState produces.
@@ -3320,7 +3343,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-84: connection type merges like serviceStatus's default —
     // 'commercial_vip' fills a local 'residential', and a local VIP tag
     // is never stripped by a merge. (The load sanitizer stamps

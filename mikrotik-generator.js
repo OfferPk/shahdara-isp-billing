@@ -140,6 +140,15 @@ export function buildCustomerMikrotikSnippet(customer) {
   if (!String(c.pppoeUsername ?? '').trim()) {
     lines.push(`# NOTE: no PPPoE username is stored — using derived username ${username}. Save one in the profile to use it instead.`);
   }
+  // SISP-94: the customer's own router (CPE) remote-admin port rides as
+  // an informational note when recorded — the operator uses it to reach
+  // the CPE web admin when servicing this connection. The router ADMIN
+  // PASSWORD is never emitted here: this snippet is copied and pasted
+  // around, so the vault secret stays in the profile only.
+  const adminPort = Number(c.routerAdminPort);
+  if (Number.isInteger(adminPort) && adminPort >= 1 && adminPort <= 65535) {
+    lines.push(`# NOTE: customer router remote admin port ${adminPort} is recorded in the profile vault — for the CPE web admin, not used by this RouterOS script.`);
+  }
   lines.push(`/ppp secret add name=${routerOsQuoted(username)} password=${routerOsQuoted(password || PASSWORD_PLACEHOLDER)} service=pppoe profile=${ACTIVE_PROFILE} comment=${routerOsQuoted(comment)}`);
   if (rate && staticIp) {
     lines.push(`/queue simple add name=${routerOsQuoted(queueNameFor(c))} target=${staticIp}/32 max-limit=${rate}/${rate} comment=${routerOsQuoted(comment)}`);

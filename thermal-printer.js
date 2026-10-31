@@ -15,6 +15,8 @@
  *     affordance and the @media print fallback remains the way to print.
  */
 
+import { buildReceiptFooterLines } from './receipt-footer-studio.js';
+
 export const THERMAL_WIDTH_CHARS = 32;
 export const PRINTER_STORAGE_KEY = 'shahdara_bt_printer';
 
@@ -73,7 +75,8 @@ function rowLine(label, value, width) {
  * @param {Object} fields - all optional display strings:
  *   businessName, businessPhone, receiptNumber, customerName,
  *   customerNumber, monthLabel, packageLabel, dateTimeLabel, amount,
- *   method, reference, discount, balanceDue, statusLabel, footerNote
+ *   method, reference, discount, balanceDue, statusLabel, footerNote,
+ *   footerLines (SISP-96 owner footer lines, optional)
  * @param {Object} [options]
  * @param {number} [options.widthChars=32]
  * @returns {{ bytes: Uint8Array, text: string, lines: string[] }}
@@ -122,6 +125,14 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   push(divider);
   const footer = fields.footerNote || 'Thank you! Please keep this receipt.';
   for (const l of wrapText(footer, width)) push(center(l, width));
+  // SISP-96: owner-configured footer lines (ONE builder in
+  // receipt-footer-studio.js) under the standard note. Absent or empty
+  // on unconfigured setups, so the slip stays byte-identical to before.
+  if (Array.isArray(fields.footerLines)) {
+    for (const footerLine of fields.footerLines) {
+      for (const l of wrapText(footerLine, width)) push(center(l, width));
+    }
+  }
   push('');
   push('');
 
@@ -156,7 +167,7 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
 }
 
 /** Adapts a receipt.js buildPaymentReceipt() result to builder fields. */
-export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahdara ISP', businessPhone = '' } = {}) {
+export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahdara ISP', businessPhone = '', receiptFooter = null } = {}) {
   if (!receipt) return {};
   const money = (v) => (v === null || v === undefined || v === '' ? '' : `PKR ${Number(v).toLocaleString('en-PK')}`);
   const balance = receipt.balanceDueCents === null || receipt.balanceDueCents === undefined
@@ -202,7 +213,9 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     arrearsTotal: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.totalDue) : '',
     arrearsPaid: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.paidAmount) : '',
     arrearsBalance: receipt.arrearsBreakdown ? money(Math.max(0, receipt.arrearsBreakdown.balanceDue - (receipt.concessionAmount || 0) - (receipt.referralCreditAmount || 0) - (receipt.depositOffsetAmount || 0))) : '',
-    footerNote: 'Thank you! Please keep this receipt.'
+    footerNote: 'Thank you! Please keep this receipt.',
+    // SISP-96: owner-configured footer lines ([] when unconfigured).
+    footerLines: buildReceiptFooterLines(receiptFooter)
   };
 }
 

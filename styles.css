@@ -1250,6 +1250,9 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .receipt-terms h2{margin:0 0 8px;color:#38574a;font-size:11px;letter-spacing:.4px;text-transform:uppercase}
 .receipt-terms p{margin:0;color:#293d34;font-size:12px;line-height:1.8}
 .receipt-terms p[dir=rtl]{font-family:'Noto Naskh Arabic','Noto Sans Arabic',Arial,sans-serif;text-align:right}
+.receipt-custom-footer{margin-top:8px}
+.receipt-custom-footer p{font-weight:700}
+.receipt-custom-footer p[dir=rtl]{text-align:right}
 @media(max-width:620px){.receipt-sheet{margin:12px auto;padding:20px}.receipt-fields{grid-template-columns:1fr;gap:12px 14px}.receipt-head h1{font-size:21px}.receipt-mark{min-width:54px;min-height:54px}}
 @media print{
   @page{size:A4;margin:13mm}

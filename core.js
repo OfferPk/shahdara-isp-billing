@@ -1,6 +1,7 @@
 import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY, canonicalMohalla } from './phase3.js';
 import { createBillPackageSnapshot, validateBillPackageSnapshot, BILL_PACKAGES } from './package-catalog.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
+import { sanitizeReceiptFooter, getDefaultReceiptFooter } from './receipt-footer-studio.js';
 import { sanitizeBranchGuard, sanitizeBranchGuardStamp, classifyBranchGuardRestore, fingerprintState } from './branch-guard.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
 import { normalizeTid } from './wallet-reconciliation.js';
@@ -3257,6 +3258,17 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeVoidPayments(options.voidPayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), voidPayments: cleaned };
   }
+  // SISP-96: the owner's receipt footer settings (custom footer text,
+  // EasyPaisa/NayaPay numbers, helpline, shops list) live outside the
+  // ledger state (localStorage key sisp_receipt_footer_v1), so they
+  // travel in an optional `settings.receiptFooter` section. Written
+  // only when at least one field is configured (never for the empty
+  // factory default); readers that predate it ignore the unknown field.
+  // Placed BEFORE the checksum stamp so the checksum covers it.
+  if (options && typeof options === 'object' && options.receiptFooter && typeof options.receiptFooter === 'object' && !Array.isArray(options.receiptFooter)) {
+    const cleaned = sanitizeReceiptFooter(options.receiptFooter);
+    if (!sameJson(cleaned, sanitizeReceiptFooter(getDefaultReceiptFooter()))) document.settings = { ...(document.settings || {}), receiptFooter: cleaned };
+  }
   // SISP-46: the Multi-Branch Merge Guard stamp travels in an optional
   // `settings.branchGuard` section. Unlike the record sections above it
   // is written whenever the caller supplies a stamp (even for an empty
@@ -3316,7 +3328,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, receiptFooterRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
     if (key === 'serviceStatus' && (!oldValue || oldValue === 'not-set') && newValue !== 'not-set') { target[key] = newValue; counts.filledProfileFields++; counts.changes++; return; }
@@ -3518,6 +3530,35 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       counts.changes++;
     } else {
       conflicts.push({ customerNumber:null, name:'', field:'Digital payment settings differ from this device' });
+    }
+  }
+  // SISP-96: optional receipt footer settings section (see
+  // createJsonBackup). Safe-merge rule, same as the digital-payments
+  // settings: adopt the backup's footer only when this device has none
+  // stored yet or still holds the empty default; when both sides hold
+  // different real footers, keep existing + conflict (a restore never
+  // silently overwrites the device's configured footer). An incoming
+  // all-empty section carries nothing and is ignored.
+  let receiptFooter = null;
+  const rawIncomingReceiptFooter = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.receiptFooter
+    : undefined;
+  if (rawIncomingReceiptFooter && typeof rawIncomingReceiptFooter === 'object' && !Array.isArray(rawIncomingReceiptFooter)) {
+    const incomingReceiptFooter = sanitizeReceiptFooter(rawIncomingReceiptFooter);
+    const emptyReceiptFooter = sanitizeReceiptFooter(getDefaultReceiptFooter());
+    if (!sameJson(incomingReceiptFooter, emptyReceiptFooter)) {
+      const currentReceiptFooter = (options && typeof options === 'object' && options.currentReceiptFooter && typeof options.currentReceiptFooter === 'object')
+        ? sanitizeReceiptFooter(options.currentReceiptFooter)
+        : null;
+      if (currentReceiptFooter && sameJson(incomingReceiptFooter, currentReceiptFooter)) {
+        // Identical on both sides — nothing to restore, no conflict.
+      } else if (!options?.currentReceiptFooterStored || (currentReceiptFooter && sameJson(currentReceiptFooter, emptyReceiptFooter))) {
+        receiptFooter = incomingReceiptFooter;
+        counts.receiptFooterRestored = 1;
+        counts.changes++;
+      } else {
+        conflicts.push({ customerNumber:null, name:'', field:'Receipt footer settings differ from this device' });
+      }
     }
   }
   // SISP-1: optional shop settlement records section (see createJsonBackup).
@@ -4142,5 +4183,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, commissionRules, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, commissionRules, upsNodes, referralCredits, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

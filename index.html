@@ -6802,6 +6802,7 @@
             <button id="openEnrollmentWizardBtn" class="action-btn-sm wizard-trigger-btn" type="button" title="Open Mobile Field Technician Enrollment Wizard" data-i18n="cust_wizard" data-i18n-title="cust_wizard_title">📱 Wizard</button>
             <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer" data-i18n-aria-label="cust_add_customer" data-i18n-title="cust_add_customer">+</button>
             <button id="bulkImportOpenBtn" class="action-btn-sm" type="button" aria-label="Import customers from Excel or CSV paste" title="Import customers from Excel or CSV paste" data-i18n="bci_open" data-i18n-aria-label="bci_open" data-i18n-title="bci_open">📋 Excel/CSV</button>
+            <button id="speedEntryOpenBtn" class="action-btn-sm" type="button" aria-label="Open speed batch counter entry (Ctrl+Shift+E)" title="Speed batch counter entry (Ctrl+Shift+E)" data-i18n="speed_entry_open" data-i18n-aria-label="speed_entry_open" data-i18n-title="speed_entry_open">⌨️ Speed Entry</button>
           </div>
         </div>
         <section class="customer-filter-panel" aria-label="Customer filters" data-i18n-aria-label="cust_filters_aria">
@@ -7773,6 +7774,7 @@
           <h3 data-i18n="shortcuts_group_field">Field Collection &amp; Actions</h3>
           <ul class="shortcuts-list">
             <li><span data-i18n="shortcuts_quick_collect">Quick Collect Cash</span><div class="key-combo"><kbd>Alt</kbd>+<kbd>C</kbd> / <kbd>c</kbd></div></li>
+            <li><span data-i18n="speed_entry_shortcut_label">Speed Batch Counter Entry</span><div class="key-combo"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></div></li>
             <li><span data-i18n="shortcuts_fast_search">Fast Customer Search</span><div class="key-combo"><kbd>Alt</kbd>+<kbd>S</kbd> / <kbd>s</kbd> / <kbd>/</kbd></div></li>
             <li><span data-i18n="shortcuts_pending_actions">Pending Actions Center</span><div class="key-combo"><kbd>Alt</kbd>+<kbd>P</kbd> / <kbd>p</kbd></div></li>
             <li><span data-i18n="shortcuts_collection_route">Collection Route Sheet</span><div class="key-combo"><kbd>Alt</kbd>+<kbd>R</kbd> / <kbd>r</kbd></div></li>
@@ -21947,6 +21949,37 @@
             <a id="suspenseWhatsAppBtn" class="secondary-button" href="#" target="_blank" rel="noopener">💬 WhatsApp receipt</a>
             <button id="suspensePrintBtn" class="secondary-button" type="button">🖨 Print receipt</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="speedEntryModal" class="billing-modal speed-entry-modal" aria-labelledby="speedEntryModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="speedEntryModalTitle" data-i18n="speed_entry_title">⌨️ Speed Batch Counter Entry</h2>
+        <button id="speedEntryCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="speed-entry-hint" data-i18n="speed_entry_hint">One row per paper slip: Connection ID or name → Tab → Amount → Tab → Method letter → Enter records that slip and jumps to the next row. Nothing is recorded until you press Enter on a row or "Record all pending rows".</p>
+        <div class="speed-entry-toolbar">
+          <label for="speedEntryDate" data-i18n="speed_entry_date">Date</label>
+          <input id="speedEntryDate" class="form-input" type="date" aria-label="Payment date for this sheet">
+          <span class="speed-entry-legend" data-i18n="speed_entry_method_legend">Method letters: C = Cash · W = Waseem shop · H = Hassan shop · B = Balla shop · E = Easypaisa · N = NayaPay</span>
+        </div>
+        <div class="speed-entry-head" aria-hidden="true">
+          <span></span>
+          <span data-i18n="speed_entry_col_customer">Connection ID / Name</span>
+          <span data-i18n="speed_entry_col_amount">Amount (PKR)</span>
+          <span data-i18n="speed_entry_col_method">Method</span>
+          <span></span>
+          <span data-i18n="speed_entry_col_status">Status</span>
+        </div>
+        <div id="speedEntryRows" class="speed-entry-rows"></div>
+        <div class="speed-entry-footer">
+          <button id="speedEntryAddRowBtn" class="secondary-button" type="button" data-i18n="speed_entry_add_row">＋ Add row</button>
+          <button id="speedEntrySubmitAllBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="speed_entry_submit_all">Record all pending rows</button>
+          <button id="speedEntryClearBtn" class="secondary-button" type="button" data-i18n="speed_entry_clear">Clear sheet</button>
+          <p id="speedEntryTotals" class="speed-entry-totals" role="status" aria-live="polite"></p>
         </div>
       </div>
     </div>

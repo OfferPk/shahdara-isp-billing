@@ -1756,6 +1756,39 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-99: Speed Batch Counter Entry sheet — token-only; the dialog
+   reuses the shared .billing-modal / .modal-card shell, so its container
+   already uses var(--modal-surface) in both themes. */
+.speed-entry-modal .modal-card { max-width: 980px; }
+.speed-entry-hint { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.speed-entry-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin-bottom: var(--space-3); }
+.speed-entry-toolbar label { font-size: var(--text-sm); color: var(--muted); font-weight: 700; }
+.speed-entry-toolbar .form-input { width: auto; }
+.speed-entry-legend { font-size: var(--text-sm); color: var(--muted); }
+.speed-entry-head, .speed-entry-row { display: grid; grid-template-columns: 2rem minmax(9rem, 1.4fr) minmax(5.5rem, .6fr) 3.2rem minmax(6.5rem, .8fr) minmax(8rem, 1fr); gap: var(--space-2); align-items: center; }
+.speed-entry-head { font-size: var(--text-xs); font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .02em; padding: 0 var(--space-1) var(--space-1); }
+.speed-entry-rows { display: grid; gap: var(--space-2); max-height: 46vh; overflow-y: auto; padding-right: var(--space-1); }
+.speed-entry-row { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-2); }
+.speed-entry-row-recorded { border-color: var(--green); background: var(--color-paid-bg); }
+.speed-entry-rownum { color: var(--muted); font-size: var(--text-sm); text-align: right; font-variant-numeric: var(--numeric); }
+.speed-entry-method { text-transform: uppercase; text-align: center; font-weight: 700; }
+.speed-entry-method-name { font-size: var(--text-sm); color: var(--muted); overflow-wrap: anywhere; }
+.speed-entry-status-cell { min-width: 0; }
+.speed-entry-status { font-size: var(--text-sm); }
+.speed-entry-status-ok { color: var(--color-paid); font-weight: 700; }
+.speed-entry-status-error { color: var(--color-overdue); font-weight: 600; }
+.speed-entry-picks { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1); font-size: var(--text-sm); color: var(--ink); }
+.speed-entry-pick { border: 1px solid var(--line); background: var(--surface-soft); color: var(--ink); border-radius: var(--radius-pill); padding: var(--space-1) var(--space-2); cursor: pointer; font-size: var(--text-sm); min-height: 48px; }
+.speed-entry-pick:hover { border-color: var(--green); }
+.speed-entry-footer { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-3); }
+.speed-entry-totals { margin: 0 0 0 auto; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+@media (max-width: 700px) {
+  .speed-entry-head { display: none; }
+  .speed-entry-row { grid-template-columns: 1.6rem 1fr 5.5rem 3.2rem; }
+  .speed-entry-method-name { grid-column: 2 / -1; }
+  .speed-entry-status-cell { grid-column: 2 / -1; }
+  .speed-entry-totals { margin-left: 0; }
+}
 /* SISP-96: Receipt Footer Studio dialog. Token-only: no hard-coded hex
  * (design-tokens ratchet). The dialog itself reuses the shared
  * .modal-dialog / .modal-card rules, so its container already uses

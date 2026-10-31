@@ -22140,6 +22140,39 @@
       </div>
     </div>
   </dialog>
+  <dialog id="creditTransferModal" class="billing-modal credit-transfer-modal" aria-labelledby="creditTransferModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="creditTransferModalTitle" data-i18n="trf_modal_title">Transfer Advance Credit</h2>
+        <button id="creditTransferCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p id="creditTransferSourceNote"></p>
+        <p id="creditTransferAvailableNote" class="credit-transfer-available"></p>
+        <form id="creditTransferForm">
+          <label><span data-i18n="trf_field_target">Transfer to</span>
+            <select id="creditTransferTarget" required></select>
+          </label>
+          <p id="creditTransferTargetDue" class="credit-transfer-due-note"></p>
+          <label><span data-i18n="trf_field_amount">Amount (Rs.)</span>
+            <input id="creditTransferAmount" type="number" min="1" step="1" required>
+          </label>
+          <label><span data-i18n="trf_field_date">Date</span>
+            <input id="creditTransferDate" type="date" required>
+          </label>
+          <label><span data-i18n="trf_field_note">Note (optional)</span>
+            <input id="creditTransferNote" type="text" maxlength="200">
+          </label>
+          <p id="creditTransferError" class="credit-transfer-error" role="alert"></p>
+          <div class="credit-transfer-actions">
+            <button id="creditTransferSubmitBtn" class="primary-button" type="submit" data-i18n="trf_submit">Transfer</button>
+          </div>
+        </form>
+        <h3 data-i18n="trf_history_heading">Transfer history</h3>
+        <div id="creditTransferHistory"></div>
+      </div>
+    </div>
+  </dialog>
   <dialog id="speedEntryModal" class="billing-modal speed-entry-modal" aria-labelledby="speedEntryModalTitle">
     <div class="modal-card">
       <header class="modal-header">

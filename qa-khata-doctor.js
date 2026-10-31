@@ -19,7 +19,11 @@
 // a SISP-40 referral credit (bill.referralCreditAmount) reduces it the
 // same way (capped at the post-concession due), a SISP-50
 // disconnection deposit offset (bill.depositOffsetAmount) reduces what
-// remains, and a SISP-64 bad-debt write-off
+// remains, as does a SISP-111 cross-customer credit
+// transfer stamped on the bill (bill.creditTransferInAmount), while
+// credit a customer transferred OUT to another customer
+// (bill.creditTransferOut stamps) leaves the carried-credit pool at
+// its source bill so it can never be counted twice, and a SISP-64 bad-debt write-off
 // (bill.badDebtWriteOffAmount) stamped on a churned customer's bill
 // reduces it the same way,
 // payment discounts count as payment-side reductions, excess payment on
@@ -110,8 +114,24 @@ export function computeLedgerBalance(customer) {
   let referralCreditsCents = 0;
   let feederHostCreditsCents = 0;
   let depositOffsetsCents = 0;
+  let creditTransfersInCents = 0;
+  let creditTransfersOutCents = 0;
   let badDebtWriteOffsCents = 0;
   let creditCents = 0;
+  // SISP-111: the carried-credit amount this bill's transfer-out
+  // stamps actually remove from the pool. The engine deducts each
+  // stamp from the exact source payment's pending entry; this scalar
+  // pool reaches the same total by deducting the stamps of a bill
+  // right after that bill's own credit has been added, clamped so
+  // the pool never goes negative on edited data.
+  const applyTransferOutStamps = (bill) => {
+    const stamped = (Array.isArray(bill?.creditTransferOut) ? bill.creditTransferOut : [])
+      .reduce((sum, item) => sum + cents(item?.amount || 0), 0);
+    if (!(stamped > 0)) return;
+    const applied = Math.min(stamped, creditCents);
+    creditTransfersOutCents += applied;
+    creditCents -= applied;
+  };
   for (const bill of bills) {
     const payments = validPaymentsOf(bill);
     if (!isPricedBill(bill)) {
@@ -123,6 +143,7 @@ export function computeLedgerBalance(customer) {
       // discount on any bill — on an unpriced bill it is unused credit
       // in full, exactly like the engine's rule.
       creditCents += payments.reduce((sum, payment) => sum + Math.max(0, cents(payment.amount) - paymentTicketChargeCents(payment) - paymentAddonChargeCents(payment) - paymentManualBaqayaCents(payment)) + (prepayTermsOf(payment) ? cents(payment.discount || 0) : 0), 0);
+      applyTransferOutStamps(bill);
 
       continue;
     }
@@ -154,6 +175,13 @@ export function computeLedgerBalance(customer) {
     const depositOffsetCents = Math.min(cents(bill.depositOffsetAmount || 0), dueCents);
     depositOffsetsCents += depositOffsetCents;
     dueCents -= depositOffsetCents;
+    // SISP-111: a cross-customer credit transfer stamped on this bill
+    // satisfies part of the due exactly like a deposit offset
+    // (clamped so it can never take the bill below zero after the
+    // offset) — the engine's allocation rule, mirrored.
+    const creditTransferInCents = Math.min(cents(bill.creditTransferInAmount || 0), dueCents);
+    creditTransfersInCents += creditTransferInCents;
+    dueCents -= creditTransferInCents;
     // SISP-64: a bad-debt write-off waives what is left of the bill
     // exactly like a deposit offset (clamped so it can never take the
     // bill below zero after the offset above).
@@ -185,9 +213,10 @@ export function computeLedgerBalance(customer) {
       if (excessCents > 0) creditCents += excessCents;
       if (isPrepay) creditCents += cents(payment.discount || 0);
     }
+    applyTransferOutStamps(bill);
     balanceCents += dueCents;
   }
-  return { balanceCents, chargesCents, paymentsCents, discountsCents, concessionsCents, referralCreditsCents, feederHostCreditsCents, depositOffsetsCents, badDebtWriteOffsCents, creditCents };
+  return { balanceCents, chargesCents, paymentsCents, discountsCents, concessionsCents, referralCreditsCents, feederHostCreditsCents, depositOffsetsCents, creditTransfersInCents, creditTransfersOutCents, badDebtWriteOffsCents, creditCents };
 }
 
 /**
@@ -249,7 +278,7 @@ function checkCustomer(customer, { settlementIds, cacheEntry }) {
 
   for (const bill of bills) {
     // NaN scan over the money fields the doctor (and the app) reads.
-    for (const field of ['dueAmount', 'lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount', 'badDebtWriteOffAmount']) {
+    for (const field of ['dueAmount', 'lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount', 'badDebtWriteOffAmount', 'creditTransferInAmount']) {
       if (isCorruptMoney(bill?.[field])) {
         issues.push(issue('nan-value', 'error', `Bill ${bill.month} has an unreadable ${field} value.`, true, { month: bill.month, field }));
       }
@@ -412,7 +441,7 @@ export function repairKhataDoctor(state, { settlements = [], voidPayments = [], 
   for (const customer of next.customers ?? []) {
     for (const bill of customer?.bills ?? []) {
       if (!bill) continue;
-      for (const field of ['lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount', 'badDebtWriteOffAmount']) {
+      for (const field of ['lateFee', 'shiftingFee', 'concessionAmount', 'referralCreditAmount', 'feederHostCreditAmount', 'depositOffsetAmount', 'badDebtWriteOffAmount', 'creditTransferInAmount']) {
         if (isCorruptMoney(bill[field])) { bill[field] = 0; fixes.push(`Zeroed unreadable ${field} on ${customer.name ?? customer.id} bill ${bill.month}.`); }
       }
       if (isCorruptMoney(bill.dueAmount)) { bill.dueAmount = null; fixes.push(`Marked ${customer.name ?? customer.id} bill ${bill.month} unpriced — its amount was unreadable.`); }

@@ -724,6 +724,20 @@ body.field-mode-open { overflow: hidden; }
 .monthly-report-share-row label { color: var(--muted); font-size: 13px; }
 .monthly-report-summary-text { width: 100%; box-sizing: border-box; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 12px; font-size: 13px; margin: 0 0 12px; }
 .monthly-report-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+/* SISP-104: Post-Repair Check-In queue (theme tokens only). */
+.post-repair-checkin-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.post-repair-checkin-summary { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.post-repair-checkin-list { display: grid; gap: 12px; }
+.post-repair-checkin-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.post-repair-checkin-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; align-items: baseline; }
+.post-repair-checkin-head strong { color: var(--ink); font-size: 14px; }
+.post-repair-checkin-age { color: var(--muted); font-size: 12px; }
+.post-repair-checkin-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.post-repair-checkin-card p span { overflow-wrap: anywhere; }
+.post-repair-checkin-card p strong { color: var(--ink); overflow-wrap: anywhere; }
+.post-repair-checkin-actions { margin-top: 8px; }
+.post-repair-checkin-nomobile { color: var(--muted); font-size: 12px; }
+.post-repair-checkin-empty { color: var(--muted); font-size: 13px; }
 @media (max-width: 700px) {
   .monthly-report-table thead { display: none; }
   .monthly-report-table, .monthly-report-table tbody, .monthly-report-table tr, .monthly-report-table td { display: block; width: 100%; box-sizing: border-box; }

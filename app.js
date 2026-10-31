@@ -170,6 +170,7 @@ import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, s
 import { buildSplitterOverview, createAttenuationTicket, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } from './signal-history.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
+import { setupPostRepairCheckinModal } from './post-repair-checkin.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
 import { INVENTORY_ITEM_IDS, INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.11.0';
@@ -462,6 +463,7 @@ export let downtimeAnalyticsModalController = null;
 export let splitterMapModalController = null;
 export let areaSignalModalController = null;
 export let monthlyComplaintReportModalController = null;
+export let postRepairCheckinModalController = null;
 export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
 export let outageImpactModalController = null;
@@ -11569,6 +11571,7 @@ if (typeof document !== 'undefined') {
       renderDetail();
       if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.refresh();
       if (monthlyComplaintReportModalController) monthlyComplaintReportModalController.refresh();
+      if (postRepairCheckinModalController) postRepairCheckinModalController.refresh();
     },
     // SISP-44: the register card shows the linked ticket (or the
     // 1-click assign controls) via complaint-ticket-sync.js.
@@ -11670,6 +11673,16 @@ if (typeof document !== 'undefined') {
   });
   monthlyComplaintReportModalController = setupMonthlyComplaintReportModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
+  });
+  // SISP-104: post-repair check-in queue — reads the complaint
+  // register, stamps followUpSentAt through its save path, and asks
+  // for the same dashboard/detail refresh as any complaint change.
+  postRepairCheckinModalController = setupPostRepairCheckinModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts),
+    onComplaintsChanged: () => {
+      renderDashboard();
+      renderDetail();
+    }
   });
   roznamchaModalController = setupRoznamchaModal(() => state, {
     onChanged: () => { recordRoznamchaExpenseSync(); recordSaadPaymentSync(); renderDashboard(); },

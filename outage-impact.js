@@ -164,6 +164,11 @@ export function traceDownstreamImpact(customers, sourceId) {
  * Local 03xx numbers (leading 0) get no guessed country code, and short
  * fragments get no link at all — the UI then asks for the full
  * international number instead.
+ * SISP-118: the queue builders below try the customer's dedicated
+ * WhatsApp number first and fall back to the primary phone, expressing
+ * the whatsappPhoneFor preference through this module's own link rules
+ * (core.js imports this module, so the core seam cannot be imported
+ * here without a cycle).
  */
 export function outageWhatsAppLink(phone) {
   const digits = String(phone ?? '').replace(/\D/g, '');
@@ -198,7 +203,7 @@ export function buildOutageQueue(customers, sourceId, { urdu = false, templates 
       message: (Array.isArray(templates)
         ? renderCustomWaTemplate(templates, 'outageNotice', customer, {}, variant)
         : null) ?? message,
-      whatsappLink: outageWhatsAppLink(customer.phone)
+      whatsappLink: outageWhatsAppLink(customer.whatsappPhone) ?? outageWhatsAppLink(customer.phone)
     }))
   };
 }
@@ -223,7 +228,7 @@ export function buildDaisyChainAlert(customers, sourceId) {
     source,
     impacted: impacted.map((customer) => ({
       customer,
-      whatsappLink: outageWhatsAppLink(customer.phone)
+      whatsappLink: outageWhatsAppLink(customer.whatsappPhone) ?? outageWhatsAppLink(customer.phone)
     })),
     count: impacted.length
   };

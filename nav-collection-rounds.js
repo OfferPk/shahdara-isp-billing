@@ -513,7 +513,13 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
 
     const rawPhone = (c.phone || '').trim();
     const cleanPhone = rawPhone.replace(/[^\d+]/g, '');
-    let whatsappPhone = cleanPhone;
+    // SISP-118: WhatsApp drafts prefer the customer's dedicated WhatsApp
+    // number when it carries a plausible number of digits; otherwise the
+    // primary phone drives the link exactly as before. (This module is
+    // import-free by design, so the preference is applied at the source
+    // instead of through core's whatsappPhoneFor seam.)
+    const waCandidate = String(c.whatsappPhone ?? '').trim().replace(/[^\d+]/g, '');
+    let whatsappPhone = waCandidate.replace(/\D/g, '').length >= 10 ? waCandidate : cleanPhone;
     if (whatsappPhone.startsWith('03')) {
       whatsappPhone = '92' + whatsappPhone.slice(1);
     } else if (whatsappPhone.startsWith('3') && whatsappPhone.length === 10) {
@@ -539,6 +545,9 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
       : null;
     const whatsappUrl = whatsappPhone ? `https://wa.me/${whatsappPhone}` : null;
     const phoneUrl = cleanPhone ? `tel:${cleanPhone}` : null;
+    // SISP-118: a recorded alternate number gets its own Call target.
+    const cleanAlternatePhone = String(c.alternatePhone ?? '').replace(/[^\d+]/g, '');
+    const alternatePhoneUrl = cleanAlternatePhone ? `tel:${cleanAlternatePhone}` : null;
 
     const encodedAddr = encodeURIComponent(`${c.address || ''} ${sector} Shahdara Lahore`.trim());
     const mapsQueryUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
@@ -555,6 +564,7 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
       whatsappReminderUrl,
       whatsappReminderText,
       phoneUrl,
+      alternatePhoneUrl,
       mapsQueryUrl,
       address: c.address || 'Address on file',
       area: areaName,
@@ -1076,6 +1086,7 @@ export function setupFieldRouteSheet({
               ${visitNoteInfo}
               <div class="route-card-contact-row">
                 ${stop.phoneUrl ? `<a href="${stop.phoneUrl}" class="action-btn-sm" aria-label="Call ${escapeHtml(stop.name)}">📞 Call</a>` : ''}
+                ${stop.alternatePhoneUrl ? `<a href="${stop.alternatePhoneUrl}" class="action-btn-sm" aria-label="Call alternate number for ${escapeHtml(stop.name)}">📞 Alt Call</a>` : ''}
                 ${whatsappAction}
                 <a href="${stop.mapsQueryUrl}" target="_blank" rel="noopener noreferrer" class="action-btn-sm" aria-label="Navigate to ${escapeHtml(stop.name)}">🗺️ Map</a>
               </div>

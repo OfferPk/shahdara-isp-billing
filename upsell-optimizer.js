@@ -64,7 +64,7 @@
  */
 
 import { BILL_PACKAGES, billPackageByLabel } from './package-catalog.js';
-import { calculatePaymentAllocations, derivedBillStatus } from './core.js';
+import { calculatePaymentAllocations, derivedBillStatus, whatsappPhoneFor } from './core.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 
 /** The shipped SISP-12 fault preset that means "slow speed". */
@@ -232,7 +232,7 @@ function evaluateCustomer(customer, { complaints, tickets, allocations, referenc
     targetPrice: target.price,
     gainPerMonth
   });
-  const wa = formatWhatsAppUrl(text(customer.phone), offerText);
+  const wa = formatWhatsAppUrl(text(whatsappPhoneFor(customer)), offerText);
   return {
     customerId: customer.id,
     customerNumber: customer.customerNumber ?? null,

@@ -29,7 +29,8 @@ import {
   manualBaqayaOutstandingCents,
   planManualBaqayaSettlement,
   paymentSenderLabel,
-  prepayTermsOf
+  prepayTermsOf,
+  whatsappPhoneFor
 } from './core.js';
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
@@ -972,6 +973,7 @@ const QC_RECEIPT_TEXT = Object.freeze({
 });
 
 export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
+  const { whatsappPhone = '' } = options;
   const amountStr = Number(receipt.amount).toLocaleString('en-PK');
   const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
   const balanceStr = Number(remainingPayable).toLocaleString('en-PK');
@@ -1028,7 +1030,10 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   ];
 
   const text = lines.filter(Boolean).join('\n');
-  const wa = formatWhatsAppUrl(receipt.phone, text);
+  // SISP-118: the draft URL targets the customer's WhatsApp number when
+  // the caller resolved one; the receipt's recorded phone stays the
+  // display/record number (the printed "Phone:" line above is unchanged).
+  const wa = formatWhatsAppUrl(whatsappPhone || receipt.phone, text);
   return { text, url: wa.url || '', validPhone: wa.validPhone, formattedPhone: wa.formattedPhone };
 }
 
@@ -2719,10 +2724,11 @@ export function setupQuickCollectModal({
   // WhatsApp receipt dispatch
   whatsAppBtn?.addEventListener('click', async () => {
     if (!activeReceipt) return;
+    // SISP-118: resolve the receipt owner's WhatsApp number from live state.
     // SISP-91: render the draft in the customer's saved receipt
     // language when set (the preference wins over the default draft).
     const receiptCustomer = getState()?.customers?.find(c => c.id === activeReceipt.customerId);
-    const { url, text } = formatQuickCollectWhatsAppReceipt(activeReceipt, { lang: receiptLangPreference(receiptCustomer) });
+    const { url, text } = formatQuickCollectWhatsAppReceipt(activeReceipt, { whatsappPhone: receiptCustomer ? whatsappPhoneFor(receiptCustomer) : '', lang: receiptLangPreference(receiptCustomer) });
     if (url) {
       window.open(url, '_blank', 'noopener,noreferrer');
       markReceiptShared(activeReceipt.id, {

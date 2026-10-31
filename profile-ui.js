@@ -1,4 +1,4 @@
-import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers } from './core.js';
+import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers, whatsappPhoneFor } from './core.js';
 import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from './billing-cycle.js';
 import { sanitizePauseFields, vacationHoldState } from './pause-billing.js';
 import { normalizeGpsPin, googleMapsUrl, formatGpsCoords } from './gps-pin-helper.js';
@@ -327,7 +327,9 @@ export function speakDueButtonMarkup(customerNumber) {
 /** Bind each actual receipt only to its owning profile's saved number and identity. */
 export function resolveReceiptWhatsAppAction(customer, receipt) {
   if (!customer?.id || !receipt || receipt.customerId !== customer.id) return { type:'unavailable', reason:'customer-mismatch' };
-  const phone = String(customer.phone ?? '').trim();
+  // SISP-118: receipt drafts target the customer's WhatsApp number when
+  // one is recorded (falling back to the primary phone inside the seam).
+  const phone = whatsappPhoneFor(customer);
   if (!contactActionTargets(phone)?.whatsapp) return { type:'phone-required', hasSavedPhone:Boolean(phone) };
   const draft = createReceiptWhatsAppDraft(phone, {
     ...receipt,

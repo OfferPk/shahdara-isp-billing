@@ -18,7 +18,8 @@ import {
   derivedBillStatus,
   monthsForHistory,
   formatPKR,
-  PAYMENT_METHODS
+  PAYMENT_METHODS,
+  whatsappPhoneFor
 } from './core.js';
 import {
   contactActionTargets,
@@ -261,7 +262,13 @@ export function calculateCustomerQuickProfile(customer, state, options = {}) {
 
   const rawPhone = String(customer.phone ?? '').trim();
   const cleanPhone = rawPhone.replace(/[^\d+]/g, '');
-  let whatsappPhone = cleanPhone;
+  // SISP-118: the WhatsApp targets derive from the customer's dedicated
+  // WhatsApp number when one is recorded; the Call target always dials
+  // the primary number, and a recorded alternate number gets its own
+  // tel: target alongside it.
+  const waRawPhone = whatsappPhoneFor(customer);
+  const waCleanPhone = waRawPhone.replace(/[^\d+]/g, '');
+  let whatsappPhone = waCleanPhone;
   if (whatsappPhone.startsWith('03')) {
     whatsappPhone = '92' + whatsappPhone.slice(1);
   } else if (whatsappPhone.startsWith('3')) {
@@ -269,6 +276,9 @@ export function calculateCustomerQuickProfile(customer, state, options = {}) {
   }
   const whatsappUrl = whatsappPhone ? `https://wa.me/${whatsappPhone}` : null;
   const phoneUrl = cleanPhone ? `tel:${cleanPhone}` : null;
+  const rawAlternatePhone = String(customer.alternatePhone ?? '').trim();
+  const cleanAlternatePhone = rawAlternatePhone.replace(/[^\d+]/g, '');
+  const alternatePhoneUrl = cleanAlternatePhone ? `tel:${cleanAlternatePhone}` : null;
 
   // Ledger and Dues
   let totalOutstandingCents = 0;
@@ -357,14 +367,14 @@ export function calculateCustomerQuickProfile(customer, state, options = {}) {
 
   // WhatsApp Follow-up Reminder URL
   let whatsappReminderUrl = null;
-  if (totalOutstandingPkr > 0 && rawPhone) {
-    let intlPhone = rawPhone;
-    if (cleanPhone.startsWith('03') && cleanPhone.length === 11) {
-      intlPhone = `+92${cleanPhone.slice(1)}`;
-    } else if (cleanPhone.startsWith('3') && cleanPhone.length === 10) {
-      intlPhone = `+92${cleanPhone}`;
-    } else if (cleanPhone.startsWith('923') && cleanPhone.length === 12) {
-      intlPhone = `+${cleanPhone}`;
+  if (totalOutstandingPkr > 0 && waRawPhone) {
+    let intlPhone = waRawPhone;
+    if (waCleanPhone.startsWith('03') && waCleanPhone.length === 11) {
+      intlPhone = `+92${waCleanPhone.slice(1)}`;
+    } else if (waCleanPhone.startsWith('3') && waCleanPhone.length === 10) {
+      intlPhone = `+92${waCleanPhone}`;
+    } else if (waCleanPhone.startsWith('923') && waCleanPhone.length === 12) {
+      intlPhone = `+${waCleanPhone}`;
     }
 
     const reminder = createWhatsAppFollowupDraft(intlPhone, customer, {
@@ -386,6 +396,8 @@ export function calculateCustomerQuickProfile(customer, state, options = {}) {
     whatsappUrl,
     whatsappReminderUrl,
     phoneUrl,
+    alternatePhone: rawAlternatePhone,
+    alternatePhoneUrl,
     area: (customer.area || customer.zone || 'Shahdara').trim(),
     mohalla: (customer.mohalla || '').trim(),
     address: (customer.address || 'Address on file').trim(),
@@ -549,12 +561,19 @@ export function renderQuickProfileCardHtml(profile) {
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             <span>Call</span>
           </a>
-        ` : `
+        ` : ``}
+        ${profile.alternatePhoneUrl ? `
+          <a href="${escapeHtml(profile.alternatePhoneUrl)}" class="mqp-action-btn mqp-btn-call" data-mqp-action="call-alternate">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            <span>Alt Call</span>
+          </a>
+        ` : ``}
+        ${!profile.phoneUrl && !profile.alternatePhoneUrl ? `
           <button type="button" class="mqp-action-btn mqp-btn-disabled" disabled>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
             <span>No Phone</span>
           </button>
-        `}
+        ` : ``}
 
         <button type="button" class="mqp-action-btn mqp-btn-profile" data-mqp-action="profile" data-customer-id="${escapeHtml(profile.id)}">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>

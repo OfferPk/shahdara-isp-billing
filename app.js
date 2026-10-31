@@ -8,7 +8,8 @@ import {
   calculateMethodCollectionTotals, findDuplicatePaymentReference, findIdentityConflicts, paymentSenderLabel,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
   autoPackageFromPayment,
-  addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining
+  addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining,
+  whatsappPhoneFor
 } from './core.js?v=1.11.0';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
 import { initReceiptFooterStudioModal, getReceiptFooter, saveReceiptFooter, buildReceiptFooterText, RECEIPT_FOOTER_STORAGE_KEY } from './receipt-footer-studio.js?v=1.11.0';
@@ -3159,12 +3160,23 @@ function profileCustodyOwnershipLabel(value) {
 function renderCustomerProfileView(customer) {
   const phone = String(customer.phone ?? '').trim();
   const cnic = String(customer.cnic ?? '').trim();
-  const phoneTargets = contactActionTargets(phone);
+  // SISP-118: phoneTargets stays the render contract — tel always dials
+  // the primary number, while whatsapp is the RESOLVED target (the
+  // dedicated WhatsApp number first, the primary as fallback) — and a
+  // recorded alternate number gets its own Call button. When neither new
+  // field is recorded this renders exactly as before.
+  const primaryTargets = contactActionTargets(phone);
+  const waPhone = whatsappPhoneFor(customer);
+  const waTargets = waPhone === phone ? primaryTargets : contactActionTargets(waPhone);
+  const alternateTargets = contactActionTargets(String(customer.alternatePhone ?? '').trim());
+  const phoneTargets = (primaryTargets || waTargets)
+    ? { tel: primaryTargets?.tel ?? null, whatsapp: waTargets?.whatsapp ?? primaryTargets?.whatsapp ?? null }
+    : null;
   // SISP-76: an SMS-preference customer gets the SMS shortcut first
   // among the contact actions (generic reminder draft, no figures).
   const smsContact = customerPrefersSms(customer) ? buildSmsReminderUrl({ phone, customerName: customer.name || '' }) : null;
   const smsAction = smsContact?.valid ? `<a class="secondary-button" href="${escapeHtml(smsContact.url)}">${t('prof_view_sms')}</a>` : '';
-  const phoneActions = phoneTargets ? `<span class="profile-contact-actions" aria-label="${t('prof_view_contact_aria')}"><a class="secondary-button" href="${escapeHtml(phoneTargets.tel)}">${t('prof_view_call')}</a>${smsAction}${phoneTargets.whatsapp ? `<a class="secondary-button" href="${escapeHtml(phoneTargets.whatsapp)}" target="_blank" rel="noopener noreferrer">${t('prof_view_whatsapp')}</a>` : ''}</span>` : '';
+  const phoneActions = (phoneTargets || alternateTargets) ? `<span class="profile-contact-actions" aria-label="${t('prof_view_contact_aria')}">${phoneTargets?.tel ? `<a class="secondary-button" href="${escapeHtml(phoneTargets.tel)}">${t('prof_view_call')}</a>` : ''}${smsAction}${alternateTargets ? `<a class="secondary-button" href="${escapeHtml(alternateTargets.tel)}">${t('prof_view_call_alternate')}</a>` : ''}${phoneTargets?.whatsapp ? `<a class="secondary-button" href="${escapeHtml(phoneTargets.whatsapp)}" target="_blank" rel="noopener noreferrer">${t('prof_view_whatsapp')}</a>` : ''}</span>` : '';
   const phoneHint = phoneTargets?.whatsapp ? '' : `<p class="profile-contact-note">${t('prof_view_phone_hint')}</p>`;
   const profit = customerPackageProfit(customer);
   const lifetimeValue = buildCustomerLifetimeValue(state, customer, new Date());
@@ -3897,6 +3909,9 @@ function renderDetail() {
   $('#addressInput').value = customer.address ?? '';
   $('#customerNotesInput').value = customer.notes ?? '';
   $('#phoneInput').value = customer.phone ?? '';
+  // SISP-118: separate WhatsApp + alternate numbers (optional).
+  if ($('#whatsappPhoneInput')) $('#whatsappPhoneInput').value = customer.whatsappPhone ?? '';
+  if ($('#alternatePhoneInput')) $('#alternatePhoneInput').value = customer.alternatePhone ?? '';
   if ($('#cnicInput')) $('#cnicInput').value = customer.cnic ?? '';
   $('#ispProviderInput').value = customer.ispProvider ?? '';
   $('#packageSpeedInput').value = customer.packageSpeed ?? '';
@@ -6486,6 +6501,9 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       ...($('#profileNameInput') ? { name: $('#profileNameInput').value } : {}),
       ...($('#nameUrduInput') ? { nameUrdu: $('#nameUrduInput').value } : {}),
       mohalla:$('#mohallaInput').value, zone:$('#zoneInput').value, address:$('#addressInput').value, notes:$('#customerNotesInput').value, phone:phoneVal,
+      // SISP-118: separate WhatsApp + alternate numbers (optional).
+      ...($('#whatsappPhoneInput') ? { whatsappPhone: $('#whatsappPhoneInput').value } : {}),
+      ...($('#alternatePhoneInput') ? { alternatePhone: $('#alternatePhoneInput').value } : {}),
       cnic: formattedCnic,
       ispProvider:$('#ispProviderInput').value,
       serviceStatus:$('#serviceStatusInput').value,
@@ -8737,7 +8755,7 @@ function waRenderCampaignCurrent() {
     if (send) send.addEventListener('click', () => {
       const item = waCampaign.items[waCampaign.index];
       const message = renderWaTemplateFor(getWaTemplates(), waCampaign.templateId, item.customer, { totalDue: item.balance }, waCampaign.variant);
-      const res = formatWhatsAppUrl(item.customer.phone || '', message);
+      const res = formatWhatsAppUrl(whatsappPhoneFor(item.customer), message);
       if (!res.validPhone || !res.url) { toast(`Phone missing or invalid for ${item.customerName}. Not marked as reminded.`); return; }
       window.open(res.url, '_blank');
       state = markCustomerLastReminded(state, item.customerId, getTodayDateString());
@@ -9990,7 +10008,7 @@ batchPreviewContainer?.addEventListener('click', (e) => {
     ? msg
     : (buildReceiptBillNoticeMessage(customer, { totalDue: balance }, getWaTemplates()) ?? msg);
 
-  const phoneRes = formatWhatsAppUrl(customer.phone || '', waMsg);
+  const phoneRes = formatWhatsAppUrl(whatsappPhoneFor(customer), waMsg);
   if (phoneRes.validPhone && phoneRes.url) {
     window.open(phoneRes.url, '_blank');
     toast(`Opening WhatsApp reminder draft for ${customer.name}...`);
@@ -10367,7 +10385,7 @@ if (shareStatementWhatsAppBtn) {
     }
     const exportView = statementFiltersActive() ? { events: lastStatementVisibleEvents } : {};
     const text = formatCustomerStatementWhatsApp(currentStatementData, exportView);
-    const phone = currentStatementData.customer.phone || '';
+    const phone = whatsappPhoneFor(currentStatementData.customer);
     const phoneRes = formatWhatsAppUrl(phone, text);
     if (phoneRes.validPhone && phoneRes.url) {
       window.open(phoneRes.url, '_blank');
@@ -10557,7 +10575,7 @@ function renderReminderContent() {
     `;
   }
 
-  const phoneRes = formatWhatsAppUrl(c.phone || '');
+  const phoneRes = formatWhatsAppUrl(whatsappPhoneFor(c));
   if (reminderPhoneNotice) {
     if (phoneRes.validPhone) {
       reminderPhoneNotice.textContent = `WhatsApp: ${phoneRes.formattedPhone}`;
@@ -10807,7 +10825,7 @@ if (saveReminderPromiseBtn) {
 if (sendWhatsAppReminderBtn) {
   sendWhatsAppReminderBtn.addEventListener('click', () => {
     if (!currentReminderCustomer) return;
-    const phone = currentReminderCustomer.phone || '';
+    const phone = whatsappPhoneFor(currentReminderCustomer);
     const text = reminderMessageText?.value || '';
     const wa = formatWhatsAppUrl(phone, text);
     if (!wa.validPhone) {
@@ -11035,7 +11053,10 @@ if (wadaListContainer) {
 
     if (action === 'whatsapp' && p) {
       const msg = formatPromiseFollowupWhatsApp(p);
-      const wa = formatWhatsAppUrl(p.phone || '', msg);
+      // SISP-118: prefer the live customer's WhatsApp number; the
+      // promise's recorded phone remains the fallback.
+      const waCustomer = state.customers.find(item => item.id === p.customerId);
+      const wa = formatWhatsAppUrl(waCustomer ? whatsappPhoneFor(waCustomer) : (p.phone || ''), msg);
       if (!wa.validPhone) {
         toast('Customer phone number is invalid or missing.');
         return;
@@ -11315,7 +11336,7 @@ if (sendWhatsAppInvoiceBtn) {
     const customNote = invoiceCustomNote?.value || '';
     const data = buildCustomerBillInvoiceData(currentInvoiceCustomer, month);
     const text = buildWhatsAppBillInvoiceText(data, customNote);
-    const wa = formatWhatsAppUrl(data.phone, text);
+    const wa = formatWhatsAppUrl(whatsappPhoneFor(currentInvoiceCustomer), text);
     if (!wa.validPhone) {
       toast('Invalid or missing Pakistani phone number. Please update customer phone first.');
       return;

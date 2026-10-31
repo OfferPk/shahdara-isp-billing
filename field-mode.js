@@ -115,7 +115,7 @@ import {
   formatQuickCollectWhatsAppReceipt,
   getPakistanLocalDate
 } from './nav-quick-collect.js';
-import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOutstandingCents } from './core.js';
+import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOutstandingCents, whatsappPhoneFor } from './core.js';
 import { receiptChannelPreference, receiptLangPreference } from './receipt-preferences.js';
 import { looseChangeSuggestions, isLooseChangeTender } from './loose-change-credit.js';
 import { t } from './nav-language.js';
@@ -366,10 +366,12 @@ export function collectFieldModePayment(state, entry, method, referenceDate = ne
     fieldModeFullPaymentArgs(entry, method, today),
     referenceDate
   );
+  // SISP-118: the WA Receipt draft targets the customer's WhatsApp
+  // number when one is recorded (the seam falls back to primary phone).
   // SISP-91: the WhatsApp draft renders in the customer's saved receipt
   // language when one is set (the preference wins over the default).
   const customer = nextState.customers.find(c => c.id === entry.id);
-  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { lang: receiptLangPreference(customer) }) };
+  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { whatsappPhone: customer ? whatsappPhoneFor(customer) : '', lang: receiptLangPreference(customer) }) };
 }
 
 /**
@@ -570,9 +572,10 @@ export function collectFieldModeAdvance(state, entry, { amount, method, targetMo
     },
     referenceDate
   );
+  // SISP-118: same WhatsApp-number preference as the full-payment path.
   // SISP-91: same saved-language rule as the full-payment path above.
   const customer = nextState.customers.find(c => c.id === entry.id);
-  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { lang: receiptLangPreference(customer) }) };
+  return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { whatsappPhone: customer ? whatsappPhoneFor(customer) : '', lang: receiptLangPreference(customer) }) };
 }
 
 /** 'November 2026'-style label for a 'YYYY-MM' key (sheet convention). */

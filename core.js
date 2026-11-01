@@ -44,6 +44,7 @@ import { sanitizeExpenseBudgets } from './expense-budget-caps.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { normalizeOccupancyFields, sanitizeResidenceType, sanitizeLandlordOrGuarantorName, sanitizeLandlordPhone } from './occupancy-guarantor.js';
 import { sanitizeRoundingTag } from './bill-rounding-helper.js';
 import { sanitizeDisconnectDetails, sanitizeDisconnectHistory, sanitizeDisconnectDateTime, DISCONNECT_HISTORY_LIMIT } from './churn-winback.js';
 import { sanitizeSignalReadings } from './signal-history.js';
@@ -165,6 +166,7 @@ export function readState(storage, key = STORAGE_KEY) {
       }
     }
     used.add(customerNumber);
+    const occupancyFields = normalizeOccupancyFields(customer);
     let bills = (Array.isArray(customer.bills) ? customer.bills : []).map(bill => ({ ...bill, dueDate:checkOptionalDate(bill.dueDate ?? null), amountHistory:Array.isArray(bill.amountHistory) ? bill.amountHistory : [] }));
     const monthlySellingAmount = customer.monthlySellingAmount ?? null;
     let monthlyPriceSchedule = Array.isArray(customer.monthlyPriceSchedule) ? customer.monthlyPriceSchedule : [];
@@ -210,6 +212,11 @@ export function readState(storage, key = STORAGE_KEY) {
       mediaConverterOwnership:['isp-owned','customer-owned'].includes(customer.mediaConverterOwnership) ? customer.mediaConverterOwnership : '',
       serialNumber:typeof customer.serialNumber === 'string' ? customer.serialNumber.trim().slice(0, 100) : '',
       securityDeposit:normalizeMoneyOrNull(customer.securityDeposit),
+      // SISP-143: occupancy + guarantor fields — legacy records carry
+      // none and load with all three absent (never invented data).
+      residenceType:occupancyFields.residenceType,
+      landlordOrGuarantorName:occupancyFields.landlordOrGuarantorName,
+      landlordPhone:occupancyFields.landlordPhone,
       // SISP-50: a stamped deposit settlement survives reloads; a
       // malformed record sanitizes to null instead of posing as settled.
       depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
@@ -436,6 +443,13 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const mediaConverterOwnership = checkCustodyOwnership(options.mediaConverterOwnership);
   const serialNumber = cleanText(options.serialNumber, 100, 'Serial / MAC number');
   const securityDeposit = checkCost(options.securityDeposit);
+  // SISP-143: occupancy + guarantor fields (all optional). A junk
+  // residence type coerces to not-recorded instead of blocking the add;
+  // the guarantor texts follow the house cleanText caps (name 100,
+  // phone 40 — the same cap as the customer's own phone).
+  const residenceType = sanitizeResidenceType(options.residenceType);
+  const landlordOrGuarantorName = cleanText(String(options.landlordOrGuarantorName ?? '').replace(/[\r\n\u2028\u2029]+/g, ' '), 100, 'Landlord / guarantor name');
+  const landlordPhone = cleanText(String(options.landlordPhone ?? '').replace(/[\r\n\u2028\u2029]+/g, ' '), 40, 'Landlord / guarantor phone');
   // SISP-24: optical splitter assignment + last RX reading (all optional).
   const splitterBoxId = cleanText(options.splitterBoxId, 100, 'Splitter box');
   const splitterPort = checkSplitterPort(options.splitterPort);
@@ -501,7 +515,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const preferredReceiptChannel = sanitizeReceiptChannel(options.preferredReceiptChannel);
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -614,9 +628,11 @@ export function identitySearchMatches(customer, query) {
 function customerMatchesQuery(customer, query, allocations = null) {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLocaleLowerCase();
   if (!normalized) return true;
-  const phoneValues = [customer.phone, customer.customerPhone];
+  // SISP-143: the guarantor's name and phone are searchable too — a
+  // tenant is often found through the landlord who vouched for them.
+  const phoneValues = [customer.phone, customer.customerPhone, customer.landlordPhone];
   const cnicValues = [customer.cnic, customer.customerCnic];
-  const fields = [customer.name, ...phoneValues, ...cnicValues, customer.address, customer.customerAddress, customer.customerNumber, customer.id]
+  const fields = [customer.name, customer.landlordOrGuarantorName, ...phoneValues, ...cnicValues, customer.address, customer.customerAddress, customer.customerNumber, customer.id]
     .map(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase());
   if (fields.some(value => value.includes(normalized))) return true;
   // SISP-74: global search also matches the network identifiers (PPPoE
@@ -896,6 +912,12 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     mediaConverterOwnership: checkCustodyOwnership(valueOrCurrent('mediaConverterOwnership')),
     serialNumber: cleanText(valueOrCurrent('serialNumber') ?? '', 100, 'Serial / MAC number'),
     securityDeposit: checkCost(valueOrCurrent('securityDeposit')),
+    // SISP-143: occupancy + guarantor fields (optional; a junk residence
+    // type coerces to not-recorded so it can never block an unrelated
+    // profile save; guarantor texts use the house cleanText caps).
+    residenceType: sanitizeResidenceType(valueOrCurrent('residenceType')),
+    landlordOrGuarantorName: cleanText(String(valueOrCurrent('landlordOrGuarantorName') ?? '').replace(/[\r\n\u2028\u2029]+/g, ' '), 100, 'Landlord / guarantor name'),
+    landlordPhone: cleanText(String(valueOrCurrent('landlordPhone') ?? '').replace(/[\r\n\u2028\u2029]+/g, ' '), 40, 'Landlord / guarantor phone'),
     mediaConverterCost: checkCost(valueOrCurrent('mediaConverterCost')),
     linemanInstallFee: checkCost(valueOrCurrent('linemanInstallFee')),
     fiberPerMeterRate: checkCost(valueOrCurrent('fiberPerMeterRate')),    nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
@@ -3413,6 +3435,9 @@ function validateBackupState(source) {
       connectionFee:customer.connectionFee ?? null, routerModel:customer.routerModel ?? '', routerPrice:customer.routerPrice ?? null, fiberMeters:customer.fiberMeters ?? null, mediaConverterCost:customer.mediaConverterCost ?? null, linemanInstallFee:customer.linemanInstallFee ?? null, fiberPerMeterRate:customer.fiberPerMeterRate ?? null,
       // SISP-19: custody fields travel with the customer in JSON backups.
       routerOwnership:customer.routerOwnership ?? '', mediaConverterOwnership:customer.mediaConverterOwnership ?? '', serialNumber:customer.serialNumber ?? '', securityDeposit:customer.securityDeposit ?? null,
+      // SISP-143: occupancy + guarantor fields travel in JSON backups;
+      // junk values sanitize to absent instead of failing the import.
+      residenceType:sanitizeResidenceType(customer.residenceType), landlordOrGuarantorName:sanitizeLandlordOrGuarantorName(customer.landlordOrGuarantorName), landlordPhone:sanitizeLandlordPhone(customer.landlordPhone),
       // SISP-50: the deposit settlement stamp travels in JSON backups.
       depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
       // SISP-138: the last-contact stamp pair travels in JSON backups,
@@ -3854,7 +3879,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-138: the last-contact stamp merges by recency, never as a
     // plain field fill and never as a conflict — contact history only
     // moves forward, so the later stamp (fixed-format strings compare

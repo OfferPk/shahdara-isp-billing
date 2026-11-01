@@ -22,7 +22,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
@@ -32,7 +32,7 @@ import { initHelpGuides, helpButtonMarkup } from './help-guide.js?v=1.11.0';
 
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits, queuedReferralTotalFor } from './referral-credits.js?v=1.11.0';
 import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
-import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, generateReceiptNumber, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml, buildReceiptPaymentReceivedMessage, buildReceiptBillNoticeMessage } from './receipt.js?v=1.11.0';
+import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, generateReceiptNumber, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml, buildReceiptPaymentReceivedMessage, buildReceiptBillNoticeMessage, buildDepositOffsetReceipt, generateDepositOffsetReceiptHtml } from './receipt.js?v=1.11.0';
 import { setupReceiptVerifyModal } from './receipt-verifier.js';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
@@ -259,6 +259,7 @@ import { BAD_DEBTS_KEY, activeBadDebtFor, badDebtSummary, loadBadDebts, restoreB
 import { manualBaqayaCardBadgeMarkup, manualBaqayaStatMarkup, manualBaqayaSectionMarkup, additionalPendingControlsMarkup, totalOutstandingFigures } from './manual-baqaya.js';
 import { UPS_NODES_KEY, activeOutages, checkUpsNodeDepletions, formatClockTime, loadUpsNodes, powerBackupSummary, saveUpsNodes, setupPowerBackupModal } from './power-backup-monitor.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
+import { activeDepositOffsetQuote, applyActiveDepositOffset, depositOffsetEntryOf, reverseActiveDepositOffset } from './deposit-to-bill-offset.js';
 import { normalizeOccupancyFields } from './occupancy-guarantor.js';
 import { buildClearanceNocSlip, clearanceNocPresentation, generateClearanceNocSlipHtml } from './clearance-noc-slip.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
@@ -2884,6 +2885,28 @@ function printDepositSettlementReceipt(customerId) {
   });
 }
 
+// SISP-166: print the Security Deposit Offset Receipt for one recorded
+// active offset. The receipt reads the depositOffsets entry stamped at
+// apply time — it can never be produced for an offset that never
+// happened, and it states on its face that no cash moved.
+function printDepositOffsetReceipt(customerId, offsetId) {
+  const customer = state.customers.find(row => row.id === customerId);
+  const receipt = customer ? buildDepositOffsetReceipt(customer, offsetId) : null;
+  if (!receipt) { toast('No deposit offset is recorded for this customer.'); return; }
+  const area = $('#receiptPrintArea');
+  if (!area) return;
+  area.innerHTML = generateDepositOffsetReceiptHtml(receipt, {
+    businessName: state.settings?.businessName || 'Shahdara ISP',
+    businessPhone: state.settings?.businessPhone || '0300-1234567'
+  });
+  area.hidden = false;
+  document.body.classList.add('printing-receipt');
+  requestAnimationFrame(() => {
+    try { window.print(); }
+    catch { toast('Printing is not available in this browser.'); }
+    finally { clearReceiptPrint(); }
+  });
+}
 // SISP-140: print the Clearance NOC (بے باق سرٹیفکیٹ) into the same
 // print area the receipts use. Eligibility is re-derived from the live
 // ledger at click time — the slip builder returns null when the
@@ -2904,6 +2927,94 @@ function printClearanceNocSlip(customerId) {
     try { window.print(); }
     catch { toast('Printing is not available in this browser.'); }
     finally { clearReceiptPrint(); }
+  });
+}
+
+// SISP-166: the active deposit-offset dialog. One-time listeners; the
+// quote is recomputed from a FRESH allocation snapshot when the dialog
+// opens AND again when Apply is clicked, so a stale screen can never
+// offset stale dues (the SISP-50 click-time discipline).
+let depositOffsetDialogCustomerId = null;
+
+function depositOffsetSnapshot(customer) {
+  const allocations = calculatePaymentAllocations({ customers: [customer] });
+  let pendingCents = 0;
+  const billBalances = [];
+  for (const bill of customer.bills ?? []) {
+    const summary = allocations.forMonth(customer.id, bill.month);
+    if (summary && typeof summary.balanceDueCents === 'number' && summary.balanceDueCents > 0) {
+      pendingCents += summary.balanceDueCents;
+      billBalances.push({ month: bill.month, balanceDue: summary.balanceDueCents / 100 });
+    }
+  }
+  return { pendingBalance: pendingCents / 100, billBalances };
+}
+
+function refreshDepositOffsetPreview() {
+  const customer = state.customers.find(c => c.id === depositOffsetDialogCustomerId);
+  const preview = $('#depositOffsetPreviewLine');
+  if (!customer || !preview) return;
+  const { pendingBalance } = depositOffsetSnapshot(customer);
+  const quote = activeDepositOffsetQuote(customer, pendingBalance);
+  const amount = Number($('#depositOffsetAmountInput')?.value);
+  const applied = Number.isFinite(amount) && amount > 0 ? Math.min(amount, quote.maxOffset) : 0;
+  preview.textContent = `${t('depoff_deposit_after', null, { amount: formatAmount(quote.securityDeposit - applied) })} · ${t('depoff_due_after', null, { amount: formatAmount(quote.pendingBalance - applied) })}`;
+}
+
+function openDepositOffsetDialog(customerId) {
+  const customer = state.customers.find(c => c.id === customerId);
+  const dialog = $('#depositOffsetModal');
+  if (!customer || !dialog) return;
+  const { pendingBalance } = depositOffsetSnapshot(customer);
+  const quote = activeDepositOffsetQuote(customer, pendingBalance);
+  if (!quote.eligible) {
+    toast(quote.reason === 'no-dues' ? 'This customer has no pending balance to offset.'
+      : quote.reason === 'no-deposit' ? 'No security deposit is recorded for this customer.'
+        : 'This customer cannot use a deposit offset.');
+    return;
+  }
+  depositOffsetDialogCustomerId = customerId;
+  const customerLine = $('#depositOffsetCustomerLine');
+  if (customerLine) customerLine.textContent = t('depoff_dialog_customer', null, { name: customer.name });
+  const figures = $('#depositOffsetFiguresLine');
+  if (figures) figures.textContent = `${t('depoff_deposit', null, { amount: formatAmount(quote.securityDeposit) })}${t('depoff_due', null, { amount: formatAmount(quote.pendingBalance) })}`;
+  const maxLine = $('#depositOffsetMaxLine');
+  if (maxLine) maxLine.textContent = t('depoff_max_label', null, { amount: formatAmount(quote.maxOffset) });
+  const input = $('#depositOffsetAmountInput');
+  if (input) { input.value = quote.maxOffset; input.max = quote.maxOffset; }
+  refreshDepositOffsetPreview();
+  if (dialog.showModal) dialog.showModal(); else dialog.hidden = false;
+}
+
+function closeDepositOffsetDialog() {
+  const dialog = $('#depositOffsetModal');
+  if (!dialog) return;
+  if (dialog.open) dialog.close(); else dialog.hidden = true;
+  depositOffsetDialogCustomerId = null;
+}
+
+function setupDepositOffsetModal() {
+  const dialog = $('#depositOffsetModal');
+  if (!dialog) return;
+  $('#closeDepositOffsetModalBtn')?.addEventListener('click', closeDepositOffsetDialog);
+  $('#depositOffsetCancelBtn')?.addEventListener('click', closeDepositOffsetDialog);
+  $('#depositOffsetAmountInput')?.addEventListener('input', refreshDepositOffsetPreview);
+  $('#depositOffsetConfirmBtn')?.addEventListener('click', () => {
+    try {
+      const customer = state.customers.find(c => c.id === depositOffsetDialogCustomerId);
+      if (!customer) throw new Error('That customer was not found.');
+      const { pendingBalance, billBalances } = depositOffsetSnapshot(customer);
+      const amount = Number($('#depositOffsetAmountInput')?.value);
+      const updated = applyActiveDepositOffset(customer, pendingBalance, { date: getTodayDateString(), amount, billBalances });
+      const idx = state.customers.findIndex(c => c.id === customer.id);
+      if (idx >= 0) state.customers[idx] = updated;
+      try { persistState(state, localStorage); } catch {}
+      const entry = updated.depositOffsets[updated.depositOffsets.length - 1];
+      closeDepositOffsetDialog();
+      renderDetail();
+      renderDashboard();
+      toast(t('depoff_done_toast', null, { amount: formatAmount(entry?.amount ?? amount) }));
+    } catch (err) { toast(err?.message || 'Could not apply the deposit offset.'); }
   });
 }
 
@@ -3714,6 +3825,12 @@ function renderCustomerProfileView(customer) {
   const depositSettlementHtml = !depositPres.visible ? '' : (depositPres.settled
     ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
     : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
+  // SISP-166: active-customer deposit-offset block — the mirror of the
+  // SISP-50 block for customers still connected: visible when an active
+  // customer holds a deposit or has offset history. The pending balance
+  // is the same engine figure the clearance block computed above.
+  const depositOffsetPres = activeDepositOffsetPresentation(customer, depositArrearsCents / 100);
+  const depositOffsetHtml = !depositOffsetPres.visible ? '' : `<section class="profile-custody-section profile-deposit-offset" aria-label="${t('depoff_aria')}"><h4>${escapeHtml(depositOffsetPres.headingLabel)}</h4><p>${escapeHtml(depositOffsetPres.depositLabel)}${escapeHtml(depositOffsetPres.dueLabel)}</p><p class="profile-custody-note">${escapeHtml(depositOffsetPres.noteLabel)}</p>${depositOffsetPres.canOffset ? `<button type="button" class="primary-button" id="profileDepositOffsetBtn">${escapeHtml(depositOffsetPres.actionLabel)}</button>` : ''}${depositOffsetPres.entries.length ? `<h5>${escapeHtml(depositOffsetPres.historyLabel)}</h5><ul class="deposit-offset-entries">${depositOffsetPres.entries.map((entry) => `<li><span>${escapeHtml(entry.lineLabel)}</span> <button type="button" class="secondary-button" data-profile-deposit-offset-receipt="${escapeHtml(entry.id)}">${escapeHtml(entry.receiptLabel)}</button>${entry.reversed ? '' : ` <button type="button" class="secondary-button" data-profile-deposit-offset-reverse="${escapeHtml(entry.id)}">${escapeHtml(entry.reverseLabel)}</button>`}</li>`).join('')}</ul>` : ''}</section>`;
   // SISP-111: cross-customer advance credit transfers — the available
   // figure is the engine's live unapplied credit for this customer
   // (current month, future-reserved credit excluded, exactly the
@@ -3729,7 +3846,7 @@ function renderCustomerProfileView(customer) {
   const occupancyPres = occupancyPresentation(customer);
   const occupancyHtml = !occupancyPres.visible ? '' : `${occupancyPres.residenceLabel || occupancyPres.guarantorName || occupancyPres.guarantorPhone ? `<p>${occupancyPres.residenceLabel ? `${escapeHtml(occupancyPres.residenceLabel)} ` : ''}${occupancyPres.guarantorName || occupancyPres.guarantorPhone ? escapeHtml(t('occ_guarantor_line', null, { name: occupancyPres.guarantorName || t('prof_not_recorded'), phone: occupancyPres.guarantorPhone || t('prof_not_recorded') })) : ''}</p>` : ''}${occupancyPres.risk ? `<p class="occupancy-risk-warning" role="alert">${escapeHtml(occupancyPres.riskLabel)}</p>` : ''}`;
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${occupancyHtml}${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4119,6 +4236,33 @@ function renderCustomerProfileView(customer) {
     });
     depositSection.querySelector('#profileDepositReceiptBtn')?.addEventListener('click', () => {
       printDepositSettlementReceipt(customer.id);
+    });
+  }
+  // SISP-166: wire the active deposit-offset block (open dialog, print
+  // an offset receipt, reverse an offset). Apply/reverse recompute
+  // from a FRESH allocation snapshot at click time, mirroring SISP-50.
+  const depositOffsetSection = $('#customerProfileView').querySelector('.profile-deposit-offset');
+  if (depositOffsetSection) {
+    depositOffsetSection.querySelector('#profileDepositOffsetBtn')?.addEventListener('click', () => openDepositOffsetDialog(customer.id));
+    depositOffsetSection.querySelectorAll('[data-profile-deposit-offset-receipt]').forEach(btn => {
+      btn.addEventListener('click', () => printDepositOffsetReceipt(customer.id, btn.getAttribute('data-profile-deposit-offset-receipt')));
+    });
+    depositOffsetSection.querySelectorAll('[data-profile-deposit-offset-reverse]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const offsetId = btn.getAttribute('data-profile-deposit-offset-reverse');
+        const entry = depositOffsetEntryOf(customer, offsetId);
+        const confirmed = await appConfirm({ tone:'warning', title: t('depoff_reverse_title'), subject: entry ? `${entry.id} · ${formatAmount(entry.amount)}` : offsetId, message: t('depoff_reverse_message'), confirmLabel: t('depoff_reverse_confirm') });
+        if (!confirmed) return;
+        try {
+          const updated = reverseActiveDepositOffset(customer, offsetId, { date: getTodayDateString() });
+          const idx = state.customers.findIndex(c => c.id === customer.id);
+          if (idx >= 0) state.customers[idx] = updated;
+          try { persistState(state, localStorage); } catch {}
+          renderDetail();
+          renderDashboard();
+          toast(t('depoff_reversed_toast'));
+        } catch (err) { toast(err?.message || 'Could not reverse the deposit offset.'); }
+      });
     });
   }
   // SISP-140: wire the Clearance NOC print button. The slip itself is
@@ -13196,6 +13340,9 @@ if (typeof document !== 'undefined') {
     },
     onToast: (msg, opts) => toast(msg, opts)
   });
+  // SISP-166: active deposit-offset dialog (one-time listeners; the
+  // dialog itself is static markup in index.html).
+  setupDepositOffsetModal();
   // SISP-32: pole & landmark directory + zone lineman cheat-sheet.
   poleLandmarkModalController = setupPoleLandmarkModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)

@@ -21269,6 +21269,14 @@
           </div>
         </div>
 
+        <!-- SISP-134: Monthly Expense Budget Caps (bars + editor, populated dynamically) -->
+        <div class="pnl-budget-panel">
+          <h4 class="modal-section-title" style="margin: 0 0 8px 0; font-size: 13px;" data-i18n="ebud_title">Expense Budget Caps</h4>
+          <p class="expense-budget-hint" data-i18n="ebud_hint">Monthly cap per expense category. Alerts are information only — expense entries are never blocked.</p>
+          <div id="pnlBudgetSection"><!-- Populated dynamically --></div>
+          <div id="pnlBudgetEditor"><!-- Populated dynamically --></div>
+        </div>
+
         <!-- Monthly Financial Performance Table -->
         <div class="modal-table-scroll-wrapper" style="margin-top: 16px; max-height: 320px; overflow-y: auto;">
           <table class="data-table pnl-table" style="width: 100%; font-size: 12px;">
@@ -21842,6 +21850,7 @@
         <label for="roznamchaDate">Date</label>
         <input id="roznamchaDate" class="form-input" type="date" aria-label="Roznamcha date">
         <p id="roznamchaSummaryLine" class="roznamcha-summary-line"></p>
+        <div id="roznamchaBudgetAlerts"></div>
         <h3>Cash in</h3>
         <div id="roznamchaInflows" class="roznamcha-inflows"></div>
         <h3>Petty cash out</h3>

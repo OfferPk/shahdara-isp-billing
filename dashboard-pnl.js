@@ -25,6 +25,15 @@ import {
   addMonths,
   EXPENSE_CATEGORIES
 } from './phase3.js';
+import {
+  buildCategoryBudgetStatus,
+  collectBudgetCapsFromEditor,
+  loadExpenseBudgets,
+  renderBudgetEditorHtml,
+  renderBudgetSectionHtml,
+  saveExpenseBudgets
+} from './expense-budget-caps.js';
+import { t } from './nav-language.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 
 export function escapeHtml(str) {
@@ -953,6 +962,10 @@ export function setupPnlModal(getState, { onToast = () => {} } = {}) {
   const categoriesList = document.getElementById('pnlCategoriesList');
   const emptyState = document.getElementById('pnlEmptyState');
 
+  // SISP-134: expense budget caps section + editor hosts.
+  const budgetSection = document.getElementById('pnlBudgetSection');
+  const budgetEditor = document.getElementById('pnlBudgetEditor');
+
   // KPI elements
   const kpiIncome = document.getElementById('pnlKpiIncome');
   const kpiExpenses = document.getElementById('pnlKpiExpenses');
@@ -1046,6 +1059,15 @@ export function setupPnlModal(getState, { onToast = () => {} } = {}) {
           `;
         }).join('');
       }
+    }
+
+    // SISP-134: budget bars for the selected month, derived live from
+    // the same state + the stored caps. Informational only — rendering
+    // never writes anything.
+    if (budgetSection) {
+      budgetSection.innerHTML = renderBudgetSectionHtml(
+        buildCategoryBudgetStatus(state, loadExpenseBudgets(), currentMonth)
+      );
     }
 
     // Render Monthly Table
@@ -1220,9 +1242,27 @@ export function setupPnlModal(getState, { onToast = () => {} } = {}) {
     });
   }
 
+  // SISP-134: the caps editor is rendered on open (and after each save)
+  // only, so an in-progress edit is never wiped by a month/window
+  // re-render of the bars above.
+  function renderBudgetEditor() {
+    if (budgetEditor) budgetEditor.innerHTML = renderBudgetEditorHtml(loadExpenseBudgets());
+  }
+
+  if (budgetEditor) {
+    budgetEditor.addEventListener('click', (e) => {
+      if (!e.target || e.target.id !== 'pnlBudgetSaveBtn') return;
+      saveExpenseBudgets(collectBudgetCapsFromEditor(budgetEditor));
+      renderBudgetEditor();
+      render();
+      onToast(t('ebud_saved_toast'));
+    });
+  }
+
   function open(month) {
     const state = getState();
     populateMonths(state);
+    renderBudgetEditor();
     if (month && typeof month === 'string') {
       currentMonth = month;
       if (monthSelect) monthSelect.value = month;

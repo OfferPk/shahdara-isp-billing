@@ -2127,6 +2127,50 @@ body.field-mode-open { overflow: hidden; }
   font-size: var(--text-md);
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+
+/* SISP-134: Expense Budget Caps (token-only; bars render inside the
+   P&L modal → var(--modal-surface) shell, the callout inside the
+   Roznamcha modal). Fills follow the house status tokens: paid green,
+   pending amber, overdue red. */
+.pnl-budget-panel { margin-top: var(--space-4); }
+.expense-budget-hint { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.expense-budget-empty { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.expense-budget-row { padding: var(--space-2) 0; border-bottom: 1px solid var(--line); }
+.expense-budget-row-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-1) var(--space-3); }
+.expense-budget-name { font-weight: 700; color: var(--ink); font-size: var(--text-sm); }
+.expense-budget-figures { color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
+.expense-budget-track { height: 8px; margin-top: var(--space-1); border-radius: var(--radius-pill); background: var(--line); overflow: hidden; }
+.expense-budget-fill { height: 100%; border-radius: var(--radius-pill); }
+.expense-budget-fill--ok { background: var(--color-paid); }
+.expense-budget-fill--warn { background: var(--amber); }
+.expense-budget-fill--over { background: var(--color-overdue); }
+.expense-budget-level { display: inline-block; margin-top: var(--space-1); font-size: var(--text-sm); font-weight: 700; }
+.expense-budget-level--ok { color: var(--color-paid); }
+.expense-budget-level--warn { color: var(--amber); }
+.expense-budget-level--over { color: var(--color-overdue); }
+.expense-budget-editor { margin-top: var(--space-3); }
+.expense-budget-editor-title { margin: 0 0 var(--space-1); font-size: var(--text-md); color: var(--ink); }
+.expense-budget-editor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--space-2) var(--space-4); margin-bottom: var(--space-3); }
+.expense-budget-editor-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); font-size: var(--text-sm); color: var(--ink); }
+.expense-budget-editor-input {
+  width: 110px;
+  min-height: 36px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-variant-numeric: var(--numeric);
+}
+.expense-budget-alerts { margin: var(--space-3) 0; padding: var(--space-3); border: 1px solid var(--amber); border-radius: var(--radius-md); background: var(--amber-bg); }
+.expense-budget-alerts-title { margin: 0 0 var(--space-1); font-size: var(--text-md); color: var(--ink); }
+.expense-budget-alert-line { margin: var(--space-1) 0 0; color: var(--ink); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
+@media (max-width: 700px) {
+  .expense-budget-editor-grid { grid-template-columns: 1fr; }
+  .expense-budget-row-head { flex-direction: column; align-items: flex-start; }
+}
+/* /SISP-134 */
 .letterhead-help { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
 .letterhead-controls { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; }
 .letterhead-field { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-sm); color: var(--muted); min-width: 160px; flex: 1 1 160px; }

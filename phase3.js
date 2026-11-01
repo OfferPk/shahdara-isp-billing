@@ -532,6 +532,56 @@ export function buildAreaIntelligence(state,{startDate,endDate},referenceDate=ne
     basis:{customers:'Customer counts use the current saved roster and saved location assignments; historical area/customer snapshots are not available.',activeCustomers:currentRosterStatus?'Current manual Active status, shown as of today; it is not network monitoring.':'Historical area-level active status is unavailable because no dated area/zone status snapshot is stored.',billing:'Positive saved bill snapshots grouped by service month; all bill months touching the selected date range are included in full.',collection:'Actual saved receipts grouped by their payment date within the selected date range.',outstanding:`Reconstructed from saved priced bills due through ${range.endMonth} and receipt dates through ${range.end}; no saved area-level month-close balance snapshot exists.`,collectionRate:'Actual receipt-date collections during the selected date range divided by saved billing for the service months touching that range; may exceed 100%.',averageCustomerValue:'Selected-range saved billing divided by distinct customers with a priced bill in those service months.',expenses:locationExpenses.length?'Only explicit saved area/mohalla/zone expense tags are included; unallocated expenses are not spread across locations.':'No explicitly area/zone-tagged expense entries are recorded in this date range.',profit:'Estimated only when this area/zone has an explicit expense allocation; collection less tagged expenses, with unallocated whole-business expenses excluded.'}};
 }
 
+/** SISP-129: per-zone provisioned bandwidth + revenue-per-Mbps yield, derived
+ *  from the CURRENT roster (bandwidth is a current-state figure; it is never
+ *  date-filtered like the financial rows above). Grouping is the exact same
+ *  locationPath + areaDescriptors derivation buildAreaIntelligence uses, so
+ *  every row id matches an Area Intelligence row id one-for-one and parent
+ *  rows include their child rows (never add parent + child totals).
+ *  "Subscribers" here = customers who are not archived. Speeds come ONLY from
+ *  the injected resolver (the app passes mikrotik-generator's
+ *  resolvePackageSpeedMbps): a customer whose package speed cannot be
+ *  resolved contributes 0 Mbps and is counted in unresolvedSpeedCount —
+ *  a speed is never guessed from a free-text label in this module. Revenue is
+ *  the injected price resolver (the app passes billing-cycle's
+ *  applicablePriceForMonth) summed over the current PKT month — i.e. monthly
+ *  package revenue from recorded rates; FREE connections always contribute
+ *  Rs 0 revenue (they are never billed) while their resolvable speed still
+ *  counts as provisioned. Rounding: provisioned Mbps to 2 decimals, average
+ *  speed to 1 decimal, yield to whole PKR. avgSpeedMbps / yieldPkrPerMbps are
+ *  null (rendered "—") whenever provisioned Mbps is 0, so no Infinity/NaN can
+ *  surface. Groups whose customers are all archived produce no row at all.
+ *  Pure derivation: state is never mutated. */
+export function buildZoneBandwidthYield(state, referenceDate = new Date(), resolvers = {}) {
+  const speedOf = typeof resolvers?.speedMbpsFor === 'function' ? resolvers.speedMbpsFor : () => null;
+  const priceOf = typeof resolvers?.priceForMonth === 'function' ? resolvers.priceForMonth : () => null;
+  const month = pktMonth(referenceDate);
+  const groups = new Map();
+  for (const customer of uniqueCustomerRows(state?.customers ?? [])) {
+    if (!customer || customer.archived === true) continue;
+    const rawSpeed = Number(speedOf(customer));
+    const speed = Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : null;
+    const rawPrice = customer.isFreeConnection === true ? 0 : Number(priceOf(customer, month));
+    const revenueCents = Number.isFinite(rawPrice) && rawPrice > 0 ? cents(rawPrice) : 0;
+    for (const descriptor of areaDescriptors(locationPath(customer))) {
+      let group = groups.get(descriptor.id);
+      if (!group) { group = { ...descriptor, subscribers: 0, provisionedRaw: 0, unresolvedSpeedCount: 0, revenueCents: 0 }; groups.set(descriptor.id, group); }
+      group.subscribers++;
+      if (speed !== null) group.provisionedRaw += speed; else group.unresolvedSpeedCount++;
+      group.revenueCents += revenueCents;
+    }
+  }
+  const rows = [...groups.values()].map(group => {
+    const provisionedMbps = Number(group.provisionedRaw.toFixed(2));
+    const monthlyRevenue = money(group.revenueCents);
+    return { id: group.id, area: group.area, key: group.key, rootArea: group.rootArea, level: group.level, parentArea: group.parentArea, depth: group.depth,
+      subscribers: group.subscribers, provisionedMbps, unresolvedSpeedCount: group.unresolvedSpeedCount, monthlyRevenue,
+      avgSpeedMbps: provisionedMbps > 0 ? Number((group.provisionedRaw / group.subscribers).toFixed(1)) : null,
+      yieldPkrPerMbps: provisionedMbps > 0 ? Math.round(monthlyRevenue / group.provisionedRaw) : null };
+  }).sort((a, b) => a.rootArea?.localeCompare(b.rootArea ?? '') || a.depth - b.depth || a.area.localeCompare(b.area));
+  return { month, rows, byId: new Map(rows.map(row => [row.id, row])) };
+}
+
 /** Group flat area-intelligence rows into one card group per root area for the
  *  narrow-screen card layout. The table's "Zone not set" rows are never cards:
  *  their customer count folds into the parent section as withoutZoneCustomers

@@ -39,6 +39,7 @@ import { buildWelcomeSlipModel, buildWelcomeSlipPreviewHtml, buildWelcomeSlipPri
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
 import { customerHasMonthlyFee, executeQuickCollection, compressPaymentProofImage } from './nav-quick-collect.js';
 import { setupFieldMode, speakCustomerDue } from './field-mode.js?v=1.11.0';
+import { QUICK_UNDO_WINDOW_MS, createQuickUndoController, findCollectedPayment, quickUndoReceiptRef, reverseCollectedPayment } from './quick-undo-toast.js';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.11.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.11.0';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.11.0';
@@ -7944,6 +7945,79 @@ let mobileOtdrDeadzoneModalController = createLazyModalController(() => setupMob
 // Setup Field Optical Fiber Buffer Tube Mid-Span Stripper & Shaving Gauge Assistant
 deferLowPriorityInit(() => setupMobileTubeShavingModal(), { delay: 1500 });
 
+// SISP-141: floating 10-second Undo toast after 1-tap collections
+// (Quick Collect + Field Mode collect). The presenter renders through
+// the app toast system and keeps the countdown label live on the
+// toast's own action button; the reversal runs through the SAME core
+// seam the Quick Collect in-dialog Undo uses (reverseCollectedPayment
+// -> reopen SISP-43 ticket charges -> core deletePayment), and the
+// save mirrors the Quick Collect host save below. Session UI only:
+// nothing about the offer is persisted, so a reload simply lets the
+// payment stand.
+function presentQuickUndoToast({ message, undoLabel, onUndo }) {
+  const handle = toast(message, {
+    type: 'success',
+    title: t('qundo_title'),
+    actionLabel: undoLabel,
+    onAction: onUndo,
+    duration: QUICK_UNDO_WINDOW_MS
+  });
+  let undoBtn = null;
+  try { undoBtn = handle?.element?.querySelector?.('.toast-action-btn') ?? null; } catch { undoBtn = null; }
+  if (undoBtn) undoBtn.classList.add('qundo-undo-btn');
+  return {
+    dismiss: () => { try { handle?.dismiss?.(); } catch { /* noop */ } },
+    setUndoLabel: (text) => {
+      try {
+        // The toast element is shared: once another toast owns it, the
+        // captured button is detached — stop touching it then.
+        if (undoBtn && undoBtn.isConnected && handle?.element?.contains?.(undoBtn)) undoBtn.textContent = text;
+      } catch { /* noop */ }
+    }
+  };
+}
+
+const quickUndoController = createQuickUndoController({
+  present: presentQuickUndoToast,
+  reverse: (entry) => {
+    const result = reverseCollectedPayment({
+      state,
+      tickets: loadTickets(),
+      customerId: entry.customerId,
+      paymentId: entry.paymentId
+    });
+    if (result.nextTickets) saveTickets(result.nextTickets);
+    state = result.nextState;
+    save();
+    renderDetail();
+    renderTransactions();
+    renderMonthlyReport();
+    updateNavigationBadges(state);
+    if (typeof fieldRouteSheetController?.recalculate === 'function') {
+      fieldRouteSheetController.recalculate();
+    }
+  },
+  onReversed: (entry) => {
+    toast(t('qundo_undone', null, { amount: formatPKR(entry.amount), name: entry.customerName }), {
+      type: 'success',
+      title: t('qundo_undone_title')
+    });
+  },
+  onGone: () => { toast(t('qundo_gone'), { type: 'info' }); },
+  onFailure: (entry, err) => { toast(t('qundo_failed', null, { error: err?.message || '' }), { type: 'error' }); }
+});
+
+const offerCollectedUndo = ({ customerId, paymentId, amount, customerName } = {}) => {
+  const found = findCollectedPayment(state, customerId, paymentId);
+  quickUndoController.offer({
+    customerId,
+    paymentId,
+    amount,
+    customerName,
+    receiptRef: found ? quickUndoReceiptRef(found.payment) : ''
+  });
+};
+
 // Setup 2-Tap Quick Collect Mobile Field Flow (agent2 - shahdara-mobile-nav)
 window.quickCollectModalController = setupQuickCollectModal({
   getState: () => state,
@@ -7959,6 +8033,9 @@ window.quickCollectModalController = setupQuickCollectModal({
     }
   },
   onToast: (msg, opts) => toast(msg, opts),
+  // SISP-141: the floating 10s undo toast (presenter above) owns the
+  // post-collection confirmation for this host.
+  onCollected: offerCollectedUndo,
   onSelectCustomer: (customerId) => {
     selectedCustomerId = customerId;
     renderDetail();
@@ -7978,6 +8055,9 @@ window.fieldModeController = setupFieldMode({
     updateNavigationBadges(state);
   },
   onToast: (msg, opts) => toast(msg, opts),
+  // SISP-141: Field Mode 1-tap collects offer the same floating 10s
+  // undo toast as Quick Collect (advance collections never do).
+  onCollected: offerCollectedUndo,
   // SISP-31: 1-tap 58mm slip on field-mode receipt cards, reusing the
   // existing thermal receipt path (same format the profile history buttons use).
   onPrint58mm: (receipt) => printPaymentReceipt(receipt.customerId, receipt.month, receipt.paymentId, { format: 'thermal-58' }),

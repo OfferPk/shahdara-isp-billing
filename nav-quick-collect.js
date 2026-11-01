@@ -1548,7 +1548,8 @@ export function setupQuickCollectModal({
   onSaveState,
   onToast,
   onSelectCustomer,
-  onEditCustomer
+  onEditCustomer,
+  onCollected
 }) {
   const modal = document.getElementById('quickCollectModal');
   if (!modal) {
@@ -2553,7 +2554,10 @@ export function setupQuickCollectModal({
     if (dupWarningCard) dupWarningCard.hidden = true;
     // Closing during the undo window keeps the payment (it is NOT undone).
     // Say so briefly, with no Undo of its own, so there is no doubt it saved.
-    if (pendingUndo && typeof onToast === 'function') {
+    // SISP-141: with a host onCollected, the floating 10s undo toast is
+    // already on screen and stays undoable after this close — posting
+    // "saved" here would contradict it, so it is skipped in that case.
+    if (pendingUndo && typeof onToast === 'function' && typeof onCollected !== 'function') {
       onToast(`Payment of PKR ${pendingUndo.amount.toLocaleString()} for ${pendingUndo.customerName} saved.`, {
         type: 'success',
         title: 'Payment saved',
@@ -3135,7 +3139,22 @@ export function setupQuickCollectModal({
         onSaveState(nextState);
       }
 
-      if (typeof onToast === 'function') {
+      // SISP-141: when the host provides onCollected, the floating
+      // 10-second undo toast is owned by the host-level presenter —
+      // it survives this dialog closing, which this sheet's own toast
+      // cannot promise (its undo context is cleared on close). The
+      // in-dialog Undo button above keeps working either way, through
+      // the same deletePayment seam. Without a host hook, the legacy
+      // 5-second in-toast Undo below is exactly as before.
+      if (typeof onCollected === 'function') {
+        onCollected({
+          customerId: activeCustomerId,
+          month: monthVal,
+          paymentId: receipt.paymentId,
+          amount: amountVal,
+          customerName: receipt.customerName
+        });
+      } else if (typeof onToast === 'function') {
         onToast(`Payment of PKR ${amountVal.toLocaleString()} recorded.`, {
           type: 'success',
           title: 'Payment recorded',

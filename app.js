@@ -217,6 +217,7 @@ import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildFuelEfficiency, fuelEfficiencyCardHtml, normalizeFuelMonth } from './fuel-efficiency-tracker.js';
 import { buildRecentPayments } from './recent-payments.js';
+import { contactBadgeHtml, contactMarkedMessage, stampContactInState } from './contact-cooldown-tracker.js';
 import { ROSTER_PILL_DEFS, buildRosterPillSummary, applyRosterPillFilter, normalizeRosterPill } from './roster-quick-filters.js';
 import { buildAdvanceDashboard } from './advance-dashboard.js';
 import { buildCollectionForecast } from './collection-forecaster.js';
@@ -10799,6 +10800,10 @@ const printReminderSlipBtn = $('#printReminderSlipBtn');
 
 // Reminder Queue Controls
 const reminderQueueBar = $('#reminderQueueBar');
+const reminderHideContactedTodayToggle = $('#reminderHideContactedTodayToggle');
+// SISP-138: every reminder-queue build honours the modal's "Hide
+// contacted today" toggle (view-only state; never persisted).
+const reminderQueueOptions = () => ({ hideContactedToday: reminderHideContactedTodayToggle?.checked === true });
 const reminderQueueBadge = $('#reminderQueueBadge');
 const reminderQueueStagePill = $('#reminderQueueStagePill');
 const reminderQueuePrevBtn = $('#reminderQueuePrevBtn');
@@ -10935,11 +10940,17 @@ function renderReminderContent() {
   }
   updateReminderCharCount();
 
+  // SISP-138: cooldown badge reads the LIVE record — a stamp written
+  // moments ago must show even when a queue item holds an older copy.
+  const liveReminderCustomer = (state.customers || []).find(x => x.id === c.id) || c;
+  const reminderContactBadge = contactBadgeHtml(liveReminderCustomer, new Date());
+
   if (reminderCustomerSummary) {
     reminderCustomerSummary.innerHTML = `
       <div class="reminder-cust-left">
         <span class="reminder-cust-name">${escapeHtml(c.name)} (#${c.customerNumber})</span>
         <span class="reminder-cust-sub">${escapeHtml(c.area || c.mohalla || 'Area unassigned')} · Phone: ${escapeHtml(c.phone || 'Not recorded')}${customerVisitWindow(c) !== 'anytime' ? ` · 🕐 ${escapeHtml(t(VISIT_WINDOW_LABEL_KEYS[customerVisitWindow(c)]))}` : ''}</span>
+        ${reminderContactBadge ? `<span class="reminder-contact-badge-row">${reminderContactBadge}</span>` : ''}
       </div>
       <div class="reminder-cust-right">
         <span class="reminder-due-tag">Total Balance</span>
@@ -11151,6 +11162,27 @@ if (reminderQueueSkipBtn) {
   });
 }
 
+// SISP-138: flipping "Hide contacted today" while the modal is open
+// rebuilds the working queue from live state, so the list, the queue
+// badge and navigation all agree with the toggle.
+if (reminderHideContactedTodayToggle) {
+  reminderHideContactedTodayToggle.addEventListener('change', () => {
+    if (!reminderModal || !reminderModal.open) return;
+    const res = getRemindersTodayQueue(state, reminderQueueOptions());
+    if (!res.queue || res.queue.length === 0) {
+      openPaymentReminderModal(null, {
+        isEmptyQueue: true,
+        overdueCount: res.overdueCustomersCount
+      });
+      return;
+    }
+    openPaymentReminderModal(res.queue[0].customer, {
+      queue: res.queue,
+      index: 0
+    });
+  });
+}
+
 // Inline Promise-to-Pay Toggle & Save
 if (reminderRecordPromiseToggleBtn && reminderInlinePromiseFieldset) {
   reminderRecordPromiseToggleBtn.addEventListener('click', () => {
@@ -11219,9 +11251,34 @@ if (sendWhatsAppReminderBtn) {
 
     renderReminderCustomerHistory(currentReminderCustomer.id);
     window.open(wa.url, '_blank', 'noopener,noreferrer');
+    // SISP-138: the dispatch tap IS the contact — stamp the record so
+    // the cooldown badge and the Hide-contacted filter see it. The
+    // invalid-phone path above returns early and never stamps.
+    state = stampContactInState(state, currentReminderCustomer.id, 'whatsapp', new Date());
+    save();
+    const stampedCustomer = state.customers.find(c => c.id === currentReminderCustomer.id);
+    if (stampedCustomer) currentReminderCustomer = stampedCustomer;
+    renderReminderContent();
     toast(`Opening WhatsApp for ${wa.formattedPhone}...`);
   });
 }
+
+// SISP-138: explicit Mark-contacted row in the reminder modal — the
+// honest route for channels with no digital dispatch tap (a phone call,
+// an SMS sent from the phone, a physical visit). Stamps the pair on the
+// customer record through the same state path as the WhatsApp dispatch.
+document.querySelectorAll('.reminder-contact-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (!currentReminderCustomer) return;
+    const channel = btn.getAttribute('data-contact-channel') || '';
+    state = stampContactInState(state, currentReminderCustomer.id, channel, new Date());
+    save();
+    const stampedCustomer = state.customers.find(c => c.id === currentReminderCustomer.id);
+    if (stampedCustomer) currentReminderCustomer = stampedCustomer;
+    renderReminderContent();
+    toast(contactMarkedMessage(channel));
+  });
+});
 
 if (copyReminderTextBtn) {
   copyReminderTextBtn.addEventListener('click', async () => {
@@ -11466,7 +11523,7 @@ if (wadaListContainer) {
 if (openRemindersFromWadaBtn) {
   openRemindersFromWadaBtn.addEventListener('click', () => {
     closeWadaFollowupModal();
-    const queueData = getRemindersTodayQueue(state);
+    const queueData = getRemindersTodayQueue(state, reminderQueueOptions());
     if (!queueData.queue || queueData.queue.length === 0) {
       openPaymentReminderModal(null, {
         isEmptyQueue: true,
@@ -12197,7 +12254,8 @@ if (typeof document !== 'undefined') {
       switchView('customers');
     },
     onToast: (msg, opts) => toast(msg, opts),
-    onWaadaChange: () => { try { persistState(state, localStorage); } catch {} }
+    onWaadaChange: () => { try { persistState(state, localStorage); } catch {} },
+    onContactStamp: () => { try { persistState(state, localStorage); } catch {} }
   });
   zoneSheetDialogController = setupZoneSheetDialog(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
@@ -13710,7 +13768,8 @@ if (typeof document !== 'undefined') {
         switchView('customers');
       },
       onToast: (msg, opts) => toast(msg, opts),
-      onWaadaChange: () => { try { persistState(state, localStorage); } catch {} }
+      onWaadaChange: () => { try { persistState(state, localStorage); } catch {} },
+      onContactStamp: () => { try { persistState(state, localStorage); } catch {} }
     });
   }
 
@@ -13912,7 +13971,7 @@ if (typeof document !== 'undefined') {
     mobileMoreRemindersQueueBtn.addEventListener('click', () => {
       const moreMenu = $('#mobileMoreMenu');
       if (moreMenu) moreMenu.hidden = true;
-      const res = getRemindersTodayQueue(state);
+      const res = getRemindersTodayQueue(state, reminderQueueOptions());
       if (!res.queue || res.queue.length === 0) {
         openPaymentReminderModal(null, {
           isEmptyQueue: true,

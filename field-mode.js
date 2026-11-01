@@ -140,7 +140,7 @@ import { receiptChannelPreference, receiptLangPreference } from './receipt-prefe
 import { looseChangeSuggestions, isLooseChangeTender } from './loose-change-credit.js';
 import { t } from './nav-language.js';
 import { advanceBalanceCents, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
-import { canonicalLocation } from './phase3.js';
+import { canonicalLocation, canonicalMohalla } from './phase3.js';
 import { paymentDayHabit, habitCoversDay, filterLikelyToPayEntries } from './payment-day-advisor.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
@@ -359,6 +359,68 @@ export function fieldModeCollectedToday(state, zoneKey, todayStr) {
   let cash = 0;
   for (const customer of state?.customers ?? []) {
     if (zoneKey !== FIELD_MODE_ALL_ZONES && fieldModeZoneOf(customer).key !== zoneKey) continue;
+    let paidToday = false;
+    for (const bill of customer?.bills ?? []) {
+      for (const payment of bill?.payments ?? []) {
+        if (payment?.date === todayStr) {
+          paidToday = true;
+          cash += Number(payment?.amount) || 0;
+        }
+      }
+    }
+    if (paidToday) houses.add(customer.id);
+  }
+  return { houses: houses.size, cash: Math.round(cash * 100) / 100 };
+}
+
+/**
+ * SISP-175: the Mohalla-card grouping rule, shared verbatim with the
+ * dashboard cards (customer-search-filter.js buildMohallaUserCounts):
+ * canonicalMohalla over (mohalla || area), so spelling variants such as
+ * "Bani", "BANII" and "MOHALLA BANI" are ONE mohalla. This is deliberately
+ * NOT the field-mode zone rule above: fieldModeZoneOf prefers `area` over
+ * `mohalla` and canonicalizes with canonicalLocation (no prefix stripping,
+ * no alias folding), so one mohalla can legitimately span several zone
+ * chips. The mohalla filter below is the dashboard card's own scope — it
+ * answers "show me exactly this card's customers" without redefining
+ * zones. The live customer record wins over the entry's snapshot fields,
+ * exactly like groupFieldModeZones resolves zones.
+ */
+export function fieldModeEntryMohalla(entry, customer) {
+  const source = customer ?? entry ?? {};
+  return canonicalMohalla(source.mohalla || source.area || '');
+}
+
+/**
+ * SISP-175: entries belonging to one mohalla under the card rule.
+ * `mohalla` is any spelling of the mohalla (the card's stored value is
+ * the normal input); a blank/unresolvable mohalla matches nothing.
+ * `customers` may be an array or an id->customer Map.
+ */
+export function filterFieldModeEntriesByMohalla(entries, customers, mohalla) {
+  const target = canonicalMohalla(mohalla ?? '');
+  const list = Array.isArray(entries) ? entries : [];
+  if (!target) return [];
+  const byId = customers instanceof Map
+    ? customers
+    : new Map((Array.isArray(customers) ? customers : []).map(c => [c.id, c]));
+  return list.filter(entry => fieldModeEntryMohalla(entry, byId.get(entry.id))?.key === target.key);
+}
+
+/**
+ * SISP-175: fieldModeCollectedToday under the mohalla-card scope — same
+ * live derivation (payments dated todayStr, archived included: money
+ * collected today was collected today), but the customer set is the
+ * card's population (canonicalMohalla over mohalla || area) instead of
+ * a field-mode zone.
+ */
+export function fieldModeCollectedTodayForMohalla(state, mohalla, todayStr) {
+  const target = canonicalMohalla(mohalla ?? '');
+  const houses = new Set();
+  let cash = 0;
+  if (!target) return { houses: 0, cash: 0 };
+  for (const customer of state?.customers ?? []) {
+    if (fieldModeEntryMohalla(null, customer)?.key !== target.key) continue;
     let paidToday = false;
     for (const bill of customer?.bills ?? []) {
       for (const payment of bill?.payments ?? []) {
@@ -665,6 +727,7 @@ export function clearFieldModeWaada(customer) {
 function nullFieldModeController() {
   return {
     open: () => {},
+    openForMohalla: () => {},
     close: () => {},
     toggle: () => {},
     isOpen: () => false,
@@ -690,7 +753,11 @@ function nullFieldModeController() {
  *     PNG receipt for a just-collected receipt via the EXISTING SISP-6
  *     path (downloadPngReceipt). When absent, the PNG Receipt button is
  *     not rendered at all (never a dead button).
- * Returns { open, close, toggle, isOpen, refresh }.
+ * Returns { open, openForMohalla, close, toggle, isOpen, refresh }.
+ * openForMohalla(mohalla) is the SISP-175 dashboard-card seam: it opens
+ * field mode scoped to exactly one Mohalla card's population (the card
+ * rule — canonicalMohalla over mohalla || area), so the 🏍️ Field Collect
+ * button on a card lands on that mohalla's dues list.
  */
 
 /** SISP-41: receipt-card action buttons, in card order. Pure and DOM-free: a
@@ -735,6 +802,12 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let openedViaHash = false;
   let query = '';
   let zoneKey = FIELD_MODE_ALL_ZONES;
+  // SISP-175: dashboard-card scope (a canonicalMohalla result) set only
+  // by openForMohalla. Manual control always wins: typing a search (the
+  // SEARCH FIX made search global) or tapping a zone chip clears it, as
+  // do close() and a plain toggle-open — a stale card scope must never
+  // silently hide customers on the next visit.
+  let mohallaFilter = null;
   // SISP-133: preferred-visit-window shift filter + "Now match" sort.
   // Display state only — filtering/sorting never writes a record.
   let shiftKey = 'all';
@@ -780,10 +853,15 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   // SEARCH FIX: with a query active, the list base switches to the
   // search results across ALL customers (paid ones included); with no
   // query it is exactly the dues list above.
+  // SISP-175: a dashboard-card scope (mohallaFilter) narrows whichever
+  // base is active to that card's population, under the card rule.
   const activeEntries = () => {
     const state = typeof getState === 'function' ? getState() : null;
     if (!state) return [];
-    return searching() ? searchFieldModeEntries(state, query) : duesEntries();
+    const base = searching() ? searchFieldModeEntries(state, query) : duesEntries();
+    return mohallaFilter
+      ? filterFieldModeEntriesByMohalla(base, state.customers ?? [], mohallaFilter.stored)
+      : base;
   };
 
   const liveCustomer = (id) => {
@@ -797,8 +875,11 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     // search matches while searching — so the chips/target line never
     // claim "0 customers" when a search has in fact found the customer.
     const allSummary = fieldModeZoneSummary(baseEntries);
+    // SISP-175: under a dashboard-card scope the "all" chip means the
+    // whole mohalla, not the whole map — label it honestly.
+    const allChipLabel = mohallaFilter ? `All of ${escapeHtml(mohallaFilter.label)}` : 'All areas';
     const chips = [
-      `<button type="button" class="field-mode-zone-chip${zoneKey === FIELD_MODE_ALL_ZONES ? ' is-active' : ''}" data-field-zone="${FIELD_MODE_ALL_ZONES}" aria-pressed="${zoneKey === FIELD_MODE_ALL_ZONES}">All areas · ${allSummary.count}</button>`
+      `<button type="button" class="field-mode-zone-chip${zoneKey === FIELD_MODE_ALL_ZONES ? ' is-active' : ''}" data-field-zone="${FIELD_MODE_ALL_ZONES}" aria-pressed="${zoneKey === FIELD_MODE_ALL_ZONES}">${allChipLabel} · ${allSummary.count}</button>`
     ];
     for (const group of groups) {
       const active = zoneKey === group.key;
@@ -816,7 +897,13 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         : 'All areas';
       const collected = fieldModeCollectedToday(state, zoneKey, todayStr());
       const collectedLine = `<span class="field-mode-collected-pill">Collected Today in ${escapeHtml(collectedLabel)}: ${collected.houses} houses · ${escapeHtml(formatPKR(collected.cash))}</span>`;
-      if (zoneKey !== FIELD_MODE_ALL_ZONES) {
+      if (mohallaFilter && zoneKey === FIELD_MODE_ALL_ZONES) {
+        // SISP-175: the target line names the card's mohalla and its
+        // collected-today pill is scoped to the same population.
+        const mohallaCollected = fieldModeCollectedTodayForMohalla(state, mohallaFilter.stored, todayStr());
+        const mohallaCollectedLine = `<span class="field-mode-collected-pill">Collected Today in ${escapeHtml(mohallaFilter.label)}: ${mohallaCollected.houses} houses · ${escapeHtml(formatPKR(mohallaCollected.cash))}</span>`;
+        zoneTargetEl.innerHTML = `${escapeHtml(mohallaFilter.label)}: ${allSummary.count} customers · ${escapeHtml(formatPKR(allSummary.totalDues))} remaining to collect${mohallaCollectedLine}`;
+      } else if (zoneKey !== FIELD_MODE_ALL_ZONES) {
         const group = groups.find(g => g.key === zoneKey);
         const summary = group ? fieldModeZoneSummary(group.entries) : { count: 0, totalDues: 0 };
         zoneTargetEl.innerHTML = group
@@ -1458,9 +1545,33 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     if (searchInput) searchInput.focus();
   }
 
+  /**
+   * SISP-175: the dashboard Mohalla card's 🏍️ Field Collect entry point.
+   * Scopes the list to the card's population (canonicalMohalla over
+   * mohalla || area — the card rule) and opens. Any spelling of the
+   * mohalla resolves; a blank/unresolvable value degrades to a plain
+   * open rather than an empty scope. The scope is session-only state —
+   * nothing is persisted.
+   */
+  function openForMohalla(mohalla) {
+    const target = canonicalMohalla(mohalla ?? '');
+    if (!target) {
+      open(false);
+      return;
+    }
+    mohallaFilter = target;
+    zoneKey = FIELD_MODE_ALL_ZONES;
+    query = '';
+    if (searchInput) searchInput.value = '';
+    resetSelection();
+    if (isOpen) render();
+    else open(false);
+  }
+
   function close() {
     if (!isOpen) return;
     isOpen = false;
+    mohallaFilter = null;
     nearbyHints = [];
     view.hidden = true;
     document.body.classList.remove('field-mode-open');
@@ -1476,7 +1587,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
 
   function toggle() {
     if (isOpen) close();
-    else open(false);
+    else {
+      mohallaFilter = null;
+      open(false);
+    }
   }
 
   toggleBtn.addEventListener('click', toggle);
@@ -1492,6 +1606,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   if (searchInput) {
     searchInput.addEventListener('input', () => {
       query = searchInput.value;
+      // SISP-175: search is global (SEARCH FIX) — typing ends the
+      // dashboard-card scope rather than searching inside it.
+      mohallaFilter = null;
       resetSelection();
       render();
     });
@@ -1522,6 +1639,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const chip = event.target.closest?.('[data-field-zone]');
       if (!chip) return;
       zoneKey = chip.getAttribute('data-field-zone') || FIELD_MODE_ALL_ZONES;
+      // SISP-175: a manual zone choice replaces the dashboard-card
+      // scope — except the scope's own "all" chip, which is zone 'all'
+      // already and simply re-renders the mohalla view.
+      if (zoneKey !== FIELD_MODE_ALL_ZONES) mohallaFilter = null;
       resetSelection();
       render();
     });
@@ -1675,5 +1796,5 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     if (isFieldModeHash(window.location.hash)) open(true);
   }
 
-  return { open, close, toggle, isOpen: () => isOpen, refresh: render };
+  return { open, openForMohalla, close, toggle, isOpen: () => isOpen, refresh: render };
 }

@@ -2169,6 +2169,20 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-137: Installation Quality Gate dialog (token-only; the dialog itself
+   uses the shared .billing-modal shell → var(--modal-surface), and its status
+   pills reuse .safety-badge variants). Rows stack full-width so nothing can
+   overflow at 390px. */
+.install-gate-customer { margin: 0 0 var(--space-2); font-weight: 700; color: var(--ink); font-size: var(--text-md); overflow-wrap: anywhere; }
+.install-gate-intro { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.install-gate-summary { margin: 0 0 var(--space-3); font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+.install-gate-rows { display: flex; flex-direction: column; gap: var(--space-2); }
+.install-gate-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.install-gate-row-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.install-gate-row-label { font-weight: 700; color: var(--ink); font-size: var(--text-sm); }
+.install-gate-row-detail { color: var(--muted); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.install-gate-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--text-sm); }
+.install-gate-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-4); }
 /* SISP-136: roster 1-tap financial/status filter pills (token-only).
    The bar scrolls horizontally on phones so the page itself never
    overflows; each pill keeps its label, count and PKR total on one

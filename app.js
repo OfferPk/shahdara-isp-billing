@@ -230,6 +230,7 @@ import { SPLICE_CLOSURES_KEY, loadSpliceClosures, saveSpliceClosures, setupSplic
 import { channelActionMarkup, setupPaymentMethodReassignModal } from './payment-method-reassign.js';
 import { setupQrScannerModal } from './qr-scanner.js';
 import './bulk-customer-import.js'; // SISP-53: self-wiring Excel/CSV import wizard (dialog lives in index.html).
+import './bulk-onboarding-grid.js'; // SISP-172: self-wiring private roster import + bulk setup grid (dialog lives in index.html).
 import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildFuelEfficiency, fuelEfficiencyCardHtml, normalizeFuelMonth } from './fuel-efficiency-tracker.js';

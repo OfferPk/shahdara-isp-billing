@@ -36,6 +36,7 @@ import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isFeederHost, sanitizeFeederHostCreditPKR } from './feeder-host-credit.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
+import { sanitizeSeasonalFields, seasonalPriceFor, validateSeasonalFields } from './seasonal-downgrade.js';
 import { sanitizeDoNotSuspendUntil, sanitizeDoNotSuspendReason } from './suspension-shield.js';
 import { sanitizePreferredVisitWindow } from './visit-time-window.js';
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
@@ -181,6 +182,9 @@ export function readState(storage, key = STORAGE_KEY) {
     used.add(customerNumber);
     const occupancyFields = normalizeOccupancyFields(customer);
     let bills = (Array.isArray(customer.bills) ? customer.bills : []).map(bill => ({ ...bill, dueDate:checkOptionalDate(bill.dueDate ?? null), amountHistory:Array.isArray(bill.amountHistory) ? bill.amountHistory : [] }));
+    // SISP-153: seasonal keep-alive triple — all-or-nothing sanitize,
+    // so a partial or corrupt triple loads as no seasonal rate at all.
+    const seasonalFields = sanitizeSeasonalFields(customer);
     const monthlySellingAmount = customer.monthlySellingAmount ?? null;
     let monthlyPriceSchedule = Array.isArray(customer.monthlyPriceSchedule) ? customer.monthlyPriceSchedule : [];
     if (monthlySellingAmount !== null && monthlySellingAmount !== undefined && monthlySellingAmount !== '' && monthlyPriceSchedule.length === 0) {
@@ -290,6 +294,10 @@ export function readState(storage, key = STORAGE_KEY) {
       pauseStartDate:validDateOrNull(customer.pauseStartDate),
       autoResumeDate:validDateOrNull(customer.autoResumeDate),
       pauseSkippedMonths:Array.isArray(customer.pauseSkippedMonths) ? [...new Set(customer.pauseSkippedMonths.filter((month) => validMonthString(month)))].sort() : [],
+      // SISP-153: seasonal keep-alive triple (nulls when unset/inert).
+      seasonalRatePKR:seasonalFields.seasonalRatePKR,
+      seasonalUntilMonth:seasonalFields.seasonalUntilMonth,
+      restorePackageRatePKR:seasonalFields.restorePackageRatePKR,
       // SISP-148: do-not-suspend shield — corrupt values fall back to
       // "no shield", so old saves load exactly as before.
       doNotSuspendUntil:sanitizeDoNotSuspendUntil(customer.doNotSuspendUntil),
@@ -382,10 +390,20 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
         }
         continue;
       }
-      const applicable = schedule.filter(entry => typeof entry.effectiveMonth === 'string' && entry.effectiveMonth <= month).sort((a,b) => a.effectiveMonth.localeCompare(b.effectiveMonth)).at(-1);
-      const amount = applicable?.amount;
-      if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) continue;
-      const snapshot = Number(amount);
+      // SISP-153: a valid seasonal keep-alive triple prices a NEW bill
+      // directly — the same helper the price seam (applicablePriceForMonth)
+      // consults, so a generated bill can never disagree with the cycle
+      // planner. Existing bills are skipped above and never repriced.
+      const seasonalAmount = seasonalPriceFor(customer, month);
+      let snapshot;
+      if (seasonalAmount !== null) {
+        snapshot = seasonalAmount;
+      } else {
+        const applicable = schedule.filter(entry => typeof entry.effectiveMonth === 'string' && entry.effectiveMonth <= month).sort((a,b) => a.effectiveMonth.localeCompare(b.effectiveMonth)).at(-1);
+        const amount = applicable?.amount;
+        if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) continue;
+        snapshot = Number(amount);
+      }
       generated.push({ id:makeId(), month, dueAmount:snapshot, dueDate:`${month}-05`, status:'pending', payments:[], generated:true, priceSnapshot:snapshot, createdAt:localDateTimeValue(referenceDate), amountHistory:[] });
       existingMonths.add(month);
     }
@@ -536,7 +554,10 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const preferredReceiptChannel = sanitizeReceiptChannel(options.preferredReceiptChannel);
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  // SISP-153: a new record starts with no seasonal rate unless the
+  // caller passes a complete valid triple (sanitized all-or-nothing).
+  const seasonalFields = sanitizeSeasonalFields(options);
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -889,6 +910,22 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     return cleaned;
   };
   const mohallaRaw = cleanText(valueOrCurrent('mohalla') ?? '', 100, 'Mohalla');
+  // SISP-153: seasonal keep-alive triple. When the caller passes any
+  // seasonal field, the merged (form-or-current) values must form a
+  // complete valid triple or a clear (both window fields empty) — a
+  // half-set rule is a form error, never a silently-dropped save.
+  // Saves that never touch the seasonal fields keep the sanitized
+  // stored triple as-is.
+  const seasonalMerged = {
+    seasonalRatePKR: valueOrCurrent('seasonalRatePKR'),
+    seasonalUntilMonth: valueOrCurrent('seasonalUntilMonth'),
+    restorePackageRatePKR: valueOrCurrent('restorePackageRatePKR')
+  };
+  if (['seasonalRatePKR', 'seasonalUntilMonth', 'restorePackageRatePKR'].some(key => Object.hasOwn(values, key))) {
+    const seasonalError = validateSeasonalFields(seasonalMerged);
+    if (seasonalError) throw new Error(seasonalError);
+  }
+  const seasonalFields = sanitizeSeasonalFields(seasonalMerged);
   const fields = {
     mohalla: canonicalMohalla(mohallaRaw)?.stored ?? mohallaRaw,
     zone: cleanText(valueOrCurrent('zone') ?? '', 100, 'Zone'),
@@ -980,7 +1017,12 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     // than blocking an unrelated profile save. Clearing the form's
     // date/reason therefore clears the shield.
     doNotSuspendUntil: sanitizeDoNotSuspendUntil(valueOrCurrent('doNotSuspendUntil')),
-    doNotSuspendReason: sanitizeDoNotSuspendReason(valueOrCurrent('doNotSuspendReason'))
+    doNotSuspendReason: sanitizeDoNotSuspendReason(valueOrCurrent('doNotSuspendReason')),
+    // SISP-153: seasonal keep-alive triple (all-or-nothing, computed
+    // above; never a package change — no history entry, no schedule edit).
+    seasonalRatePKR: seasonalFields.seasonalRatePKR,
+    seasonalUntilMonth: seasonalFields.seasonalUntilMonth,
+    restorePackageRatePKR: seasonalFields.restorePackageRatePKR
   };
   // SISP-91: a save that SETS an explicit receipt channel rewrites the
   // SISP-76 prefersSms flag from it ('sms' -> true, any other channel
@@ -3333,6 +3375,9 @@ function validateBackupState(source) {
     if (customer.addedOn !== null && customer.addedOn !== undefined && customer.addedOn !== '') checkOptionalDate(customer.addedOn, 'Customer added date');
     for (const field of ['connectionDate','expiryDate','cancellationDate']) if (customer[field] !== null && customer[field] !== undefined && customer[field] !== '') checkOptionalDate(customer[field], `${field} date`);
     const schedule = customer.monthlyPriceSchedule ?? [];
+    // SISP-153: seasonal keep-alive triple — sanitized all-or-nothing
+    // on import, so a partial triple in a backup imports as none.
+    const seasonalFields = sanitizeSeasonalFields(customer);
     const packageHistory = customer.packageHistory ?? [];
     const sourceBills = customer.bills ?? [];
     const sourceIncidents = customer.incidents ?? [];
@@ -3494,6 +3539,10 @@ function validateBackupState(source) {
       // SISP-94: router credential vault fields travel with the customer in JSON backups.
       wifiSsid:customer.wifiSsid ?? '', wifiPassword:customer.wifiPassword ?? '', routerAdminPort:customer.routerAdminPort ?? null, routerAdminPassword:customer.routerAdminPassword ?? '',
       packageHistory, relocationLog, bills, incidents,
+      // SISP-153: the seasonal keep-alive triple travels with the
+      // customer in JSON backups (old backups import as no triple).
+      seasonalRatePKR: seasonalFields.seasonalRatePKR, seasonalUntilMonth: seasonalFields.seasonalUntilMonth, restorePackageRatePKR: seasonalFields.restorePackageRatePKR,
+      // SISP-4: installment plans travel with the customer; old backups
       // OWNER-SIGNAL: the signal reading history travels with the
       // customer, sanitized to the same shape readState produces.
       signalReadings: sanitizeSignalReadings(customer.signalReadings),      // SISP-4: installment plans travel with the customer; old backups
@@ -3937,7 +3986,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone','seasonalRatePKR','seasonalUntilMonth','restorePackageRatePKR']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-138: the last-contact stamp merges by recency, never as a
     // plain field fill and never as a conflict — contact history only
     // moves forward, so the later stamp (fixed-format strings compare

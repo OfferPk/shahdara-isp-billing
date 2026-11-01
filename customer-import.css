@@ -95,3 +95,29 @@
 [data-theme="dark"] .ci-footer { background: var(--surface, #14241f); box-shadow: 0 24px 0 0 var(--surface, #14241f); }
 [data-theme="dark"] .ci-status, [data-theme="dark"] .ci-form-link { background: #16362d; color: #a7e6cc; }
 [data-theme="dark"] .ci-status[data-kind="error"] { background: #3a1513; color: #ffb4ab; }
+
+/* SISP-172: Bulk Setup grid + private roster import (bulk-onboarding-grid.js).
+   Theme tokens only (with light fallbacks, like the ci- styles above), so
+   the dialog follows dark mode through the shared modal surface. */
+.bog-file { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+#bulkSetupModal.bulk-setup-modal { width: min(760px, calc(100vw - 16px)); max-width: none; max-height: calc(100dvh - 24px); padding: 0; }
+.bog-hint { margin: 0 0 10px; font-size: 0.85rem; color: var(--muted, #586e65); }
+.bog-mohalla-select { width: 100%; min-height: 44px; margin: 2px 0 8px; padding: 0 10px; box-sizing: border-box; font-size: 16px; color: var(--ink, #172e29); border: 1px solid var(--line, #cbd5e1); border-radius: 9px; background: var(--surface, #fff); }
+.bog-count { margin: 0 0 8px; font-size: 0.9rem; font-weight: 700; color: var(--ink, #172e29); }
+.bog-rows { list-style: none; margin: 0; padding: 2px; display: grid; gap: 8px; max-height: min(52vh, 520px); overflow-y: auto; overflow-x: hidden; }
+.bog-row { display: grid; gap: 6px; padding: 10px; min-width: 0; border: 1px solid var(--line, #dce6e1); border-radius: 12px; background: var(--surface, #fff); color: var(--ink, #172e29); }
+.bog-row-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.bog-mohalla { font-size: 0.78rem; font-weight: 700; color: var(--muted, #586e65); }
+.bog-chip { padding: 3px 10px; border-radius: 999px; font-size: 0.72rem; font-weight: 800; white-space: nowrap; }
+.bog-chip-free { background: var(--mint, #e6f3ee); color: var(--green-dark, #094338); }
+.bog-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 8px; }
+.bog-f { display: grid; gap: 2px; min-width: 0; font-size: 0.68rem; font-weight: 700; color: var(--muted, #586e65); }
+.bog-f select, .bog-f input { width: 100%; min-width: 0; min-height: 44px; padding: 0 8px; box-sizing: border-box; font-size: 16px; color: var(--ink, #172e29); border: 1px solid var(--line, #cbd5e1); border-radius: 9px; background: var(--surface, #fff); }
+.bog-f select:disabled { background: var(--surface-soft, #f1f5f3); color: var(--muted, #586e65); }
+.bog-f select:focus, .bog-f input:focus { outline: 3px solid color-mix(in srgb, var(--green, #0e5b4d) 30%, transparent); border-color: var(--green, #0e5b4d); }
+.bog-note { font-size: 0.72rem; font-weight: 600; color: var(--muted, #586e65); }
+.bog-empty { padding: 14px 10px; text-align: center; font-size: 0.9rem; color: var(--muted, #586e65); }
+.bog-status { margin: 10px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; background: var(--mint, #e6f3ee); color: var(--green-dark, #094338); }
+.bog-status[data-kind="error"] { background: #fff1f0; color: #b42318; }
+.bog-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+@media (max-width: 560px) { .bog-fields { grid-template-columns: minmax(0, 1fr); } }

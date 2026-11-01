@@ -128,3 +128,76 @@ export function buildMohallaUserCounts(customers) {
     return b.count - a.count || a.label.localeCompare(b.label);
   });
 }
+
+/**
+ * SISP-175: the money/mix figures behind each Mohalla dashboard card —
+ * the same rows, in the same order, with the same visibility rule as
+ * buildMohallaUserCounts (a row exists only where users are; archived
+ * excluded), extended per mohalla with:
+ *
+ * - unpaidPKR: LIVE total outstanding — the sum, over every bill of
+ *   every non-archived, non-free customer in the mohalla, of the
+ *   allocation engine's balanceDueCents (allocations.forMonth), the
+ *   exact per-bill field getPendingCollectionCustomers (Quick Collect /
+ *   Field Mode) sums into its totalDues. A null balance (unpriced bill)
+ *   contributes 0, exactly as there. Nothing is stored; the figure is
+ *   re-derived from the passed-in allocations on every render.
+ * - freeCount: customers with isFreeConnection === true. FREE
+ *   connections are skipped for dues entirely (owner rule 2026-10-29:
+ *   a free connection never owes — bill generation never bills them,
+ *   and Top Defaulters skip them explicitly; mirrored here). They DO
+ *   still count in `count`, exactly as buildMohallaUserCounts counts
+ *   them today — card visibility is unchanged.
+ * - paidPct: of the mohalla's BILLED customers for `currentMonth`
+ *   (non-archived, non-free, holding a PRICED bill for that month —
+ *   the engine summary has a non-null billAmountCents), the percentage
+ *   whose balance for that month is fully settled (balanceDueCents
+ *   === 0, by cash and/or credit). FREE customers are neither paid nor
+ *   unpaid, so they enter neither side. A customer can be "paid" for
+ *   the cycle while still owing older arrears — that money shows in
+ *   unpaidPKR, not here. null when nobody in the mohalla is billed
+ *   for the month (nothing honest to show but a dash).
+ *
+ * @param {Array} customers
+ * @param {{forMonth?: Function}} allocations - calculatePaymentAllocations(state)
+ * @param {string} currentMonth - 'YYYY-MM'
+ * @returns {Array<{key, label, stored, count, canonical, unpaidPKR: number, freeCount: number, billedCount: number, paidCount: number, paidPct: number|null}>}
+ */
+export function buildMohallaCardStats(customers, allocations, currentMonth) {
+  const rows = buildMohallaUserCounts(customers);
+  const buckets = new Map(rows.map((row) => [row.key, { unpaidCents: 0, freeCount: 0, billedCount: 0, paidCount: 0 }]));
+  const month = String(currentMonth ?? '');
+  const list = Array.isArray(customers) ? customers : [];
+  for (const customer of list) {
+    if (!customer || customer.archived) continue;
+    const canon = canonicalMohalla(customer.mohalla || customer.area || '');
+    if (!canon) continue;
+    const bucket = buckets.get(canon.key);
+    if (!bucket) continue;
+    if (customer.isFreeConnection === true) {
+      bucket.freeCount += 1;
+      continue;
+    }
+    const bills = Array.isArray(customer.bills) ? customer.bills : [];
+    for (const bill of bills) {
+      const summary = allocations?.forMonth?.(customer.id, bill.month);
+      const balance = summary?.balanceDueCents;
+      if (typeof balance === 'number' && balance > 0) bucket.unpaidCents += balance;
+      if (month && bill.month === month && summary && summary.billAmountCents !== null && summary.billAmountCents !== undefined) {
+        bucket.billedCount += 1;
+        if (balance === 0) bucket.paidCount += 1;
+      }
+    }
+  }
+  return rows.map((row) => {
+    const bucket = buckets.get(row.key);
+    return {
+      ...row,
+      unpaidPKR: Math.round(bucket.unpaidCents / 100),
+      freeCount: bucket.freeCount,
+      billedCount: bucket.billedCount,
+      paidCount: bucket.paidCount,
+      paidPct: bucket.billedCount > 0 ? Math.round((bucket.paidCount / bucket.billedCount) * 100) : null,
+    };
+  });
+}

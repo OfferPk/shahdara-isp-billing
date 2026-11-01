@@ -1568,12 +1568,21 @@ body.field-mode-open { overflow: hidden; }
 .mohalla-dashboard-section { margin: 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 14px; }
 .mohalla-dashboard-heading h3 { margin: 2px 0 4px; color: var(--ink); font-size: 17px; }
 .mohalla-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 10px; margin-top: 10px; }
-.mohalla-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; cursor: pointer; color: var(--ink); min-height: 92px; font: inherit; }
+.mohalla-card { display: flex; flex-direction: column; gap: 8px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; color: var(--ink); min-height: 92px; }
 .mohalla-card:hover { border-color: var(--green); }
-.mohalla-card:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+/* SISP-175: the card is a container now — the main button carries the
+   name/count/stats and the Customers navigation, the collect button is
+   its sibling so a tap on it can never trigger the navigation. */
+.mohalla-card-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; background: none; border: none; padding: 0; cursor: pointer; color: var(--ink); font: inherit; width: 100%; }
+.mohalla-card-main:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 .mohalla-card-name { font-size: 13px; font-weight: 700; letter-spacing: .2px; overflow-wrap: anywhere; }
 .mohalla-card-count { font-size: 30px; line-height: 1.1; font-weight: 800; color: var(--green); font-variant-numeric: var(--numeric); }
 .mohalla-card-users { font-size: 11px; color: var(--muted); }
+.mohalla-card-stat { display: flex; justify-content: space-between; gap: 8px; width: 100%; font-size: 11px; color: var(--muted); margin-top: 2px; }
+.mohalla-card-stat strong { color: var(--ink); font-variant-numeric: var(--numeric); }
+.mohalla-card-collect { margin-top: auto; align-self: stretch; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); color: var(--ink); font: inherit; font-size: 12px; font-weight: 700; padding: 7px 8px; cursor: pointer; min-height: 36px; }
+.mohalla-card-collect:hover { border-color: var(--green); }
+.mohalla-card-collect:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 @media (max-width: 480px) {
   .mohalla-cards-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .customer-search-field-select { height: 44px; font-size: 14px; }

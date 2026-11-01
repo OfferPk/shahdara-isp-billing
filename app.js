@@ -141,7 +141,7 @@ import {
   sortExpenseRows,
   generateExpensesCsv
 } from './form-validation.js?v=1.11.0';
-import { normalizeCustomerSearchField, filterCustomersBySearchField, buildMohallaUserCounts } from './customer-search-filter.js?v=1.11.0';
+import { normalizeCustomerSearchField, filterCustomersBySearchField, buildMohallaUserCounts, buildMohallaCardStats } from './customer-search-filter.js?v=1.11.0';
 import { BILLING_REGISTER_CSV_HEADERS, billingRegisterCsvFilename, billingRegisterCsvNote, billingRegisterCsvRows, buildBillingRegister, normalizeBillingRegisterPeriod, normalizeBillingRegisterStatus } from './billing-register.js?v=1.11.0';
 // FIRST-LOAD SPLIT: getLateFeeConfig/isBillOverdue are used by renderHistory
 // (synchronous), so they stay static via a direct import; all other QA names
@@ -1560,12 +1560,23 @@ function renderDashboard() {
   // through canonicalMohalla so "Bani" and "BANII" share one card. Clicking
   // a card opens the Customers list with the Area search field set to that
   // mohalla, landing the owner on exactly those users.
+  // SISP-175: each card also carries live figures derived at render from
+  // the allocation engine (buildMohallaCardStats): total Unpaid PKR, the
+  // Paid % of this month's billed customers, the FREE connection count
+  // (only when there are any), and a 🏍️ Field Collect button that opens
+  // Field Mode scoped to exactly this card's mohalla. The collect button
+  // is a sibling of the card's main button (never nested inside it), so
+  // tapping it never triggers the Customers navigation.
   const mohallaCardsEl = $('#mohallaDashboardCards');
   if (mohallaCardsEl) {
-    const mohallaCounts = buildMohallaUserCounts(state.customers);
+    const mohallaStats = buildMohallaCardStats(state.customers, calculatePaymentAllocations(state), pakistanMonthNow(referenceDate));
     const mohallaEmptyEl = $('#mohallaDashboardEmpty');
-    if (mohallaEmptyEl) mohallaEmptyEl.hidden = mohallaCounts.length > 0;
-    mohallaCardsEl.innerHTML = mohallaCounts.map((row) => `<button type="button" class="mohalla-card" data-mohalla-card="${escapeHtml(row.stored)}" aria-label="${escapeHtml(`${row.stored}: ${row.count} ${t('dash_mohalla_users')}`)}"><span class="mohalla-card-name">${escapeHtml(row.stored)}</span><strong class="mohalla-card-count">${row.count}</strong><span class="mohalla-card-users">${escapeHtml(t('dash_mohalla_users'))}</span></button>`).join('');
+    if (mohallaEmptyEl) mohallaEmptyEl.hidden = mohallaStats.length > 0;
+    mohallaCardsEl.innerHTML = mohallaStats.map((row) => {
+      const paidText = row.paidPct === null ? '—' : `${row.paidPct}%`;
+      const freeLine = row.freeCount > 0 ? `<span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_free'))}</span><strong>${row.freeCount}</strong></span>` : '';
+      return `<div class="mohalla-card"><button type="button" class="mohalla-card-main" data-mohalla-card="${escapeHtml(row.stored)}" aria-label="${escapeHtml(`${row.stored}: ${row.count} ${t('dash_mohalla_users')}, ${t('dash_mohalla_unpaid')} ${formatPKR(row.unpaidPKR)}, ${t('dash_mohalla_paid')} ${paidText}`)}"><span class="mohalla-card-name">${escapeHtml(row.stored)}</span><strong class="mohalla-card-count">${row.count}</strong><span class="mohalla-card-users">${escapeHtml(t('dash_mohalla_users'))}</span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_unpaid'))}</span><strong>${escapeHtml(formatPKR(row.unpaidPKR))}</strong></span><span class="mohalla-card-stat"><span>${escapeHtml(t('dash_mohalla_paid'))}</span><strong>${paidText}</strong></span>${freeLine}</button><button type="button" class="mohalla-card-collect" data-mohalla-collect="${escapeHtml(row.stored)}">${escapeHtml(t('dash_mohalla_collect'))}</button></div>`;
+    }).join('');
     mohallaCardsEl.querySelectorAll('[data-mohalla-card]').forEach((button) => button.addEventListener('click', () => {
       customerSearchField = 'area';
       customerAreaFilter = 'all';
@@ -1575,6 +1586,9 @@ function renderDashboard() {
       customerCurrentPage = 1;
       switchView('customers');
       renderCustomers();
+    }));
+    mohallaCardsEl.querySelectorAll('[data-mohalla-collect]').forEach((button) => button.addEventListener('click', () => {
+      window.fieldModeController?.openForMohalla?.(button.dataset.mohallaCollect);
     }));
   }
   // SISP-17: monthly complaint report card (this-month 4-part report totals).

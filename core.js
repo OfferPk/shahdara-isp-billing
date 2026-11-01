@@ -51,6 +51,7 @@ import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { sanitizeEmergencyRunbook, hasEmergencyRunbookContacts } from './emergency-runbook-card.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { sanitizeOnuConnectorType, sanitizeSplitterPolishMap } from './connector-polish-guard.js';
 import { sanitizeDepositOffsets } from './deposit-to-bill-offset.js';
 import { sanitizeFatherOrReferenceName, sanitizeSearchAliases, fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
 import { sanitizeSubContributors, sanitizePaidByContributorStamp } from './shared-router-contributors.js';
@@ -267,6 +268,9 @@ export function readState(storage, key = STORAGE_KEY) {
       splitterPort:Number.isInteger(Number(customer.splitterPort)) && Number(customer.splitterPort) >= 1 && Number(customer.splitterPort) <= 16 ? Number(customer.splitterPort) : null,
       oltPonPort:typeof customer.oltPonPort === 'string' ? customer.oltPonPort.trim().slice(0, 100) : '',
       lastRxDbm:Number.isFinite(Number(customer.lastRxDbm)) && customer.lastRxDbm !== '' && customer.lastRxDbm !== null && customer.lastRxDbm !== undefined ? Math.round(Number(customer.lastRxDbm) * 10) / 10 : null,
+      // SISP-167: ONU connector polish ('UPC' | 'APC'); anything else
+      // sanitizes to '' (unknown) — a physical fact is never guessed.
+      onuConnectorType:sanitizeOnuConnectorType(customer.onuConnectorType),
       // SISP-162: single-fiber WDM converter side — 'A' (1310nm) or 'B'
       // (1550nm); anything else loads as '' (not recorded), never guessed.
       customerConverterSide:['A','B'].includes(customer.customerConverterSide) ? customer.customerConverterSide : '',
@@ -513,6 +517,8 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const splitterPort = checkSplitterPort(options.splitterPort);
   const oltPonPort = cleanText(options.oltPonPort, 100, 'PON port');
   const lastRxDbm = checkRxDbm(options.lastRxDbm);
+  // SISP-167: ONU connector polish — 'UPC' | 'APC', else '' (unknown).
+  const onuConnectorType = sanitizeOnuConnectorType(options.onuConnectorType);
   // SISP-162: WDM converter side — only the two physical sides record.
   const customerConverterSide = ['A','B'].includes(options.customerConverterSide) ? options.customerConverterSide : '';
   // SISP-92: GPS pin (optional pair; absent reads back as nulls).
@@ -582,7 +588,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // SISP-153: a new record starts with no seasonal rate unless the
   // caller passes a complete valid triple (sanitized all-or-nothing).
   const seasonalFields = sanitizeSeasonalFields(options);
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, depositOffsets:[], hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, customerConverterSide, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, fatherOrReferenceName, searchAliases, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, depositOffsets:[], hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, onuConnectorType, customerConverterSide, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, fatherOrReferenceName, searchAliases, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -982,6 +988,9 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     splitterPort: checkSplitterPort(valueOrCurrent('splitterPort')),
     oltPonPort: cleanText(valueOrCurrent('oltPonPort') ?? '', 100, 'OLT PON port'),
     lastRxDbm: checkRxDbm(valueOrCurrent('lastRxDbm')),
+    // SISP-167: ONU connector polish — 'UPC' | 'APC', else '' (unknown);
+    // absent on pre-SISP-167 records, which read back as unknown.
+    onuConnectorType: sanitizeOnuConnectorType(valueOrCurrent('onuConnectorType')),
     // SISP-162: WDM converter side — an unknown value coerces to ''
     // (not recorded) rather than blocking an unrelated profile save.
     customerConverterSide: ['A','B'].includes(valueOrCurrent('customerConverterSide')) ? valueOrCurrent('customerConverterSide') : '',
@@ -3684,6 +3693,9 @@ function validateBackupState(source) {
       whatsappPhone:customer.whatsappPhone ?? '', alternatePhone:customer.alternatePhone ?? '',
       // SISP-94: router credential vault fields travel with the customer in JSON backups.
       wifiSsid:customer.wifiSsid ?? '', wifiPassword:customer.wifiPassword ?? '', routerAdminPort:customer.routerAdminPort ?? null, routerAdminPassword:customer.routerAdminPassword ?? '',
+      // SISP-167: ONU connector polish travels with the customer in JSON
+      // backups; a corrupt value sanitizes to '' (unknown), never a guess.
+      onuConnectorType:sanitizeOnuConnectorType(customer.onuConnectorType),
       packageHistory, relocationLog, bills, incidents,
       // SISP-153: the seasonal keep-alive triple travels with the
       // customer in JSON backups (old backups import as no triple).
@@ -3982,6 +3994,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeMonthlyClosingNotes(options.monthlyClosingNotes);
     if (Object.keys(cleaned).length) document.settings = { ...(document.settings || {}), monthlyClosingNotes: cleaned };
   }
+  // SISP-167: splitter box connector polish lives outside the ledger
+  // state (localStorage key sisp_splitter_polish_v1), so it travels in
+  // an optional `settings.splitterPolish` section. Written only when at
+  // least one box polish is recorded; readers that predate it ignore
+  // the field.
+  if (options && typeof options === 'object' && options.splitterPolish && typeof options.splitterPolish === 'object' && !Array.isArray(options.splitterPolish)) {
+    const cleaned = sanitizeSplitterPolishMap(options.splitterPolish);
+    if (Object.keys(cleaned).length) document.settings = { ...(document.settings || {}), splitterPolish: cleaned };
+  }
   // SISP-92: splitter-box GPS pins live outside the ledger state
   // (localStorage key sisp_splitter_box_gps_v1), so they travel in an
   // optional `settings.splitterBoxGps` section. Written only when at
@@ -4133,7 +4154,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, receiptFooterRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, emergencyRunbookRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, charityReserveRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, receiptFooterRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, emergencyRunbookRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, charityReserveRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, splitterPolishRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
 
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
@@ -4161,7 +4182,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','fatherOrReferenceName','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','customerConverterSide','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone','seasonalRatePKR','seasonalUntilMonth','restorePackageRatePKR']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','fatherOrReferenceName','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','customerConverterSide','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone','seasonalRatePKR','seasonalUntilMonth','restorePackageRatePKR','onuConnectorType']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-138: the last-contact stamp merges by recency, never as a
     // plain field fill and never as a conflict — contact history only
     // moves forward, so the later stamp (fixed-format strings compare
@@ -5167,6 +5188,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Monthly closing notes differ from this device' });
     }
   }
+  // SISP-167: optional splitter-polish section (see createJsonBackup).
+  // Safe-merge rule, same as the monthly closing notes: adopt the
+  // backup's map only when this device has none stored yet; when both
+  // sides hold different real records, keep existing + conflict.
+  let splitterPolish = null;
+  const rawIncomingPolish = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.splitterPolish
+    : undefined;
+  if (rawIncomingPolish && typeof rawIncomingPolish === 'object' && !Array.isArray(rawIncomingPolish) && Object.keys(rawIncomingPolish).length) {
+    const incomingPolish = sanitizeSplitterPolishMap(rawIncomingPolish);
+    const currentPolish = (options && typeof options === 'object' && options.currentSplitterPolish && typeof options.currentSplitterPolish === 'object')
+      ? sanitizeSplitterPolishMap(options.currentSplitterPolish)
+      : {};
+    if (Object.keys(incomingPolish).length && sameJson(incomingPolish, currentPolish)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (Object.keys(incomingPolish).length && (!options?.currentSplitterPolishStored || Object.keys(currentPolish).length === 0)) {
+      splitterPolish = incomingPolish;
+      counts.splitterPolishRestored = 1;
+      counts.changes++;
+    } else if (Object.keys(incomingPolish).length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Splitter box polish records differ from this device' });
+    }
+  }
   // SISP-160: optional emergency runbook contacts section (see
   // createJsonBackup). Safe-merge rule, same as the monthly closing
   // notes: adopt the backup's contacts only when this device has none
@@ -5382,5 +5426,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, converterSides, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, emergencyRunbook, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, converterSides, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, emergencyRunbook, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, splitterPolish, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

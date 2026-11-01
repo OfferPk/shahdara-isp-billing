@@ -366,6 +366,13 @@
 .splitter-port-rx { font-size: 12px; color: var(--muted); }
 .splitter-port-weak { border-width: 2px; }
 .splitter-weak-badge { align-self: flex-start; }
+/* SISP-167: connector polish mismatch — amber token family only (the
+   Blue/Green in labels are words, never CSS colours). */
+.polish-mismatch-badge { align-self: flex-start; background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber); }
+.splitter-port-polish-mismatch { border-color: var(--amber); }
+.splitter-map-polish-hint { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+.profile-polish-warning { background: var(--amber-bg); border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 10px; padding: 8px 10px; color: var(--ink); overflow-wrap: anywhere; }
+.profile-polish-matched { color: var(--color-paid); font-weight: 600; }
 .splitter-port-dead { border-color: var(--color-overdue); }
 .splitter-port-dead-label { color: var(--color-overdue); font-weight: 700; }
 .splitter-port-action { align-self: flex-start; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); cursor: pointer; font-size: 12px; padding: 4px 8px; }

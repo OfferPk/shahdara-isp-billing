@@ -834,7 +834,9 @@ export function ticketFaultLabel(ticket) {
   return ticket.faultPreset || ticket.customFault || 'Field fault';
 }
 
-function materialLineLabel(line) {
+/** One recorded material line as the ticket card shows it (exported for
+ * the SISP-177 register material badge, which reuses the same lines). */
+export function materialLineLabel(line) {
   const material = TICKET_MATERIAL_BY_KEY[line.key];
   if (!material) return '';
   const qty = material.unit === 'meters' ? `${line.qty} m` : `${line.qty}`;

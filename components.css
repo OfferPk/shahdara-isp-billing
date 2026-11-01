@@ -2972,3 +2972,25 @@ button.field-dispatch-item { cursor: pointer; }
 .lineman-payout-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 10px; color: var(--ink); }
 .lineman-payout-row span { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
 .lineman-payout-empty { color: var(--muted); }
+
+/* SISP-160: Emergency Runbook dialog (token-only; the dialog itself
+   uses the shared .billing-modal shell → var(--modal-surface)).
+   Mobile-first: fields wrap and never overflow at 390px. */
+.runbook-help { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.runbook-section-heading { margin: var(--space-4) 0 var(--space-2); color: var(--ink); font-size: var(--text-md); }
+.runbook-contact-block { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); align-items: flex-end; padding: var(--space-2) 0; border-bottom: 1px solid var(--line); }
+.runbook-contact-name { flex: 1 1 100%; margin: 0; font-weight: 700; color: var(--ink); font-size: var(--text-sm); }
+.runbook-field { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-sm); color: var(--muted); min-width: 140px; flex: 1 1 140px; }
+.runbook-input {
+  min-height: 42px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-md);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.runbook-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
+.runbook-top-list { margin: var(--space-2) 0 0; padding-inline-start: var(--space-4); color: var(--ink); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }

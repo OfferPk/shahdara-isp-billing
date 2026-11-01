@@ -47,6 +47,7 @@ import { sanitizeOverheads } from './fixed-overheads.js';
 import { sanitizeContactPair } from './contact-cooldown-tracker.js';
 import { sanitizeExpenseBudgets } from './expense-budget-caps.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
+import { sanitizeEmergencyRunbook, hasEmergencyRunbookContacts } from './emergency-runbook-card.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
 import { sanitizeSubContributors, sanitizePaidByContributorStamp } from './shared-router-contributors.js';
@@ -4019,6 +4020,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const stamp = sanitizeBranchGuardStamp(options.branchGuard);
     if (stamp) document.settings = { ...(document.settings || {}), branchGuard: stamp };
   }
+  // SISP-160: emergency runbook contacts live outside the ledger state
+  // (localStorage key sisp_emergency_runbook_v1), so they travel in an
+  // optional `settings.emergencyRunbook` section. Written only when at
+  // least one contact field exists; readers that predate it ignore the
+  // unknown field. Placed before the checksum stamp so it covers it.
+  if (options && typeof options === 'object' && options.emergencyRunbook && typeof options.emergencyRunbook === 'object' && !Array.isArray(options.emergencyRunbook)) {
+    const cleaned = sanitizeEmergencyRunbook(options.emergencyRunbook);
+    if (hasEmergencyRunbookContacts(cleaned)) document.settings = { ...(document.settings || {}), emergencyRunbook: cleaned };
+  }
   document.checksum = computeBackupChecksum(document);  return JSON.stringify(document, null, 2);}
 
 /**
@@ -4068,7 +4078,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const incomingState = validateBackupState(document.state);
   const current = deepCopy(existingState);
   const conflicts = [];
-  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, receiptFooterRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, charityReserveRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
+  const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, receiptFooterRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, emergencyRunbookRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, charityReserveRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
 
     const oldValue = target[key]; const newValue = source[key];
     if (sameJson(oldValue, newValue) || (!nonempty(oldValue) && !nonempty(newValue))) return;
@@ -5051,6 +5061,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Monthly closing notes differ from this device' });
     }
   }
+  // SISP-160: optional emergency runbook contacts section (see
+  // createJsonBackup). Safe-merge rule, same as the monthly closing
+  // notes: adopt the backup's contacts only when this device has none
+  // stored yet; when both sides hold different real contacts, keep
+  // existing + conflict (contacts are never overwritten).
+  let emergencyRunbook = null;
+  const rawIncomingRunbook = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.emergencyRunbook
+    : undefined;
+  if (rawIncomingRunbook && typeof rawIncomingRunbook === 'object' && !Array.isArray(rawIncomingRunbook)) {
+    const incomingRunbook = sanitizeEmergencyRunbook(rawIncomingRunbook);
+    const currentRunbook = (options && typeof options === 'object' && options.currentEmergencyRunbook && typeof options.currentEmergencyRunbook === 'object')
+      ? sanitizeEmergencyRunbook(options.currentEmergencyRunbook)
+      : sanitizeEmergencyRunbook(null);
+    if (hasEmergencyRunbookContacts(incomingRunbook) && sameJson(incomingRunbook, currentRunbook)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (hasEmergencyRunbookContacts(incomingRunbook) && (!options?.currentEmergencyRunbookStored || !hasEmergencyRunbookContacts(currentRunbook))) {
+      emergencyRunbook = incomingRunbook;
+      counts.emergencyRunbookRestored = 1;
+      counts.changes++;
+    } else if (hasEmergencyRunbookContacts(incomingRunbook)) {
+      conflicts.push({ customerNumber:null, name:'', field:'Emergency runbook contacts differ from this device' });
+    }
+  }
   // SISP-92 splitter-box GPS pins: optional map section (see
   // createJsonBackup). Safe-merge rule, same as monthly closing notes:
   // adopt the backup's pins only when this device has none stored yet;
@@ -5242,5 +5276,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, emergencyRunbook, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

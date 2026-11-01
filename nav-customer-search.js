@@ -19,6 +19,7 @@ import {
   whatsappPhoneFor
 } from './core.js';
 import { formatWhatsAppUrl } from './form-validation.js';
+import { fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
 import { trapModalFocus } from './nav-accessibility.js';
 
 export const RECENT_CUSTOMERS_STORAGE_KEY = 'shahdara_recent_customers_v1';
@@ -173,6 +174,9 @@ export function searchFastCustomers(state, {
       const numStr = String(customer.customerNumber ?? '');
       const matches =
         customer.name.toLowerCase().includes(normalized) ||
+        // SISP-165: father's/reference name + search aliases, with
+        // Roman-Urdu phonetic matching ("Fesal" finds "Faisal").
+        fuzzyCustomerNameMatches(customer, query) ||
         numStr.includes(normalized) ||
         `#${numStr}`.includes(normalized) ||
         (customer.phone && customer.phone.toLowerCase().includes(normalized)) ||

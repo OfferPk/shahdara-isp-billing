@@ -134,6 +134,7 @@ import { canonicalLocation } from './phase3.js';
 import { paymentDayHabit, habitCoversDay, filterLikelyToPayEntries } from './payment-day-advisor.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
+import { fuzzyCustomerNameMatches, sanitizeSearchAliases } from './fuzzy-alias-search.js';
 import {
   computeWaadaChipDate,
   computeRemainderWaada,
@@ -283,6 +284,10 @@ export function fieldModeSearchMatches(entry, customer, query) {
   const record = customer ?? entry ?? {};
   const romanFields = [
     entry?.name, record?.name,
+    // SISP-165: father / reference name + aliases join the plain
+    // substring fields exactly like the name itself.
+    record?.fatherOrReferenceName,
+    ...sanitizeSearchAliases(record?.searchAliases),
     entry?.customerNumber, record?.customerNumber,
     entry?.phone, record?.phone,
     entry?.area, record?.area,
@@ -294,11 +299,20 @@ export function fieldModeSearchMatches(entry, customer, query) {
   for (const field of romanFields) {
     if (field != null && String(field).toLowerCase().includes(romanQuery)) return true;
   }
+  // SISP-165: the father's/reference name and the search aliases are
+  // findable in the field too, and Roman-Urdu spelling variants match
+  // phonetically ("Fesal" finds "Faisal", "M. Aslam" finds
+  // "Muhammad Aslam") — one matcher, shared with the Customers list.
+  if (fuzzyCustomerNameMatches(record, raw)) return true;
   if (!hasUrduScript(raw)) return false;
   const urduQuery = normalizeUrduText(raw);
   if (!urduQuery) return false;
   const urduCandidates = [
     record?.nameUrdu,
+    // SISP-165: Urdu-script father names / aliases match by the same
+    // plain contains path (the phonetic canonicalizer is Latin-only).
+    record?.fatherOrReferenceName,
+    ...sanitizeSearchAliases(record?.searchAliases),
     transliterateRomanToUrdu(record?.name ?? entry?.name),
     transliterateRomanToUrdu(record?.area ?? entry?.area),
     transliterateRomanToUrdu(record?.mohalla ?? entry?.mohalla)

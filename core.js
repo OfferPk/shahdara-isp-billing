@@ -2090,7 +2090,13 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
       throw new Error('This payment settled manual baqaya. Void it and record a fresh payment to change the amount.');
     }
     payment = { ...payment, manualBaqayaSettlements: settledBaqayaLines };
-
+  }
+  // SISP-126: a correction restates the receipt, never the remainder waada
+  // the partial collection set — the stamp is carried over verbatim (same
+  // rule as the ticket-charge settlement above), because the promise was
+  // made against the original collection and must stay traceable to it.
+  if (existingPayment.remainderWaada && typeof existingPayment.remainderWaada === 'object') {
+    payment = { ...payment, remainderWaada: existingPayment.remainderWaada };
   }
   assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId, { prepayCoverage: prepayTermsOf(payment) !== null });
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };

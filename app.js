@@ -218,6 +218,7 @@ import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildFuelEfficiency, fuelEfficiencyCardHtml, normalizeFuelMonth } from './fuel-efficiency-tracker.js';
 import { buildRecentPayments } from './recent-payments.js';
+import { buildCollectionVelocityComparison, renderCollectionVelocityRowsHtml } from './collection-velocity.js';
 import { contactBadgeHtml, contactMarkedMessage, stampContactInState } from './contact-cooldown-tracker.js';
 import { ROSTER_PILL_DEFS, buildRosterPillSummary, applyRosterPillFilter, normalizeRosterPill } from './roster-quick-filters.js';
 import { buildAdvanceDashboard } from './advance-dashboard.js';
@@ -1114,6 +1115,19 @@ function renderDashboard() {
       recentAllBtn.dataset.wired = 'true';
       recentAllBtn.addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
     }
+  }
+  // SISP-144: Collection Velocity card — this month's collections in
+  // 4 day-buckets (1–5 / 6–10 / 11–20 / 21–31) vs the same buckets last
+  // month. Follows the Dashboard's own current month (the same month
+  // every other Home card uses); the P&L modal keeps its own selector.
+  // Read-only: the builder is a pure derivation over recorded payments
+  // (voided excluded), rendering mutates nothing.
+  const velocityBodyEl = $('#collectionVelocityBody');
+  if (velocityBodyEl) {
+    const velocity = buildCollectionVelocityComparison(state, totals.currentMonth);
+    velocityBodyEl.innerHTML = renderCollectionVelocityRowsHtml(velocity);
+    const velocityTotalEl = $('#collectionVelocityTotal');
+    if (velocityTotalEl) velocityTotalEl.textContent = t('vel_total', null, { amount: formatAmount(velocity.totalCents / 100) });
   }
   // SISP-59: Package Upgrade Suggestions — active customers on
   // <= 5 Mbps who logged slow-speed complaints or paid on time 3+

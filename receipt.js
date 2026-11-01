@@ -7,6 +7,7 @@ import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { depositOffsetEntryOf } from './deposit-to-bill-offset.js';
 import { contributorSplitStatus, subContributorsOf } from './shared-router-contributors.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 import { t } from './nav-language.js';
@@ -986,6 +987,96 @@ export function generateDepositSettlementReceiptHtml(receipt, {
       <div class="receipt-sig-box"><span>دستخط وصول کنندہ / Collector</span></div>
       <div class="receipt-sig-box"><span>مہر و دستخط ادارہ / Shahdara ISP</span></div>
     </div>
+    <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>
+  </footer>
+</article>`;
+}
+
+// SISP-166: Security Deposit Offset Receipt for an ACTIVE customer.
+// The offset itself is recorded by deposit-to-bill-offset.js
+// applyActiveDepositOffset (bill stamps + a depositOffsets log entry);
+// this snapshot only READS that entry — it never creates a second
+// ledger record. Null when the entry does not exist, so a receipt can
+// never be produced for an offset that never happened. The receipt is
+// explicit on its face that it is a NON-CASH adjustment: no cash, shop
+// or wallet money moved — the same money truth as the SISP-50
+// clearance receipt, whose layout this mirrors.
+export function buildDepositOffsetReceipt(customer, offsetId) {
+  const entry = customer ? depositOffsetEntryOf(customer, offsetId) : null;
+  if (!customer || !entry) return null;
+  const receiptNumber = generateReceiptNumber({
+    customerNumber: customer.customerNumber,
+    paymentDate: entry.date,
+    paymentId: entry.id
+  });
+  return {
+    customerName: text(customer.name),
+    customerNameUrdu: urduNameFor(customer),
+    customerId: Number.isSafeInteger(customer.customerNumber) && customer.customerNumber > 0 ? String(customer.customerNumber) : '',
+    offsetId: entry.id,
+    offsetDate: entry.date,
+    receiptNumber,
+    method: 'Security Deposit Offset',
+    nonCash: true,
+    amount: entry.amount,
+    bills: entry.bills,
+    depositBefore: entry.depositBefore,
+    depositAfter: entry.depositAfter,
+    reversed: entry.reversedAt !== null,
+    reversedAt: entry.reversedAt,
+    status: entry.reversedAt ? 'REVERSED' : 'OFFSET APPLIED',
+    urduNote: 'یہ رسید سیکیورٹی ڈپازٹ سے بل کی غیر نقد ایڈجسٹمنٹ کی تصدیق ہے — کوئی نقد رقم وصول نہیں ہوئی۔ شکریہ!'
+  };
+}
+
+// SISP-166: printable offset receipt. Single A4-style layout reusing
+// the clearance receipt's classes, so the existing print CSS applies.
+// Paper styling is deliberate, not an app UI surface.
+export function generateDepositOffsetReceiptHtml(receipt, {
+  businessName = 'Shahdara ISP',
+  businessPhone = '0300-1234567',
+  areaName = 'Shahdara, Islamabad'
+} = {}) {
+  if (!receipt) return '';
+  const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName
+    ? `${receipt.customerNameUrdu} (${receipt.customerName})`
+    : receipt.customerName;
+  const formatAmount = (val) => {
+    if (val === null || val === undefined || val === '') return 'PKR 0';
+    const num = Number(val);
+    return `PKR ${num.toLocaleString()}`;
+  };
+  const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const offsetRows = (Array.isArray(receipt.bills) ? receipt.bills : [])
+    .map((row) => `<div class="receipt-field"><dt>Bill offset — ${escapeHtml(row.month)}:</dt><dd>-${formatAmount(row.amount)}</dd></div>`).join('');
+  const statusClass = receipt.reversed ? 'receipt-status-partial' : 'receipt-status-paid';
+  return `<article class="receipt-sheet a4-receipt" data-receipt-format="deposit-offset">
+  <header class="receipt-head">
+    <div>
+      <span class="receipt-brand">${escapeHtml(businessName)}</span>
+      <h1>Security Deposit Offset Receipt / سیکیورٹی ڈپازٹ تصفیہ رسید</h1>
+      <p>${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
+      <div class="receipt-num-badge">Offset Receipt: <strong>${escapeHtml(receipt.receiptNumber)}</strong> · Ref: ${escapeHtml(receipt.offsetId)}</div>
+    </div>
+    <span class="receipt-mark ${statusClass}">${escapeHtml(receipt.status)}</span>
+  </header>
+  <dl class="receipt-fields">
+    <div class="receipt-field"><dt>Offset Date / تاریخ:</dt><dd>${escapeHtml(receipt.offsetDate)}</dd></div>
+    <div class="receipt-field"><dt>Customer ID / کھاتہ نمبر:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
+    <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(displayName)}</dd></div>
+    <div class="receipt-field"><dt>Method / طریقہ:</dt><dd>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ</dd></div>
+    <div class="receipt-field"><dt><strong>NON-CASH ADJUSTMENT — no cash received / غیر نقد ایڈجسٹمنٹ — کوئی نقد رقم وصول نہیں ہوئی</strong></dt><dd></dd></div>
+    <div class="receipt-divider">--------------------------------</div>
+    <div class="receipt-field"><dt>Security Deposit Before / پہلے ڈپازٹ:</dt><dd>${formatAmount(receipt.depositBefore)}</dd></div>
+    <div class="receipt-field receipt-paid-field"><dt><strong>Offset Applied to Bill / بل میں تصفیہ:</strong></dt><dd><strong>-${formatAmount(receipt.amount)}</strong></dd></div>
+    ${offsetRows}
+    <div class="receipt-field"><dt>Security Deposit Remaining / باقی ڈپازٹ:</dt><dd>${formatAmount(receipt.depositAfter)}</dd></div>
+    ${receipt.reversed ? `<div class="receipt-field"><dt>Reversed On / واپسی کی تاریخ:</dt><dd>${escapeHtml(receipt.reversedAt)}</dd></div>` : ''}
+    <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}"><strong>${escapeHtml(receipt.status)}</strong></dd></div>
+  </dl>
+  <div class="receipt-divider">================================</div>
+  <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
+  <footer class="receipt-terms">
     <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>
   </footer>
 </article>`;

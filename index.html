@@ -530,7 +530,7 @@
           <div id="roznamchaSummary" class="roznamcha-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openRoznamchaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_roznamcha">📒 Roznamcha</button>
-
+            <button id="dailyMethodMatrixOpenBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dmm_open_btn">📊 Method Matrix</button>
           </div>
         </article>
         <article class="summary-card summary-inventory-book ds-stat ds-stat--pending">
@@ -22093,6 +22093,30 @@
           <button id="ownerKhataSaveNoteBtn" class="action-btn-sm daily-slip-btn" type="button">💾 Save note</button>
           <button id="ownerKhataPrintBtn" class="action-btn-sm daily-slip-btn" type="button">🖨️ Print / Save PDF</button>
           <button id="ownerKhataCopyBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Copy WhatsApp summary</button>        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="dailyMethodMatrixDialog" class="billing-modal daily-method-matrix-modal" aria-labelledby="dailyMethodMatrixDialogTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="dailyMethodMatrixDialogTitle" data-i18n="dmm_title">📊 Daily Collection Method Matrix</h2>
+        <button id="dailyMethodMatrixCloseBtn" class="modal-close" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="daily-method-matrix-help" data-i18n="dmm_help">Day-by-day collections for the month, split by how the money arrived — direct cash, each shop, and digital wallets/bank. Voided payments never appear. This report only summarizes the ledger; it never changes any record.</p>
+        <div class="daily-method-matrix-controls">
+          <label class="daily-method-matrix-field" for="dailyMethodMatrixMonth"><span data-i18n="dmm_month_label">Month</span>
+            <input id="dailyMethodMatrixMonth" class="form-input" type="month" aria-label="Matrix month">
+          </label>
+        </div>
+        <p id="dailyMethodMatrixSummary" class="daily-method-matrix-summary" role="status" aria-live="polite"></p>
+        <div id="dailyMethodMatrixTableHost" class="daily-method-matrix-scroll"></div>
+        <div class="daily-method-matrix-actions">
+          <button id="dailyMethodMatrixCsvBtn" class="secondary-button" type="button" data-i18n="dmm_csv_btn">⬇️ Export CSV</button>
+          <button id="dailyMethodMatrixPrintBtn" class="secondary-button" type="button" data-i18n="dmm_print_btn">📄 Print A4</button>
+          <button id="dailyMethodMatrixCloseBtn2" class="primary-button" type="button" data-i18n="dmm_close">Close</button>
+        </div>
       </div>
     </div>
   </dialog>

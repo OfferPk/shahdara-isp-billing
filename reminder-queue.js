@@ -34,6 +34,7 @@ import {
 import { getWaadaTier, WAADA_TIERS, waadaTemplateIdForTier } from './waada-queue.js';
 import { getWaTemplates, renderCustomWaTemplate } from './whatsapp-templates.js';
 import { contactedToday } from './contact-cooldown-tracker.js';
+import { classifyCustomerDefaulter } from './defaulter-risk-segment.js';
 
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 export const REMINDER_STAGES_SETTINGS_KEY = 'shahdara_reminder_stages_v1';
@@ -849,6 +850,9 @@ export function getRemindersTodayQueue(state, options = {}) {
       messageText: reminderMessage,
       whatsappUrl: wa.url,
       waadaTier,
+      // SISP-159: defaulter risk segment (pure derivation, informational
+      // only — drives the segment chip and template tone pre-selection).
+      riskSegment: classifyCustomerDefaulter(c, state, todayStr),
       promiseDate: typeof c.promiseDate === 'string' ? c.promiseDate : null,
       promiseAmount: c.promiseAmount ?? null,
       promiseNote: c.promiseNote ?? ''
@@ -921,6 +925,9 @@ export function buildCampaignQueue(state, options = {}) {
       zone,
       balance,
       waadaTier,
+      // SISP-159: defaulter risk segment for the campaign card chip and
+      // the Auto template pre-selection (informational only).
+      riskSegment: classifyCustomerDefaulter(c, state, todayStr),
       promiseDate: typeof c.promiseDate === 'string' ? c.promiseDate : null,
       lastRemindedAt: typeof c.lastRemindedAt === 'string' ? c.lastRemindedAt : null
     });

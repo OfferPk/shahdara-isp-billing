@@ -1037,6 +1037,23 @@ body.field-mode-open { overflow: hidden; }
   .storm-inspection-card p strong { text-align: left; }
 }
 
+/* SISP-157: daisy-chain topology tree — token-only; indent is capped in
+   the renderer (--hop never exceeds 6) so a 390px phone stays readable. */
+.daisy-tree-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.daisy-tree-summary { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.daisy-tree-empty { color: var(--muted); font-size: 13px; }
+.daisy-zone { margin: 0 0 16px; }
+.daisy-zone h3 { color: var(--ink); font-size: 15px; margin: 12px 0 6px; }
+.daisy-box h4 { color: var(--ink); font-size: 13px; margin: 10px 0 4px; }
+.daisy-node { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; box-sizing: border-box; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin: 4px 0; margin-inline-start: calc((min(var(--hop, 1), 6) - 1) * 16px); width: calc(100% - (min(var(--hop, 1), 6) - 1) * 16px); color: var(--ink); font-size: 13px; cursor: pointer; }
+.daisy-node-name { font-weight: 600; overflow-wrap: anywhere; }
+.daisy-node-num { color: var(--muted); }
+.daisy-hop-badge { font-size: 11px; border-radius: 999px; padding: 2px 8px; background: var(--color-pending-bg); color: var(--color-pending); }
+.daisy-chip { font-size: 11px; border-radius: 999px; padding: 2px 8px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.daisy-chip-deep { background: var(--color-pending-bg); border-color: var(--color-pending); color: var(--color-pending); font-weight: 600; }
+.daisy-chip-cycle { border-color: var(--color-overdue); color: var(--color-overdue); font-weight: 600; }
+.daisy-node-archived { opacity: 0.65; }
+
 /* Saad visit log: per-visit job record + month-end summary. Token-only. */
 .saad-visits-intro { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
 .saad-visits-month-summary { margin: 8px 0 16px; }

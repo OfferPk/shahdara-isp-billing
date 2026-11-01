@@ -192,6 +192,7 @@ import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, sav
 import { INVENTORY_ITEM_IDS, INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.11.0';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
+import { buildDaisyChainTree, setupDaisyChainTreeModal } from './daisy-chain-tree-view.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, syncSaadPaymentLedgers, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { LINEMAN_PAYOUTS_KEY, loadLinemanPayouts, saveLinemanPayouts, setupLinemanPayoutModal, syncLinemanPayoutLedgers } from './lineman-payout-slip.js';
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
@@ -642,6 +643,7 @@ export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
 export let fieldBagModalController = null;
 export let outageImpactModalController = null;
+export let daisyChainTreeModalController = null;
 export let saadVisitsModalController = null;
 export let installTrackerModalController = null;
 export let installGateModalController = null;
@@ -1578,6 +1580,16 @@ function renderDashboard() {
     outageSummaryEl.innerHTML = feeder.maxSource
       ? `<p><span>${t('dash_outage_chain_label')}</span><strong>${escapeHtml(t('dash_outage_downstream', null, { name: feeder.maxSource.name || t('dash_fallback_unknown'), count: feeder.maxDownstream }))}</strong></p>`
       : '';
+  }
+  // SISP-157: daisy-chain topology tree card (root homes + Hop 3+ deep chains).
+  const daisySummaryEl = $('#daisyChainSummary');
+  if (daisySummaryEl) {
+    const chainTree = buildDaisyChainTree(state);
+    const daisyValueEl = $('#dashboardDaisyChainValue');
+    const daisyPeriodEl = $('#dashboardDaisyChainPeriod');
+    if (daisyValueEl) daisyValueEl.textContent = chainTree.totals.placed === 0 ? t('dash_daisychain_empty') : t('dash_daisychain_roots', null, { count: chainTree.totals.roots });
+    if (daisyPeriodEl) daisyPeriodEl.textContent = chainTree.totals.deepChain === 0 ? t('dash_daisychain_period_ok') : t('dash_daisychain_deep', null, { count: chainTree.totals.deepChain });
+    daisySummaryEl.innerHTML = '';
   }
   // Saad visit log: this-month visits, days present and hours worked.
   const saadSummaryEl = $('#saadVisitsSummary');
@@ -12890,6 +12902,10 @@ if (typeof document !== 'undefined') {
   });
   outageImpactModalController = setupOutageImpactModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
+  });
+  daisyChainTreeModalController = setupDaisyChainTreeModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts),
+    onOpenCustomer: (customerId) => selectCustomer(customerId)
   });
   setupLinemanPayoutModal({
     loadRoznamchaDays: () => loadRoznamchaDays(),

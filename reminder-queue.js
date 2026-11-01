@@ -32,10 +32,13 @@ import {
   escapeHtml
 } from './form-validation.js';
 import { getWaadaTier, WAADA_TIERS, waadaTemplateIdForTier } from './waada-queue.js';
-import { getWaTemplates, renderCustomWaTemplate } from './whatsapp-templates.js';
+import { vacationHoldState } from './pause-billing.js';
+import { hasFutureWaada } from './mikrotik-generator.js';
+import { getWaTemplates, renderWaTemplateFor, renderCustomWaTemplate } from './whatsapp-templates.js';
 import { contactedToday } from './contact-cooldown-tracker.js';
 import { classifyCustomerDefaulter } from './defaulter-risk-segment.js';
 import { buildFaultSuppressedCustomerIds } from './fix-and-collect-bridge.js';
+import { isShielded } from './suspension-shield.js';
 
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 export const REMINDER_STAGES_SETTINGS_KEY = 'shahdara_reminder_stages_v1';
@@ -575,6 +578,234 @@ export function filterLockDueEntries(entries, todayStr = getTodayDateString()) {
   if (!Array.isArray(entries)) return [];
   return entries.filter(entry =>
     entry && isLockDueCustomer(entry.customer, entry.outstanding, todayStr));
+}
+
+// ============================================================================
+// SISP-180: Final 24h Pre-Suspension WhatsApp Notice Queue
+// ============================================================================
+//
+// The courtesy step BEFORE the SISP-38 MikroTik suspension script runs:
+// every Lock Due (15th+) defaulter who would actually be locked gets one
+// last polite WhatsApp notice with a 24-hour window. Like every dispatch
+// in this app the notice is a wa.me DRAFT the operator taps open per
+// customer — nothing is ever auto-sent.
+//
+// The candidate set is EXACTLY the SISP-38 Lock Due set (isLockDueCustomer
+// above — never re-derived here), minus the same customers the suspension
+// generator itself spares. All of those guards live behind the single
+// predicate isPrelockNoticeEligible below so the exclusion rules stay in
+// one auditable place.
+
+/** whatsapp-templates.js catalogue id of the final pre-lock notice. */
+export const PRELOCK_NOTICE_TEMPLATE_ID = 'finalPrelockNotice';
+
+/**
+ * The audit stage stamped into reminder history when a final pre-lock
+ * notice is dispatched (recordReminderDispatched consumes this shape).
+ */
+export const PRELOCK_NOTICE_STAGE = Object.freeze({
+  id: 'prelock_final_24h',
+  label: 'Final Pre-Lock Notice (24h)'
+});
+
+/**
+ * ONE eligibility predicate for the final pre-lock notice queue. Each
+ * exclusion is its own clause, in order:
+ *
+ * 1. LOCK DUE SET — the customer must be in the exact SISP-38 Lock Due
+ *    set for the reference date (isLockDueCustomer): outstanding > 0,
+ *    on/after the 15th, and not a FREE connection (FREE connections owe
+ *    nothing and never escalate — getEscalationStage returns null).
+ *    That stage check already caps anyone with an active SISP-3 Waada
+ *    (tier 'promised': a valid promiseDate on or after today) at
+ *    Final Notice, so such customers never reach the clauses below.
+ * 2. WAADA (lock-script rule) — defense in depth with the exact helper
+ *    buildDefaulterLockScript applies: a strictly-future promiseDate
+ *    spares the customer from the lock, so it also spares the notice.
+ * 3. PAUSED / VACATION HOLD (lock-script rule) — the generator skips
+ *    every customer whose vacationHoldState is not 'none' (active,
+ *    scheduled, or expired-but-not-resumed): a hold is not a lock, and
+ *    a held customer must never be told suspension is 24 hours away.
+ *
+ * ── MERGE-TIME CLAUSE SLOT (SISP-148) ──────────────────────────────
+ * The do-not-suspend shield (SISP-148) is not in this base yet. When
+ * it lands, add its clause HERE, as clause 4, in this exact shape:
+ *   // 4. DO-NOT-SUSPEND SHIELD (SISP-148) — a shielded customer cannot
+ *   //    be suspended, so the final notice must not go out either:
+ *   //    if (isShielded(customer, todayStr)) return false;
+ * (with the matching import of isShielded from its module). No other
+ * part of the queue builder or UI needs to change: every consumer
+ * funnels through this predicate.
+ * ────────────────────────────────────────────────────────────────────
+ *
+ * @param {Object} customer - Customer record.
+ * @param {number} outstanding - Total unpaid balance (PKR); must be > 0.
+ * @param {string} [todayStr] - Reference date YYYY-MM-DD (injectable).
+ * @returns {boolean}
+ */
+export function isPrelockNoticeEligible(customer, outstanding, todayStr = getTodayDateString()) {
+  if (!customer || typeof customer !== 'object') return false;
+
+  // Clause 1 — exact SISP-38 Lock Due set (covers FREE + active Waada).
+  if (!isLockDueCustomer(customer, outstanding, todayStr)) return false;
+
+  // Clause 2 — Waada guard, identical to buildDefaulterLockScript's.
+  if (hasFutureWaada(customer, todayStr)) return false;
+
+  // Clause 3 — vacation-hold guard, identical to buildDefaulterLockScript's
+  // skippedPaused rule (any recorded hold state spares the customer).
+  if (vacationHoldState(customer, todayStr) !== 'none') return false;
+
+  // Clause 4 — DO-NOT-SUSPEND SHIELD (SISP-148): a shielded customer cannot
+  // be suspended, so the final notice must not go out either.
+  if (isShielded(customer, todayStr)) return false;
+
+  return true;
+}
+
+/**
+ * Oldest overdue days for a customer, computed EXACTLY as the Lock Due
+ * surface (calculateTopDefaulters) computes them: for each bill with a
+ * remaining allocation balance, the due date is bill.dueDate or the
+ * 5th of the bill month; the result is the largest day count overdue.
+ *
+ * @param {Object} customer
+ * @param {Object} allocations - Output of calculatePaymentAllocations.
+ * @param {string} todayStr - YYYY-MM-DD.
+ * @returns {number}
+ */
+export function getOldestOverdueDays(customer, allocations, todayStr = getTodayDateString()) {
+  if (!customer || !allocations) return 0;
+  let maxOverdueDays = 0;
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  for (const bill of bills) {
+    if (!bill || !bill.month) continue;
+    const summary = allocations.forMonth?.(customer.id, bill.month);
+    const balanceDueCents = summary?.balanceDueCents;
+    if (!(Number(balanceDueCents) > 0)) continue;
+    const dueYmd = bill.dueDate || `${bill.month}-05`;
+    const daysOverdue = Math.max(0, calendarDaysDifference(todayStr, dueYmd));
+    if (daysOverdue > maxOverdueDays) maxOverdueDays = daysOverdue;
+  }
+  return maxOverdueDays;
+}
+
+/**
+ * Total outstanding (PKR) for one customer as ONE allocation pass over
+ * all of the customer's bills — the same total a Top Defaulters row
+ * shows (per-bill balanceDueCents summed), not a single month's figure.
+ *
+ * @param {Object} customer
+ * @param {Object} allocations - Output of calculatePaymentAllocations.
+ * @returns {number} Outstanding in whole PKR (>= 0).
+ */
+export function getTotalOutstandingFromAllocations(customer, allocations) {
+  if (!customer || !allocations) return 0;
+  let totalCents = 0;
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  for (const bill of bills) {
+    if (!bill || !bill.month) continue;
+    const balanceDueCents = allocations.forMonth?.(customer.id, bill.month)?.balanceDueCents;
+    if (Number(balanceDueCents) > 0) totalCents += Number(balanceDueCents);
+  }
+  return Math.round(totalCents / 100);
+}
+
+/**
+ * Renders the final pre-lock notice for one customer from the
+ * whatsapp-templates.js catalogue (SISP-180 template), with the
+ * customer's real outstanding as {totalDue}. Rendering never leaves a
+ * raw placeholder behind (renderWaTemplate strips unknown tokens).
+ *
+ * @param {Object} customer
+ * @param {number} outstanding - Total unpaid balance (PKR).
+ * @param {Object} [options]
+ * @param {Array} [options.templates] - Template list (defaults to stored).
+ * @param {string} [options.variant='roman'] - 'roman' | 'urdu'.
+ * @returns {string}
+ */
+export function buildPrelockNoticeMessage(customer, outstanding, options = {}) {
+  const templates = Array.isArray(options.templates) ? options.templates : getWaTemplates(options.storage ?? null);
+  const variant = options.variant === 'urdu' ? 'urdu' : 'roman';
+  return renderWaTemplateFor(templates, PRELOCK_NOTICE_TEMPLATE_ID, customer, {
+    totalDue: Math.max(0, Number(outstanding || 0)),
+    package: customer?.package ?? ''
+  }, variant);
+}
+
+/**
+ * Builds the final pre-lock notice queue for the reference date: the
+ * eligible Lock Due set (isPrelockNoticeEligible), ranked like the
+ * defaulter list (highest balance first, customer number tie-break).
+ * Archived customers are excluded up front — the Lock Due surface
+ * (calculateTopDefaulters) never lists them either. Each item carries
+ * its ready-to-open wa.me draft; sending stays a per-customer tap.
+ *
+ * @param {Object} state - The ISP billing application state.
+ * @param {Object} [options]
+ * @param {string} [options.todayString] - YYYY-MM-DD (injectable).
+ * @param {Storage|object} [options.storage] - For template lookup.
+ * @param {Array} [options.templates] - Template list override.
+ * @param {string} [options.variant='roman'] - 'roman' | 'urdu'.
+ * @returns {{ date: string, queue: Array<Object>, totalCount: number, totalDuesPkr: number }}
+ */
+export function buildPrelockNoticeQueue(state, options = {}) {
+  const todayStr = options.todayString || getTodayDateString();
+  const templates = Array.isArray(options.templates) ? options.templates : getWaTemplates(options.storage ?? null);
+  const variant = options.variant === 'urdu' ? 'urdu' : 'roman';
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+
+  let allocations = null;
+  try {
+    allocations = calculatePaymentAllocations(state);
+  } catch {
+    allocations = null;
+  }
+
+  const queue = [];
+  let totalDuesPkr = 0;
+
+  for (const c of customers) {
+    if (!c || c.archived) continue;
+
+    const outstanding = allocations
+      ? getTotalOutstandingFromAllocations(c, allocations)
+      : getCustomerOutstandingDues(c, state, todayStr.slice(0, 7));
+    if (!(outstanding > 0)) continue;
+    if (!isPrelockNoticeEligible(c, outstanding, todayStr)) continue;
+
+    const messageText = buildPrelockNoticeMessage(c, outstanding, { templates, variant });
+    const wa = formatWhatsAppUrl(c.phone || '', messageText);
+
+    totalDuesPkr += outstanding;
+    queue.push({
+      customer: c,
+      customerId: c.id,
+      customerNumber: c.customerNumber != null ? Number(c.customerNumber) : null,
+      customerName: c.name || 'Subscriber',
+      phone: c.phone || '',
+      normalizedPhone: wa.formattedPhone || c.phone || '',
+      validPhone: wa.validPhone,
+      area: c.area || c.mohalla || '',
+      balance: outstanding,
+      daysOverdue: allocations ? getOldestOverdueDays(c, allocations, todayStr) : 0,
+      templateId: PRELOCK_NOTICE_TEMPLATE_ID,
+      variant,
+      messageText,
+      whatsappUrl: wa.url
+    });
+  }
+
+  queue.sort((a, b) =>
+    (b.balance - a.balance) ||
+    ((a.customerNumber ?? Number.MAX_SAFE_INTEGER) - (b.customerNumber ?? Number.MAX_SAFE_INTEGER)));
+
+  return {
+    date: todayStr,
+    queue,
+    totalCount: queue.length,
+    totalDuesPkr
+  };
 }
 
 /**

@@ -535,14 +535,14 @@ export function buildReceiptBillNoticeMessage(customer, extras = {}, templates =
  * @param {string} [options.format='a4'] - 'a4' | 'thermal-80' | 'thermal-58'
  * @param {string} [options.businessName='Shahdara ISP']
  * @param {string} [options.businessPhone='0300-1234567']
- * @param {string} [options.areaName='Shahdara, Lahore']
+ * @param {string} [options.areaName='Shahdara, Islamabad']
  * @returns {string} HTML markup
  */
 export function generatePaymentReceiptHtml(receipt, {
   format = 'a4',
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Lahore',
+  areaName = 'Shahdara, Islamabad',
   receiptFooter = null
 } = {}) {
   if (!receipt) return '';
@@ -820,7 +820,7 @@ export function buildDownPaymentKistReceipt(customer, plan, payment) {
 export function buildDownPaymentKistReceiptHtml(receipt, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Lahore'
+  areaName = 'Shahdara, Islamabad'
 } = {}) {
   if (!receipt) return '';
   const formatAmount = (val) => {
@@ -904,7 +904,7 @@ export function buildDepositSettlementReceipt(customer) {
 export function generateDepositSettlementReceiptHtml(receipt, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Lahore'
+  areaName = 'Shahdara, Islamabad'
 } = {}) {
   if (!receipt) return '';
   const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName

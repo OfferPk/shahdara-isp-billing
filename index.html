@@ -501,6 +501,7 @@
           <div id="splitterMapSummary" class="splitter-map-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_splitter">🔌 Splitter Port Map</button>
+            <button id="openDarkFiberModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_dark_fiber">🧵 Dark Fiber Finder</button>
             <button id="openSpliceClosureModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="jcmap_open_btn">🧵 JC Splice Map</button>
           </div>
         </article>
@@ -21902,6 +21903,45 @@
         <label for="splitterMapTechnicianInput">Lineman / technician (for attenuation tickets)</label>
         <input id="splitterMapTechnicianInput" class="form-input splitter-map-technician" type="text" autocomplete="off" placeholder="Lineman name">
         <div id="splitterMapWeakList" class="splitter-map-weak-list"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="darkFiberModal" class="billing-modal dark-fiber-modal" aria-labelledby="darkFiberModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="darkFiberModalTitle">🧵 Dark Fiber Core Finder — ڈارک فائبر کور تلاش</h2>
+        <button id="darkFiberCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="dfib-intro" data-i18n="dfib_intro">Every feeder cable core by status — lit, damaged or spare. When a damaged core feeds a splitter box, swap the box onto the first spare core of the same cable in one tap.</p>
+        <h3 data-i18n="dfib_add_title">Register a feeder cable</h3>
+        <div class="dfib-add-row">
+          <input id="darkFiberLabelInput" class="form-input" type="text" maxlength="100" data-i18n-placeholder="dfib_label_placeholder" placeholder="Cable label (e.g. Main Feeder — Barrian)" aria-label="Cable label">
+          <label class="dfib-count-label"><span data-i18n="dfib_core_count_label">Cores</span>
+            <select id="darkFiberCoreCountSelect" class="form-input" aria-label="Cores">
+              <option value="6">6</option>
+              <option value="12" selected>12</option>
+              <option value="24">24</option>
+            </select>
+          </label>
+          <button id="darkFiberAddBtn" class="action-btn-sm" type="button" data-i18n="dfib_add_btn">Add Cable</button>
+        </div>
+        <label class="dfib-spares-toggle"><input id="darkFiberSparesOnly" type="checkbox"> <span data-i18n="dfib_spares_only">Spares only</span></label>
+        <div id="darkFiberCableList" class="dfib-cable-list"></div>
+        <div id="darkFiberAssignRow" class="dfib-assign-row">
+          <h3 data-i18n="dfib_assign_title">Assign a splitter box to a core</h3>
+          <label><span data-i18n="dfib_assign_cable">Cable</span>
+            <select id="darkFiberAssignCable" class="form-input" aria-label="Cable"></select>
+          </label>
+          <label><span data-i18n="dfib_assign_core">Core</span>
+            <select id="darkFiberAssignCore" class="form-input" aria-label="Core"></select>
+          </label>
+          <label><span data-i18n="dfib_assign_box">Splitter box</span>
+            <select id="darkFiberAssignBox" class="form-input" aria-label="Splitter box"></select>
+          </label>
+          <button id="darkFiberAssignBtn" class="action-btn-sm" type="button" data-i18n="dfib_assign_btn">Assign</button>
+        </div>
       </div>
     </div>
   </dialog>

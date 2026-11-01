@@ -46,6 +46,7 @@
  */
 
 import { normalizeTid, findPaymentsByTid } from './wallet-reconciliation.js';
+import { findRecentDuplicate, buildDuplicatePaymentConfirmOptions } from './duplicate-payment-guard.js';
 
 export const SUSPENSE_PAYMENTS_KEY = 'sisp_suspense_payments_v1';
 
@@ -521,6 +522,21 @@ export function setupSuspensePaymentsModal(getState, {
           if (typeof onClaim !== 'function') {
             if (typeof onToast === 'function') onToast('Claim is not wired yet.');
             return;
+          }
+          // SISP-146: claiming records a payment for the picked
+          // customer — if the same amount + wallet was already logged
+          // for them moments ago (e.g. the transfer was ALSO collected
+          // by hand), ask before it lands twice. The TID layer above
+          // still refuses an exact re-claim of the same transfer.
+          const claimState = typeof getState === 'function' ? getState() : null;
+          const recentDuplicate = claimState ? findRecentDuplicate(claimState, {
+            customerId,
+            amount: entry.amount,
+            method: entry.wallet
+          }) : null;
+          if (recentDuplicate && typeof onConfirm === 'function') {
+            const confirmed = await onConfirm(buildDuplicatePaymentConfirmOptions(recentDuplicate, formatSuspensePKR));
+            if (confirmed !== 'confirm') return;
           }
           const result = await onClaim(entry, { customerId, month: getMonth() });
           if (result?.receipt) showReceipt(result.receipt);

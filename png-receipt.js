@@ -22,6 +22,7 @@
 // (buttons, dialogs) uses theme tokens.
 import { kistLineLabel } from './installment-plan.js';
 import { displayCustomerName } from './urdu-names.js';
+import { receiptHistoryHeading } from './receipt.js';
 import { buildReceiptFooterLines } from './receipt-footer-studio.js';
 import { receiptCodeForReceipt } from './receipt-verifier.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
@@ -182,6 +183,15 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     });
   }
 
+  // SISP-128: "Last 3 Payments" mini-history lines, composed here in the
+  // model so the layout owns their space. Rows come from the receipt
+  // snapshot (buildPaymentReceipt derives them from the ledger at build
+  // time, voided excluded); a receipt without previousPayments yields
+  // [], and the layout below keeps the exact 2000px canvas it always had.
+  const history = (Array.isArray(receipt.previousPayments) ? receipt.previousPayments : [])
+    .filter((row) => row && typeof row === 'object')
+    .map((row) => [text(row.date), money(row.amount), text(row.method), text(row.receiptLabel)].filter(Boolean).join(' · '));
+
   // SISP-96: the owner-configured receipt footer lines (ONE builder in
   // receipt-footer-studio.js, shared by every receipt format). The slip
   // canvas is exactly full at the standard height, so a configured
@@ -224,6 +234,8 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     packageLine: [text(receipt.package), receipt.speedMbps ? `${receipt.speedMbps} Mbps` : '']
       .filter(Boolean).join(' '),
     financial,
+    historyHeading: history.length ? receiptHistoryHeading() : '',
+    history,
     seal: decideSeal(receipt),
     status: text(receipt.status) || 'RECEIVED',
     urduNote: text(receipt.urduNote),
@@ -337,6 +349,26 @@ export function computePngReceiptLayout(model, measureFn) {
   });
   y += 210;
 
+  // SISP-128: "Last 3 Payments" mini-history — receipt BODY content,
+  // above the footer note. Drawn only when history exists; the canvas
+  // height (in the return below) grows past 2000px by exactly what the
+  // rows need, so even a maximal kist+arrears receipt (which already
+  // ends at the canvas foot) never clips the block or the footer.
+  if (Array.isArray(model.history) && model.history.length) {
+    line(M + 44, y, W - M - 44, y, HAIRLINE, 1);
+    y += 62;
+    txt(model.historyHeading, M + 44, y, `700 40px ${FONT_LATIN}`, 'left', INK);
+    y += 16;
+    for (const historyLine of model.history) {
+      const wrapped = wrapText({ measureText: (t) => ({ width: measure(t) }) }, historyLine, contentW - 88);
+      for (const wrappedLine of wrapped) {
+        y += 52;
+        txt(wrappedLine, M + 44, y, `500 36px ${FONT_LATIN}`, 'left', MUTED);
+      }
+    }
+    y += 44;
+  }
+
   // SISP-120: a starred customer's thank-you line, above the footer.
   if (model.starThankYouNote) {
     const starIsUrdu = /[\u0600-\u06FF]/.test(model.starThankYouNote);
@@ -368,7 +400,10 @@ export function computePngReceiptLayout(model, measureFn) {
     W / 2, y, `500 34px ${FONT_LATIN}`, 'center', MUTED);
   y += 60;
 
-  return { width: W, height: H, commands, footerY: y };
+  // SISP-128: the canvas grows ONLY when a history block was drawn —
+  // no-history receipts keep the exact 1600x2000 canvas (pinned).
+  const height = Array.isArray(model.history) && model.history.length ? Math.max(H, y + 24) : H;
+  return { width: W, height, commands, footerY: y };
 }
 
 /** Execute layout commands on any 2D context (real or stubbed). */
@@ -453,6 +488,13 @@ export async function generateReceiptPNG(receipt, customer, options = {}) {
   const layout = ctx.measureText
     ? computePngReceiptLayout(model, (t) => ctx.measureText(t).width)
     : computePngReceiptLayout(model);
+  // SISP-128: grow the canvas to the layout BEFORE rendering when a
+  // history block extended it (resizing resets the context; the render
+  // below re-sets every style per command, so nothing is lost).
+  if (canvas.width !== layout.width || canvas.height !== layout.height) {
+    canvas.width = layout.width;
+    canvas.height = layout.height;
+  }
   renderPngReceipt(ctx, layout);
   const dataUrl = typeof canvas.toDataURL === 'function' ? canvas.toDataURL(PNG_RECEIPT_MIME) : '';
   let blob = null;
@@ -464,7 +506,7 @@ export async function generateReceiptPNG(receipt, customer, options = {}) {
   }
   return {
     model, layout, canvas, blob, dataUrl,
-    width: model.width, height: model.height,
+    width: layout.width, height: layout.height,
     mime: PNG_RECEIPT_MIME, filename: pngReceiptFilename(model),
   };
 }

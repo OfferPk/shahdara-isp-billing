@@ -301,7 +301,12 @@ export function sanitizeTickets(value) {
       signalBeforeDbm: sanitizeTicketSignalDbm(entry.signalBeforeDbm),
       signalAfterDbm: sanitizeTicketSignalDbm(entry.signalAfterDbm),
       stockDeductions: Array.isArray(entry.stockDeductions) ? clone(entry.stockDeductions) : [],
-      stockDeducted: entry.stockDeducted === true
+      stockDeducted: entry.stockDeducted === true,
+      // SISP-127: present ONLY when the ticket's resolution stock was
+      // sourced from the lineman's field bag; absent means the Main
+      // Store (the SISP-42 default), so legacy tickets sanitize
+      // byte-identically.
+      ...(entry.stockSource === 'bag' ? { stockSource: 'bag' } : {})
     });
   }
   return out;
@@ -408,8 +413,15 @@ export function resolveTicket(list, id, options = {}) {
   if (ticket.status === 'Resolved') throw new Error('Ticket is already resolved.');
   const materialsUsed = sanitizeTicketMaterials(options.materialsUsed);
   const billingType = options.billingType === 'billed' ? 'billed' : 'free';
+  // SISP-127: the resolver picks where the consumed materials come
+  // from — the field bag ('bag') or the Main Store (anything else,
+  // including absent: the SISP-42 behaviour). A re-resolve re-picks,
+  // so any earlier pick is dropped first.
+  const baseTicket = { ...ticket };
+  delete baseTicket.stockSource;
   const resolved = {
-    ...ticket,
+    ...baseTicket,
+    ...(options.stockSource === 'bag' ? { stockSource: 'bag' } : {}),
     status: 'Resolved',
     // SISP-44: a caller that already knows the resolution time (the
     // complaint sync, mirroring a register resolution) stamps it
@@ -888,6 +900,11 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         <label><input type="radio" name="ticketResolveBilling_${ticket.id}" value="free" checked> Free Maintenance</label>
         <label><input type="radio" name="ticketResolveBilling_${ticket.id}" value="billed"> Billed to Customer</label>
       </div>
+      <div class="ticket-resolve-billing">
+        <span>Stock source:</span>
+        <label><input type="radio" name="ticketResolveSource_${ticket.id}" value="main" checked> Main Store</label>
+        <label><input type="radio" name="ticketResolveSource_${ticket.id}" value="bag"> Field Bag</label>
+      </div>
       <label class="field-label" for="ticketResolveSignalAfter_${ticket.id}">Signal after fix (dBm) — optional</label>
       <input id="ticketResolveSignalAfter_${ticket.id}" class="form-input" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="e.g. -19.0" data-resolve-signal-after>
       <button class="primary-button" type="submit">Mark resolved</button>
@@ -1139,9 +1156,11 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
       }
       const billingInput = form.querySelector(`input[name="ticketResolveBilling_${CSS.escape(id)}"]:checked`);
       const billingType = billingInput ? billingInput.value : 'free';
+      const sourceInput = form.querySelector(`input[name="ticketResolveSource_${CSS.escape(id)}"]:checked`);
+      const stockSource = sourceInput ? sourceInput.value : 'main';
       const signalAfterRaw = form.querySelector('[data-resolve-signal-after]')?.value ?? '';
       try {
-        const next = resolveTicket(loadTickets(), id, { materialsUsed, billingType, signalAfterDbm: signalAfterRaw });
+        const next = resolveTicket(loadTickets(), id, { materialsUsed, billingType, stockSource, signalAfterDbm: signalAfterRaw });
         persist(next);
         const entry = next.find((t) => t.id === id);
         // OWNER-SIGNAL: a freshly entered after reading is journalled

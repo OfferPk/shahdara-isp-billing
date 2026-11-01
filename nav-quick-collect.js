@@ -81,6 +81,7 @@ import {
 } from './digital-payments-settings.js';
 import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } from './receipt-footer-studio.js';
 import { formatWhatsAppUrl } from './form-validation.js';
+import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
 import {
   isReceiptShared,
@@ -629,6 +630,7 @@ export function executeQuickCollection(state, {
   tickets,
   kind,
   advanceTargetMonth,
+  paidByContributorId,
   remainderWaadaDate,
   waiveLateFee
 }, referenceDate = new Date()) {
@@ -711,6 +713,12 @@ export function executeQuickCollection(state, {
 
   }
 
+  // SISP-158: the "Paid by / kis ne diya" pick resolves HERE, at record
+  // time, into the { id, name } snapshot that rides the payment — so a
+  // later contributor edit or removal never rewrites who paid. An id
+  // that names no current contributor (or no pick at all) leaves the
+  // payment untagged, attributing it to the main customer.
+  const contributorStamp = contributorSnapshotFor(customer, paidByContributorId);
   // SISP-101: the 1-click late-fee waiver. The gate is planned from the
   // PRE-payment allocation summary of the target bill (the full-
   // principal rule lives in late-fee-waiver.js); a waiver that fails
@@ -762,6 +770,7 @@ export function executeQuickCollection(state, {
     // validatePayment sanitizes it (strict 'YYYY-MM', advance-only).
     targetMonth: kind === 'advance' ? advanceTargetMonth : undefined,
     paidBy: paidBy ? String(paidBy).trim() : undefined,
+    paidByContributor: contributorStamp ?? undefined,
     transactionId: cleanTxnId || undefined,
     // SISP-63: sender proof metadata rides alongside the TID; core's
     // validatePayment sanitizes it and keeps it for digital methods
@@ -933,6 +942,7 @@ export function executeQuickCollection(state, {
     amount: numAmount,
     method: pMethod,
     paidBy: paidBy ? String(paidBy).trim() : '',
+    paidByContributor: contributorStamp,
     transactionId: cleanTxnId,
     // SISP-63: read back from the STORED payment so the receipt shows
     // exactly what validatePayment kept (sanitized, digital-only).
@@ -1588,6 +1598,9 @@ export function setupQuickCollectModal({
   const methodSelect = document.getElementById('quickCollectMethodSelect');
   const monthSelect = document.getElementById('quickCollectMonthSelect');
   const paidByInput = document.getElementById('quickCollectPaidByInput');
+  // SISP-158: contributor picker hosts (null when the host page predates them).
+  const contributorField = document.getElementById('quickCollectContributorField');
+  const contributorSelect = document.getElementById('quickCollectContributorSelect');
   const advanceCheckbox = document.getElementById('quickCollectAdvanceCheckbox');
   const advanceTargetSelect = document.getElementById('quickCollectAdvanceTargetMonth');
   const dueAmountVal = document.getElementById('quickCollectDueAmountVal');
@@ -2364,6 +2377,24 @@ export function setupQuickCollectModal({
         paidByInput.value = activeDefaults.lastPaidBy || '';
       }
 
+      // SISP-158: the "Paid by / kis ne diya" contributor picker exists
+      // ONLY for a customer who actually has contributors — everyone
+      // else's sheet is pixel-identical to before. The main customer is
+      // the default (empty value = untagged payment).
+      if (contributorField && contributorSelect) {
+        const pickedCustomer = state.customers.find(c => c.id === customerId);
+        const contributors = subContributorsOf(pickedCustomer);
+        if (contributors.length > 0) {
+          contributorSelect.innerHTML = `<option value="">${escapeHtml(t('contrib_qc_main'))}</option>` + contributors.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.name)}</option>`).join('');
+          contributorSelect.value = '';
+          contributorField.hidden = false;
+        } else {
+          contributorSelect.innerHTML = '';
+          contributorSelect.value = '';
+          contributorField.hidden = true;
+        }
+      }
+
       // Populate billing month select
       if (monthSelect) {
         const historyMonths = monthsForHistory();
@@ -3116,6 +3147,7 @@ export function setupQuickCollectModal({
         kind: advanceCheckbox?.checked ? 'advance' : undefined,
         advanceTargetMonth: advanceCheckbox?.checked ? (advanceTargetSelect?.value || undefined) : undefined,
         paidBy: paidByVal,
+        paidByContributorId: contributorSelect && contributorField && !contributorField.hidden ? (contributorSelect.value || undefined) : undefined,
         transactionId: txnIdVal,
         senderTitle: (senderNameInput?.value || '').trim(),
         senderDigits: (senderDigitsInput?.value || '').trim(),

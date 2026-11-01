@@ -7281,6 +7281,7 @@
                 <label class="profile-field" for="cancellationDateInput"><span class="field-label"><span data-i18n="prof_form_cancel_date">Explicit cancellation date</span> <span class="optional-label" data-i18n="prof_form_cancel_date_note">Optional · Offline is not churn</span></span><input id="cancellationDateInput" type="date"></label>
                 <label class="profile-field" for="packageChangeStaffNameInput"><span class="field-label"><span data-i18n="prof_form_staff_name">Package-change staff name</span> <span class="optional-label" data-i18n="prof_form_staff_name_note">Optional · used only for next change</span></span><input id="packageChangeStaffNameInput" type="text" maxlength="100" autocomplete="off" data-i18n-placeholder="prof_not_set" placeholder="Not set"></label>
               </div>
+              <div id="profileContributorsEditor"></div>
               <p id="customerProfitPreview" class="profile-profit" role="status" aria-live="polite">Expected monthly package profit: Not set until both monthly amounts are entered.</p>
               <div id="packageChangeProrataPreview" class="profile-prorata-preview" role="region" data-i18n-aria-label="prof_prorata_aria" aria-label="Mid-month package change pro-rata preview" hidden>
                 <div class="prorata-preview-header">
@@ -19909,6 +19910,10 @@
                 <label for="quickCollectPaidByInput" class="qc-label">Paid By / Note (Optional)</label>
                 <input id="quickCollectPaidByInput" type="text" maxlength="100" placeholder="e.g. Self, Brother, Shop Cashier" class="qc-input">
               </div>
+            </div>
+            <div class="qc-field-group" id="quickCollectContributorField" style="margin-top:8px;" hidden>
+              <label for="quickCollectContributorSelect" class="qc-label" data-i18n="contrib_qc_label">Paid by / kis ne diya</label>
+              <select id="quickCollectContributorSelect" class="qc-input"></select>
             </div>
             <div class="qc-field-group" style="margin-top:8px;">
               <label class="qc-label" for="quickCollectAdvanceCheckbox" style="display:flex;align-items:center;gap:8px;cursor:pointer;">

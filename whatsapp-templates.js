@@ -3,7 +3,7 @@
  *
  * The operator sends monthly reminders, polite 5th-of-month bill notices,
  * Waada expiry follow-ups and outage alerts by hand (1-tap, never automatic).
- * Each of the five message types is editable in the Template Studio in both
+ * Each of the message types is editable in the Template Studio in both
  * Roman Urdu and Urdu script, and rendered with live customer values before
  * sending. Rendering never leaves an "undefined" or a raw {placeholder} in
  * the outgoing text: unknown or missing values render as an empty string.
@@ -23,14 +23,15 @@ function formatPkrLocal(value) {
 export const WA_TEMPLATES_STORAGE_KEY = 'sisp_wa_templates_v1';
 
 /** Template ids, in studio order. */
-export const WA_TEMPLATE_IDS = Object.freeze(['billGenerated', 'politeReminder', 'brokenWaada', 'outageNotice', 'paymentReceived']);
+export const WA_TEMPLATE_IDS = Object.freeze(['billGenerated', 'politeReminder', 'brokenWaada', 'outageNotice', 'paymentReceived', 'finalPrelockNotice']);
 
 export const WA_TEMPLATE_LABELS = Object.freeze({
   billGenerated: 'Bill Generated',
   politeReminder: 'Polite Reminder',
   brokenWaada: 'Broken Waada Alert',
   outageNotice: 'Outage Notice',
-  paymentReceived: 'Payment Received'
+  paymentReceived: 'Payment Received',
+  finalPrelockNotice: 'Final Pre-Lock Notice'
 });
 
 export const WA_TEMPLATE_DESCRIPTIONS = Object.freeze({
@@ -38,7 +39,8 @@ export const WA_TEMPLATE_DESCRIPTIONS = Object.freeze({
   politeReminder: 'Polite 5th-of-month bill notice.',
   brokenWaada: 'Follow-up when a promised payment date has passed unpaid.',
   outageNotice: 'Service interruption or outage alert.',
-  paymentReceived: 'Confirmation when a payment is received.'
+  paymentReceived: 'Confirmation when a payment is received.',
+  finalPrelockNotice: 'Final 24-hour notice for Lock Due (15th+) defaulters, sent before the MikroTik suspension script runs.'
 });
 
 /** Placeholders every template may use. */
@@ -72,6 +74,14 @@ export const DEFAULT_WA_TEMPLATES = Object.freeze([
     id: 'paymentReceived',
     roman: 'Assalam-o-Alaikum {name}, aap ki adaigi {totalDue} moosool ho gayi hai. Shukriya!',
     urdu: 'السلام علیکم {bilingualName}، آپ کی ادائیگی {totalDue} موصول ہو گئی ہے۔ شکریہ!'
+  },
+  {
+    // SISP-180: final courtesy notice ahead of a Lock Due suspension.
+    // The 24-hour window is part of the wording itself; {totalDue} is
+    // the customer's live outstanding at render time.
+    id: 'finalPrelockNotice',
+    roman: 'Assalam-o-Alaikum {name}, aap ke {package} ka bill {totalDue} baaqi hai aur adaigi ki aakhri tareekh guzar chuki hai. Baraye meherbani agle 24 ghanton ke andar adaigi kar dein, warna aap ka connection aarzi tor par band karna parega. Agar aap adaigi kar chuke hain to meherbani karke is notice ko nazar-andaz kar dein. Shukriya — Shahdara Fiber Net.',
+    urdu: 'السلام علیکم {bilingualName}، آپ کے {package} کا بل {totalDue} باقی ہے اور ادائیگی کی آخری تاریخ گزر چکی ہے۔ برائے مہربانی اگلے 24 گھنٹوں کے اندر ادائیگی کر دیں، ورنہ آپ کا کنکشن عارضی طور پر بند کرنا پڑے گا۔ اگر آپ ادائیگی کر چکے ہیں تو مہربانی کر کے اس نوٹس کو نظر انداز کر دیں۔ شکریہ — شاہدرہ فائبر نیٹ۔'
   }
 ]);
 
@@ -91,7 +101,7 @@ function readStored(storage) {
   } catch { return []; }
 }
 
-/** All five templates: stored customizations merged over defaults. Safe on corrupt or missing storage. */
+/** All catalogue templates: stored customizations merged over defaults. Safe on corrupt or missing storage. */
 export function getWaTemplates(storage = null) {
   const target = storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
   const stored = readStored(target);

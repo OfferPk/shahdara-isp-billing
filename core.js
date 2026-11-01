@@ -16,6 +16,7 @@ import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeBillingGroups } from './group-billing.js';
 import { sanitizeSuspensePayments } from './suspense-payments.js';
+import { sanitizeDeadPorts } from './splitter-port-swap.js';
 import { sanitizeFeederCables } from './dark-fiber-finder.js';
 import { sanitizeFieldBagMovements } from './field-bag-stock.js';
 import { sanitizePolesRegistry } from './pole-asset-tracker.js';
@@ -3639,6 +3640,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSuspensePayments(options.suspensePayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), suspensePayments: cleaned };
   }
+  // SISP-152: dead splitter-port lockouts live outside the ledger state
+  // (localStorage key sisp_dead_ports_v1), so they travel in an optional
+  // `settings.deadPorts` section. Written only when at least one port is
+  // locked; readers that predate it ignore the unknown field.
+  if (options && typeof options === 'object' && Array.isArray(options.deadPorts) && options.deadPorts.length) {
+    const cleaned = sanitizeDeadPorts(options.deadPorts);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), deadPorts: cleaned };
+  }
   // SISP-127: field bag movements live outside the ledger state
   // (localStorage key sisp_field_bag_v1), so they travel in an
   // optional `settings.fieldBagMovements` section. Written only when
@@ -4488,6 +4497,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Suspense payment records differ from this device' });
     }
   }
+  // SISP-152 dead ports: optional lockout section (see createJsonBackup).
+  // Safe-merge rule, same as suspense payments: adopt the backup's
+  // lockouts only when this device has none stored yet; when both sides
+  // hold different real lockouts, keep existing + conflict (a lock must
+  // never be silently overwritten or dropped).
+  let deadPorts = null;
+  const rawIncomingDeadPorts = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.deadPorts
+    : undefined;
+  if (Array.isArray(rawIncomingDeadPorts) && rawIncomingDeadPorts.length) {
+    const incomingDeadPorts = sanitizeDeadPorts(rawIncomingDeadPorts);
+    const currentDeadPorts = (options && typeof options === 'object' && Array.isArray(options.currentDeadPorts))
+      ? sanitizeDeadPorts(options.currentDeadPorts)
+      : [];
+    if (incomingDeadPorts.length && sameJson(incomingDeadPorts, currentDeadPorts)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingDeadPorts.length && (!options?.currentDeadPortsStored || currentDeadPorts.length === 0)) {
+      deadPorts = incomingDeadPorts;
+      counts.deadPortsRestored = 1;
+      counts.changes++;
+    } else if (incomingDeadPorts.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Dead port lockout records differ from this device' });
+    }
+  }
   // SISP-147 feeder cables: optional registry section (see
   // createJsonBackup). Safe-merge rule, same as suspense payments: adopt
   // the backup's cables only when this device has none stored yet; when
@@ -5014,6 +5047,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
-
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

@@ -351,6 +351,12 @@
 .splitter-port-rx { font-size: 12px; color: var(--muted); }
 .splitter-port-weak { border-width: 2px; }
 .splitter-weak-badge { align-self: flex-start; }
+.splitter-port-dead { border-color: var(--color-overdue); }
+.splitter-port-dead-label { color: var(--color-overdue); font-weight: 700; }
+.splitter-port-action { align-self: flex-start; margin-top: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; color: var(--ink); cursor: pointer; font-size: 12px; padding: 4px 8px; }
+.port-swap-lock-option { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0; font-size: 13px; color: var(--ink); }
+.port-swap-error { color: var(--color-overdue); font-size: 13px; margin: 8px 0; }
+.port-swap-actions { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
 .splitter-map-weak-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
 .splitter-weak-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
 .splitter-weak-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }

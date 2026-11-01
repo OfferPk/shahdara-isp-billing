@@ -12426,6 +12426,17 @@ dialog::backdrop {
   border-radius: 10px;
   margin-bottom: 8px;
 }
+/* SISP-163: honest count of reminders paused by an open fault. */
+.reminder-suppressed-line {
+  margin: 0 0 8px;
+  padding: 8px 12px;
+  background: var(--amber-bg);
+  color: var(--amber);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
 .reminder-queue-info {
   display: flex;
   align-items: center;

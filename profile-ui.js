@@ -1,6 +1,7 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers, whatsappPhoneFor } from './core.js';
 import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from './billing-cycle.js';
 import { sanitizePauseFields, vacationHoldState } from './pause-billing.js';
+import { sanitizeShieldFields, isShielded } from './suspension-shield.js';
 import { normalizeGpsPin, googleMapsUrl, formatGpsCoords } from './gps-pin-helper.js';
 import { buildVacationHoldDisableSnippet, buildVacationHoldEnableSnippet } from './mikrotik-generator.js';
 import { getAppLanguage, t } from './nav-language.js';
@@ -726,6 +727,42 @@ export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date(
   if (!until) return '';
   const label = t('prepaid_badge', null, { month: formatReceiptMonth(until) ?? until });
   return `<span class="prepaid-until-badge">${label}</span>`;
+}
+
+/**
+ * SISP-148: do-not-suspend shield summary for the profile view
+ * (Service group row), the profile header badge and the Customers
+ * card badge. Reads only the stored shield fields — it never decides
+ * billing or suspension; mikrotik-generator.js applies the exclusion
+ * when a lock script is generated, using the same isShielded rule.
+ * An expired or half-recorded shield (date without a valid reason, or
+ * a reason without a valid date) is inert and reports "No shield".
+ */
+export function suspensionShieldSummary(customer, todayStr = '') {
+  const { doNotSuspendUntil, doNotSuspendReason } = sanitizeShieldFields(customer);
+  const active = isShielded(customer, todayStr);
+  const reasonLabel = doNotSuspendReason ? t(`shield_reason_${doNotSuspendReason}`) : '';
+  return {
+    active,
+    until: doNotSuspendUntil,
+    reason: doNotSuspendReason,
+    reasonLabel,
+    label: active ? t('shield_badge', null, { reason: reasonLabel, date: doNotSuspendUntil }) : '',
+    detail: active
+      ? t('shield_detail_active', null, { reason: reasonLabel, date: doNotSuspendUntil })
+      : t('shield_detail_none')
+  };
+}
+
+/**
+ * SISP-148: the 🛡️ shield badge markup (Customers card + profile view
+ * heading). Returns '' unless the shield is active for `todayStr`, so
+ * unshielded and expired-shield customers render exactly as before.
+ */
+export function suspensionShieldBadgeHtml(customer, todayStr = '') {
+  const summary = suspensionShieldSummary(customer, todayStr);
+  if (!summary.active) return '';
+  return `<span class="suspension-shield-badge">${escapeHtml(summary.label)}</span>`;
 }
 
 /**

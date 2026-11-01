@@ -59,6 +59,7 @@ import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFee
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
 import { findRecentDuplicate, duplicatePaymentBypassKey, askDuplicatePayment } from './duplicate-payment-guard.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
+import { computePaymentDateChip, isFuturePaymentDate } from './backdated-payment-helper.js';
 import {
   setCustomerWaada,
   clearCustomerWaada,
@@ -1870,6 +1871,33 @@ export function setupQuickCollectModal({
     updateDigitalVisibility(methodSelect.value);
   });
 
+  // SISP-161: wire the 1-tap payment-date chips (Today / Yesterday /
+  // Prev Month End / Custom). A chip only sets the existing date input's
+  // value — computed fresh at tap time on the PKT calendar — so the
+  // chosen date flows through the normal submit -> executeQuickCollection
+  // recorder path unchanged, and its month attribution follows
+  // payment.date everywhere the app attributes by payment date.
+  // 'custom' never invents a date: it hands focus to the date input so
+  // the operator types/picks their own.
+  const dateChips = modal.querySelectorAll('[data-qc-date-chip]');
+  dateChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      if (!dateInput) return;
+      const chipKind = chip.getAttribute('data-qc-date-chip');
+      if (chipKind === 'custom') {
+        dateInput.focus();
+        try { dateInput.showPicker?.(); } catch { /* picker unsupported — focus alone is enough */ }
+        return;
+      }
+      const value = computePaymentDateChip(chipKind, getPakistanLocalDate(), dateInput.value);
+      if (value) {
+        dateInput.value = value;
+        dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+        dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  });
+
   // SISP-30: refresh the concession badge when the operator picks another month.
   monthSelect?.addEventListener('change', () => {
     if (activeCustomerId) renderConcessionBox(activeCustomerId, monthSelect.value);
@@ -2897,6 +2925,15 @@ export function setupQuickCollectModal({
       const state = getState();
       const amountVal = Number(amountInput?.value);
       const dateVal = dateInput?.value || getPakistanLocalDate();
+      // SISP-161: month-attribution guard, surfaced in the operator's
+      // language before submit — a payment date after today (PKT) is
+      // refused. Core validatePayment enforces the identical rule at
+      // record time, so Field Mode and every other entry path stay
+      // covered even where this pre-check does not run.
+      if (isFuturePaymentDate(dateVal, getPakistanLocalDate())) {
+        if (typeof onToast === 'function') onToast(t('bdate_future_error'), { type: 'error' });
+        return;
+      }
       const methodVal = methodSelect?.value || 'Cash';
       const monthVal = monthSelect?.value || activeDefaults.targetMonth;
       const paidByVal = paidByInput?.value || '';

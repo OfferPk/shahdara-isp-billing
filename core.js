@@ -2097,6 +2097,14 @@ export function addPayment(state, customerId, month, fields, referenceDate = new
   // logged. Payments created before SISP-146 carry no stamp and can
   // never trigger the duplicate guard; the billing `date` is never used
   // as a stand-in for the logged time.
+  // SISP-161 (merge-time alias): the backdated-chips phase needs the
+  // same honest audit trail — payment.date is the day the money was
+  // received, the stamp is the day it was typed in. That stamp already
+  // exists as SISP-146's recordedAt, so 161 deliberately adds NO second
+  // entry-time field (its own build stamped a separate enteredAt in the
+  // same construction): its pins target recordedAt, and the SISP-146
+  // carry-over in correctPayment below is what keeps the original entry
+  // moment verbatim across corrections.
   const payment = { id: makeId(), ...validatePayment(fields, referenceDate, options), recordedAt: paymentRecordedAtStamp(referenceDate) };
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);

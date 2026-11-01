@@ -59,6 +59,10 @@ import {
   markContactedLabel,
   stampContact
 } from './contact-cooldown-tracker.js';
+import {
+  classifyDefaulterFromMonths,
+  defaulterSegmentChipHtml
+} from './defaulter-risk-segment.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -227,6 +231,14 @@ export function calculateTopDefaulters(state, {
         promiseAmount: c.promiseAmount ?? null,
         promiseNote: c.promiseNote ?? '',
         waadaTier: getWaadaTier(c, totalOutstanding, refYmd),
+        // SISP-159: defaulter risk segment (🟢 polite / 🟡 standard /
+        // 🔴 chronic) derived from this row's own unpaid months and the
+        // customer's waada record — informational chip only.
+        riskSegment: classifyDefaulterFromMonths(c, {
+          outstanding: totalOutstanding,
+          unpaidMonths: unpaidMonthsList.map(m => m.month),
+          todayStr: refYmd
+        }),
         // SISP-98: lifetime Waada reliability (kept vs broken promises),
         // derived from recorded resolutions by waada-queue — the row
         // badge below renders it next to the live promise badge.
@@ -956,6 +968,9 @@ export function setupTopDefaultersModal(state, {
               ? `<span class="wada-badge vacation-hold-badge">🏖️ Vacation Hold Ended ${escapeHtml(acc.pauseAutoResumeDate || '')} — Resume Pending</span>`
               : '';
 
+          // SISP-159: risk segment chip (theme-token safety-badge tones).
+          const segmentBadge = acc.riskSegment ? defaulterSegmentChipHtml(acc.riskSegment) : '';
+
           // SISP-148: do-not-suspend shield badge — the customer still
           // owes and stays on the list; only suspension skips them.
           const shieldBadge = acc.suspensionShield
@@ -980,6 +995,7 @@ export function setupTopDefaultersModal(state, {
                 ${waadaScoreBadge ? `<div class="defaulter-waada-badge">${waadaScoreBadge}</div>` : ''}
                 ${escalationBadge ? `<div class="defaulter-escalation-badge">${escalationBadge}</div>` : ''}
                 ${vacationBadge ? `<div class="defaulter-waada-badge">${vacationBadge}</div>` : ''}
+                ${segmentBadge ? `<div class="defaulter-waada-badge">${segmentBadge}</div>` : ''}
                 ${shieldBadge ? `<div class="defaulter-waada-badge">${shieldBadge}</div>` : ''}
                 ${contactBadge ? `<div class="defaulter-contact-badge">${contactBadge}</div>` : ''}
               </td>

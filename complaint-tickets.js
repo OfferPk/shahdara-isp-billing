@@ -838,7 +838,7 @@ function materialLineLabel(line) {
  * getState is the app state accessor (customers list); tickets live in
  * their own localStorage ledger, like the complaint register.
  */
-export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds, onTicketSignal, getRootCauseAdvice, getOpticalBadge } = {}) {
+export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds, converterSuggestionForTicket, onTicketSignal, getRootCauseAdvice, getOpticalBadge } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('fieldTicketsModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -987,6 +987,16 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
       const stock = t.status === 'Resolved' && t.stockDeductions.length
         ? `<p><span>Stock</span><span>${t.stockDeducted ? 'Deducted from stock book' : 'Deduction pending stock book'}</span></p>`
         : '';
+      // SISP-162: WDM converter replacement suggestion — an injected,
+      // display-only hint (app.js builds it from the customer's recorded
+      // converter side + the side stock ledger). It never writes stock
+      // or ticket state; absent injector / empty text renders nothing.
+      const converterHintText = typeof converterSuggestionForTicket === 'function'
+        ? String(converterSuggestionForTicket(t) || '')
+        : '';
+      const converterHint = converterHintText
+        ? `<p><span>Converter</span><span>${escapeHtml(converterHintText)}</span></p>`
+        : '';
       const chargeBtn = t.status === 'Resolved' && t.billingType === 'billed' && !t.chargePaid
         ? `<button type="button" class="secondary-button ticket-status-btn" data-ticket-action="charge-paid" data-ticket-id="${escapeHtml(t.id)}">Mark charge paid</button>`
         : '';
@@ -1013,7 +1023,7 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         ${t.resolvedAt ? `<p><span>Resolved</span><span>${escapeHtml(t.resolvedAt)}</span></p>` : ''}
         ${t.note ? `<p><span>Note</span><span>${escapeHtml(t.note)}</span></p>` : ''}
         ${ticketSignalLabel(t) ? `<p><span>Signal</span><strong>${escapeHtml(ticketSignalLabel(t))}</strong></p>` : ''}
-        ${materials}${charge}${stock}
+        ${materials}${charge}${stock}${converterHint}
         ${rcaBanner}
         <div class="ticket-card-actions">${statusButtons(t)}${chargeBtn}${saadVisitBtn}</div>
         <div class="ticket-resolve-slot" data-resolve-slot="${escapeHtml(t.id)}"></div>

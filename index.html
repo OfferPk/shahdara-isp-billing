@@ -7258,6 +7258,7 @@
                 <label class="profile-field" for="splitterPortInput"><span class="field-label"><span data-i18n="prof_form_splitter_port">Splitter port</span> <span class="optional-label" data-i18n="prof_form_splitter_port_note">Optional · 1–16</span></span><input id="splitterPortInput" type="number" min="1" max="16" step="1" inputmode="numeric" data-i18n-placeholder="prof_not_set" placeholder="Not set"></label>
                 <label class="profile-field" for="oltPonPortInput"><span class="field-label"><span data-i18n="prof_form_pon_port">PON port</span> <span class="optional-label" data-i18n="prof_form_pon_port_note">Optional · e.g. PON 1/2/3</span></span><input id="oltPonPortInput" type="text" maxlength="100" autocomplete="off" data-i18n-placeholder="prof_not_set" placeholder="Not set"></label>
                 <label class="profile-field" for="lastRxDbmInput"><span class="field-label"><span data-i18n="prof_form_rx">Last RX signal (dBm)</span> <span class="optional-label" data-i18n="prof_form_rx_note">Optional · below −26.0 flags weak signal</span></span><input id="lastRxDbmInput" type="number" min="-60" max="10" step="0.1" inputmode="decimal" data-i18n-placeholder="prof_not_set" placeholder="Not set"></label>
+                <label class="profile-field" for="converterSideInput"><span class="field-label"><span data-i18n="wdmc_form_profile_side">Media converter side (WDM)</span> <span class="optional-label" data-i18n="wdmc_form_profile_side_note">Optional · A-Side (1310nm) or B-Side (1550nm), single-fiber pairs only</span></span><select id="converterSideInput"><option value="" data-i18n="prof_not_recorded">Not recorded</option><option value="A">A-Side (1310nm)</option><option value="B">B-Side (1550nm)</option></select></label>
                 <label class="profile-field" for="poleNumberInput"><span class="field-label"><span data-i18n="prof_form_pole">Pole / landmark</span> <span class="optional-label" data-i18n="prof_form_pole_note">Optional · e.g. Pole #14 near Masjid Bilal</span></span><input id="poleNumberInput" type="text" maxlength="100" autocomplete="off" data-i18n-placeholder="prof_not_set" placeholder="Not set"></label>
                 <label class="profile-field" for="boxLocationNoteInput"><span class="field-label"><span data-i18n="prof_form_box_location">Box location note</span> <span class="optional-label" data-i18n="prof_form_box_location_note">Optional · e.g. 2nd Floor White Gate</span></span><input id="boxLocationNoteInput" type="text" maxlength="200" autocomplete="off" data-i18n-placeholder="prof_not_set" placeholder="Not set"></label>
                 <label class="profile-field" for="dropWireCoreColorInput"><span class="field-label"><span data-i18n="prof_form_drop_wire">Drop wire color</span> <span class="optional-label" data-i18n="prof_form_drop_wire_note">Optional · e.g. Blue/Orange</span></span><input id="dropWireCoreColorInput" type="text" maxlength="100" autocomplete="off" data-i18n-placeholder="prof_not_set" placeholder="Not set"></label>
@@ -22343,6 +22344,30 @@
         <p id="inventoryBookSummaryLine" class="inventory-book-summary-line"></p>
         <h3>Available stock</h3>
         <div id="inventoryBookStockList" class="inventory-book-stock-list"></div>
+        <h3 data-i18n="wdmc_heading">WDM Converter Pairs (A / B)</h3>
+        <p class="inventory-book-intro" data-i18n="wdmc_intro">Single-fiber WDM converters work in pairs: one A-Side (1310nm) and one B-Side (1550nm) — the sides are not interchangeable. Side stock is counted in its own log here; the main stock book keeps its own totals.</p>
+        <div id="wdmMatcherPanel" class="wdm-matcher-panel"></div>
+        <form id="wdmMatcherForm" class="inventory-book-form">
+          <label for="wdmMatcherSide"><span data-i18n="wdmc_form_side">Converter side</span></label>
+          <select id="wdmMatcherSide" class="form-input" aria-label="Converter side">
+            <option value="A">A-Side (1310nm)</option>
+            <option value="B">B-Side (1550nm)</option>
+          </select>
+          <label for="wdmMatcherKind"><span data-i18n="wdmc_form_kind">Movement</span></label>
+          <select id="wdmMatcherKind" class="form-input" aria-label="Movement type">
+            <option value="in" data-i18n="wdmc_kind_in">Stock In</option>
+            <option value="out" data-i18n="wdmc_kind_out">Stock Out</option>
+          </select>
+          <label for="wdmMatcherQty"><span data-i18n="wdmc_form_qty">Quantity</span></label>
+          <input id="wdmMatcherQty" class="form-input" type="number" min="1" step="1" required aria-label="Quantity">
+          <label for="wdmMatcherDate"><span data-i18n="wdmc_form_date">Date</span></label>
+          <input id="wdmMatcherDate" class="form-input" type="date" required aria-label="Movement date">
+          <label for="wdmMatcherNote"><span data-i18n="wdmc_form_note">Note</span></label>
+          <input id="wdmMatcherNote" class="form-input" type="text" aria-label="Note">
+          <button class="action-btn-sm daily-slip-btn" type="submit" data-i18n="wdmc_form_submit">Record side movement</button>
+        </form>
+        <h3 data-i18n="wdmc_log_heading">Side movement log</h3>
+        <div id="wdmMatcherLogList" class="inventory-book-log-list"></div>
         <h3>Record stock in / out</h3>
         <form id="inventoryBookForm" class="inventory-book-form">
           <label for="inventoryBookItem">Item</label>

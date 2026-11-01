@@ -980,6 +980,13 @@ body.field-mode-open { overflow: hidden; }
 .inventory-book-form label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin: 10px 0 4px; }
 .inventory-book-form .form-input { width: 100%; }
 .inventory-book-empty { color: var(--muted); font-size: 13px; }
+/* SISP-162: WDM converter A/B matcher — token-only, inside the Stock Book modal. */
+.wdm-matcher-panel { margin: 8px 0 16px; }
+.wdm-matcher-card .wdm-matcher-pairs { font-size: 20px; }
+.wdm-matcher-warning span { color: var(--color-overdue); font-weight: 700; }
+@media (max-width: 480px) {
+  .wdm-matcher-card p strong { text-align: left; }
+}
 @media (max-width: 480px) {
   .inventory-book-stock-list { grid-template-columns: 1fr; }
   .inventory-book-log-list { grid-template-columns: 1fr; }

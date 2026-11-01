@@ -158,7 +158,7 @@ import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
-import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
+import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel } from './waada-queue.js';
@@ -986,9 +986,18 @@ function renderDashboard() {
     if (valueEl) valueEl.textContent = shopSummaries.length === 0 ? t('dash_shop_empty') : formatAmount(totalUnsettled);
     const periodEl = $('#dashboardShopSettlementPeriod');
     if (periodEl) periodEl.textContent = shopSummaries.length === 0 ? t('dash_shop_empty_period') : `${t(shopSummaries.length === 1 ? 'dash_shop_sing' : 'dash_shop_plur', null, { count: shopSummaries.length })} · ${t(pendingCount === 1 ? 'dash_shop_receipt_sing' : 'dash_shop_receipt_plur', null, { count: pendingCount })}`;
+    // SISP-124: unsettled-cash aging badges on the same rows (derived from
+    // the same summaries — below both thresholds the row is unchanged).
+    const shopAgingByShop = new Map(buildShopAging(state, loadShopSettlements(), referenceDate).map((a) => [a.shop, a]));
     shopSummaryEl.innerHTML = shopSummaries.length === 0
       ? ''
-      : shopSummaries.map((s) => `<p><span>${escapeHtml(s.shop)}</span><strong>${escapeHtml(formatAmount(s.unsettled))}</strong><small> · ${escapeHtml(t('dash_shop_detail', null, { collected: formatAmount(s.collectedThisMonth), date: s.lastHandoverDate || t('dash_shop_never') }))}</small></p>`).join('');
+      : shopSummaries.map((s) => {
+        const aging = shopAgingByShop.get(s.shop);
+        const agingBlock = aging && aging.level
+          ? ` <span class="shop-aging-badge shop-aging-badge--${aging.level}">${escapeHtml(shopAgingBadgeText(aging))}</span> <a class="shop-aging-remind-link" href="${escapeHtml(shopSettlementWhatsAppUrl(buildShopAgingReminderText(state, aging)))}" target="_blank" rel="noopener noreferrer">${escapeHtml(t('shopage_remind_btn'))}</a>`
+          : '';
+        return `<p><span>${escapeHtml(s.shop)}</span><strong>${escapeHtml(formatAmount(s.unsettled))}</strong><small> · ${escapeHtml(t('dash_shop_detail', null, { collected: formatAmount(s.collectedThisMonth), date: s.lastHandoverDate || t('dash_shop_never') }))}</small>${agingBlock}</p>`;
+      }).join('');
   }
   // Owner feature 2026-10-29: Recent Payments card (last 5 payments
   // across all customers; voided SISP-34 payments excluded by the

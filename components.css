@@ -1225,6 +1225,10 @@ body.field-mode-open { overflow: hidden; }
 }
 /* SISP-10: checksum note in the restore preview + sync-code paste block. */
 .backup-checksum-note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.branch-guard-delta { margin: 10px 0 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--modal-surface); }
+.branch-guard-delta-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.branch-guard-delta-row { margin: 2px 0; font-size: 13px; color: var(--ink); }
+.branch-guard-delta-voided { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 .backup-checksum-note.checksum-verified { color: var(--ink); }
 .backup-checksum-note.checksum-unverified { color: var(--color-overdue); }
 .backup-checksum-note.checksum-mismatch { color: var(--color-overdue); font-weight: 700; }

@@ -1558,6 +1558,11 @@ export function setupQuickCollectModal({
   const splitDigitalFields = document.getElementById('quickCollectSplitDigitalFields');
   const splitTransactionIdInput = document.getElementById('quickCollectSplitTransactionIdInput');
   const splitOverrideReasonInput = document.getElementById('quickCollectSplitOverrideReasonInput');
+  // FU-SISP121-SENDER: leg-2 sender proof inputs (SISP-63 mirror) —
+  // they live inside the split digital block, so updateSplitVisibility
+  // shows/hides them with leg 2's TID field; null-safe like the rest.
+  const splitSenderNameInput = document.getElementById('quickCollectSplitSenderNameInput');
+  const splitSenderDigitsInput = document.getElementById('quickCollectSplitSenderDigitsInput');
 
   // Duplicate Warning In-App Card (#279)
   const dupWarningCard = document.getElementById('quickCollectDuplicateWarning');
@@ -2187,6 +2192,8 @@ export function setupQuickCollectModal({
       if (splitAmountInput) splitAmountInput.value = '';
       if (splitTransactionIdInput) splitTransactionIdInput.value = '';
       if (splitOverrideReasonInput) splitOverrideReasonInput.value = '';
+      if (splitSenderNameInput) splitSenderNameInput.value = '';
+      if (splitSenderDigitsInput) splitSenderDigitsInput.value = '';
       updateSplitVisibility();
       currentScreenshotDataUrl = '';
       if (screenshotInput) screenshotInput.value = '';
@@ -2742,8 +2749,12 @@ export function setupQuickCollectModal({
             date: dateVal,
             paidBy: paidByVal,
             legs: [
-              { amount: amountVal, method: methodVal, transactionId: txnIdVal, referenceOverrideReason: leg1Reference, screenshot: currentScreenshotDataUrl },
-              { amount: leg2Amount, method: leg2Method, transactionId: leg2Txn, referenceOverrideReason: leg2Override }
+              // FU-SISP121-SENDER: leg 1 is the main form, so its sender
+              // values are the main SISP-63 inputs (visible when leg 1's
+              // method is digital); core keeps them for digital methods
+              // only, exactly as in the single-payment submit below.
+              { amount: amountVal, method: methodVal, transactionId: txnIdVal, senderTitle: (senderNameInput?.value || '').trim(), senderDigits: (senderDigitsInput?.value || '').trim(), referenceOverrideReason: leg1Reference, screenshot: currentScreenshotDataUrl },
+              { amount: leg2Amount, method: leg2Method, transactionId: leg2Txn, senderTitle: (splitSenderNameInput?.value || '').trim(), senderDigits: (splitSenderDigitsInput?.value || '').trim(), referenceOverrideReason: leg2Override }
             ],
             tickets: loadTickets()
           }, { execute: executeQuickCollection });

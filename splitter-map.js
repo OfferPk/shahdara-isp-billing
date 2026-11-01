@@ -421,7 +421,7 @@ export function renderSplitterBoxGpsRow(boxId, pin) {
  * the visual port grid, and the weak-signal list. getState supplies the
  * live app state ({ customers }); nothing is cached between renders.
  */
-export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTicket } = {}) {
+export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTicket, getOpticalBadge, getBoxOpticalBadge } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('splitterMapModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -456,7 +456,13 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
         : '';
     }
     const gridEl = $('splitterMapGrid');
-    if (gridEl) gridEl.innerHTML = renderSplitterPortGrid(box);
+    if (gridEl) {
+      // SISP-132: selected box's fault classification badge (host
+      // callback from optical-anomaly-detector.js; absent callback or
+      // no weak port on the box -> nothing extra renders).
+      const boxBadge = box && typeof getBoxOpticalBadge === 'function' ? getBoxOpticalBadge(box.boxId) : '';
+      gridEl.innerHTML = renderSplitterPortGrid(box) + (boxBadge ? `<p class="splitter-box-fault">${boxBadge}</p>` : '');
+    }
     const weakEl = $('splitterMapWeakList');
     if (weakEl) {
       const overview = buildSplitterOverview(customers);
@@ -466,7 +472,8 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
           const attBtn = typeof onCreateAttenuationTicket === 'function' && isAttenuationTicketRx(entry.lastRxDbm)
             ? `<button type="button" class="action-btn-sm splitter-att-btn" data-att-customer="${escapeHtml(String(entry.customerId ?? ''))}" data-att-box="${escapeHtml(entry.boxId)}" data-att-port="${escapeHtml(String(entry.port ?? entry.splitterPort ?? ''))}" data-att-dbm="${escapeHtml(String(entry.lastRxDbm ?? ''))}">${escapeHtml(t('split_att_btn'))}</button>`
             : '';
-          return `<article class="splitter-weak-card"><p><span>Customer</span><strong>${escapeHtml(entry.customerName || 'Unnamed')}</strong></p><p><span>Splitter</span><strong>${escapeHtml(entry.boxId)} · port ${escapeHtml(String(entry.splitterPort ?? entry.port ?? ''))}</strong></p><p><span>RX signal</span><strong>${escapeHtml(formatRxDbm(entry.lastRxDbm))}</strong></p><span class="safety-badge badge-danger">High-loss · check attenuation</span>${attBtn}</article>`;
+          const opticalBadge = typeof getOpticalBadge === 'function' ? getOpticalBadge(entry.customerId) : '';
+          return `<article class="splitter-weak-card"><p><span>Customer</span><strong>${escapeHtml(entry.customerName || 'Unnamed')}</strong></p><p><span>Splitter</span><strong>${escapeHtml(entry.boxId)} · port ${escapeHtml(String(entry.splitterPort ?? entry.port ?? ''))}</strong></p><p><span>RX signal</span><strong>${escapeHtml(formatRxDbm(entry.lastRxDbm))}</strong></p><span class="safety-badge badge-danger">High-loss · check attenuation</span>${attBtn}${opticalBadge}</article>`;
         }).join('');
     }
     renderSimulation();

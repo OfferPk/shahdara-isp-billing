@@ -179,6 +179,7 @@ import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, 
 import { roundToNearest50, roundingTagFor } from './bill-rounding-helper.js?v=1.11.0';
 import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
 import { buildSplitterOverview, createAttenuationTicket, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
+import { classifyCustomerOpticalFault, classifySplitterBoxFault, opticalFaultBadgeHtml, opticalFaultLineHtml } from './optical-anomaly-detector.js';
 import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } from './signal-history.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { buildUpstreamSlaLog, setupUpstreamSlaModal } from './upstream-sla-log.js';
@@ -3389,7 +3390,12 @@ function renderCustomerProfileView(customer) {
   const signalHistoryHtml = signalHistoryRows.length === 0
     ? `<p class="signal-history-empty">${t('sig_history_empty')}</p>`
     : `<ul class="signal-history-list">${signalHistoryRows.map((reading) => `<li class="signal-history-row"><span>${escapeHtml(humanDate(reading.date))} · ${escapeHtml(signalSourceLabels[reading.source] || reading.source)}${reading.complaintId ? ` · ${escapeHtml(reading.complaintId)}` : ''}${reading.note ? ` · ${escapeHtml(reading.note)}` : ''}</span><strong>${escapeHtml(formatRxDbm(reading.dbm))}</strong>${reading.weak ? `<span class="safety-badge badge-danger">${escapeHtml(t('sig_weak_badge'))}</span>` : ''}</li>`).join('')}</ul>`;
-  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_optical_aria')}"><h4>${t('prof_optical_heading')} ${helpButtonMarkup('optical_rx')}</h4><p>${escapeHtml(t('prof_optical_box', null, { id: opticalFields.splitterBoxId || t('prof_not_recorded') }))}${opticalFields.splitterPort !== null ? escapeHtml(t('prof_optical_port', null, { port: opticalFields.splitterPort })) : ''}</p><p>${escapeHtml(t('prof_optical_pon', null, { port: opticalFields.oltPonPort || t('prof_not_recorded') }))}${escapeHtml(t('prof_optical_rx', null, { rx: formatRxDbm(opticalFields.lastRxDbm) }))} ${opticalBadge}</p><button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">${t('prof_optical_open')}</button><h5 class="signal-history-heading">${t('sig_history_title')}</h5>${signalHistoryHtml}<div class="signal-record-row"><label class="field-label" for="profileSignalDbmInput">${t('sig_dbm_label')}</label><input id="profileSignalDbmInput" class="form-input" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="-19.4"><label class="field-label" for="profileSignalNoteInput">${t('sig_note_label')}</label><input id="profileSignalNoteInput" class="form-input" type="text" maxlength="200"><button type="button" class="primary-button" id="profileSignalRecordBtn">${t('sig_record_btn')}</button></div></section>`;
+  // SISP-132: when this customer's RX is weak, classify the fault
+  // against the sibling ports on the same splitter box (isolated drop
+  // vs splitter-wide feeder fault) — pure derivation, read-only.
+  const opticalFault = opticalStatus === 'weak' ? classifyCustomerOpticalFault(state.customers, customer.id) : null;
+  const opticalFaultHtml = opticalFault ? `<p class="profile-optical-fault">${opticalFaultLineHtml(opticalFault)}</p>` : '';
+  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_optical_aria')}"><h4>${t('prof_optical_heading')} ${helpButtonMarkup('optical_rx')}</h4><p>${escapeHtml(t('prof_optical_box', null, { id: opticalFields.splitterBoxId || t('prof_not_recorded') }))}${opticalFields.splitterPort !== null ? escapeHtml(t('prof_optical_port', null, { port: opticalFields.splitterPort })) : ''}</p><p>${escapeHtml(t('prof_optical_pon', null, { port: opticalFields.oltPonPort || t('prof_not_recorded') }))}${escapeHtml(t('prof_optical_rx', null, { rx: formatRxDbm(opticalFields.lastRxDbm) }))} ${opticalBadge}</p>${opticalFaultHtml}<button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">${t('prof_optical_open')}</button><h5 class="signal-history-heading">${t('sig_history_title')}</h5>${signalHistoryHtml}<div class="signal-record-row"><label class="field-label" for="profileSignalDbmInput">${t('sig_dbm_label')}</label><input id="profileSignalDbmInput" class="form-input" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="-19.4"><label class="field-label" for="profileSignalNoteInput">${t('sig_note_label')}</label><input id="profileSignalNoteInput" class="form-input" type="text" maxlength="200"><button type="button" class="primary-button" id="profileSignalRecordBtn">${t('sig_record_btn')}</button></div></section>`;
   // SISP-32: pole & landmark directory — where the drop and box live.
   const poleFields = normalizePoleFields(customer);
   const poleSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_pole_aria')}"><h4>${t('prof_pole_heading')}</h4><p>${escapeHtml(t('prof_pole_number', null, { value: poleFields.poleNumber || t('prof_not_recorded') }))}</p><p>${escapeHtml(t('prof_pole_box', null, { value: poleFields.boxLocationNote || t('prof_not_recorded') }))}${escapeHtml(t('prof_pole_wire', null, { value: poleFields.dropWireCoreColor || t('prof_not_recorded') }))}</p><p class="profile-pole-note">${t('prof_pole_note')}</p></section>`;
@@ -12256,6 +12262,13 @@ if (typeof document !== 'undefined') {
       const prefill = buildVisitPrefillFromTicket(ticket, state.customers || []);
       if (prefill && saadVisitsModalController) saadVisitsModalController.open(prefill);
     },
+    // SISP-132: attenuation tickets show the live optical fault
+    // classification (isolated drop vs splitter-wide) for their
+    // customer, derived from recorded RX readings — display only.
+    getOpticalBadge: (customerId) => {
+      const fault = classifyCustomerOpticalFault(state.customers || [], customerId);
+      return fault ? opticalFaultLineHtml(fault) : '';
+    },
     // SISP-123: the ticket card's root-cause banner derives from both
     // ledgers (register complaints + standalone field tickets).
     getRootCauseAdvice: (customerId) => rootCauseAdviceForCustomer({ complaints: loadComplaints(), tickets: loadTickets() }, customerId),
@@ -12288,6 +12301,16 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts)
   });
   splitterMapModalController = setupSplitterMapModal(() => state, {
+    // SISP-132: classification badges for weak-signal cards and the
+    // selected box, derived live from recorded RX readings.
+    getOpticalBadge: (customerId) => {
+      const fault = classifyCustomerOpticalFault(state.customers || [], customerId);
+      return fault ? opticalFaultBadgeHtml(fault) : '';
+    },
+    getBoxOpticalBadge: (boxId) => {
+      const boxFault = classifySplitterBoxFault(state.customers || [], boxId);
+      return boxFault && boxFault.kind ? opticalFaultBadgeHtml(boxFault) : '';
+    },
     // SISP-66: the weak-port list's 1-click button creates the SISP-12
     // attenuation ticket through the normal ticket store (deduped while
     // an unresolved ticket for the same box + port exists).

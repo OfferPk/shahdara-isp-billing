@@ -324,6 +324,10 @@
   .jc-core-row { grid-template-columns: 22px 1fr; }
 }
 .splitter-map-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+/* SISP-132: optical fault classification — badges reuse the theme-aware
+   .safety-badge tones; these rules only handle layout/hint colour. */
+.splitter-box-fault { margin: 4px 0 10px; }
+.optical-fault-hint { color: var(--muted); font-size: 12px; }
 .splitter-map-gps-row { margin: 0 0 12px; }
 .splitter-map-gps-title { margin: 0 0 4px; font-size: 13px; color: var(--ink); }
 .splitter-map-gps-line { margin: 0 0 8px; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }

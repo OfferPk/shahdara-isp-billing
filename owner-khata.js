@@ -55,6 +55,32 @@
  *   inputs.roznamchaDays, anchored on the latest closed day with the
  *   still-open days rolled forward.
  *
+ * SISP-176 adds the SISP-43 ticket-charge split of the month's
+ * collections, derived live like everything else here:
+ *
+ * - ticketChargesCollected / billCollections: every payment in the
+ *   partner report's own enumeration (phase3.js paymentEntries, by
+ *   payment date) is split by core's paymentTicketChargeCents into its
+ *   ticket portion and its bill portion. The split SPLITS, never adds:
+ *   billCollections + ticketChargesCollected always equals the month's
+ *   non-voided collections. VOIDED payments are excluded from BOTH
+ *   lines (SISP-34: a voided receipt settles nothing — its ticket stamp
+ *   settles nothing either). The partner basis behind `collected`
+ *   itself still counts voided receipts in this build (the FU4 fix owns
+ *   that change); the moment it lands, the split total equals
+ *   `collected` exactly. Until then the split total equals `collected`
+ *   minus the month's voided amounts — the voided cash is in neither
+ *   split line.
+ * - ticketChargesPending: billed ticket charges still unpaid at MONTH
+ *   END, rebuilt from the ticket records passed in as inputs.tickets
+ *   (SISP-12 store, sanitized here): a ticket counts when it was
+ *   Resolved-billed on or before month end and was not yet paid by
+ *   month end (chargePaidAt after the month, or still unpaid). It is a
+ *   receivable, shown beside Pending Arrears — never inside collected.
+ *   Tickets carrying no usable dates can only be judged by their
+ *   current flags, the same live-derivation limit the rest of this
+ *   report accepts.
+ *
  * SISP-73 extends the same report once more, again reused, never
  * recomputed in a parallel path:
  *
@@ -94,6 +120,9 @@ import {
   isDigitalWalletMethod
 } from './wallet-reconciliation.js';
 import { buildMonthEndCashInHand, loadRoznamchaDays } from './roznamcha.js';
+import { paymentTicketChargeCents } from './core.js';
+import { isVoidedPayment } from './payment-void-audit.js';
+import { loadTickets, sanitizeTickets } from './complaint-tickets.js';
 import { buildShopScorecard, renderShopScorecardHtml } from './shop-performance-analytics.js';
 import { computeCharityReserve, loadCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
 import { t } from './nav-language.js';
@@ -169,6 +198,62 @@ function buildCollectionChannels(state, month) {
   }));
 }
 
+/**
+ * SISP-176: the month's collections split into bill money vs settled
+ * SISP-43 ticket charges, over the partner report's own payment
+ * enumeration (same payment-date basis as `collected` and the channel
+ * split). Voided payments are skipped entirely — a voided receipt's
+ * ticket stamp settles nothing (SISP-34) — so the two lines always sum
+ * to the month's non-voided collections, never more.
+ */
+function buildTicketChargeSplit(state, month) {
+  let billCents = 0;
+  let ticketCentsTotal = 0;
+  let receiptCount = 0;
+  for (const { payment } of paymentEntries(state)) {
+    if (!payment || typeof payment !== 'object') continue;
+    if (monthOfPaymentDate(payment.date) !== month) continue;
+    if (isVoidedPayment(payment)) continue;
+    const ticketCents = paymentTicketChargeCents(payment);
+    const amountCents = Math.round(Number(payment.amount || 0) * 100);
+    ticketCentsTotal += ticketCents;
+    billCents += Math.max(0, amountCents - ticketCents);
+    if (ticketCents > 0) receiptCount += 1;
+  }
+  return {
+    billCollections: wholeRupees(billCents / 100),
+    ticketChargesCollected: wholeRupees(ticketCentsTotal / 100),
+    ticketChargeReceiptCount: receiptCount
+  };
+}
+
+/**
+ * SISP-176: billed ticket charges still unpaid at the END of `month`,
+ * rebuilt from the (sanitized) SISP-12 ticket records. A ticket counts
+ * when it was Resolved with billingType 'billed' in or before the month
+ * and its charge was not paid by month end — still unpaid today, or
+ * paid in a later month (chargePaidAt's month is after `month`). A
+ * chargePaid flag with no usable chargePaidAt date reads as paid (the
+ * conservative side: never inflate a receivable on a dateless record).
+ */
+function buildTicketChargesPending(tickets, month) {
+  let total = 0;
+  let count = 0;
+  for (const ticket of sanitizeTickets(tickets)) {
+    if (ticket.billingType !== 'billed' || ticket.status !== 'Resolved') continue;
+    if (!(ticket.billedAmount > 0)) continue;
+    const resolvedMonth = String(ticket.resolvedAt || '').slice(0, 7);
+    if (!MONTH_RE.test(resolvedMonth) || resolvedMonth > month) continue;
+    if (ticket.chargePaid) {
+      const paidMonth = String(ticket.chargePaidAt || '').slice(0, 7);
+      if (!MONTH_RE.test(paidMonth) || paidMonth <= month) continue;
+    }
+    total += ticket.billedAmount;
+    count += 1;
+  }
+  return { ticketChargesPending: wholeRupees(total), ticketChargesPendingCount: count };
+}
+
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
   return String(str)
@@ -209,6 +294,7 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
   const validMonth = MONTH_RE.test(String(month || '')) ? String(month) : '';
   const complaints = Array.isArray(inputs.complaints) ? inputs.complaints : [];
   const settlements = Array.isArray(inputs.settlements) ? inputs.settlements : [];
+  const tickets = Array.isArray(inputs.tickets) ? inputs.tickets : [];
   const roznamchaDays = Array.isArray(inputs.roznamchaDays) ? inputs.roznamchaDays : [];
   const notes = inputs.notes && typeof inputs.notes === 'object' ? inputs.notes : {};
   const savedSnapshot = inputs.savedSnapshot && typeof inputs.savedSnapshot === 'object'
@@ -222,6 +308,8 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
       pendingArrears: 0, arrearsBillCount: 0, arrearsCutoff: '', arrearsPartial: false,
       shopSettled: 0, shopSettledCount: 0, shopSettledByShop: [],
       collectionChannels: [], closingCashInHand: null,
+      billCollections: 0, ticketChargesCollected: 0, ticketChargeReceiptCount: 0,
+      ticketChargesPending: 0, ticketChargesPendingCount: 0,
       expenses: 0, expenseCount: 0, expenseCategories: [], bandwidthFieldExpenses: 0,
       profit: 0, isLoss: false, nasirShare: 0, aqibShare: 0,
       installationNet: 0, installationSurplus: 0, installationSubsidy: 0,
@@ -289,6 +377,12 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
   // classified per payment, so the lines sum to `collected`.
   const collectionChannels = buildCollectionChannels(state, validMonth);
 
+  // SISP-176: ticket-charge split of the same month's collections
+  // (void-exclusive, so the lines sum to non-voided collections) and the
+  // month-end pending ticket charges from the ticket store.
+  const ticketSplit = buildTicketChargeSplit(state, validMonth);
+  const ticketPending = buildTicketChargesPending(tickets, validMonth);
+
   // SISP-51: month-end closing cash-in-hand — the SISP-11 roznamcha
   // drawer, anchored on its latest closed day (see roznamcha.js).
   const drawer = buildMonthEndCashInHand(state, roznamchaDays, validMonth, settlements);
@@ -327,6 +421,11 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
     shopSettledByShop,
     collectionChannels,
     closingCashInHand,
+    billCollections: ticketSplit.billCollections,
+    ticketChargesCollected: ticketSplit.ticketChargesCollected,
+    ticketChargeReceiptCount: ticketSplit.ticketChargeReceiptCount,
+    ticketChargesPending: ticketPending.ticketChargesPending,
+    ticketChargesPendingCount: ticketPending.ticketChargesPendingCount,
     expenses: wholeRupees(summary.expenses),
     expenseCount: Number(summary.expenseCount || 0),
     expenseCategories,
@@ -385,6 +484,14 @@ export function buildOwnerKhataWhatsAppText(report) {
     `Nasir share (50%): ${formatPKR(report.nasirShare)} · Aqib share (50%): ${formatPKR(report.aqibShare)}`,
     `Complaints: ${report.totalComplaints} · Network Offline: ${report.totalDowntime} h (zone-wide: ${report.areaOutageComplaints} faults, ${report.areaOutageDowntime} h)`,
   ];
+  // SISP-176: ticket-charge split lines, in the same collections
+  // cluster — shown only when the month actually has ticket-charge
+  // activity, like the channel split below.
+  if (report.ticketChargesCollected > 0 || report.ticketChargesPending > 0) {
+    lines.splice(2, 0,
+      `Ticket Charges Collected: ${formatPKR(report.ticketChargesCollected)}`,
+      `Ticket Charges Pending: ${formatPKR(report.ticketChargesPending)}`);
+  }
   // SISP-114: reserve line (fixed report language, like the rest of
   // this summary) only when a reserve was set aside; the share figures
   // above already reflect it. Inserted before the shares line.
@@ -454,7 +561,9 @@ export function buildOwnerKhataPrintHtml(report) {
   <p><strong>Shahdara ISP</strong> · ${escapeHtml(monthLabel(report.month))}</p>
   <h2>Financials</h2>
   <div class="pair"><span>Total Bills Collected (${escapeHtml(String(report.receiptCount))} receipts)</span><strong>${escapeHtml(formatPKR(report.collected))}</strong></div>
+  <div class="pair"><span>Ticket Charges Collected${report.ticketChargeReceiptCount ? ` (${escapeHtml(String(report.ticketChargeReceiptCount))} receipts)` : ''}</span><strong>${escapeHtml(formatPKR(report.ticketChargesCollected))}</strong></div>
   <div class="pair"><span>Pending Arrears${report.arrearsPartial ? ' (month still open)' : ''}</span><strong>${escapeHtml(formatPKR(report.pendingArrears))}</strong></div>
+  <div class="pair"><span>Ticket Charges Pending (month end${report.ticketChargesPendingCount ? `, ${escapeHtml(String(report.ticketChargesPendingCount))} tickets` : ''})</span><strong>${escapeHtml(formatPKR(report.ticketChargesPending))}</strong></div>
   <div class="pair"><span>Shop Cash Settled (${escapeHtml(String(report.shopSettledCount))} handovers)</span><strong>${escapeHtml(formatPKR(report.shopSettled))}</strong></div>
   <div class="pair"><span>Expenses (${escapeHtml(String(report.expenseCount))} entries)</span><strong>${escapeHtml(formatPKR(report.expenses))}</strong></div>
   <div class="pair"><span>NayaPay Bandwidth + Field Expenses (keyword-matched)</span><strong>${escapeHtml(formatPKR(report.bandwidthFieldExpenses))}</strong></div>
@@ -494,6 +603,7 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
     return buildOwnerKhataReport(state, month, {
       complaints: loadComplaints(),
       settlements: loadShopSettlements(),
+      tickets: loadTickets(),
       notes: loadMonthlyClosingNotes(),
       roznamchaDays: loadRoznamchaDays(),
       charityReservePct: loadCharityReserveSettings().charityReservePct,
@@ -537,7 +647,9 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
       bodyEl.innerHTML = `
         <article class="owner-khata-section"><h3>Financials</h3>
           <p><span>Total Bills Collected</span><strong>${escapeHtml(formatPKR(report.collected))}</strong><small> · ${escapeHtml(String(report.receiptCount))} receipts</small></p>
+          <p><span>${escapeHtml(t('khata2_ticket_collected'))}</span><strong>${escapeHtml(formatPKR(report.ticketChargesCollected))}</strong>${report.ticketChargeReceiptCount ? `<small> · ${escapeHtml(t(report.ticketChargeReceiptCount === 1 ? 'khata2_receipt_sing' : 'khata2_receipt_plur', null, { count: report.ticketChargeReceiptCount }))}</small>` : ''}</p>
           <p><span>Pending Arrears</span><strong>${escapeHtml(formatPKR(report.pendingArrears))}</strong><small> · ${escapeHtml(String(report.arrearsBillCount))} bills · through ${escapeHtml(report.arrearsCutoff || 'month end')}${report.arrearsPartial ? ' (month still open)' : ''}</small></p>
+          <p><span>${escapeHtml(t('khata2_ticket_pending'))}</span><strong>${escapeHtml(formatPKR(report.ticketChargesPending))}</strong>${report.ticketChargesPendingCount ? `<small> · ${escapeHtml(t(report.ticketChargesPendingCount === 1 ? 'khata2_ticket_sing' : 'khata2_ticket_plur', null, { count: report.ticketChargesPendingCount }))}</small>` : ''}</p>
           <p><span>Shop Cash Settled</span><strong>${escapeHtml(formatPKR(report.shopSettled))}</strong><small> · ${escapeHtml(String(report.shopSettledCount))} handovers</small></p>
           ${shopLines}
           ${channelLines ? `<p><span>${escapeHtml(t('khata2_channels_title'))}</span></p>${channelLines}` : ''}

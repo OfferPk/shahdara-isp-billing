@@ -3007,3 +3007,14 @@ button.field-dispatch-item { cursor: pointer; }
 }
 .runbook-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 .runbook-top-list { margin: var(--space-2) 0 0; padding-inline-start: var(--space-4); color: var(--ink); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
+
+/* SISP-164: 4-Stream Monthly Collection Breakdown card inside the P&L
+   modal (token-only; follows the active theme in light and dark). */
+.revstream-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); box-shadow: var(--shadow); }
+.revstream-title { margin: 0 0 var(--space-2); font-size: var(--text-md); color: var(--ink); }
+.revstream-row { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-2) 0; border-bottom: 1px solid var(--line); font-size: var(--text-sm); color: var(--ink); }
+.revstream-row:last-child { border-bottom: none; }
+.revstream-label { min-width: 0; }
+.revstream-figures { display: flex; align-items: baseline; gap: var(--space-2); white-space: nowrap; font-variant-numeric: var(--numeric); }
+.revstream-share { color: var(--muted); font-size: var(--text-xs); }
+.revstream-total { font-weight: 700; background: var(--surface-soft); border-radius: var(--radius-md); padding-left: var(--space-2); padding-right: var(--space-2); }

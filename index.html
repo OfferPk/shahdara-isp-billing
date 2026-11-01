@@ -699,6 +699,17 @@
           <div id="collectionForecastAreas" class="collection-forecast-areas"></div>
         </div>
       </section>
+      <section class="expansion-estimator-section" id="expansionEstimatorSection" aria-labelledby="expansionEstimatorHeading">
+        <div class="expansion-estimator-card">
+          <div class="expansion-estimator-head">
+            <div>
+              <h3 id="expansionEstimatorHeading" class="expansion-estimator-title" data-i18n="xest_title">New Street Expansion Calculator</h3>
+              <p class="chart-caption" data-i18n="xest_sub">Plan a new gali / mohalla: plant cost, connection-fee offset, break-even months and each partner’s capital share — figures only, nothing is saved to the ledger</p>
+            </div>
+            <button id="expansionEstimatorOpenBtn" class="primary-button" type="button" aria-haspopup="dialog" aria-controls="expansionEstimatorModal" data-i18n="xest_open_btn">🧮 Plan Expansion</button>
+          </div>
+        </div>
+      </section>
       <section class="multi-month-matrix-section" id="multiMonthMatrixSection" aria-labelledby="multiMonthMatrixHeading">
         <div class="mmx-card">
           <div class="mmx-header">
@@ -1756,6 +1767,111 @@
 
           <div class="sim-modal-footer">
             <button id="marginSimCopyBtn" class="primary-button" type="button">📋 Copy Simulation Report</button>
+          </div>
+        </div>
+      </dialog>
+
+      <dialog id="expansionEstimatorModal" class="dashboard-modal expansion-estimator-modal" aria-labelledby="expansionEstimatorModalTitle">
+        <div class="dashboard-modal-card">
+          <div class="dashboard-modal-header">
+            <div>
+              <p class="eyebrow" data-i18n="xest_eyebrow">EXPANSION PLANNING</p>
+              <h3 id="expansionEstimatorModalTitle" data-i18n="xest_modal_title">New Street / Mohalla Expansion Estimate</h3>
+            </div>
+            <button id="expansionEstimatorCloseBtn" class="icon-button modal-close-btn" type="button" aria-label="Close dialog">↩</button>
+          </div>
+          <p class="dashboard-modal-sub" data-i18n="xest_modal_sub">Type the plan — results update live. Nothing here is saved: no expense, stock, or partner entry is created.</p>
+
+          <div class="xest-group">
+            <h4 class="xest-group-title" data-i18n="xest_group_plant">Plant &amp; Quantities</h4>
+            <div class="xest-grid">
+              <div class="xest-field">
+                <label for="xestDropMetersInput" data-i18n="xest_drop_meters">Drop cable (meters)</label>
+                <input id="xestDropMetersInput" type="number" min="0" step="any" inputmode="decimal" value="0">
+              </div>
+              <div class="xest-field">
+                <label for="xestFeederMetersInput" data-i18n="xest_feeder_meters">Feeder cable (meters)</label>
+                <input id="xestFeederMetersInput" type="number" min="0" step="any" inputmode="decimal" value="0">
+              </div>
+              <div class="xest-field">
+                <label for="xestBoxesInput" data-i18n="xest_boxes">Splitter boxes</label>
+                <input id="xestBoxesInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+              </div>
+              <div class="xest-field">
+                <label for="xestPolesInput" data-i18n="xest_poles">Poles / clamps</label>
+                <input id="xestPolesInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+              </div>
+              <div class="xest-field">
+                <label for="xestSplicingJobsInput" data-i18n="xest_splicing_jobs">Splicing jobs</label>
+                <input id="xestSplicingJobsInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+              </div>
+            </div>
+          </div>
+
+          <div class="xest-group">
+            <h4 class="xest-group-title" data-i18n="xest_group_prices">Unit Prices</h4>
+            <div class="xest-grid">
+              <div class="xest-field">
+                <label for="xestDropPriceInput" data-i18n="xest_drop_price">Drop cable price (PKR / meter)</label>
+                <input id="xestDropPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                <span class="xest-source-hint" id="xestDropPriceSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
+              </div>
+              <div class="xest-field">
+                <label for="xestFeederPriceInput" data-i18n="xest_feeder_price">Feeder cable price (PKR / meter)</label>
+                <input id="xestFeederPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                <span class="xest-source-hint" id="xestFeederPriceSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
+              </div>
+              <div class="xest-field">
+                <label for="xestBoxPriceInput" data-i18n="xest_box_price">Splitter box price (PKR each)</label>
+                <input id="xestBoxPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+              </div>
+              <div class="xest-field">
+                <label for="xestPolePriceInput" data-i18n="xest_pole_price">Pole / clamp price (PKR each)</label>
+                <input id="xestPolePriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+              </div>
+              <div class="xest-field">
+                <label for="xestSplicingPriceInput" data-i18n="xest_splicing_price">Splicing price (PKR / job)</label>
+                <input id="xestSplicingPriceInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+              </div>
+            </div>
+          </div>
+
+          <div class="xest-group">
+            <h4 class="xest-group-title" data-i18n="xest_group_subscribers">Subscribers &amp; Fees</h4>
+            <div class="xest-grid">
+              <div class="xest-field">
+                <label for="xestSubscribersInput" data-i18n="xest_subscribers">New subscribers expected</label>
+                <input id="xestSubscribersInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+              </div>
+              <div class="xest-field">
+                <label for="xestMonthlyFeeInput" data-i18n="xest_monthly_fee">Monthly package fee (PKR / subscriber)</label>
+                <input id="xestMonthlyFeeInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                <span class="xest-source-hint" id="xestMonthlyFeeSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
+              </div>
+              <div class="xest-field">
+                <label for="xestConnectionFeeInput" data-i18n="xest_connection_fee">Connection fee (PKR / subscriber)</label>
+                <input id="xestConnectionFeeInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+                <span class="xest-source-hint" id="xestConnectionFeeSource" hidden data-i18n="xest_source_recorded">From your recorded data — editable</span>
+              </div>
+              <div class="xest-field">
+                <label for="xestMonthlyOpexInput" data-i18n="xest_monthly_opex">Monthly running cost of the new street (PKR)</label>
+                <input id="xestMonthlyOpexInput" type="number" min="0" step="1" inputmode="numeric" value="0">
+              </div>
+            </div>
+          </div>
+
+          <div class="xest-results">
+            <h4 class="xest-group-title" data-i18n="xest_results_title">Estimate</h4>
+            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_capex">Total plant cost (Capex)</span><strong class="xest-result-value" id="xestResCapex">PKR 0</strong></div>
+            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_fees">Connection fees expected</span><strong class="xest-result-value" id="xestResFees">PKR 0</strong></div>
+            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_net_upfront">Net upfront investment</span><strong class="xest-result-value" id="xestResNetUpfront">PKR 0</strong></div>
+            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_monthly_revenue">Monthly revenue</span><strong class="xest-result-value" id="xestResMonthlyRevenue">PKR 0</strong></div>
+            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_monthly_net">Monthly net (revenue − running cost)</span><strong class="xest-result-value" id="xestResMonthlyNet">PKR 0</strong></div>
+            <div class="xest-result-row"><span class="xest-result-label" data-i18n="xest_res_break_even">Break-even (months)</span><strong class="xest-result-value" id="xestResBreakEven">0</strong></div>
+            <div class="xest-result-row"><span class="xest-result-label" id="xestPartnerName0">Partner — capital share</span><strong class="xest-result-value" id="xestPartnerAmount0">PKR 0</strong></div>
+            <div class="xest-result-row"><span class="xest-result-label" id="xestPartnerName1">Partner — capital share</span><strong class="xest-result-value" id="xestPartnerAmount1">PKR 0</strong></div>
+            <p class="xest-note" id="xestCoveredNote" hidden></p>
+            <p class="xest-note" id="xestBreakEvenNote" hidden data-i18n="xest_break_even_never">Monthly income does not cover the running cost at these figures, so the investment does not break even — raise subscribers or fee, or lower the running cost.</p>
           </div>
         </div>
       </dialog>

@@ -16,6 +16,7 @@ import { isCommercialVip } from './commercial-sla.js';
 
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
+import { contributorSplitStatus, subContributorsOf } from './shared-router-contributors.js';
 import { normalizeOccupancyFields, hasOccupancyRecord, tenantDepositRisk } from './occupancy-guarantor.js';
 import { evaluateStarTimelyPayer } from './star-subscribers.js';
 import { isRandomizedMac, macOuiVendor } from './mac-oui-lookup.js';
@@ -256,6 +257,16 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
     .map((line) => `${L.ticketCharge(line.ticketId)}: ${formatPKR(Number(line.amount))}`);
   if (ticketChargeLines.length > 0) {
     lines.push('', ...ticketChargeLines);
+  }
+
+  // SISP-158: shared-router split lines, when the caller attached the
+  // receipt's contributor split (app.js passes buildPaymentReceipt's
+  // contributorSplit). Shape-checked like the ticket lines above — a
+  // malformed split never breaks the draft.
+  const split = receipt?.contributorSplit;
+  if (split && Array.isArray(split.rows) && split.main && typeof split.main === 'object') {
+    const splitRow = (row) => t('contrib_wa_row', null, { name: safeLine(row?.name), share: formatPKR(Number(row?.share) || 0), paid: formatPKR(Number(row?.paid) || 0), remaining: formatPKR(Number(row?.remaining) || 0) });
+    lines.push('', t('contrib_wa_heading'), ...split.rows.map(splitRow), splitRow(split.main));
   }
 
   // SISP-128: "Last 3 Payments" mini-history, when the caller attached
@@ -751,6 +762,55 @@ export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date(
   if (!until) return '';
   const label = t('prepaid_badge', null, { month: formatReceiptMonth(until) ?? until });
   return `<span class="prepaid-until-badge">${label}</span>`;
+}
+
+// SISP-158: shared-router contributor presentation. Pure formatting over
+// shared-router-contributors.js — the split status is derived there from
+// the bill's saved payments; nothing here writes the ledger, and the
+// shares-sum warning is a soft note only (it never blocks a save).
+
+/** The shares-sum soft warning text, or '' when the shares describe the
+ * price exactly (or no positive price is known to compare against). */
+export function contributorSharesWarningText(sharesSum, price) {
+  const sum = Number(sharesSum);
+  const priceNum = Number(price);
+  if (!Number.isFinite(sum) || !Number.isFinite(priceNum) || priceNum <= 0) return '';
+  if (Math.round(sum * 100) === Math.round(priceNum * 100)) return '';
+  return t('contrib_warn_sum', null, {
+    sum: formatPKR(sum),
+    price: formatPKR(priceNum),
+    remainder: formatPKR(Math.max(0, priceNum - sum))
+  });
+}
+
+/** Read-view split-status card for one bill month: each contributor plus
+ * the main customer's implicit row (share / paid / remaining). Returns ''
+ * when the customer has no contributors, so ordinary profiles render
+ * exactly as before. Callers pass the month + the applicable price. */
+export function contributorSplitSectionHtml(customer, { month = '', price = null } = {}) {
+  if (subContributorsOf(customer).length === 0) return '';
+  const bill = (Array.isArray(customer?.bills) ? customer.bills : []).find((row) => row?.month === month) ?? null;
+  const split = contributorSplitStatus(customer, bill, { price });
+  if (!split) return '';
+  const rowLine = (row) => t('contrib_row', null, { name: row.name, share: formatPKR(row.share), paid: formatPKR(row.paid), remaining: formatPKR(row.remaining) });
+  const mainLine = t('contrib_main_row', null, { name: split.main.name || String(customer?.name ?? ''), share: formatPKR(split.main.share), paid: formatPKR(split.main.paid), remaining: formatPKR(split.main.remaining) });
+  const warning = contributorSharesWarningText(split.sharesSum, split.price);
+  return `<section class="profile-contributors-section" aria-label="${escapeHtml(t('contrib_aria'))}"><h4>${escapeHtml(t('contrib_heading'))}</h4><ul class="profile-referral-list">${split.rows.map((row) => `<li>${escapeHtml(rowLine(row))}</li>`).join('')}<li><strong>${escapeHtml(mainLine)}</strong></li></ul>${warning ? `<p class="contrib-warn">${escapeHtml(warning)}</p>` : ''}</section>`;
+}
+
+/** One editor row (name / share / phone + remove). app.js also uses this
+ * to append a blank row when the operator taps "add neighbour". */
+export function contributorEditorRowHtml(contributor = {}) {
+  return `<div class="contrib-row" data-contrib-id="${escapeHtml(contributor.id ?? '')}"><label class="contrib-field"><span>${escapeHtml(t('contrib_name_label'))}</span><input type="text" data-contrib-name maxlength="100" autocomplete="off" value="${escapeHtml(contributor.name ?? '')}"></label><label class="contrib-field"><span>${escapeHtml(t('contrib_share_label'))}</span><input type="number" data-contrib-share min="0.01" step="0.01" inputmode="decimal" value="${contributor.sharePKR ?? ''}"></label><label class="contrib-field"><span>${escapeHtml(t('contrib_phone_label'))}</span><input type="tel" data-contrib-phone maxlength="40" autocomplete="tel" value="${escapeHtml(contributor.phone ?? '')}"></label><button type="button" class="secondary-button contrib-remove-btn" data-contrib-remove>${escapeHtml(t('contrib_remove'))}</button></div>`;
+}
+
+/** The profile-form contributor editor: existing rows, an add button and
+ * the soft shares-sum warning (recomputed live by app.js on input). */
+export function contributorEditorHtml(customer, price = null) {
+  const contributors = subContributorsOf(customer);
+  const sharesSum = contributors.reduce((sum, entry) => sum + entry.sharePKR, 0);
+  const warning = contributorSharesWarningText(sharesSum, price);
+  return `<section class="profile-contributors-editor" aria-label="${escapeHtml(t('contrib_aria'))}"><h4>${escapeHtml(t('contrib_heading'))}</h4><p class="contrib-note">${escapeHtml(t('contrib_note'))}</p><div class="contrib-rows">${contributors.length > 0 ? contributors.map((entry) => contributorEditorRowHtml(entry)).join('') : `<p class="contrib-empty">${escapeHtml(t('contrib_empty'))}</p>`}</div><button type="button" class="secondary-button" data-contrib-add>${escapeHtml(t('contrib_add'))}</button><p class="contrib-warn" id="contribEditorWarning"${warning ? '' : ' hidden'}>${escapeHtml(warning)}</p></section>`;
 }
 
 /**

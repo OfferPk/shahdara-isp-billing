@@ -113,6 +113,7 @@ import {
   getPendingCollectionCustomers,
   executeQuickCollection,
   formatQuickCollectWhatsAppReceipt,
+  formatRemainderWaadaLine,
   getPakistanLocalDate
 } from './nav-quick-collect.js';
 import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOutstandingCents, whatsappPhoneFor } from './core.js';
@@ -126,6 +127,8 @@ import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
 import {
   computeWaadaChipDate,
+  computeRemainderWaada,
+  remainderWaadaChipDates,
   getWaadaTodayString,
   setCustomerWaada,
   clearCustomerWaada,
@@ -551,7 +554,7 @@ export function speakCustomerDue(state, customerId, { allocations = null, lang =
  * credit (the engine's real FIFO semantics). Throws on a bad amount or
  * an invalid method (executeQuickCollection validates both).
  */
-export function collectFieldModeAdvance(state, entry, { amount, method, targetMonth } = {}, referenceDate = new Date()) {
+export function collectFieldModeAdvance(state, entry, { amount, method, targetMonth, remainderWaadaDate } = {}, referenceDate = new Date()) {
   const numAmount = Number(amount);
   if (!entry || !Number.isFinite(numAmount) || numAmount <= 0) {
     throw new Error('Enter a valid advance amount greater than zero.');
@@ -568,7 +571,12 @@ export function collectFieldModeAdvance(state, entry, { amount, method, targetMo
       kind: 'advance',
       // Month targeting: the month this money is FOR (the sheet's
       // picker; next month by default). Sanitized by core on record.
-      advanceTargetMonth: targetMonth
+      advanceTargetMonth: targetMonth,
+      // SISP-126: an armed remainder-waada chip date from the sheet's
+      // Baqi row (the sheet's only custom-amount path — a partial
+      // collection against dues). Forwarded untouched: the recorder
+      // writes the promise only when money remains due after recording.
+      remainderWaadaDate
     },
     referenceDate
   );
@@ -680,6 +688,11 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let lastReceiptAdvanceTarget = null;
   let panelMode = 'collect';
   let busy = false;
+  // SISP-126: the armed remainder-waada chip date on the custom-amount
+  // sheet (null until a date chip is tapped — Skip / untouched arms
+  // nothing, and the row appearing never writes a promise by itself).
+  let fieldRemainderWaadaDate = null;
+  let fieldRemainderSkipped = false;
 
   const toast = (msg) => { if (typeof onToast === 'function') onToast(msg); };
   // SISP-65: the [🔊 Speak Due] button shared by both collection
@@ -836,6 +849,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         <p><strong>${escapeHtml(formatPKR(receipt.amount))}</strong> via ${escapeHtml(receipt.method)} · Receipt ${escapeHtml(receipt.receiptNumber)}</p>
         ${Number(receipt.advanceCreditGenerated) > 0 ? `<p>🪙 ${escapeHtml(t('khula_credit_row'))}: <strong>${escapeHtml(formatPKR(receipt.advanceCreditGenerated))}</strong></p>` : ''}
         <p>Remaining balance: <strong>${escapeHtml(formatPKR(receipt.newTotalDues))}</strong> · ${settled ? 'PAID IN FULL' : 'PARTIAL'}</p>
+        ${receipt.remainderWaada ? `<p>🤝 ${escapeHtml(formatRemainderWaadaLine(receipt) ?? '')}</p>` : ''}
         ${receiptChannel === 'sms' ? `${smsSlipMarkup}${waReceiptMarkup}` : `${waReceiptMarkup}${smsSlipMarkup}`}
         ${receiptActionButtons}
         <button type="button" class="field-mode-action-btn" data-field-action="next">Next customer →</button>
@@ -912,7 +926,58 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
    * a fully-paid bill is exactly what the owner ruled out — while with
    * dues present, unticking returns to the normal collect sheet.
    */
+  // SISP-126: the Remainder Waada row on the custom-amount sheet — the
+  // sheet's only place a partial amount against dues can be typed (the
+  // dues sheet itself is full-amount 1-tap buttons by design). The
+  // remainder comes from the shared computeRemainderWaada over the
+  // sheet's own engine figure (entry.totalDues, from
+  // getPendingCollectionCustomers) minus the typed amount — the same
+  // helper the Quick Collect modal uses, so both surfaces agree. Only
+  // the row div is re-rendered here; the amount input is never rebuilt
+  // while typing.
+  function updateFieldRemainderRow() {
+    const row = panelEl?.querySelector('#fieldModeRemainderWaadaRow');
+    if (!row) return;
+    const state = typeof getState === 'function' ? getState() : null;
+    const entry = state && selectedId
+      ? getPendingCollectionCustomers(state, '', 'all').find(e => e.id === selectedId)
+      : null;
+    const amount = Number(panelEl?.querySelector('#fieldModeAdvanceAmount')?.value);
+    const partial = entry ? computeRemainderWaada(entry.totalDues, amount) : null;
+    if (!partial) {
+      row.hidden = true;
+      row.innerHTML = '';
+      fieldRemainderWaadaDate = null;
+      fieldRemainderSkipped = false;
+      return;
+    }
+    const dates = remainderWaadaChipDates(todayStr());
+    if (!dates) { row.hidden = true; row.innerHTML = ''; return; }
+    if (fieldRemainderWaadaDate
+      && ![dates.plus3, dates.plus7, dates.tenth, dates.fifteenth].includes(fieldRemainderWaadaDate)) {
+      fieldRemainderWaadaDate = null;
+      fieldRemainderSkipped = false;
+    }
+    const chip = (key, label, date) =>
+      `<button type="button" class="field-mode-waada-chip${fieldRemainderWaadaDate === date ? ' is-active' : ''}" data-field-remwaada="${key}" ${busy ? 'disabled' : ''}>${label} · ${escapeHtml(date.slice(5))}</button>`;
+    row.innerHTML = `
+      <p class="field-mode-waada-label">🤝 Baqi: ${escapeHtml(formatPKR(partial.remainder))} — Remainder Waada Date</p>
+      <div class="field-mode-waada-chips">
+        ${chip('plus3', '+3 days', dates.plus3)}
+        ${chip('plus7', '+7 days', dates.plus7)}
+        ${chip('tenth', '10th', dates.tenth)}
+        ${chip('fifteenth', '15th', dates.fifteenth)}
+        <button type="button" class="field-mode-waada-chip${fieldRemainderSkipped ? ' is-active' : ''}" data-field-remwaada="skip" ${busy ? 'disabled' : ''}>Skip</button>
+      </div>
+      ${fieldRemainderWaadaDate ? `<p class="field-mode-note">✓ Waada set for ${escapeHtml(fieldRemainderWaadaDate)}</p>` : ''}`;
+    row.hidden = false;
+  }
+
   function renderAdvancePanel(entry, state) {
+    // SISP-126: a freshly rendered sheet starts with no waada armed
+    // (the amount input is rebuilt empty at the same moment).
+    fieldRemainderWaadaDate = null;
+    fieldRemainderSkipped = false;
     const status = fieldModeCustomerStatus(state, entry.id);
     const zeroDues = entry.totalDues <= 0;
     const shops = fieldModeShopMethods();
@@ -931,6 +996,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         <span>Advance payment (next bill credit)</span>
       </label>
       <input id="fieldModeAdvanceAmount" class="field-mode-advance-amount" type="number" inputmode="decimal" min="1" step="any" placeholder="Advance amount (PKR)" aria-label="Advance amount (PKR)">
+      ${zeroDues ? '' : '<div class="field-mode-remainder-waada" id="fieldModeRemainderWaadaRow" hidden></div>'}
       <label class="field-mode-advance-target-label" for="fieldModeAdvanceTargetMonth">Advance for month</label>
       <select id="fieldModeAdvanceTargetMonth" class="field-mode-advance-target" aria-label="Advance for month">
         ${advanceTargetMonthOptions().map(m => `<option value="${escapeHtml(m)}" ${m === defaultAdvanceTargetMonth() ? 'selected' : ''}>${escapeHtml(fieldModeMonthLabel(m))}</option>`).join('')}
@@ -1015,6 +1081,8 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     lastReceiptAdvance = false;
     lastReceiptAdvanceTarget = null;
     panelMode = 'collect';
+    fieldRemainderWaadaDate = null;
+    fieldRemainderSkipped = false;
     render();
   }
 
@@ -1109,10 +1177,13 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     const amount = amountInput ? Number(amountInput.value) : NaN;
     const targetInput = panelEl?.querySelector('#fieldModeAdvanceTargetMonth');
     const targetMonth = targetInput ? targetInput.value : undefined;
+    // SISP-126: capture the armed remainder-waada date BEFORE the busy
+    // re-render below rebuilds the sheet (which resets the choice).
+    const remainderWaadaDate = fieldRemainderWaadaDate || undefined;
     busy = true;
     renderPanel();
     try {
-      const { nextState, receipt, whatsapp } = collectFieldModeAdvance(state, entry, { amount, method, targetMonth });
+      const { nextState, receipt, whatsapp } = collectFieldModeAdvance(state, entry, { amount, method, targetMonth, remainderWaadaDate });
       if (typeof onSaveState === 'function') onSaveState(nextState);
       lastReceipt = { receipt, whatsapp };
       lastReceiptAdvance = true;
@@ -1257,7 +1328,30 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         toast('This bill is already fully paid. Record money received early as an Advance payment instead — it stays tagged as advance credit for the next bill.');
       }
     });
+    // SISP-126: typing a partial amount on the custom-amount sheet
+    // reveals/updates the Remainder Waada row live.
+    panelEl.addEventListener('input', (event) => {
+      if (event.target?.id === 'fieldModeAdvanceAmount') updateFieldRemainderRow();
+    });
     panelEl.addEventListener('click', (event) => {
+      // SISP-126: remainder-waada chips arm/disarm the date that rides
+      // the next collect tap; nothing persists on the tap itself.
+      const remBtn = event.target.closest?.('[data-field-remwaada]');
+      if (remBtn) {
+        const key = remBtn.getAttribute('data-field-remwaada');
+        if (key === 'skip') {
+          fieldRemainderWaadaDate = null;
+          fieldRemainderSkipped = true;
+        } else {
+          const dates = remainderWaadaChipDates(todayStr());
+          if (dates?.[key]) {
+            fieldRemainderWaadaDate = dates[key];
+            fieldRemainderSkipped = false;
+          }
+        }
+        updateFieldRemainderRow();
+        return;
+      }
       const advanceBtn = event.target.closest?.('[data-field-advance-method]');
       if (advanceBtn) {
         collectAdvance(advanceBtn.getAttribute('data-field-advance-method') || 'Cash');

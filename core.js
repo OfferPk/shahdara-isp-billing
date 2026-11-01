@@ -51,6 +51,7 @@ import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { sanitizeEmergencyRunbook, hasEmergencyRunbookContacts } from './emergency-runbook-card.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { sanitizeFatherOrReferenceName, sanitizeSearchAliases, fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
 import { sanitizeSubContributors, sanitizePaidByContributorStamp } from './shared-router-contributors.js';
 import { normalizeOccupancyFields, sanitizeResidenceType, sanitizeLandlordOrGuarantorName, sanitizeLandlordPhone } from './occupancy-guarantor.js';
 import { sanitizeRoundingTag } from './bill-rounding-helper.js';
@@ -211,6 +212,10 @@ export function readState(storage, key = STORAGE_KEY) {
       address:customer.address ?? '',
       phone:customer.phone ?? '',
       cnic:customer.cnic ?? '',
+      // SISP-165: father / reference name + search aliases — old saves
+      // without them load as empty, never as invented data.
+      fatherOrReferenceName:sanitizeFatherOrReferenceName(customer.fatherOrReferenceName),
+      searchAliases:sanitizeSearchAliases(customer.searchAliases),
       ispProvider:customer.ispProvider ?? '',
       serviceStatus:['active','offline','not-set'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set',
       // SISP-133: preferred collection visit window — stored only when
@@ -515,6 +520,10 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const mediaConverterCost = checkCost(options.mediaConverterCost);
   const linemanInstallFee = checkCost(options.linemanInstallFee);
   const fiberPerMeterRate = checkCost(options.fiberPerMeterRate);  const nameUrdu = cleanText(options.nameUrdu, 100, 'Urdu name');
+  // SISP-165: father / reference name + search aliases — finding aids
+  // only (never identity, billing or duplicate detection inputs).
+  const fatherOrReferenceName = cleanText(options.fatherOrReferenceName, 100, 'Father / reference name');
+  const searchAliases = sanitizeSearchAliases(options.searchAliases);
   const pppoeUsername = cleanText(options.pppoeUsername, 100, 'PPPoE username');
   const pppoePassword = cleanText(options.pppoePassword, 100, 'PPPoE password');
   const staticIp = cleanText(options.staticIp, 45, 'Static IP');
@@ -569,7 +578,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // SISP-153: a new record starts with no seasonal rate unless the
   // caller passes a complete valid triple (sanitized all-or-nothing).
   const seasonalFields = sanitizeSeasonalFields(options);
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, customerConverterSide, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, customerConverterSide, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, fatherOrReferenceName, searchAliases, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -686,9 +695,14 @@ function customerMatchesQuery(customer, query, allocations = null) {
   // tenant is often found through the landlord who vouched for them.
   const phoneValues = [customer.phone, customer.customerPhone, customer.landlordPhone];
   const cnicValues = [customer.cnic, customer.customerCnic];
-  const fields = [customer.name, customer.landlordOrGuarantorName, ...phoneValues, ...cnicValues, customer.address, customer.customerAddress, customer.customerNumber, customer.id]
+  // SISP-165: the father's/reference name and every search alias are
+  // plain-text searchable here too, and the phonetic matcher below finds
+  // Roman-Urdu spelling variants ("Fesal" for "Faisal") plus initials
+  // ("M. Aslam" for "Muhammad Aslam") across name + father + aliases.
+  const fields = [customer.name, customer.landlordOrGuarantorName, customer.fatherOrReferenceName, ...sanitizeSearchAliases(customer.searchAliases), ...phoneValues, ...cnicValues, customer.address, customer.customerAddress, customer.customerNumber, customer.id]
     .map(value => String(value ?? '').normalize('NFKC').toLocaleLowerCase());
   if (fields.some(value => value.includes(normalized))) return true;
+  if (fuzzyCustomerNameMatches(customer, query)) return true;
   // SISP-74: global search also matches the network identifiers (PPPoE
   // username, static IP, MAC, router serial), incl. separator-free MACs.
   if (identitySearchMatches(customer, normalized)) return true;
@@ -994,6 +1008,9 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     mediaConverterCost: checkCost(valueOrCurrent('mediaConverterCost')),
     linemanInstallFee: checkCost(valueOrCurrent('linemanInstallFee')),
     fiberPerMeterRate: checkCost(valueOrCurrent('fiberPerMeterRate')),    nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
+    // SISP-165: father / reference name + search aliases (finding aids).
+    fatherOrReferenceName: cleanText(valueOrCurrent('fatherOrReferenceName') ?? '', 100, 'Father / reference name'),
+    searchAliases: sanitizeSearchAliases(valueOrCurrent('searchAliases')),
     pppoeUsername: cleanText(valueOrCurrent('pppoeUsername') ?? '', 100, 'PPPoE username'),
     pppoePassword: cleanText(valueOrCurrent('pppoePassword') ?? '', 100, 'PPPoE password'),
     staticIp: cleanText(valueOrCurrent('staticIp') ?? '', 45, 'Static IP'),
@@ -3473,9 +3490,12 @@ function validateBackupState(source) {
     const normalizedName = customer.name.trim().toLocaleLowerCase();
     if (customerNames.has(normalizedName)) throw new Error(`Backup has duplicate customer names matching “${customer.name.trim()}”.`);
     customerNames.add(normalizedName);
-    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['notes',1000,'customer notes'],['phone',40,'phone number'],['whatsappPhone',40,'WhatsApp number'],['alternatePhone',40,'alternate phone number'],['cnic',30,'CNIC'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed'],['wifiSsid',64,'Wi-Fi SSID'],['wifiPassword',100,'Wi-Fi password'],['routerAdminPassword',100,'router admin password']]) {
+    for (const [field, limit, label] of [['mohalla',100,'mohalla'],['zone',100,'zone'],['address',200,'address'],['notes',1000,'customer notes'],['phone',40,'phone number'],['whatsappPhone',40,'WhatsApp number'],['alternatePhone',40,'alternate phone number'],['cnic',30,'CNIC'],['ispProvider',100,'ISP/provider name'],['packageSpeed',80,'package/speed'],['fatherOrReferenceName',100,'father / reference name'],['wifiSsid',64,'Wi-Fi SSID'],['wifiPassword',100,'Wi-Fi password'],['routerAdminPassword',100,'router admin password']]) {
       if (customer[field] !== undefined && (typeof customer[field] !== 'string' || customer[field].length > limit)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid ${label}.`);
     }
+    // SISP-165: search aliases travel with the customer; a malformed
+    // list is rejected like any other invalid profile field.
+    if (customer.searchAliases !== undefined && (!Array.isArray(customer.searchAliases) || customer.searchAliases.length > 5 || customer.searchAliases.some((alias) => typeof alias !== 'string' || alias.length > 40))) throw new Error(`Backup customer #${customer.customerNumber} has an invalid search alias list.`);
     // SISP-94: a stored router admin port must be a real TCP port.
     if (customer.routerAdminPort !== undefined && customer.routerAdminPort !== null && (!Number.isInteger(customer.routerAdminPort) || customer.routerAdminPort < 1 || customer.routerAdminPort > 65535)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid router admin port.`);
     if (customer.serviceStatus !== undefined && !['active','offline','not-set'].includes(customer.serviceStatus)) throw new Error(`Backup customer #${customer.customerNumber} has an invalid manual service status.`);
@@ -3622,6 +3642,8 @@ function validateBackupState(source) {
       name:customer.name.trim(),
       addedOn:checkOptionalDate(customer.addedOn ?? null, 'Customer added date'),
       mohalla:customer.mohalla ?? '', zone:customer.zone ?? '', address:customer.address ?? '', phone:customer.phone ?? '', cnic:customer.cnic ?? '', ispProvider:customer.ispProvider ?? '', serviceStatus:customer.serviceStatus ?? 'not-set', serviceStatusHistory:sanitizeServiceStatusHistory(customer.serviceStatusHistory), packageSpeed:customer.packageSpeed ?? '',
+      // SISP-165: father / reference name + search aliases travel in backups.
+      fatherOrReferenceName:customer.fatherOrReferenceName ?? '', searchAliases:sanitizeSearchAliases(customer.searchAliases),
       // SISP-133: the visit-window preference travels with the customer
       // in JSON backups, sanitized to a stored non-anytime value only.
       preferredVisitWindow:sanitizePreferredVisitWindow(customer.preferredVisitWindow) ?? undefined,
@@ -4133,7 +4155,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','customerConverterSide','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone','seasonalRatePKR','seasonalUntilMonth','restorePackageRatePKR']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','fatherOrReferenceName','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','customerConverterSide','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone','seasonalRatePKR','seasonalUntilMonth','restorePackageRatePKR']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-138: the last-contact stamp merges by recency, never as a
     // plain field fill and never as a conflict — contact history only
     // moves forward, so the later stamp (fixed-format strings compare
@@ -4164,6 +4186,15 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       const incomingSkipped = Array.isArray(backupCustomer.pauseSkippedMonths) ? backupCustomer.pauseSkippedMonths : [];
       const merged = [...new Set([...localSkipped, ...incomingSkipped].filter((month) => validMonthString(month)))].sort();
       if (!sameJson(localSkipped, merged)) { customer.pauseSkippedMonths = merged; counts.changes++; }
+    }
+    // SISP-165: search aliases merge by union (like skipped months) —
+    // a nickname known on either device stays findable, never a
+    // conflict, and two empty lists change nothing.
+    {
+      const localAliases = sanitizeSearchAliases(customer.searchAliases);
+      const incomingAliases = sanitizeSearchAliases(backupCustomer.searchAliases);
+      const mergedAliases = sanitizeSearchAliases([...localAliases, ...incomingAliases]);
+      if (!sameJson(localAliases, mergedAliases)) { customer.searchAliases = mergedAliases; counts.changes++; }
     }
     // SISP-19: recovery dates merge per item, not as a plain field fill:
     // a recovered item never becomes unrecovered, so when either side

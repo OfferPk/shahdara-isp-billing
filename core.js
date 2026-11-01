@@ -10,6 +10,7 @@ import { sanitizeHomeBudget } from './home-budget.js';
 import { sanitizeRoznamchaDays } from './roznamcha.js';
 import { sanitizeTickets } from './complaint-tickets.js';
 import { sanitizeInventory } from './inventory-book.js';
+import { sanitizeConverterSideMovements } from './wdm-converter-matcher.js';
 import { sanitizeLoanEntries } from './loan-ledger.js';
 import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
 import { sanitizeLinemanPayouts } from './lineman-payout-slip.js';
@@ -257,6 +258,9 @@ export function readState(storage, key = STORAGE_KEY) {
       splitterPort:Number.isInteger(Number(customer.splitterPort)) && Number(customer.splitterPort) >= 1 && Number(customer.splitterPort) <= 16 ? Number(customer.splitterPort) : null,
       oltPonPort:typeof customer.oltPonPort === 'string' ? customer.oltPonPort.trim().slice(0, 100) : '',
       lastRxDbm:Number.isFinite(Number(customer.lastRxDbm)) && customer.lastRxDbm !== '' && customer.lastRxDbm !== null && customer.lastRxDbm !== undefined ? Math.round(Number(customer.lastRxDbm) * 10) / 10 : null,
+      // SISP-162: single-fiber WDM converter side — 'A' (1310nm) or 'B'
+      // (1550nm); anything else loads as '' (not recorded), never guessed.
+      customerConverterSide:['A','B'].includes(customer.customerConverterSide) ? customer.customerConverterSide : '',
       // SISP-92: GPS pin — old saves without it load as a null pair.
       ...sanitizeGpsPair(customer),
       // OWNER-SIGNAL: append-only signal reading history — old saves
@@ -500,6 +504,8 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const splitterPort = checkSplitterPort(options.splitterPort);
   const oltPonPort = cleanText(options.oltPonPort, 100, 'PON port');
   const lastRxDbm = checkRxDbm(options.lastRxDbm);
+  // SISP-162: WDM converter side — only the two physical sides record.
+  const customerConverterSide = ['A','B'].includes(options.customerConverterSide) ? options.customerConverterSide : '';
   // SISP-92: GPS pin (optional pair; absent reads back as nulls).
   const { gpsLat, gpsLng } = checkGpsPair(options.gpsLat, options.gpsLng);
   // SISP-32: pole & landmark directory (all optional).
@@ -563,7 +569,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // SISP-153: a new record starts with no seasonal rate unless the
   // caller passes a complete valid triple (sanitized all-or-nothing).
   const seasonalFields = sanitizeSeasonalFields(options);
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, customerConverterSide, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -958,6 +964,9 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     splitterPort: checkSplitterPort(valueOrCurrent('splitterPort')),
     oltPonPort: cleanText(valueOrCurrent('oltPonPort') ?? '', 100, 'OLT PON port'),
     lastRxDbm: checkRxDbm(valueOrCurrent('lastRxDbm')),
+    // SISP-162: WDM converter side — an unknown value coerces to ''
+    // (not recorded) rather than blocking an unrelated profile save.
+    customerConverterSide: ['A','B'].includes(valueOrCurrent('customerConverterSide')) ? valueOrCurrent('customerConverterSide') : '',
     // SISP-92: GPS pin (pair-validated; passing both empty clears it,
     // omitting both keeps the saved pin via valueOrCurrent).
     ...checkGpsPair(valueOrCurrent('gpsLat'), valueOrCurrent('gpsLng')),
@@ -3638,6 +3647,8 @@ function validateBackupState(source) {
       // sanitized as a pair (an invalid half voids the whole stamp).
       ...sanitizeContactPair(customer),
       hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },
+      // SISP-162: WDM converter side travels with the customer in backups.
+      customerConverterSide:['A','B'].includes(customer.customerConverterSide) ? customer.customerConverterSide : '',
       // SISP-32: pole & landmark fields travel with the customer in JSON backups.
       poleNumber:customer.poleNumber ?? '', boxLocationNote:customer.boxLocationNote ?? '', dropWireCoreColor:customer.dropWireCoreColor ?? '',
       // SISP-118: WhatsApp + alternate contact numbers travel with the
@@ -3734,6 +3745,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
   if (options && typeof options === 'object' && Array.isArray(options.inventory) && options.inventory.length) {
     const cleaned = sanitizeInventory(options.inventory);
     if (cleaned.length) document.settings = { ...(document.settings || {}), inventory: cleaned };
+  }
+  // SISP-162: WDM converter side movements live outside the ledger
+  // state (localStorage key sisp_converter_sides_v1), so they travel in
+  // an optional `settings.converterSides` section. Written only when at
+  // least one movement exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && Array.isArray(options.converterSides) && options.converterSides.length) {
+    const cleaned = sanitizeConverterSideMovements(options.converterSides);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), converterSides: cleaned };
   }
   // Loan ledger: personal loan entries live outside the ledger state
   // (localStorage key loan_ledger_v1), so they travel in an optional
@@ -4114,7 +4133,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone','seasonalRatePKR','seasonalUntilMonth','restorePackageRatePKR']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','customerConverterSide','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone','seasonalRatePKR','seasonalUntilMonth','restorePackageRatePKR']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-138: the last-contact stamp merges by recency, never as a
     // plain field fill and never as a conflict — contact history only
     // moves forward, so the later stamp (fixed-format strings compare
@@ -4504,6 +4523,30 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       counts.changes++;
     } else if (incomingInventory.length) {
       conflicts.push({ customerNumber:null, name:'', field:'Stock book records differ from this device' });
+    }
+  }
+  // SISP-162: optional WDM converter side movements section (see
+  // createJsonBackup). Safe-merge rule, same as the stock book: adopt
+  // the backup's records only when this device has none stored yet;
+  // when both sides hold different real records, keep existing +
+  // conflict.
+  let converterSides = null;
+  const rawIncomingConverterSides = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.converterSides
+    : undefined;
+  if (Array.isArray(rawIncomingConverterSides) && rawIncomingConverterSides.length) {
+    const incomingConverterSides = sanitizeConverterSideMovements(rawIncomingConverterSides);
+    const currentConverterSides = (options && typeof options === 'object' && Array.isArray(options.currentConverterSides))
+      ? sanitizeConverterSideMovements(options.currentConverterSides)
+      : [];
+    if (incomingConverterSides.length && sameJson(incomingConverterSides, currentConverterSides)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingConverterSides.length && (!options?.currentConverterSidesStored || currentConverterSides.length === 0)) {
+      converterSides = incomingConverterSides;
+      counts.converterSidesRestored = 1;
+      counts.changes++;
+    } else if (incomingConverterSides.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'WDM converter side records differ from this device' });
     }
   }
   // Loan ledger: optional loan entries section (see createJsonBackup).
@@ -5284,5 +5327,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, emergencyRunbook, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, converterSides, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, emergencyRunbook, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

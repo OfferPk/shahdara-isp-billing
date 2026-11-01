@@ -500,8 +500,10 @@
           <strong id="dashboardInventoryValue" class="summary-value">No stock recorded</strong>
           <p id="dashboardInventoryPeriod" class="summary-period">Fiber, routers, converters &amp; field stock</p>
           <div id="inventoryBookSummary" class="inventory-book-summary"></div>
+          <div id="fieldBagSummary" class="inventory-book-summary"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_stock">📦 Stock Book</button>
+            <button id="openFieldBagModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_field_bag">🎒 Field Bag</button>
             <button id="openSupplierKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="supkhata_btn_open">🏭 Supplier Khata</button>
           </div>
         </article>
@@ -21880,6 +21882,44 @@
         </form>
         <h3>Movement log</h3>
         <div id="inventoryBookLogList" class="inventory-book-log-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="fieldBagModal" class="billing-modal field-bag-modal" aria-labelledby="fieldBagModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="fieldBagModalTitle" data-i18n="fbag_title">🎒 Field Bag Stock</h2>
+        <button id="fieldBagCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="field-bag-intro" data-i18n="fbag_intro">Spare parts the lineman carries on the bike, issued from the Main Store. Bag counts are always derived from the movement log below — they can never drift from it.</p>
+        <p id="fieldBagSummaryLine" class="field-bag-summary-line"></p>
+        <h3 data-i18n="fbag_recon_title">Reconciliation — Main Store / Field Bag / Total</h3>
+        <div id="fieldBagReconList" class="field-bag-list"></div>
+        <h3 data-i18n="fbag_issue_title">Issue from Main Store to Field Bag</h3>
+        <form id="fieldBagIssueForm" class="field-bag-form">
+          <label for="fieldBagIssueItem" data-i18n="fbag_item">Item</label>
+          <select id="fieldBagIssueItem" class="form-input" aria-label="Stock item"></select>
+          <label for="fieldBagIssueQty" data-i18n="fbag_qty">Quantity</label>
+          <input id="fieldBagIssueQty" class="form-input" type="number" min="0" step="any" required aria-label="Quantity">
+          <label for="fieldBagIssueDate" data-i18n="fbag_date">Date</label>
+          <input id="fieldBagIssueDate" class="form-input" type="date" required aria-label="Movement date">
+          <label for="fieldBagIssueNote" data-i18n="fbag_note">Note</label>
+          <input id="fieldBagIssueNote" class="form-input" type="text" aria-label="Note">
+          <button class="action-btn-sm daily-slip-btn" type="submit" data-i18n="fbag_issue_btn">Issue to field bag</button>
+        </form>
+        <h3 data-i18n="fbag_return_title">Return from Field Bag to Main Store</h3>
+        <form id="fieldBagReturnForm" class="field-bag-form">
+          <label for="fieldBagReturnItem" data-i18n="fbag_item">Item</label>
+          <select id="fieldBagReturnItem" class="form-input" aria-label="Stock item"></select>
+          <label for="fieldBagReturnQty" data-i18n="fbag_qty">Quantity</label>
+          <input id="fieldBagReturnQty" class="form-input" type="number" min="0" step="any" required aria-label="Quantity">
+          <label for="fieldBagReturnDate" data-i18n="fbag_date">Date</label>
+          <input id="fieldBagReturnDate" class="form-input" type="date" required aria-label="Movement date">
+          <button class="action-btn-sm daily-slip-btn" type="submit" data-i18n="fbag_return_btn">Return to Main Store</button>
+        </form>
+        <h3 data-i18n="fbag_log_title">Field bag movement log</h3>
+        <div id="fieldBagLogList" class="field-bag-list"></div>
       </div>
     </div>
   </dialog>

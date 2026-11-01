@@ -194,6 +194,7 @@ import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonCharges
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { FIELD_BAG_KEY, applyFieldBagStockBridge, computeBagStock, loadFieldBagMovements, saveFieldBagMovements, setupFieldBagModal } from './field-bag-stock.js';
 import { POLES_REGISTRY_KEY, loadPolesRegistry, poleRegistrySummary, savePolesRegistry, setupPoleRegistryModal } from './pole-asset-tracker.js';
 import { FIBER_DRUMS_KEY, fiberDrumSummary, loadFiberDrums, saveFiberDrums, setupFiberDrumModal } from './fiber-drum-tracker.js';
 import { CREDIT_TRANSFERS_KEY, availableCreditCents, executeCreditTransfer, loadCreditTransfers, reverseCreditTransfer, saveCreditTransfers, setupCreditTransferModal } from './credit-transfer.js';
@@ -287,7 +288,41 @@ function recordRecoveryStock(beforeCustomer, updatedCustomer) {
 // refuses a deduction (not enough stock), the ticket stays resolved with
 // its deduction pending, the operator is warned, and the deduction
 // retries automatically on the next pass.
+// SISP-127 wiring into the field bag log: tickets resolved with the
+// Field Bag stock source are settled from the lineman's bag instead of
+// the Main Store. This pass MUST run before the SISP-42 Main Store
+// bridge in every cycle: it stamps bag tickets stockDeducted (which
+// the Main Store bridge respects) and reverses bag usage on reopened
+// tickets before the Main Store bridge can mistake them for its own.
+// Same persistence discipline as the Main Store bridge: ticket records
+// persist first; a stock failure never undoes a resolution — the
+// deduction stays pending, the operator is warned, and the next pass
+// retries it.
+function recordFieldBagStockBridge() {
+  const tickets = loadTickets();
+  const bagMovements = loadFieldBagMovements();
+  const hasWork = tickets.some((ticket) => ticket.stockSource === 'bag'
+    && ((ticket.status === 'Resolved' && !ticket.stockDeducted)
+      || (ticket.status !== 'Resolved' && ticket.stockDeducted)));
+  if (!hasWork) return;
+  let result;
+  try {
+    result = applyFieldBagStockBridge(tickets, bagMovements);
+  } catch { return; }
+  if (!result.deducted.length && !result.reversed.length && !result.failures.length) return;
+  try { saveTickets(result.tickets); } catch { toast(t('fbag_stock_save_failed_toast')); return; }
+  let saved = true;
+  try { saved = saveFieldBagMovements(result.bagMovements) !== false; } catch { saved = false; }
+  if (result.failures.length) {
+    const first = result.failures[0];
+    toast(t('fbag_stock_pending_toast', null, { id: first.id, reason: first.message }));
+  } else if (!saved) {
+    toast(t('fbag_stock_save_failed_toast'));
+  }
+}
+
 function recordTicketStockBridge() {
+  recordFieldBagStockBridge();
   const tickets = loadTickets();
   const hasWork = tickets.some((ticket) => (ticket.status === 'Resolved' && !ticket.stockDeducted && ticket.stockDeductions.length > 0)
     || (ticket.status !== 'Resolved' && ticket.stockDeducted));
@@ -507,6 +542,7 @@ export let upstreamSlaModalController = null;
 export let postRepairCheckinModalController = null;
 export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
+export let fieldBagModalController = null;
 export let outageImpactModalController = null;
 export let saadVisitsModalController = null;
 export let installTrackerModalController = null;
@@ -1394,6 +1430,17 @@ function renderDashboard() {
     inventorySummaryEl.innerHTML = movements.length === 0
       ? ''
       : `<p><span>${t('dash_inv_fiber_left')}</span><strong>${escapeHtml(String(fiberRow ? fiberRow.available : 0))} m</strong><small> · ${escapeHtml(t(lowItems.length === 1 ? 'dash_inv_low_sing' : 'dash_inv_low_plur', null, { count: lowItems.length }))}</small></p>`;
+  }
+  // SISP-127: field bag line inside the stock card (derived bag totals).
+  const fieldBagSummaryEl = $('#fieldBagSummary');
+  if (fieldBagSummaryEl) {
+    const bagMovements = loadFieldBagMovements();
+    const bagStock = computeBagStock(bagMovements);
+    const kinds = bagStock.filter((row) => row.inBag > 0).length;
+    const units = Math.round(bagStock.reduce((sum, row) => sum + row.inBag, 0) * 100) / 100;
+    fieldBagSummaryEl.innerHTML = bagMovements.length === 0
+      ? `<p><span>${t('dash_card_field_bag')}</span><strong>${escapeHtml(t('dash_fbag_empty'))}</strong></p>`
+      : `<p><span>${t('dash_card_field_bag')}</span><strong>${escapeHtml(t('dash_fbag_summary', null, { kinds, units }))}</strong></p>`;
   }
   // SISP-119: fiber drum card (drums tracked + derived meters remaining).
   const fiberDrumSummaryEl = $('#fiberDrumSummary');
@@ -4182,7 +4229,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 
 }
 function backupRestoreOptions() {
@@ -4224,6 +4271,8 @@ function backupRestoreOptions() {
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   try { billingGroupsStored = localStorage.getItem(GROUP_BILLING_KEY) !== null; } catch { billingGroupsStored = false; }
   try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
+  let fieldBagMovementsStored = false;
+  try { fieldBagMovementsStored = localStorage.getItem(FIELD_BAG_KEY) !== null; } catch { fieldBagMovementsStored = false; }
   let polesRegistryStored = false;
   try { polesRegistryStored = localStorage.getItem(POLES_REGISTRY_KEY) !== null; } catch { polesRegistryStored = false; }
   try { fiberDrumsStored = localStorage.getItem(FIBER_DRUMS_KEY) !== null; } catch { fiberDrumsStored = false; }
@@ -4254,7 +4303,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentFieldBagMovements: loadFieldBagMovements(), currentFieldBagMovementsStored: fieldBagMovementsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 
 }
 // SISP-102: the device's current sibling collections, in the same shapes a
@@ -5135,6 +5184,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.suspensePayments) {
       saveSuspensePayments(pendingBackupPreview.suspensePayments);
+    }
+    if (pendingBackupPreview.fieldBagMovements) {
+      saveFieldBagMovements(pendingBackupPreview.fieldBagMovements);
     }
     if (pendingBackupPreview.polesRegistry) {
       savePolesRegistry(pendingBackupPreview.polesRegistry);
@@ -12185,6 +12237,15 @@ if (typeof document !== 'undefined') {
   inventoryBookModalController = setupInventoryBookModal(() => state, {
     onInventoryChanged: () => {
       // SISP-42: fresh stock may unblock a pending ticket deduction.
+      recordTicketStockBridge();
+      renderDashboard();
+    },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  fieldBagModalController = setupFieldBagModal(() => state, {
+    onChanged: () => {
+      // SISP-127: fresh bag stock may unblock a pending bag ticket
+      // deduction; the bridge pass runs both bridges in order.
       recordTicketStockBridge();
       renderDashboard();
     },

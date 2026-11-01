@@ -44,7 +44,9 @@ export function customerMatchesSearchField(customer, field, query) {
     case 'mobile': {
       const digits = normalizePhoneDigits(rawQuery);
       if (!digits) return false;
-      return [customer.phone, customer.customerPhone]
+      // SISP-143: the landlord/guarantor phone matches here too, under
+      // the same digit-normalized partial rule as the customer's own.
+      return [customer.phone, customer.customerPhone, customer.landlordPhone]
         .some((value) => normalizePhoneDigits(value).includes(digits));
     }
     case 'userid': {
@@ -71,7 +73,9 @@ export function customerMatchesSearchField(customer, field, query) {
     case 'name':
     default: {
       const needle = normalizedText(rawQuery);
-      return [customer.name, customer.nameUrdu]
+      // SISP-143: a Name search also matches the landlord/guarantor
+      // name recorded on the tenant's record.
+      return [customer.name, customer.nameUrdu, customer.landlordOrGuarantorName]
         .some((value) => normalizedText(value).includes(needle));
     }
   }

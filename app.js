@@ -22,7 +22,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
@@ -171,6 +171,7 @@ import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { applyFifoPaymentEventToState, applicablePriceForMonth, buildArrearsBreakdown, loadBillingCycles, pakistanMonthKey, setupBillingCycleModal } from './billing-cycle.js';
+import { sanitizeSubContributors } from './shared-router-contributors.js?v=1.11.0';
 import { setupMonthEndWizard } from './month-end-wizard.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
@@ -873,7 +874,12 @@ function paymentPayerMarkup(payment) {
 // keeps its English until its own phase.
 function profilePaymentPayerMarkup(payment) {
   const paidBy = String(payment?.paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100);
-  return paidBy ? ` · ${escapeHtml(t('prof_hist_paid_by', null, { name: paidBy }))}` : '';
+  // SISP-158: a contributor-tagged payment shows the neighbour's snapshot
+  // name — the snapshot, not the live contributor list, so the history
+  // row stays truthful even after the contributor is edited or removed.
+  const contributorName = String(payment?.paidByContributor?.name ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100);
+  const contributorPart = contributorName && /^SC-\d+$/.test(String(payment?.paidByContributor?.id ?? '')) ? ` · ${escapeHtml(t('contrib_hist_tag', null, { name: contributorName }))}` : '';
+  return (paidBy ? ` · ${escapeHtml(t('prof_hist_paid_by', null, { name: paidBy }))}` : '') + contributorPart;
 }
 // SISP-63: sender proof metadata on the payment row — who sent a
 // digital payment and the last 4 digits it came from, next to the
@@ -3070,7 +3076,7 @@ function renderHistory(customer) {
       const waiverMarkup = profileWaiverMarkup(payment);
       const advanceMarkup = payment.kind === 'advance' ? ` <span class="advance-badge">${advanceBadgeLabel(payment)}</span>` : '';
       const splitMarkup = splitBadgeMarkup(payment) ? ` ${splitBadgeMarkup(payment)}` : '';
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}${discountMarkup}${waiverMarkup}${advanceMarkup}${splitMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentPayerMarkup(payment)}${profilePaymentSenderMarkup(payment)}${payment.note ? ` · ${escapeHtml(payment.note)}` : ''}</span>${allocation}</span><span class="payment-actions">${paymentProofButtonMarkup(customer.id, month, payment)}${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null, arrearsBreakdown:buildArrearsBreakdown(customer, bill), fifoAllocation:receiptData.fifoAllocation, fifoRemaining:receiptData.fifoRemaining, fifoShow:receiptData.fifoShow, ticketCharges:receiptData.ticketCharges, waivedAmount:receiptData.waivedAmount, previousPayments:receiptData.previousPayments })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_print_receipt_aria', null, { number: customer.customerNumber, date: payment.date })}">${t('prof_hist_print_receipt')}</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip80_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip80')}</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip58_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip58')}</button>${pngReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}${profileBluetoothReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_edit_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_edit_pay')}</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_delete_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_delete_pay')}</button>${channelActionMarkup(payment, { customerId: customer.id, month })}<button class="void-payment" type="button" data-void-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_void_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_void_pay')}</button></span></li>`;    }).join('');
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}${discountMarkup}${waiverMarkup}${advanceMarkup}${splitMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentPayerMarkup(payment)}${profilePaymentSenderMarkup(payment)}${payment.note ? ` · ${escapeHtml(payment.note)}` : ''}</span>${allocation}</span><span class="payment-actions">${paymentProofButtonMarkup(customer.id, month, payment)}${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null, arrearsBreakdown:buildArrearsBreakdown(customer, bill), fifoAllocation:receiptData.fifoAllocation, fifoRemaining:receiptData.fifoRemaining, fifoShow:receiptData.fifoShow, ticketCharges:receiptData.ticketCharges, contributorSplit:receiptData.contributorSplit, waivedAmount:receiptData.waivedAmount, previousPayments:receiptData.previousPayments })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_print_receipt_aria', null, { number: customer.customerNumber, date: payment.date })}">${t('prof_hist_print_receipt')}</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip80_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip80')}</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip58_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip58')}</button>${pngReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}${profileBluetoothReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_edit_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_edit_pay')}</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_delete_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_delete_pay')}</button>${channelActionMarkup(payment, { customerId: customer.id, month })}<button class="void-payment" type="button" data-void-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_void_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_void_pay')}</button></span></li>`;    }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
     const hasPartial = statusValue === 'partial';
@@ -3572,6 +3578,17 @@ function renderCustomerProfileView(customer) {
   // an upsell candidate (same read-only builder as the dashboard card).
   const upsellCandidate = upsellCandidateForCustomer(state, customer, { complaints: loadComplaints(), tickets: loadTickets() });
   const upsellSectionHtml = upsellProfileHintHtml(upsellCandidate, formatAmount);
+  // SISP-158: shared-router split-status card for the current month —
+  // rendered only when the customer has contributors. The price the
+  // shares are read against: this month's priced bill when one exists,
+  // else the applicable schedule price, else the selling amount.
+  const contribMonth = pakistanMonthNow();
+  const contribBill = (customer.bills ?? []).find((bill) => bill.month === contribMonth) ?? null;
+  const contribBillPrice = Number(contribBill?.dueAmount);
+  const contribPrice = Number.isFinite(contribBillPrice) && contribBillPrice > 0
+    ? contribBillPrice
+    : (applicablePriceForMonth(customer, contribMonth) ?? customer.monthlySellingAmount ?? null);
+  const contributorSectionHtml = contributorSplitSectionHtml(customer, { month: contribMonth, price: contribPrice });
   // SISP-69: profile bottleneck hint — shown only when this customer
   // is flagged by the hardware/optical audit (same read-only builder
   // as the dashboard panel).
@@ -3706,7 +3723,7 @@ function renderCustomerProfileView(customer) {
   const occupancyPres = occupancyPresentation(customer);
   const occupancyHtml = !occupancyPres.visible ? '' : `${occupancyPres.residenceLabel || occupancyPres.guarantorName || occupancyPres.guarantorPhone ? `<p>${occupancyPres.residenceLabel ? `${escapeHtml(occupancyPres.residenceLabel)} ` : ''}${occupancyPres.guarantorName || occupancyPres.guarantorPhone ? escapeHtml(t('occ_guarantor_line', null, { name: occupancyPres.guarantorName || t('prof_not_recorded'), phone: occupancyPres.guarantorPhone || t('prof_not_recorded') })) : ''}</p>` : ''}${occupancyPres.risk ? `<p class="occupancy-risk-warning" role="alert">${escapeHtml(occupancyPres.riskLabel)}</p>` : ''}`;
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${occupancyHtml}${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4426,6 +4443,9 @@ function renderDetail() {
   if ($('#mediaConverterOwnershipInput')) $('#mediaConverterOwnershipInput').value = custodyEditFields.mediaConverterOwnership;
   if ($('#serialNumberInput')) $('#serialNumberInput').value = customer.serialNumber ?? '';
   if ($('#securityDepositInput')) $('#securityDepositInput').value = customer.securityDeposit ?? '';
+  // SISP-158: shared-router contributor editor (rows for the form; the
+  // current price rides on the host so the soft warning can refresh live).
+  renderContributorEditor(customer);
   // SISP-143: occupancy + guarantor fields (normalized read, so a junk
   // stored residence type shows as Not recorded in the form).
   const occupancyEditFields = normalizeOccupancyFields(customer);
@@ -6960,6 +6980,14 @@ $('#additionalPendingForm').addEventListener('submit', event => {
 $('#saveMohallaButton').addEventListener('click', async () => {
   if (!selectedCustomer()) return;
   const current = selectedCustomer();
+  // SISP-158: contributor rows are collected FIRST — a half-filled
+  // neighbour row aborts the save with a message (before any pro-rata
+  // voucher side effect below), never a silent drop.
+  const contributorRows = collectContributorEditorRows();
+  if (!contributorRows.ok) {
+    toast(t('contrib_invalid_row'));
+    return;
+  }
   const phoneVal = $('#phoneInput').value.trim();
   const cnicVal = $('#cnicInput') ? $('#cnicInput').value.trim() : '';
 
@@ -7153,6 +7181,8 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       doNotSuspendUntil: $('#doNotSuspendUntilInput')?.value || '',
       doNotSuspendReason: $('#doNotSuspendReasonInput')?.value || '',
       packageChangeStaffName:$('#packageChangeStaffNameInput').value,
+      // SISP-158: shared-router contributors (sanitized again by core).
+      subContributors: contributorRows.contributors,
       proRataAdjustment, proRatedBillAmount, voucherId,
       // SISP-131: audit tag for a rounded pro-rata credit (null unless
       // the toggle rounded this save's credit).
@@ -7182,6 +7212,69 @@ $('#saveMohallaButton').addEventListener('click', async () => {
   } catch (error) { toast(error.message); }
 });
 $('#cancelProfileEditButton').addEventListener('click', () => { profileEditMode = false; renderDetail(); });
+
+// SISP-158: shared-router contributor editor wiring. The editor host is
+// static markup; rows are re-rendered by renderDetail on every profile
+// open, so all row interactions are delegated from the host.
+function contributorPriceForProfile(customer) {
+  const month = pakistanMonthNow();
+  const bill = (customer.bills ?? []).find((row) => row.month === month) ?? null;
+  const billPrice = Number(bill?.dueAmount);
+  return Number.isFinite(billPrice) && billPrice > 0
+    ? billPrice
+    : (applicablePriceForMonth(customer, month) ?? customer.monthlySellingAmount ?? null);
+}
+function renderContributorEditor(customer) {
+  const host = $('#profileContributorsEditor');
+  if (!host) return;
+  const price = contributorPriceForProfile(customer);
+  host.dataset.price = price ?? '';
+  host.innerHTML = contributorEditorHtml(customer, price);
+}
+function refreshContributorEditorWarning() {
+  const host = $('#profileContributorsEditor');
+  const warningEl = host?.querySelector('#contribEditorWarning');
+  if (!host || !warningEl) return;
+  const sum = [...host.querySelectorAll('[data-contrib-share]')].reduce((total, input) => total + (Number(input.value) || 0), 0);
+  const warning = contributorSharesWarningText(sum, host.dataset.price === '' ? null : Number(host.dataset.price));
+  warningEl.textContent = warning;
+  warningEl.hidden = !warning;
+}
+function collectContributorEditorRows() {
+  const host = $('#profileContributorsEditor');
+  if (!host) return { ok: true, contributors: [] };
+  const rawRows = [...host.querySelectorAll('.contrib-row')].map((row) => ({
+    id: row.getAttribute('data-contrib-id') || undefined,
+    name: row.querySelector('[data-contrib-name]')?.value ?? '',
+    sharePKR: row.querySelector('[data-contrib-share]')?.value ?? '',
+    phone: row.querySelector('[data-contrib-phone]')?.value ?? ''
+  }));
+  // Fully blank rows are just unused editor slots; any row the operator
+  // actually filled in must survive sanitization whole, or the save is
+  // refused with a message instead of silently dropping their typing.
+  const meaningful = rawRows.filter((row) => String(row.name).trim() !== '' || String(row.sharePKR).trim() !== '' || String(row.phone).trim() !== '');
+  const contributors = sanitizeSubContributors(meaningful);
+  if (contributors.length !== meaningful.length) return { ok: false, contributors: [] };
+  return { ok: true, contributors };
+}
+const contributorsEditorHost = $('#profileContributorsEditor');
+contributorsEditorHost?.addEventListener('click', (event) => {
+  if (event.target.closest('[data-contrib-add]')) {
+    const rowsHost = contributorsEditorHost.querySelector('.contrib-rows');
+    if (rowsHost) {
+      rowsHost.querySelector('.contrib-empty')?.remove();
+      rowsHost.insertAdjacentHTML('beforeend', contributorEditorRowHtml());
+      refreshContributorEditorWarning();
+    }
+    return;
+  }
+  const removeBtn = event.target.closest('[data-contrib-remove]');
+  if (removeBtn) {
+    removeBtn.closest('.contrib-row')?.remove();
+    refreshContributorEditorWarning();
+  }
+});
+contributorsEditorHost?.addEventListener('input', refreshContributorEditorWarning);
 $('#monthlyPurchaseCostInput').addEventListener('input', renderProfileMarginPreview);
 $('#monthlySellingAmountInput').addEventListener('input', () => {
   renderProfileMarginPreview();

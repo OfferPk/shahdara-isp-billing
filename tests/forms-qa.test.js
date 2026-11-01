@@ -15352,3 +15352,23 @@ test('DOM elements for Late Fee Manager modal, quick action button, and discount
 
 
 
+
+test('SISP-171: auditBillingCorrectness never raises UNPRICED_BILL for a FREE connection (non-free control still warns)', async () => {
+  const { auditBillingCorrectness, AUDIT_RULE_CODES } = await import('../qa-setups.js');
+  const refDate = new Date(2026, 9, 15, 12); // October 15, 2026
+  const unpricedBill = (id) => ({ id, month: '2026-10', dueAmount: null, dueDate: '2026-10-05', payments: [] });
+  const state = {
+    customers: [
+      { id: 'free-171', customerNumber: 501, name: 'Synthetic Free', archived: false, isFreeConnection: true, bills: [unpricedBill('free-171-b')] },
+      { id: 'paid-171', customerNumber: 502, name: 'Synthetic Paid', archived: false, bills: [unpricedBill('paid-171-b')] }
+    ]
+  };
+  const audit = auditBillingCorrectness(state, refDate);
+  const unpriced = audit.discrepancies.filter((d) => d.ruleId === AUDIT_RULE_CODES.UNPRICED_BILL);
+  assert.equal(unpriced.length, 1, 'only the non-free control is warned about its unpriced bill');
+  assert.equal(unpriced[0].customerId, 'paid-171');
+  assert.equal(audit.discrepancies.filter((d) => d.customerId === 'free-171').length, 0);
+  // Only the warning is exempt — the free bill still counts as a not-set
+  // bill in the audit's ledger-faithful tallies.
+  assert.equal(audit.notSetBillsCount, 2);
+});

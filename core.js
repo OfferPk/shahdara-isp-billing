@@ -39,6 +39,7 @@ import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js'
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements, sanitizePartnerSettings } from './partner-settlement.js';
 import { sanitizeCharityReserveSettings } from './charity-reserve.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
+import { sanitizeExpenseBudgets } from './expense-budget-caps.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
@@ -3692,6 +3693,14 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeOverheads(options.overheads);
     if (cleaned.templates.length || cleaned.postings.length) document.settings = { ...(document.settings || {}), overheads: cleaned };
   }
+  // SISP-134: monthly expense budget caps live outside the ledger
+  // state (localStorage key sisp_expense_budgets_v1), so they travel in
+  // an optional `settings.expenseBudgets` section. Written only when at
+  // least one cap exists; readers that predate it ignore the field.
+  if (options && typeof options === 'object' && options.expenseBudgets && typeof options.expenseBudgets === 'object' && !Array.isArray(options.expenseBudgets)) {
+    const cleaned = sanitizeExpenseBudgets(options.expenseBudgets);
+    if (Object.keys(cleaned).length) document.settings = { ...(document.settings || {}), expenseBudgets: cleaned };
+  }
   // SISP-10: checksum-verified transfer. The stamp covers the canonical
   // (key-sorted) form of the document, so it survives re-formatting, and
   // readers that predate it ignore the unknown field — old backups and old
@@ -4743,6 +4752,31 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Fixed overhead records differ from this device' });
     }
   }
+  // SISP-134: optional expense budget caps section (see
+  // createJsonBackup). Safe-merge rule, same as the fixed overheads:
+  // adopt the backup's caps only when this device has none stored yet;
+  // when both sides hold different real caps, keep existing + conflict.
+  let expenseBudgets = null;
+  const rawIncomingBudgets = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.expenseBudgets
+    : undefined;
+  if (rawIncomingBudgets && typeof rawIncomingBudgets === 'object' && !Array.isArray(rawIncomingBudgets)) {
+    const incomingBudgets = sanitizeExpenseBudgets(rawIncomingBudgets);
+    const currentBudgets = (options && typeof options === 'object' && options.currentExpenseBudgets && typeof options.currentExpenseBudgets === 'object')
+      ? sanitizeExpenseBudgets(options.currentExpenseBudgets)
+      : {};
+    const incomingHasCaps = Object.keys(incomingBudgets).length > 0;
+    const currentHasCaps = Object.keys(currentBudgets).length > 0;
+    if (incomingHasCaps && sameJson(incomingBudgets, currentBudgets)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingHasCaps && (!options?.currentExpenseBudgetsStored || !currentHasCaps)) {
+      expenseBudgets = incomingBudgets;
+      counts.expenseBudgetsRestored = 1;
+      counts.changes++;
+    } else if (incomingHasCaps) {
+      conflicts.push({ customerNumber:null, name:'', field:'Expense budget caps differ from this device' });
+    }
+  }
   // SISP-22: optional partner ledger + settlement slip sections (see
   // createJsonBackup). Safe-merge rule, same as shop settlements: adopt
   // the backup's records only when this device has none stored yet;
@@ -4859,6 +4893,6 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 
 }

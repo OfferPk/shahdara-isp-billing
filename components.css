@@ -1710,6 +1710,66 @@ body.field-mode-open { overflow: hidden; }
   display: none;
 }
 
+/* SISP-126: Remainder Waada row inside the Quick Collect payment step
+   and the Field Mode custom-amount sheet. Theme tokens only (the waada
+   chip precedent), so light and dark render alike; 44px tap targets. */
+.qc-remainder-waada {
+  margin: 10px 0 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+.qc-remainder-waada[hidden] {
+  display: none;
+}
+.qc-remwaada-label {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.qc-remwaada-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.qc-remwaada-chip {
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.qc-remwaada-chip.is-active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--surface);
+}
+.qc-remwaada-set {
+  margin: 8px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--green);
+}
+.field-mode-remainder-waada {
+  margin: 10px 0 0;
+}
+.field-mode-remainder-waada[hidden] {
+  display: none;
+}
+.field-mode-waada-chip.is-active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--surface);
+}
+
 /* Owner feature: Change Package row inside the Quick Collect payment
    step. Theme tokens only, so light and dark render alike; the row
    wraps on narrow phones instead of squeezing the picker. */

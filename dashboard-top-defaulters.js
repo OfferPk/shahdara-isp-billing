@@ -46,6 +46,15 @@ import {
   sanitizePauseFields,
   vacationHoldState
 } from './pause-billing.js';
+import {
+  CONTACT_CHANNELS,
+  contactBadgeHtml,
+  contactChannelLabel,
+  contactMarkedMessage,
+  contactedToday,
+  markContactedLabel,
+  stampContact
+} from './contact-cooldown-tracker.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -774,6 +783,7 @@ export function setupTopDefaultersModal(state, {
   onFilterCustomer = null,
   onToast = null,
   onWaadaChange = null,
+  onContactStamp = null,
   clipboard = null
 } = {}) {
   if (typeof document === 'undefined') return null;
@@ -816,6 +826,11 @@ export function setupTopDefaultersModal(state, {
   // SISP-38: 1-click "Lock Due (15th+)" filter toggle state.
   let lockDueOnly = false;
 
+  // SISP-138: "Hide Contacted Today" view toggle state (session-only;
+  // it filters the on-screen table rows, never the underlying data,
+  // KPIs or exports).
+  let hideContactedOnly = false;
+
   const getFilterOptions = () => ({
     search: searchInput ? searchInput.value : '',
     area: areaSelect ? areaSelect.value : 'all',
@@ -852,6 +867,13 @@ export function setupTopDefaultersModal(state, {
     currentData = calculateTopDefaulters(getState(), opts);
     const { accounts, metrics } = currentData;
 
+    // SISP-138: live customer records drive the contact badge and the
+    // Hide-contacted filter (accounts are aggregates without the stamp).
+    const custById = new Map((getState().customers || []).map(c => [c.id, c]));
+    const visibleAccounts = hideContactedOnly
+      ? accounts.filter(acc => !contactedToday(custById.get(acc.id), new Date()))
+      : accounts;
+
     // Update KPI summary cards
     if (kpiTopDues) kpiTopDues.textContent = `PKR ${metrics.topDefaultersDues.toLocaleString()}`;
     if (kpiConcentration) kpiConcentration.textContent = `${metrics.topConcentrationPercent}%`;
@@ -878,12 +900,12 @@ export function setupTopDefaultersModal(state, {
 
     // Populate table rows
     if (tableBody) {
-      if (!accounts.length) {
+      if (!visibleAccounts.length) {
         tableBody.innerHTML = '';
         if (emptyState) emptyState.hidden = false;
       } else {
         if (emptyState) emptyState.hidden = true;
-        tableBody.innerHTML = accounts.map(acc => {
+        tableBody.innerHTML = visibleAccounts.map(acc => {
           const riskBadge = acc.riskCategory === 'critical'
             ? `<span class="badge badge-danger">Critical</span>`
             : acc.riskCategory === 'high'
@@ -922,6 +944,15 @@ export function setupTopDefaultersModal(state, {
               ? `<span class="wada-badge vacation-hold-badge">🏖️ Vacation Hold Ended ${escapeHtml(acc.pauseAutoResumeDate || '')} — Resume Pending</span>`
               : '';
 
+          // SISP-138: "✓ Reminded Today HH:MM" cooldown badge from the
+          // live customer record (empty unless contacted today).
+          const contactBadge = contactBadgeHtml(custById.get(acc.id), new Date());
+
+          // SISP-138: explicit Mark-contacted channel picker — the
+          // honest route for call / SMS / visit contacts that have no
+          // digital dispatch tap of their own.
+          const contactPicker = `<span class="defaulter-contact-picker" data-picker-for="${escapeHtml(acc.id)}" hidden>${CONTACT_CHANNELS.map(ch => `<button type="button" class="btn-xs defaulter-contact-chip" data-cust-id="${escapeHtml(acc.id)}" data-channel="${ch}">${escapeHtml(contactChannelLabel(ch))}</button>`).join('')}</span>`;
+
           return `
             <tr data-cust-id="${escapeHtml(acc.id)}" class="defaulter-row ${acc.riskCategory}">
               <td class="defaulter-rank-cell">#${acc.rank}</td>
@@ -932,6 +963,7 @@ export function setupTopDefaultersModal(state, {
                 ${waadaScoreBadge ? `<div class="defaulter-waada-badge">${waadaScoreBadge}</div>` : ''}
                 ${escalationBadge ? `<div class="defaulter-escalation-badge">${escalationBadge}</div>` : ''}
                 ${vacationBadge ? `<div class="defaulter-waada-badge">${vacationBadge}</div>` : ''}
+                ${contactBadge ? `<div class="defaulter-contact-badge">${contactBadge}</div>` : ''}
               </td>
               <td>${escapeHtml(acc.area)}</td>
               <td class="defaulter-months-cell">
@@ -952,6 +984,10 @@ export function setupTopDefaultersModal(state, {
                 <button type="button" class="btn-xs whatsapp-btn defaulter-wa-btn" data-cust-id="${escapeHtml(acc.id)}" title="Open WhatsApp reminder draft">
                   WhatsApp
                 </button>
+                <button type="button" class="btn-xs secondary-button defaulter-contact-btn" data-cust-id="${escapeHtml(acc.id)}" aria-expanded="false" title="${escapeHtml(t('cct_mark_title'))}">
+                  ✓ ${escapeHtml(markContactedLabel())}
+                </button>
+                ${contactPicker}
                 <button type="button" class="btn-xs secondary-button defaulter-view-btn" data-cust-id="${escapeHtml(acc.id)}" title="View subscriber profile">
                   Profile
                 </button>
@@ -964,6 +1000,21 @@ export function setupTopDefaultersModal(state, {
 
     // SISP-38: keep the Lock Due toggle label/count in sync after render.
     syncLockDueBtn();
+    syncHideContactedBtn();
+  };
+
+  // SISP-138: stamp a real contact on the customer record (the modal's
+  // state list is the live ledger array — replace the record, then let
+  // the host persist via onContactStamp, mirroring the Waada flow).
+  const applyContactStamp = (custId, channel, { silent = false } = {}) => {
+    const list = getState().customers || [];
+    const idx = list.findIndex(c => c.id === custId);
+    if (idx < 0) return;
+    const updated = stampContact(list[idx], channel, new Date());
+    list[idx] = updated;
+    if (typeof onContactStamp === 'function') onContactStamp(updated);
+    if (!silent && typeof onToast === 'function') onToast(contactMarkedMessage(channel));
+    renderContent();
   };
 
   // Event Listeners for Filters
@@ -992,10 +1043,32 @@ export function setupTopDefaultersModal(state, {
           const phoneRes = formatWhatsAppUrl(whatsappPhoneFor(customer), msg);
           if (phoneRes.validPhone && phoneRes.url) {
             window.open(phoneRes.url, '_blank');
+            // SISP-138: a successfully opened WhatsApp draft IS the
+            // contact — stamp it (silent: the opened tab is the
+            // feedback). An invalid phone never reaches this line.
+            applyContactStamp(custId, 'whatsapp', { silent: true });
           } else {
             onToast?.(`Invalid or missing phone number for #${customer.customerNumber}.`);
           }
         }
+        return;
+      }
+
+      // SISP-138: Mark-contacted button toggles its channel picker.
+      const contactBtn = e.target.closest('.defaulter-contact-btn');
+      if (contactBtn) {
+        const picker = contactBtn.closest('tr')?.querySelector('.defaulter-contact-picker');
+        if (picker) {
+          picker.hidden = !picker.hidden;
+          contactBtn.setAttribute('aria-expanded', picker.hidden ? 'false' : 'true');
+        }
+        return;
+      }
+
+      // SISP-138: a channel chip records the contact on the record.
+      const contactChip = e.target.closest('.defaulter-contact-chip');
+      if (contactChip) {
+        applyContactStamp(contactChip.dataset.custId, contactChip.dataset.channel);
         return;
       }
 
@@ -1130,6 +1203,21 @@ export function setupTopDefaultersModal(state, {
   if (lockDueBtn) {
     lockDueBtn.addEventListener('click', () => {
       lockDueOnly = !lockDueOnly;
+      renderContent();
+    });
+  }
+
+  // SISP-138: "Hide Contacted Today" toggle — same 1-click pattern as
+  // the Lock Due filter; view-only, it narrows the on-screen rows.
+  const hideContactedBtn = document.getElementById('topDefaultersHideContactedBtn');
+  function syncHideContactedBtn() {
+    if (!hideContactedBtn) return;
+    hideContactedBtn.classList.toggle('is-active', hideContactedOnly);
+    hideContactedBtn.setAttribute('aria-pressed', hideContactedOnly ? 'true' : 'false');
+  }
+  if (hideContactedBtn) {
+    hideContactedBtn.addEventListener('click', () => {
+      hideContactedOnly = !hideContactedOnly;
       renderContent();
     });
   }

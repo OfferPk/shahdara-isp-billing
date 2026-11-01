@@ -539,7 +539,10 @@ export function syncRoznamchaExpenses(expenses, days, referenceDate = new Date()
       // SISP-56: Saad-owned outflows (id `saad-<payment id>`) are
       // mirrored into Expenses by the Saad payment sync under
       // saadPaymentId — never mirror them here as well.
-      if (typeof outflow.id === 'string' && outflow.id.startsWith('saad-')) continue;
+      // SISP-155: lineman settlement outflows (id
+      // `lineman-payout-<settlement id>`) are likewise mirrored into
+      // Expenses by the lineman payout sync under linemanPayoutId.
+      if (typeof outflow.id === 'string' && (outflow.id.startsWith('saad-') || outflow.id.startsWith('lineman-payout-'))) continue;
       desired.set(outflow.id, { date: day.date, outflow });
     }
   }

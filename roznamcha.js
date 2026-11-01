@@ -573,6 +573,25 @@ export function syncRoznamchaExpenses(expenses, days, referenceDate = new Date()
 }
 
 /**
+ * SISP-182: the roznamcha day a mirrored expense came from. The SISP-45
+ * sync stamps each mirror row with the date of the day that owns the
+ * outflow, so the row's own date IS the source date — but the day
+ * ledger is the authority, so look the outflow up by the row's
+ * roznamchaEntryId first and only fall back to the row's stamped date
+ * when the entry is no longer in the ledger (e.g. an old backup).
+ * Returns null for rows that are not roznamcha mirrors.
+ */
+export function roznamchaSourceDateForExpense(days, expense) {
+  const entryId = typeof expense?.roznamchaEntryId === 'string' && expense.roznamchaEntryId !== ''
+    ? expense.roznamchaEntryId
+    : null;
+  if (!entryId) return null;
+  const day = sanitizeRoznamchaDays(days).find((d) => (d.outflows || []).some((o) => o.id === entryId));
+  if (day) return day.date;
+  return typeof expense.date === 'string' && DATE_RE.test(expense.date) ? expense.date : null;
+}
+
+/**
  * Lock a day. countedCash null/empty means "counted equals expected".
  * closingBalance is the physical truth (counted cash); discrepancy is
  * counted minus expected (negative = short, positive = extra).

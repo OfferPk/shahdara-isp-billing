@@ -54,7 +54,7 @@ import {
   settleAddonCharges,
   unsettleAddonChargesForPayment
 } from './speed-addon.js';
-import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
+import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
 import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFeeWaiverOf, restoreWaivedLateFee } from './late-fee-waiver.js';
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
@@ -2076,7 +2076,11 @@ export function setupQuickCollectModal({
         const net = balance !== null ? netDueAfterConcession(balance, suggestion.existingAmount) : null;
         concessionBox.innerHTML = `<span class="discount-badge-applied">Outage concession (Reaayat): −PKR ${suggestion.existingAmount}</span> <small>(${escapeHtml(suggestion.existingReason || 'Outage Reaayat')})</small>${net !== null ? ` <span>Net due: PKR ${net}</span>` : ''} <button type="button" class="waive-late-fee-btn" data-qc-remove-concession>Remove</button>`;
       } else if (suggestion.eligible) {
-        concessionBox.innerHTML = `<span class="discount-badge-applied">${escapeHtml(concessionBadgeText(suggestion))}</span>${balance !== null && balance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-qc-apply-concession>Apply Rs. ${suggestion.suggestedAmount} Outage Concession</button>` : ''}`;
+        // SISP-131: [Round to Rs. 50] toggle + mode beside the apply
+        // button. Default off — the raw suggestion is stamped, exactly
+        // as before SISP-131.
+        const roundControls = balance !== null && balance > 0 ? ` <label class="round50-toggle-label"><input type="checkbox" data-qc-round50-toggle> ${escapeHtml(t('round50_toggle'))}</label> <select data-qc-round50-mode aria-label="${escapeHtml(t('round50_toggle'))}"><option value="nearest">${escapeHtml(t('round50_mode_nearest'))}</option><option value="down">${escapeHtml(t('round50_mode_down'))}</option><option value="exact">${escapeHtml(t('round50_mode_exact'))}</option></select> <small data-qc-round50-hint hidden></small>` : '';
+        concessionBox.innerHTML = `<span class="discount-badge-applied">${escapeHtml(concessionBadgeText(suggestion))}</span>${balance !== null && balance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-qc-apply-concession>Apply Rs. ${suggestion.suggestedAmount} Outage Concession</button>${roundControls}` : ''}`;
       } else {
         return;
       }
@@ -2088,19 +2092,43 @@ export function setupQuickCollectModal({
           if (!freshCustomer || !freshBill) throw new Error('Bill not found for this concession.');
           const fresh = buildConcessionSuggestion(freshCustomer, freshBill, loadComplaints());
           if (!fresh.eligible) throw new Error('No outage concession is due for this bill month.');
-          const next = applyConcessionToBill(freshState, customerId, month, { amount: fresh.suggestedAmount, reason: fresh.reason });
+          // SISP-131: read the toggle rendered beside this button; off
+          // (or absent) the raw suggestion is stamped unchanged.
+          const effective = roundedConcessionSuggestion(fresh, {
+            enabled: concessionBox.querySelector('[data-qc-round50-toggle]')?.checked === true,
+            mode: concessionBox.querySelector('[data-qc-round50-mode]')?.value || 'nearest'
+          });
+          const next = applyConcessionToBill(freshState, customerId, month, { amount: effective.suggestedAmount, reason: fresh.reason, rounding: effective.rounding });
           if (typeof onSaveState === 'function') onSaveState(next);
           openCustomerCollectionForm(customerId);
           const netAllocations = calculatePaymentAllocations(getState());
           const netBalanceCents = netAllocations.forMonth(customerId, month)?.balanceDueCents;
           if (amountInput && typeof netBalanceCents === 'number') {
-            amountInput.value = netDueAfterConcession(netBalanceCents / 100, fresh.suggestedAmount).toFixed(2);
+            amountInput.value = netDueAfterConcession(netBalanceCents / 100, effective.suggestedAmount).toFixed(2);
           }
-          if (typeof onToast === 'function') onToast(`Outage concession of PKR ${fresh.suggestedAmount} applied to bill ${month}.`);
+          if (typeof onToast === 'function') onToast(`Outage concession of PKR ${effective.suggestedAmount} applied to bill ${month}.`);
         } catch (err) {
           if (typeof onToast === 'function') onToast(err.message);
         }
       });
+      // SISP-131: keep the apply button's amount + rounded-from hint in
+      // step with the toggle/mode; a rounded figure of Rs. 0 cannot be
+      // stamped (concessions must be positive), so the button disables.
+      concessionBox.querySelectorAll('[data-qc-round50-toggle], [data-qc-round50-mode]').forEach(control => control.addEventListener('change', () => {
+        const button = concessionBox.querySelector('[data-qc-apply-concession]');
+        if (!button) return;
+        const effective = roundedConcessionSuggestion(suggestion, {
+          enabled: concessionBox.querySelector('[data-qc-round50-toggle]')?.checked === true,
+          mode: concessionBox.querySelector('[data-qc-round50-mode]')?.value || 'nearest'
+        });
+        button.textContent = `Apply Rs. ${effective.suggestedAmount} Outage Concession`;
+        button.disabled = effective.suggestedAmount <= 0;
+        const hint = concessionBox.querySelector('[data-qc-round50-hint]');
+        if (hint) {
+          hint.hidden = !effective.rounding;
+          hint.textContent = effective.rounding ? `(${t('round50_rounded_from', null, { amount: effective.rawSuggestedAmount })})` : '';
+        }
+      }));
       concessionBox.querySelector('[data-qc-remove-concession]')?.addEventListener('click', () => {
         try {
           const next = removeConcessionFromBill(getState(), customerId, month, { reason: 'Outage concession removed by owner' });

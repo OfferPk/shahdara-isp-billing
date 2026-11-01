@@ -564,6 +564,15 @@
             <button id="openStormInspectionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="storm_btn_open">🌦️ Post-Storm Checklist</button>
           </div>
         </article>
+        <article class="summary-card summary-daisy-chain ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</p>
+          <strong id="dashboardDaisyChainValue" class="summary-value">No feeder chains</strong>
+          <p id="dashboardDaisyChainPeriod" class="summary-period">Chain depth per zone, Hop 3+ warnings</p>
+          <div id="daisyChainSummary" class="daisy-chain-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openDaisyChainTreeModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</button>
+          </div>
+        </article>
         <article class="summary-card summary-saad-visits ds-stat ds-stat--pending">
           <p class="summary-label" data-i18n="dash_card_saad">🔧 Saad Visit Log</p>
           <strong id="dashboardSaadVisitsValue" class="summary-value">No visits yet</strong>
@@ -22363,6 +22372,17 @@
         </fieldset>
         <div id="outageImpactResultList" class="outage-impact-result-list"></div>
         <button id="outageImpactCopyAllBtn" class="secondary-button" type="button" disabled>Copy full message list</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="daisyChainTreeModal" class="billing-modal daisy-chain-modal" aria-labelledby="daisyChainTreeModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="daisyChainTreeModalTitle" data-i18n="daisychain_title">🌳 Daisy-Chain Topology Tree</h2>
+        <button id="daisyChainTreeCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <div id="daisyChainTreeContent" class="daisy-tree-content"></div>
       </div>
     </div>
   </dialog>

@@ -41,6 +41,7 @@ import { sanitizeOverheads } from './fixed-overheads.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { sanitizeRoundingTag } from './bill-rounding-helper.js';
 import { sanitizeDisconnectDetails, sanitizeDisconnectHistory, sanitizeDisconnectDateTime, DISCONNECT_HISTORY_LIMIT } from './churn-winback.js';
 import { sanitizeSignalReadings } from './signal-history.js';
 import { sanitizeReceiptLang, sanitizeReceiptChannel, prefersSmsForChannel } from './receipt-preferences.js';
@@ -968,6 +969,12 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     };
     if (values.proRataAdjustment !== undefined && values.proRataAdjustment !== null) {
       historyEntry.proRataAdjustment = Number(values.proRataAdjustment);
+      // SISP-131: the [Round to Rs. 50] audit tag rides the same history
+      // entry when the recorded pro-rata credit was rounded at save time.
+      // Absent (toggle off, or nothing actually rounded) the entry keeps
+      // its exact pre-SISP-131 shape.
+      const proRataRounding = sanitizeRoundingTag(values.proRataRounding);
+      if (proRataRounding) historyEntry.rounding = proRataRounding;
     }
     if (values.proRatedBillAmount !== undefined && values.proRatedBillAmount !== null) {
       historyEntry.proRatedBillAmount = Number(values.proRatedBillAmount);
@@ -2320,7 +2327,7 @@ export function recordCustomerRelocation(state, customerId, input = {}, referenc
 // Dispute Guard: applying SETS the amount (never adds, so re-applying cannot
 // stack) and clamps it to the bill's gross amount (dueAmount + lateFee), so
 // a concession can never increase a due or drive it below zero.
-export function applyConcessionToBill(state, customerId, month, { amount = 0, reason = '' } = {}, referenceDate = new Date()) {
+export function applyConcessionToBill(state, customerId, month, { amount = 0, reason = '', rounding = null } = {}, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
   const customer = customerOrThrow(state, customerId);
   const bill = customer.bills.find(b => b.month === month);
@@ -2331,13 +2338,21 @@ export function applyConcessionToBill(state, customerId, month, { amount = 0, re
   if (!Number.isFinite(requested) || requested <= 0) throw new Error('Concession amount must be a positive number.');
   const cleanAmount = Math.min(Math.round(requested * 100) / 100, Math.round(gross * 100) / 100);
   const cleanReason = String(reason || 'Outage Reaayat').trim() || 'Outage Reaayat';
+  // SISP-131: when the operator applied the [Round to Rs. 50] toggle, the
+  // caller passes the rounding audit tag and the amount above IS the
+  // rounded figure. The tag joins the history entry only when it exactly
+  // describes the amount actually stamped (a gross-clamped stamp is
+  // neither raw nor rounded, so it carries no tag) — with no rounding
+  // passed, the entry is byte-identical to the pre-SISP-131 shape.
+  const roundingTag = sanitizeRoundingTag(rounding);
   const amountHistory = [...(bill.amountHistory ?? [])];
   amountHistory.push({
     changedAt: localDateTimeValue(referenceDate),
     type: 'concession_applied',
     previousConcession: bill.concessionAmount ?? 0,
     concession: cleanAmount,
-    note: cleanReason
+    note: cleanReason,
+    ...(roundingTag && roundingTag.roundedAmount === cleanAmount ? { rounding: roundingTag } : {})
   });
   const updatedBill = {
     ...bill,

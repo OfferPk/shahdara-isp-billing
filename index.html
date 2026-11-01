@@ -7121,6 +7121,15 @@
                     <input type="checkbox" id="saveProrataVoucherCheckbox" checked>
                     <span data-i18n="prof_prorata_voucher">Record explicit adjustment voucher in customer account (کھاتہ واؤچر)</span>
                   </label>
+                  <label class="prorata-save-checkbox-label" for="roundProrataCreditCheckbox">
+                    <input type="checkbox" id="roundProrataCreditCheckbox">
+                    <span data-i18n="round50_prorata_toggle">Round pro-rata credit to Rs. 50</span>
+                    <select id="roundProrataModeSelect" data-i18n-aria-label="round50_toggle" aria-label="Round to Rs. 50">
+                      <option value="nearest" data-i18n="round50_mode_nearest">Nearest Rs. 50</option>
+                      <option value="down" data-i18n="round50_mode_down">Round down to Rs. 50</option>
+                      <option value="exact" data-i18n="round50_mode_exact">Exact amount</option>
+                    </select>
+                  </label>
                 </div>
               </div>
                 <div class="profile-form-actions"><button id="saveMohallaButton" class="secondary-button profile-save" type="button" data-i18n="prof_form_save">Save profile</button><button id="cancelProfileEditButton" class="secondary-button" type="button" data-i18n="prof_cancel">Cancel</button></div>

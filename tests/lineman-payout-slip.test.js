@@ -290,6 +290,48 @@ test('slip: model + HTML carry every stored figure; reprint is stable', () => {
   assert.equal(buildLinemanPayoutSlipHtml(null), '');
 });
 
+// ---- Slip header identity (FU-SISP155-HEADER) ----
+
+test('slip header: defaults never name Lahore; configured identity flows in', () => {
+  const settlement = settledFixture();
+  // Defaults: the owner's Shahdara is the village near Islamabad
+  // (Margalla side) — the printed header must never say Lahore. The
+  // name / phone defaults stay the house print pattern (receipt.js /
+  // clearance-noc-slip.js carry the same pair).
+  const fallback = buildLinemanPayoutSlipHtml(settlement, { generatedDate: '2026-11-05' });
+  assert.ok(!fallback.includes('Lahore'), 'default slip header must not name Lahore');
+  assert.match(fallback, /Shahdara, Islamabad/);
+  assert.match(fallback, /Shahdara ISP/);
+  assert.match(fallback, /0300-1234567/);
+  // Configured identity (state.settings, as app.js passes it) wins.
+  const configured = buildLinemanPayoutSlipHtml(settlement, {
+    businessName: 'Shahdara Fiber Net',
+    businessPhone: '0300-0000000',
+    areaName: 'Shahdara Village',
+    generatedDate: '2026-11-05'
+  });
+  assert.match(configured, /Shahdara Fiber Net/);
+  assert.match(configured, /Shahdara Village · Tel: 0300-0000000/);
+  assert.ok(!configured.includes('Lahore'));
+  // The header change never touches the settled figures.
+  assert.match(configured, /32,000/);
+  assert.match(fallback, /32,000/);
+});
+
+test('slip header wiring: print path resolves identity from the app settings source', () => {
+  const moduleSrc = fs.readFileSync(path.join(ROOT, 'lineman-payout-slip.js'), 'utf8');
+  assert.ok(!moduleSrc.includes('Lahore'), 'lineman-payout-slip.js must not name Lahore');
+  assert.ok(moduleSrc.includes('getBusinessIdentity'), 'modal accepts an identity getter');
+  const printRegion = moduleSrc.slice(moduleSrc.indexOf('const printSettlement'));
+  assert.ok(printRegion.includes('getBusinessIdentity()'), 'print path calls the identity getter');
+  assert.ok(printRegion.includes('identity.businessName || undefined'), 'unset identity falls through to builder defaults');
+  const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+  const setupCall = appSrc.slice(appSrc.indexOf('setupLinemanPayoutModal({'), appSrc.indexOf('setupLinemanPayoutModal({') + 700);
+  assert.ok(setupCall.includes('getBusinessIdentity'), 'app.js passes the identity getter');
+  assert.ok(setupCall.includes('state.settings?.businessName'), 'identity comes from state.settings (the receipts source)');
+  assert.ok(setupCall.includes('state.settings?.businessPhone'), 'identity phone comes from state.settings');
+});
+
 // ---- Prefill from the real trails ----
 
 test('prefill: counts from the visit log, advances from the payment log, name from the drawer log', () => {

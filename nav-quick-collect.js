@@ -58,6 +58,17 @@ import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession }
 import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFeeWaiverOf, restoreWaivedLateFee } from './late-fee-waiver.js';
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
+import {
+  setCustomerWaada,
+  clearCustomerWaada,
+  isValidWaadaDate,
+  computeRemainderWaada,
+  remainderWaadaChipDates,
+  remainderWaadaOf,
+  remainderWaadaPreviousOf,
+  isRemainderWaadaCurrent,
+  REMAINDER_WAADA_NOTE
+} from './waada-queue.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
 import { t } from './nav-language.js';
 import {
@@ -616,6 +627,7 @@ export function executeQuickCollection(state, {
   tickets,
   kind,
   advanceTargetMonth,
+  remainderWaadaDate,
   waiveLateFee
 }, referenceDate = new Date()) {
   if (!customerId) throw new Error('Customer ID is required.');
@@ -852,6 +864,52 @@ export function executeQuickCollection(state, {
     }
   }
 
+  // SISP-126: Remainder Waada. When the caller passes a chip date AND this
+  // collection still leaves a payable remainder, the promise for the rest
+  // is written HERE — inside the same nextState the caller persists with
+  // the payment — through the real SISP-3 setter (setCustomerWaada), with
+  // promiseAmount = the engine's own payable remainder. The payment
+  // carries a remainderWaada stamp (plus the promise it replaced, for the
+  // void/undo restore paths), mirroring SISP-34's clearedWaada stamp. If
+  // anything above threw, no state was saved at all, so a waada can never
+  // exist without its payment; with no chip date (or nothing left due)
+  // nothing is written — the promise is strictly opt-in per chip tap.
+  let remainderWaada = null;
+  const cleanRemainderWaadaDate = typeof remainderWaadaDate === 'string' && isValidWaadaDate(remainderWaadaDate.trim())
+    ? remainderWaadaDate.trim()
+    : null;
+  if (cleanRemainderWaadaDate && payableRemaining > 0 && newPayment) {
+    const custNow = nextState.customers.find(c => c.id === customerId);
+    if (custNow) {
+      const previousWaada = (typeof custNow.promiseDate === 'string' && custNow.promiseDate.trim() !== '')
+        ? {
+          promiseDate: custNow.promiseDate,
+          promiseAmount: custNow.promiseAmount ?? null,
+          promiseNote: custNow.promiseNote ?? ''
+        }
+        : null;
+      const stamp = {
+        promiseDate: cleanRemainderWaadaDate,
+        promiseAmount: payableRemaining,
+        ...(previousWaada ? { previousWaada } : {})
+      };
+      let waadaed = setCustomerWaada(custNow, {
+        promiseDate: cleanRemainderWaadaDate,
+        promiseAmount: payableRemaining,
+        promiseNote: REMAINDER_WAADA_NOTE
+      });
+      waadaed = {
+        ...waadaed,
+        bills: (waadaed.bills ?? []).map(b => b.month !== targetMonth ? b : {
+          ...b,
+          payments: (b.payments ?? []).map(p => p.id === paymentId ? { ...p, remainderWaada: stamp } : p)
+        })
+      };
+      nextState = { ...nextState, customers: nextState.customers.map(c => c.id === customerId ? waadaed : c) };
+      remainderWaada = { promiseDate: cleanRemainderWaadaDate, promiseAmount: payableRemaining };
+    }
+  }
+
   const receipt = {
     success: true,
     paymentId,
@@ -884,6 +942,7 @@ export function executeQuickCollection(state, {
     addonChargesTotal,
     addonChargesPending: addonChargesPendingAfter,
     payableRemaining,
+    remainderWaada,
     advanceCreditGenerated,
     isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0 && addonChargesPendingAfter <= 0,
     // SISP-101: the late fee this collection waived (false / 0 on every
@@ -912,6 +971,21 @@ export function executeQuickCollection(state, {
   return { nextState, receipt, nextTickets };
 }
 
+/**
+ * SISP-126: the one-line remainder-waada receipt text —
+ * "Baqi Rs. X • Waada: YYYY-MM-DD" — or null when the receipt carries no
+ * remainder waada. Accepts either an executeQuickCollection receipt
+ * (receipt.remainderWaada) or a stored payment (payment.remainderWaada
+ * stamp); the stamp is always read through the validating reader, so a
+ * receipt without a real waada stays byte-identical (null here).
+ */
+export function formatRemainderWaadaLine(source) {
+  const stamp = remainderWaadaOf({ remainderWaada: source?.remainderWaada });
+  if (!stamp) return null;
+  return `Baqi Rs. ${stamp.promiseAmount.toLocaleString('en-PK')} • Waada: ${stamp.promiseDate}`;
+}
+
+/**
 /**
  * Builds the WhatsApp payment receipt draft. Default (no saved
  * preference) is the bilingual (Urdu & English) draft, byte-identical
@@ -995,6 +1069,8 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   const baqayaLines = (Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [])
     .map(line => `🧾 *${L.baqaya(line.entryId)}:* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
 
+  // SISP-126: the remainder waada line, only when one was set with this payment.
+  const remainderWaadaLine = formatRemainderWaadaLine(receipt);
 
   const lines = [
     `*SHAHDARA FIBER NETWORK & ISP BILLING*`,
@@ -1022,6 +1098,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
 
     ``,
     `⚖️ *${L.remaining}:* PKR ${balanceStr}`,
+    remainderWaadaLine ? `🤝 *${remainderWaadaLine}*` : null,
     `📌 *${L.status}:* ${statusText}`,
     ``,
     L.thanks,
@@ -1363,6 +1440,11 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           </strong>
         </div>
         ${ticketChargeRows}
+        ${formatRemainderWaadaLine(receipt) ? `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">${escapeHtml(t('remwaada_receipt_label'))}</span>
+          <strong class="qc-meta-val">🤝 ${escapeHtml(formatRemainderWaadaLine(receipt))}</strong>
+        </div>` : ''}
         ${Number(receipt.advanceCreditGenerated) > 0 ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">🪙 ${escapeHtml(t('khula_credit_row'))}</span>
@@ -1533,6 +1615,14 @@ export function setupQuickCollectModal({
   // Uptime tracking: one-line online/offline summary host for the
   // selected bill month (null when the host page predates it).
   const uptimeLine = typeof document !== 'undefined' ? document.getElementById('quickCollectUptimeLine') : null;
+
+  // SISP-126: Remainder Waada row host inside the payment form (null when
+  // the host page predates it). The chosen chip date is controller state:
+  // null until a date chip is tapped — revealing the row never writes a
+  // promise by itself, and "Skip" leaves it null.
+  const remainderWaadaRow = typeof document !== 'undefined' ? document.getElementById('quickCollectRemainderWaadaRow') : null;
+  let selectedRemainderWaadaDate = null;
+  let remainderWaadaSkipped = false;
 
   // Digital Payment Elements
   const digitalFieldsContainer = document.getElementById('quickCollectDigitalFields');
@@ -1767,6 +1857,13 @@ export function setupQuickCollectModal({
     if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
   });
 
+  // SISP-126: the Remainder Waada row tracks the amount live (typing, and
+  // the payment date / Advance toggle, which move the chip dates and the
+  // flow the row belongs to).
+  amountInput?.addEventListener('input', () => renderRemainderWaadaRow());
+  dateInput?.addEventListener('change', () => renderRemainderWaadaRow());
+  advanceCheckbox?.addEventListener('change', () => renderRemainderWaadaRow());
+
   // Populate payment methods select once
   if (methodSelect && methodSelect.options.length <= 1) {
     methodSelect.innerHTML = PAYMENT_METHODS.map(m =>
@@ -1866,6 +1963,84 @@ export function setupQuickCollectModal({
       uptimeLine.textContent = '';
     }
   }
+
+  // SISP-126: the Remainder Waada row. It appears ONLY while the typed
+  // amount is a true partial of the payable figure this modal itself
+  // displays (activeDefaults: total dues, or the full payable when billed
+  // ticket charges are pending) — the remainder is that figure minus the
+  // typed amount via the shared computeRemainderWaada, never a second
+  // hand-summed total. Full / over / zero / invalid amounts (and the
+  // Advance-tagged flow, whose money is early credit rather than a
+  // partial settlement) hide the row and clear any chip selection, so a
+  // stale waada can never ride along with a payment it no longer matches.
+  function renderRemainderWaadaRow() {
+    if (!remainderWaadaRow) return;
+    const hide = () => {
+      remainderWaadaRow.hidden = true;
+      remainderWaadaRow.innerHTML = '';
+      selectedRemainderWaadaDate = null;
+      remainderWaadaSkipped = false;
+    };
+    try {
+      if (!activeCustomerId || !activeDefaults || advanceCheckbox?.checked) { hide(); return; }
+      const payable = activeDefaults.ticketChargesPending > 0
+        ? activeDefaults.payableTotal
+        : activeDefaults.totalDues;
+      const partial = computeRemainderWaada(payable, Number(amountInput?.value));
+      if (!partial) { hide(); return; }
+      const baseDate = isValidWaadaDate(dateInput?.value ?? '') ? dateInput.value : getPakistanLocalDate();
+      const dates = remainderWaadaChipDates(baseDate);
+      if (!dates) { hide(); return; }
+      // A payment-date change can strand a previously tapped chip date —
+      // the selection survives only while it is still one of the chips.
+      if (selectedRemainderWaadaDate
+        && ![dates.plus3, dates.plus7, dates.tenth, dates.fifteenth].includes(selectedRemainderWaadaDate)) {
+        selectedRemainderWaadaDate = null;
+        remainderWaadaSkipped = false;
+      }
+      const chipBtn = (key, label, date) => {
+        const active = selectedRemainderWaadaDate === date;
+        return `<button type="button" class="qc-remwaada-chip${active ? ' is-active' : ''}" data-remwaada-chip="${key}" aria-pressed="${active}">${escapeHtml(label)}${date ? ` · ${escapeHtml(date.slice(5))}` : ''}</button>`;
+      };
+      remainderWaadaRow.innerHTML = `
+        <p class="qc-remwaada-label">🤝 ${escapeHtml(t('remwaada_row_label', null, { amount: `Rs. ${partial.remainder.toLocaleString('en-PK')}` }))}</p>
+        <div class="qc-remwaada-chips" role="group" aria-label="${escapeHtml(t('remwaada_chips_aria'))}">
+          ${chipBtn('plus3', t('remwaada_chip_plus3'), dates.plus3)}
+          ${chipBtn('plus7', t('remwaada_chip_plus7'), dates.plus7)}
+          ${chipBtn('tenth', t('remwaada_chip_10th'), dates.tenth)}
+          ${chipBtn('fifteenth', t('remwaada_chip_15th'), dates.fifteenth)}
+          <button type="button" class="qc-remwaada-chip${remainderWaadaSkipped ? ' is-active' : ''}" data-remwaada-chip="skip" aria-pressed="${remainderWaadaSkipped}">${escapeHtml(t('remwaada_chip_skip'))}</button>
+        </div>
+        ${selectedRemainderWaadaDate ? `<p class="qc-remwaada-set">${escapeHtml(t('remwaada_set_line', null, { date: selectedRemainderWaadaDate }))}</p>` : ''}`;
+      remainderWaadaRow.hidden = false;
+    } catch {
+      hide();
+    }
+  }
+
+  // Chip taps are the ONLY way a remainder waada gets chosen: a date chip
+  // arms it (re-rendered as the active chip), Skip disarms it. Nothing is
+  // persisted here — the armed date rides the submit into
+  // executeQuickCollection, which writes the promise only when the
+  // payment itself records.
+  remainderWaadaRow?.addEventListener('click', (event) => {
+    const chip = event.target.closest?.('[data-remwaada-chip]');
+    if (!chip) return;
+    const key = chip.getAttribute('data-remwaada-chip');
+    if (key === 'skip') {
+      selectedRemainderWaadaDate = null;
+      remainderWaadaSkipped = true;
+      renderRemainderWaadaRow();
+      return;
+    }
+    const baseDate = isValidWaadaDate(dateInput?.value ?? '') ? dateInput.value : getPakistanLocalDate();
+    const dates = remainderWaadaChipDates(baseDate);
+    const picked = dates?.[key];
+    if (!picked) return;
+    selectedRemainderWaadaDate = picked;
+    remainderWaadaSkipped = false;
+    renderRemainderWaadaRow();
+  });
 
   function renderConcessionBox(customerId, month) {
     if (!concessionBox) return;
@@ -2181,6 +2356,12 @@ export function setupQuickCollectModal({
       // Owner feature: Change Package row (current package + picker).
       renderPackageBox(customerId);
 
+      // SISP-126: Remainder Waada starts un-chosen for every customer;
+      // the row itself appears only if the prefilled amount is a partial.
+      selectedRemainderWaadaDate = null;
+      remainderWaadaSkipped = false;
+      renderRemainderWaadaRow();
+
       // Reset digital fields
       if (transactionIdInput) transactionIdInput.value = '';
       if (senderNameInput) senderNameInput.value = '';
@@ -2462,6 +2643,8 @@ export function setupQuickCollectModal({
       // event), so the waiver gate re-plans explicitly.
       if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
       amountInput.focus();
+      // SISP-126: a chip-set amount can reveal/clear the remainder row.
+      renderRemainderWaadaRow();
     });
   });
 
@@ -2507,6 +2690,13 @@ export function setupQuickCollectModal({
     if (undoBtn) undoBtn.hidden = true;
     try {
       const state = getState();
+      // SISP-126: capture the doomed payment's remainder-waada stamp
+      // BEFORE the delete — undoing the collection must also undo the
+      // promise it set (or restore the promise it replaced).
+      const doomedPayment = state?.customers?.find(c => c.id === customerId)
+        ?.bills?.find(b => b.month === month)?.payments?.find(p => p.id === paymentId);
+      const undoWaadaStamp = remainderWaadaOf(doomedPayment);
+      const undoWaadaPrevious = remainderWaadaPreviousOf(doomedPayment);
       // SISP-121: undoing a split collection removes BOTH legs, newest
       // first, each with its own SISP-43 ticket-charge reopen — exactly
       // reversing the order they were recorded in.
@@ -2579,6 +2769,19 @@ export function setupQuickCollectModal({
         nextState = deletePayment(workingState, customerId, month, paymentId, new Date(), { lateFeeWaiverReverted: true });
       } else {
         nextState = deletePayment(state, customerId, month, paymentId);
+      }
+      // SISP-126: if the customer's live promise is still exactly this
+      // payment's remainder waada, undo it too — restore the promise the
+      // waada replaced when the stamp kept one, otherwise clear it. A
+      // promise changed since (a newer waada) is never clobbered.
+      if (undoWaadaStamp) {
+        const custAfter = nextState.customers.find(c => c.id === customerId);
+        if (custAfter && isRemainderWaadaCurrent(custAfter, undoWaadaStamp)) {
+          const restored = undoWaadaPrevious
+            ? setCustomerWaada(custAfter, undoWaadaPrevious)
+            : clearCustomerWaada(custAfter);
+          nextState = { ...nextState, customers: nextState.customers.map(c => c.id === customerId ? restored : c) };
+        }
       }
       if (typeof onSaveState === 'function') {
         onSaveState(nextState);
@@ -2841,6 +3044,9 @@ export function setupQuickCollectModal({
         senderDigits: (senderDigitsInput?.value || '').trim(),
         referenceOverrideReason: (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim()) ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : '')) : overrideReasonVal,
         screenshot: currentScreenshotDataUrl,
+        // SISP-126: the armed remainder-waada chip date (null unless the
+        // collector tapped a date chip — Skip / untouched writes nothing).
+        remainderWaadaDate: selectedRemainderWaadaDate || undefined,
         // SISP-43: the live ticket list, so billed ticket charges can
         // settle inside this same collection (see executeQuickCollection).
         tickets: loadTickets()
@@ -3102,6 +3308,8 @@ export function setupQuickCollectModal({
             label: `Boost (${line.boostId})`,
             value: money(line.amount)
           })),
+          // SISP-126: the remainder waada line prints on the slip too.
+          remainderWaadaLine: formatRemainderWaadaLine(activeReceipt) ?? '',
           // SISP-96: owner-configured footer lines on the slip too.
           footerLines: buildReceiptFooterLines(getReceiptFooter()),
 

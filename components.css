@@ -170,6 +170,24 @@
 .billing-cycle-confirm-note { color: var(--muted); font-size: 13px; }
 .billing-cycle-warning { color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; overflow-wrap: anywhere; }
 .billing-cycle-success { color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font-size: 13px; overflow-wrap: anywhere; }
+/* SISP-130: month-end pre-flight closing wizard. Theme tokens only. */
+.month-end-wizard-modal .modal-card { background: var(--modal-surface); }
+.month-end-wizard-intro { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+.month-end-wizard-intro strong { color: var(--ink); }
+.month-end-wizard-step { border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; margin: 0 0 12px; background: var(--surface); }
+.month-end-wizard-step-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; margin-bottom: 8px; }
+.month-end-wizard-step-head strong { color: var(--ink); font-size: 14px; }
+.month-end-wizard-status { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: var(--radius-pill); border: 1px solid var(--line); color: var(--ink); white-space: nowrap; }
+.month-end-wizard-status--pass { color: var(--color-paid); border-color: var(--color-paid); }
+.month-end-wizard-status--warn { color: var(--amber); border-color: var(--amber); background: var(--color-pending-bg); }
+.month-end-wizard-step-body p { color: var(--muted); font-size: 13px; margin: 0 0 6px; overflow-wrap: anywhere; }
+.month-end-wizard-rows p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 0 0 4px; font-size: 13px; color: var(--muted); }
+.month-end-wizard-rows p strong { color: var(--ink); font-variant-numeric: var(--numeric); text-align: right; overflow-wrap: anywhere; }
+.month-end-wizard-rows p.month-end-wizard-sub { justify-content: flex-end; font-size: 12px; margin: 0 0 8px; }
+.month-end-wizard-note { color: var(--muted); font-size: 12px; margin: 4px 0 12px; }
+@media (max-width: 480px) {
+  .month-end-wizard-rows p strong { text-align: left; }
+}
 @media (max-width: 480px) {
   .billing-cycle-totals p strong { text-align: left; }
 }

@@ -12887,6 +12887,12 @@ if (typeof document !== 'undefined') {
   });
   setupLinemanPayoutModal({
     loadRoznamchaDays: () => loadRoznamchaDays(),
+    // FU-SISP155-HEADER: the printed slip header uses the same business
+    // identity as every other printed document (state.settings).
+    getBusinessIdentity: () => ({
+      businessName: state.settings?.businessName,
+      businessPhone: state.settings?.businessPhone
+    }),
     onChanged: () => { recordLinemanPayoutSync(); renderDashboard(); },
     onToast: (msg) => toast(msg)
   });

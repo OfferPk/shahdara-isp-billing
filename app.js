@@ -17,7 +17,7 @@ import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
-  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla, DEFAULT_MOHALLAS
+  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildZoneBandwidthYield, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla, DEFAULT_MOHALLAS
 } from './phase3.js?v=1.11.0';
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
@@ -167,7 +167,7 @@ import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, v
 import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
-import { applyFifoPaymentEventToState, buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
+import { applyFifoPaymentEventToState, applicablePriceForMonth, buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { rootCauseAdviceForCustomer, rootCauseBannerHtml } from './root-cause-advisor.js';
@@ -189,7 +189,7 @@ import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHour
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
-import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet, buildSpeedBoostRestoreSnippet, buildSpeedBoostSnippet } from './mikrotik-generator.js';
+import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet, resolvePackageSpeedMbps, buildSpeedBoostRestoreSnippet, buildSpeedBoostSnippet } from './mikrotik-generator.js';
 import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonChargesForPayment } from './speed-addon.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
@@ -8195,6 +8195,10 @@ function areaIntelSectionMetrics(row) {
     areaIntelMetric('Average customer value', amountOrMissing(row.averageCustomerValue), row.averageCustomerValue === null),
     areaIntelMetric('Expenses', amountOrMissing(row.expenses), row.expenses === null, row.expensesSource),
     areaIntelMetric('Estimated profit', amountOrMissing(row.estimatedProfit), row.estimatedProfit === null, row.estimatedProfitBasis),
+    areaIntelMetric(t('zby_provisioned_label'), row.provisionedMbps === null || row.provisionedMbps === undefined ? '—' : `${row.provisionedMbps} Mbps`, row.provisionedMbps === null || row.provisionedMbps === undefined, row.unresolvedSpeedCount > 0 ? t('zby_unresolved_title', null, { count: row.unresolvedSpeedCount }) : ''),
+    areaIntelMetric(t('zby_avg_speed_label'), row.avgSpeedMbps === null || row.avgSpeedMbps === undefined ? '—' : `${row.avgSpeedMbps} Mbps`, row.avgSpeedMbps === null || row.avgSpeedMbps === undefined),
+    areaIntelMetric(t('zby_yield_label'), row.yieldPkrPerMbps === null || row.yieldPkrPerMbps === undefined ? '—' : formatAmount(row.yieldPkrPerMbps), row.yieldPkrPerMbps === null || row.yieldPkrPerMbps === undefined),
+    ...(row.unresolvedSpeedCount > 0 ? [areaIntelMetric(t('zby_unresolved_label'), String(row.unresolvedSpeedCount), false)] : []),
   ].join('');
 }
 function areaIntelNoZoneNote(count) {
@@ -8226,7 +8230,12 @@ function renderAreaIntelligence() {
     areaChart.innerHTML=namedAreas.length?categoryBarsSvg(namedAreas,{title:`Service-month revenue by area, ${from} to ${to}`}):'<p class="empty-state">No saved priced bill snapshots for named areas in this range.</p>';
     zoneChart.innerHTML=zones.length?categoryBarsSvg(zones,{title:`Service-month revenue by zone, ${from} to ${to}`}):'<p class="empty-state">No saved priced bill snapshots for named zones in this range.</p>';
     packageChart.innerHTML=packages.rows.length?categoryBarsSvg(packages.rows.map(row=>({label:row.package,value:row.revenue})),{title:`Service-month revenue by recorded package, ${from} to ${to}`}):'<p class="empty-state">No positive priced bill snapshots in the selected service months.</p>';
-    let areaRows = [...area.rows];
+    const bandwidthYield = buildZoneBandwidthYield(state, referenceDate, { speedMbpsFor: resolvePackageSpeedMbps, priceForMonth: applicablePriceForMonth });
+    let areaRows = area.rows.map(row => {
+      const bw = bandwidthYield.byId.get(row.id);
+      return bw ? { ...row, subscribers: bw.subscribers, provisionedMbps: bw.provisionedMbps, avgSpeedMbps: bw.avgSpeedMbps, bandwidthRevenue: bw.monthlyRevenue, yieldPkrPerMbps: bw.yieldPkrPerMbps, unresolvedSpeedCount: bw.unresolvedSpeedCount }
+        : { ...row, subscribers: 0, provisionedMbps: null, avgSpeedMbps: null, bandwidthRevenue: null, yieldPkrPerMbps: null, unresolvedSpeedCount: 0 };
+    });
     if (areaSortKey) {
       areaRows.sort((a, b) => {
         let cmp = 0;
@@ -8266,6 +8275,12 @@ function renderAreaIntelligence() {
           const vA = a.estimatedProfit === null ? -Infinity : a.estimatedProfit;
           const vB = b.estimatedProfit === null ? -Infinity : b.estimatedProfit;
           cmp = vA - vB;
+        } else if (areaSortKey === 'provisionedMbps') {
+          cmp = (a.provisionedMbps ?? -1) - (b.provisionedMbps ?? -1);
+        } else if (areaSortKey === 'avgSpeedMbps') {
+          cmp = (a.avgSpeedMbps ?? -1) - (b.avgSpeedMbps ?? -1);
+        } else if (areaSortKey === 'yieldPkrPerMbps') {
+          cmp = (a.yieldPkrPerMbps ?? -1) - (b.yieldPkrPerMbps ?? -1);
         }
         return areaSortAsc ? cmp : -cmp;
       });
@@ -8304,7 +8319,7 @@ function renderAreaIntelligence() {
     table.innerHTML=areaRows.map(row=>{
       const label=`${row.area}`;const active=row.activeCustomers===null?'Not recorded for this historical date':String(row.activeCustomers);
       const amountOrMissing=value=>value===null?'Not recorded':formatAmount(value);
-      return `<tr class="area-row-${phase3Cell(row.level)}"><th scope="row"><span class="location-summary-label location-summary-${phase3Cell(row.level)}" style="--summary-depth:${row.depth}"><span class="location-summary-type">${phase3Cell(row.level==='unassigned'?'Unassigned':row.level)}</span><span class="location-summary-value">${phase3Cell(label.replace(/^(?:Area|Mohalla|Zone):\s*/,''))}</span></span></th><td>${row.totalCustomers}</td><td title="${phase3Cell(row.activeCustomerSource)}">${phase3Cell(active)}</td><td>${phase3Cell(amountOrMissing(row.billedAmount))}</td><td>${phase3Cell(amountOrMissing(row.collectedAmount))}</td><td>${phase3Cell(amountOrMissing(row.outstanding))}</td><td>${row.collectionRate===null?'Not set':`${row.collectionRate}%`}</td><td>${phase3Cell(amountOrMissing(row.averageCustomerValue))}</td><td title="${phase3Cell(row.expensesSource)}">${phase3Cell(amountOrMissing(row.expenses))}</td><td title="${phase3Cell(row.estimatedProfitBasis)}">${phase3Cell(amountOrMissing(row.estimatedProfit))}</td></tr>`;
+      return `<tr class="area-row-${phase3Cell(row.level)}"><th scope="row"><span class="location-summary-label location-summary-${phase3Cell(row.level)}" style="--summary-depth:${row.depth}"><span class="location-summary-type">${phase3Cell(row.level==='unassigned'?'Unassigned':row.level)}</span><span class="location-summary-value">${phase3Cell(label.replace(/^(?:Area|Mohalla|Zone):\s*/,''))}</span></span></th><td>${row.totalCustomers}</td><td title="${phase3Cell(row.activeCustomerSource)}">${phase3Cell(active)}</td><td>${phase3Cell(amountOrMissing(row.billedAmount))}</td><td>${phase3Cell(amountOrMissing(row.collectedAmount))}</td><td>${phase3Cell(amountOrMissing(row.outstanding))}</td><td>${row.collectionRate===null?'Not set':`${row.collectionRate}%`}</td><td>${phase3Cell(amountOrMissing(row.averageCustomerValue))}</td><td title="${phase3Cell(row.expensesSource)}">${phase3Cell(amountOrMissing(row.expenses))}</td><td title="${phase3Cell(row.estimatedProfitBasis)}">${phase3Cell(amountOrMissing(row.estimatedProfit))}</td><td${row.unresolvedSpeedCount > 0 ? ` title="${phase3Cell(t('zby_unresolved_title', null, { count: row.unresolvedSpeedCount }))}"` : ''}>${row.provisionedMbps === null ? '—' : `${row.provisionedMbps} Mbps`}</td><td>${row.avgSpeedMbps === null ? '—' : `${row.avgSpeedMbps} Mbps`}</td><td>${row.yieldPkrPerMbps === null ? '—' : phase3Cell(formatAmount(row.yieldPkrPerMbps))}</td></tr>`;
     }).join('');
 
     const intelCards = $('#areaIntelligenceCards'); if (intelCards) intelCards.innerHTML = renderAreaIntelligenceCardsHtml(areaRows);

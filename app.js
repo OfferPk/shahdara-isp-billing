@@ -230,6 +230,7 @@ import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildFuelEfficiency, fuelEfficiencyCardHtml, normalizeFuelMonth } from './fuel-efficiency-tracker.js';
 import { buildRecentPayments } from './recent-payments.js';
+import { classifyCustomerDefaulter, defaulterSegmentChipHtml, segmentTemplateType, segmentStudioTemplateId } from './defaulter-risk-segment.js';
 import { buildCollectionVelocityComparison, renderCollectionVelocityRowsHtml } from './collection-velocity.js';
 import { contactBadgeHtml, contactMarkedMessage, stampContactInState } from './contact-cooldown-tracker.js';
 import { ROSTER_PILL_DEFS, buildRosterPillSummary, applyRosterPillFilter, normalizeRosterPill } from './roster-quick-filters.js';
@@ -9535,6 +9536,15 @@ function waRenderStudio() {
     waRenderStudio();
   }));
 }
+function waCampaignTemplateFor(item) {
+  // SISP-159: with the campaign template set to 'auto', each customer's
+  // message uses their risk segment's studio template; a fixed template
+  // choice by the owner always wins as-is.
+  if (waCampaign?.templateId === 'auto' && item?.riskSegment) {
+    return segmentStudioTemplateId(item.riskSegment.segment, item.riskSegment.derived);
+  }
+  return waCampaign?.templateId || 'politeReminder';
+}
 function waCampaignCardHtml() {
   if (!waCampaign) return '<p class="empty-state">Start a campaign below to step through unpaid customers one by one.</p>';
   if (waCampaign.index >= waCampaign.items.length) {
@@ -9542,9 +9552,11 @@ function waCampaignCardHtml() {
   }
   const item = waCampaign.items[waCampaign.index];
   const templates = getWaTemplates();
-  const message = renderWaTemplateFor(templates, waCampaign.templateId, item.customer, { totalDue: item.balance }, waCampaign.variant);
+  const effectiveTemplateId = waCampaignTemplateFor(item);
+  const message = renderWaTemplateFor(templates, effectiveTemplateId, item.customer, { totalDue: item.balance }, waCampaign.variant);
   return `<article class="table-card"><div class="table-heading"><div><p class="eyebrow">CUSTOMER ${waCampaign.index + 1} OF ${waCampaign.items.length}</p><h3>${escapeHtml(item.customerName)}</h3></div></div>`
     + `<p class="phase3-note">Phone: ${escapeHtml(item.phone || 'Not recorded')} · Zone: ${escapeHtml(item.zone || 'Not set')} · ${waTierLabel(item.waadaTier)}${item.promiseDate ? ` (${escapeHtml(item.promiseDate)})` : ''} · Balance: ${formatAmount(item.balance)}${item.lastRemindedAt ? ` · Last reminded: ${escapeHtml(item.lastRemindedAt)}` : ''}</p>`
+    + (item.riskSegment ? `<p class="phase3-note">Risk segment: ${defaulterSegmentChipHtml(item.riskSegment)}${waCampaign.templateId === 'auto' ? ` · Template: ${escapeHtml(WA_TEMPLATE_LABELS[effectiveTemplateId] || effectiveTemplateId)} (auto by segment)` : ''}</p>` : '')
     + `<p class="phase3-note" style="white-space:pre-wrap">${escapeHtml(message)}</p>`
     + `<div class="form-actions"><button type="button" class="primary-button" id="waCampaignSendNext">Send &amp; Next</button><button type="button" class="secondary-button" id="waCampaignSkip">Skip</button></div></article>`;
 }
@@ -9557,13 +9569,14 @@ function waRenderCampaignCurrent() {
     const send = $('#waCampaignSendNext');
     if (send) send.addEventListener('click', () => {
       const item = waCampaign.items[waCampaign.index];
-      const message = renderWaTemplateFor(getWaTemplates(), waCampaign.templateId, item.customer, { totalDue: item.balance }, waCampaign.variant);
+      const effectiveTemplateId = waCampaignTemplateFor(item);
+      const message = renderWaTemplateFor(getWaTemplates(), effectiveTemplateId, item.customer, { totalDue: item.balance }, waCampaign.variant);
       const res = formatWhatsAppUrl(whatsappPhoneFor(item.customer), message);
       if (!res.validPhone || !res.url) { toast(`Phone missing or invalid for ${item.customerName}. Not marked as reminded.`); return; }
       window.open(res.url, '_blank');
       state = markCustomerLastReminded(state, item.customerId, getTodayDateString());
       const fresh = state.customers.find(c => String(c.id) === String(item.customerId));
-      if (fresh) recordReminderDispatched({ customer: fresh, templateType: 'due', dueAmount: item.balance, customNote: `Campaign template: ${waCampaign.templateId}` });
+      if (fresh) recordReminderDispatched({ customer: fresh, templateType: 'due', dueAmount: item.balance, customNote: `Campaign template: ${effectiveTemplateId}` });
       try { persistState(state, localStorage); } catch {}
       waCampaignSent++;
       waCampaign.index++;
@@ -9584,7 +9597,10 @@ function renderWaTemplates() {
   const templateSelect = $('#waCampaignTemplate');
   if (templateSelect && !templateSelect.dataset.waFilled) {
     templateSelect.dataset.waFilled = 'true';
-    templateSelect.innerHTML = Object.keys(WA_TEMPLATE_LABELS).map(id => `<option value="${id}" ${id === 'politeReminder' ? 'selected' : ''}>${escapeHtml(WA_TEMPLATE_LABELS[id])}</option>`).join('');
+    // SISP-159: 'auto' is the pre-selected default — each campaign
+    // customer's message uses their risk segment's template; picking any
+    // fixed template overrides auto for the whole run.
+    templateSelect.innerHTML = '<option value="auto" selected>Auto — by risk segment</option>' + Object.keys(WA_TEMPLATE_LABELS).map(id => `<option value="${id}">${escapeHtml(WA_TEMPLATE_LABELS[id])}</option>`).join('');
   }
   waRenderStudio();
   waRenderCampaignCurrent();
@@ -11333,6 +11349,12 @@ function renderReminderContent() {
     if (currentQueueItem?.templateType && reminderTemplateSelect) {
       reminderTemplateSelect.value = currentQueueItem.templateType;
     }
+    // SISP-159: the customer's risk segment refines the stage tone — the
+    // picker is pre-selected to the segment's template type (the owner
+    // can still override it before sending; nothing is auto-sent).
+    if (currentQueueItem?.riskSegment && reminderTemplateSelect) {
+      reminderTemplateSelect.value = segmentTemplateType(currentQueueItem.riskSegment.segment);
+    }
   } else {
     if (reminderQueueBar) reminderQueueBar.hidden = true;
   }
@@ -11369,6 +11391,12 @@ function renderReminderContent() {
   }
   updateReminderCharCount();
 
+  // SISP-159: risk segment chip — queue items carry their segment; a
+  // single-customer open derives it on the spot (pure, read-only).
+  const segmentResult = (currentReminderQueue && currentReminderQueue[currentReminderIndex]?.riskSegment)
+    || classifyCustomerDefaulter(c, state, getTodayDateString());
+  const segmentChip = segmentResult ? defaulterSegmentChipHtml(segmentResult) : '';
+
   // SISP-138: cooldown badge reads the LIVE record — a stamp written
   // moments ago must show even when a queue item holds an older copy.
   const liveReminderCustomer = (state.customers || []).find(x => x.id === c.id) || c;
@@ -11379,6 +11407,7 @@ function renderReminderContent() {
       <div class="reminder-cust-left">
         <span class="reminder-cust-name">${escapeHtml(c.name)} (#${c.customerNumber})</span>
         <span class="reminder-cust-sub">${escapeHtml(c.area || c.mohalla || 'Area unassigned')} · Phone: ${escapeHtml(c.phone || 'Not recorded')}${customerVisitWindow(c) !== 'anytime' ? ` · 🕐 ${escapeHtml(t(VISIT_WINDOW_LABEL_KEYS[customerVisitWindow(c)]))}` : ''}</span>
+        ${segmentChip ? `<div>${segmentChip}</div>` : ''}
         ${reminderContactBadge ? `<span class="reminder-contact-badge-row">${reminderContactBadge}</span>` : ''}
       </div>
       <div class="reminder-cust-right">

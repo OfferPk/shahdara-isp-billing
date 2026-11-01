@@ -32,6 +32,7 @@ import {
 } from './core.js';
 import { calculatePlanMigrationProration } from './form-validation.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
+import { sanitizeRoundingTag } from './bill-rounding-helper.js';
 
 const monthKey = (date = new Date()) => {
   const d = new Date(date);
@@ -453,7 +454,21 @@ export function auditBillingCorrectness(state, referenceDate = new Date()) {
       let recomputed = null;
       try { recomputed = calculatePlanMigrationProration(oldRate, newRate, entry.date); } catch { recomputed = null; }
       if (!recomputed) continue;
-      const adjustmentDiff = Math.abs(Number(savedAdjustment) - Number(recomputed.netAdjustment));
+      // SISP-131: an entry whose credit was rounded under the [Round to
+      // Rs. 50] toggle carries its audit tag ({ rawAmount, roundedAmount,
+      // mode }). When the tag exactly accounts for the difference — raw
+      // matches the recomputed credit and the saved adjustment is the
+      // rounded figure — the expected adjustment IS the rounded figure,
+      // so a deliberate rounding never reads as ledger drift. The
+      // pro-rated bill figure is never rounded and is checked raw.
+      let expectedAdjustment = Number(recomputed.netAdjustment);
+      const roundingTag = sanitizeRoundingTag(entry?.rounding);
+      if (roundingTag && Number(savedAdjustment) < 0
+        && Math.abs(roundingTag.rawAmount - Math.abs(Number(recomputed.netAdjustment))) <= 1
+        && Math.abs(Number(savedAdjustment) + roundingTag.roundedAmount) <= 1) {
+        expectedAdjustment = -roundingTag.roundedAmount;
+      }
+      const adjustmentDiff = Math.abs(Number(savedAdjustment) - expectedAdjustment);
       const billDiff = Math.abs(Number(savedBill) - Number(recomputed.proRatedCurrentBill));
       if (adjustmentDiff > 1 || billDiff > 1) {
         discrepancies.push({

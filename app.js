@@ -184,6 +184,7 @@ import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, 
 import { roundToNearest50, roundingTagFor } from './bill-rounding-helper.js?v=1.11.0';
 import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
 import { buildSplitterOverview, createAttenuationTicket, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
+import { SPLITTER_POLISH_KEY, loadSplitterPolish, saveSplitterPolish, setSplitterPolish, evaluateConnectorMismatch, buildPolishMismatchReport, polishLabel } from './connector-polish-guard.js';
 import { DEAD_PORTS_KEY, executePortSwap, isPortDead, loadDeadPorts, lockDeadPort, saveDeadPorts, setupPortSwapModal, unlockDeadPort } from './splitter-port-swap.js';
 import { classifyCustomerOpticalFault, classifySplitterBoxFault, opticalFaultBadgeHtml, opticalFaultLineHtml } from './optical-anomaly-detector.js';
 import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } from './signal-history.js';
@@ -1469,11 +1470,15 @@ function renderDashboard() {
   // SISP-24: splitter port map card (boxes mapped, ports used, weak signals).
   const splitterSummaryEl = $('#splitterMapSummary');
   if (splitterSummaryEl) {
-    const overview = buildSplitterOverview(state.customers);
+    // SISP-167: pass the box-polish map so the card can chip the
+    // connector polish mismatch count (only when > 0).
+    const splitterPolishMap = loadSplitterPolish();
+    const overview = buildSplitterOverview(state.customers, splitterPolishMap);
+    const polishReport = buildPolishMismatchReport(state, splitterPolishMap);
     const splitterValueEl = $('#dashboardSplitterValue');
     const splitterPeriodEl = $('#dashboardSplitterPeriod');
     if (splitterValueEl) splitterValueEl.textContent = overview.boxCount === 0 ? t('dash_splitter_empty') : `${t(overview.boxCount === 1 ? 'dash_splitter_box_sing' : 'dash_splitter_box_plur', null, { count: overview.boxCount })} · ${t('dash_splitter_ports', null, { count: overview.occupiedPorts })}`;
-    if (splitterPeriodEl) splitterPeriodEl.textContent = overview.boxCount === 0 ? t('dash_splitter_period_empty') : `${t(overview.freePorts === 1 ? 'dash_splitter_spare_sing' : 'dash_splitter_spare_plur', null, { count: overview.freePorts })}${overview.weakCount ? ` · ${t(overview.weakCount === 1 ? 'dash_splitter_weak_sing' : 'dash_splitter_weak_plur', null, { count: overview.weakCount })}` : ` · ${t('dash_splitter_no_weak')}`}`;
+    if (splitterPeriodEl) splitterPeriodEl.textContent = overview.boxCount === 0 ? t('dash_splitter_period_empty') : `${t(overview.freePorts === 1 ? 'dash_splitter_spare_sing' : 'dash_splitter_spare_plur', null, { count: overview.freePorts })}${overview.weakCount ? ` · ${t(overview.weakCount === 1 ? 'dash_splitter_weak_sing' : 'dash_splitter_weak_plur', null, { count: overview.weakCount })}` : ` · ${t('dash_splitter_no_weak')}`}${polishReport.count ? t(polishReport.count === 1 ? 'polish_dash_chip_1' : 'polish_dash_chip_n', null, { count: polishReport.count }) : ''}`;
     splitterSummaryEl.innerHTML = overview.weakCustomers.length === 0
       ? ''
       : `<p><span>${t('dash_splitter_weakest')}</span><strong>${escapeHtml(overview.weakCustomers[0].customerName || t('dash_fallback_unnamed'))} · ${escapeHtml(formatRxDbm(overview.weakCustomers[0].lastRxDbm))}</strong><small> · ${escapeHtml(overview.weakCustomers[0].boxId)} ${escapeHtml(t('dash_splitter_port', null, { port: overview.weakCustomers[0].splitterPort ?? overview.weakCustomers[0].port ?? '' }))}</small></p>`;
@@ -3721,6 +3726,12 @@ function renderCustomerProfileView(customer) {
     : opticalStatus === 'healthy'
       ? `<span class="safety-badge badge-healthy">${t('prof_optical_ok')}</span>`
       : '';
+  // SISP-167: connector polish pair for this customer — the ONU type line
+  // shows whenever one is recorded; a ⚠️ warning block appears ONLY on a
+  // true mismatch (both sides known + different), a small ✓ note on a
+  // match, and nothing at all while either side is unknown.
+  const polishResult = evaluateConnectorMismatch(customer, loadSplitterPolish());
+  const polishHtml = `${polishResult.onuType ? `<p>${escapeHtml(t('polish_profile_onu', null, { type: polishLabel(polishResult.onuType) }))}</p>` : ''}${polishResult.status === 'mismatch' ? `<p class="profile-polish-warning" role="alert">${escapeHtml(t('polish_mismatch_warning', null, { box: polishLabel(polishResult.boxPolish), onu: polishLabel(polishResult.onuType) }))}</p>` : polishResult.status === 'match' ? `<p class="profile-polish-matched">${escapeHtml(t('polish_profile_matched'))}</p>` : ''}`;
   // OWNER-SIGNAL: signal reading history (newest first) under the
   // SISP-24 optical facts, plus the quick "record a reading" row. The
   // history is append-only; every append also refreshes lastRxDbm, so
@@ -3735,7 +3746,7 @@ function renderCustomerProfileView(customer) {
   // vs splitter-wide feeder fault) — pure derivation, read-only.
   const opticalFault = opticalStatus === 'weak' ? classifyCustomerOpticalFault(state.customers, customer.id) : null;
   const opticalFaultHtml = opticalFault ? `<p class="profile-optical-fault">${opticalFaultLineHtml(opticalFault)}</p>` : '';
-  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_optical_aria')}"><h4>${t('prof_optical_heading')} ${helpButtonMarkup('optical_rx')}</h4><p>${escapeHtml(t('prof_optical_box', null, { id: opticalFields.splitterBoxId || t('prof_not_recorded') }))}${opticalFields.splitterPort !== null ? escapeHtml(t('prof_optical_port', null, { port: opticalFields.splitterPort })) : ''}</p><p>${escapeHtml(t('prof_optical_pon', null, { port: opticalFields.oltPonPort || t('prof_not_recorded') }))}${escapeHtml(t('prof_optical_rx', null, { rx: formatRxDbm(opticalFields.lastRxDbm) }))} ${opticalBadge}</p>${opticalFaultHtml}<p>${escapeHtml(t('wdmc_profile_side', null, { side: converterSideLabel(customer.customerConverterSide) || t('prof_not_recorded') }))}</p><button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">${t('prof_optical_open')}</button><h5 class="signal-history-heading">${t('sig_history_title')}</h5>${signalHistoryHtml}<div class="signal-record-row"><label class="field-label" for="profileSignalDbmInput">${t('sig_dbm_label')}</label><input id="profileSignalDbmInput" class="form-input" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="-19.4"><label class="field-label" for="profileSignalNoteInput">${t('sig_note_label')}</label><input id="profileSignalNoteInput" class="form-input" type="text" maxlength="200"><button type="button" class="primary-button" id="profileSignalRecordBtn">${t('sig_record_btn')}</button></div></section>`;
+  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_optical_aria')}"><h4>${t('prof_optical_heading')} ${helpButtonMarkup('optical_rx')}</h4><p>${escapeHtml(t('prof_optical_box', null, { id: opticalFields.splitterBoxId || t('prof_not_recorded') }))}${opticalFields.splitterPort !== null ? escapeHtml(t('prof_optical_port', null, { port: opticalFields.splitterPort })) : ''}</p><p>${escapeHtml(t('prof_optical_pon', null, { port: opticalFields.oltPonPort || t('prof_not_recorded') }))}${escapeHtml(t('prof_optical_rx', null, { rx: formatRxDbm(opticalFields.lastRxDbm) }))} ${opticalBadge}</p>${opticalFaultHtml}<p>${escapeHtml(t('wdmc_profile_side', null, { side: converterSideLabel(customer.customerConverterSide) || t('prof_not_recorded') }))}</p>${polishHtml}<button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">${t('prof_optical_open')}</button><h5 class="signal-history-heading">${t('sig_history_title')}</h5>${signalHistoryHtml}<div class="signal-record-row"><label class="field-label" for="profileSignalDbmInput">${t('sig_dbm_label')}</label><input id="profileSignalDbmInput" class="form-input" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="-19.4"><label class="field-label" for="profileSignalNoteInput">${t('sig_note_label')}</label><input id="profileSignalNoteInput" class="form-input" type="text" maxlength="200"><button type="button" class="primary-button" id="profileSignalRecordBtn">${t('sig_record_btn')}</button></div></section>`;
   // SISP-32: pole & landmark directory — where the drop and box live.
   const poleFields = normalizePoleFields(customer);
   const poleSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_pole_aria')}"><h4>${t('prof_pole_heading')}</h4><p>${escapeHtml(t('prof_pole_number', null, { value: poleFields.poleNumber || t('prof_not_recorded') }))}</p><p>${escapeHtml(t('prof_pole_box', null, { value: poleFields.boxLocationNote || t('prof_not_recorded') }))}${escapeHtml(t('prof_pole_wire', null, { value: poleFields.dropWireCoreColor || t('prof_not_recorded') }))}</p><p class="profile-pole-note">${t('prof_pole_note')}</p></section>`;
@@ -4535,6 +4546,8 @@ function renderDetail() {
   $('#splitterPortInput').value = customer.splitterPort ?? '';
   $('#oltPonPortInput').value = customer.oltPonPort ?? '';
   $('#lastRxDbmInput').value = customer.lastRxDbm ?? '';
+  // SISP-167: ONU connector polish picker ('' = not recorded).
+  if ($('#onuConnectorTypeInput')) $('#onuConnectorTypeInput').value = customer.onuConnectorType ?? '';
   // SISP-162: WDM converter side (optional; '' = not recorded).
   if ($('#converterSideInput')) $('#converterSideInput').value = customer.customerConverterSide ?? '';
   // SISP-32: pole & landmark directory (optional).
@@ -4704,7 +4717,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), converterSides: loadConverterSides(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), converterSides: loadConverterSides(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), splitterPolish: loadSplitterPolish(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -4771,6 +4784,8 @@ function backupRestoreOptions() {
   try { badDebtsStored = localStorage.getItem(BAD_DEBTS_KEY) !== null; } catch { badDebtsStored = false; }
   let notesStored = false;
   try { notesStored = localStorage.getItem(MONTHLY_CLOSING_NOTES_KEY) !== null; } catch { notesStored = false; }
+  let splitterPolishStored = false;
+  try { splitterPolishStored = localStorage.getItem(SPLITTER_POLISH_KEY) !== null; } catch { splitterPolishStored = false; }
   let emergencyRunbookStored = false;
   try { emergencyRunbookStored = localStorage.getItem(EMERGENCY_RUNBOOK_KEY) !== null; } catch { emergencyRunbookStored = false; }
   let splitterBoxGpsStored = false;
@@ -4789,7 +4804,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentConverterSides: loadConverterSides(), currentConverterSidesStored: converterSidesStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentLinemanPayouts: loadLinemanPayouts(), currentLinemanPayoutsStored: linemanPayoutsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentDeadPorts: loadDeadPorts(), currentDeadPortsStored: deadPortsStored, currentFeederCables: loadFeederCables(), currentFeederCablesStored: feederCablesStored, currentFieldBagMovements: loadFieldBagMovements(), currentFieldBagMovementsStored: fieldBagMovementsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentEmergencyRunbook: loadEmergencyRunbook(), currentEmergencyRunbookStored: emergencyRunbookStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentExpenseBudgets: loadExpenseBudgets(), currentExpenseBudgetsStored: expenseBudgetsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentConverterSides: loadConverterSides(), currentConverterSidesStored: converterSidesStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentLinemanPayouts: loadLinemanPayouts(), currentLinemanPayoutsStored: linemanPayoutsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentDeadPorts: loadDeadPorts(), currentDeadPortsStored: deadPortsStored, currentFeederCables: loadFeederCables(), currentFeederCablesStored: feederCablesStored, currentFieldBagMovements: loadFieldBagMovements(), currentFieldBagMovementsStored: fieldBagMovementsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentEmergencyRunbook: loadEmergencyRunbook(), currentEmergencyRunbookStored: emergencyRunbookStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentExpenseBudgets: loadExpenseBudgets(), currentExpenseBudgetsStored: expenseBudgetsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentSplitterPolish: loadSplitterPolish(), currentSplitterPolishStored: splitterPolishStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 // SISP-102: the device's current sibling collections, in the same shapes a
 // backup's settings sections carry — the delta merge's local side. Read
@@ -5726,6 +5741,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.monthlyClosingNotes) {
       saveMonthlyClosingNotes(pendingBackupPreview.monthlyClosingNotes);    }
+    if (pendingBackupPreview.splitterPolish) {
+      saveSplitterPolish(pendingBackupPreview.splitterPolish);
+    }
     if (pendingBackupPreview.emergencyRunbook) {
       saveEmergencyRunbook(pendingBackupPreview.emergencyRunbook);
     }
@@ -6971,6 +6989,8 @@ function saveNewCustomer(allowDuplicateName = false) {
     splitterPort:$('#newCustomerSplitterPort').value,
     oltPonPort:$('#newCustomerOltPonPort').value,
     lastRxDbm:$('#newCustomerLastRxDbm').value,
+    // SISP-167: ONU connector polish (optional; '' = not recorded).
+    onuConnectorType:$('#newCustomerOnuConnectorType') ? $('#newCustomerOnuConnectorType').value : '',
     mediaConverterCost:$('#newCustomerMediaConverterCost') ? $('#newCustomerMediaConverterCost').value : '',
     linemanInstallFee:$('#newCustomerLinemanInstallFee') ? $('#newCustomerLinemanInstallFee').value : '',
     fiberPerMeterRate:$('#newCustomerFiberPerMeterRate') ? $('#newCustomerFiberPerMeterRate').value : '',    // #293: new customers start as Active (manual status) unless the owner picks Offline / Not set.
@@ -7302,6 +7322,8 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       // SISP-24: optical splitter assignment + last RX reading (optional).
       splitterBoxId:$('#splitterBoxIdInput').value, splitterPort:$('#splitterPortInput').value,
       oltPonPort:$('#oltPonPortInput').value, lastRxDbm:$('#lastRxDbmInput').value,
+      // SISP-167: ONU connector polish (optional; '' = not recorded).
+      onuConnectorType:$('#onuConnectorTypeInput') ? $('#onuConnectorTypeInput').value : '',
       // SISP-162: WDM converter side (recording it never moves stock).
       ...($('#converterSideInput') ? { customerConverterSide: $('#converterSideInput').value } : {}),
       // SISP-32: pole & landmark directory (optional).
@@ -13201,7 +13223,15 @@ if (typeof document !== 'undefined') {
       }
       return result;
     },
-    onToast: (msg, opts) => toast(msg, opts)
+    onToast: (msg, opts) => toast(msg, opts),
+    // SISP-167: box polish lives in its own sibling store; the modal
+    // reads it through here and saves picker changes back through here.
+    getPolishMap: () => loadSplitterPolish(),
+    onPolishChange: (boxId, type) => {
+      saveSplitterPolish(setSplitterPolish(loadSplitterPolish(), boxId, type));
+      toast(t('polish_saved_toast'));
+      renderDashboard();
+    }
   });
   // SISP-152: the swap commit runs through core's updateCustomerProfile
   // (the one real writer of splitterPort) via executePortSwap, then the

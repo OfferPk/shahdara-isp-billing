@@ -153,6 +153,7 @@ import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupZoneSheetDialog } from './lineman-sheet-print.js';
 import { setupExpenseVoucherDialog } from './expense-voucher-print.js';
+import { setupUptimeCertificateDialog } from './uptime-certificate-print.js';
 import { EMERGENCY_RUNBOOK_KEY, loadEmergencyRunbook, saveEmergencyRunbook, setupEmergencyRunbookDialog } from './emergency-runbook-card.js';
 import { setupDailyMethodMatrixDialog } from './daily-method-matrix.js';
 import { setupLetterheadDialog } from './business-letterhead-print.js';
@@ -622,6 +623,7 @@ export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let zoneSheetDialogController = null;
 export let expenseVoucherDialogController = null;
+export let uptimeCertificateDialogController = null;
 export let emergencyRunbookDialogController = null;
 export let dailyMethodMatrixDialogController = null;
 export let letterheadDialogController = null;
@@ -3686,6 +3688,10 @@ function renderCustomerProfileView(customer) {
   const downtimeMonth = buildCustomerDowntimeSummary(loadComplaints(), customer.id, pakistanMonthNow());
   const downtimeAll = buildCustomerDowntimeSummary(loadComplaints(), customer.id, '');
   const downtimeSectionHtml = `<section class="profile-downtime-section" aria-label="${t('prof_downtime_aria')}"><h4>${t('prof_downtime_heading')}</h4><p><strong>${escapeHtml(downtimeMonth.complaintCount === 1 ? t('prof_downtime_month_1', null, { count: downtimeMonth.complaintCount, hours: downtimeMonth.totalDowntime }) : t('prof_downtime_month_n', null, { count: downtimeMonth.complaintCount, hours: downtimeMonth.totalDowntime }))}</strong>${downtimeMonth.primaryIssueTag ? escapeHtml(t('prof_downtime_issue', null, { tag: downtimeMonth.primaryIssueTag })) : ''}</p><p><strong>${escapeHtml(downtimeAll.complaintCount === 1 ? t('prof_downtime_all_1', null, { count: downtimeAll.complaintCount, hours: downtimeAll.totalDowntime }) : t('prof_downtime_all_n', null, { count: downtimeAll.complaintCount, hours: downtimeAll.totalDowntime }))}</strong>${downtimeAll.primaryIssueTag ? escapeHtml(t('prof_downtime_issue', null, { tag: downtimeAll.primaryIssueTag })) : ''}</p><button type="button" class="secondary-button" id="profileOpenDowntimeAnalyticsBtn">${t('prof_downtime_open')}</button></section>`;
+  // SISP-170: profile uptime certificate — 1-page monthly invoice &
+  // service uptime certificate for this customer (commercial subscribers
+  // ask for this paper). Read-only: the dialog only builds + prints.
+  const uptimeCertSectionHtml = `<section class="profile-uptime-cert-section" aria-label="${t('upcert_profile_heading')}"><h4>${t('upcert_profile_heading')}</h4><p>${t('upcert_profile_note')}</p><button type="button" class="secondary-button" id="profileOpenUptimeCertBtn">${t('upcert_open_btn')}</button></section>`;
   // SISP-40: profile hamsaya referral section — who referred this
   // customer, and the referral credits this customer has earned (queued
   // for the next billing cycle / already deducted). Rendered only when
@@ -3857,7 +3863,7 @@ function renderCustomerProfileView(customer) {
   const occupancyPres = occupancyPresentation(customer);
   const occupancyHtml = !occupancyPres.visible ? '' : `${occupancyPres.residenceLabel || occupancyPres.guarantorName || occupancyPres.guarantorPhone ? `<p>${occupancyPres.residenceLabel ? `${escapeHtml(occupancyPres.residenceLabel)} ` : ''}${occupancyPres.guarantorName || occupancyPres.guarantorPhone ? escapeHtml(t('occ_guarantor_line', null, { name: occupancyPres.guarantorName || t('prof_not_recorded'), phone: occupancyPres.guarantorPhone || t('prof_not_recorded') })) : ''}</p>` : ''}${occupancyPres.risk ? `<p class="occupancy-risk-warning" role="alert">${escapeHtml(occupancyPres.riskLabel)}</p>` : ''}`;
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${occupancyHtml}${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -3928,6 +3934,11 @@ function renderCustomerProfileView(customer) {
   const profileDowntimeBtn = $('#customerProfileView').querySelector('#profileOpenDowntimeAnalyticsBtn');
   if (profileDowntimeBtn) profileDowntimeBtn.addEventListener('click', () => {
     if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.open({ month: pakistanMonthNow() });
+  });
+  // SISP-170: profile button opens the uptime certificate dialog for THIS customer.
+  const profileUptimeCertBtn = $('#customerProfileView').querySelector('#profileOpenUptimeCertBtn');
+  if (profileUptimeCertBtn) profileUptimeCertBtn.addEventListener('click', () => {
+    if (uptimeCertificateDialogController) uptimeCertificateDialogController.open(String(customer.id));
   });
   // SISP-24: profile button opens the splitter port map on this customer's box.
   const profileSplitterBtn = $('#customerProfileView').querySelector('#profileOpenSplitterMapBtn');
@@ -12943,6 +12954,10 @@ if (typeof document !== 'undefined') {
     getPartnerEntries: () => loadPartnerLedgerEntries(),
     onToast: (msg, opts) => toast(msg, opts)
   });
+  uptimeCertificateDialogController = setupUptimeCertificateDialog(() => state, {
+    getComplaints: () => loadComplaints(),
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   emergencyRunbookDialogController = setupEmergencyRunbookDialog(() => state, {
     getRunbook: () => loadEmergencyRunbook(),
     onSaveRunbook: (contacts) => saveEmergencyRunbook(contacts),
@@ -14603,6 +14618,14 @@ if (typeof document !== 'undefined') {
   if (expenseVoucherDialog && !expenseVoucherDialogController) {
     expenseVoucherDialogController = setupExpenseVoucherDialog(() => state, {
       getPartnerEntries: () => loadPartnerLedgerEntries(),
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
+  const uptimeCertificateDialog = $('#uptimeCertificateDialog');
+  if (uptimeCertificateDialog && !uptimeCertificateDialogController) {
+    uptimeCertificateDialogController = setupUptimeCertificateDialog(() => state, {
+      getComplaints: () => loadComplaints(),
       onToast: (msg, opts) => toast(msg, opts)
     });
   }

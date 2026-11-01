@@ -242,6 +242,118 @@ test('closing notes: sanitize, set, delete, and fake-storage round-trip', () => 
   assert.deepEqual(loadMonthlyClosingNotes({ getItem: () => { throw new Error('blocked'); } }), {});
 });
 
+// ---------------------------------------------------------------------------
+// SISP-176: the SISP-43 ticket-charge breakdown. Settled ticket charges
+// ride INSIDE normal payments (ticketCharges stamp), so the split breaks
+// the month's collections into bill money vs ticket money without ever
+// adding a rupee. Pending charges are a month-end receivable rebuilt
+// from the ticket records — never income.
+// ---------------------------------------------------------------------------
+function ticketState() {
+  return {
+    customers: [
+      { id: 'c1', customerNumber: 1, name: 'Ali', bills: [
+        { month: '2026-10', dueAmount: 3000, payments: [
+          { id: 'p1', date: '2026-10-06', amount: 3500, method: 'Cash', ticketCharges: [{ ticketId: 'TKT-101', amount: 500 }] }
+        ] }
+      ] },
+      { id: 'c2', customerNumber: 2, name: 'Bilal', bills: [
+        { month: '2026-10', dueAmount: 2000, payments: [
+          { id: 'p2', date: '2026-10-07', amount: 2000, method: 'Cash' }
+        ] }
+      ] }
+    ],
+    expenses: []
+  };
+}
+
+// Sanitized-shape SISP-12 records (billedAmount is derived from
+// materialsUsed by the sanitizer, which buildOwnerKhataReport applies).
+function ticketRecords() {
+  const line = (amount) => [{ key: 'patch-cord', label: 'Patch Cord', qty: 1, amount }];
+  return [
+    // Settled in October by p1 — not pending at any month end from Oct on.
+    { id: 'TKT-101', customerId: 'c1', status: 'Resolved', billingType: 'billed', resolvedAt: '2026-10-04T10:00', materialsUsed: line(500), chargePaid: true, chargePaidAt: '2026-10-06T11:00', chargePaymentId: 'p1' },
+    // Billed in October, still unpaid — pending at October month end.
+    { id: 'TKT-103', customerId: 'c2', status: 'Resolved', billingType: 'billed', resolvedAt: '2026-10-20T10:00', materialsUsed: line(700), chargePaid: false },
+    // Billed in September, paid in November — pending at BOTH the
+    // September and October month ends, settled by November's.
+    { id: 'TKT-104', customerId: 'c1', status: 'Resolved', billingType: 'billed', resolvedAt: '2026-09-15T10:00', materialsUsed: line(400), chargePaid: true, chargePaidAt: '2026-11-02T09:00', chargePaymentId: 'p-later' },
+    // Billed and paid inside October — never pending.
+    { id: 'TKT-105', customerId: 'c2', status: 'Resolved', billingType: 'billed', resolvedAt: '2026-10-10T10:00', materialsUsed: line(300), chargePaid: true, chargePaidAt: '2026-10-12T09:00', chargePaymentId: 'p2x' },
+    // Resolved in November — invisible to October's month end.
+    { id: 'TKT-106', customerId: 'c2', status: 'Resolved', billingType: 'billed', resolvedAt: '2026-11-05T10:00', materialsUsed: line(900), chargePaid: false },
+    // Free ticket and still-open ticket — never a billed receivable.
+    { id: 'TKT-107', customerId: 'c2', status: 'Resolved', billingType: 'free', resolvedAt: '2026-10-11T10:00', materialsUsed: line(600), chargePaid: false },
+    { id: 'TKT-108', customerId: 'c2', status: 'Open', billingType: 'billed', resolvedAt: '', materialsUsed: line(800), chargePaid: false }
+  ];
+}
+
+test('SISP-176 PINNED: Rs 3,000 bill + Rs 500 ticket charge splits collected into 3,000 + 500', () => {
+  const report = buildOwnerKhataReport(ticketState(), '2026-10', { referenceDate: REF, tickets: ticketRecords() });
+  assert.equal(report.ticketChargesCollected, 500);
+  assert.equal(report.billCollections, 5000);
+  assert.equal(report.ticketChargeReceiptCount, 1);
+  // Identity: Bill Collections + Ticket Charges == total collections
+  // (this fixture has no voided receipts, so the split total is exactly
+  // the report's collected figure — the split never adds on top).
+  assert.equal(report.billCollections + report.ticketChargesCollected, report.collected);
+  assert.equal(report.collected, 5500);
+});
+
+test('SISP-176: voiding the carrying payment removes its ticket portion from BOTH split lines', () => {
+  const state = ticketState();
+  state.customers.push({ id: 'c3', customerNumber: 3, name: 'Voided', bills: [
+    { month: '2026-10', dueAmount: 3000, payments: [
+      { id: 'p3', date: '2026-10-08', amount: 3500, method: 'Cash',
+        ticketCharges: [{ ticketId: 'TKT-109', amount: 500 }],
+        voided: true, voidedAt: '2026-10-09T10:00:00', voidReason: 'Wrong entry' }
+    ] }
+  ] });
+  const report = buildOwnerKhataReport(state, '2026-10', { referenceDate: REF, tickets: ticketRecords() });
+  assert.equal(report.ticketChargesCollected, 500, 'the voided stamp settles nothing');
+  assert.equal(report.billCollections, 5000, 'the voided bill money leaves the split too');
+  assert.equal(report.ticketChargeReceiptCount, 1);
+  // The identity total is the month's NON-VOIDED collections.
+  assert.equal(report.billCollections + report.ticketChargesCollected, 5500);
+});
+
+test('SISP-176: pending ticket charges are a month-end receivable, never income', () => {
+  const october = buildOwnerKhataReport(ticketState(), '2026-10', { referenceDate: REF, tickets: ticketRecords() });
+  assert.equal(october.ticketChargesPending, 1100, 'TKT-103 (700, unpaid) + TKT-104 (400, paid only in November)');
+  assert.equal(october.ticketChargesPendingCount, 2);
+  const september = buildOwnerKhataReport(ticketState(), '2026-09', { referenceDate: REF, tickets: ticketRecords() });
+  assert.equal(september.ticketChargesPending, 400, 'only TKT-104 existed and was unpaid at September end');
+  assert.equal(september.ticketChargesPendingCount, 1);
+  const august = buildOwnerKhataReport(ticketState(), '2026-08', { referenceDate: REF, tickets: ticketRecords() });
+  assert.equal(august.ticketChargesPending, 0);
+  const noTickets = buildOwnerKhataReport(ticketState(), '2026-10', { referenceDate: REF });
+  assert.equal(noTickets.ticketChargesPending, 0);
+  assert.equal(noTickets.ticketChargesPendingCount, 0);
+});
+
+test('SISP-176: WhatsApp text and print HTML carry the ticket lines', () => {
+  const report = buildOwnerKhataReport(ticketState(), '2026-10', { referenceDate: REF, tickets: ticketRecords() });
+  const text = buildOwnerKhataWhatsAppText(report);
+  assert.match(text, /Ticket Charges Collected: Rs\. 500/);
+  assert.match(text, /Ticket Charges Pending: Rs\. 1,100/);
+  const html = buildOwnerKhataPrintHtml(report);
+  assert.match(html, /Ticket Charges Collected/);
+  assert.match(html, /Ticket Charges Pending \(month end, 2 tickets\)/);
+  // A month with no ticket activity keeps the WhatsApp summary lean.
+  const quiet = buildOwnerKhataWhatsAppText(buildOwnerKhataReport(baseState(), '2026-10', { referenceDate: REF }));
+  assert.doesNotMatch(quiet, /Ticket Charges/);
+});
+
+test('SISP-176: invalid month zeroes the ticket figures too', () => {
+  const report = buildOwnerKhataReport(ticketState(), 'bogus', { referenceDate: REF, tickets: ticketRecords() });
+  assert.equal(report.billCollections, 0);
+  assert.equal(report.ticketChargesCollected, 0);
+  assert.equal(report.ticketChargeReceiptCount, 0);
+  assert.equal(report.ticketChargesPending, 0);
+  assert.equal(report.ticketChargesPendingCount, 0);
+});
+
 test('closing notes travel in JSON backup under the safe-merge rule', () => {
   const state = createInitialState([]);
   const notes = { '2026-10': { note: 'backup note', savedAt: '2026-10-27T00:00:00.000Z' } };

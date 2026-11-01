@@ -69,6 +69,19 @@
  * passed through untouched; neither ledger has a delete, so links are
  * never explicitly removed either.
  *
+ * SISP-177: three additions on the same seams. bulkAssignTickets-
+ * ForComplaints runs assignTicketForComplaint itself over every open
+ * unlinked complaint (openUnlinkedComplaints), so a bulk assignment is
+ * by construction identical to assigning one by one — no parallel
+ * ticket writer exists. collectTechnicianNames feeds the register's
+ * lineman picker from the tickets' own technician fields, grouped by
+ * the scorecard's linemanNameKey rule. linkedTicketSummary also reports
+ * a materialBadge for the ticket it picks: when that ticket is Resolved
+ * and its SISP-42 stock deductions have actually been consumed
+ * (stockDeducted), the badge lists the recorded materialsUsed lines in
+ * the ticket UI's own materialLineLabel format — display-only, derived
+ * at read time, never stored.
+ *
  * Tests use synthetic data only.
  */
 
@@ -81,10 +94,13 @@ import {
 import {
   COMPLAINT_CATEGORY_TO_PRESET,
   createTicket,
+  materialLineLabel,
   resolveTicket,
+  sanitizeTicketMaterials,
   sanitizeTickets,
   setTicketStatus
 } from './complaint-tickets.js';
+import { linemanNameKey } from './lineman-scorecard.js';
 
 /** All tickets linked to one complaint, oldest first. */
 export function linkedTicketsForComplaint(tickets, complaintId) {
@@ -93,8 +109,23 @@ export function linkedTicketsForComplaint(tickets, complaintId) {
 }
 
 /**
+ * SISP-177: the material badge for one ticket, or null. A badge exists
+ * only when the ticket is Resolved AND its SISP-42 stock deductions
+ * were actually consumed (stockDeducted) AND it recorded materials;
+ * items are the materialsUsed lines in the ticket card's own format.
+ */
+function materialBadgeForTicket(ticket) {
+  if (!ticket || ticket.status !== 'Resolved' || ticket.stockDeducted !== true) return null;
+  const items = sanitizeTicketMaterials(ticket.materialsUsed).map(materialLineLabel).filter(Boolean);
+  if (!items.length) return null;
+  return { ticketId: ticket.id, items };
+}
+
+/**
  * The linked ticket a complaint card should show: the newest unresolved
  * one (the live work), else the newest resolved one. Null when unlinked.
+ * SISP-177: the summary also carries that same ticket's materialBadge
+ * (null unless it is resolved with consumed stock deductions).
  */
 export function linkedTicketSummary(tickets, complaintId) {
   const linked = linkedTicketsForComplaint(tickets, complaintId);
@@ -103,7 +134,7 @@ export function linkedTicketSummary(tickets, complaintId) {
     String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
     || String(b.id).localeCompare(String(a.id), undefined, { numeric: true }));
   const pick = newestFirst.find((ticket) => ticket.status !== 'Resolved') || newestFirst[0];
-  return { id: pick.id, status: pick.status };
+  return { id: pick.id, status: pick.status, materialBadge: materialBadgeForTicket(pick) };
 }
 
 /**
@@ -146,6 +177,73 @@ export function assignTicketForComplaint(complaints, tickets, complaintId, optio
     ticket,
     created: true
   };
+}
+
+/**
+ * SISP-177: the complaints the bulk-assign bar acts on — still open
+ * (status not Resolved) and with NO linked ticket at all. A complaint
+ * whose only linked ticket is already Resolved is deliberately NOT a
+ * bulk target: the register card's single assign stays available for
+ * that deliberate, one-at-a-time decision.
+ */
+export function openUnlinkedComplaints(complaints, tickets) {
+  const linkedIds = new Set(
+    sanitizeTickets(tickets).map((ticket) => ticket.complaintId).filter(Boolean)
+  );
+  return sanitizeComplaints(complaints)
+    .filter((complaint) => complaint.status !== 'Resolved' && !linkedIds.has(complaint.id));
+}
+
+/**
+ * SISP-177: assign every open unlinked complaint to one lineman, in
+ * register order, by running the single-assign seam
+ * (assignTicketForComplaint) over the evolving lists — so each bulk
+ * result is exactly the ticket a manual assignment would have created,
+ * and ids sequence through the same nextTicketId path. Complaints are
+ * never mutated (the assign seam does not change them); already-linked
+ * and already-resolved complaints are untouched. options:
+ * { referenceDate } (threaded to createTicket for tests). Returns
+ * { complaints, tickets, assigned: [{ complaintId, ticket, created }] }.
+ * With no targets the lists pass through sanitized and assigned is
+ * empty; a blank technician with targets present throws the same error
+ * createTicket throws, before any ticket is created.
+ */
+export function bulkAssignTicketsForComplaints(complaints, tickets, technician, options = {}) {
+  const targets = openUnlinkedComplaints(complaints, tickets);
+  let nextComplaints = sanitizeComplaints(complaints);
+  let nextTickets = sanitizeTickets(tickets);
+  if (!targets.length) return { complaints: nextComplaints, tickets: nextTickets, assigned: [] };
+  const name = typeof technician === 'string' ? technician.trim() : '';
+  if (!name) throw new Error('Assign a lineman / technician first.');
+  const assigned = [];
+  for (const target of targets) {
+    const result = assignTicketForComplaint(nextComplaints, nextTickets, target.id, {
+      technician: name,
+      referenceDate: options.referenceDate
+    });
+    nextComplaints = result.complaints;
+    nextTickets = result.tickets;
+    assigned.push({ complaintId: target.id, ticket: result.ticket, created: result.created });
+  }
+  return { complaints: nextComplaints, tickets: nextTickets, assigned };
+}
+
+/**
+ * SISP-177: lineman names for the register's picker, discovered from
+ * the tickets' own technician fields (the register records carry no
+ * technician). Grouped by the scorecard's linemanNameKey (trimmed,
+ * whitespace-collapsed, case-insensitive); the display name is the
+ * first-seen spelling, whitespace-collapsed like the scorecard's.
+ * Sorted by display name. Nothing is hardcoded.
+ */
+export function collectTechnicianNames(tickets) {
+  const byKey = new Map();
+  for (const ticket of sanitizeTickets(tickets)) {
+    const key = linemanNameKey(ticket.technician);
+    if (!key || byKey.has(key)) continue;
+    byKey.set(key, ticket.technician.replace(/\s+/g, ' '));
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b));
 }
 
 /**

@@ -9,6 +9,11 @@
 // splitGroupId/splitLeg stamps), all-or-nothing atomicity, per-leg void
 // (SISP-34), waada composition (SISP-3/34), backup + readState +
 // correctPayment stamp survival, and the i18n/wiring audit.
+// FU-SISP121-SENDER pins (bottom): each DIGITAL leg also carries the
+// SISP-63 sender proof metadata (senderTitle + senderDigits, name +
+// last-4 only) under the exact single-payment contract, so wallet
+// statement matching works on split legs unchanged; cash legs store
+// no sender fields; the combined receipt model is unchanged.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -352,18 +357,138 @@ test('i18n audit: every split_* key used by the module, the QC wiring and the di
   }
 });
 
+// ------------------------------------------------- FU-SISP121-SENDER ----
+// SISP-63 sender proof metadata per leg. The split spec carries
+// senderTitle/senderDigits per leg exactly as the single-payment path
+// hands them to executeQuickCollection; core's validatePayment remains
+// the single sanitization point (digital-only keep, single-line title
+// <= 100 chars, digits reduced to the LAST 4 — a full account number
+// is never stored).
+
+test('SENDER: leg 2 digital carries senderTitle + last-4 digits; the cash leg stores NO sender fields', () => {
+  const { nextState } = run(fixture(), {
+    customerId: 'a', month: MONTH, date: DATE, paidBy: 'Self',
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 1000, method: 'Easypaisa', transactionId: 'EP99887766', senderTitle: 'Hamza', senderDigits: '0300-1233310' }
+    ]
+  });
+  const [p1, p2] = billOf(nextState).payments;
+  assert.equal(p2.senderTitle, 'Hamza');
+  // Digits reduced to the LAST 4 — the full number is never stored.
+  assert.equal(p2.senderDigits, '3310');
+  assert.equal('senderTitle' in p1, false);
+  assert.equal('senderDigits' in p1, false);
+  // The wallet reconciliation entry for the leg carries the sender —
+  // this is the exact input SISP-63 statement matching consumes.
+  const wallet = buildWalletReconciliation(nextState.customers, MONTH);
+  assert.equal(wallet.payments[0].senderTitle, 'Hamza');
+  assert.equal(wallet.payments[0].senderDigits, '3310');
+});
+
+test('SENDER: leg 1 digital + leg 2 cash — leg 1 is stamped, leg 2 stores nothing (even if values were passed)', () => {
+  const { nextState } = run(fixture(), {
+    customerId: 'a', month: MONTH, date: DATE,
+    legs: [
+      { amount: 1000, method: 'Easypaisa', transactionId: 'EP111222', senderTitle: 'Ali Raza', senderDigits: '7788' },
+      { amount: 2000, method: 'Cash', senderTitle: 'Should Be Dropped', senderDigits: '9999' }
+    ]
+  });
+  const [p1, p2] = billOf(nextState).payments;
+  assert.equal(p1.senderTitle, 'Ali Raza');
+  assert.equal(p1.senderDigits, '7788');
+  assert.equal('senderTitle' in p2, false);
+  assert.equal('senderDigits' in p2, false);
+});
+
+test('SENDER: two digital legs each keep their OWN sender (no cross-leg bleed)', () => {
+  const { nextState } = run(fixture(), {
+    customerId: 'a', month: MONTH, date: DATE,
+    legs: [
+      { amount: 1500, method: 'Easypaisa', transactionId: 'EP123456', senderTitle: 'Hamza', senderDigits: '3310' },
+      { amount: 1500, method: 'JazzCash', transactionId: 'JC654321', senderTitle: 'Bilal', senderDigits: '4455' }
+    ]
+  });
+  const [p1, p2] = billOf(nextState).payments;
+  assert.equal(p1.senderTitle, 'Hamza');
+  assert.equal(p1.senderDigits, '3310');
+  assert.equal(p2.senderTitle, 'Bilal');
+  assert.equal(p2.senderDigits, '4455');
+});
+
+test('SENDER: empty sender inputs store nothing on a digital leg (record shape unchanged)', () => {
+  const { nextState } = run(fixture(), {
+    customerId: 'a', month: MONTH, date: DATE,
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 1000, method: 'Easypaisa', transactionId: 'EP99887766', senderTitle: '   ', senderDigits: '' }
+    ]
+  });
+  const [, p2] = billOf(nextState).payments;
+  assert.equal('senderTitle' in p2, false);
+  assert.equal('senderDigits' in p2, false);
+});
+
+test('SENDER: sanitization parity with the single-payment path (newline title cleaned, full number cut to last 4, overlong title refused pre-recording)', () => {
+  const { nextState } = run(fixture(), {
+    customerId: 'a', month: MONTH, date: DATE,
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 1000, method: 'NayaPay', transactionId: 'NP-998877', senderTitle: '  Hamza\nKhan ', senderDigits: '0300-1233310' }
+    ]
+  });
+  const [, p2] = billOf(nextState).payments;
+  assert.equal(p2.senderTitle, 'Hamza Khan');
+  assert.equal(p2.senderDigits, '3310');
+
+  // Same refusal the single-payment path produces, raised by the
+  // split pre-validation BEFORE anything is recorded.
+  const s0 = fixture();
+  assert.throws(() => run(s0, {
+    customerId: 'a', month: MONTH, date: DATE,
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 1000, method: 'Easypaisa', transactionId: 'EP000111', senderTitle: 'x'.repeat(101) }
+    ]
+  }), /Sender name must be 100 characters or fewer/);
+  assert.equal(billOf(s0).payments.length, 0);
+});
+
+test('SENDER: the combined receipt model is unchanged by sender metadata (no sender keys leak into it)', () => {
+  const { combinedReceipt } = run(fixture(), {
+    customerId: 'a', month: MONTH, date: DATE,
+    legs: [
+      { amount: 2000, method: 'Cash' },
+      { amount: 1000, method: 'Easypaisa', transactionId: 'EP99887766', senderTitle: 'Hamza', senderDigits: '3310' }
+    ]
+  });
+  assert.deepEqual(
+    Object.keys(combinedReceipt.legs[1]).sort(),
+    ['amount', 'date', 'leg', 'method', 'paymentId', 'receiptNumber', 'transactionId', 'voided']
+  );
+  assert.equal(combinedReceipt.totalReceived, 3000);
+  assert.equal(combinedReceipt.status, 'PAID');
+});
+
 test('wiring pins: dialog fields exist, the QC modal imports the module, app.js badges split legs', () => {
   const htmlSource = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   for (const id of [
     'quickCollectSplitToggle', 'quickCollectSplitFields', 'quickCollectSplitAmountInput',
     'quickCollectSplitMethodSelect', 'quickCollectSplitDigitalFields',
-    'quickCollectSplitTransactionIdInput', 'quickCollectSplitOverrideReasonInput'
+    'quickCollectSplitTransactionIdInput', 'quickCollectSplitOverrideReasonInput',
+    'quickCollectSplitSenderNameInput', 'quickCollectSplitSenderDigitsInput'
   ]) {
     assert.ok(htmlSource.includes(`id="${id}"`), `index.html missing #${id}`);
   }
   const qcSource = readFileSync(new URL('../nav-quick-collect.js', import.meta.url), 'utf8');
   assert.match(qcSource, /from '\.\/split-tender-collect\.js'/);
   assert.match(qcSource, /executeSplitTenderCollection/);
+  // FU-SISP121-SENDER: the split submit reads BOTH sender input pairs —
+  // the main SISP-63 inputs for leg 1, the split block's own for leg 2.
+  assert.match(qcSource, /quickCollectSplitSenderNameInput/);
+  assert.match(qcSource, /quickCollectSplitSenderDigitsInput/);
+  assert.match(qcSource, /senderTitle: \(splitSenderNameInput\?\.value \|\| ''\)\.trim\(\)/);
+  assert.match(qcSource, /senderDigits: \(splitSenderDigitsInput\?\.value \|\| ''\)\.trim\(\)/);
   const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.match(appSource, /splitBadgeMarkup/);
 });

@@ -10,7 +10,10 @@
 // - roznamcha (SISP-11) outflows carry `lineman` + `category`;
 // - payments carry no lineman — cash collected is per SHOP collector
 //   (SISP-1 method derivation) and voided payments (SISP-34) never count;
-// - new connections are a month total only (no installer field exists).
+// - new connections started as a month total only; SISP-173 splits them
+//   per installer (customer installedByLineman) with an explicit
+//   unrecorded bucket, and ticket-less register complaints attribute
+//   via the register's own resolvedByLineman (inert once linked).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -19,7 +22,8 @@ import {
   buildMonthlyScorecard,
   countNewConnections,
   linemanNameKey,
-  normalizeScorecardMonth
+  normalizeScorecardMonth,
+  splitNewConnectionsByInstaller
 } from '../lineman-scorecard.js';
 
 const MONTH = '2026-10';
@@ -218,6 +222,107 @@ test('buildMonthlyScorecard bundles linemen, collectors and the connections tota
   assert.equal(bundle.linemen[0].pettyCashSpent, 1500);
   assert.equal(bundle.newConnections, 1);
   assert.deepEqual(bundle.collectors, []);
+});
+
+test('SISP-173: new connections split per installer, unrecorded bucket conserves the team total', () => {
+  const customers = [
+    { id: 'c1', connectionDate: '2026-10-03', addedOn: '2026-10-03', installedByLineman: 'Lineman A' },
+    { id: 'c2', connectionDate: '2026-10-11', addedOn: '2026-10-11', installedByLineman: 'lineman a' },
+    { id: 'c3', connectionDate: null, addedOn: '2026-10-20', installedByLineman: '  Lineman   A ' },
+    { id: 'c4', connectionDate: '2026-10-05', addedOn: '2026-10-05', installedByLineman: 'Lineman B' },
+    { id: 'c5', connectionDate: '2026-10-07', addedOn: '2026-10-07' },
+    { id: 'c6', connectionDate: null, addedOn: '2026-10-09', installedByLineman: '   ' },
+    { id: 'c7', connectionDate: '2026-09-30', addedOn: '2026-10-02', installedByLineman: 'Lineman A' }
+  ];
+  const split = splitNewConnectionsByInstaller(customers, MONTH);
+  assert.equal(split.total, countNewConnections(customers, MONTH), 'split total is the team total');
+  assert.equal(split.total, 6, 'connectionDate wins over addedOn, so c7 is a September join');
+  assert.deepEqual(split.byInstaller.map((e) => [e.name, e.count]), [['Lineman A', 3], ['Lineman B', 1]]);
+  assert.equal(split.unrecorded, 2, 'missing and blank installer both land in the bucket');
+  assert.equal(
+    split.byInstaller.reduce((sum, e) => sum + e.count, 0) + split.unrecorded,
+    split.total,
+    'conservation: per-installer counts + unrecorded === previous team total'
+  );
+
+  const cards = buildLinemanScorecards({ tickets: [], complaints: [], roznamchaDays: [], customers }, MONTH);
+  assert.equal(cards.length, 2, 'installers are discovered from customers alone');
+  assert.equal(cards.find((c) => c.key === 'lineman a').newConnections, 3);
+  assert.equal(cards.find((c) => c.key === 'lineman b').newConnections, 1);
+  assert.equal(
+    cards.reduce((sum, c) => sum + c.newConnections, 0) + split.unrecorded,
+    split.total,
+    'card counts conserve the same total'
+  );
+});
+
+test('SISP-173: installer names group with ticket technicians into one card', () => {
+  const cards = buildLinemanScorecards({
+    tickets: [ticket('TKT-160', 'Lineman A', 'Resolved', '2026-10-06T10:00')],
+    complaints: [],
+    roznamchaDays: [],
+    customers: [{ id: 'c1', connectionDate: '2026-10-06', addedOn: '2026-10-06', installedByLineman: '  LINEMAN   A ' }]
+  }, MONTH);
+  assert.equal(cards.length, 1);
+  assert.equal(cards[0].ticketsResolved, 1);
+  assert.equal(cards[0].newConnections, 1);
+});
+
+test('SISP-173: ticket-less register complaint attributes via resolvedByLineman', () => {
+  const direct = { ...complaint('CMP-301', 'Resolved', '2026-10-06T10:00'), resolvedByLineman: 'Lineman A' };
+  const cards = buildLinemanScorecards({ tickets: [], complaints: [direct], roznamchaDays: [] }, MONTH);
+  assert.equal(cards.length, 1, 'the resolver is discovered from the register entry alone');
+  assert.equal(cards[0].name, 'Lineman A');
+  assert.equal(cards[0].complaintsResolved, 1);
+  assert.equal(cards[0].directComplaintsResolved, 1);
+  assert.equal(cards[0].ticketsResolved, 0);
+});
+
+test('SISP-173: linked pair counts once via the ticket — the register name is inert', () => {
+  const linked = { ...complaint('CMP-302', 'Resolved', '2026-10-04T11:00'), resolvedByLineman: 'Lineman A' };
+  const cards = buildLinemanScorecards({
+    tickets: [ticket('TKT-170', 'Lineman B', 'Resolved', '2026-10-04T11:00', { complaintId: 'CMP-302' })],
+    complaints: [linked],
+    roznamchaDays: []
+  }, MONTH);
+  assert.equal(cards.length, 1, 'the inert register name discovers no second person');
+  assert.equal(cards[0].name, 'Lineman B');
+  assert.equal(cards[0].complaintsResolved, 1, 'the pair is one job');
+  assert.equal(cards[0].ticketsResolved, 1);
+  assert.equal(cards[0].directComplaintsResolved, 0);
+});
+
+test('SISP-173: direct attribution honours month and resolved status', () => {
+  const september = { ...complaint('CMP-303', 'Resolved', '2026-09-30T23:00'), resolvedByLineman: 'Lineman A' };
+  const stillOpen = { ...complaint('CMP-304', 'Open', ''), resolvedByLineman: 'Lineman A' };
+  const cards = buildLinemanScorecards({
+    tickets: [ticket('TKT-171', 'Lineman A', 'Resolved', '2026-10-02T09:00')],
+    complaints: [september, stillOpen],
+    roznamchaDays: []
+  }, MONTH);
+  const a = cards.find((c) => c.name === 'Lineman A');
+  assert.equal(a.complaintsResolved, 1, 'only his October ticket counts');
+  assert.equal(a.directComplaintsResolved, 0);
+});
+
+test('SISP-173: bundle carries the installer split that sums to the total', () => {
+  const bundle = buildMonthlyScorecard({
+    state: {
+      customers: [
+        { id: 'c1', connectionDate: '2026-10-11', addedOn: null, installedByLineman: 'Lineman A', bills: [] },
+        { id: 'c2', connectionDate: '2026-10-12', addedOn: null, bills: [] }
+      ]
+    },
+    tickets: [],
+    complaints: [],
+    roznamchaDays: []
+  }, MONTH);
+  assert.equal(bundle.newConnections, 2);
+  assert.equal(bundle.newConnectionsSplit.total, 2);
+  assert.equal(bundle.newConnectionsSplit.unrecorded, 1);
+  assert.deepEqual(bundle.newConnectionsSplit.byInstaller.map((e) => [e.name, e.count]), [['Lineman A', 1]]);
+  assert.equal(bundle.linemen.length, 1);
+  assert.equal(bundle.linemen[0].newConnections, 1);
 });
 
 test('normalizeScorecardMonth falls back to the current PKT month on bad input', () => {

@@ -2029,6 +2029,26 @@ function renderDashboard() {
   setupHomeTodaySection({
     getState: () => state,
     getRefDate: () => referenceDate,
+    // SISP-145: the briefing's side stores + SISP-10 health record, loaded
+    // fresh on every refresh exactly like the dashboard's other extras.
+    getBriefingExtras: () => ({
+      complaints: loadComplaints(),
+      settlements: loadShopSettlements(),
+      installRequests: loadInstallRequests(),
+      backupRecord: readBackupHealthRecord()
+    }),
+    onBriefingNavigate: (target) => {
+      if (target === 'waada') {
+        try { window.location.hash = '#/recovery'; } catch { /* hash routing unavailable */ }
+      } else if (target === 'complaints') {
+        $('#openComplaintRegisterModalBtn')?.click();
+      } else if (target === 'shops') {
+        $('#openShopSettlementModalBtn')?.click();
+      } else if (target === 'backup') {
+        $('#backupHealthBadge')?.click();
+      }
+    },
+    onToast: toast,
     doc: document,
     win: window
   });

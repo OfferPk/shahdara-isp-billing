@@ -233,8 +233,8 @@ import './bulk-customer-import.js'; // SISP-53: self-wiring Excel/CSV import wiz
 import './bulk-onboarding-grid.js'; // SISP-172: self-wiring private roster import + bulk setup grid (dialog lives in index.html).
 import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
+import { buildRecentPayments, buildRecentPaymentPills, filterRecentPayments, RECENT_PAYMENTS_FILTER_POOL, RECENT_PAYMENTS_ALL_FILTER } from './recent-payments.js';
 import { buildFuelEfficiency, fuelEfficiencyCardHtml, normalizeFuelMonth } from './fuel-efficiency-tracker.js';
-import { buildRecentPayments } from './recent-payments.js';
 import { classifyCustomerDefaulter, defaulterSegmentChipHtml, segmentTemplateType, segmentStudioTemplateId } from './defaulter-risk-segment.js';
 import { buildCollectionVelocityComparison, renderCollectionVelocityRowsHtml } from './collection-velocity.js';
 import { contactBadgeHtml, contactMarkedMessage, stampContactInState } from './contact-cooldown-tracker.js';
@@ -716,6 +716,7 @@ let selectedProfileTab = 'billing';
 let routerCredRevealed = { wifi: false, admin: false };
 let routerCredRevealedFor = null;
 let selectedReportFilter = 'all';
+let recentPaymentsFilter = RECENT_PAYMENTS_ALL_FILTER;
 let selectedServiceFilter = 'all';
 let selectedBillingFilter = 'all';
 let selectedBillingMonth = monthsForHistory()[0];
@@ -1059,6 +1060,27 @@ function checkMonthlyBilling() {
   const updated = generateMonthlyBillsThroughCurrentMonth(state, new Date());
   if (updated !== state) { state = updated; save(); }
 }
+// SISP-174: 1-tap receipt actions for one Dashboard Recent Payments
+// row. Every action reuses the exact receipt path the profile history
+// uses — the print button is wired to printPaymentReceipt, the PNG
+// button is profile-ui's pngReceiptButtonMarkup (wired to
+// downloadPngReceipt), and the WhatsApp action is
+// receiptWhatsAppActionMarkup fed with the same buildPaymentReceipt
+// data the profile passes it. Nothing here builds a receipt of its
+// own, and no reference is invented: the builders read the payment's
+// own stored receipt number.
+function recentPaymentActionsMarkup(row) {
+  const customer = state.customers.find(entry => entry.id === row.customerId);
+  const bill = customer?.bills?.find(entry => entry.month === row.month);
+  const payment = bill?.payments?.find(entry => entry.id === row.paymentId);
+  if (!customer || !bill || !payment) return '';
+  let whatsappMarkup = '';
+  try {
+    const receiptData = buildPaymentReceipt(customer, bill, payment);
+    whatsappMarkup = receiptWhatsAppActionMarkup(customer, { customerId: customer.id, date: payment.date, amount: payment.amount, method: payment.method, paidBy: payment.paidBy, month: row.month, paymentId: payment.id, billStatus: receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount: receiptData.nominalPrice, balanceDueCents: receiptData.balanceDueCents, billDueDate: bill?.dueDate ?? null, arrearsBreakdown: buildArrearsBreakdown(customer, bill), fifoAllocation: receiptData.fifoAllocation, fifoRemaining: receiptData.fifoRemaining, fifoShow: receiptData.fifoShow, ticketCharges: receiptData.ticketCharges });
+  } catch { whatsappMarkup = ''; }
+  return `<span class="recent-payment-actions">${whatsappMarkup}<button class="print-receipt-button recent-payment-receipt-btn" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(row.month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${escapeHtml(t('dash_recent_receipt_aria', null, { number: customer.customerNumber }))}">${escapeHtml(t('dash_recent_receipt'))}</button>${pngReceiptButtonMarkup(customer.id, row.month, payment.id, customer.customerNumber)}</span>`;
+}
 /**
  * SISP-62: Power Backup dashboard surfaces — the summary card (node
  * count / on-battery state / soonest battery to die) and the active
@@ -1160,13 +1182,39 @@ function renderDashboard() {
   // across all customers; voided SISP-34 payments excluded by the
   // builder). Read-only — rows open the customer profile, "All" opens
   // the Transactions view.
+  // SISP-174: method filter pills + 1-tap receipt actions per row. The
+  // pills DERIVE from a wider pool of recent payments (never a
+  // hardcoded shop/method list — see recent-payments.js rule 7); with
+  // no filter selected the visible rows are exactly the builder's
+  // default last-5, and the row action buttons sit OUTSIDE the
+  // profile-navigation button so tapping one never opens the profile.
   const recentPaymentsListEl = $('#recentPaymentsList');
   if (recentPaymentsListEl) {
-    const recentRows = buildRecentPayments(state);
+    const recentPool = buildRecentPayments(state, RECENT_PAYMENTS_FILTER_POOL);
+    const recentPills = buildRecentPaymentPills(recentPool);
+    if (recentPaymentsFilter !== RECENT_PAYMENTS_ALL_FILTER && !recentPills.some(pill => pill.key === recentPaymentsFilter)) {
+      recentPaymentsFilter = RECENT_PAYMENTS_ALL_FILTER;
+    }
+    const recentRows = filterRecentPayments(recentPool, recentPaymentsFilter);
+    const recentFiltersEl = $('#recentPaymentsFilters');
+    if (recentFiltersEl) {
+      recentFiltersEl.setAttribute('aria-label', t('dash_recent_filter_label'));
+      recentFiltersEl.innerHTML = recentPool.length === 0 ? '' : [
+        `<button type="button" class="recent-payment-pill${recentPaymentsFilter === RECENT_PAYMENTS_ALL_FILTER ? ' is-active' : ''}" data-recent-filter="${RECENT_PAYMENTS_ALL_FILTER}" aria-pressed="${recentPaymentsFilter === RECENT_PAYMENTS_ALL_FILTER}">${escapeHtml(t('dash_recent_filter_all'))} <span class="recent-payment-pill-count">${recentPool.length}</span></button>`,
+        ...recentPills.map(pill => `<button type="button" class="recent-payment-pill${recentPaymentsFilter === pill.key ? ' is-active' : ''}" data-recent-filter="${escapeHtml(pill.key)}" aria-pressed="${recentPaymentsFilter === pill.key}">${escapeHtml(pill.label)} <span class="recent-payment-pill-count">${pill.count}</span></button>`)
+      ].join('');
+      recentFiltersEl.querySelectorAll('[data-recent-filter]').forEach(button => button.addEventListener('click', () => {
+        recentPaymentsFilter = button.dataset.recentFilter;
+        renderDashboard();
+      }));
+    }
     recentPaymentsListEl.innerHTML = recentRows.length === 0
       ? `<li class="recent-payments-empty">${escapeHtml(t('dash_recent_empty'))}</li>`
-      : recentRows.map((row) => `<li class="recent-payment-item"><button type="button" class="recent-payment-row" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-ref">${escapeHtml(row.receiptRef || humanDate(row.date))}</strong><span class="recent-payment-sub" dir="auto">${escapeHtml(row.customerName)}${row.method ? ` · ${escapeHtml(row.method)}` : ''}</span></span><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong></button></li>`).join('');
+      : recentRows.map((row) => `<li class="recent-payment-item"><div class="recent-payment-row"><button type="button" class="recent-payment-open" data-recent-customer-id="${escapeHtml(row.customerId)}"><span class="recent-payment-main"><strong class="recent-payment-ref">${escapeHtml(row.receiptRef || humanDate(row.date))}</strong><span class="recent-payment-sub" dir="auto">${escapeHtml(row.customerName)}${row.method ? ` · ${escapeHtml(row.method)}` : ''}</span></span><strong class="recent-payment-amount">${escapeHtml(formatAmount(row.amount))}</strong></button>${recentPaymentActionsMarkup(row)}</div></li>`).join('');
     recentPaymentsListEl.querySelectorAll('[data-recent-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.recentCustomerId)));
+    recentPaymentsListEl.querySelectorAll('[data-print-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
+    recentPaymentsListEl.querySelectorAll('[data-png-receipt]').forEach(button => button.addEventListener('click', () => downloadPngReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
+    bindReceiptPhoneActions(recentPaymentsListEl);
     const recentAllBtn = $('#recentPaymentsAllBtn');
     if (recentAllBtn && !recentAllBtn.dataset.wired) {
       recentAllBtn.dataset.wired = 'true';

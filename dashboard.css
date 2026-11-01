@@ -4456,7 +4456,39 @@
 .recent-payment-item + .recent-payment-item {
   border-top: 1px solid var(--line);
 }
+/* SISP-174: method filter pills, derived from the recent pool itself. */
+.recent-payments-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 2px;
+}
+.recent-payments-filters:empty {
+  display: none;
+}
+.recent-payment-pill {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: none;
+  padding: 4px 10px;
+  font: 600 11px 'DM Sans', system-ui, sans-serif;
+  color: var(--muted);
+  cursor: pointer;
+}
+.recent-payment-pill.is-active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--surface);
+}
+.recent-payment-pill-count {
+  opacity: 0.75;
+  font-weight: 700;
+}
 .recent-payment-row {
+  display: flex;
+  flex-direction: column;
+}
+.recent-payment-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4464,11 +4496,24 @@
   width: 100%;
   background: none;
   border: none;
-  padding: 9px 0;
+  padding: 9px 0 3px;
   font: inherit;
   color: inherit;
   text-align: left;
   cursor: pointer;
+}
+/* SISP-174: 1-tap receipt actions under each row (Receipt / WhatsApp /
+   PNG) — siblings of the profile button, never nested inside it. */
+.recent-payment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 0 0 9px;
+}
+.recent-payment-actions:empty {
+  display: none;
 }
 .recent-payment-main {
   display: flex;

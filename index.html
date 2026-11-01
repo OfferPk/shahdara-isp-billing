@@ -335,6 +335,37 @@
           </span>
         </button>
       </div>
+      <!-- Morning Briefing Strip (SISP-145) -->
+      <section class="morning-briefing-section" id="morningBriefingSection" aria-labelledby="morningBriefingHeading">
+        <div class="morning-briefing-card">
+          <div class="morning-briefing-header">
+            <h3 id="morningBriefingHeading" class="morning-briefing-title" data-i18n="brief_heading">🌅 Morning Briefing</h3>
+            <button id="copyMorningBriefingBtn" class="morning-briefing-copy-btn" type="button" data-i18n="brief_copy_btn">📋 Copy Morning Briefing</button>
+          </div>
+          <div class="morning-briefing-pills" id="morningBriefingPills">
+            <button type="button" class="morning-pill" id="briefPillWaada" data-brief-nav="waada">
+              <span class="morning-pill-label" data-i18n="brief_waada_label">Today's Waadas</span>
+              <strong class="morning-pill-value" id="briefWaadaValue">0</strong>
+              <span class="morning-pill-sub" id="briefWaadaSub"></span>
+            </button>
+            <button type="button" class="morning-pill" id="briefPillWork" data-brief-nav="complaints">
+              <span class="morning-pill-label" data-i18n="brief_work_label">Complaints &amp; Installs</span>
+              <strong class="morning-pill-value" id="briefWorkValue">0</strong>
+              <span class="morning-pill-sub" id="briefWorkSub"></span>
+            </button>
+            <button type="button" class="morning-pill" id="briefPillShop" data-brief-nav="shops">
+              <span class="morning-pill-label" data-i18n="brief_shop_label">Unsettled Shop Cash</span>
+              <strong class="morning-pill-value" id="briefShopValue">PKR 0</strong>
+              <span class="morning-pill-sub" id="briefShopSub"></span>
+            </button>
+            <button type="button" class="morning-pill" id="briefPillBackup" data-brief-nav="backup">
+              <span class="morning-pill-label" data-i18n="brief_backup_label">Backup</span>
+              <strong class="morning-pill-value" id="briefBackupValue">—</strong>
+              <span class="morning-pill-sub" id="briefBackupSub"></span>
+            </button>
+          </div>
+        </div>
+      </section>
       <!-- Home Today Summary Card (Issue #231 & #278) -->
       <section class="home-today-section" id="homeTodaySection" aria-labelledby="homeTodayHeading">
         <div class="home-today-card" id="homeTodaySummaryCard">

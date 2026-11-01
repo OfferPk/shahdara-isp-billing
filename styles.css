@@ -12836,6 +12836,46 @@ dialog::backdrop {
   margin: 0 0 8px;
   font-size: 14px;
 }
+/* SISP-151: profile next-month bill projection — theme tokens only. */
+.profile-next-bill-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.profile-next-bill-section h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+.profile-next-bill-month {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+.profile-next-bill-note {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+.next-bill-lines {
+  display: flex;
+  flex-direction: column;
+}
+.next-bill-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+  padding: 3px 0;
+}
+.next-bill-row span:last-child {
+  white-space: nowrap;
+}
+.next-bill-total {
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+  padding-top: 6px;
+  font-weight: 700;
+}
 .profile-kist-note {
   font-size: 12.5px;
   color: var(--muted);

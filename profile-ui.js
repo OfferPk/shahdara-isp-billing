@@ -730,6 +730,47 @@ export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date(
 }
 
 /**
+ * SISP-151: profile "Next Month Bill (Projected)" section — renders a
+ * projectNextMonthInvoice result (next-bill-projector.js) as itemized
+ * lines. Pure presentation: every figure comes from the projection,
+ * nothing is computed here. Returns '' for a null projection (archived,
+ * billing not started, no price — nothing honest to show).
+ */
+export function nextBillProjectionSectionHtml(projection, formatAmountFn = (n) => String(n ?? '')) {
+  if (!projection) return '';
+  const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const monthLabel = formatReceiptMonth(projection.targetMonth) ?? projection.targetMonth;
+  const row = (labelKey, amount, credit = false) => `<div class="next-bill-row"><span>${esc(t(labelKey))}</span><span>${credit ? '−' : ''}${esc(formatAmountFn(amount))}</span></div>`;
+  let body = '';
+  if (projection.status === 'paused') {
+    body = `<p class="profile-next-bill-note">${esc(t('nbp_paused'))}</p>`;
+  } else if (projection.status === 'free') {
+    body = `<p class="profile-next-bill-note">${esc(t('nbp_free'))}</p>`;
+  } else if (projection.status === 'already-billed') {
+    body = `<div class="next-bill-lines">`
+      + row('nbp_base', projection.basePackage)
+      + (projection.kist > 0 ? row('nbp_kist', projection.kist) : '')
+      + (projection.previousArrears > 0 ? row('nbp_arrears', projection.previousArrears) : '')
+      + row('nbp_bill_balance', projection.billBalanceDue)
+      + `<div class="next-bill-row next-bill-total"><span>${esc(t('nbp_total'))}</span><span>${esc(formatAmountFn(projection.projectedDue))}</span></div></div>`
+      + (projection.stampedCredits > 0 ? `<p class="profile-next-bill-note">${esc(t('nbp_stamped', null, { amount: formatAmountFn(projection.stampedCredits) }))}</p>` : '')
+      + `<p class="profile-next-bill-note">${esc(t('nbp_billed_note'))}</p>`;
+  } else {
+    body = `<div class="next-bill-lines">`
+      + row('nbp_base', projection.basePackage)
+      + (projection.kist > 0 ? row('nbp_kist', projection.kist) : '')
+      + (projection.previousArrears > 0 ? row('nbp_arrears', projection.previousArrears) : '')
+      + (projection.advanceWallet > 0 ? row('nbp_wallet', projection.advanceWallet, true) : '')
+      + (projection.referralCredit > 0 ? row('nbp_referral', projection.referralCredit, true) : '')
+      + (projection.prepayCoverage > 0 ? row('nbp_prepay', projection.prepayCoverage, true) : '')
+      + `<div class="next-bill-row next-bill-total"><span>${esc(t('nbp_total'))}</span><span>${esc(formatAmountFn(projection.projectedDue))}</span></div></div>`
+      + (projection.remainingAdvance > 0 ? `<p class="profile-next-bill-note">${esc(t('nbp_remaining', null, { amount: formatAmountFn(projection.remainingAdvance) }))}</p>` : '')
+      + `<p class="profile-next-bill-note">${esc(t('nbp_note'))}</p>`;
+  }
+  return `<section class="profile-next-bill-section" aria-label="${esc(t('nbp_aria'))}"><h4>${esc(t('nbp_heading'))}</h4><p class="profile-next-bill-month">${esc(monthLabel)}</p>${body}</section>`;
+}
+
+/**
  * SISP-148: do-not-suspend shield summary for the profile view
  * (Service group row), the profile header badge and the Customers
  * card badge. Reads only the stored shield fields — it never decides

@@ -3566,6 +3566,23 @@ export const TRANSLATIONS = {
     help_loyalty_body: 'Customers with a year or more of service earn the 👑 1+ Yr Loyal badge on their profile and card. This panel watches those loyal customers for trouble: two or more complaints this month, or 12 or more hours of downtime, brings them here — a personal check-in now can save a customer you cannot afford to lose.',
     help_additional_pending_title: '➕ Additional Pending',
     help_additional_pending_body: 'Additional Pending is extra money a customer owes outside the monthly bills — an old hisaab from before this app, or a loan. Type the total here and the card shows Bill + Additional together. Never type bill arrears again here, because bills are already counted. Quick Collect collects the bill first and then this amount, and voiding a payment brings it back.',
+
+    // SISP-156: payment channel reassignment
+    reassign_btn: '🔀 Channel',
+    reassign_btn_aria: 'Change channel for payment recorded as {method}',
+    reassign_locked_short: 'Channel locked',
+    reassign_lock_settled: 'Channel locked — this receipt was already handed over from the shop. Reverse the shop handover first.',
+    reassign_lock_voided: 'Channel locked — voided receipts are kept as history.',
+    reassign_title: 'Change payment channel',
+    reassign_summary: '#{number} {name} · {amount} · {date} · Current channel: {method}',
+    reassign_help: 'Only the channel changes — amount, date and receipt number stay the same. The money moves between the shop tray, cash drawer and wallet totals automatically.',
+    reassign_new_channel: 'New channel',
+    reassign_tid_label: 'Transaction ID / Ref',
+    reassign_override_label: 'Override reason (if no TID)',
+    reassign_cancel: 'Cancel',
+    reassign_confirm: 'Change channel',
+    reassign_dup_tid: 'This transaction ID is already recorded for customer #{number}.',
+    reassign_done: 'Channel changed from {from} to {to}.',
   },
 
   ur: {
@@ -7112,6 +7129,23 @@ export const TRANSLATIONS = {
     help_loyalty_body: 'ایک سال یا اس سے زیادہ پرانے کسٹمرز کے پروفائل اور کارڈ پر 👑 وفادار بیج لگتا ہے۔ یہ پینل انہی وفادار کسٹمرز پر نظر رکھتا ہے: اس مہینے دو یا زیادہ شکایات، یا 12 گھنٹے سے زیادہ بندش، انہیں یہاں لے آتی ہے — اس وقت ذاتی رابطہ اس کسٹمر کو بچا سکتا ہے جسے کھونا آپ کے لیے مہنگا ہے۔',
     help_additional_pending_title: '➕ اضافی بقایا',
     help_additional_pending_body: 'اضافی بقایا وہ رقم ہے جو کسٹمر نے ماہانہ بلوں کے علاوہ دینی ہے — اس ایپ سے پہلے کا پرانا حساب، یا کوئی قرض۔ یہاں کل رقم لکھیں تو کارڈ پر بل + اضافی اکٹھا دکھے گا۔ بل کے بقایا یہاں دوبارہ ہرگز نہ لکھیں، کیونکہ بل پہلے ہی گنے جاتے ہیں۔ کوئک کلیکٹ پہلے بل اور پھر یہ رقم وصول کرتا ہے، اور ادائیگی وائیڈ کرنے سے یہ واپس آ جاتی ہے۔',
+
+    // SISP-156: payment channel reassignment
+    reassign_btn: '🔀 چینل',
+    reassign_btn_aria: '{method} کے طور پر درج ادائیگی کا چینل بدلیں',
+    reassign_locked_short: 'چینل مقفل',
+    reassign_lock_settled: 'چینل مقفل ہے — یہ رسید دکان سے پہلے ہی حوالے ہو چکی ہے۔ پہلے دکان کی حوالگی واپس کریں۔',
+    reassign_lock_voided: 'چینل مقفل ہے — منسوخ شدہ رسیدیں تاریخ کے طور پر محفوظ رہتی ہیں۔',
+    reassign_title: 'ادائیگی کا چینل بدلیں',
+    reassign_summary: '#{number} {name} · {amount} · {date} · موجودہ چینل: {method}',
+    reassign_help: 'صرف چینل بدلتا ہے — رقم، تاریخ اور رسید نمبر ویسے ہی رہتے ہیں۔ رقم دکان کی ٹرے، نقد دراز اور والیٹ کے مجموعوں کے درمیان خود بخود منتقل ہو جاتی ہے۔',
+    reassign_new_channel: 'نیا چینل',
+    reassign_tid_label: 'ٹرانزیکشن آئی ڈی / حوالہ',
+    reassign_override_label: 'متبادل وجہ (اگر TID نہ ہو)',
+    reassign_cancel: 'منسوخ',
+    reassign_confirm: 'چینل بدلیں',
+    reassign_dup_tid: 'یہ ٹرانزیکشن آئی ڈی پہلے ہی کسٹمر #{number} کے لیے درج ہے۔',
+    reassign_done: 'چینل {from} سے {to} میں بدل دیا گیا۔',
   }
 };
 

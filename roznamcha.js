@@ -34,13 +34,16 @@
  *   a copy, so re-running it (startup, every roznamcha change, re-close)
  *   never duplicates.
  *
- * This module imports loadShopSettlements from shop-settlement.js only.
- * shop-settlement.js imports nothing from core.js, so there is no module
- * cycle. PKR formatting and PKT dates are small local helpers mirroring
- * shop-settlement.js. Tests use synthetic data only.
+ * This module imports loadShopSettlements from shop-settlement.js and
+ * the SISP-134 budget-status helpers from expense-budget-caps.js (which
+ * imports phase3.js + nav-language.js only). Neither import reaches
+ * core.js, so there is no module cycle. PKR formatting and PKT dates
+ * are small local helpers mirroring shop-settlement.js. Tests use
+ * synthetic data only.
  */
 
 import { canonicalShopName, loadShopSettlements, partnerForReceivedInto } from './shop-settlement.js';
+import { buildCategoryBudgetStatus, loadExpenseBudgets, renderBudgetAlertsHtml } from './expense-budget-caps.js';
 
 export const ROZNAMCHA_KEY = 'sisp_roznamcha_v1';
 
@@ -665,6 +668,17 @@ export function setupRoznamchaModal(getState, { onToast, onChanged } = {}) {
           });
         });
       }
+    }
+    // SISP-134: compact budget callout for the modal's month — only the
+    // warn/over categories, derived live from the expense ledger and
+    // the stored caps. Informational only; renders '' when no category
+    // needs attention.
+    const budgetAlertsEl = $('roznamchaBudgetAlerts');
+    if (budgetAlertsEl) {
+      const budgetState = typeof getState === 'function' ? getState() : {};
+      budgetAlertsEl.innerHTML = renderBudgetAlertsHtml(
+        buildCategoryBudgetStatus(budgetState, loadExpenseBudgets(), date.slice(0, 7))
+      );
     }
     const expectedEl = $('roznamchaExpectedLine');
     if (expectedEl) {

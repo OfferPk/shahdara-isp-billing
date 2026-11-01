@@ -1,4 +1,5 @@
 import { canonicalMohalla, DEFAULT_MOHALLAS } from './phase3.js';
+import { fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
 
 /**
  * Owner feature (2026-10-29): field-scoped search for the Customers list and
@@ -75,8 +76,14 @@ export function customerMatchesSearchField(customer, field, query) {
       const needle = normalizedText(rawQuery);
       // SISP-143: a Name search also matches the landlord/guarantor
       // name recorded on the tenant's record.
-      return [customer.name, customer.nameUrdu, customer.landlordOrGuarantorName]
-        .some((value) => normalizedText(value).includes(needle));
+      if ([customer.name, customer.nameUrdu, customer.landlordOrGuarantorName]
+        .some((value) => normalizedText(value).includes(needle))) return true;
+      // SISP-165: the father's/reference name and the search aliases are
+      // part of Name search, and Roman-Urdu spelling variants match
+      // phonetically ("Fesal" finds "Faisal", "M. Aslam" finds
+      // "Muhammad Aslam"). Urdu-script queries keep the plain contains
+      // path inside the matcher. Mobile / User ID / Area are untouched.
+      return fuzzyCustomerNameMatches(customer, rawQuery);
     }
   }
 }

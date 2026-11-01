@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { createInitialState, updateCustomerProfile, archiveCustomer } from '../core.js';
+import { createInitialState, updateCustomerProfile, archiveCustomer, calculatePaymentAllocations } from '../core.js';
 import {
   CUSTOMER_SEARCH_FIELDS,
   normalizeCustomerSearchField,
@@ -11,7 +11,14 @@ import {
   customerMatchesSearchField,
   filterCustomersBySearchField,
   buildMohallaUserCounts,
+  buildMohallaCardStats,
 } from '../customer-search-filter.js';
+import {
+  filterFieldModeEntriesByMohalla,
+  fieldModeCollectedTodayForMohalla,
+  setupFieldMode,
+} from '../field-mode.js';
+import { getPendingCollectionCustomers } from '../nav-quick-collect.js';
 import { DEFAULT_MOHALLAS } from '../phase3.js';
 
 // Owner feature (2026-10-29): the Customers list search gets a field filter
@@ -131,6 +138,166 @@ test('mohalla counts: a non-canonical area with real users still gets its own ca
   assert.equal(counts[0].canonical, false);
   assert.deepEqual(buildMohallaUserCounts([]), []);
   assert.deepEqual(buildMohallaUserCounts(undefined), []);
+});
+
+// ---------------------------------------------------------------------------
+// SISP-175: Mohalla card enrichment — live Unpaid PKR, Paid %, FREE count,
+// and the 🏍️ Field Collect launch into Field Mode scoped to the mohalla.
+// Synthetic data only. Fixtures are plain records (the collection-
+// forecaster pattern) fed through the REAL allocation engine.
+// ---------------------------------------------------------------------------
+
+let seq = 0;
+const nid = (prefix) => `${prefix}${String(++seq).padStart(4, '0')}`;
+const pay = (date, amount) => ({ id: nid('p'), date, amount, method: 'Cash' });
+const bill = (month, dueAmount, payments = []) => ({ month, dueAmount, payments });
+const cust = (name, mohalla, bills, extra = {}) => ({ id: nid('c'), customerNumber: seq, name, mohalla, bills, ...extra });
+const CURRENT_MONTH = '2026-10';
+
+function statsState() {
+  return {
+    customers: [
+      // BARRIAN: one settled, one partial, one arrears-only, one FREE.
+      cust('Alpha Paid', 'BARRIAN', [bill(CURRENT_MONTH, 3000, [pay('2026-10-03', 3000)])]),
+      cust('Bravo Partial', 'BARRIAN', [bill(CURRENT_MONTH, 3000, [pay('2026-10-04', 1000)])]),
+      cust('Charlie Arrears', 'BARRIAN', [bill('2026-09', 2500, [])]),
+      // A FREE connection never gets billed in the real app (bill
+      // generation skips it); the priced bill here is a defensive legacy
+      // anomaly pinning that FREE is skipped for dues/billed regardless —
+      // the same explicit skip Top Defaulters make.
+      cust('Delta Free', 'BARRIAN', [bill(CURRENT_MONTH, 3000, [])], { isFreeConnection: true }),
+      // BANII: both spelling variants, both fully paid this cycle.
+      cust('Echo Bani', 'Bani', [bill(CURRENT_MONTH, 2000, [pay('2026-10-05', 2000)])]),
+      cust('Foxtrot Banii', 'BANII', [bill(CURRENT_MONTH, 2000, [pay('2026-10-06', 2000)])]),
+      // PALALIYAA: one billed-and-unpaid, one archived (excluded everywhere).
+      cust('Golf Unpaid', 'PALALIYAA', [bill(CURRENT_MONTH, 1500, [])]),
+      cust('Hotel Archived', 'PALALIYAA', [bill(CURRENT_MONTH, 1500, [])], { archived: true }),
+      // NAKAR: a lone FREE connection — card shows, but nobody is billed.
+      cust('India Free Only', 'NAKAR', [], { isFreeConnection: true }),
+    ],
+  };
+}
+
+test('SISP-175 stats: unpaid PKR sums the engine balanceDueCents across all bills, per mohalla', () => {
+  const state = statsState();
+  const stats = buildMohallaCardStats(state.customers, calculatePaymentAllocations(state), CURRENT_MONTH);
+  const byStored = new Map(stats.map((row) => [row.stored, row]));
+  // BARRIAN: partial 2,000 + arrears 2,500 = 4,500. The FREE customer's
+  // anomaly bill contributes nothing; the settled customer contributes 0.
+  assert.equal(byStored.get('BARRIAN').unpaidPKR, 4500);
+  assert.equal(byStored.get('BANII').unpaidPKR, 0);
+  assert.equal(byStored.get('PALALIYAA').unpaidPKR, 1500, 'archived customer dues never counted');
+  assert.equal(byStored.get('NAKAR').unpaidPKR, 0);
+});
+
+test('SISP-175 stats: paid % counts only this month\'s billed customers; FREE enter neither side', () => {
+  const state = statsState();
+  const stats = buildMohallaCardStats(state.customers, calculatePaymentAllocations(state), CURRENT_MONTH);
+  const byStored = new Map(stats.map((row) => [row.stored, row]));
+  const barrian = byStored.get('BARRIAN');
+  // Billed this month: Alpha (paid) + Bravo (partial) = 2. Charlie has no
+  // current bill; Delta is FREE — neither is in the denominator.
+  assert.equal(barrian.billedCount, 2);
+  assert.equal(barrian.paidCount, 1);
+  assert.equal(barrian.paidPct, 50);
+  assert.equal(byStored.get('BANII').paidPct, 100, 'all billed paid → 100');
+  assert.equal(byStored.get('PALALIYAA').paidPct, 0, 'none billed paid → 0');
+  assert.equal(byStored.get('NAKAR').billedCount, 0);
+  assert.equal(byStored.get('NAKAR').paidPct, null, 'nobody billed → no honest percentage');
+});
+
+test('SISP-175 stats: FREE count is its own figure and card visibility/count rules are unchanged', () => {
+  const state = statsState();
+  const stats = buildMohallaCardStats(state.customers, calculatePaymentAllocations(state), CURRENT_MONTH);
+  const counts = buildMohallaUserCounts(state.customers);
+  assert.deepEqual(stats.map((row) => [row.key, row.count]), counts.map((row) => [row.key, row.count]),
+    'stats rows are exactly the user-count rows, same order and counts');
+  const byStored = new Map(stats.map((row) => [row.stored, row]));
+  assert.equal(byStored.get('BARRIAN').count, 4, 'FREE users still count as users, as before');
+  assert.equal(byStored.get('BARRIAN').freeCount, 1);
+  assert.equal(byStored.get('BANII').freeCount, 0);
+  assert.equal(byStored.get('NAKAR').count, 1, 'a FREE-only mohalla still earns its card');
+  assert.equal(byStored.get('NAKAR').freeCount, 1);
+  assert.ok(!byStored.has('CHAMYAAA'), 'zero-user mohalla stays hidden');
+  assert.equal(stats.length, 4);
+});
+
+test('SISP-175 field filter: spelling variants of one mohalla unite under the card rule', () => {
+  const entries = [
+    { id: 'e1', name: 'One', mohalla: 'Bani', area: 'Unassigned', totalDues: 100 },
+    { id: 'e2', name: 'Two', mohalla: 'BANII', area: 'Unassigned', totalDues: 200 },
+    { id: 'e3', name: 'Three', mohalla: 'MOHALLA BANI', area: 'Unassigned', totalDues: 300 },
+    { id: 'e4', name: 'Four', mohalla: 'BARRIAN', area: 'Unassigned', totalDues: 400 },
+    { id: 'e5', name: 'Five', mohalla: '', area: 'HAVELI', totalDues: 500 },
+  ];
+  // Field Mode zones would split e1/e2/e3 into separate chips (raw
+  // canonicalLocation keys); the card scope must NOT — the card counts
+  // all three as BANII, so Field Collect shows all three.
+  assert.deepEqual(filterFieldModeEntriesByMohalla(entries, [], 'BANII').map((e) => e.id), ['e1', 'e2', 'e3']);
+  assert.deepEqual(filterFieldModeEntriesByMohalla(entries, [], 'bani').map((e) => e.id), ['e1', 'e2', 'e3'], 'any spelling resolves to the same mohalla');
+  assert.deepEqual(filterFieldModeEntriesByMohalla(entries, [], 'HAVELI').map((e) => e.id), ['e5'], 'non-canonical areas scope by their stored name');
+  assert.deepEqual(filterFieldModeEntriesByMohalla(entries, [], ''), []);
+  assert.deepEqual(filterFieldModeEntriesByMohalla(entries, [], 'CHAMYAAA'), []);
+});
+
+test('SISP-175 field filter: the live customer record wins over the entry snapshot', () => {
+  const entries = [
+    { id: 'e1', name: 'Moved', mohalla: 'Bani', area: 'Unassigned', totalDues: 100 },
+    { id: 'e4', name: 'Four', mohalla: 'BARRIAN', area: 'Unassigned', totalDues: 400 },
+  ];
+  const live = [{ id: 'e1', mohalla: 'BARRIAN' }];
+  assert.deepEqual(filterFieldModeEntriesByMohalla(entries, live, 'BANII'), []);
+  assert.deepEqual(filterFieldModeEntriesByMohalla(entries, live, 'BARRIAN').map((e) => e.id), ['e1', 'e4']);
+});
+
+test('SISP-175 field filter: real pending-collection entries carry the mohalla scope', () => {
+  const state = {
+    customers: [
+      cust('Bani Due', 'Bani', [bill(CURRENT_MONTH, 2000, [])]),
+      cust('Barrian Due', 'BARRIAN', [bill(CURRENT_MONTH, 2000, [])]),
+      cust('Banii Paid', 'BANII', [bill(CURRENT_MONTH, 2000, [pay('2026-10-05', 2000)])]),
+    ],
+  };
+  const ref = new Date('2026-10-15T12:00:00+05:00');
+  const dues = getPendingCollectionCustomers(state, '', 'all-dues', ref);
+  assert.equal(dues.length, 2, 'only the two customers with dues are in the default Field Mode list');
+  const scoped = filterFieldModeEntriesByMohalla(dues, state.customers, 'BANII');
+  assert.deepEqual(scoped.map((e) => e.name), ['Bani Due'], 'the card launch lands exactly on the mohalla\'s dues');
+});
+
+test('SISP-175 collected today (mohalla scope): only that mohalla\'s today payments count', () => {
+  const state = {
+    customers: [
+      cust('Payer Bani', 'Bani', [bill(CURRENT_MONTH, 2000, [pay('2026-10-30', 2000)])]),
+      cust('Payer Barrian', 'BARRIAN', [bill(CURRENT_MONTH, 2000, [pay('2026-10-30', 1500)])]),
+      cust('Old Banii', 'BANII', [bill('2026-09', 2000, [pay('2026-09-30', 2000)])]),
+    ],
+  };
+  assert.deepEqual(fieldModeCollectedTodayForMohalla(state, 'BANII', '2026-10-30'), { houses: 1, cash: 2000 });
+  assert.deepEqual(fieldModeCollectedTodayForMohalla(state, 'BARRIAN', '2026-10-30'), { houses: 1, cash: 1500 });
+  assert.deepEqual(fieldModeCollectedTodayForMohalla(state, '', '2026-10-30'), { houses: 0, cash: 0 });
+});
+
+test('SISP-175 wiring: controller seam, card markup hooks, i18n keys and token styles exist', () => {
+  const controller = setupFieldMode();
+  assert.equal(typeof controller.openForMohalla, 'function', 'field-mode controller exposes the mohalla launch');
+  const app = readRepoFile('app.js');
+  assert.ok(app.includes('buildMohallaCardStats'), 'dashboard render builds the mohalla card stats');
+  assert.ok(app.includes('data-mohalla-collect'), 'card renders the Field Collect button as its own target');
+  assert.ok(app.includes('openForMohalla'), 'collect button launches Field Mode for that mohalla');
+  for (const key of ['dash_mohalla_unpaid', 'dash_mohalla_paid', 'dash_mohalla_free', 'dash_mohalla_collect']) {
+    assert.ok(app.includes(`t('${key}')`), `app.js renders ${key} through t()`);
+  }
+  const fieldMode = readRepoFile('field-mode.js');
+  assert.ok(fieldMode.includes('filterFieldModeEntriesByMohalla'), 'controller scopes its list through the mohalla filter seam');
+  const language = readRepoFile('nav-language.js');
+  for (const key of ['dash_mohalla_unpaid', 'dash_mohalla_paid', 'dash_mohalla_free', 'dash_mohalla_collect']) {
+    assert.equal((language.match(new RegExp(`${key}:`, 'g')) || []).length, 2, `${key} exists in BOTH dictionaries`);
+  }
+  const css = readRepoFile('components.css');
+  assert.ok(css.includes('.mohalla-card-main'), 'card main button styled');
+  assert.ok(css.includes('.mohalla-card-stat'), 'stat lines styled');
+  assert.ok(css.includes('.mohalla-card-collect'), 'collect button styled');
 });
 
 test('wiring: search field select, mohalla dashboard section and app.js hooks exist', () => {

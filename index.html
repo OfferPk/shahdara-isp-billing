@@ -22422,8 +22422,54 @@
           <button class="action-btn-sm daily-slip-btn" type="submit">➕ Payment darj karein</button>
           <button id="saadPaymentCancelEditBtn" class="secondary-button" type="button" hidden>Cancel edit</button>
         </form>
+        <h3>Month-end settlement</h3>
+        <p><button id="openLinemanPayoutBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="linpayout_open_btn">🧾 Lineman Monthly Settlement</button></p>
         <h3>Visit log</h3>
         <div id="saadVisitsList" class="saad-visits-list"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="linemanPayoutModal" class="billing-modal lineman-payout-modal" data-nested-dialog aria-labelledby="linemanPayoutModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="linemanPayoutModalTitle" data-i18n="linpayout_title">🧾 Lineman Monthly Settlement / ماہانہ حساب پرچی</h2>
+        <button id="linemanPayoutCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="lineman-payout-intro" data-i18n="linpayout_intro">Month-end hisaab: base salary + installation / visit commissions + bonuses − mid-month advances (upad) = net payable.</p>
+        <form id="linemanPayoutForm" class="lineman-payout-form">
+          <label for="linPayoutName" data-i18n="linpayout_name">Lineman name</label>
+          <input id="linPayoutName" class="form-input" type="text" maxlength="100" required aria-label="Lineman name">
+          <label for="linPayoutMonth" data-i18n="linpayout_month">Settlement month</label>
+          <input id="linPayoutMonth" class="form-input" type="month" required aria-label="Settlement month">
+          <label for="linPayoutPaidDate" data-i18n="linpayout_paid_date">Paid date</label>
+          <input id="linPayoutPaidDate" class="form-input" type="date" required aria-label="Paid date">
+          <label for="linPayoutBaseSalary" data-i18n="linpayout_base_salary">Base salary (PKR)</label>
+          <input id="linPayoutBaseSalary" class="form-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Base salary (PKR)">
+          <label for="linPayoutInstallCount" data-i18n="linpayout_install_count">Installations this month</label>
+          <input id="linPayoutInstallCount" class="form-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Installations this month">
+          <label for="linPayoutInstallRate" data-i18n="linpayout_install_rate">Per-installation rate (PKR)</label>
+          <input id="linPayoutInstallRate" class="form-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Per-installation rate (PKR)">
+          <label for="linPayoutVisitCount" data-i18n="linpayout_visit_count">Other visits this month</label>
+          <input id="linPayoutVisitCount" class="form-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Other visits this month">
+          <label for="linPayoutVisitRate" data-i18n="linpayout_visit_rate">Per-visit rate (PKR)</label>
+          <input id="linPayoutVisitRate" class="form-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Per-visit rate (PKR)">
+          <label for="linPayoutBonuses" data-i18n="linpayout_bonuses">Field bonuses (PKR)</label>
+          <input id="linPayoutBonuses" class="form-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Field bonuses (PKR)">
+          <label for="linPayoutAdvances" data-i18n="linpayout_advances">Mid-month advances / Upad (PKR)</label>
+          <input id="linPayoutAdvances" class="form-input" type="number" min="0" step="1" inputmode="numeric" aria-label="Mid-month advances / Upad (PKR)">
+          <p id="linPayoutAdvancesHint" class="lineman-payout-hint"></p>
+          <label for="linPayoutNote" data-i18n="linpayout_note">Note (optional)</label>
+          <input id="linPayoutNote" class="form-input" type="text" maxlength="200" aria-label="Note (optional)">
+          <label class="lineman-payout-drawer"><input id="linPayoutFromDrawer" type="checkbox" aria-label="Paid from cash drawer"> <span data-i18n="linpayout_from_drawer">Paid from cash drawer (Roznamcha me bhi darj hoga)</span></label>
+          <p id="linPayoutTotals" class="lineman-payout-totals" aria-live="polite"></p>
+          <div class="lineman-payout-actions">
+            <button id="linPayoutPrefillBtn" class="secondary-button" type="button" data-i18n="linpayout_prefill_btn">↻ Prefill from records</button>
+            <button class="action-btn-sm daily-slip-btn" type="submit" data-i18n="linpayout_settle_btn">✅ Settle &amp; Post</button>
+          </div>
+        </form>
+        <h3 data-i18n="linpayout_settled_list">Settled months</h3>
+        <div id="linemanPayoutList" class="lineman-payout-list"></div>
       </div>
     </div>
   </dialog>

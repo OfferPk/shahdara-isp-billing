@@ -549,7 +549,7 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     const cleanAlternatePhone = String(c.alternatePhone ?? '').replace(/[^\d+]/g, '');
     const alternatePhoneUrl = cleanAlternatePhone ? `tel:${cleanAlternatePhone}` : null;
 
-    const encodedAddr = encodeURIComponent(`${c.address || ''} ${sector} Shahdara Lahore`.trim());
+    const encodedAddr = encodeURIComponent(`${c.address || ''} ${sector} Shahdara Islamabad`.trim());
     const mapsQueryUrl = `https://www.google.com/maps/search/?api=1&query=${encodedAddr}`;
 
     candidateStops.push({

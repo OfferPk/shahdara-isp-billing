@@ -564,7 +564,7 @@ export function generateFdtAllocationWhatsAppReport(enclosure, portNumber, meta 
     `----------------------------------------`,
     `*FAT Enclosure:* ${enclosure.id} (${enclosure.name || ''})`,
     `*Area & Pole:* ${enclosure.area || ''} • Pole ${enclosure.poleNumber || 'N/A'}`,
-    `*GPS Location:* ${enclosure.gpsCoords || 'Shahdara, Lahore'}`,
+    `*GPS Location:* ${enclosure.gpsCoords || 'Shahdara, Islamabad'}`,
     `*Feeder Core:* ${enclosure.feederCore || 'Feeder Trunk'} (${enclosure.splitterType || '1:16 PLC'})`,
     `----------------------------------------`,
     `*PORT ALLOCATION DETAILS:*`,

@@ -580,7 +580,7 @@ Standard: TIA-568.3-D / ISO/IEC 14763-3 / ITU-T G.652.D
 Report Generated : ${dateStr} PKT
 Link Identifier  : ${data.linkName || 'Shahdara Optical Link'}
 Technician Name  : ${data.technician || 'Field Splicer Crew'}
-Location / Area  : ${data.location || 'Shahdara, Lahore'}
+Location / Area  : ${data.location || 'Shahdara, Islamabad'}
 Reference Method : ${data.referenceMethod || '1-Cord Reference (Method B)'}
 
 LINK SPECIFICATIONS:
@@ -810,7 +810,7 @@ export function setupMobileOltsModal(state = {}, options = {}) {
       ...certData,
       linkName: linkNameInput?.value || 'Shahdara Optical Span',
       technician: techInput?.value || 'Field Splicer Crew',
-      location: locationInput?.value || 'Shahdara, Lahore',
+      location: locationInput?.value || 'Shahdara, Islamabad',
       referenceMethod: refMethodSelect?.options[refMethodSelect?.selectedIndex]?.text || '1-Cord Reference',
       referenceMethodId: refMethodSelect?.value || 'METHOD_1_CORD',
       connectorType: connectorTypeSelect?.options[connectorTypeSelect?.selectedIndex]?.text || 'SC/APC',

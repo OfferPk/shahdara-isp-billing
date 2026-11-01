@@ -871,7 +871,7 @@ export function generateSpliceSleeveCureCertHtml(record, { format = 'A4' } = {})
         <td>
           <div class="logo-text">SHAHDARA BROADBAND FIBER NETWORK</div>
           <div class="sub-text">Outside Plant & Enclosure Joint Engineering Laboratory</div>
-          <div style="font-size: 10px; color: #475569;">Baradari Road, Shahdara, Lahore, Punjab, Pakistan</div>
+          <div style="font-size: 10px; color: #475569;">Baradari Road, Shahdara, Islamabad, Pakistan</div>
         </td>
         <td style="text-align: right;">
           <div style="font-size: 12px; font-weight: 700;">Certificate No: ${escapeHtml(record.id)}</div>

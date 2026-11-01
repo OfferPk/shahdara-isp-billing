@@ -395,7 +395,7 @@ Standard: ITU-T L.40 / Telcordia GR-765-CORE
 Report Generated  : ${dateStr} PKT
 Fiber Core Name   : ${data.coreName || 'Shahdara Optical Core'}
 Technician Name   : ${data.technician || 'Lineman'}
-Location / Cabinet: ${data.location || 'Shahdara, Lahore'}
+Location / Cabinet: ${data.location || 'Shahdara, Islamabad'}
 Clamp Head Model  : ${data.headName || '900 µm Tight Buffer'}
 
 MEASUREMENT RESULTS:
@@ -588,7 +588,7 @@ export function setupMobileFiberIdentifierModal(state = {}, options = {}) {
       ...evalData,
       coreName: coreNameInput?.value || 'Shahdara Optical Core',
       technician: techInput?.value || 'Field Lineman',
-      location: locationInput?.value || 'Shahdara, Lahore',
+      location: locationInput?.value || 'Shahdara, Islamabad',
       headName: headSelect?.options[headSelect?.selectedIndex]?.text || '900 µm Tight Buffer',
       signalMode: modeSelect?.options[modeSelect?.selectedIndex]?.text || 'CW Traffic',
       direction: dirSelect?.options[dirSelect?.selectedIndex]?.text || 'Left-to-Right'

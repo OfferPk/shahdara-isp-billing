@@ -690,7 +690,7 @@ ${eventLines || 'No discrete events recorded.'}
 👨‍🔧 *QA Certifier:* ${record.technicianName || 'Shahdara QA Lineman'}
 📝 *Notes:* ${record.notes || 'Span verified in accordance with ITU-T G.650.1 / G.652 bidirectional averaging standards.'}
 ──────────────────────────
-_Shahdara ISP Network Operations Center - Baradari Road, Shahdara, Lahore_`;
+_Shahdara ISP Network Operations Center - Baradari Road, Shahdara, Islamabad_`;
 }
 
 /**
@@ -884,7 +884,7 @@ export function generateBidirectionalOtdrCertHtml(record, options = {}) {
         </div>
         <div style="text-align: right;">
           <div><strong>NOC Supervisor Sign-off:</strong> _______________________</div>
-          <div style="color: #64748b; margin-top: 2px;">Baradari Road, Shahdara Town, Lahore</div>
+          <div style="color: #64748b; margin-top: 2px;">Baradari Road, Shahdara Town, Islamabad</div>
         </div>
       </div>
     </div>

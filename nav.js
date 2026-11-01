@@ -4629,7 +4629,7 @@ export function calculateFieldWorkOrders(state, {
       whatsappUrl = `https://wa.me/${intlPhone}?text=${waText}`;
     }
 
-    const mapQuery = encodeURIComponent([o.customerName, o.address, o.area, 'Shahdara Lahore'].filter(Boolean).join(', '));
+    const mapQuery = encodeURIComponent([o.customerName, o.address, o.area, 'Shahdara Islamabad'].filter(Boolean).join(', '));
     const mapsQueryUrl = `https://www.google.com/maps/search/?api=1&query=${mapQuery}`;
 
     return {

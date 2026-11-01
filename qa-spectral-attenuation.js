@@ -770,7 +770,7 @@ export function generateSpectralAttenuationCertHtml(record, options = {}) {
   ` : ''}
 
   <div class="footer">
-    <div>Shahdara Optical Metrology Laboratory · Ravi Zone NOC Lahore</div>
+    <div>Shahdara Optical Metrology Laboratory · Ravi Zone NOC Islamabad</div>
     <div>ISO/IEC 17025 Certified Optical Metrology Document</div>
   </div>
 </body>

@@ -4830,7 +4830,7 @@ export function generateServiceContractHtml(contract, { format = 'a4' } = {}) {
       <header class="contract-a4-header">
         <div class="brand-left">
           <h2>SHAHDARA FIBER NETWORKS &amp; BROADBAND</h2>
-          <p class="tagline">Licensed Local Internet Service Provider · Shahdara Lahore</p>
+          <p class="tagline">Licensed Local Internet Service Provider · Shahdara Islamabad</p>
           <p class="urdu-title">معاہدہ برائے فراہمی انٹرنیٹ سروس و سامان تنصیب</p>
         </div>
         <div class="meta-right">
@@ -5749,7 +5749,7 @@ export function generateDisputeClaimHtml(claim = {}, options = {}) {
       <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #0e5b4d; padding-bottom: 12px; margin-bottom: 16px;">
         <div>
           <h1 style="font-size: 20px; margin: 0; color: #0e5b4d;">SHAHDARA FIBER BROADBAND NETWORK</h1>
-          <p style="font-size: 12px; margin: 2px 0; color: #444;">Main Bazar, Shahdara, Lahore · Accounts &amp; Revenue Dispute Tribunal</p>
+          <p style="font-size: 12px; margin: 2px 0; color: #444;">Main Bazar, Shahdara, Islamabad · Accounts &amp; Revenue Dispute Tribunal</p>
           <h3 style="font-size: 14px; margin: 4px 0 0 0; color: #333;">FORMAL BILLING DISPUTE SETTLEMENT VOUCHER</h3>
         </div>
         <div style="text-align: right;">
@@ -6483,7 +6483,7 @@ export function calculateKycComplianceAudit(state, options = {}) {
       whatsappIntlPhone: intlPhone,
       area: String(cust.area || cust.mohalla || 'Shahdara Town').trim(),
       mohalla: String(cust.mohalla || cust.area || 'Shahdara Town').trim(),
-      address: String(cust.address || cust.mohalla || 'Shahdara Lahore').trim(),
+      address: String(cust.address || cust.mohalla || 'Shahdara Islamabad').trim(),
       cnic: rawCnic ? (details.valid ? details.formatted : rawCnic.trim()) : '',
       formattedCnic: details.valid ? details.formatted : (rawCnic ? rawCnic.trim() : 'NOT_RECORDED'),
       cleanCnic: details.raw,
@@ -7468,7 +7468,7 @@ export function generateEquipmentRetrievalHtml(record, { format = 'standard' } =
       <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0e5b4d; padding-bottom: 12px; margin-bottom: 18px;">
         <div>
           <h2 style="margin: 0; color: #0e5b4d; font-size: 22px; text-transform: uppercase;">SHAHDARA FIBER BROADBAND SERVICES</h2>
-          <p style="margin: 3px 0; font-size: 13px; color: #64748b;">Licensed Local Internet Service Provider · Shahdara Lahore</p>
+          <p style="margin: 3px 0; font-size: 13px; color: #64748b;">Licensed Local Internet Service Provider · Shahdara Islamabad</p>
           <h3 style="margin: 6px 0 0; color: #1e293b; font-size: 16px;">SUBSCRIBER EQUIPMENT CUSTODY &amp; RETRIEVAL MANIFEST</h3>
           <p style="margin: 2px 0; font-size: 13px; color: #0e5b4d; font-weight: bold;" dir="rtl">فردِ بازیابی و حوالگی سامان و آلاتِ نیٹ ورک</p>
         </div>

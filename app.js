@@ -197,6 +197,7 @@ import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonCharges
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { setupExpansionEstimatorModal } from './expansion-estimator.js';
 import { EXPENSE_BUDGETS_KEY, loadExpenseBudgets, saveExpenseBudgets } from './expense-budget-caps.js';
 import { FIELD_BAG_KEY, applyFieldBagStockBridge, computeBagStock, loadFieldBagMovements, saveFieldBagMovements, setupFieldBagModal } from './field-bag-stock.js';
 import { POLES_REGISTRY_KEY, loadPolesRegistry, poleRegistrySummary, savePolesRegistry, setupPoleRegistryModal } from './pole-asset-tracker.js';
@@ -12521,6 +12522,10 @@ if (typeof document !== 'undefined') {
   });
   $('#qrScanTopbarBtn')?.addEventListener('click', () => qrScannerModalController?.open());
   $('#fieldModeScanQrBtn')?.addEventListener('click', () => qrScannerModalController?.open());
+  // SISP-135: new-street expansion estimator — a pure planning dialog;
+  // it only reads state for recorded-data prefill defaults and never
+  // writes anything back.
+  setupExpansionEstimatorModal(() => state);
   // SISP-83: receipt verification lookup — the operator types the VER
   // code (or receipt number) printed on a paper receipt; the pure
   // lookup in receipt-verifier.js recomputes codes from the saved

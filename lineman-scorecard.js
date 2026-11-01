@@ -10,10 +10,13 @@
  *
  * ATTRIBUTION — only fields that really exist in the data model are used:
  * - Complaints/tickets resolved: complaint-tickets.js (SISP-12) tickets
- *   carry a free-text `technician`. The SISP-15 complaint register has NO
- *   lineman field, so a register complaint counts for a lineman only
- *   through a ticket linked to it (ticket.complaintId) — and the linked
- *   pair is one job, counted once, never twice.
+ *   carry a free-text `technician`. A register complaint counts for a
+ *   lineman through a ticket linked to it (ticket.complaintId) — and
+ *   the linked pair is one job, counted once, never twice. SISP-173: a
+ *   register complaint with NO linked ticket can instead name its
+ *   resolver directly (resolvedByLineman on the register entry); the
+ *   field is inert the moment any ticket links to the complaint, so a
+ *   synced pair still attributes only via the ticket.
  * - Petty cash spent: roznamcha.js (SISP-11) outflows carry `lineman` +
  *   `category` on a dated day record.
  * - Cash collected: payments carry NO lineman field — the only recorded
@@ -21,9 +24,12 @@
  *   method ("Cash at <Name> shop", see shop-settlement.js
  *   resolveShopCollector). They get their own collector cards. Voided
  *   payments (SISP-34) never count as collected cash.
- * - New connections: customers record connectionDate / addedOn (PR #398)
- *   but NO installer name, so the scorecard reports the month total only
- *   — it is never split per lineman.
+ * - New connections: the month total uses connectionDate / addedOn
+ *   (PR #398). SISP-173: customers can record who installed the
+ *   connection (installedByLineman, optional free text on the profile),
+ *   so the total now splits per installer; connections without a
+ *   recorded installer stay in an explicit "Team / not recorded"
+ *   bucket, and split + bucket always sum back to the team total.
  *
  * Read-only aggregation: no storage key, no writes, no data changes.
  * All builders are pure; setupLinemanScorecardModal is the DOM controller
@@ -123,15 +129,18 @@ function monthOfDate(value) {
  * Per-lineman monthly scorecards.
  *
  * People are discovered from the attribution fields themselves: every
- * ticket `technician` and every roznamcha outflow `lineman`, across ALL
- * months — so a lineman with no activity in the target month still gets a
- * card of zeros instead of silently vanishing. Names are grouped by
- * linemanNameKey; the display name is the first-seen original spelling.
+ * ticket `technician`, every roznamcha outflow `lineman`, every customer
+ * `installedByLineman` and every unlinked complaint's
+ * `resolvedByLineman`, across ALL months — so a lineman with no activity
+ * in the target month still gets a card of zeros instead of silently
+ * vanishing. Names are grouped by linemanNameKey; the display name is
+ * the first-seen original spelling.
  *
- * @param {{tickets?: Array, complaints?: Array, roznamchaDays?: Array}} sources
+ * @param {{tickets?: Array, complaints?: Array, roznamchaDays?: Array, customers?: Array}} sources
  * @param {string} month YYYY-MM
- * @returns {Array<{name, key, complaintsResolved, ticketsResolved,
- *   ticketsOpen, pettyCashSpent, pettyCashByCategory: Array<{category, amount}>}>}
+ * @returns {Array<{name, key, complaintsResolved, directComplaintsResolved,
+ *   ticketsResolved, ticketsOpen, newConnections, pettyCashSpent,
+ *   pettyCashByCategory: Array<{category, amount}>}>}
  *   Sorted by complaints resolved desc, then petty cash desc, then name.
  */
 export function buildLinemanScorecards(sources = {}, month, referenceDate = new Date()) {
@@ -139,6 +148,13 @@ export function buildLinemanScorecards(sources = {}, month, referenceDate = new 
   const tickets = sanitizeTickets(Array.isArray(sources?.tickets) ? sources.tickets : []);
   const complaints = sanitizeComplaints(Array.isArray(sources?.complaints) ? sources.complaints : []);
   const days = sanitizeRoznamchaDays(Array.isArray(sources?.roznamchaDays) ? sources.roznamchaDays : []);
+  const customers = Array.isArray(sources?.customers) ? sources.customers : [];
+
+  // Every complaint any ticket links to (SISP-44 pairs). Membership here
+  // decides a complaint's attribution channel: the ticket's technician
+  // when linked, the register's own resolvedByLineman when not.
+  const linkedComplaintIdsAll = new Set();
+  for (const ticket of tickets) if (ticket.complaintId) linkedComplaintIdsAll.add(ticket.complaintId);
 
   const people = new Map();
   const ensure = (rawName) => {
@@ -149,8 +165,10 @@ export function buildLinemanScorecards(sources = {}, month, referenceDate = new 
         name: cleanText(rawName).replace(/\s+/g, ' '),
         key,
         complaintsResolved: 0,
+        directComplaintsResolved: 0,
         ticketsResolved: 0,
         ticketsOpen: 0,
+        newConnections: 0,
         pettyCashSpent: 0,
         pettyCashByCategory: []
       });
@@ -161,6 +179,17 @@ export function buildLinemanScorecards(sources = {}, month, referenceDate = new 
   for (const ticket of tickets) ensure(ticket.technician);
   for (const day of days) {
     for (const outflow of (day.outflows || [])) ensure(outflow.lineman);
+  }
+  // SISP-173: people are also discovered from installer attribution on
+  // customers and from direct register resolutions, so a lineman whose
+  // only trace is installs or ticket-less fixes still gets a card. A
+  // LINKED complaint's register field is inert, so it never discovers
+  // (or credits) a second person for a synced pair.
+  for (const customer of customers) {
+    if (customer && typeof customer === 'object') ensure(customer.installedByLineman);
+  }
+  for (const complaint of complaints) {
+    if (!linkedComplaintIdsAll.has(complaint.id)) ensure(complaint.resolvedByLineman);
   }
 
   // Complaints resolved: union of resolved-in-month work items. A resolved
@@ -188,7 +217,33 @@ export function buildLinemanScorecards(sources = {}, month, referenceDate = new 
       if (monthOfDateTime(complaint.resolvedAt) !== targetMonth) continue;
       if (linkedComplaintIds.has(complaint.id)) itemKeys.add(`cmp:${complaint.id}`);
     }
+    // SISP-173: direct register work — a resolved complaint with NO
+    // linked ticket attributes to the lineman named on the register
+    // entry itself. Linked complaints are skipped on purpose: they
+    // already entered via the ticket above, so the pair stays one job.
+    let directCount = 0;
+    for (const complaint of complaints) {
+      if (complaint.status !== 'Resolved') continue;
+      if (monthOfDateTime(complaint.resolvedAt) !== targetMonth) continue;
+      if (linkedComplaintIdsAll.has(complaint.id)) continue;
+      if (linemanNameKey(complaint.resolvedByLineman) !== person.key) continue;
+      const itemKey = `cmp:${complaint.id}`;
+      if (!itemKeys.has(itemKey)) { itemKeys.add(itemKey); directCount += 1; }
+    }
+    person.directComplaintsResolved = directCount;
     person.complaintsResolved = itemKeys.size;
+
+    // SISP-173: new connections this lineman installed in the month
+    // (join month = connectionDate first, then addedOn — the same rule
+    // countNewConnections uses for the team total).
+    let installed = 0;
+    for (const customer of customers) {
+      if (!customer || typeof customer !== 'object') continue;
+      const joined = monthOfDate(customer.connectionDate) || monthOfDate(customer.addedOn);
+      if (joined !== targetMonth) continue;
+      if (linemanNameKey(customer.installedByLineman) === person.key) installed += 1;
+    }
+    person.newConnections = installed;
   }
 
   // Petty cash: roznamcha outflows on days inside the target month.
@@ -256,8 +311,9 @@ export function buildCollectorScorecards(state, month, referenceDate = new Date(
 
 /**
  * New connections recorded in a month (PR #398 dating: connectionDate
- * first, then addedOn — the dashboard.js join-month rule). Customers carry
- * no installer name, so this is a team total only.
+ * first, then addedOn — the dashboard.js join-month rule). This is the
+ * team total; splitNewConnectionsByInstaller breaks the same total down
+ * per installer.
  */
 export function countNewConnections(customers, month, referenceDate = new Date()) {
   const targetMonth = normalizeScorecardMonth(month, referenceDate);
@@ -270,14 +326,46 @@ export function countNewConnections(customers, month, referenceDate = new Date()
   return count;
 }
 
+/**
+ * SISP-173: the month's new connections split by the installer recorded
+ * on each customer (installedByLineman, grouped by linemanNameKey).
+ * Conservation invariant: sum(byInstaller.count) + unrecorded === total,
+ * and total === countNewConnections for the same input — connections
+ * with no recorded installer are never dropped, they land in the
+ * explicit unrecorded ("Team / not recorded") bucket.
+ *
+ * @returns {{total: number, byInstaller: Array<{name, key, count}>, unrecorded: number}}
+ *   byInstaller sorted by count desc, then name.
+ */
+export function splitNewConnectionsByInstaller(customers, month, referenceDate = new Date()) {
+  const targetMonth = normalizeScorecardMonth(month, referenceDate);
+  const byKey = new Map();
+  let unrecorded = 0;
+  let total = 0;
+  for (const customer of (Array.isArray(customers) ? customers : [])) {
+    if (!customer || typeof customer !== 'object') continue;
+    const joined = monthOfDate(customer.connectionDate) || monthOfDate(customer.addedOn);
+    if (joined !== targetMonth) continue;
+    total += 1;
+    const key = linemanNameKey(customer.installedByLineman);
+    if (!key) { unrecorded += 1; continue; }
+    const entry = byKey.get(key) || { name: cleanText(customer.installedByLineman).replace(/\s+/g, ' '), key, count: 0 };
+    entry.count += 1;
+    byKey.set(key, entry);
+  }
+  const byInstaller = [...byKey.values()].sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  return { total, byInstaller, unrecorded };
+}
+
 /** The full monthly scorecard bundle the dashboard card + modal render. */
 export function buildMonthlyScorecard({ state, tickets, complaints, roznamchaDays } = {}, month, referenceDate = new Date()) {
   const targetMonth = normalizeScorecardMonth(month, referenceDate);
   return {
     month: targetMonth,
-    linemen: buildLinemanScorecards({ tickets, complaints, roznamchaDays }, targetMonth),
+    linemen: buildLinemanScorecards({ tickets, complaints, roznamchaDays, customers: state?.customers }, targetMonth),
     collectors: buildCollectorScorecards(state, targetMonth),
-    newConnections: countNewConnections(state?.customers, targetMonth)
+    newConnections: countNewConnections(state?.customers, targetMonth),
+    newConnectionsSplit: splitNewConnectionsByInstaller(state?.customers, targetMonth)
   };
 }
 
@@ -311,7 +399,10 @@ export function setupLinemanScorecardModal(getState) {
 
     const newConnEl = $('linemanScorecardNewConnections');
     if (newConnEl) {
+      const split = scorecard.newConnectionsSplit || { byInstaller: [], unrecorded: 0 };
       newConnEl.innerHTML = `<p><span>${escapeHtml(t('lineman_new_connections', null, { count: scorecard.newConnections }))}</span></p>`
+        + split.byInstaller.map((entry) => `<p><span>${escapeHtml(t('lineman_new_connections_installer', null, { name: entry.name }))}</span><strong>${entry.count}</strong></p>`).join('')
+        + (split.unrecorded > 0 ? `<p><span>${escapeHtml(t('lineman_new_connections_unrecorded'))}</span><strong>${split.unrecorded}</strong></p>` : '')
         + `<p class="lineman-note">${escapeHtml(t('lineman_new_connections_note'))}</p>`;
     }
 
@@ -325,6 +416,7 @@ export function setupLinemanScorecardModal(getState) {
             <p><span>${escapeHtml(t('lineman_complaints_resolved'))}</span><strong>${person.complaintsResolved}</strong></p>
             <p><span>${escapeHtml(t('lineman_tickets_resolved'))}</span><strong>${person.ticketsResolved}</strong></p>
             <p><span>${escapeHtml(t('lineman_tickets_open'))}</span><strong>${person.ticketsOpen}</strong></p>
+            <p><span>${escapeHtml(t('lineman_installed_count'))}</span><strong>${person.newConnections}</strong></p>
             <p><span>${escapeHtml(t('lineman_petty_spent'))}</span><strong>${escapeHtml(formatScorecardPKR(person.pettyCashSpent))}</strong></p>
             ${person.pettyCashByCategory.map((line) => `<p class="lineman-sub"><span>${escapeHtml(line.category)}</span><strong>${escapeHtml(formatScorecardPKR(line.amount))}</strong></p>`).join('')}
           </article>`).join('');

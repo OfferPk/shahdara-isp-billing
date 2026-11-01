@@ -29,6 +29,14 @@
  * clears resolvedViaTicketId (the sync layer stamps it again after its
  * own calls), so manual resolutions are never overwritten by the sync.
  *
+ * SISP-173: a complaint with NO linked ticket can record who resolved
+ * it directly (resolvedByLineman, free text, set at resolve time or via
+ * the card's inline field) so the SISP-39 lineman scorecard can
+ * attribute direct register work. A complaint WITH a linked ticket is
+ * attributed only through the ticket's technician — this field is then
+ * inert, so a SISP-44 synced pair is still one job, counted once.
+ * Reopening clears the field, exactly like resolvedAt/downtime.
+ *
  * SISP-123: a complaint whose category has repeated for the same
  * customer within 60 days (register + standalone field tickets, SISP-44
  * pairs counted once) renders a root-cause banner prescribing the
@@ -212,6 +220,10 @@ export function sanitizeComplaints(value) {
       priority: entry.priority === 'Urgent' ? 'Urgent' : 'Normal',
       status,
       resolutionNote: cleanText(entry.resolutionNote),
+      // SISP-173: who resolved a ticket-less complaint directly
+      // (free text; empty = not recorded). Inert when a SISP-12 ticket
+      // links to this complaint — attribution then flows via the ticket.
+      resolvedByLineman: cleanText(entry.resolvedByLineman),
       // SISP-44: set only while this complaint's Resolved state was
       // produced by the ticket sync from that ticket (see header).
       resolvedViaTicketId: TICKET_ID_RE.test(String(entry.resolvedViaTicketId || '')) ? String(entry.resolvedViaTicketId) : '',
@@ -285,6 +297,7 @@ export function createComplaint(input, existing, referenceDate = new Date()) {
     priority: input?.priority === 'Urgent' ? 'Urgent' : 'Normal',
     status: 'Open',
     resolutionNote: cleanText(input?.resolutionNote),
+    resolvedByLineman: '',
     resolvedViaTicketId: '',
     syncReopenGuard: '',
     followUpSentAt: null,
@@ -340,6 +353,11 @@ export function setComplaintStatus(list, id, status, options = {}) {
     if (DATE_TIME_RE.test(String(options.resolvedAt || ''))) entry.resolvedAt = String(options.resolvedAt);
     else if (!entry.resolvedAt) entry.resolvedAt = pakistanDateTimeNow(options.referenceDate);
     if (typeof options.resolutionNote === 'string') entry.resolutionNote = cleanText(options.resolutionNote);
+    // SISP-173: the resolver's name can ride the resolve call (the
+    // register card passes its inline "Resolved by" input). Ticket-sync
+    // resolutions never pass it — a linked complaint attributes via the
+    // ticket, so this field stays whatever it was (inert either way).
+    if (typeof options.resolvedByLineman === 'string') entry.resolvedByLineman = cleanText(options.resolvedByLineman);
     if (!entry.downtimeManual) {
       const computed = computeDowntimeHours(entry.reportedAt, entry.resolvedAt);
       if (computed !== null) entry.downtimeHours = computed;
@@ -348,6 +366,8 @@ export function setComplaintStatus(list, id, status, options = {}) {
     entry.resolvedAt = '';
     entry.downtimeHours = null;
     entry.downtimeManual = false;
+    // SISP-173: reopening undoes the resolution, so its resolver goes too.
+    entry.resolvedByLineman = '';
     // SISP-104: followUpSentAt is deliberately NOT cleared — the
     // check-in was really sent, and the stamp keeps this complaint
     // out of the post-repair queue even after a later re-resolution.
@@ -357,7 +377,7 @@ export function setComplaintStatus(list, id, status, options = {}) {
 
 /**
  * Inline edits for reportedAt, resolvedAt, downtimeHours, resolutionNote,
- * zone and category. Editing downtimeHours directly marks it a manual
+ * resolvedByLineman, zone and category. Editing downtimeHours directly marks it a manual
  * override (later time edits no longer recompute it); editing a time
  * recomputes downtime for resolved complaints unless manually overridden.
  * Returns a NEW list.
@@ -370,6 +390,7 @@ export function updateComplaint(list, id, patch) {
   if (typeof patch.reportedAt === 'string' && DATE_TIME_RE.test(patch.reportedAt)) entry.reportedAt = patch.reportedAt;
   if (typeof patch.resolvedAt === 'string' && DATE_TIME_RE.test(patch.resolvedAt)) entry.resolvedAt = patch.resolvedAt;
   if (typeof patch.resolutionNote === 'string') entry.resolutionNote = cleanText(patch.resolutionNote);
+  if (typeof patch.resolvedByLineman === 'string') entry.resolvedByLineman = cleanText(patch.resolvedByLineman);
   if (typeof patch.zone === 'string') entry.zone = cleanText(patch.zone);
   if (COMPLAINT_CATEGORIES.includes(patch.issueCategory)) entry.issueCategory = patch.issueCategory;
   if (patch.downtimeHours !== undefined && patch.downtimeHours !== null && patch.downtimeHours !== '') {
@@ -594,6 +615,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         <p><span>Resolved</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="resolvedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolvedAt || '')}" aria-label="Resolved at" ${c.status !== 'Resolved' ? 'disabled' : ''}></p>
         <p><span>Downtime</span><span class="complaint-downtime-wrap"><input class="form-input complaint-inline-input complaint-downtime-input" type="number" min="0" step="0.25" data-complaint-field="downtimeHours" data-complaint-id="${escapeHtml(c.id)}" value="${c.downtimeHours === null || c.downtimeHours === undefined ? '' : escapeHtml(String(c.downtimeHours))}" placeholder="auto" aria-label="Downtime hours"><small>h${c.downtimeManual ? ' (manual)' : ''}</small></span></p>
         <p><span>Fix note</span><input class="form-input complaint-inline-input" type="text" data-complaint-field="resolutionNote" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolutionNote || '')}" placeholder="Permanent fix…" aria-label="Resolution note"></p>
+        <p><span>${escapeHtml(t('cmp_resolved_by_label'))}</span><input class="form-input complaint-inline-input" type="text" data-complaint-field="resolvedByLineman" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolvedByLineman || '')}" placeholder="—" aria-label="${escapeHtml(t('cmp_resolved_by_label'))}"></p>
         <div class="complaint-register-actions">${statusButtons(c, fixCollect)}${assignControls}</div>
       </article>`;
     }).join('');
@@ -730,7 +752,13 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       }
       try {
         let next;
-        if (action === 'resolve') next = setComplaintStatus(loadComplaints(), id, 'Resolved');
+        if (action === 'resolve') {
+          // SISP-173: capture the card's "Resolved by" name with the
+          // resolve itself, so attribution never needs a second save.
+          const card = listEl.querySelector(`article[data-complaint-id="${CSS.escape(id)}"]`);
+          const byInput = card ? card.querySelector('[data-complaint-field="resolvedByLineman"]') : null;
+          next = setComplaintStatus(loadComplaints(), id, 'Resolved', byInput ? { resolvedByLineman: byInput.value } : {});
+        }
         else if (action === 'start') next = setComplaintStatus(loadComplaints(), id, 'In Progress');
         else if (action === 'reopen') next = setComplaintStatus(loadComplaints(), id, 'Open');
         else return;

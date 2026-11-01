@@ -878,7 +878,7 @@ export function generateBillingAuditHtml(auditData, { format = 'A4' } = {}) {
       <td>
         <div class="brand-title">SHAHDARA BROADBAND &amp; FIBER NETWORKS</div>
         <div style="font-size:11px; color:#475569;">OFFICIAL BILLING AUDIT &amp; LEDGER RECONCILIATION STATEMENT</div>
-        <div style="font-size:10px; color:#64748b;">Shahdara Town, Vandala Road, Begum Kot, Jia Musa Nodes · Lahore, Pakistan</div>
+        <div style="font-size:10px; color:#64748b;">Shahdara Town, Vandala Road, Begum Kot, Jia Musa Nodes · Islamabad, Pakistan</div>
       </td>
       <td style="text-align: right;">
         <div class="brand-urdu">سرٹیفکیٹ برائے بلنگ تصدیق و درستگی کھاتہ جات</div>

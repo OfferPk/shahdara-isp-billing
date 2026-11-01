@@ -2,7 +2,7 @@ import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES
 import { createBillPackageSnapshot, validateBillPackageSnapshot, BILL_PACKAGES } from './package-catalog.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeReceiptFooter, getDefaultReceiptFooter } from './receipt-footer-studio.js';
-import { sanitizeBranchGuard, sanitizeBranchGuardStamp, classifyBranchGuardRestore, fingerprintState } from './branch-guard.js';
+import { sanitizeBranchGuard, sanitizeBranchGuardStamp, classifyBranchGuardRestore, fingerprintState, computeReceiptDelta } from './branch-guard.js';
 import { sanitizeShopSettlements } from './shop-settlement.js';
 import { normalizeTid } from './wallet-reconciliation.js';
 import { sanitizeComplaints } from './complaint-register.js';
@@ -4163,6 +4163,11 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
   const branchGuard = { ...branchGuardVerdict, stamp: branchGuardStamp };
   const branchGuardOverrideApplied = branchGuard.blocked && options?.branchGuardOverride === true;
   const incomingState = validateBackupState(document.state);
+  // SISP-183: side-by-side receipt delta for the preview UI, computed
+  // with the merge's own dedup identity (customer id + bill month +
+  // payment id, see branch-guard.js). Display only — it never feeds
+  // the guard verdict, the merge, or canApply.
+  const receiptDelta = computeReceiptDelta(existingState, incomingState);
   const current = deepCopy(existingState);
   const conflicts = [];
   const counts = { addedCustomers:0, mergedCustomers:0, addedBills:0, addedPayments:0, addedIncidents:0, addedInventoryItems:0, addedInventoryMovements:0, addedExpenses:0, addedSaadAttendanceDays:0, addedUmairWorkdays:0, addedMonthlyClosings:0, filledProfileFields:0, digitalPaymentsSettingsRestored:0, receiptFooterRestored:0, shopSettlementsRestored:0, complaintsRestored:0, roznamchaDaysRestored:0, ticketsRestored:0, monthlyClosingNotesRestored:0, emergencyRunbookRestored:0, splitterBoxGpsRestored:0, partnerLedgerRestored:0, partnerSettlementsRestored:0, charityReserveRestored:0, partnerSettingsRestored:0, voidPaymentsRestored:0, homeBudgetRestored:0, waTemplatesRestored:0, splitterPolishRestored:0, commissionRulesRestored:0, changes:0 };  const addConflict = (customer, field) => conflicts.push({ customerNumber:customer.customerNumber, name:customer.name, field });  const nonempty = value => !(value === null || value === undefined || value === '');  const mergeField = (target, source, key, customer) => {
@@ -5437,5 +5442,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, converterSides, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, emergencyRunbook, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, splitterPolish, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, converterSides, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, emergencyRunbook, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, splitterPolish, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied, receiptDelta };
 }

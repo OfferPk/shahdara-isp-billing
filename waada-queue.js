@@ -86,32 +86,51 @@ export function addWaadaDays(dateStr, days) {
 }
 
 /**
- * The "10th of Month" chip date: the 10th of the current month when today is
- * on or before the 10th, otherwise the 10th of next month (a promise date in
- * the past would instantly read as broken, so it always lands in the future).
+ * A day-of-month chip date: that day of the current month when today is on
+ * or before it, otherwise the same day of next month (a promise date in the
+ * past would instantly read as broken, so it always lands in the future).
  */
-export function tenthOfMonthWaadaDate(todayStr) {
+export function dayOfMonthWaadaDate(todayStr, dayOfMonth) {
   const parts = parseWaadaParts(todayStr);
-  if (!parts) return null;
-  if (parts.day <= 10) return formatWaadaYmd(parts.year, parts.month, 10);
+  const day = Math.floor(Number(dayOfMonth));
+  if (!parts || !Number.isFinite(day) || day < 1 || day > 28) return null;
+  if (parts.day <= day) return formatWaadaYmd(parts.year, parts.month, day);
   let year = parts.year;
   let month = parts.month + 1;
   if (month > 12) {
     month = 1;
     year += 1;
   }
-  return formatWaadaYmd(year, month, 10);
+  return formatWaadaYmd(year, month, day);
 }
 
 /**
- * One-tap chip dates. chip: 'plus2' | 'plus5' | 'tenth' | 'custom'.
+ * The "10th of Month" chip date: the 10th of the current month when today is
+ * on or before the 10th, otherwise the 10th of next month (a promise date in
+ * the past would instantly read as broken, so it always lands in the future).
+ */
+export function tenthOfMonthWaadaDate(todayStr) {
+  return dayOfMonthWaadaDate(todayStr, 10);
+}
+
+/** The "15th of Month" chip date — same rule as the 10th, for the 15th. */
+export function fifteenthOfMonthWaadaDate(todayStr) {
+  return dayOfMonthWaadaDate(todayStr, 15);
+}
+
+/**
+ * One-tap chip dates. chip: 'plus2' | 'plus5' | 'tenth' | 'custom', plus the
+ * SISP-126 remainder-waada chips 'plus3' | 'plus7' | 'fifteenth'.
  * Returns a YYYY-MM-DD string, or null for an unknown chip / invalid input.
  */
 export function computeWaadaChipDate(chip, todayStr, customDate = null) {
   if (!isValidWaadaDate(todayStr)) return null;
   if (chip === 'plus2') return addWaadaDays(todayStr, 2);
   if (chip === 'plus5') return addWaadaDays(todayStr, 5);
+  if (chip === 'plus3') return addWaadaDays(todayStr, 3);
+  if (chip === 'plus7') return addWaadaDays(todayStr, 7);
   if (chip === 'tenth') return tenthOfMonthWaadaDate(todayStr);
+  if (chip === 'fifteenth') return fifteenthOfMonthWaadaDate(todayStr);
   if (chip === 'custom') return isValidWaadaDate(customDate) ? customDate.trim() : null;
   return null;
 }
@@ -142,6 +161,105 @@ export function clearCustomerWaada(customer) {
   delete next.promiseAmount;
   delete next.promiseNote;
   return next;
+}
+
+// ---------------------------------------------------------------------------
+// SISP-126: Partial Payment "Remainder Waada" — when a collection leaves a
+// balance behind, the collector can promise the REST with one tap. The
+// promise itself is an ordinary SISP-3 waada written through
+// setCustomerWaada above (promiseDate / promiseAmount / promiseNote on the
+// customer); this section only holds the shared pure arithmetic so the
+// Quick Collect modal and Field Mode compute the remainder identically.
+// The remainder ALWAYS derives from the caller's engine figure (the same
+// total due the collect surface displays) minus the amount being paid —
+// never from a second hand-summed computation here.
+// ---------------------------------------------------------------------------
+
+/** Marker note stamped on every remainder waada (and on the payment stamp). */
+export const REMAINDER_WAADA_NOTE = 'Remainder waada — partial payment';
+
+/**
+ * The remainder of a partial payment: totalDue − amountPaid, in PKR rounded
+ * to cents. Returns { remainder } ONLY for a true partial
+ * (0 < amountPaid < totalDue); null for a full payment, an overpayment, a
+ * zero/invalid amount, or no due at all — in those cases no waada row shows
+ * and no promise may be written.
+ */
+export function computeRemainderWaada(totalDue, amountPaid) {
+  const due = Number(totalDue);
+  const paid = Number(amountPaid);
+  if (!Number.isFinite(due) || !Number.isFinite(paid)) return null;
+  if (due <= 0 || paid <= 0 || paid >= due) return null;
+  const remainder = Math.round((due - paid) * 100) / 100;
+  return remainder > 0 ? { remainder } : null;
+}
+
+/**
+ * The four remainder-waada chip dates for a payment made on baseDateStr
+ * (the payment's own date, YYYY-MM-DD): +3 days, +7 days, the 10th and the
+ * 15th (this month's when still ahead, otherwise next month's — a chip
+ * never offers a past date). Returns null for an invalid base date.
+ */
+export function remainderWaadaChipDates(baseDateStr) {
+  if (!isValidWaadaDate(baseDateStr)) return null;
+  const base = baseDateStr.trim();
+  return {
+    plus3: addWaadaDays(base, 3),
+    plus7: addWaadaDays(base, 7),
+    tenth: tenthOfMonthWaadaDate(base),
+    fifteenth: fifteenthOfMonthWaadaDate(base)
+  };
+}
+
+/**
+ * Reads the remainder-waada stamp a partial payment carries
+ * (payment.remainderWaada = { promiseDate, promiseAmount, previousWaada? },
+ * written by the collect recorder in the same save as the payment itself).
+ * Returns a validated { promiseDate, promiseAmount } or null — receipts and
+ * the void path trust only this reader, never the raw stamp.
+ */
+export function remainderWaadaOf(payment) {
+  const stamp = payment?.remainderWaada;
+  if (!stamp || typeof stamp !== 'object') return null;
+  const promiseDate = typeof stamp.promiseDate === 'string' ? stamp.promiseDate.trim() : '';
+  const promiseAmount = Number(stamp.promiseAmount);
+  if (!isValidWaadaDate(promiseDate)) return null;
+  if (!Number.isFinite(promiseAmount) || promiseAmount <= 0) return null;
+  return { promiseDate, promiseAmount: Math.round(promiseAmount * 100) / 100 };
+}
+
+/**
+ * True when the customer's live promise is still exactly the remainder
+ * waada a stamp describes (same date, same amount, the remainder marker
+ * note) — the void/undo paths use this so they only ever roll back the
+ * promise the payment itself set, never a newer one set afterwards.
+ */
+export function isRemainderWaadaCurrent(customer, stamp) {
+  if (!customer || typeof customer !== 'object' || !stamp) return false;
+  return customer.promiseDate === stamp.promiseDate
+    && Number(customer.promiseAmount) === Number(stamp.promiseAmount)
+    && String(customer.promiseNote ?? '') === REMAINDER_WAADA_NOTE;
+}
+
+/**
+ * The promise a remainder waada replaced, as kept on the payment stamp
+ * (previousWaada), validated for the void/undo restore paths. Returns
+ * { promiseDate, promiseAmount, promiseNote } or null when the stamp holds
+ * no usable previous promise.
+ */
+export function remainderWaadaPreviousOf(payment) {
+  const prev = payment?.remainderWaada?.previousWaada;
+  if (!prev || typeof prev !== 'object') return null;
+  const promiseDate = typeof prev.promiseDate === 'string' ? prev.promiseDate.trim() : '';
+  if (!isValidWaadaDate(promiseDate)) return null;
+  const amount = prev.promiseAmount === null || prev.promiseAmount === undefined || prev.promiseAmount === ''
+    ? null
+    : Number(prev.promiseAmount);
+  return {
+    promiseDate,
+    promiseAmount: Number.isFinite(amount) ? amount : null,
+    promiseNote: String(prev.promiseNote ?? '')
+  };
 }
 
 /**

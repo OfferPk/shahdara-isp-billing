@@ -172,6 +172,15 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     value: remaining === null ? '—' : money(remaining),
     strong: true,
   });
+  // SISP-126: the remainder waada set with this partial payment (amount
+  // from the payment's own stamp via the receipt snapshot, never the
+  // recomputed balance above).
+  if (receipt.remainderWaada) {
+    financial.push({
+      label: 'Remainder Waada / بقیہ وعدہ',
+      value: `${money(receipt.remainderWaada.promiseAmount)} · ${text(receipt.remainderWaada.promiseDate)}`,
+    });
+  }
 
   // SISP-96: the owner-configured receipt footer lines (ONE builder in
   // receipt-footer-studio.js, shared by every receipt format). The slip

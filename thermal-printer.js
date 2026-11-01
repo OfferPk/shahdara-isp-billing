@@ -131,6 +131,9 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   if (fields.amount) push(rowLine('AMOUNT PAID', fields.amount, width));
   if (fields.balanceDue) push(rowLine('Balance due', fields.balanceDue, width));
   if (fields.statusLabel) push(rowLine('Status', fields.statusLabel, width));
+  // SISP-126: the remainder waada line ("Baqi Rs. X • Waada: DATE"),
+  // pre-formatted by the caller; wrapped like the other free-text lines.
+  if (fields.remainderWaadaLine) for (const l of wrapText(fields.remainderWaadaLine, width)) push(l);
   push(divider);
   const footer = fields.footerNote || 'Thank you! Please keep this receipt.';
   for (const l of wrapText(footer, width)) push(center(l, width));
@@ -225,6 +228,11 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
 
     balanceDue: balance,
     statusLabel: receipt.status || '',
+    // SISP-126: the remainder waada set with this payment, when the
+    // receipt snapshot carries one (receipt.js validates the stamp).
+    remainderWaadaLine: (receipt.remainderWaada && receipt.remainderWaada.promiseDate)
+      ? `Baqi Rs. ${Number(receipt.remainderWaada.promiseAmount || 0).toLocaleString('en-PK')} • Waada: ${receipt.remainderWaada.promiseDate}`
+      : '',
     // SISP-2: itemized arrears breakdown (passed through from the receipt
     // object built by buildPaymentReceipt); rendered below by buildEscPosReceipt.
     arrearsPackage: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.packageAmount) : '',

@@ -29,6 +29,13 @@
  *      Payments recorded before SISP-34 carry no stamp, so their cleared
  *      promises cannot be recovered by a void; the operator re-sets those
  *      manually (the void record says promiseRestored: false).
+ *   3b. Remainder Waada (SISP-126): a partial payment that set a
+ *      remainder waada carries a payment.remainderWaada stamp (plus the
+ *      promise it replaced). Voiding it reverts that promise — restoring
+ *      the replaced one when the stamp kept it, otherwise clearing —
+ *      but ONLY while the live promise is still exactly that remainder
+ *      waada, so a newer promise is never clobbered (the void record
+ *      says remainderWaadaReverted).
  *   4. The void itself is logged in localStorage under VOIDED_PAYMENTS_KEY
  *      (sisp_voided_payments_v1) and travels in JSON backups via the
  *      `settings.voidPayments` section (see core.js createJsonBackup).
@@ -59,6 +66,11 @@
 export const VOIDED_PAYMENTS_KEY = 'sisp_voided_payments_v1';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// SISP-126: the marker note a remainder waada carries. Must match
+// REMAINDER_WAADA_NOTE in waada-queue.js — duplicated here (like the
+// Intl date pattern in waada-queue.js) so this module stays import-free.
+const REMAINDER_WAADA_NOTE_TEXT = 'Remainder waada — partial payment';
 
 function moneyValue(value) {
   const n = Number(value);
@@ -185,6 +197,9 @@ export function sanitizeVoidPayments(value) {
       voidedAt: typeof entry.voidedAt === 'string' ? entry.voidedAt : '',
       promiseRestored: entry.promiseRestored === true,
       restoredPromiseDate: typeof entry.restoredPromiseDate === 'string' ? entry.restoredPromiseDate : '',
+      // SISP-126: kept only when a remainder waada was actually reverted,
+      // so pre-SISP-126 void records sanitize byte-identically.
+      ...(entry.remainderWaadaReverted === true ? { remainderWaadaReverted: true } : {}),
       // SISP-101: the fee-restoration pair is emitted ONLY on records
       // that actually restored a waived late fee — every pre-SISP-101
       // void record stays byte-identical through this sanitizer.
@@ -241,6 +256,29 @@ export function voidPayment(state, customerId, month, paymentId, options = {}) {
     && typeof stamp.promiseDate === 'string' && DATE_RE.test(stamp.promiseDate.trim())
     && !hasCurrentPromise;
 
+  // SISP-126: a partial payment that set a Remainder Waada carries a
+  // remainderWaada stamp. Voiding it rolls that promise back — but ONLY
+  // while the customer's live promise is still exactly that remainder
+  // waada (same date, amount and marker note); a promise set afterwards
+  // is never clobbered, mirroring the clearedWaada discipline above.
+  const remStamp = payment.remainderWaada && typeof payment.remainderWaada === 'object'
+    ? payment.remainderWaada
+    : null;
+  const remDate = remStamp && typeof remStamp.promiseDate === 'string' ? remStamp.promiseDate.trim() : '';
+  const remAmount = remStamp ? Number(remStamp.promiseAmount) : NaN;
+  const remainderWaadaLive = !!remStamp
+    && DATE_RE.test(remDate)
+    && Number.isFinite(remAmount) && remAmount > 0
+    && !restorePromise
+    && customer.promiseDate === remDate
+    && Number(customer.promiseAmount) === remAmount
+    && String(customer.promiseNote ?? '') === REMAINDER_WAADA_NOTE_TEXT;
+  const remPrevious = remainderWaadaLive && remStamp.previousWaada && typeof remStamp.previousWaada === 'object'
+    ? remStamp.previousWaada
+    : null;
+  const remPreviousDate = remPrevious && typeof remPrevious.promiseDate === 'string'
+    ? remPrevious.promiseDate.trim()
+    : '';
   // SISP-101: restore the waived late fee from the payment's stamp —
   // only when the stamp names THIS bill and the bill carries no late
   // fee now (a fee the owner applied after the waiver is never
@@ -281,6 +319,8 @@ export function voidPayment(state, customerId, month, paymentId, options = {}) {
     voidedAt,
     promiseRestored: restorePromise,
     restoredPromiseDate: restorePromise ? stamp.promiseDate.trim() : '',
+    // SISP-126: present only when this void reverted a remainder waada.
+    ...(remainderWaadaLive ? { remainderWaadaReverted: true } : {}),
     // SISP-101: stamped only when this void actually restored a waived
     // late fee (same conditional-emission rule as the sanitizer above),
     // so ordinary void records keep their pre-SISP-101 shape.
@@ -307,6 +347,29 @@ export function voidPayment(state, customerId, month, paymentId, options = {}) {
       nextCustomer.promiseNote = stamp.promiseNote;
     }
   }
+  if (remainderWaadaLive) {
+    // Roll the remainder waada back: restore the promise it replaced
+    // when the stamp kept one (field by field — an absent amount/note
+    // on the old promise means the field goes away), otherwise clear.
+    if (remPrevious && DATE_RE.test(remPreviousDate)) {
+      nextCustomer.promiseDate = remPreviousDate;
+      if (remPrevious.promiseAmount !== null && remPrevious.promiseAmount !== undefined && remPrevious.promiseAmount !== '') {
+        nextCustomer.promiseAmount = remPrevious.promiseAmount;
+      } else {
+        delete nextCustomer.promiseAmount;
+      }
+      if (typeof remPrevious.promiseNote === 'string' && remPrevious.promiseNote !== '') {
+        nextCustomer.promiseNote = remPrevious.promiseNote;
+      } else {
+        delete nextCustomer.promiseNote;
+      }
+    } else {
+      delete nextCustomer.promiseDate;
+      delete nextCustomer.promiseAmount;
+      delete nextCustomer.promiseNote;
+    }
+  }
+
   if (restoreLateFee) {
     nextBill.lateFee = waiverStamp.lateFee;
     nextBill.lateFeeAppliedAt = waiverStamp.lateFeeAppliedAt;

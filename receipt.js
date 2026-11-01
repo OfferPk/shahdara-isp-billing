@@ -7,6 +7,7 @@ import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { remainderWaadaOf } from './waada-queue.js';
 import { evaluateStarTimelyPayer, starReceiptThankYouNote } from './star-subscribers.js';
 import { buildReceiptFooterHtml } from './receipt-footer-studio.js';
 import { receiptCodeForReceipt, receiptVerificationCode, verificationStampText } from './receipt-verifier.js';
@@ -250,6 +251,10 @@ export function buildPaymentReceipt(customer, bill, payment) {
       if (!terms) return null;
       return { months: terms.months, gross: terms.gross, rate: terms.rate, startMonth: terms.startMonth, discount: positiveAmount(payment.discount) || 0, cashPaid: positiveAmount(payment.amount) };
     })(),
+    // SISP-126: the remainder waada set with this partial payment (from
+    // the payment's stamp, read through the validating reader). Null on
+    // every other receipt, so receipts without one render byte-identical.
+    remainderWaada: remainderWaadaOf(payment),
     // SISP-116: khula-paisa change kept as advance credit (0 on every
     // ordinary receipt, so non-overpayment receipts stay byte-identical).
     looseChangeCredit: looseChangeCreditValue,
@@ -311,6 +316,14 @@ const looseChangeReceiptRows = (receipt, formatAmount) => {
 const ticketChargeReceiptRows = (receipt, formatAmount) => {
   const lines = Array.isArray(receipt?.ticketCharges) ? receipt.ticketCharges : [];
   return lines.map((line) => `<div class="receipt-field"><dt>Murammat / Material Charge (${escapeHtml(line.ticketId)}):</dt><dd>${formatAmount(line.amount)}</dd></div>`).join('');
+};
+
+// SISP-126: the remainder waada row for the HTML receipt layouts —
+// "Baqi Rs. X • Waada: DATE" under the Baqi label. Empty when the payment
+// set no remainder waada, so ordinary receipts render exactly as before.
+const remainderWaadaReceiptRows = (receipt, formatAmount) => {
+  if (!receipt?.remainderWaada) return '';
+  return `<div class="receipt-field"><dt>Baqi / باقی رقم:</dt><dd>Rs. ${escapeHtml(Number(receipt.remainderWaada.promiseAmount).toLocaleString('en-PK'))} • Waada: ${escapeHtml(receipt.remainderWaada.promiseDate)}</dd></div>`;
 };
 
 // SISP-106: speed-boost add-on lines, beside the ticket-charge rows in
@@ -477,6 +490,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${looseChangeReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance / بقایا:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}">${escapeHtml(status)}</dd></div>
+    ${remainderWaadaReceiptRows(receipt, formatAmount)}
     ${verStamp ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>${escapeHtml(verStamp)}</strong></dd></div>` : ''}
   </dl>
   <div class="receipt-divider">--------------------------------</div>
@@ -528,6 +542,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${looseChangeReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance Due / باقی واجبات:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
     <div class="receipt-field"><dt>Receipt Status / بل کی حالت:</dt><dd class="${statusClass}"><strong>${escapeHtml(status)}</strong></dd></div>
+    ${remainderWaadaReceiptRows(receipt, formatAmount)}
     ${verStamp ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>${escapeHtml(verStamp)}</strong></dd></div>` : ''}
   </dl>
   <div class="receipt-divider">================================</div>
@@ -588,6 +603,7 @@ export function generatePaymentReceiptHtml(receipt, {
       ['Baqi Kist', formatAmount(receipt.fifoRemaining.kist)]
     ] : []),
     ['Package Date', receipt.packageDate],
+    ...(receipt.remainderWaada ? [['Baqi / باقی رقم', `Rs. ${Number(receipt.remainderWaada.promiseAmount).toLocaleString('en-PK')} • Waada: ${receipt.remainderWaada.promiseDate}`]] : []),
     ['Amount Received / رقم موصول', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount), 'receipt-amount'],
     ...(receipt.looseChangeCredit > 0 ? [['Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ', `+${formatAmount(receipt.looseChangeCredit)}`]] : []),
     ['Payment Method / ذریعہ ادائیگی', receipt.paymentMethod],

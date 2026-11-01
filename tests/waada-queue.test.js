@@ -10,13 +10,21 @@ import {
   isValidWaadaDate,
   addWaadaDays,
   tenthOfMonthWaadaDate,
+  fifteenthOfMonthWaadaDate,
+  dayOfMonthWaadaDate,
   computeWaadaChipDate,
   setCustomerWaada,
   clearCustomerWaada,
   getWaadaTier,
   waadaBadgeLabel,
   tierWaadaQueue,
-  clearWaadaOnFullPayment
+  clearWaadaOnFullPayment,
+  REMAINDER_WAADA_NOTE,
+  computeRemainderWaada,
+  remainderWaadaChipDates,
+  remainderWaadaOf,
+  remainderWaadaPreviousOf,
+  isRemainderWaadaCurrent
 } from '../waada-queue.js';
 import {
   createInitialState,
@@ -219,4 +227,77 @@ test('promise fields survive JSON backup export and safe-merge restore', () => {
   assert.equal(merged.state.customers[0].promiseAmount, 3000);
   assert.equal(merged.state.customers[0].promiseNote, 'Salary');
   assert.equal(merged.counts.filledProfileFields >= 3, true);
+});
+
+// --- SISP-126: Remainder Waada helpers (chips, remainder, stamp readers) ---
+
+test('SISP-126 chip dates: +3/+7 days and 10th/15th with the passed-day rollover', () => {
+  // +3 / +7 run from the payment date.
+  assert.equal(computeWaadaChipDate('plus3', '2026-10-28'), '2026-10-31');
+  assert.equal(computeWaadaChipDate('plus7', '2026-10-28'), '2026-11-04');
+  // 10th / 15th still ahead this month.
+  assert.equal(computeWaadaChipDate('tenth', '2026-10-05'), '2026-10-10');
+  assert.equal(computeWaadaChipDate('fifteenth', '2026-10-05'), '2026-10-15');
+  assert.equal(computeWaadaChipDate('fifteenth', '2026-10-15'), '2026-10-15');
+  // Already passed -> NEXT month's (a chip never offers a past date).
+  assert.equal(computeWaadaChipDate('tenth', '2026-10-11'), '2026-11-10');
+  assert.equal(computeWaadaChipDate('fifteenth', '2026-10-16'), '2026-11-15');
+  assert.equal(computeWaadaChipDate('fifteenth', '2026-12-20'), '2027-01-15');
+  // The whole chip set for one payment date, from the shared helper.
+  assert.deepEqual(remainderWaadaChipDates('2026-10-28'), {
+    plus3: '2026-10-31',
+    plus7: '2026-11-04',
+    tenth: '2026-11-10',
+    fifteenth: '2026-11-15'
+  });
+  assert.deepEqual(remainderWaadaChipDates('2026-10-05'), {
+    plus3: '2026-10-08',
+    plus7: '2026-10-12',
+    tenth: '2026-10-10',
+    fifteenth: '2026-10-15'
+  });
+  assert.equal(remainderWaadaChipDates('not-a-date'), null);
+  assert.equal(dayOfMonthWaadaDate('2026-10-16', 15), '2026-11-15');
+  assert.equal(fifteenthOfMonthWaadaDate('2026-02-28'), '2026-03-15');
+  assert.equal(dayOfMonthWaadaDate('2026-10-05', 31), null);
+});
+
+test('SISP-126 remainder: only a true partial (0 < paid < due) yields a remainder', () => {
+  assert.deepEqual(computeRemainderWaada(3000, 1000), { remainder: 2000 });
+  assert.deepEqual(computeRemainderWaada(1500.55, 500.25), { remainder: 1000.30 });
+  // Counter-pins: full, over, zero, negative, invalid, no due -> null.
+  assert.equal(computeRemainderWaada(3000, 3000), null);
+  assert.equal(computeRemainderWaada(3000, 3500), null);
+  assert.equal(computeRemainderWaada(3000, 0), null);
+  assert.equal(computeRemainderWaada(3000, -5), null);
+  assert.equal(computeRemainderWaada(0, 0), null);
+  assert.equal(computeRemainderWaada(3000, NaN), null);
+  assert.equal(computeRemainderWaada('abc', 100), null);
+  assert.equal(computeRemainderWaada(3000, undefined), null);
+});
+
+test('SISP-126 stamp readers: remainderWaadaOf / previous / current checks', () => {
+  const payment = {
+    remainderWaada: {
+      promiseDate: '2026-10-27',
+      promiseAmount: 2000,
+      previousWaada: { promiseDate: '2026-10-25', promiseAmount: 3000, promiseNote: 'Salary day' }
+    }
+  };
+  assert.deepEqual(remainderWaadaOf(payment), { promiseDate: '2026-10-27', promiseAmount: 2000 });
+  assert.deepEqual(remainderWaadaPreviousOf(payment), {
+    promiseDate: '2026-10-25', promiseAmount: 3000, promiseNote: 'Salary day'
+  });
+  // Absent / malformed stamps read as null, never as a waada.
+  assert.equal(remainderWaadaOf({}), null);
+  assert.equal(remainderWaadaOf({ remainderWaada: { promiseDate: '2026-13-01', promiseAmount: 5 } }), null);
+  assert.equal(remainderWaadaOf({ remainderWaada: { promiseDate: '2026-10-27', promiseAmount: 0 } }), null);
+  assert.equal(remainderWaadaPreviousOf({ remainderWaada: { promiseDate: '2026-10-27', promiseAmount: 5 } }), null);
+  // The live-promise identity check used by the void/undo rollback.
+  const customer = { promiseDate: '2026-10-27', promiseAmount: 2000, promiseNote: REMAINDER_WAADA_NOTE };
+  assert.equal(isRemainderWaadaCurrent(customer, remainderWaadaOf(payment)), true);
+  assert.equal(isRemainderWaadaCurrent({ ...customer, promiseNote: 'Other' }, remainderWaadaOf(payment)), false);
+  assert.equal(isRemainderWaadaCurrent({ ...customer, promiseDate: '2026-10-28' }, remainderWaadaOf(payment)), false);
+  assert.equal(isRemainderWaadaCurrent({ ...customer, promiseAmount: 1500 }, remainderWaadaOf(payment)), false);
+  assert.equal(REMAINDER_WAADA_NOTE, 'Remainder waada — partial payment');
 });

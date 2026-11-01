@@ -2019,6 +2019,22 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-122: street pole asset registry (tokens only, dark-mode safe) */
+.pole-registry-summary p { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0; }
+.pole-registry-form { display: grid; gap: 6px; margin-bottom: 14px; }
+.pole-registry-zone { margin: 16px 0 8px; color: var(--ink); }
+.pole-registry-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+.pole-registry-card p { display: flex; justify-content: space-between; gap: 8px; margin: 4px 0; color: var(--ink); }
+.pole-registry-card-head { font-size: 1.02rem; }
+.pole-registry-assets { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.pole-registry-assets li { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; color: var(--ink); }
+.pole-registry-attach { display: grid; gap: 6px; margin-top: 8px; }
+.pole-registry-card-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.pole-registry-empty { color: var(--ink); }
+@media (max-width: 700px) {
+  .pole-registry-card p { flex-wrap: wrap; }
+  .pole-registry-assets li { flex-wrap: wrap; }
+}
 /* SISP-111: cross-customer credit transfers — theme tokens only. */
 .credit-transfer-list { list-style: none; margin: 8px 0 12px; padding: 0; display: grid; gap: 6px; }
 .credit-transfer-list li { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }

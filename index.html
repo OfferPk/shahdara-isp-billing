@@ -560,6 +560,15 @@
             <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cheatsheet">📍 Zone Lineman Cheat-Sheet</button>
           </div>
         </article>
+        <article class="summary-card summary-pole-registry ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_polereg">🌲 Pole Registry</p>
+          <strong id="dashboardPoleRegistryValue" class="summary-value">No poles registered</strong>
+          <p id="dashboardPoleRegistryPeriod" class="summary-period">Street pole assets &amp; attached drops</p>
+          <div id="poleRegistrySummary" class="pole-registry-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPoleRegistryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_polereg">🌲 Pole Registry</button>
+          </div>
+        </article>
         <article class="summary-card summary-group-billing ds-stat ds-stat--brand">
           <p class="summary-label" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</p>
           <strong id="dashboardGroupBillingValue" class="summary-value">No groups yet</strong>
@@ -22198,6 +22207,42 @@
           <button id="poleCheatDownloadBtn" class="action-btn-sm daily-slip-btn" type="button">⬇️ Export cheat-sheet (.txt)</button>
           <button id="poleCheatCopyBtn" class="secondary-button" type="button">📋 Copy cheat-sheet</button>
         </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="poleRegistryModal" class="billing-modal pole-registry-modal" aria-labelledby="poleRegistryModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="poleRegistryModalTitle" data-i18n="polereg_title">🌲 Street Pole Asset Registry</h2>
+        <button id="poleRegistryCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="pole-registry-intro" data-i18n="polereg_intro">Register each street pole once, then attach the customer drops and splitter boxes hanging on it. Attachments are references only — customer and inventory records are never changed here.</p>
+        <p id="poleRegistrySummaryLine" class="pole-registry-summary-line"></p>
+        <form id="poleRegistryForm" class="pole-registry-form">
+          <label for="poleRegistryLabel" data-i18n="polereg_label">Pole label</label>
+          <input id="poleRegistryLabel" class="form-input" type="text" maxlength="80" required placeholder="Pole-Barrian-14">
+          <label for="poleRegistryZone" data-i18n="polereg_zone">Zone</label>
+          <input id="poleRegistryZone" class="form-input" type="text" maxlength="60" placeholder="BARRIAN">
+          <label for="poleRegistryType" data-i18n="polereg_type">Pole type</label>
+          <select id="poleRegistryType" class="form-input">
+            <option value="wapda" data-i18n="polereg_type_wapda">WAPDA Pole</option>
+            <option value="isp_iron" data-i18n="polereg_type_isp_iron">ISP Iron Pole</option>
+            <option value="wall_bracket" data-i18n="polereg_type_wall_bracket">Wall Bracket</option>
+          </select>
+          <label for="poleRegistryLandmark" data-i18n="polereg_landmark">Landmark</label>
+          <input id="poleRegistryLandmark" class="form-input" type="text" maxlength="120">
+          <label for="poleRegistryNotes" data-i18n="polereg_notes">Notes</label>
+          <input id="poleRegistryNotes" class="form-input" type="text" maxlength="200">
+          <label for="poleRegistryInventorySelect" data-i18n="polereg_stock_link">Linked stock item</label>
+          <select id="poleRegistryInventorySelect" class="form-input"></select>
+          <button type="submit" class="primary-button" data-i18n="polereg_add_btn">➕ Register pole</button>
+        </form>
+        <label for="poleRegistryZoneSelect" data-i18n="polereg_zone">Zone</label>
+        <select id="poleRegistryZoneSelect" class="form-input" aria-label="Filter poles by zone">
+          <option value="all">All zones</option>
+        </select>
+        <div id="poleRegistryList" class="pole-registry-list"></div>
       </div>
     </div>
   </dialog>

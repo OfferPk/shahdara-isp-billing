@@ -168,6 +168,7 @@ import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { applyFifoPaymentEventToState, applicablePriceForMonth, buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
+import { setupMonthEndWizard } from './month-end-wizard.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
 import { rootCauseAdviceForCustomer, rootCauseBannerHtml } from './root-cause-advisor.js';
@@ -532,6 +533,7 @@ export let momGrowthModalController = null;
 export let dailyClosingModalController = null;
 export let shopSettlementModalController = null;
 export let billingCycleModalController = null;
+export let monthEndWizardController = null;
 export let complaintRegisterModalController = null;
 export let fieldTicketsModalController = null;
 export let downtimeAnalyticsModalController = null;
@@ -12110,6 +12112,17 @@ if (typeof document !== 'undefined') {
     },
     onToast: (msg, opts) => toast(msg, opts)
   });
+  // SISP-130: month-end pre-flight wizard — read-only checks over the real
+  // engines; its actions reuse the shipped entry points verbatim (the shop
+  // settlement open button, the overheads tab jump the due banner uses,
+  // and the JSON backup download button's own handler).
+  monthEndWizardController = setupMonthEndWizard(() => state, {
+    onToast: (msg, opts) => toast(msg, opts),
+    getBackupRecord: () => readBackupHealthRecord(),
+    onExportBackup: () => { $('#downloadJsonBackupButton')?.click(); },
+    onOpenShops: () => { $('#openShopSettlementModalBtn')?.click(); },
+    onOpenOverheads: () => { expenseActiveTab = 'overheads'; switchView('expenses'); syncExpenseTabs(); renderOverheads(); }
+  });
   complaintRegisterModalController = setupComplaintRegisterModal(() => state, {
     onComplaintsChanged: () => {
       recordComplaintTicketSync('complaint');
@@ -13630,6 +13643,17 @@ if (typeof document !== 'undefined') {
         save();
       },
       onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
+  const monthEndWizardModal = $('#monthEndWizardModal');
+  if (monthEndWizardModal && !monthEndWizardController) {
+    monthEndWizardController = setupMonthEndWizard(() => state, {
+      onToast: (msg, opts) => toast(msg, opts),
+      getBackupRecord: () => readBackupHealthRecord(),
+      onExportBackup: () => { $('#downloadJsonBackupButton')?.click(); },
+      onOpenShops: () => { $('#openShopSettlementModalBtn')?.click(); },
+      onOpenOverheads: () => { expenseActiveTab = 'overheads'; switchView('expenses'); syncExpenseTabs(); renderOverheads(); }
     });
   }
 

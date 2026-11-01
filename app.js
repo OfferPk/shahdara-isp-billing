@@ -241,6 +241,7 @@ import { BAD_DEBTS_KEY, activeBadDebtFor, badDebtSummary, loadBadDebts, restoreB
 import { manualBaqayaCardBadgeMarkup, manualBaqayaStatMarkup, manualBaqayaSectionMarkup, additionalPendingControlsMarkup, totalOutstandingFigures } from './manual-baqaya.js';
 import { UPS_NODES_KEY, activeOutages, checkUpsNodeDepletions, formatClockTime, loadUpsNodes, powerBackupSummary, saveUpsNodes, setupPowerBackupModal } from './power-backup-monitor.js';
 import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
+import { buildClearanceNocSlip, clearanceNocPresentation, generateClearanceNocSlipHtml } from './clearance-noc-slip.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { buildWalletReconciliation, walletVerificationLabel, walletReconciliationSummaryText, DIGITAL_BREAKDOWN_METHODS } from './wallet-reconciliation.js';import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
@@ -2785,6 +2786,29 @@ function printDepositSettlementReceipt(customerId) {
   });
 }
 
+// SISP-140: print the Clearance NOC (بے باق سرٹیفکیٹ) into the same
+// print area the receipts use. Eligibility is re-derived from the live
+// ledger at click time — the slip builder returns null when the
+// account no longer clears, so a stale profile can never print one.
+function printClearanceNocSlip(customerId) {
+  const customer = state.customers.find(row => row.id === customerId);
+  const slip = customer ? buildClearanceNocSlip(customer, { tickets: loadTickets(), issueDate: getTodayDateString() }) : null;
+  if (!slip) { toast('Clearance NOC is not available for this customer yet.'); return; }
+  const area = $('#receiptPrintArea');
+  if (!area) return;
+  area.innerHTML = generateClearanceNocSlipHtml(slip, {
+    businessName: state.settings?.businessName || 'Shahdara ISP',
+    businessPhone: state.settings?.businessPhone || '0300-1234567'
+  });
+  area.hidden = false;
+  document.body.classList.add('printing-receipt');
+  requestAnimationFrame(() => {
+    try { window.print(); }
+    catch { toast('Printing is not available in this browser.'); }
+    finally { clearReceiptPrint(); }
+  });
+}
+
 // SISP-6: PNG image receipt — 1-tap share (WhatsApp target chooser on
 // mobile/Capacitor) with a 1-click download fallback. Reuses the existing
 // buildPaymentReceipt data path (SISP-2 arrears + SISP-4 kist included);
@@ -3559,6 +3583,13 @@ function renderCustomerProfileView(customer) {
   const badDebtSectionHtml = !badDebtPres.visible ? '' : (badDebtPres.writtenOff
     ? `<section class="profile-custody-section profile-bad-debt-section" aria-label="${t('bd_aria')}"><h4>${t('bd_heading')} ${helpButtonMarkup('bad_debt')}</h4><p class="custody-recovered">${escapeHtml(badDebtPres.writtenOffLabel)}</p>${badDebtPres.reasonLabel ? `<p>${escapeHtml(badDebtPres.reasonLabel)}</p>` : ''}<p class="profile-custody-note">${escapeHtml(badDebtPres.noteLabel)}</p></section>`
     : `<section class="profile-custody-section profile-bad-debt-section" aria-label="${t('bd_aria')}"><h4>${t('bd_heading')} ${helpButtonMarkup('bad_debt')}</h4><p>${escapeHtml(badDebtPres.arrearsLabel)}</p><p class="profile-custody-note">${escapeHtml(badDebtPres.noteLabel)}</p><div class="form-grid"><div class="form-cell profile-bad-debt-reason"><label class="field-label full" for="profileBadDebtReason">${escapeHtml(badDebtPres.reasonLabel)}</label><input id="profileBadDebtReason" class="full" type="text" maxlength="200" placeholder="${escapeHtml(badDebtPres.reasonPlaceholder)}"></div></div><button type="button" class="primary-button" id="profileBadDebtWriteOffBtn">${escapeHtml(badDebtPres.writeOffLabel)}</button></section>`);
+  // SISP-140: Clearance NOC section — offered only for disconnected
+  // (archived) customers, next to the custody/deposit sections. The
+  // presentation re-derives eligibility from the live engine figures;
+  // blockers are worded here so the operator always sees WHY the
+  // certificate cannot print yet.
+  const nocPres = clearanceNocPresentation(customer, { tickets: loadTickets() });
+  const nocSectionHtml = !nocPres.visible ? '' : `<section class="profile-custody-section profile-clearance-noc" aria-label="${escapeHtml(nocPres.ariaLabel)}"><h4>${escapeHtml(nocPres.headingLabel)}</h4>${nocPres.eligible ? `<p class="custody-recovered">${escapeHtml(nocPres.readyLabel)}</p>` : nocPres.blockerLabels.map((label) => `<p class="custody-pending">${escapeHtml(label)}</p>`).join('')}${nocPres.creditLabel ? `<p class="profile-custody-note">${escapeHtml(nocPres.creditLabel)}</p>` : ''}${nocPres.eligible ? `<button type="button" class="primary-button" id="profileNocPrintBtn">${escapeHtml(nocPres.printLabel)}</button>` : ''}</section>`;
   const depositSettlementHtml = !depositPres.visible ? '' : (depositPres.settled
     ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
     : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
@@ -3571,7 +3602,7 @@ function renderCustomerProfileView(customer) {
   const trfPres = creditTransferPresentation(customer, loadCreditTransfers(), trfAvailable);
   const creditTransferSectionHtml = !trfPres.visible ? '' : `<section class="profile-custody-section profile-credit-transfer-section" aria-label="${t('trf_section_aria')}"><h4>${escapeHtml(trfPres.headingLabel)}</h4><p>${escapeHtml(trfPres.availableLabel)}</p>${trfPres.rows.length ? `<ul class="credit-transfer-list">${trfPres.rows.map(row => `<li>${escapeHtml(row.transferId)} · ${escapeHtml(row.label)} · <strong>${escapeHtml(row.amountLabel)}</strong> · ${escapeHtml(row.date)}${row.reversedLabel ? ` · ${escapeHtml(row.reversedLabel)}` : ''}</li>`).join('')}</ul>` : ''}${trfPres.canTransfer ? `<button type="button" class="primary-button" id="profileCreditTransferBtn">${escapeHtml(trfPres.transferLabel)}</button>` : ''}</section>`;
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${referralSectionHtml}${upsellSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -3961,6 +3992,15 @@ function renderCustomerProfileView(customer) {
     });
     depositSection.querySelector('#profileDepositReceiptBtn')?.addEventListener('click', () => {
       printDepositSettlementReceipt(customer.id);
+    });
+  }
+  // SISP-140: wire the Clearance NOC print button. The slip itself is
+  // rebuilt from the live ledger inside printClearanceNocSlip, never
+  // from this rendered assessment.
+  const nocSection = $('#customerProfileView').querySelector('.profile-clearance-noc');
+  if (nocSection) {
+    nocSection.querySelector('#profileNocPrintBtn')?.addEventListener('click', () => {
+      printClearanceNocSlip(customer.id);
     });
   }
   // SISP-111: profile button opens the credit transfer dialog with

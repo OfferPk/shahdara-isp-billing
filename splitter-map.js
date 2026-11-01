@@ -39,6 +39,7 @@
  * existing createTicket flow (no parallel store).
  */
 
+import { evaluateConnectorMismatch } from './connector-polish-guard.js';
 import {
   captureCurrentPosition,
   clearSplitterBoxPin,
@@ -142,25 +143,33 @@ function deadEntryFor(deadPorts, boxId, port) {
  * free). An occupied port always wins over a lock — the customer using
  * it stays visible; the lock still blocks any NEW assignment.
  */
-export function buildSplitterPortMap(customers, boxId, portCount = 8, deadPorts = []) {
+export function buildSplitterPortMap(customers, boxId, portCount = 8, deadPorts = [], polishMap = null) {
+  // SISP-152 x SISP-167 composition: an array 4th argument is the dead-port
+  // lock list; a plain-object 4th argument is the box-polish map (each
+  // feature's original calling convention), normalized here.
+  if (polishMap === null && deadPorts && !Array.isArray(deadPorts) && typeof deadPorts === 'object') { polishMap = deadPorts; deadPorts = []; }
   const cleanBoxId = cleanText(boxId);
   const count = SPLITTER_PORT_COUNTS.includes(portCount) ? portCount : 8;
   const ports = [];
   for (let port = 1; port <= count; port += 1) {
-    ports.push({ port, status: 'spare', customerId: null, customerName: '', lastRxDbm: null, signalStatus: 'unknown' });
+    ports.push({ port, status: 'spare', customerId: null, customerName: '', lastRxDbm: null, signalStatus: 'unknown', polishStatus: 'unknown' });
   }
   const outOfRange = [];
   for (const customer of Array.isArray(customers) ? customers : []) {
     const optical = normalizeOpticalFields(customer);
     if (!optical.splitterBoxId || optical.splitterBoxId !== cleanBoxId) continue;
     if (optical.splitterPort === null) continue;
+    // SISP-167: connector polish pair for this assignment (only evaluated
+    // when the caller supplies the box-polish map; otherwise 'unknown').
+    const polishStatus = polishMap ? evaluateConnectorMismatch(customer, polishMap).status : 'unknown';
     if (optical.splitterPort < 1 || optical.splitterPort > count) {
       outOfRange.push({
         customerId: customer?.id ?? null,
         customerName: customer?.name ?? '',
         splitterPort: optical.splitterPort,
         lastRxDbm: optical.lastRxDbm,
-        signalStatus: rxSignalStatus(optical.lastRxDbm)
+        signalStatus: rxSignalStatus(optical.lastRxDbm),
+        polishStatus
       });
       continue;
     }
@@ -174,6 +183,7 @@ export function buildSplitterPortMap(customers, boxId, portCount = 8, deadPorts 
         splitterPort: optical.splitterPort,
         lastRxDbm: optical.lastRxDbm,
         signalStatus: rxSignalStatus(optical.lastRxDbm),
+        polishStatus,
         duplicatePort: true
       });
       continue;
@@ -183,6 +193,7 @@ export function buildSplitterPortMap(customers, boxId, portCount = 8, deadPorts 
     slot.customerName = customer?.name ?? '';
     slot.lastRxDbm = optical.lastRxDbm;
     slot.signalStatus = rxSignalStatus(optical.lastRxDbm);
+    slot.polishStatus = polishStatus;
   }
   // SISP-152: lockout marking — only spare slots can be dead; an
   // occupied slot keeps its customer (see the header note above).
@@ -198,6 +209,9 @@ export function buildSplitterPortMap(customers, boxId, portCount = 8, deadPorts 
   const occupied = ports.filter((slot) => slot.status === 'occupied');
   const dead = ports.filter((slot) => slot.status === 'dead');
   const weak = occupied.filter((slot) => slot.signalStatus === 'weak');
+  // SISP-167: polish mismatches among this box's port assignments
+  // (occupied slots + out-of-range entries), 0 when no polish map given.
+  const polishMismatches = [...occupied, ...outOfRange].filter((slot) => slot.polishStatus === 'mismatch');
   return {
     boxId: cleanBoxId,
     portCount: count,
@@ -209,6 +223,8 @@ export function buildSplitterPortMap(customers, boxId, portCount = 8, deadPorts 
     freePorts: ports.filter((slot) => slot.status === 'spare').map((slot) => slot.port),
     weakCount: weak.length,
     weakPorts: weak,
+    polishMismatchCount: polishMismatches.length,
+    polishMismatches,
     outOfRange
   };
 }
@@ -218,7 +234,10 @@ export function buildSplitterPortMap(customers, boxId, portCount = 8, deadPorts 
  * count derived from the data itself: a box with any port above 8 is a
  * 1:16 box, otherwise 1:8. Boxes sort by id so the selector order is stable.
  */
-export function buildSplitterBoxes(customers, deadPorts = []) {
+export function buildSplitterBoxes(customers, deadPorts = [], polishMap = null) {
+  // SISP-152 x SISP-167 composition: same normalization as the port map —
+  // an array is the dead-port list, a plain object is the polish map.
+  if (polishMap === null && deadPorts && !Array.isArray(deadPorts) && typeof deadPorts === 'object') { polishMap = deadPorts; deadPorts = []; }
   const list = Array.isArray(customers) ? customers : [];
   const boxIds = [...new Set(list.map((c) => normalizeOpticalFields(c).splitterBoxId).filter(Boolean))].sort();
   return boxIds.map((boxId) => {
@@ -228,13 +247,13 @@ export function buildSplitterBoxes(customers, deadPorts = []) {
         ? Math.max(max, optical.splitterPort)
         : max;
     }, 0);
-    return buildSplitterPortMap(list, boxId, maxPort > 8 ? 16 : 8, deadPorts);
+    return buildSplitterPortMap(list, boxId, maxPort > 8 ? 16 : 8, deadPorts, polishMap);
   });
 }
 
 /** Network-wide optical headline for the dashboard card. */
-export function buildSplitterOverview(customers) {
-  const boxes = buildSplitterBoxes(customers);
+export function buildSplitterOverview(customers, polishMap = null) {
+  const boxes = buildSplitterBoxes(customers, polishMap);
   const weakCustomers = [];
   for (const box of boxes) {
     for (const slot of box.weakPorts) {
@@ -250,7 +269,10 @@ export function buildSplitterOverview(customers) {
     occupiedPorts: boxes.reduce((sum, box) => sum + box.occupiedCount, 0),
     freePorts: boxes.reduce((sum, box) => sum + box.freeCount, 0),
     weakCount: weakCustomers.length,
-    weakCustomers
+    weakCustomers,
+    // SISP-167: network-wide connector polish mismatch total (0 when no
+    // polish map was supplied or nothing mismatches).
+    polishMismatchCount: boxes.reduce((sum, box) => sum + (box.polishMismatchCount ?? 0), 0)
   };
 }
 
@@ -281,13 +303,18 @@ export function renderSplitterPortCell(slot, { actions = false } = {}) {
     : slot.signalStatus === 'healthy'
       ? '<span class="safety-badge badge-healthy splitter-weak-badge">Signal OK</span>'
       : '';
+  // SISP-167: a known box↔ONU polish mismatch earns its own badge; a
+  // match or an unknown pair renders nothing extra.
+  const polishBadge = slot.polishStatus === 'mismatch'
+    ? `<span class="safety-badge polish-mismatch-badge">${escapeHtml(t('polish_cell_badge'))}</span>`
+    : '';
   const swap = actions && slot.customerId
     ? `<button type="button" class="splitter-port-action" data-pswap-swap="${escapeHtml(String(slot.customerId))}">🔀 ${escapeHtml(t('pswap_action_swap'))}</button>`
     : '';
   const attBadge = isAttenuationTicketRx(slot.lastRxDbm)
     ? '<span class="safety-badge badge-danger splitter-weak-badge">Attenuation ticket advised</span>'
     : '';
-  return `<div class="splitter-port splitter-port-occupied${slot.signalStatus === 'weak' ? ' splitter-port-weak' : ''}"><span class="splitter-port-number">${slot.port}</span><span class="splitter-port-customer">${escapeHtml(slot.customerName || 'Unnamed')}</span><span class="splitter-port-rx">${escapeHtml(formatRxDbm(slot.lastRxDbm))}</span>${badge}${attBadge}${swap}</div>`;
+  return `<div class="splitter-port splitter-port-occupied${slot.signalStatus === 'weak' ? ' splitter-port-weak' : ''}${slot.polishStatus === 'mismatch' ? ' splitter-port-polish-mismatch' : ''}"><span class="splitter-port-number">${slot.port}</span><span class="splitter-port-customer">${escapeHtml(slot.customerName || 'Unnamed')}</span><span class="splitter-port-rx">${escapeHtml(formatRxDbm(slot.lastRxDbm))}</span>${badge}${polishBadge}${attBadge}${swap}</div>`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -480,7 +507,7 @@ export function renderSplitterBoxGpsRow(boxId, pin) {
  * dialog; onLockPort(boxId, port) / onUnlockPort(boxId, port) persist a
  * lock change and the host re-renders via refresh().
  */
-export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTicket, getOpticalBadge, getBoxOpticalBadge, getDeadPorts, onSwapPort, onLockPort, onUnlockPort } = {}) {
+export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTicket, getOpticalBadge, getBoxOpticalBadge, getDeadPorts, onSwapPort, onLockPort, onUnlockPort, getPolishMap, onPolishChange } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('splitterMapModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -492,8 +519,12 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
   function render() {
     const state = typeof getState === 'function' ? getState() : {};
     const customers = state?.customers ?? [];
+    // SISP-167: the box-polish map lives outside the ledger state; the
+    // host supplies it (and the save callback) so this module stays a
+    // pure view over it. Without a supplier, polish renders as unknown.
+    const polishMap = typeof getPolishMap === 'function' ? getPolishMap() : null;
     const deadPorts = typeof getDeadPorts === 'function' ? getDeadPorts() : [];
-    const boxes = buildSplitterBoxes(customers, deadPorts);
+    const boxes = buildSplitterBoxes(customers, deadPorts, polishMap);
     const select = $('splitterMapBoxSelect');
     if (select) {
       const previous = selectedBoxId;
@@ -504,11 +535,19 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
       select.value = selectedBoxId;
     }
     const box = boxes.find((item) => item.boxId === selectedBoxId) ?? null;
+    // SISP-167: the per-box polish picker reflects the recorded polish
+    // for the selected box ('' = not recorded); it is disabled when no
+    // box exists or the host gave no save callback.
+    const polishSelect = $('splitterMapPolishSelect');
+    if (polishSelect) {
+      polishSelect.value = box && polishMap ? (polishMap[box.boxId] ?? '') : '';
+      polishSelect.disabled = !box || typeof onPolishChange !== 'function';
+    }
     const summaryEl = $('splitterMapSummaryLine');
     if (summaryEl) {
       summaryEl.textContent = !box
         ? 'No splitter box recorded yet — add a splitter box id and port on a customer profile to start the map.'
-        : `${box.boxId} · 1:${box.portCount} PLC · ${box.occupiedCount} occupied · ${box.freeCount} spare${box.deadCount ? ` · ${box.deadCount} dead (locked)` : ''}${box.weakCount ? ` · ${box.weakCount} weak signal${box.weakCount === 1 ? '' : 's'} (below ${WEAK_RX_DBM_THRESHOLD} dBm)` : ''}${box.outOfRange.length ? ` · ${box.outOfRange.length} assignment${box.outOfRange.length === 1 ? '' : 's'} need attention` : ''}`;
+        : `${box.boxId} · 1:${box.portCount} PLC · ${box.occupiedCount} occupied · ${box.freeCount} spare${box.deadCount ? ` · ${box.deadCount} dead (locked)` : ''}${box.weakCount ? ` · ${box.weakCount} weak signal${box.weakCount === 1 ? '' : 's'} (below ${WEAK_RX_DBM_THRESHOLD} dBm)` : ''}${box.outOfRange.length ? ` · ${box.outOfRange.length} assignment${box.outOfRange.length === 1 ? '' : 's'} need attention` : ''}${box.polishMismatchCount ? ` · ${t(box.polishMismatchCount === 1 ? 'polish_modal_mismatch_1' : 'polish_modal_mismatch_n', null, { count: box.polishMismatchCount })}` : ''}`;
     }
     const gpsEl = $('splitterMapGpsRow');
     if (gpsEl) {
@@ -587,6 +626,17 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
     select.addEventListener('change', () => {
       selectedBoxId = select.value;
       simulated = false;
+      render();
+    });
+  }
+  // SISP-167: changing the box polish saves through the host callback
+  // (which persists the sibling store), then the map re-renders so port
+  // badges reflect the new pairings immediately.
+  const polishSelectEl = $('splitterMapPolishSelect');
+  if (polishSelectEl) {
+    polishSelectEl.addEventListener('change', () => {
+      if (!selectedBoxId || typeof onPolishChange !== 'function') return;
+      onPolishChange(selectedBoxId, polishSelectEl.value);
       render();
     });
   }

@@ -5277,6 +5277,29 @@ function renderBackupPreview(preview, sourceText = '') {
       guardNote.hidden = true;
     }
   }
+  // SISP-183: when the guard blocks (foreign / diverged), show the
+  // side-by-side receipt delta ABOVE the override control so the
+  // operator sees exactly what each side holds before deciding. The
+  // delta is display-only (core.js computes it; it never changes the
+  // verdict, the merge, or canApply).
+  const deltaWrap = $('#branchGuardDeltaSummary');
+  const receiptDelta = preview.receiptDelta;
+  if (deltaWrap) {
+    const showDelta = Boolean(guardVerdict?.blocked && receiptDelta);
+    deltaWrap.hidden = !showDelta;
+    if (showDelta) {
+      $('#branchGuardDeltaTitle').textContent = t('bkgrd_delta_title');
+      $('#branchGuardDeltaOnlyBackup').textContent = t('bkgrd_delta_only_backup', null, { count: receiptDelta.onlyInBackup.count, amount: formatPKR(receiptDelta.onlyInBackup.amount) });
+      $('#branchGuardDeltaOnlyLocal').textContent = t('bkgrd_delta_only_local', null, { count: receiptDelta.onlyInLocal.count, amount: formatPKR(receiptDelta.onlyInLocal.amount) });
+      $('#branchGuardDeltaShared').textContent = t('bkgrd_delta_shared', null, { count: receiptDelta.sharedDeduplicated.count, amount: formatPKR(receiptDelta.sharedDeduplicated.amount) });
+      const voidedEl = $('#branchGuardDeltaVoided');
+      if (voidedEl) {
+        const voidedTotal = receiptDelta.onlyInBackup.voidedCount + receiptDelta.onlyInLocal.voidedCount + receiptDelta.sharedDeduplicated.voidedCount;
+        voidedEl.hidden = voidedTotal === 0;
+        if (voidedTotal > 0) voidedEl.textContent = t('bkgrd_delta_voided');
+      }
+    }
+  }
   const guardWrap = $('#branchGuardOverrideWrap');
   if (guardWrap) guardWrap.hidden = !guardVerdict?.blocked;
   const guardLabel = $('#branchGuardOverrideLabel');

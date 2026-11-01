@@ -2291,6 +2291,24 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-150: In-App Self-Test results panel (token-only; the panel is
+   injected into the SISP-100 System Health Center dialog, whose shell
+   already uses var(--modal-surface)). */
+.self-test-panel { margin-top: var(--space-4); border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.self-test-title { margin: 0 0 var(--space-2); font-size: var(--text-md); color: var(--ink); }
+.self-test-summary { margin: 0 0 var(--space-2); color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
+.self-test-verdict { margin: 0 0 var(--space-3); font-weight: 700; font-size: var(--text-sm); }
+.self-test-verdict--ok { color: var(--color-paid); }
+.self-test-verdict--fail { color: var(--color-overdue); }
+.self-test-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.self-test-row { display: flex; gap: var(--space-2); align-items: flex-start; font-size: var(--text-sm); color: var(--ink); background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); overflow-wrap: anywhere; }
+.self-test-row--ok .self-test-mark { color: var(--color-paid); }
+.self-test-row--fail { border-color: var(--color-overdue); }
+.self-test-row--fail .self-test-mark { color: var(--color-overdue); }
+.self-test-mark { font-weight: 700; flex: 0 0 auto; }
+.self-test-detail { color: var(--color-overdue); }
+.self-test-note { margin: var(--space-3) 0 0; color: var(--muted); font-size: var(--text-sm); }
+
 /* SISP-144: Dashboard Collection Velocity card — this month's
    collections grouped into 4 day-buckets (1–5 / 6–10 / 11–20 / 21–31),
    each with its share bar and the vs-last-month delta. Theme tokens

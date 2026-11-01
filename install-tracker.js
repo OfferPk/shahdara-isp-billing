@@ -72,6 +72,18 @@ import { t } from './nav-language.js';
 
 export const INSTALL_REQUESTS_KEY = 'sisp_install_requests_v1';
 
+// SISP-137: check-key → label-key map for the recorded gate override
+// line on request cards. Mirrors INSTALL_GATE_CHECK_LABEL_KEYS in
+// installation-completion-gate.js — duplicated as data (not imported)
+// so this module keeps its single nav-language import.
+const GATE_REVIEW_LABEL_KEYS = {
+  splitter: 'instgate_check_splitter',
+  signal: 'instgate_check_signal',
+  custody: 'instgate_check_custody',
+  dropCable: 'instgate_check_drop',
+  feeKist: 'instgate_check_fee'
+};
+
 /** Payment methods: id + display label. */
 export const PAY_METHODS = [
   { id: 'easypaisa', label: 'EasyPaisa' },
@@ -199,6 +211,24 @@ function moneyOrNull(value) {
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
 }
 
+// SISP-137: the quality-gate review record stamped when the operator
+// proceeded past failed / warned gate checks (see
+// installation-completion-gate.js). Kept only when it carries a real
+// timestamp AND at least one acknowledged check key — a clean gate
+// stamps nothing, so pre-SISP-137 completion records stay byte-identical.
+const INSTALL_GATE_CHECK_KEYS = ['splitter', 'signal', 'custody', 'dropCable', 'feeKist'];
+
+export function sanitizeGateReview(value) {
+  if (!value || typeof value !== 'object') return null;
+  const at = typeof value.at === 'string' ? value.at : '';
+  if (!at) return null;
+  const keys = (list) => (Array.isArray(list) ? list : []).filter((key) => INSTALL_GATE_CHECK_KEYS.includes(key));
+  const failedChecks = keys(value.failedChecks);
+  const warnedChecks = keys(value.warnedChecks);
+  if (failedChecks.length === 0 && warnedChecks.length === 0) return null;
+  return { at, failedChecks, warnedChecks };
+}
+
 function qtyOrZero(value) {
   const n = Number(value);
   return Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : 0;
@@ -215,6 +245,7 @@ export function sanitizeInstallCompletion(value) {
   if (!value || typeof value !== 'object') return null;
   const stockDeductedAt = typeof value.stockDeductedAt === 'string' ? value.stockDeductedAt : '';
   if (!stockDeductedAt) return null;
+  const gateReview = sanitizeGateReview(value.gateReview);
   const lines = (list) => (Array.isArray(list) ? list : [])
     .filter((line) => line && typeof line === 'object' && INSTALL_STOCK_ITEM_IDS.includes(cleanText(line.itemId)))
     .map((line) => ({ itemId: cleanText(line.itemId), qty: Number(line.qty) }))
@@ -238,7 +269,11 @@ export function sanitizeInstallCompletion(value) {
       const available = Number(raw?.available);
       return { ...line, available: Number.isFinite(available) && available >= 0 ? available : 0, reason: cleanText(raw?.reason) || 'insufficient' };
     }),
-    stockDeductedAt
+    stockDeductedAt,
+    // SISP-137: present only when the completion proceeded past a
+    // non-clean quality gate (absent key otherwise — old records and
+    // clean completions keep their exact previous shape).
+    ...(gateReview ? { gateReview } : {})
   };
 }
 
@@ -670,6 +705,10 @@ export function applyInstallCompletion(requests, plan, customer, stockDeductedAt
     updated.completedCustomerId = cleanText(done.id);
     updated.completion = sanitizeInstallCompletion({
       ...(plan.completion || {}),
+      // SISP-137: the gate verdict travels on the plan (never inside
+      // plan.completion, whose shape the plan builder owns) and is
+      // stamped here, exactly once, alongside the stock record.
+      ...(plan.gateReview ? { gateReview: plan.gateReview } : {}),
       stockDeductedAt: typeof stockDeductedAt === 'string' && stockDeductedAt ? stockDeductedAt : new Date().toISOString()
     });
   }
@@ -760,7 +799,7 @@ export function buildMonthlyInstallSummary(requests, month, today) {
  * getState supplies the live customer list (injected so this module stays
  * import-free). The mark-installed section lists only pending requests.
  */
-export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast, onConfirm, onCompleteInstall, getInstallStockContext } = {}) {
+export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast, onConfirm, onCompleteInstall, getInstallStockContext, onReviewInstallGate, onShowInstallGate } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('installTrackerModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -900,8 +939,9 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast,
             ${r.customerName ? `<p><span>Linked customer</span><strong>${escapeHtml(r.customerName)}${r.customerNumber !== null ? ` (#${r.customerNumber})` : ''}</strong></p>` : ''}
             ${r.completion ? `<p><span>${escapeHtml(t('instpipe_card_stock'))}</span><strong>${r.completion.stockDeductions.length ? escapeHtml(stockSummaryText(r.completion.stockDeductions)) : escapeHtml(t('instpipe_card_stock_none'))}</strong></p>` : ''}
             ${r.completion && r.completion.stockWarnings.length ? `<p><span>${escapeHtml(t('instpipe_card_warn'))}</span><strong>${escapeHtml(stockSummaryText(r.completion.stockWarnings))}</strong></p>` : ''}
+            ${r.completion && r.completion.gateReview ? `<p><span>${escapeHtml(t('instgate_card_override'))}</span><strong>${escapeHtml([...r.completion.gateReview.failedChecks, ...r.completion.gateReview.warnedChecks].map((key) => t(GATE_REVIEW_LABEL_KEYS[key] || '')).filter(Boolean).join(' · '))} · ${escapeHtml(String(r.completion.gateReview.at).slice(0, 10))}</strong></p>` : ''}
             ${installed && (days || 0) > 0 ? `<p><span>Delay reason</span><strong>${escapeHtml(delayReasonLabel(r))}</strong></p>` : ''}
-            <div class="install-tracker-card-actions"><button type="button" class="secondary-button" data-edit-request="${escapeHtml(String(r.id))}">✏️ Edit</button><button type="button" class="secondary-button danger" data-delete-request="${escapeHtml(String(r.id))}">🗑 Delete</button></div>
+            <div class="install-tracker-card-actions"><button type="button" class="secondary-button" data-edit-request="${escapeHtml(String(r.id))}">✏️ Edit</button><button type="button" class="secondary-button danger" data-delete-request="${escapeHtml(String(r.id))}">🗑 Delete</button>${r.completion && r.completedCustomerId && typeof onShowInstallGate === 'function' ? `<button type="button" class="secondary-button" data-gate-request="${escapeHtml(String(r.id))}">${escapeHtml(t('instgate_card_btn'))}</button>` : ''}</div>
           </article>`;
         }).join('');
       listEl.querySelectorAll('[data-edit-request]').forEach((btn) => btn.addEventListener('click', () => {
@@ -922,6 +962,12 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast,
         } catch (error) {
           if (typeof onToast === 'function') onToast(error.message || 'Could not delete request.');
         }
+      }));
+      // SISP-137: read-only quality-gate view for a completed request
+      // (the host builds the gate from the live customer + this request).
+      listEl.querySelectorAll('[data-gate-request]').forEach((btn) => btn.addEventListener('click', () => {
+        const request = loadInstallRequests().find((r) => String(r.id) === btn.dataset.gateRequest);
+        if (request && typeof onShowInstallGate === 'function') onShowInstallGate(request);
       }));
     }
     refreshCustomerSelect();
@@ -1058,6 +1104,19 @@ export function setupInstallTrackerModal(getState, { onRequestsChanged, onToast,
             movements: stockContext.movements ?? null,
             inventoryItemIds: stockContext.inventoryItemIds ?? null
           });
+          // SISP-137: the 5-point quality gate reviews the completion
+          // BEFORE any customer / stock write runs. Holding the gate
+          // leaves the request pending and the form untouched; an
+          // override verdict travels on the plan and is stamped into
+          // the completion record by applyInstallCompletion.
+          if (!plan.alreadyCompleted && typeof onReviewInstallGate === 'function') {
+            const verdict = await onReviewInstallGate(plan, request);
+            if (!verdict || verdict.proceed !== true) {
+              if (typeof onToast === 'function') onToast(t('instgate_held_toast'));
+              return;
+            }
+            if (verdict.gateReview) plan.gateReview = verdict.gateReview;
+          }
           const result = await onCompleteInstall(plan);
           const customer = result && typeof result === 'object' ? result.customer : null;
           if (!customer || !cleanText(customer.id)) throw new Error('Completion did not return a customer.');

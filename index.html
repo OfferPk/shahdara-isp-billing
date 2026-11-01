@@ -20885,6 +20885,35 @@
     </div>
   </dialog>
 
+  <!-- SISP-170: Monthly Invoice & Service Uptime Certificate (opened from a customer profile) -->
+  <dialog id="uptimeCertificateDialog" class="billing-modal uptime-certificate-modal" aria-labelledby="uptimeCertificateDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="uptimeCertificateDialogTitle" data-i18n="upcert_title">Invoice & Uptime Certificate</h2>
+          <span class="urdu-subtitle">ماہانہ انوائس اور سروس اپ ٹائم سرٹیفکیٹ</span>
+        </div>
+        <button id="uptimeCertificateCloseBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="billing-modal-body">
+        <p class="uptime-certificate-help" data-i18n="upcert_help">A printable 1-page monthly invoice & service uptime certificate for this customer — billing summary, last 3 payments and the month's uptime % from recorded downtime. Made for commercial customers (clinics, schools, offices).</p>
+        <p id="uptimeCertificateCustomerLine" class="uptime-certificate-customer"></p>
+        <div class="uptime-certificate-controls">
+          <label class="uptime-certificate-field" for="uptimeCertificateMonthInput"><span data-i18n="upcert_month_label">Month</span>
+            <input id="uptimeCertificateMonthInput" class="uptime-certificate-month" type="month">
+          </label>
+        </div>
+        <p id="uptimeCertificatePreview" class="uptime-certificate-preview" role="status"></p>
+      </div>
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="uptimeCertificatePrintBtn" class="secondary-button" type="button" data-i18n="upcert_print_a4">📄 Print A4</button>
+        </div>
+        <button id="uptimeCertificateCloseBtn2" class="primary-button" type="button" data-i18n="upcert_close">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
   <!-- SISP-160: Emergency Runbook dialog (opened from the Home
        Feeder Outage Impact card). Contacts are owner-entered only —
        the store starts empty and nothing is seeded. Printing and

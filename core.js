@@ -35,6 +35,7 @@ import { sanitizeWaTemplates } from './whatsapp-templates.js';
 import { validateUpstreamLink, normalizeFiberZone } from './outage-impact.js';
 import { isFeederHost, sanitizeFeederHostCreditPKR } from './feeder-host-credit.js';
 import { isBillingPaused, validatePauseFields, pauseSkippedMonthsOnResume, sanitizePauseFields } from './pause-billing.js';
+import { sanitizeDoNotSuspendUntil, sanitizeDoNotSuspendReason } from './suspension-shield.js';
 import { sanitizePreferredVisitWindow } from './visit-time-window.js';
 import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js';
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements, sanitizePartnerSettings } from './partner-settlement.js';
@@ -288,6 +289,10 @@ export function readState(storage, key = STORAGE_KEY) {
       pauseStartDate:validDateOrNull(customer.pauseStartDate),
       autoResumeDate:validDateOrNull(customer.autoResumeDate),
       pauseSkippedMonths:Array.isArray(customer.pauseSkippedMonths) ? [...new Set(customer.pauseSkippedMonths.filter((month) => validMonthString(month)))].sort() : [],
+      // SISP-148: do-not-suspend shield — corrupt values fall back to
+      // "no shield", so old saves load exactly as before.
+      doNotSuspendUntil:sanitizeDoNotSuspendUntil(customer.doNotSuspendUntil),
+      doNotSuspendReason:sanitizeDoNotSuspendReason(customer.doNotSuspendReason),
       // SISP-106: the speed-boost log rides the customer record; legacy
       // saves without it load with an empty log, never invented boosts.
       speedBoosts: sanitizeSpeedBoosts(customer.speedBoosts),
@@ -454,6 +459,10 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const mediaConverterOwnership = checkCustodyOwnership(options.mediaConverterOwnership);
   const serialNumber = cleanText(options.serialNumber, 100, 'Serial / MAC number');
   const securityDeposit = checkCost(options.securityDeposit);
+  // SISP-148: do-not-suspend shield pair — sanitized (never throws):
+  // an invalid date or unknown reason is stored as "no shield".
+  const doNotSuspendUntil = sanitizeDoNotSuspendUntil(options.doNotSuspendUntil);
+  const doNotSuspendReason = sanitizeDoNotSuspendReason(options.doNotSuspendReason);
   // SISP-143: occupancy + guarantor fields (all optional). A junk
   // residence type coerces to not-recorded instead of blocking the add;
   // the guarantor texts follow the house cleanText caps (name 100,
@@ -526,7 +535,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const preferredReceiptChannel = sanitizeReceiptChannel(options.preferredReceiptChannel);
   const initialServiceStatus = ['active','offline','not-set'].includes(options.serviceStatus) ? options.serviceStatus : 'not-set';
   const initialStatusHistory = initialServiceStatus === 'not-set' ? [] : [{ status: initialServiceStatus, at: localDateTimeValue(referenceDate) }];
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -964,7 +973,13 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     preferredReceiptChannel: sanitizeReceiptChannel(valueOrCurrent('preferredReceiptChannel')),
     paused: valueOrCurrent('paused') === true,
     pauseStartDate: checkOptionalDate(valueOrCurrent('pauseStartDate'), 'Pause start date'),
-    autoResumeDate: checkOptionalDate(valueOrCurrent('autoResumeDate'), 'Auto-resume date')
+    autoResumeDate: checkOptionalDate(valueOrCurrent('autoResumeDate'), 'Auto-resume date'),
+    // SISP-148: do-not-suspend shield — sanitized, never throws: an
+    // invalid date or an unknown reason saves as "no shield" rather
+    // than blocking an unrelated profile save. Clearing the form's
+    // date/reason therefore clears the shield.
+    doNotSuspendUntil: sanitizeDoNotSuspendUntil(valueOrCurrent('doNotSuspendUntil')),
+    doNotSuspendReason: sanitizeDoNotSuspendReason(valueOrCurrent('doNotSuspendReason'))
   };
   // SISP-91: a save that SETS an explicit receipt channel rewrites the
   // SISP-76 prefersSms flag from it ('sms' -> true, any other channel
@@ -3462,6 +3477,10 @@ function validateBackupState(source) {
       residenceType:sanitizeResidenceType(customer.residenceType), landlordOrGuarantorName:sanitizeLandlordOrGuarantorName(customer.landlordOrGuarantorName), landlordPhone:sanitizeLandlordPhone(customer.landlordPhone),
       // SISP-50: the deposit settlement stamp travels in JSON backups.
       depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
+      // SISP-148: the do-not-suspend shield travels with the customer
+      // in JSON backups; corrupt values sanitize to "no shield".
+      doNotSuspendUntil:sanitizeDoNotSuspendUntil(customer.doNotSuspendUntil),
+      doNotSuspendReason:sanitizeDoNotSuspendReason(customer.doNotSuspendReason),
       // SISP-138: the last-contact stamp pair travels in JSON backups,
       // sanitized as a pair (an invalid half voids the whole stamp).
       ...sanitizeContactPair(customer),
@@ -3909,7 +3928,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-138: the last-contact stamp merges by recency, never as a
     // plain field fill and never as a conflict — contact history only
     // moves forward, so the later stamp (fixed-format strings compare

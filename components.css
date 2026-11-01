@@ -1231,6 +1231,10 @@ body.field-mode-open { overflow: hidden; }
 .split-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--color-paid); border: 1px solid var(--color-paid); white-space: nowrap; }
 .free-connection-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-paid); color: var(--color-neutral-0); white-space: nowrap; }
 .prepaid-until-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--color-paid); border: 1px solid var(--color-paid); white-space: nowrap; }
+/* SISP-148: do-not-suspend shield badge (profile header stack,
+   Customers card, profile view heading, Top Defaulters rows).
+   Token-only (pending-amber pair), readable in light and dark mode. */
+.suspension-shield-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--color-pending-bg); color: var(--color-pending); border: 1px solid var(--color-pending); white-space: nowrap; }
 /* SISP-120: Star Timely Payer profile badge (theme tokens only). */
 .star-timely-payer-badge { border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; background: var(--surface-2); color: var(--color-partial); border: 1px solid var(--color-partial); white-space: nowrap; }
 .mac-oui-hint { display: block; margin-top: 6px; }

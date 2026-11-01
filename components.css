@@ -643,6 +643,61 @@ body.field-mode-open { overflow: hidden; }
   font-variant-numeric: var(--numeric);
   white-space: nowrap;
 }
+/* SISP-168: nearby unpaid neighbour card — sits above the customer
+   list after a collection, theme tokens only, single column so a
+   390px phone never scrolls sideways. */
+.field-mode-nearby-wrap:empty { display: none; }
+.field-mode-nearby {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.field-mode-nearby-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+.field-mode-nearby-head h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.field-mode-nearby-dismiss {
+  flex: none;
+  min-width: 36px;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.field-mode-nearby-row {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  background: var(--mint);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
 /* Search-fix colour coding (owner, 2026-10-29): a status strip on every
    result card — RED dues pending, YELLOW advance credit waiting, GREEN
    fully paid. Theme tokens only; the word chip beside it carries the

@@ -2170,6 +2170,112 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-144: Dashboard Collection Velocity card — this month's
+   collections grouped into 4 day-buckets (1–5 / 6–10 / 11–20 / 21–31),
+   each with its share bar and the vs-last-month delta. Theme tokens
+   only (light + dark flip automatically); amounts never shrink or
+   clip, rows stack cleanly on phone widths. */
+.collection-velocity-section {
+  margin-top: 10px;
+}
+.collection-velocity-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: 14px 13px;
+}
+.collection-velocity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.collection-velocity-title {
+  font: 700 15px Manrope, system-ui, sans-serif;
+  color: var(--ink);
+  margin: 0;
+}
+.collection-velocity-total {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.collection-velocity-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 2px 0 6px;
+}
+.vel-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 118px 58px 178px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+.vel-row + .vel-row {
+  border-top: 1px solid var(--line);
+}
+.vel-row-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.vel-row-bar {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.vel-row-bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-brand-500);
+}
+.vel-row-amount {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  text-align: right;
+}
+.vel-row-pct {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  text-align: right;
+}
+.vel-row-delta {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: right;
+}
+.vel-delta-up { color: var(--color-paid); }
+.vel-delta-down { color: var(--color-overdue); }
+.vel-delta-flat { color: var(--muted); }
+
+@media (max-width: 700px) {
+  .vel-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "label amount"
+      "bar bar"
+      "pct delta";
+    row-gap: 4px;
+  }
+  .vel-row-label { grid-area: label; }
+  .vel-row-amount { grid-area: amount; }
+  .vel-row-bar { grid-area: bar; }
+  .vel-row-pct { grid-area: pct; text-align: left; }
+  .vel-row-delta { grid-area: delta; }
+}
 /* SISP-141: the quick-undo toast's action carries a live countdown
    ("↩ Undo (10s)") — keep it bold, on one line, with tabular digits so
    the label never wraps or jitters on a 390px phone. Token-only. */

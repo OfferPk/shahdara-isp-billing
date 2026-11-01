@@ -49,6 +49,7 @@ import { sanitizeExpenseBudgets } from './expense-budget-caps.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { sanitizeSubContributors, sanitizePaidByContributorStamp } from './shared-router-contributors.js';
 import { normalizeOccupancyFields, sanitizeResidenceType, sanitizeLandlordOrGuarantorName, sanitizeLandlordPhone } from './occupancy-guarantor.js';
 import { sanitizeRoundingTag } from './bill-rounding-helper.js';
 import { sanitizeDisconnectDetails, sanitizeDisconnectHistory, sanitizeDisconnectDateTime, DISCONNECT_HISTORY_LIMIT } from './churn-winback.js';
@@ -238,6 +239,9 @@ export function readState(storage, key = STORAGE_KEY) {
       // SISP-50: a stamped deposit settlement survives reloads; a
       // malformed record sanitizes to null instead of posing as settled.
       depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
+      // SISP-158: shared-router contributors (attribution layer only) —
+      // legacy records without the field load as an empty list.
+      subContributors:sanitizeSubContributors(customer.subContributors),
       // SISP-138: the last-contact stamp pair survives reloads only as a
       // valid pair; a legacy record (or a damaged one) loads as
       // never-contacted (null / null), never as invented contact data.
@@ -558,7 +562,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // SISP-153: a new record starts with no seasonal rate unless the
   // caller passes a complete valid triple (sanitized all-or-nothing).
   const seasonalFields = sanitizeSeasonalFields(options);
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [] }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -1023,7 +1027,11 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     // above; never a package change — no history entry, no schedule edit).
     seasonalRatePKR: seasonalFields.seasonalRatePKR,
     seasonalUntilMonth: seasonalFields.seasonalUntilMonth,
-    restorePackageRatePKR: seasonalFields.restorePackageRatePKR
+    restorePackageRatePKR: seasonalFields.restorePackageRatePKR,
+    // SISP-158: shared-router contributors — an attribution layer only;
+    // the sanitizer drops unusable rows, so a profile save never blocks
+    // on a half-typed neighbour row and billing never reads this field.
+    subContributors: sanitizeSubContributors(valueOrCurrent('subContributors'))
   };
   // SISP-91: a save that SETS an explicit receipt channel rewrites the
   // SISP-76 prefersSms flag from it ('sms' -> true, any other channel
@@ -1814,7 +1822,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -1891,6 +1899,13 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     && prepayMoneyOrNull(prepayRate) !== null && prepayMoneyOrNull(prepayRate) > 0
     ? { prepayMonths: Number(prepayMonths), prepayGross: prepayMoneyOrNull(prepayGross), prepayRate: prepayMoneyOrNull(prepayRate) }
     : null;
+  // SISP-158: the shared-router contributor stamp — a { id, name }
+  // SNAPSHOT of who actually handed over this payment, written by the
+  // recorder at record time. Shape-checked here and dropped whole when
+  // malformed (never stored raw, never thrown), so untagged payments
+  // stay byte-identical to before and later contributor edits/removals
+  // can never rewrite this payment's attribution.
+  const contributorStamp = sanitizePaidByContributorStamp(paidByContributor);
   // SISP-101: a late-fee waiver rides the payment that earned it — the
   // audit pair (lateFeeWaived + waivedAmount) plus the reversal stamp of
   // the bill's pre-waiver fee fields (waivedLateFee), sanitized by
@@ -1922,6 +1937,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(manualBaqayaLines.length > 0 ? { manualBaqayaSettlements: manualBaqayaLines } : {}),
 
     ...(payer ? { paidBy:payer } : {}),
+    ...(contributorStamp ? { paidByContributor: contributorStamp } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
     ...(ref ? { transactionId: ref, reference: ref } : {}),
@@ -2193,7 +2209,11 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // that does not pass the sender fields (e.g. a form without them)
     // must never silently strip who sent the payment.
     senderTitle: fields.senderTitle !== undefined ? fields.senderTitle : existingPayment.senderTitle,
-    senderDigits: fields.senderDigits !== undefined ? fields.senderDigits : existingPayment.senderDigits
+    senderDigits: fields.senderDigits !== undefined ? fields.senderDigits : existingPayment.senderDigits,
+    // SISP-158: the correction form carries no contributor picker, so a
+    // correction must never silently strip the payment's contributor
+    // stamp (same carry-over rule as walletVerified / screenshot above).
+    paidByContributor: fields.paidByContributor !== undefined ? fields.paidByContributor : existingPayment.paidByContributor
   };
   // SISP-156: callers that move a payment onto a digital channel (the
   // channel-reassign path) pass strictDigitalReference so the new method
@@ -3521,6 +3541,10 @@ function validateBackupState(source) {
         // historical spread behaviour — void stamps and later fields
         // ride this spread on purpose.)
         if (!('screenshot' in validatedPayment)) delete mergedPayment.screenshot;
+        // SISP-158: same anti-resurrection rule for the contributor
+        // stamp — a malformed stamp in a backup is dropped by
+        // validatePayment and must not ride the raw spread back in.
+        if (!('paidByContributor' in validatedPayment)) delete mergedPayment.paidByContributor;
         // SISP-63: same rule for sender proof metadata — when
         // validatePayment drops the sender fields (cash method, blank,
         // digits with no digits), the raw backup values must not be
@@ -3625,7 +3649,10 @@ function validateBackupState(source) {
       // Owner feature (2026-10-29): manual baqaya entries travel with
       // the customer in JSON backups; old backups without the field
       // import as no entries (backward compatible).
-      manualBaqaya: sanitizeManualBaqayaEntries(customer.manualBaqaya)
+      manualBaqaya: sanitizeManualBaqayaEntries(customer.manualBaqaya),
+      // SISP-158: shared-router contributors travel with the customer;
+      // old backups without the field import as an empty list.
+      subContributors: sanitizeSubContributors(customer.subContributors)
     };
   });
   const highestNumber = Math.max(0, ...customers.map(customer => customer.customerNumber));
@@ -4129,6 +4156,19 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       }])[0];
       if (mergedPlan && !sameJson(existingPlan, mergedPlan)) {
         Object.assign(existingPlan, mergedPlan);
+        counts.changes++;
+      }
+    }
+    // SISP-158: contributors merge by contributor id (the installment
+    // plan / relocation rule, not a plain field fill — a plain merge
+    // would conflict-trap an empty local list): a contributor this
+    // device does not have is adopted; when both sides hold the same
+    // id, the LOCAL copy wins, because contributor shares are profile
+    // data a restore must never silently rewrite.
+    customer.subContributors = sanitizeSubContributors(customer.subContributors);
+    for (const incomingContributor of backupCustomer.subContributors ?? []) {
+      if (!customer.subContributors.some((entry) => entry.id === incomingContributor.id)) {
+        customer.subContributors.push(deepCopy(incomingContributor));
         counts.changes++;
       }
     }

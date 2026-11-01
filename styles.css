@@ -9622,6 +9622,19 @@ html, body {
   color: #e2e8f0;
 }
 
+/* SISP-131: [Round to Rs. 50] toggle label in the concession rows
+   (customer profile + Quick Collect). Token-only colours so the label
+   follows the light/dark theme tokens like every other dialog row. */
+.round50-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+
 
 
 

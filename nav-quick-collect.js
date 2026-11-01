@@ -57,6 +57,7 @@ import {
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
 import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFeeWaiverOf, restoreWaivedLateFee } from './late-fee-waiver.js';
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
+import { findRecentDuplicate, duplicatePaymentBypassKey, askDuplicatePayment } from './duplicate-payment-guard.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
 import {
   setCustomerWaada,
@@ -1679,6 +1680,9 @@ export function setupQuickCollectModal({
   const dupProceedBtn = document.getElementById('quickCollectDuplicateProceedBtn');
   const dupCancelBtn = document.getElementById('quickCollectDuplicateCancelBtn');
   let duplicateBypassedForTxn = null;
+  // SISP-146: the double-tap guard's one confirmed bypass (key of
+  // customer|amount|method|earlier payment id) — see the submit handler.
+  let duplicatePaymentBypassedKey = null;
 
   let currentScreenshotDataUrl = '';
 
@@ -2551,6 +2555,7 @@ export function setupQuickCollectModal({
     activeDefaults = null;
     activeReceipt = null;
     duplicateBypassedForTxn = null;
+    duplicatePaymentBypassedKey = null;
     if (dupWarningCard) dupWarningCard.hidden = true;
     // Closing during the undo window keeps the payment (it is NOT undone).
     // Say so briefly, with no Undo of its own, so there is no doubt it saved.
@@ -2948,6 +2953,29 @@ export function setupQuickCollectModal({
         return;
       }
 
+      // SISP-146: 5-minute double-tap guard — the same customer, amount
+      // and method were already logged moments ago. Never a silent
+      // block: the operator is asked through the shared themed confirm
+      // (Cancel focused by default); confirming sets a one-shot bypass
+      // keyed to THIS earlier payment and resubmits, exactly like the
+      // duplicate-TID flow above. Cancelling records nothing.
+      const recentDuplicate = findRecentDuplicate(state, {
+        customerId: activeCustomerId,
+        amount: amountVal,
+        method: methodVal
+      });
+      if (recentDuplicate) {
+        const bypassKey = duplicatePaymentBypassKey(activeCustomerId, amountVal, methodVal, recentDuplicate);
+        if (duplicatePaymentBypassedKey !== bypassKey) {
+          askDuplicatePayment(recentDuplicate, formatPKR).then((proceed) => {
+            if (!proceed) { amountInput?.focus(); return; }
+            duplicatePaymentBypassedKey = bypassKey;
+            if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
+          });
+          return;
+        }
+        duplicatePaymentBypassedKey = null;
+      }
       // SISP-121: split tender — leg 1 is the main form above (its TID
       // checks and duplicate card already ran), leg 2 is the split
       // block. Recording happens ONLY through

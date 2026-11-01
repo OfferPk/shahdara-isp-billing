@@ -1030,7 +1030,7 @@ export function generateConduitPullingCertHtml(record, options = {}) {
   ` : ''}
 
   <div class="footer">
-    <div>Shahdara Optical Outside Plant Engineering Division · Ravi Zone NOC Lahore</div>
+    <div>Shahdara Optical Outside Plant Engineering Division · Ravi Zone NOC Islamabad</div>
     <div>Accredited Laboratory Verification · No Unauthorized Alterations Permitted</div>
   </div>
 </body>

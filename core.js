@@ -86,6 +86,16 @@ const nextMonthKey = month => shiftMonth(month, 1);
 const dateKey = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit', day:'2-digit' }); return `${p.year}-${p.month}-${p.day}`; };
 const offsetDateKey = (date, days) => { const shifted = new Date(`${date}T00:00:00.000Z`); shifted.setUTCDate(shifted.getUTCDate() + days); return shifted.toISOString().slice(0, 10); };
 export const localDateTimeValue = date => { const p = zonedParts(date, { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`; };
+// SISP-146: the instant a payment is LOGGED (not its billing date), as an
+// ISO string with full precision — the 5-minute double-tap duplicate
+// guard (duplicate-payment-guard.js) compares these stamps. Taken from
+// the recording call's reference date, which is "now" at every
+// interactive entry point. Stamps ride the JSON backup merge spread
+// like every other later payment field (see validateBackupState).
+const paymentRecordedAtStamp = (referenceDate) => {
+  const parsed = referenceDate instanceof Date ? referenceDate : new Date(referenceDate ?? Date.now());
+  return (Number.isNaN(parsed.getTime()) ? new Date() : parsed).toISOString();
+};
 function parseLocalDateTime(value) {
   const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(value ?? ''));
   if (!match) return null;
@@ -2004,7 +2014,13 @@ function assertDiscountWithinRemainingPayable(state, customerId, month, discount
 export function addPayment(state, customerId, month, fields, referenceDate = new Date(), options = {}) {
   checkMonth(month, referenceDate);
   state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
-  const payment = { id: makeId(), ...validatePayment(fields, referenceDate, options) };
+  // SISP-146: every payment recorded through this choke point (Quick
+  // Collect, Field Mode, profile forms, advance/prepay, suspense claim,
+  // inbox — all of them land here) is stamped with the instant it was
+  // logged. Payments created before SISP-146 carry no stamp and can
+  // never trigger the duplicate guard; the billing `date` is never used
+  // as a stand-in for the logged time.
+  const payment = { id: makeId(), ...validatePayment(fields, referenceDate, options), recordedAt: paymentRecordedAtStamp(referenceDate) };
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
   if (customer.archived && !existing) throw new Error('Archived customers cannot receive a new monthly bill. Unarchive the customer first.');
@@ -2108,6 +2124,11 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     }
     payment = { ...payment, ticketCharges: settledTicketCharges };
   }
+  // SISP-146: a correction restates the receipt, not the moment it was
+  // first logged — the recordedAt stamp carries over verbatim (the
+  // paidBy / ticketCharges rule above). A legacy payment that never
+  // carried one stays unstamped; a time is never fabricated for it.
+  if (existingPayment.recordedAt) payment = { ...payment, recordedAt: existingPayment.recordedAt };
   // SISP-121: a correction restates the receipt, never its split-tender
   // link — the stamp is carried over verbatim (same rule as the ticket
   // charges above), so correcting one leg can never silently unlink it

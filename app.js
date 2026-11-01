@@ -199,6 +199,7 @@ import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonCharges
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
 import { setupExpansionEstimatorModal } from './expansion-estimator.js';
 import { EXPENSE_BUDGETS_KEY, loadExpenseBudgets, saveExpenseBudgets } from './expense-budget-caps.js';
 import { FIELD_BAG_KEY, applyFieldBagStockBridge, computeBagStock, loadFieldBagMovements, saveFieldBagMovements, setupFieldBagModal } from './field-bag-stock.js';
@@ -5824,6 +5825,18 @@ async function onPaymentSubmit(event) {
         if (!(await duplicateTxnConfirm(txnId, dup))) { form.querySelector('[name="transactionId"]')?.focus(); return; }
       }
     }
+    // SISP-146: 5-minute double-tap guard — same customer, amount and
+    // method already logged moments ago. Ask first (the shared themed
+    // confirm, Cancel by default); declining records nothing.
+    const recentDuplicate = findRecentDuplicate(state, {
+      customerId,
+      amount: data.get('amount'),
+      method: data.get('method')
+    });
+    if (recentDuplicate && !(await askDuplicatePayment(recentDuplicate, formatPKR))) {
+      form.querySelector('[name="amount"]')?.focus();
+      return;
+    }
     // Payment proof (optional): a picked screenshot is downscaled +
     // recompressed to the storable cap before it rides the payment
     // record; a pick that cannot be shrunk enough refuses the save with
@@ -6168,13 +6181,21 @@ function setupAdvancePaymentDialog() {
   document.getElementById('advancePaymentCancelBtn')?.addEventListener('click', close);
   dialog.addEventListener('click', (event) => { if (event.target === dialog) close(); });
   const form = document.getElementById('advancePaymentForm');
-  form?.addEventListener('submit', (event) => {
+  form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const customerId = advanceDialogCustomerId;
     if (!customerId) return;
     const data = new FormData(form);
     const errorBox = document.getElementById('advancePaymentError');
     try {
+      // SISP-146: an advance is a payment too — the 5-minute double-tap
+      // guard asks before the same amount + method is logged twice.
+      const recentDuplicate = findRecentDuplicate(state, {
+        customerId,
+        amount: data.get('amount'),
+        method: data.get('method')
+      });
+      if (recentDuplicate && !(await askDuplicatePayment(recentDuplicate, formatPKR))) return;
       const { nextState, payment, month } = recordAdvancePayment(state, customerId, {
         date: data.get('date'),
         amount: data.get('amount'),
@@ -6209,12 +6230,27 @@ function setupAdvancePaymentDialog() {
     document.getElementById(id)?.addEventListener('change', refreshPrepaySummary);
     document.getElementById(id)?.addEventListener('input', refreshPrepaySummary);
   }
-  document.getElementById('prepaySaveBtn')?.addEventListener('click', () => {
+  document.getElementById('prepaySaveBtn')?.addEventListener('click', async () => {
     const customerId = advanceDialogCustomerId;
     if (!customerId) return;
     const errorBox = document.getElementById('advancePaymentError');
     const data = new FormData(form);
     try {
+      // SISP-146: a prepay records one advance payment for the quote's
+      // net cash — the double-tap guard prices that same quote (the
+      // exact inputs recordPrepay uses) and asks before a repeat.
+      const prepayCustomer = state.customers.find(c => c.id === customerId);
+      const guardQuote = prepayCustomer ? prepayQuote(prepayCustomer, {
+        months: Number(document.getElementById('prepayMonths')?.value),
+        startMonth: document.getElementById('prepayStartMonth')?.value || defaultAdvanceTargetMonth(),
+        discount: document.getElementById('prepayDiscount')?.value || 0
+      }) : null;
+      const recentDuplicate = guardQuote ? findRecentDuplicate(state, {
+        customerId,
+        amount: guardQuote.netPaid,
+        method: data.get('method')
+      }) : null;
+      if (recentDuplicate && !(await askDuplicatePayment(recentDuplicate, formatPKR))) return;
       const { nextState, payment, month, prepaidUntil } = recordPrepay(state, customerId, {
         months: Number(document.getElementById('prepayMonths')?.value),
         startMonth: document.getElementById('prepayStartMonth')?.value || undefined,

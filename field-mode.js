@@ -125,6 +125,7 @@ import {
   getPakistanLocalDate
 } from './nav-quick-collect.js';
 import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOutstandingCents, whatsappPhoneFor } from './core.js';
+import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
 import { receiptChannelPreference, receiptLangPreference } from './receipt-preferences.js';
 import { looseChangeSuggestions, isLooseChangeTender } from './loose-change-credit.js';
 import { t } from './nav-language.js';
@@ -1192,7 +1193,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     if (!spoken && text) toast(text);
   }
 
-  function collect(method) {
+  async function collect(method) {
     if (busy || !selectedId) return;
     const state = typeof getState === 'function' ? getState() : null;
     if (!state) return;
@@ -1200,6 +1201,18 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     if (!fresh) {
       toast('No pending balance for this customer.');
       selectedId = null;
+      render();
+      return;
+    }
+    // SISP-146: 5-minute double-tap guard — the same amount + method
+    // was already collected from this customer moments ago. Ask through
+    // the shared themed confirm; cancelling records nothing.
+    const recentDuplicate = findRecentDuplicate(state, {
+      customerId: selectedId,
+      amount: fresh.totalDues,
+      method
+    });
+    if (recentDuplicate && !(await askDuplicatePayment(recentDuplicate, formatPKR))) {
       render();
       return;
     }
@@ -1270,7 +1283,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
    * stored tagged kind 'advance' and the receipt card (WA / 58mm / PNG)
    * renders exactly like a normal collection.
    */
-  function collectAdvance(method) {
+  async function collectAdvance(method) {
     if (busy || !selectedId) return;
     const state = typeof getState === 'function' ? getState() : null;
     if (!state) return;
@@ -1288,6 +1301,15 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     // SISP-126: capture the armed remainder-waada date BEFORE the busy
     // re-render below rebuilds the sheet (which resets the choice).
     const remainderWaadaDate = fieldRemainderWaadaDate || undefined;
+    // SISP-146: the same 5-minute double-tap guard covers advance
+    // collections — an advance is a payment too (see the module header).
+    const recentDuplicate = Number.isFinite(amount) && amount > 0
+      ? findRecentDuplicate(state, { customerId: selectedId, amount, method })
+      : null;
+    if (recentDuplicate && !(await askDuplicatePayment(recentDuplicate, formatPKR))) {
+      render();
+      return;
+    }
     busy = true;
     renderPanel();
     try {

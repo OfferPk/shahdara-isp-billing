@@ -7784,6 +7784,13 @@
         <p id="jsonBackupPreviewSummary" class="backup-preview-summary" role="status" aria-live="polite"></p>
         <p id="jsonBackupChecksumNote" class="backup-checksum-note" role="status"></p>
         <p id="jsonBackupBranchGuardNote" class="backup-checksum-note" role="alert" hidden></p>
+        <div id="branchGuardDeltaSummary" class="branch-guard-delta" hidden>
+          <p id="branchGuardDeltaTitle" class="branch-guard-delta-title"></p>
+          <p id="branchGuardDeltaOnlyBackup" class="branch-guard-delta-row"></p>
+          <p id="branchGuardDeltaOnlyLocal" class="branch-guard-delta-row"></p>
+          <p id="branchGuardDeltaShared" class="branch-guard-delta-row"></p>
+          <p id="branchGuardDeltaVoided" class="branch-guard-delta-voided" hidden></p>
+        </div>
         <p id="branchGuardOverrideWrap" class="backup-merge-rule" hidden><label for="branchGuardOverrideCheckbox"><input type="checkbox" id="branchGuardOverrideCheckbox"> <span id="branchGuardOverrideLabel"></span></label></p>
         <p class="backup-merge-rule">This is a merge-only restore. Existing nonblank profiles and conflicting bill/payment values are kept; unique saved receipts, bills, complaints and profiles can be added. No record is written until you apply this preview.</p>
         <ul id="jsonBackupConflictList" class="backup-conflict-list" aria-label="Backup conflicts"></ul>

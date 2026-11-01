@@ -15,14 +15,16 @@
 //  - legacy backups without a stamp warn but are never bricked.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createInitialState, createJsonBackup, previewJsonBackupMerge } from '../core.js';
 import {
   BRANCH_GUARD_KEY,
   ensureBranchGuard, loadBranchGuard, saveBranchGuard,
   createBranchGuardStamp, recordBranchGuardExport, recordBranchGuardApply,
-  classifyBranchGuardRestore, fingerprintState,
+  classifyBranchGuardRestore, fingerprintState, computeReceiptDelta,
   sanitizeBranchGuard, sanitizeBranchGuardStamp
 } from '../branch-guard.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 const NOW = new Date('2026-10-29T10:00:00.000Z');
 
@@ -292,4 +294,184 @@ test('sanitizers and fingerprints degrade safely; corrupt storage never breaks r
 
   // The guard record's own backup-side key name is stable.
   assert.equal(BRANCH_GUARD_KEY, 'sisp_branch_guard_v1');
+});
+
+// ---------------------------------------------------------------------------
+// SISP-183: side-by-side receipt delta in the guard preview. The delta
+// reuses the merge's own dedup identity (customer id + bill month +
+// payment id) and is display-only: it must partition the union of both
+// sides' receipts and never change a verdict, a merge, or canApply.
+// ---------------------------------------------------------------------------
+
+function deltaState(builders) {
+  const state = createInitialState(builders.map(builder => builder.name));
+  builders.forEach((builder, index) => {
+    for (const bill of builder.bills) {
+      state.customers[index].bills.push({ id: `bill-${index}-${bill.month}`, month: bill.month, dueAmount: 0, status: 'pending', generated: true, payments: bill.payments });
+    }
+  });
+  return state;
+}
+
+test('SISP-183 delta: diverged fork partitions into onlyInBackup / onlyInLocal / sharedDeduplicated', () => {
+  const shared = [pay('s1', 1000), pay('s2', 500), pay('s3', 300), pay('s4', 200)];
+  const local = deltaState([{ name: 'Synthetic Customer One', bills: [{ month: '2026-10', payments: [...shared, pay('l1', 100), pay('l2', 200), pay('l3', 300)] }] }]);
+  const backup = deltaState([{ name: 'Synthetic Customer One', bills: [{ month: '2026-10', payments: [...shared, pay('b1', 400), pay('b2', 600)] }] }]);
+
+  const delta = computeReceiptDelta(local, backup);
+  assert.deepEqual(delta.onlyInBackup, { count: 2, amount: 1000, voidedCount: 0 });
+  assert.deepEqual(delta.onlyInLocal, { count: 3, amount: 600, voidedCount: 0 });
+  assert.deepEqual(delta.sharedDeduplicated, { count: 4, amount: 2000, voidedCount: 0 });
+  // Partition identity: the three buckets cover the union exactly once.
+  assert.equal(delta.onlyInBackup.count + delta.onlyInLocal.count + delta.sharedDeduplicated.count, delta.unionCount);
+  assert.equal(delta.unionCount, 9);
+});
+
+test('SISP-183 delta: identical sides are all shared; an empty side puts everything in the other bucket', () => {
+  const state = deltaState([{ name: 'Synthetic Customer One', bills: [{ month: '2026-10', payments: [pay('p1', 700), pay('p2', 300)] }] }]);
+  const identical = computeReceiptDelta(state, state);
+  assert.deepEqual(identical.onlyInBackup, { count: 0, amount: 0, voidedCount: 0 });
+  assert.deepEqual(identical.onlyInLocal, { count: 0, amount: 0, voidedCount: 0 });
+  assert.deepEqual(identical.sharedDeduplicated, { count: 2, amount: 1000, voidedCount: 0 });
+  assert.equal(identical.unionCount, 2);
+
+  const empty = createInitialState([]);
+  const emptyBackup = computeReceiptDelta(state, empty);
+  assert.deepEqual(emptyBackup.onlyInLocal, { count: 2, amount: 1000, voidedCount: 0 });
+  assert.equal(emptyBackup.onlyInBackup.count, 0);
+  assert.equal(emptyBackup.sharedDeduplicated.count, 0);
+
+  const emptyLocal = computeReceiptDelta(empty, state);
+  assert.deepEqual(emptyLocal.onlyInBackup, { count: 2, amount: 1000, voidedCount: 0 });
+  assert.equal(emptyLocal.onlyInLocal.count, 0);
+
+  // Malformed inputs degrade to an empty delta instead of throwing.
+  assert.deepEqual(computeReceiptDelta(null, undefined).unionCount, 0);
+  assert.deepEqual(computeReceiptDelta({ customers: 'junk' }, { customers: [null] }).unionCount, 0);
+});
+
+test('SISP-183 delta: identity is scoped like the merge — same payment id elsewhere is NOT shared', () => {
+  const local = deltaState([{ name: 'Synthetic Customer One', bills: [{ month: '2026-10', payments: [pay('dup', 100)] }] }]);
+  const backup = deltaState([
+    { name: 'Synthetic Customer One', bills: [{ month: '2026-09', payments: [pay('dup', 100)] }] },
+    { name: 'Synthetic Customer Two', bills: [{ month: '2026-10', payments: [pay('dup', 100)] }] }
+  ]);
+  const delta = computeReceiptDelta(local, backup);
+  assert.equal(delta.sharedDeduplicated.count, 0);
+  assert.equal(delta.onlyInBackup.count, 2); // different month, and different customer
+  assert.equal(delta.onlyInLocal.count, 1);
+  assert.equal(delta.unionCount, 3);
+});
+
+test('SISP-183 delta: voided receipts count as records but never as money; shared amount is the local copy', () => {
+  const voided = amount => ({ id: 'v1', date: '2026-10-05', amount, method: 'Cash', voided: true });
+  const local = deltaState([{ name: 'Synthetic Customer One', bills: [{ month: '2026-10', payments: [voided(999), pay('keep', 1000)] }] }]);
+  const backup = deltaState([{ name: 'Synthetic Customer One', bills: [{ month: '2026-10', payments: [voided(999), { ...pay('keep', 1200) }, { id: 'v2', date: '2026-10-06', amount: 888, method: 'Cash', voided: true }] }] }]);
+
+  const delta = computeReceiptDelta(local, backup);
+  // v1 is shared: counted as a record on both sides, Rs 999 in NO total.
+  assert.deepEqual(delta.sharedDeduplicated, { count: 2, amount: 1000, voidedCount: 1 });
+  // 'keep' differs across sides (1000 vs 1200): the merge keeps the
+  // local record, so the shared total carries the local Rs 1,000.
+  // v2 exists only in the backup: a voided record there counts, its
+  // Rs 888 does not.
+  assert.deepEqual(delta.onlyInBackup, { count: 1, amount: 0, voidedCount: 1 });
+  assert.deepEqual(delta.onlyInLocal, { count: 0, amount: 0, voidedCount: 0 });
+  assert.equal(delta.unionCount, 3);
+});
+
+test('SISP-183 preview: foreign preview carries the delta and the verdict is unchanged', () => {
+  const deviceA = makeDevice('A');
+  const deviceB = makeDevice('B');
+  const stateA = stateWithPayments([pay('pay-1', 1000), pay('pay-2', 500)]);
+  const stateB = stateWithPayments([pay('pay-1', 1000)]);
+  guardOf(deviceB);
+  const foreign = exportFrom(deviceA, stateA);
+
+  const blocked = previewOn(deviceB, stateB, foreign.text);
+  assert.equal(blocked.branchGuard.status, 'foreign');
+  assert.equal(blocked.branchGuard.blocked, true);
+  assert.equal(blocked.canApply, false); // display-only: the block stands
+  assert.deepEqual(blocked.receiptDelta.onlyInBackup, { count: 1, amount: 500, voidedCount: 0 });
+  assert.deepEqual(blocked.receiptDelta.onlyInLocal, { count: 0, amount: 0, voidedCount: 0 });
+  assert.deepEqual(blocked.receiptDelta.sharedDeduplicated, { count: 1, amount: 1000, voidedCount: 0 });
+  assert.equal(blocked.receiptDelta.unionCount, 2);
+  // The delta agrees with the merge itself: addedPayments IS the
+  // only-in-backup bucket on a fully matched customer/bill.
+  assert.equal(blocked.counts.addedPayments, blocked.receiptDelta.onlyInBackup.count);
+
+  const overridden = previewOn(deviceB, stateB, foreign.text, { override: true });
+  assert.equal(overridden.canApply, true);
+  // Counted once: local money + the only-in-backup amount, never doubled.
+  assert.equal(paymentTotal(overridden.state), 1000 + overridden.receiptDelta.onlyInBackup.amount);
+  assert.deepEqual(overridden.receiptDelta, blocked.receiptDelta);
+});
+
+test('SISP-183 preview: diverged fork delta shows both sides moving; silent previews stay silent', () => {
+  const deviceA = makeDevice('A');
+  const deviceB = makeDevice('B');
+  const base = stateWithPayments([pay('pay-1', 1000)]);
+  const genesis = exportFrom(deviceA, base);
+  applyOn(deviceB, previewOn(deviceB, createInitialState([]), genesis.text));
+  const stateB = stateWithPayments([pay('pay-1', 1000), pay('pay-b', 300)]);
+  const forkB = exportFrom(deviceB, stateB);
+  const stateA2 = stateWithPayments([pay('pay-1', 1000), pay('pay-a', 400)]);
+  exportFrom(deviceA, stateA2);
+
+  const diverged = previewOn(deviceA, stateA2, forkB.text);
+  assert.equal(diverged.branchGuard.status, 'diverged');
+  assert.equal(diverged.branchGuard.blocked, true);
+  assert.equal(diverged.canApply, false);
+  assert.deepEqual(diverged.receiptDelta.onlyInBackup, { count: 1, amount: 300, voidedCount: 0 });
+  assert.deepEqual(diverged.receiptDelta.onlyInLocal, { count: 1, amount: 400, voidedCount: 0 });
+  assert.deepEqual(diverged.receiptDelta.sharedDeduplicated, { count: 1, amount: 1000, voidedCount: 0 });
+  assert.equal(diverged.receiptDelta.unionCount, 3);
+
+  // A silent same-point preview still classifies exactly as before —
+  // computing the delta does not leak into the guard's decision.
+  const deviceC = makeDevice('C');
+  const stateC = stateWithPayments([pay('pay-1', 1000)]);
+  const own = exportFrom(deviceC, stateC);
+  const samePoint = previewOn(deviceC, stateC, own.text);
+  assert.equal(samePoint.branchGuard.status, 'same-point');
+  assert.equal(samePoint.branchGuard.silent, true);
+  assert.equal(samePoint.receiptDelta.sharedDeduplicated.count, 1);
+});
+
+test('SISP-183 i18n: every bkgrd_delta_* key exists in both dictionaries with matching placeholders', () => {
+  const enKeys = Object.keys(TRANSLATIONS.en).filter(key => key.startsWith('bkgrd_delta_')).sort();
+  const urKeys = Object.keys(TRANSLATIONS.ur).filter(key => key.startsWith('bkgrd_delta_')).sort();
+  assert.ok(enKeys.length >= 5, `expected the SISP-183 keys, got ${enKeys.length}`);
+  assert.deepEqual(urKeys, enKeys);
+  const placeholders = value => [...String(value).matchAll(/\{(\w+)\}/g)].map(match => match[1]).sort();
+  for (const key of enKeys) {
+    assert.deepEqual(placeholders(TRANSLATIONS.ur[key]), placeholders(TRANSLATIONS.en[key]), `${key} placeholders differ`);
+    assert.ok(!TRANSLATIONS.en[key].includes(key) && TRANSLATIONS.en[key].trim().length > 0, `${key} renders raw`);
+  }
+  // Every bkgrd_delta key app.js asks t() for is one of the audited keys.
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const used = [...app.matchAll(/t\('(bkgrd_delta_[a-z_]+)'/g)].map(match => match[1]);
+  assert.ok(used.length >= 5, 'app.js renders the delta through t()');
+  for (const key of used) assert.ok(enKeys.includes(key), `${key} used in app.js but missing from dictionaries`);
+});
+
+test('SISP-183 wiring: summary sits before the override control, styled with theme tokens only', () => {
+  const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  for (const id of ['branchGuardDeltaSummary', 'branchGuardDeltaTitle', 'branchGuardDeltaOnlyBackup', 'branchGuardDeltaOnlyLocal', 'branchGuardDeltaShared', 'branchGuardDeltaVoided']) {
+    assert.ok(index.includes(`id="${id}"`), `index.html carries #${id}`);
+  }
+  assert.ok(index.indexOf('id="branchGuardDeltaSummary"') < index.indexOf('id="branchGuardOverrideWrap"'), 'delta summary renders BEFORE the override control');
+
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.ok(app.includes('preview.receiptDelta'), 'renderBackupPreview reads the preview delta');
+  assert.ok(app.includes('guardVerdict?.blocked && receiptDelta'), 'summary shows only when the guard blocks');
+
+  const core = readFileSync(new URL('../core.js', import.meta.url), 'utf8');
+  assert.ok(core.includes('computeReceiptDelta(existingState, incomingState)'), 'core computes the delta from the two real states');
+  assert.ok(core.includes('receiptDelta }'), 'preview returns receiptDelta');
+
+  const css = readFileSync(new URL('../components.css', import.meta.url), 'utf8');
+  const block = css.slice(css.indexOf('.branch-guard-delta {'), css.indexOf('.branch-guard-delta-voided'));
+  assert.ok(block.includes('var(--modal-surface)'), 'delta styles sit on the modal surface token');
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(block), 'delta styles use theme tokens only, no hex');
 });

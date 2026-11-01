@@ -155,6 +155,96 @@ export function sanitizeBranchGuard(value) {
   };
 }
 
+/**
+ * SISP-183: flatten a ledger state into its receipt records, keyed
+ * EXACTLY the way the backup merge in core.js dedupes them: a payment
+ * is identified by (customer id, bill month, payment id) — the merge
+ * only ever compares payments inside a customer matched by id and a
+ * bill matched by month, so the same payment id under a different
+ * customer or month is a different receipt, never a shared one. The
+ * first occurrence of a key wins within one side, mirroring the merge
+ * treating a repeated id in one bill as a single record.
+ */
+function flattenReceipts(state) {
+  const receipts = new Map();
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  for (const customer of customers) {
+    if (!customer || typeof customer !== 'object') continue;
+    const bills = Array.isArray(customer.bills) ? customer.bills : [];
+    for (const bill of bills) {
+      if (!bill || typeof bill !== 'object') continue;
+      const payments = Array.isArray(bill.payments) ? bill.payments : [];
+      for (const payment of payments) {
+        if (!payment || typeof payment !== 'object' || payment.id === null || payment.id === undefined) continue;
+        const key = `${customer.id}|${bill.month}|${payment.id}`;
+        if (receipts.has(key)) continue;
+        const amount = Number(payment.amount);
+        receipts.set(key, {
+          amount: Number.isFinite(amount) ? amount : 0,
+          // SISP-34: a voided payment stays in the ledger as history and
+          // the merge dedupes it by id like any other record, but its
+          // money is never counted anywhere in the app.
+          voided: payment.voided === true
+        });
+      }
+    }
+  }
+  return receipts;
+}
+
+function roundMoney(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function summarizeBucket(entries) {
+  let amount = 0;
+  let voidedCount = 0;
+  for (const entry of entries) {
+    if (entry.voided) voidedCount++;
+    else amount += entry.amount;
+  }
+  return { count: entries.length, amount: roundMoney(amount), voidedCount };
+}
+
+/**
+ * SISP-183: the side-by-side receipt delta between this device's
+ * ledger and an incoming backup, shown in the restore preview when the
+ * merge guard blocks (foreign or diverged lineage) so the operator can
+ * see exactly what each side holds before arming the override.
+ *
+ * Buckets partition the union of both sides' receipt keys — every
+ * receipt lands in exactly one bucket:
+ *   onlyInBackup        — receipts the merge would ADD from the backup
+ *   onlyInLocal         — receipts only this device holds (kept either way)
+ *   sharedDeduplicated  — receipts present on both sides under the same
+ *                         key; the merge keeps the LOCAL copy once, so
+ *                         the bucket's amount is the local side's.
+ * Counts cover every payment record, voided ones included (the merge
+ * dedupes them as records too); amounts NEVER include voided money —
+ * a voided receipt is history, not cash (SISP-34). Purely presentational:
+ * nothing here feeds a guard verdict or the merge itself.
+ */
+export function computeReceiptDelta(localState, backupState) {
+  const local = flattenReceipts(localState);
+  const backup = flattenReceipts(backupState);
+  const onlyInBackup = [];
+  const onlyInLocal = [];
+  const shared = [];
+  for (const [key, entry] of backup) {
+    if (!local.has(key)) onlyInBackup.push(entry);
+  }
+  for (const [key, entry] of local) {
+    if (backup.has(key)) shared.push(entry);
+    else onlyInLocal.push(entry);
+  }
+  return {
+    onlyInBackup: summarizeBucket(onlyInBackup),
+    onlyInLocal: summarizeBucket(onlyInLocal),
+    sharedDeduplicated: summarizeBucket(shared),
+    unionCount: local.size + onlyInBackup.length
+  };
+}
+
 export function createBranchGuard({ idFactory = defaultIdFactory, now = new Date() } = {}) {
   const branchId = String(idFactory());
   const instanceId = String(idFactory());

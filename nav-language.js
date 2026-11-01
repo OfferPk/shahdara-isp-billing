@@ -3150,6 +3150,11 @@ export const TRANSLATIONS = {
     bkgrd_unguarded_note: '⚠️ This device has no branch record yet, so the origin of this backup cannot be verified. Review the preview carefully before applying.',
     bkgrd_override_label: 'I understand the risk — merge this backup anyway (existing records still win; nothing is overwritten).',
     bkgrd_override_active: '⚠️ Branch guard override is ON for this preview. Existing records still win every conflict — check the totals after applying.',
+    bkgrd_delta_title: '🧾 Receipts side by side — this device vs this backup, before you decide:',
+    bkgrd_delta_only_backup: 'Only in this backup: {count} · {amount}',
+    bkgrd_delta_only_local: 'Only on this device: {count} · {amount}',
+    bkgrd_delta_shared: 'On both sides (kept once, never counted twice): {count} · {amount}',
+    bkgrd_delta_voided: 'Voided receipts are included in the counts as records, but their amounts are excluded from every total — the same rule used everywhere in the app.',
 
     // SISP-102: Multi-Device Delta Merge
     dmerge_button: 'Delta Merge (another device)',
@@ -7007,6 +7012,11 @@ export const TRANSLATIONS = {
     bkgrd_unguarded_note: '⚠️ اس ڈیوائس پر ابھی برانچ ریکارڈ موجود نہیں، اس لیے اس بیک اپ کا ذریعہ تصدیق نہیں ہو سکتا۔ لاگو کرنے سے پہلے جائزہ غور سے دیکھیں۔',
     bkgrd_override_label: 'میں خطرہ سمجھتا ہوں — پھر بھی یہ بیک اپ ملا دیں (موجودہ ریکارڈ ہی برقرار رہیں گے؛ کچھ بھی اوور رائٹ نہیں ہوگا)۔',
     bkgrd_override_active: '⚠️ اس جائزے کے لیے برانچ گارڈ اوور رائیڈ فعال ہے۔ ہر ٹکراؤ میں موجودہ ریکارڈ ہی جیتے گا — لاگو کرنے کے بعد کُل رقم ضرور جانچیں۔',
+    bkgrd_delta_title: '🧾 رسیدیں ساتھ ساتھ — اس ڈیوائس بمقابلہ اس بیک اپ، فیصلے سے پہلے:',
+    bkgrd_delta_only_backup: 'صرف اس بیک اپ میں: {count} · {amount}',
+    bkgrd_delta_only_local: 'صرف اس ڈیوائس پر: {count} · {amount}',
+    bkgrd_delta_shared: 'دونوں طرف موجود (ایک ہی بار رکھی جائیں گی، دُہری کبھی نہیں گنیں گی): {count} · {amount}',
+    bkgrd_delta_voided: 'منسوخ رسیدیں گنتی میں بطور ریکارڈ شامل ہیں، لیکن ان کی رقوم کسی بھی کُل میں شامل نہیں — یہی اصول پوری ایپ میں چلتا ہے۔',
 
     // SISP-102: Multi-Device Delta Merge
     dmerge_button: 'ڈیلٹا مرج (دوسری ڈیوائس)',

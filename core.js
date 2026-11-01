@@ -39,6 +39,7 @@ import { computeBackupChecksum, verifyBackupChecksum } from './backup-health.js'
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements, sanitizePartnerSettings } from './partner-settlement.js';
 import { sanitizeCharityReserveSettings } from './charity-reserve.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
+import { sanitizeContactPair } from './contact-cooldown-tracker.js';
 import { sanitizeExpenseBudgets } from './expense-budget-caps.js';
 import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
@@ -212,6 +213,10 @@ export function readState(storage, key = STORAGE_KEY) {
       // SISP-50: a stamped deposit settlement survives reloads; a
       // malformed record sanitizes to null instead of posing as settled.
       depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
+      // SISP-138: the last-contact stamp pair survives reloads only as a
+      // valid pair; a legacy record (or a damaged one) loads as
+      // never-contacted (null / null), never as invented contact data.
+      ...sanitizeContactPair(customer),
       hardwareRecovered:{
         router:validDateOrNull(customer.hardwareRecovered?.router ?? null),
         mediaConverter:validDateOrNull(customer.hardwareRecovered?.mediaConverter ?? null)
@@ -3410,6 +3415,9 @@ function validateBackupState(source) {
       routerOwnership:customer.routerOwnership ?? '', mediaConverterOwnership:customer.mediaConverterOwnership ?? '', serialNumber:customer.serialNumber ?? '', securityDeposit:customer.securityDeposit ?? null,
       // SISP-50: the deposit settlement stamp travels in JSON backups.
       depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
+      // SISP-138: the last-contact stamp pair travels in JSON backups,
+      // sanitized as a pair (an invalid half voids the whole stamp).
+      ...sanitizeContactPair(customer),
       hardwareRecovered:{ router:customer.hardwareRecovered?.router ?? null, mediaConverter:customer.hardwareRecovered?.mediaConverter ?? null },
       // SISP-32: pole & landmark fields travel with the customer in JSON backups.
       poleNumber:customer.poleNumber ?? '', boxLocationNote:customer.boxLocationNote ?? '', dropWireCoreColor:customer.dropWireCoreColor ?? '',
@@ -3847,6 +3855,21 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     counts.mergedCustomers++;
     const customer = byId;
     for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt']) mergeField(customer, backupCustomer, key, backupCustomer);
+    // SISP-138: the last-contact stamp merges by recency, never as a
+    // plain field fill and never as a conflict — contact history only
+    // moves forward, so the later stamp (fixed-format strings compare
+    // chronologically) wins as a pair; a stamp present on only one side
+    // is kept.
+    {
+      const localPair = sanitizeContactPair(customer);
+      const incomingPair = sanitizeContactPair(backupCustomer);
+      if (incomingPair.lastContactedAt !== null
+        && (localPair.lastContactedAt === null || incomingPair.lastContactedAt > localPair.lastContactedAt)) {
+        customer.lastContactedAt = incomingPair.lastContactedAt;
+        customer.lastContactChannel = incomingPair.lastContactChannel;
+        counts.changes++;
+      }
+    }
     // SISP-84: connection type merges like serviceStatus's default —
     // 'commercial_vip' fills a local 'residential', and a local VIP tag
     // is never stripped by a merge. (The load sanitizer stamps

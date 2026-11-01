@@ -143,6 +143,15 @@ import {
   waadaBadgeLabel
 } from './waada-queue.js';
 import {
+  CONTACT_CHANNELS,
+  contactBadgeHtml,
+  contactChannelLabel,
+  contactMarkedMessage,
+  contactedToday,
+  markContactedLabel,
+  stampContact
+} from './contact-cooldown-tracker.js';
+import {
   VISIT_SHIFT_FILTERS,
   VISIT_WINDOW_LABEL_KEYS,
   customerVisitWindow,
@@ -679,6 +688,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   if (!view || !toggleBtn) return nullFieldModeController();
 
   const closeBtn = document.getElementById('fieldModeCloseBtn');
+  const hideContactedToggle = document.getElementById('fieldModeHideContactedToggle');
   const searchInput = document.getElementById('fieldModeSearchInput');
   const searchClearBtn = document.getElementById('fieldModeSearchClearBtn');
   const zoneFiltersEl = document.getElementById('fieldModeZoneFilters');
@@ -703,6 +713,8 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let nearestBusy = false;
   let likelyOnly = false;
   let selectedId = null;
+  // SISP-138: "Hide contacted today" view filter (session-only).
+  let hideContacted = false;
   let lastReceipt = null;
   let lastReceiptAdvance = false;
   let lastReceiptAdvanceTarget = null;
@@ -812,6 +824,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     const nameIndex = buildSameNameIndex(nameState?.customers);
     listEl.innerHTML = visible.map(entry => {
       const badge = waadaBadgeLabel(liveCustomer(entry.id), todayStr());
+      // SISP-138: "✓ Reminded Today HH:MM" badge on the card when the
+      // customer was already contacted today (empty otherwise).
+      const contactBadge = contactBadgeHtml(liveCustomer(entry.id), new Date());
       const sameNameBadge = sameNameBadgeHtml(nameState, liveCustomer(entry.id), new Date(), nameIndex);
       // SISP-79: 🎯 marker when the customer's usual pay window
       // contains today (derived from his receipts; no habit, no marker).
@@ -850,6 +865,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         <span class="field-mode-customer-main">
           <strong>${escapeHtml(entry.name)}</strong>
           <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${creditNote}${distanceNote}${visitNote}</small>
+          ${contactBadge ? `<span class="field-mode-contact-row">${contactBadge}</span>` : ''}
           ${sameNameBadge}
           ${chip}
           ${likelyChip}
@@ -916,6 +932,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     }
     const customer = liveCustomer(selectedId);
     const badge = waadaBadgeLabel(customer, todayStr());
+    // SISP-138: cooldown badge for the sheet header (empty unless the
+    // customer was already contacted today).
+    const contactBadge = contactBadgeHtml(customer, new Date());
     // SISP-79: the customer's usual pay window, when he has a proven
     // habit — printed on the dues line so the collector knows whether
     // today is this customer's normal paying day.
@@ -932,7 +951,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     ).join('');
     panelEl.innerHTML = `<section class="field-mode-actions" aria-label="Collection actions">
       <h3>${escapeHtml(entry.name)} <small>#${escapeHtml(entry.customerNumber)}</small></h3>
-      <p class="field-mode-due-line">Full pending: <strong>${escapeHtml(formatPKR(entry.totalDues))}</strong>${entry.targetMonth ? ` · oldest unpaid: ${escapeHtml(entry.targetMonth)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${escapeHtml(habitNote)}</p>
+      <p class="field-mode-due-line">Full pending: <strong>${escapeHtml(formatPKR(entry.totalDues))}</strong>${entry.targetMonth ? ` · oldest unpaid: ${escapeHtml(entry.targetMonth)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${contactBadge ? ` · ${contactBadge}` : ''}${escapeHtml(habitNote)}</p>
       <div class="field-mode-action-grid">
         <button type="button" class="field-mode-action-btn field-mode-cash-btn" data-field-action="cash" ${busy ? 'disabled' : ''}>💵 Cash Full — ${escapeHtml(formatPKR(entry.totalDues))}</button>
         ${shopButtons}
@@ -951,6 +970,13 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           <button type="button" class="field-mode-waada-chip" data-field-waada="clear" ${busy ? 'disabled' : ''}>Clear</button>
         </div>
         <p class="field-mode-note">${customer?.promiseDate ? `Current: ${escapeHtml(customer.promiseDate)}${customer.promiseAmount ? ` · ${escapeHtml(formatPKR(customer.promiseAmount))}` : ''}${customer.promiseNote ? ` · ${escapeHtml(customer.promiseNote)}` : ''}` : 'No promise set.'}</p>
+      </div>
+      <div class="field-mode-contact">
+        <p class="field-mode-contact-label">✓ ${escapeHtml(markContactedLabel())}</p>
+        <div class="field-mode-contact-chips">
+          ${CONTACT_CHANNELS.map(ch => `<button type="button" class="field-mode-contact-chip" data-field-contact="${ch}" ${busy ? 'disabled' : ''}>${escapeHtml(contactChannelLabel(ch))}</button>`).join('')}
+        </div>
+        <p class="field-mode-note">${escapeHtml(t('cct_field_note'))}</p>
       </div>
       <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="back">← Back to list</button>
     </section>`;
@@ -1051,6 +1077,13 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     </section>`;
   }
 
+  if (hideContactedToggle) {
+    hideContactedToggle.addEventListener('change', () => {
+      hideContacted = hideContactedToggle.checked === true;
+      render();
+    });
+  }
+
   function syncNearestButton() {
     if (!nearestBtn) return;
     nearestBtn.textContent = t('gpspin_nearest');
@@ -1087,7 +1120,15 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   function render() {
     if (!isOpen) return;
     const state = typeof getState === 'function' ? getState() : null;
-    const base = activeEntries();
+    let base = activeEntries();
+    // SISP-138: with the toggle on, customers already contacted today
+    // leave the working list (zone counts below describe the filtered
+    // base, so the chips stay honest). Default off = the list is
+    // exactly as before.
+    if (hideContacted) {
+      const byId = new Map((state?.customers ?? []).map(c => [c.id, c]));
+      base = base.filter(entry => !contactedToday(byId.get(entry.id), new Date()));
+    }
     const groups = groupFieldModeZones(state, base);
     const zoneVisible = zoneKey === FIELD_MODE_ALL_ZONES
       ? base
@@ -1246,6 +1287,29 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       toast(err?.message || 'Could not record advance payment.');
     } finally {
       busy = false;
+    }
+    render();
+  }
+
+  // SISP-138: Mark-contacted — the lineman records that he already
+  // reached this customer today (a call from his own phone, an SMS, a
+  // WhatsApp, or standing at the door). Same state path as applyWaada:
+  // pure customer transform -> mapped into a new state -> onSaveState.
+  function applyContact(channel) {
+    if (busy || !selectedId) return;
+    const state = typeof getState === 'function' ? getState() : null;
+    const customer = liveCustomer(selectedId);
+    if (!state || !customer) return;
+    try {
+      const updated = stampContact(customer, channel, new Date());
+      const nextState = {
+        ...state,
+        customers: state.customers.map(c => (c.id === customer.id ? updated : c))
+      };
+      if (typeof onSaveState === 'function') onSaveState(nextState);
+      toast(contactMarkedMessage(channel));
+    } catch (err) {
+      toast(err?.message || 'Could not mark the contact.');
     }
     render();
   }
@@ -1463,6 +1527,11 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           resetSelection();
           render();
         }
+        return;
+      }
+      const contactBtn = event.target.closest?.('[data-field-contact]');
+      if (contactBtn) {
+        applyContact(contactBtn.getAttribute('data-field-contact'));
         return;
       }
       const waadaBtn = event.target.closest?.('[data-field-waada]');

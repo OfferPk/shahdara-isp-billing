@@ -2169,6 +2169,68 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-138: contact cooldown — "Reminded Today" badge, Hide-contacted
+   toggles and Mark-contacted affordances. Theme tokens only, so the
+   badge reads correctly in dark mode on every surface. */
+.contact-cooldown-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-paid-bg);
+  color: var(--color-paid);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.reminder-cooldown-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 2px 0;
+}
+.reminder-cooldown-toggle,
+.field-mode-hide-contacted {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+.field-mode-hide-contacted { margin: 8px 2px 0; }
+.reminder-contact-badge-row { display: block; margin-top: 4px; }
+.reminder-contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.reminder-contact-label { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.reminder-contact-channels { display: flex; flex-wrap: wrap; gap: 6px; }
+.defaulter-contact-badge { margin-top: 4px; }
+.defaulter-contact-picker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 4px;
+}
+.defaulter-contact-picker[hidden] { display: none; }
+.field-mode-contact-row { display: block; margin-top: 2px; }
+.field-mode-contact { margin-top: 12px; }
+.field-mode-contact-label { font-weight: 700; color: var(--ink); margin: 0 0 6px; }
+.field-mode-contact-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.field-mode-contact-chip {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-weight: 600;
+  cursor: pointer;
+}
 /* SISP-137: Installation Quality Gate dialog (token-only; the dialog itself
    uses the shared .billing-modal shell → var(--modal-surface), and its status
    pills reuse .safety-badge variants). Rows stack full-width so nothing can

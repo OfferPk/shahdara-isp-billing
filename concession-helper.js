@@ -22,6 +22,7 @@
 
 import { buildCustomerDowntimeSummary } from './downtime-analytics.js';
 import { applicablePriceForMonth } from './billing-cycle.js';
+import { roundedAmountFor } from './bill-rounding-helper.js';
 
 /** Downtime hours in a billed month at/above which a concession is suggested. */
 export const CONCESSION_THRESHOLD_HOURS = 12;
@@ -117,6 +118,22 @@ export function netDueAfterConcession(netDue, concessionAmount) {
   const due = Number(netDue);
   const safeDue = Number.isFinite(due) && due > 0 ? due : 0;
   return Math.max(0, Math.round((safeDue - sanitizeConcessionAmount(concessionAmount)) * 100) / 100);
+}
+
+/**
+ * SISP-131: apply the operator's [Round to Rs. 50] toggle to a
+ * suggestion. Returns the suggestion with suggestedAmount replaced by
+ * the rounded figure, the original kept as rawSuggestedAmount, and the
+ * audit tag (or null) as rounding — ready to hand to
+ * applyConcessionToBill. With the toggle off (the default) the
+ * suggestion is returned unchanged apart from the two bookkeeping
+ * fields, so callers can route every apply through here safely.
+ */
+export function roundedConcessionSuggestion(suggestion, { enabled = false, mode = 'nearest' } = {}) {
+  if (!suggestion || typeof suggestion !== 'object') return suggestion;
+  const raw = Number(suggestion.suggestedAmount) || 0;
+  const { amount, rounding } = roundedAmountFor(raw, { enabled, mode });
+  return { ...suggestion, rawSuggestedAmount: raw, suggestedAmount: amount, rounding };
 }
 
 /** Exact badge text required by the spec for the Collect / Profile surfaces. */

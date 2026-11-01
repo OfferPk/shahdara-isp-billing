@@ -153,6 +153,7 @@ import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupZoneSheetDialog } from './lineman-sheet-print.js';
 import { setupExpenseVoucherDialog } from './expense-voucher-print.js';
+import { setupDailyMethodMatrixDialog } from './daily-method-matrix.js';
 import { setupLetterheadDialog } from './business-letterhead-print.js';
 import { setupBillVoucherDialog } from './a4-voucher-grid-print.js';
 import { setupOwnerPinGuard, guardDecision, loadOwnerPinRecord } from './owner-pin-guard.js';
@@ -586,6 +587,7 @@ export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let zoneSheetDialogController = null;
 export let expenseVoucherDialogController = null;
+export let dailyMethodMatrixDialogController = null;
 export let letterheadDialogController = null;
 export let billVoucherDialogController = null;
 export let bulkTariffDialogController = null;
@@ -12548,6 +12550,9 @@ if (typeof document !== 'undefined') {
     getPartnerEntries: () => loadPartnerLedgerEntries(),
     onToast: (msg, opts) => toast(msg, opts)
   });
+  dailyMethodMatrixDialogController = setupDailyMethodMatrixDialog(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   letterheadDialogController = setupLetterheadDialog(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
@@ -14110,6 +14115,13 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const dailyMethodMatrixDialog = $('#dailyMethodMatrixDialog');
+  if (dailyMethodMatrixDialog && !dailyMethodMatrixDialogController) {
+    dailyMethodMatrixDialogController = setupDailyMethodMatrixDialog(() => state, {
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
   const letterheadDialog = $('#letterheadDialog');
   if (letterheadDialog && !letterheadDialogController) {
     letterheadDialogController = setupLetterheadDialog(() => state, {
@@ -14352,6 +14364,7 @@ if (typeof document !== 'undefined') {
     window.topDefaultersModalController = topDefaultersModalController;
     window.zoneSheetDialogController = zoneSheetDialogController;
     window.expenseVoucherDialogController = expenseVoucherDialogController;
+    window.dailyMethodMatrixDialogController = dailyMethodMatrixDialogController;
     window.letterheadDialogController = letterheadDialogController;
     window.billVoucherDialogController = billVoucherDialogController;
     window.ownerPinGuardController = ownerPinGuardController;

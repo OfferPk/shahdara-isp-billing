@@ -7,6 +7,7 @@ import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { contributorSplitStatus, subContributorsOf } from './shared-router-contributors.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 import { t } from './nav-language.js';
 import { remainderWaadaOf } from './waada-queue.js';
@@ -383,6 +384,17 @@ export function buildPaymentReceipt(customer, bill, payment) {
       if (!fifo) return { fifoAllocation: null, fifoRemaining: null, fifoShow: false };
       return { fifoAllocation: fifo.allocation, fifoRemaining: fifo.remaining, fifoShow: fifo.show };
     })(),
+    // SISP-158: shared-router contributor split for THIS bill month,
+    // computed with the receipt's through-this-payment discipline: only
+    // payments up to and including this one (in the builder's date
+    // order) count toward each neighbour's paid figure, exactly like
+    // the status/balance math above. Null when the customer has no
+    // contributors, so ordinary receipts stay byte-identical.
+    contributorSplit: (() => {
+      if (subContributorsOf(customer).length === 0) return null;
+      const through = selectedIndex >= 0 ? orderedPayments.slice(0, selectedIndex + 1) : [];
+      return contributorSplitStatus(customer, matchingBill, { price: nominalPrice ?? billDue, payments: through });
+    })(),
     // SISP-128: "Last 3 Payments" mini-history — the customer's latest
     // recorded payments before this one (voided excluded), derived at
     // build time from the ledger and never stored. Empty array for a
@@ -488,6 +500,21 @@ const fifoReceiptRows = (receipt, formatAmount) => {
     + `<div class="receipt-field"><dt>Baqi Sabiqa Baqaya:</dt><dd>${formatAmount(r.arrears)}</dd></div>`
     + `<div class="receipt-field"><dt>Baqi Mahana Bill:</dt><dd>${formatAmount(r.package)}</dd></div>`
     + `<div class="receipt-field"><dt>Baqi Kist:</dt><dd>${formatAmount(r.kist)}</dd></div>`;
+};
+
+// SISP-158: shared-router split rows for the HTML receipt layouts — who
+// owes which part of this shared bill, how much of each part has been
+// paid through this receipt, and what remains. Empty when the receipt
+// carries no split (ordinary customers), so their receipts render
+// exactly as before.
+const contributorSplitReceiptRows = (receipt, formatAmount) => {
+  const split = receipt?.contributorSplit;
+  if (!split) return '';
+  const line = (row, label) => `<div class="receipt-field"><dt>${escapeHtml(label)}:</dt><dd>Hissa ${formatAmount(row.share)} · Ada ${formatAmount(row.paid)} · Baqi ${formatAmount(row.remaining)}</dd></div>`;
+  const rows = [`<div class="receipt-field"><dt><strong>Hamsaya Hissa Taqseem / حصہ تقسیم:</strong></dt><dd></dd></div>`];
+  for (const row of split.rows) rows.push(line(row, `Hamsaya — ${row.name}`));
+  rows.push(line(split.main, `Asal Customer — ${split.main.name}`));
+  return rows.join('');
 };
 
 function escapeHtml(str) {
@@ -613,6 +640,7 @@ export function generatePaymentReceiptHtml(receipt, {
 
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
+    ${contributorSplitReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     ${looseChangeReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance / بقایا:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
@@ -665,6 +693,7 @@ export function generatePaymentReceiptHtml(receipt, {
 
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
+    ${contributorSplitReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>Amount Received / رقم موصول:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     ${looseChangeReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance Due / باقی واجبات:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
@@ -728,6 +757,11 @@ export function generatePaymentReceiptHtml(receipt, {
       ['Baqi Sabiqa Baqaya', formatAmount(receipt.fifoRemaining.arrears)],
       ['Baqi Mahana Bill', formatAmount(receipt.fifoRemaining.package)],
       ['Baqi Kist', formatAmount(receipt.fifoRemaining.kist)]
+    ] : []),
+    ...(receipt.contributorSplit ? [
+      ['Hamsaya Hissa Taqseem / حصہ تقسیم', ''],
+      ...receipt.contributorSplit.rows.map((row) => [`Hamsaya — ${row.name}`, `Hissa ${formatAmount(row.share)} · Ada ${formatAmount(row.paid)} · Baqi ${formatAmount(row.remaining)}`]),
+      [`Asal Customer — ${receipt.contributorSplit.main.name}`, `Hissa ${formatAmount(receipt.contributorSplit.main.share)} · Ada ${formatAmount(receipt.contributorSplit.main.paid)} · Baqi ${formatAmount(receipt.contributorSplit.main.remaining)}`]
     ] : []),
     ['Package Date', receipt.packageDate],
     ...(receipt.remainderWaada ? [['Baqi / باقی رقم', `Rs. ${Number(receipt.remainderWaada.promiseAmount).toLocaleString('en-PK')} • Waada: ${receipt.remainderWaada.promiseDate}`]] : []),

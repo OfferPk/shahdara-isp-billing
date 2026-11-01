@@ -35,6 +35,12 @@
  * receipt is DERIVED from the saved records, so a reprint after a void
  * shows the voided leg marked VOID and excludes it from the total.
  *
+ * SENDER (SISP-63, FU-SISP121-SENDER): each leg also carries the
+ * sender proof metadata (senderTitle + senderDigits, name + last-4
+ * only) under the exact SISP-63 contract — the recorder stamps it on
+ * digital legs, cash legs store nothing — so wallet statement
+ * matching treats a split's digital leg like any digital payment.
+ *
  * Imported ONLY by nav-quick-collect.js (an existing build entry), so
  * the module inlines into the existing bundle graph — dist stays at
  * the 25-file perf budget (pinned by tests/split-tender-collect.test.js
@@ -99,6 +105,14 @@ function cleanLeg(rawLeg, index) {
     amount: Number(leg.amount),
     method: typeof leg.method === 'string' ? leg.method.trim() : '',
     transactionId: String(leg.transactionId ?? '').trim().slice(0, 64),
+    // FU-SISP121-SENDER: SISP-63 sender proof metadata rides each leg
+    // exactly as the single-payment path hands it to the recorder —
+    // trimmed pass-through here; core's validatePayment is the single
+    // sanitization point (single-line title, <= 100 chars or throw,
+    // digits reduced to digits-only LAST 4, kept for digital methods
+    // only — a cash leg's values are dropped there, never stored).
+    senderTitle: String(leg.senderTitle ?? '').trim(),
+    senderDigits: String(leg.senderDigits ?? '').trim(),
     referenceOverrideReason: String(leg.referenceOverrideReason ?? '').trim().slice(0, 100),
     // A proof screenshot may ride ONE leg only (the caller puts it on
     // leg 1); validatePayment applies its own data-URL rules later.
@@ -174,6 +188,8 @@ export function validateSplitTender(state, spec, referenceDate = new Date()) {
       method: leg.method,
       paidBy: paidBy ? String(paidBy).trim() : undefined,
       transactionId: leg.transactionId || undefined,
+      senderTitle: leg.senderTitle || undefined,
+      senderDigits: leg.senderDigits || undefined,
       referenceOverrideReason: leg.referenceOverrideReason || undefined,
       screenshot: leg.screenshot
     }, referenceDate, {
@@ -247,6 +263,14 @@ export function executeSplitTenderCollection(state, spec, { execute, referenceDa
     amount: leg.amount,
     method: leg.method,
     transactionId: leg.transactionId || undefined,
+    // FU-SISP121-SENDER: the recorder (executeQuickCollection) already
+    // accepts senderTitle/senderDigits and stamps them via addPayment —
+    // the split spec now carries them per leg, so a digital leg's
+    // recorded payment is indistinguishable in shape from a normal
+    // digital payment and SISP-63 statement matching works on it
+    // unchanged (the matcher reads the record fields directly).
+    senderTitle: leg.senderTitle || undefined,
+    senderDigits: leg.senderDigits || undefined,
     referenceOverrideReason: leg.referenceOverrideReason || undefined,
     screenshot: leg.screenshot
   });

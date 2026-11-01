@@ -417,6 +417,7 @@
           <div id="billingCycleForecast" class="billing-cycle-summary billing-cycle-forecast"></div>
           <div style="display: flex; gap: 8px; flex-wrap: wrap;">
             <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_billing_cycle">📅 Billing Cycle</button>
+            <button id="openMonthEndWizardBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_month_end">🧾 Month-End Check</button>
           </div>
         </article>
         <article class="summary-card summary-complaint-register ds-stat ds-stat--overdue">
@@ -21481,6 +21482,22 @@
         <div id="billingCyclePreview"></div>
         <button id="billingCycleConfirmBtn" class="primary-button" type="button" hidden>Confirm &amp; run cycle</button>
         <div id="billingCycleResult"></div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="monthEndWizardModal" class="billing-modal month-end-wizard-modal" aria-labelledby="monthEndWizardTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="monthEndWizardTitle">📅 Month-End Closing Check</h2>
+        <button id="monthEndWizardCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="month-end-wizard-intro"><strong id="monthEndWizardMonth">Closing month:</strong></p>
+        <div id="monthEndWizardBody"></div>
+        <p id="monthEndWizardNote" class="month-end-wizard-note">This check only warns — it never blocks the billing cycle.</p>
+        <div class="form-actions">
+          <button id="monthEndWizardProceedBtn" class="primary-button" type="button">Proceed anyway</button>
+        </div>
       </div>
     </div>
   </dialog>

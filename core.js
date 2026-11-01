@@ -2126,7 +2126,20 @@ export function addPayment(state, customerId, month, fields, referenceDate = new
   return nextState;
 }
 
-export function correctPayment(state, customerId, month, paymentId, fields, referenceDate = new Date()) {
+/**
+ * Shop-settled amount on a payment, mirroring shop-settlement.js
+ * settledAmountOf (kept local: shop-settlement.js imports nothing from
+ * core.js, and this is the same house mirror payment-void-audit.js keeps).
+ */
+function shopSettledAmountOf(payment) {
+  if (!payment || typeof payment !== 'object') return 0;
+  const explicit = Number(payment.shopSettledAmount);
+  if (Number.isFinite(explicit) && explicit > 0) return Math.min(explicit, Number(payment.amount) || 0);
+  if (payment.shopSettled) return Number(payment.amount) || 0;
+  return 0;
+}
+
+export function correctPayment(state, customerId, month, paymentId, fields, referenceDate = new Date(), options = {}) {
   const customer = customerOrThrow(state, customerId);
   const bill = customer.bills.find(b => b.month === month);
   const existingPayment = bill?.payments.find(p => p.id === paymentId);
@@ -2134,6 +2147,16 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   // SISP-34: a voided receipt is frozen history — correcting it would
   // silently drop the voided flag and un-void it.
   if (existingPayment.voided === true) throw new Error('Cannot correct a voided payment. Voided receipts are kept as history.');
+  // SISP-156: a receipt whose cash was already handed over from a shop
+  // (any settled amount, even partial) cannot change channel — the
+  // settlement record's allocations name the old channel's receipts, so
+  // moving the receipt would rewrite handed-over cash. Same lock (and
+  // remedy) as voidPayment's: reverse the shop handover first. Other
+  // corrections (date, amount, ...) on a settled receipt stay allowed.
+  const channelChange = fields && fields.method !== undefined && fields.method !== existingPayment.method;
+  if (channelChange && shopSettledAmountOf(existingPayment) > 0) {
+    throw new Error('This receipt was already handed over from the shop, so its channel cannot be changed. Reverse the shop handover first.');
+  }
   const mergedFields = {
     ...fields,
     discount: fields.discount !== undefined ? fields.discount : existingPayment.discount,
@@ -2172,7 +2195,11 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     senderTitle: fields.senderTitle !== undefined ? fields.senderTitle : existingPayment.senderTitle,
     senderDigits: fields.senderDigits !== undefined ? fields.senderDigits : existingPayment.senderDigits
   };
-  let payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
+  // SISP-156: callers that move a payment onto a digital channel (the
+  // channel-reassign path) pass strictDigitalReference so the new method
+  // is held to exactly the rule a fresh recording faces. The plain
+  // correction form passes no options and keeps its historical behaviour.
+  let payment = { id:paymentId, ...validatePayment(mergedFields, referenceDate, { strictDigitalReference: options?.strictDigitalReference === true }), ...(fields.paidBy === undefined && existingPayment.paidBy ? { paidBy:existingPayment.paidBy } : {}) };
   // SISP-43: a correction restates the receipt, never its ticket-charge
   // settlement — the stamp is carried over verbatim, and the corrected
   // amount must still cover the settled charges. Anything else has to
@@ -2226,6 +2253,52 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
   // made against the original collection and must stay traceable to it.
   if (existingPayment.remainderWaada && typeof existingPayment.remainderWaada === 'object') {
     payment = { ...payment, remainderWaada: existingPayment.remainderWaada };
+  }
+  // SISP-156: the same carry-over discipline for the shop settlement
+  // stamps — validatePayment never emits them, so without this a
+  // correction silently un-settled a handed-over receipt while the
+  // settlement record kept its allocation. Carried verbatim, always.
+  if (existingPayment.shopSettledAmount !== undefined || existingPayment.shopSettled !== undefined || existingPayment.settlementIds !== undefined) {
+    payment = {
+      ...payment,
+      ...(existingPayment.shopSettledAmount !== undefined ? { shopSettledAmount: existingPayment.shopSettledAmount } : {}),
+      ...(existingPayment.shopSettled !== undefined ? { shopSettled: existingPayment.shopSettled } : {}),
+      ...(existingPayment.settlementIds !== undefined ? { settlementIds: Array.isArray(existingPayment.settlementIds) ? [...existingPayment.settlementIds] : existingPayment.settlementIds } : {})
+    };
+  }
+  // SISP-34: the cleared-Waada stamp is what a later void restores from —
+  // a correction must never strip it (same carry-over rule as above).
+  if (existingPayment.clearedWaada !== undefined) {
+    payment = { ...payment, clearedWaada: existingPayment.clearedWaada };
+  }
+  // SISP-156: a stored receipt number (stamped by the QA repair flow for
+  // duplicate-fixed receipts) is the receipt's permanent identity — the
+  // reprint reads payment.receiptNumber first, so dropping it here would
+  // silently renumber the receipt on any correction. Carried verbatim.
+  if (existingPayment.receiptNumber !== undefined || existingPayment.permanentReceiptNumber !== undefined) {
+    payment = {
+      ...payment,
+      ...(existingPayment.receiptNumber !== undefined ? { receiptNumber: existingPayment.receiptNumber } : {}),
+      ...(existingPayment.permanentReceiptNumber !== undefined ? { permanentReceiptNumber: existingPayment.permanentReceiptNumber } : {})
+    };
+  }
+  // SISP-156: a channel change is auditable on the receipt itself. The
+  // entry rides the payment (so it travels in backups like every other
+  // stamp) and the history is carried across later corrections, never
+  // reset. Non-channel corrections add no entry.
+  const priorMethodCorrections = Array.isArray(existingPayment.methodCorrections) ? existingPayment.methodCorrections : [];
+  if (channelChange || priorMethodCorrections.length > 0) {
+    const correctedAt = (() => {
+      const parsed = new Date(referenceDate);
+      return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+    })();
+    payment = {
+      ...payment,
+      methodCorrections: [
+        ...priorMethodCorrections,
+        ...(channelChange ? [{ fromMethod: existingPayment.method, toMethod: payment.method, correctedAt }] : [])
+      ]
+    };
   }
   assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId, { prepayCoverage: prepayTermsOf(payment) !== null });
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };

@@ -1,6 +1,7 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers, whatsappPhoneFor } from './core.js';
 import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from './billing-cycle.js';
 import { sanitizePauseFields, vacationHoldState } from './pause-billing.js';
+import { sanitizeSeasonalFields, seasonalStateForMonth } from './seasonal-downgrade.js';
 import { sanitizeShieldFields, isShielded } from './suspension-shield.js';
 import { normalizeGpsPin, googleMapsUrl, formatGpsCoords } from './gps-pin-helper.js';
 import { buildVacationHoldDisableSnippet, buildVacationHoldEnableSnippet } from './mikrotik-generator.js';
@@ -411,6 +412,29 @@ export function pauseBillingSummary(customer) {
       : (pauseSkippedMonths.length > 0
         ? t('prof_pause_detail_inactive_skipped', null, { skipped: skippedNote })
         : t('prof_pause_not_paused'))
+  };
+}
+
+// SISP-153: seasonal keep-alive summary for the profile view (Service
+// group row). Presentation only — pricing itself is decided by
+// applicablePriceForMonth via seasonal-downgrade.js. The row exists
+// only while the current month is inside the seasonal window; once the
+// window has passed the triple is history and nothing renders.
+export function seasonalBillingSummary(customer, currentMonth) {
+  const triple = sanitizeSeasonalFields(customer);
+  if (triple.seasonalRatePKR === null) return { hasSeasonal: false, active: false, detail: '' };
+  const active = seasonalStateForMonth(customer, currentMonth) === 'active';
+  return {
+    hasSeasonal: true,
+    active,
+    ...triple,
+    detail: active
+      ? t('prof_seasonal_active', null, {
+        rate: formatPKR(triple.seasonalRatePKR),
+        month: formatReceiptMonth(triple.seasonalUntilMonth) ?? triple.seasonalUntilMonth,
+        restore: formatPKR(triple.restorePackageRatePKR)
+      })
+      : ''
   };
 }
 

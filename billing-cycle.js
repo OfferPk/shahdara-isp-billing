@@ -22,6 +22,7 @@ import { calculatePaymentAllocations, formatPKR, localDateTimeValue, paymentAddo
 
 import { advancePlansForBilledLines, advancePlansForCoveredKist, billKistTotal, dueKistLines, kistLineLabel, sanitizeBillKistLines, sanitizeInstallmentPlans } from './installment-plan.js';
 import { isBillingPaused, sanitizePauseFields } from './pause-billing.js';
+import { seasonalPriceFor } from './seasonal-downgrade.js';
 import { REFERRAL_CREDIT_REASON, applyReferralApplications, loadReferralCredits, planReferralApplications, queuedReferralTotalFor, reconcileReferralCredits, saveReferralCredits } from './referral-credits.js';
 import { FEEDER_HOST_CREDIT_REASON, clampFeederHostCredit, eligibleFeederHostCredit } from './feeder-host-credit.js';
 import { isVoidedPayment } from './payment-void-audit.js';
@@ -111,11 +112,21 @@ export function saveBillingCycles(cycles, storage) {
 
 // ---------------------------------------------------------------- planning
 /**
- * The applicable selling price for a month, using the exact rule of the
- * auto-generator: the latest price-schedule entry effective on or before
- * the month. Null when no positive price applies (bill cannot be priced).
+ * The applicable selling price for a month. SISP-153: a valid seasonal
+ * keep-alive triple prices the month first (seasonal rate inside its
+ * window, the recorded restore rate after it — the auto-restore).
+ * Otherwise the exact rule of the auto-generator: the latest
+ * price-schedule entry effective on or before the month. Null when no
+ * positive price applies (bill cannot be priced).
+ *
+ * FREE and vacation-hold precedence lives in the callers, not here:
+ * planCustomerCycleLine and the auto-generator skip free and paused
+ * customers before a price is ever consulted, so a seasonal rate can
+ * never bill a free connection or a held month.
  */
 export function applicablePriceForMonth(customer, month) {
+  const seasonal = seasonalPriceFor(customer, month);
+  if (seasonal !== null) return seasonal;
   const schedule = Array.isArray(customer?.monthlyPriceSchedule) ? customer.monthlyPriceSchedule : [];
   const applicable = schedule
     .filter((entry) => typeof entry?.effectiveMonth === 'string' && entry.effectiveMonth <= month)

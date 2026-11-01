@@ -35,6 +35,7 @@ import {
 } from './expense-budget-caps.js';
 import { t } from './nav-language.js';
 import { isVoidedPayment } from './payment-void-audit.js';
+import { revenueStreamCardHtml } from './revenue-stream-breakdown.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -957,6 +958,7 @@ export function setupPnlModal(getState, { onToast = () => {} } = {}) {
   const window6Btn = document.getElementById('pnlWindow6Btn');
   const window12Btn = document.getElementById('pnlWindow12Btn');
   const chartContainer = document.getElementById('pnlChartContainer');
+  const revenueStreamsContainer = document.getElementById('pnlRevenueStreams');
   const donutContainer = document.getElementById('pnlCategoryDonutContainer');
   const tableBody = document.getElementById('pnlTableBody');
   const categoriesList = document.getElementById('pnlCategoriesList');
@@ -1018,6 +1020,11 @@ export function setupPnlModal(getState, { onToast = () => {} } = {}) {
     }
     if (kpiMargin) kpiMargin.textContent = `${pnlData.summary.cumulativeMargin}%`;
     if (kpiOer) kpiOer.textContent = `${pnlData.summary.overallOer}%`;
+
+    // SISP-164: 4-stream collection breakdown for the selected month
+    if (revenueStreamsContainer) {
+      revenueStreamsContainer.innerHTML = revenueStreamCardHtml(state, currentMonth);
+    }
 
     // Render SVG Charts
     if (chartContainer) {

@@ -192,6 +192,7 @@ import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonCharges
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { POLES_REGISTRY_KEY, loadPolesRegistry, poleRegistrySummary, savePolesRegistry, setupPoleRegistryModal } from './pole-asset-tracker.js';
 import { FIBER_DRUMS_KEY, fiberDrumSummary, loadFiberDrums, saveFiberDrums, setupFiberDrumModal } from './fiber-drum-tracker.js';
 import { CREDIT_TRANSFERS_KEY, availableCreditCents, executeCreditTransfer, loadCreditTransfers, reverseCreditTransfer, saveCreditTransfers, setupCreditTransferModal } from './credit-transfer.js';
 import { STORM_INSPECTIONS_KEY, loadStormInspections, saveStormInspections, setupStormInspectionModal } from './storm-inspection.js';
@@ -511,6 +512,7 @@ export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
+export let poleRegistryModalController = null;
 export let fiberDrumModalController = null;
 export let creditTransferModalController = null;
 export let stormInspectionModalController = null;
@@ -1528,6 +1530,20 @@ function renderDashboard() {
     suspenseSummaryEl.innerHTML = suspense.totalCount === 0
       ? ''
       : `<p><span>${t('dash_suspense_unclaimed')}</span><strong>${escapeHtml(formatAmount(suspense.unclaimedAmount))}</strong></p>`;
+  }
+  // SISP-122: street pole registry card.
+  const poleRegistrySummaryEl = $('#poleRegistrySummary');
+  if (poleRegistrySummaryEl) {
+    const poleSummary = poleRegistrySummary(loadPolesRegistry(), state.customers);
+    const poleValueEl = $('#dashboardPoleRegistryValue');
+    const polePeriodEl = $('#dashboardPoleRegistryPeriod');
+    if (poleValueEl) poleValueEl.textContent = poleSummary.poleCount === 0 ? t('dash_polereg_empty') : String(poleSummary.poleCount);
+    if (polePeriodEl) polePeriodEl.textContent = poleSummary.poleCount === 0
+      ? t('dash_polereg_period')
+      : t('polereg_summary', null, { poles: poleSummary.poleCount, drops: poleSummary.dropCount, boxes: poleSummary.boxCount });
+    poleRegistrySummaryEl.innerHTML = poleSummary.poleCount === 0
+      ? ''
+      : `<p><span>${t('polereg_attached')}</span><strong>${escapeHtml(String(poleSummary.dropCount + poleSummary.boxCount))}</strong></p>`;
   }
   // SISP-100: System Health card — live totals across every ledger
   // (read-only telemetry; detail lives in the Health Center dialog).
@@ -4149,7 +4165,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 
 }
 function backupRestoreOptions() {
@@ -4191,6 +4207,8 @@ function backupRestoreOptions() {
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   try { billingGroupsStored = localStorage.getItem(GROUP_BILLING_KEY) !== null; } catch { billingGroupsStored = false; }
   try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
+  let polesRegistryStored = false;
+  try { polesRegistryStored = localStorage.getItem(POLES_REGISTRY_KEY) !== null; } catch { polesRegistryStored = false; }
   try { fiberDrumsStored = localStorage.getItem(FIBER_DRUMS_KEY) !== null; } catch { fiberDrumsStored = false; }
   try { creditTransfersStored = localStorage.getItem(CREDIT_TRANSFERS_KEY) !== null; } catch { creditTransfersStored = false; }
   let stormInspectionsStored = false;
@@ -4219,7 +4237,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 
 }
 // SISP-102: the device's current sibling collections, in the same shapes a
@@ -5100,6 +5118,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.suspensePayments) {
       saveSuspensePayments(pendingBackupPreview.suspensePayments);
+    }
+    if (pendingBackupPreview.polesRegistry) {
+      savePolesRegistry(pendingBackupPreview.polesRegistry);
     }
     if (pendingBackupPreview.fiberDrums) {
       saveFiberDrums(pendingBackupPreview.fiberDrums);
@@ -12191,6 +12212,12 @@ if (typeof document !== 'undefined') {
   // SISP-32: pole & landmark directory + zone lineman cheat-sheet.
   poleLandmarkModalController = setupPoleLandmarkModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
+  });
+  // SISP-122: street pole asset & drop attachment registry.
+  poleRegistryModalController = setupPoleRegistryModal(() => state, {
+    onPolesChanged: () => renderDashboard(),
+    onToast: (msg, opts) => toast(msg, opts),
+    onConfirm: (opts) => appConfirm(opts)
   });
   // SISP-88: the group Waada chip reuses the SISP-3 Waada chip dialog,
   // created lazily so it exists only when a partial collection leaves a

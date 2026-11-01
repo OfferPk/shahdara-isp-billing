@@ -131,6 +131,17 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   if (fields.amount) push(rowLine('AMOUNT PAID', fields.amount, width));
   if (fields.balanceDue) push(rowLine('Balance due', fields.balanceDue, width));
   if (fields.statusLabel) push(rowLine('Status', fields.statusLabel, width));
+  // SISP-128: "Last 3 Payments" mini-history — receipt body content above
+  // the footer. Latin-only heading: cheap ESC/POS printers cannot render
+  // Urdu script (see module header). Absent/empty fields = the slip is
+  // byte-identical to before.
+  if (fields.historyHeading && Array.isArray(fields.historyLines) && fields.historyLines.length) {
+    push(divider);
+    push(center(String(fields.historyHeading).toUpperCase(), width));
+    for (const historyLine of fields.historyLines) {
+      for (const l of wrapText(historyLine, width)) push(l);
+    }
+  }
   // SISP-126: the remainder waada line ("Baqi Rs. X • Waada: DATE"),
   // pre-formatted by the caller; wrapped like the other free-text lines.
   if (fields.remainderWaadaLine) for (const l of wrapText(fields.remainderWaadaLine, width)) push(l);
@@ -228,6 +239,11 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
 
     balanceDue: balance,
     statusLabel: receipt.status || '',
+    // SISP-128: "Last 3 Payments" mini-history rows (derived by receipt.js
+    // into the snapshot; empty for a first payment, block omitted).
+    historyHeading: (Array.isArray(receipt.previousPayments) && receipt.previousPayments.length) ? 'Last 3 Payments' : '',
+    historyLines: (Array.isArray(receipt.previousPayments) ? receipt.previousPayments : [])
+      .map((row) => [row?.date, money(row?.amount), row?.method, row?.receiptLabel].filter(Boolean).join(' | ')),
     // SISP-126: the remainder waada set with this payment, when the
     // receipt snapshot carries one (receipt.js validates the stamp).
     remainderWaadaLine: (receipt.remainderWaada && receipt.remainderWaada.promiseDate)

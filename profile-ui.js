@@ -255,6 +255,22 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
     lines.push('', ...ticketChargeLines);
   }
 
+  // SISP-128: "Last 3 Payments" mini-history, when the caller attached
+  // the receipt snapshot's previousPayments (app.js passes them from
+  // buildPaymentReceipt, like fifoAllocation above). Rows are validated
+  // like the ticket-charge lines: a malformed row never breaks the
+  // draft, it is simply skipped.
+  const historyLines = (Array.isArray(receipt?.previousPayments) ? receipt.previousPayments : [])
+    .filter((row) => row && validCalendarDate(String(row.date ?? '')) && Number.isFinite(Number(row.amount)))
+    .slice(0, 3)
+    .map((row) => {
+      const label = safeLine(row.receiptLabel, 60) || safeLine(row.receiptRef, 60) || formatReceiptDate(String(row.date));
+      return `• ${[formatReceiptDate(String(row.date)), formatPKR(Number(row.amount)), safeLine(row.method, 40), label].filter(Boolean).join(' · ')}`;
+    });
+  if (historyLines.length > 0) {
+    lines.push('', `📜 ${t('rcpt_hist_heading', 'en')} / ${t('rcpt_hist_heading', 'ur')}:`, ...historyLines);
+  }
+
   // SISP-101: a payment that waived the bill's late fee at collect time
   // says so on the WhatsApp receipt too, when the caller attached the
   // waived amount (app.js passes it from buildPaymentReceipt). Only a

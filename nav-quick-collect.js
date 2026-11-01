@@ -71,6 +71,7 @@ import {
 } from './waada-queue.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
 import { t } from './nav-language.js';
+import { buildReceiptPaymentHistory } from './receipt.js';
 import {
   getDigitalPaymentsSettings,
   hasConfiguredDigitalPayments,
@@ -910,10 +911,17 @@ export function executeQuickCollection(state, {
     }
   }
 
+  // SISP-128: "Last 3 Payments" mini-history for the WhatsApp draft —
+  // derived from the PRE-payment customer record, so every payment on it
+  // is by construction before the one just recorded (the new payment is
+  // never inside its own history block). Derived display data only.
+  const previousPayments = buildReceiptPaymentHistory(customer);
+
   const receipt = {
     success: true,
     paymentId,
     receiptNumber,
+    previousPayments,
     customerId: customer.id,
     customerNumber: customer.customerNumber,
     customerName: customer.name,
@@ -1071,6 +1079,14 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
 
   // SISP-126: the remainder waada line, only when one was set with this payment.
   const remainderWaadaLine = formatRemainderWaadaLine(receipt);
+  // SISP-128: "Last 3 Payments" mini-history — body content above the
+  // thank-you lines; absent/empty = the draft is exactly as before.
+  const historyLines = (Array.isArray(receipt.previousPayments) ? receipt.previousPayments : [])
+    .filter((row) => row && typeof row === 'object')
+    .map((row) => `• ${[row.date, `PKR ${Number(row.amount).toLocaleString('en-PK')}`, row.method, row.receiptLabel].filter(Boolean).join(' · ')}`);
+  const historyBlock = historyLines.length
+    ? [`📜 *${t('rcpt_hist_heading', 'en')} / ${t('rcpt_hist_heading', 'ur')}:*`, ...historyLines, ``]
+    : [];
 
   const lines = [
     `*SHAHDARA FIBER NETWORK & ISP BILLING*`,
@@ -1101,6 +1117,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     remainderWaadaLine ? `🤝 *${remainderWaadaLine}*` : null,
     `📌 *${L.status}:* ${statusText}`,
     ``,
+    ...historyBlock,
     L.thanks,
     L.ops,
     formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings()) ? `ℹ️ ${formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings())}` : null,

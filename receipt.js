@@ -7,12 +7,13 @@ import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { isVoidedPayment } from './payment-void-audit.js';
+import { t } from './nav-language.js';
 import { remainderWaadaOf } from './waada-queue.js';
 import { evaluateStarTimelyPayer, starReceiptThankYouNote } from './star-subscribers.js';
 import { buildReceiptFooterHtml } from './receipt-footer-studio.js';
 import { receiptCodeForReceipt, receiptVerificationCode, verificationStampText } from './receipt-verifier.js';
 import { renderCustomWaTemplate } from './whatsapp-templates.js';
-import { isVoidedPayment } from './payment-void-audit.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
 export const RECEIPT_URDU_NOTE = 'رسید برائے انٹرنیٹ بل ادائیگی - ادائیگی موصول ہوئی۔ شکریہ! بروقت سروس کے لیے ہر ماہ کی 5 تاریخ تک بل ادا فرمائیں۔';
@@ -32,6 +33,102 @@ const positiveAmount = value => {
 };
 const cents = value => Math.round(Number(value) * 100);
 const paymentOrder = (left, right) => String(left?.date ?? '').localeCompare(String(right?.date ?? ''));
+
+// SISP-128: "Last 3 Payments" mini-history. Readable date in the house
+// style (app.js humanDate: Intl medium date, Pakistan time) — used ONLY
+// as the receipt-reference fallback, exactly like the Recent Payments
+// card (PR #471): a payment with no stored receipt number is referenced
+// by its readable date, never by an invented number.
+const humanDateLabel = (date) => {
+  try {
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeZone: 'Asia/Karachi' })
+      .format(new Date(`${date}T00:00:00Z`));
+  } catch { return date; }
+};
+
+/** Bilingual block heading, from the dictionary in both languages. */
+export function receiptHistoryHeading() {
+  return `${t('rcpt_hist_heading', 'en')} / ${t('rcpt_hist_heading', 'ur')}`;
+}
+
+/**
+ * SISP-128: the customer's most recent recorded payments BEFORE the
+ * payment a receipt is being built for (the current payment is the
+ * receipt's subject and never appears inside its own history block).
+ *
+ * Selection rules (pinned by tests/receipt-mini-history.test.js):
+ *  - Source is the customer's real ledger — every payment on every bill,
+ *    the same records the profile history shows. Nothing is stored: the
+ *    rows are derived at render, like the SISP-83-style receipt facts.
+ *  - Voided payments (SISP-34 isVoidedPayment) are ALWAYS excluded, and
+ *    the next older valid payment takes the freed slot.
+ *  - Payments with a missing/malformed date cannot be ranked and are
+ *    skipped (Recent Payments rule — never guessed).
+ *  - Ranking is (date, ledger sequence): payments carry no time-of-day,
+ *    so same-date ties keep bill-array / payment-array order, matching
+ *    recent-payments.js. "Before" means ranking strictly before the
+ *    current payment; with currentPayment = null (Quick Collect, where
+ *    the caller passes the PRE-payment customer) every recorded payment
+ *    ranks before the new one by construction.
+ *  - All recorded payment kinds count (regular, advance, prepay,
+ *    kist-carrying) — they are all payments in the ledger. The amount
+ *    shown is the payment's own recorded `amount` (for a SISP-61 prepay
+ *    that is the net cash, exactly what the profile history shows).
+ *  - receiptRef is the reference the record itself carries — stored
+ *    receiptNumber, else permanentReceiptNumber, else ''. receiptLabel
+ *    falls back to the readable date; NO number is ever generated here.
+ *
+ * @returns {Array<{date, amount, method, receiptRef, receiptLabel}>}
+ *   newest first, at most 3 rows.
+ */
+export function buildReceiptPaymentHistory(customer, currentPayment = null, currentBillMonth = '') {
+  const bills = Array.isArray(customer?.bills) ? customer.bills : [];
+  const entries = [];
+  let sequence = 0;
+  for (const bill of bills) {
+    if (!bill || typeof bill !== 'object') continue;
+    for (const payment of (Array.isArray(bill.payments) ? bill.payments : [])) {
+      sequence += 1;
+      if (!payment || typeof payment !== 'object') continue;
+      entries.push({ payment, month: text(bill.month), sequence });
+    }
+  }
+  const rankOf = (entry) => {
+    const date = validStoredDate(entry.payment.date);
+    return { date, sequence: entry.sequence };
+  };
+  const isCurrent = (entry) => entry.payment === currentPayment
+    || (!!currentPayment?.id && entry.month === text(currentBillMonth) && entry.payment.id === currentPayment.id);
+  let currentRank = null;
+  if (currentPayment) {
+    const found = entries.find(isCurrent);
+    if (found) currentRank = rankOf(found);
+  }
+  const rows = [];
+  for (const entry of entries) {
+    if (isCurrent(entry)) continue;
+    if (isVoidedPayment(entry.payment)) continue;
+    const date = validStoredDate(entry.payment.date);
+    if (!date) continue;
+    if (currentRank) {
+      const before = date < currentRank.date
+        || (date === currentRank.date && entry.sequence < currentRank.sequence);
+      if (!before) continue;
+    }
+    const amount = Number(entry.payment.amount);
+    const receiptRef = text(entry.payment.receiptNumber) || text(entry.payment.permanentReceiptNumber);
+    rows.push({
+      date,
+      amount: Number.isFinite(amount) ? amount : 0,
+      method: text(entry.payment.method),
+      receiptRef,
+      receiptLabel: receiptRef || humanDateLabel(date),
+      sequence: entry.sequence
+    });
+  }
+  rows.sort((a, b) => b.date.localeCompare(a.date) || b.sequence - a.sequence);
+  return rows.slice(0, 3).map(({ sequence: _sequence, ...row }) => row);
+}
 
 function packageAtServiceStart(customer, month) {
   const start = `${month}-01`;
@@ -285,7 +382,13 @@ export function buildPaymentReceipt(customer, bill, payment) {
       const fifo = fifoAllocationForPayment(customer, matchingBill, payment.id);
       if (!fifo) return { fifoAllocation: null, fifoRemaining: null, fifoShow: false };
       return { fifoAllocation: fifo.allocation, fifoRemaining: fifo.remaining, fifoShow: fifo.show };
-    })()
+    })(),
+    // SISP-128: "Last 3 Payments" mini-history — the customer's latest
+    // recorded payments before this one (voided excluded), derived at
+    // build time from the ledger and never stored. Empty array for a
+    // first payment, so every receipt surface can omit the block and
+    // render byte-identically to before.
+    previousPayments: buildReceiptPaymentHistory(customer, payment, bill.month)
   };
 }
 
@@ -348,6 +451,30 @@ const kistBreakdownRows = (breakdown, formatAmount, label) => {
   const detail = (Array.isArray(breakdown.kistLines) ? breakdown.kistLines : [])
     .map((line) => `<div class="receipt-field"><dt>${escapeHtml(kistLineLabel(line))}:</dt><dd>${formatAmount(line.amount)}</dd></div>`).join('');
   return `<div class="receipt-field"><dt>${label}:</dt><dd>${formatAmount(breakdown.kistAmount)}</dd></div>${detail}`;
+};
+
+// SISP-128: "Last 3 Payments" mini-history rows for the HTML receipt
+// layouts. Empty when the customer has no earlier recorded payment, so
+// first-payment receipts render byte-identically to before. This block
+// is receipt BODY content: on every layout it sits above the Urdu note /
+// terms footer (and above any future custom footer), never inside it.
+const historyRowsOf = (receipt) => (Array.isArray(receipt?.previousPayments) ? receipt.previousPayments : [])
+  .filter((row) => row && typeof row === 'object');
+const paymentHistoryRowsHtml = (receipt, formatAmount) => historyRowsOf(receipt)
+  .map((row) => `<div class="receipt-field"><dt>${escapeHtml(row.date)}:</dt><dd>${[formatAmount(row.amount), escapeHtml(row.method), escapeHtml(row.receiptLabel)].filter(Boolean).join(' · ')}</dd></div>`).join('');
+const paymentHistoryBlockHtml = (receipt, formatAmount, divider) => {
+  if (!historyRowsOf(receipt).length) return '';
+  return `\n    <div class="receipt-divider">${divider}</div>`
+    + `\n    <div class="receipt-field"><dt><strong>${escapeHtml(receiptHistoryHeading())}</strong></dt><dd></dd></div>`
+    + `\n    ${paymentHistoryRowsHtml(receipt, formatAmount)}`;
+};
+// A4 carries a column header row (Date | Amount · Method · Receipt #)
+// from the dictionary labels; the narrow thermal layouts keep the
+// heading + rows only.
+const paymentHistorySectionHtml = (receipt, formatAmount) => {
+  if (!historyRowsOf(receipt).length) return '';
+  const head = `<div class="receipt-field receipt-history-head"><dt>${escapeHtml(t('rcpt_hist_date', 'en'))} / ${escapeHtml(t('rcpt_hist_date', 'ur'))}</dt><dd>${escapeHtml(t('rcpt_hist_amount', 'en'))} · ${escapeHtml(t('rcpt_hist_method', 'en'))} · ${escapeHtml(t('rcpt_hist_receipt_no', 'en'))} / ${escapeHtml(t('rcpt_hist_amount', 'ur'))} · ${escapeHtml(t('rcpt_hist_method', 'ur'))} · ${escapeHtml(t('rcpt_hist_receipt_no', 'ur'))}</dd></div>`;
+  return `\n  <div class="receipt-history"><h2>${escapeHtml(receiptHistoryHeading())}</h2><dl class="receipt-fields">${head}${paymentHistoryRowsHtml(receipt, formatAmount)}</dl></div>`;
 };
 
 // SISP-33: FIFO split rows for the HTML receipt layouts. Empty when the
@@ -489,7 +616,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     ${looseChangeReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance / بقایا:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
-    <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}">${escapeHtml(status)}</dd></div>
+    <div class="receipt-field"><dt>Status / کیفیت:</dt><dd class="${statusClass}">${escapeHtml(status)}</dd></div>${paymentHistoryBlockHtml(receipt, formatAmount, '--------------------------------')}
     ${remainderWaadaReceiptRows(receipt, formatAmount)}
     ${verStamp ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>${escapeHtml(verStamp)}</strong></dd></div>` : ''}
   </dl>
@@ -541,7 +668,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field receipt-paid-field"><dt><strong>Amount Received / رقم موصول:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     ${looseChangeReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-balance-field"><dt><strong>Balance Due / باقی واجبات:</strong></dt><dd class="${statusClass}"><strong>${balanceLabel}</strong></dd></div>
-    <div class="receipt-field"><dt>Receipt Status / بل کی حالت:</dt><dd class="${statusClass}"><strong>${escapeHtml(status)}</strong></dd></div>
+    <div class="receipt-field"><dt>Receipt Status / بل کی حالت:</dt><dd class="${statusClass}"><strong>${escapeHtml(status)}</strong></dd></div>${paymentHistoryBlockHtml(receipt, formatAmount, '--------------------------------')}
     ${remainderWaadaReceiptRows(receipt, formatAmount)}
     ${verStamp ? `<div class="receipt-field"><dt>Verify / تصدیق:</dt><dd><strong>${escapeHtml(verStamp)}</strong></dd></div>` : ''}
   </dl>
@@ -626,7 +753,7 @@ export function generatePaymentReceiptHtml(receipt, {
   </header>
   <dl class="receipt-fields">
     ${fields.map(([label, val, cls]) => `<div class="receipt-field"><dt>${escapeHtml(label)}</dt><dd class="${cls || ''}">${val ? escapeHtml(val) : '&nbsp;'}</dd></div>`).join('')}
-  </dl>
+  </dl>${paymentHistorySectionHtml(receipt, formatAmount)}
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">
     <strong>اہم معلوماتی نوٹ:</strong> ${escapeHtml(RECEIPT_URDU_NOTE)}
   </div>

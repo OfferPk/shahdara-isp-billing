@@ -6,12 +6,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  buildComplaintSummary,
   createComplaint,
   sanitizeComplaints,
   setComplaintStatus,
   updateComplaint
 } from '../complaint-register.js';
 import {
+  consumeTicketStockDeductions,
   createTicket,
   resolveTicket,
   sanitizeTickets,
@@ -20,11 +22,15 @@ import {
 } from '../complaint-tickets.js';
 import {
   assignTicketForComplaint,
+  bulkAssignTicketsForComplaints,
+  collectTechnicianNames,
   linkedTicketSummary,
   linkedTicketsForComplaint,
+  openUnlinkedComplaints,
   syncComplaintTicketLinks
 } from '../complaint-ticket-sync.js';
 import { buildLinemanScorecards } from '../lineman-scorecard.js';
+import { TRANSLATIONS } from '../nav-language.js';
 
 // 13:30 in Pakistan time, expressed as a UTC instant so the pin is exact
 // on any host (ticket resolvedAt is formatted in Asia/Karachi).
@@ -430,4 +436,196 @@ test('SISP-39 counting still holds: a synced pair counts once for the lineman', 
   ).find((person) => person.name === 'Lineman A');
   assert.equal(after.ticketsResolved, 1);
   assert.equal(after.complaintsResolved, 1);
+});
+
+// ---- SISP-177: bulk assign of open unlinked complaints + the material
+// badge on synced register cards. Synthetic data only. ----
+
+function bulkFixture() {
+  // Six complaints: three bulk targets (Open, Open, In Progress — none
+  // linked), one Resolved unlinked, one Open with a live linked
+  // ticket, one Open whose only linked ticket is already Resolved.
+  let complaints = [];
+  const mk = (input) => {
+    const entry = createComplaint(input, complaints);
+    complaints = [...complaints, entry];
+    return entry;
+  };
+  const openA = mk({ customerId: 'cust-a', customerName: 'Synthetic A', issueCategory: 'Fiber Cut', reportedAt: '2026-10-29T08:00' });
+  const openB = mk({ customerId: 'cust-b', customerName: 'Synthetic B', issueCategory: 'Other', reportedAt: '2026-10-29T08:30' });
+  const progC = mk({ customerId: 'cust-c', customerName: 'Synthetic C', issueCategory: 'Router / Wi-Fi Config', reportedAt: '2026-10-29T09:00' });
+  complaints = setComplaintStatus(complaints, progC.id, 'In Progress');
+  const resolvedD = mk({ customerId: 'cust-d', customerName: 'Synthetic D', issueCategory: 'Other', reportedAt: '2026-10-29T07:00' });
+  complaints = setComplaintStatus(complaints, resolvedD.id, 'Resolved', { resolvedAt: '2026-10-29T07:45' });
+  const linkedE = mk({ customerId: 'cust-e', customerName: 'Synthetic E', issueCategory: 'Fiber Cut', reportedAt: '2026-10-29T09:15' });
+  const doneF = mk({ customerId: 'cust-f', customerName: 'Synthetic F', issueCategory: 'Fiber Cut', reportedAt: '2026-10-29T06:00' });
+
+  const assignE = assignTicketForComplaint(complaints, [], linkedE.id, { technician: 'Lineman B' });
+  const assignF = assignTicketForComplaint(complaints, assignE.tickets, doneF.id, { technician: 'Lineman B' });
+  const tickets = resolveTicket(assignF.tickets, assignF.ticket.id, { materialsUsed: [], billingType: 'free' });
+  return { complaints, tickets, openA, openB, progC, resolvedD, linkedE, doneF };
+}
+
+test('SISP-177 bulk: the open unlinked set excludes resolved and any-linked complaints', () => {
+  const { complaints, tickets, openA, openB, progC } = bulkFixture();
+  assert.deepEqual(
+    openUnlinkedComplaints(complaints, tickets).map((c) => c.id),
+    [openA.id, openB.id, progC.id]
+  );
+});
+
+test('SISP-177 bulk: one click assigns every open unlinked complaint to the chosen lineman', () => {
+  const { complaints, tickets, openA, openB, progC, resolvedD, linkedE, doneF } = bulkFixture();
+  const summaryBefore = buildComplaintSummary(complaints);
+  const result = bulkAssignTicketsForComplaints(complaints, tickets, 'Lineman A', {
+    referenceDate: new Date('2026-10-29T05:00:00Z')
+  });
+  assert.equal(result.assigned.length, 3);
+  assert.deepEqual(result.assigned.map((a) => a.complaintId), [openA.id, openB.id, progC.id]);
+  for (const entry of result.assigned) {
+    assert.equal(entry.created, true);
+    assert.equal(entry.ticket.technician, 'Lineman A');
+    assert.equal(entry.ticket.status, 'Open');
+  }
+  // Category mapping rode the single-assign seam: a mapped category
+  // became its preset, an unmapped one the custom fault text.
+  assert.equal(result.assigned[0].ticket.faultPreset, 'Fiber Cut / Splice Loss');
+  assert.equal(result.assigned[1].ticket.customFault, 'Other');
+  assert.equal(result.assigned[2].ticket.faultPreset, 'Router / IP Conflict');
+  // Untouched: the resolved complaint and both already-linked ones got
+  // no new ticket.
+  assert.equal(linkedTicketsForComplaint(result.tickets, resolvedD.id).length, 0);
+  assert.equal(linkedTicketsForComplaint(result.tickets, linkedE.id).length, 1);
+  assert.equal(linkedTicketsForComplaint(result.tickets, doneF.id).length, 1);
+  assert.equal(result.tickets.length, tickets.length + 3);
+  // Assignment never mutates the register itself.
+  assert.deepEqual(result.complaints, sanitizeComplaints(complaints));
+  assert.deepEqual(buildComplaintSummary(result.complaints), summaryBefore);
+  // The bar's count after assigning is zero.
+  assert.deepEqual(openUnlinkedComplaints(result.complaints, result.tickets), []);
+});
+
+test('SISP-177 bulk: the bulk result is identical to assigning one by one through the single seam', () => {
+  const { complaints, tickets } = bulkFixture();
+  const when = new Date('2026-10-29T05:00:00Z');
+  const bulk = bulkAssignTicketsForComplaints(complaints, tickets, 'Lineman A', { referenceDate: when });
+  let seqComplaints = sanitizeComplaints(complaints);
+  let seqTickets = sanitizeTickets(tickets);
+  for (const target of openUnlinkedComplaints(complaints, tickets)) {
+    const step = assignTicketForComplaint(seqComplaints, seqTickets, target.id, {
+      technician: 'Lineman A',
+      referenceDate: when
+    });
+    seqComplaints = step.complaints;
+    seqTickets = step.tickets;
+  }
+  assert.deepEqual(bulk.tickets, seqTickets);
+  assert.deepEqual(bulk.complaints, seqComplaints);
+});
+
+test('SISP-177 bulk: no targets is a no-op; a blank lineman throws before creating anything', () => {
+  const { complaints, tickets } = bulkFixture();
+  const first = bulkAssignTicketsForComplaints(complaints, tickets, 'Lineman A');
+  const second = bulkAssignTicketsForComplaints(first.complaints, first.tickets, 'Lineman A');
+  assert.deepEqual(second.assigned, []);
+  assert.deepEqual(second.tickets, first.tickets);
+  assert.throws(() => bulkAssignTicketsForComplaints(complaints, tickets, ''), /lineman/i);
+  assert.throws(() => bulkAssignTicketsForComplaints(complaints, tickets, '   '), /lineman/i);
+  // The throws left the (pure) inputs untouched: a valid run still
+  // assigns exactly the three targets.
+  assert.equal(bulkAssignTicketsForComplaints(complaints, tickets, 'Lineman A').assigned.length, 3);
+});
+
+test('SISP-177 picker: technician names come from tickets, grouped case/space-insensitively', () => {
+  let tickets = [];
+  const mk = (technician) => {
+    const ticket = createTicket({
+      customerId: 'cust-x',
+      customerName: 'Synthetic X',
+      faultPreset: 'Router / IP Conflict',
+      technician
+    }, tickets);
+    tickets = [...tickets, ticket];
+  };
+  mk('Lineman B');
+  mk(' lineman  b ');
+  mk('Lineman A');
+  mk('LINEMAN A');
+  // First-seen spelling wins per group; the list is sorted by name.
+  assert.deepEqual(collectTechnicianNames(tickets), ['Lineman A', 'Lineman B']);
+  assert.deepEqual(collectTechnicianNames([]), []);
+});
+
+test('SISP-177 badge: a resolved ticket with consumed stock deductions shows its recorded materials', () => {
+  const { tickets, ticket } = linkedPair();
+  const resolved = resolveTicket(tickets, ticket.id, {
+    materialsUsed: [
+      { key: 'fiber', qty: 30, amount: 0 },
+      { key: 'patch-cord', qty: 1, amount: 250 }
+    ],
+    billingType: 'billed',
+    referenceDate: RESOLVE_1330_PKT
+  });
+  // Resolved with materials but the SISP-42 bridge has not consumed
+  // the deductions yet: no badge.
+  assert.equal(linkedTicketSummary(resolved, 'CMP-101').materialBadge, null);
+  const consumed = consumeTicketStockDeductions(resolved[0], [], (movements, deduction) => [...movements, deduction]);
+  assert.equal(consumed.ticket.stockDeducted, true);
+  const summary = linkedTicketSummary([consumed.ticket], 'CMP-101');
+  assert.equal(summary.status, 'Resolved');
+  assert.deepEqual(summary.materialBadge, {
+    ticketId: ticket.id,
+    items: ['2-Core Fiber · 30 m', 'Patch Cord · 1 · PKR 250']
+  });
+});
+
+test('SISP-177 badge: no badge when unlinked, unresolved, or resolved without deductions', () => {
+  const { tickets, ticket } = linkedPair();
+  // Unresolved linked ticket.
+  assert.equal(linkedTicketSummary(tickets, 'CMP-101').materialBadge, null);
+  // No linked ticket at all: no summary, hence no badge.
+  assert.equal(linkedTicketSummary(tickets, 'CMP-404'), null);
+  // Resolved with no materials: nothing was ever deducted.
+  const resolvedEmpty = resolveTicket(tickets, ticket.id, {
+    materialsUsed: [],
+    billingType: 'free',
+    referenceDate: RESOLVE_1330_PKT
+  });
+  assert.equal(linkedTicketSummary(resolvedEmpty, 'CMP-101').materialBadge, null);
+});
+
+test('SISP-177 bulk pairs still count once for the lineman in the scorecard', () => {
+  const { complaints, tickets, openA } = bulkFixture();
+  const bulk = bulkAssignTicketsForComplaints(complaints, tickets, 'Lineman A', {
+    referenceDate: new Date('2026-10-29T05:00:00Z')
+  });
+  const target = bulk.assigned.find((a) => a.complaintId === openA.id).ticket;
+  const resolved = resolveTicket(bulk.tickets, target.id, {
+    materialsUsed: [],
+    billingType: 'free',
+    referenceDate: RESOLVE_1330_PKT
+  });
+  const synced = syncComplaintTicketLinks(bulk.complaints, resolved);
+  assert.equal(synced.complaints.find((c) => c.id === openA.id).status, 'Resolved');
+  const person = buildLinemanScorecards(
+    { tickets: synced.tickets, complaints: synced.complaints, roznamchaDays: [] },
+    '2026-10'
+  ).find((entry) => entry.name === 'Lineman A');
+  assert.equal(person.ticketsResolved, 1);
+  assert.equal(person.complaintsResolved, 1);
+});
+
+test('SISP-177 i18n: the bulk and badge keys exist in both dictionaries with their placeholders', () => {
+  for (const key of ['cmp_bulk_count', 'cmp_bulk_assign_btn', 'cmp_bulk_assigned_toast', 'cmp_materials_badge']) {
+    assert.equal(typeof TRANSLATIONS.en[key], 'string', `en missing ${key}`);
+    assert.ok(TRANSLATIONS.en[key].length > 0, `en empty ${key}`);
+    assert.equal(typeof TRANSLATIONS.ur[key], 'string', `ur missing ${key}`);
+    assert.ok(TRANSLATIONS.ur[key].length > 0, `ur empty ${key}`);
+  }
+  for (const lang of ['en', 'ur']) {
+    assert.ok(TRANSLATIONS[lang].cmp_bulk_count.includes('{count}'), `${lang} cmp_bulk_count placeholder`);
+    assert.ok(TRANSLATIONS[lang].cmp_bulk_assigned_toast.includes('{count}'), `${lang} toast count placeholder`);
+    assert.ok(TRANSLATIONS[lang].cmp_bulk_assigned_toast.includes('{technician}'), `${lang} toast technician placeholder`);
+    assert.ok(TRANSLATIONS[lang].cmp_materials_badge.includes('{items}'), `${lang} badge items placeholder`);
+  }
 });

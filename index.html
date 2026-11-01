@@ -7049,6 +7049,9 @@
             <button id="openEnrollmentWizardBtn" class="action-btn-sm wizard-trigger-btn" type="button" title="Open Mobile Field Technician Enrollment Wizard" data-i18n="cust_wizard" data-i18n-title="cust_wizard_title">📱 Wizard</button>
             <button id="addCustomerButton" class="icon-button add-button" type="button" aria-label="Add customer" title="Add customer" data-i18n-aria-label="cust_add_customer" data-i18n-title="cust_add_customer">+</button>
             <button id="bulkImportOpenBtn" class="action-btn-sm" type="button" aria-label="Import customers from Excel or CSV paste" title="Import customers from Excel or CSV paste" data-i18n="bci_open" data-i18n-aria-label="bci_open" data-i18n-title="bci_open">📋 Excel/CSV</button>
+            <button id="rosterImportOpenBtn" class="action-btn-sm" type="button" aria-label="Import private roster (JSON/CSV)" title="Import private roster (JSON/CSV)" data-i18n="bog_roster_open" data-i18n-aria-label="bog_roster_open" data-i18n-title="bog_roster_open">📥 Roster</button>
+            <input id="rosterImportFile" class="bog-file" type="file" accept=".json,.csv,.tsv,.txt,application/json,text/csv" aria-label="Private roster file" hidden>
+            <button id="bulkSetupOpenBtn" class="action-btn-sm" type="button" aria-label="Bulk setup incomplete customers" title="Bulk setup incomplete customers" data-i18n="bog_setup_open" data-i18n-aria-label="bog_setup_open" data-i18n-title="bog_setup_open">⚡ Bulk Setup</button>
             <button id="speedEntryOpenBtn" class="action-btn-sm" type="button" aria-label="Open speed batch counter entry (Ctrl+Shift+E)" title="Speed batch counter entry (Ctrl+Shift+E)" data-i18n="speed_entry_open" data-i18n-aria-label="speed_entry_open" data-i18n-title="speed_entry_open">⌨️ Speed Entry</button>
           </div>
         </div>
@@ -23316,6 +23319,26 @@
             <button id="bciUndoBtn" class="secondary-button" type="button" data-i18n="bci_undo">↶ Undo this import</button>
             <button id="bciDoneBtn" class="secondary-button" type="button" data-i18n="bci_done">Done</button>
           </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="bulkSetupModal" class="billing-modal bulk-setup-modal" aria-labelledby="bulkSetupModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="bulkSetupModalTitle" data-i18n="bog_title">⚡ Bulk Setup — Incomplete Customers</h2>
+        <button id="bulkSetupCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="bog-hint" data-i18n="bog_hint">Customers still missing a package or a mobile number. Pick a package and type the mobile for each, then save once — packages use the real catalogue and this month's bill is created, just like Add Customer.</p>
+        <label class="field-label" for="bulkSetupMohalla" data-i18n="bog_mohalla_label">Mohalla</label>
+        <select id="bulkSetupMohalla" class="bog-mohalla-select"></select>
+        <p id="bulkSetupCount" class="bog-count"></p>
+        <ul id="bulkSetupRows" class="bog-rows"></ul>
+        <p id="bulkSetupStatus" class="bog-status" role="status" aria-live="polite" hidden></p>
+        <div class="bog-actions">
+          <button id="bulkSetupSaveBtn" class="primary-button" type="button" data-i18n="bog_save">Save all changes</button>
+          <button id="bulkSetupDoneBtn" class="secondary-button" type="button" data-i18n="bog_close">Close</button>
         </div>
       </div>
     </div>

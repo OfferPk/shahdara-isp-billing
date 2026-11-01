@@ -6,6 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  ROZNAMCHA_CATEGORIES,
   ROZNAMCHA_EXPENSE_CATEGORY_MAP,
   addRoznamchaOutflow,
   buildRoznamchaDay,
@@ -13,11 +14,22 @@ import {
   deleteRoznamchaOutflow,
   reopenRoznamchaDay,
   roznamchaExpenseCategory,
+  roznamchaSourceDateForExpense,
   syncRoznamchaExpenses,
   syncedRoznamchaExpenseId
 } from '../roznamcha.js';
 import { buildPartnerShareReport } from '../phase3.js';
 import { calculatePnlAnalytics } from '../dashboard-pnl.js';
+import {
+  expenseSourceOf,
+  filterExpenseRows,
+  isDirectManualExpense,
+  isRoznamchaMirrorExpense,
+  isSaadMirrorExpense,
+  listExpenseRoznamchaCategories
+} from '../form-validation.js';
+import { TRANSLATIONS } from '../nav-language.js';
+import { readFileSync } from 'node:fs';
 
 const REF = new Date('2026-10-28T12:00:00Z');
 const DAY = '2026-10-15';
@@ -199,4 +211,157 @@ test('multiple days sync into their own months; totals stay per-month exact', ()
   assert.equal(monthExpenses(expenses, '2026-10'), 600);
   const report = buildPartnerShareReport(revenueState(expenses), '2026-10', REF);
   assert.equal(report.summary.expenses, 600, 'the October share math sees only the October mirror');
+});
+
+// ---------------------------------------------------------------------------
+// SISP-182: Expenses source filter (All / Direct Manual / Roznamcha
+// Mirrors) + roznamchaCategory sub-filter + badge jump to the source
+// Roznamcha day. Synthetic data only.
+
+const DAY_A = '2026-10-15';
+const DAY_B = '2026-10-16';
+
+// Two hand-entered rows, three roznamcha mirrors across two days (one
+// whose canonical expense category differs from its petty-cash
+// category), and one Saad Visit Log mirror (the third provenance
+// class the Expenses UI already badges separately).
+function mixedLedger() {
+  const manual = [
+    { id: 'e-man-1', date: '2026-10-03', amount: 15000, category: 'Salary — Saad', notes: 'October salary', area: '' },
+    { id: 'e-man-2', date: '2026-10-05', amount: 2200, category: 'Cable', notes: 'Drop cable roll', area: '' }
+  ];
+  let days = addRoznamchaOutflow([], DAY_A, { category: 'Petrol / Bike Fuel', amount: 600, lineman: 'Test Lineman', note: 'Bike petrol' });
+  days = addRoznamchaOutflow(days, DAY_A, { category: 'RJ45 / Patch Cord', amount: 350, lineman: '', note: 'Connectors' });
+  days = addRoznamchaOutflow(days, DAY_B, { category: 'Petrol / Bike Fuel', amount: 450, lineman: 'Test Lineman', note: '' });
+  const { expenses } = syncRoznamchaExpenses(manual, days, REF);
+  const saadMirror = {
+    id: 'saadexp-sp1', date: '2026-10-10', amount: 5000, category: 'Salary — Saad',
+    notes: 'Saad Visit Log · Test payment', area: '',
+    saadPaymentId: 'sp1', saadPaymentType: 'salary', source: 'saad-visits'
+  };
+  return { days, expenses: [...expenses, saadMirror] };
+}
+
+test('SISP-182: a mirror row date is its source roznamcha day', () => {
+  const { days, expenses } = mixedLedger();
+  const mirrors = expenses.filter(isRoznamchaMirrorExpense);
+  assert.equal(mirrors.length, 3);
+  for (const row of mirrors) {
+    assert.equal(roznamchaSourceDateForExpense(days, row), row.date);
+  }
+  assert.deepEqual(mirrors.map((r) => r.date).sort(), [DAY_A, DAY_A, DAY_B]);
+});
+
+test('SISP-182: source filter partitions a mixed ledger exactly', () => {
+  const { expenses } = mixedLedger();
+  const ids = (rows) => rows.map((r) => r.id).sort();
+  const all = filterExpenseRows(expenses, {});
+  const manual = filterExpenseRows(expenses, { source: 'manual' });
+  const roznamcha = filterExpenseRows(expenses, { source: 'roznamcha' });
+  const saad = expenses.filter(isSaadMirrorExpense);
+  assert.equal(all.length, 6);
+  assert.deepEqual(ids(manual), ['e-man-1', 'e-man-2']);
+  assert.deepEqual(ids(roznamcha), ids(expenses.filter(isRoznamchaMirrorExpense)));
+  // Disjoint buckets; together with the Saad class they cover All.
+  assert.equal(manual.some((r) => roznamcha.includes(r)), false);
+  assert.deepEqual(ids([...manual, ...roznamcha, ...saad]), ids(all));
+  // Provenance classes read the same fields the badges read.
+  assert.equal(expenseSourceOf(manual[0]), 'manual');
+  assert.equal(expenseSourceOf(roznamcha[0]), 'roznamcha');
+  assert.equal(expenseSourceOf(saad[0]), 'saad');
+  assert.equal(isDirectManualExpense(saad[0]), false, 'a Saad mirror is synced, not direct manual');
+  assert.equal(isDirectManualExpense(manual[0]), true);
+});
+
+test('SISP-182: canonical category and roznamchaCategory stay distinct', () => {
+  const { expenses } = mixedLedger();
+  const petrol = expenses.filter((r) => r.roznamchaCategory === 'Petrol / Bike Fuel');
+  assert.equal(petrol.length, 2);
+  assert.ok(petrol.every((r) => r.category === 'Other expenses'), 'petrol mirrors carry the canonical Other expenses category');
+  const rj45 = expenses.find((r) => r.roznamchaCategory === 'RJ45 / Patch Cord');
+  assert.equal(rj45.category, 'Cable');
+  // Canonical-category filter and petty-cash sub-filter compose.
+  assert.deepEqual(filterExpenseRows(expenses, { category: 'Cable', roznamchaCategory: 'RJ45 / Patch Cord' }).map((r) => r.id), [rj45.id]);
+  assert.equal(filterExpenseRows(expenses, { category: 'Other expenses', roznamchaCategory: 'Petrol / Bike Fuel' }).length, 2);
+});
+
+test('SISP-182: roznamchaCategory sub-filter excludes manual rows', () => {
+  const { expenses } = mixedLedger();
+  const petrolOnly = filterExpenseRows(expenses, { roznamchaCategory: 'Petrol / Bike Fuel' });
+  assert.equal(petrolOnly.length, 2);
+  assert.ok(petrolOnly.every(isRoznamchaMirrorExpense), 'manual rows carry no roznamchaCategory and never match');
+  // A petty-cash sub-filter over the manual bucket is honestly empty.
+  assert.equal(filterExpenseRows(expenses, { source: 'manual', roznamchaCategory: 'Petrol / Bike Fuel' }).length, 0);
+});
+
+test('SISP-182: sub-filter options derive from the mirrored rows present', () => {
+  const { expenses } = mixedLedger();
+  const categories = listExpenseRoznamchaCategories(expenses);
+  assert.deepEqual(categories, ['Petrol / Bike Fuel', 'RJ45 / Patch Cord']);
+  assert.ok(categories.every((c) => ROZNAMCHA_CATEGORIES.includes(c)), 'derived values stay inside the frozen petty-cash set');
+  assert.deepEqual(listExpenseRoznamchaCategories(expenses.filter(isDirectManualExpense)), []);
+  assert.deepEqual(listExpenseRoznamchaCategories([]), []);
+});
+
+test('SISP-182: badge jump resolves the source date by entry id', () => {
+  const { days, expenses } = mixedLedger();
+  const mirrorB = expenses.find((r) => isRoznamchaMirrorExpense(r) && r.date === DAY_B);
+  // Even if a mirror's stamped date drifted, the ledger lookup by
+  // roznamchaEntryId finds the true source day.
+  const drifted = { ...mirrorB, date: '2026-10-01' };
+  assert.equal(roznamchaSourceDateForExpense(days, drifted), DAY_B);
+  // Without the day in the ledger, the stamped source date is the fallback.
+  assert.equal(roznamchaSourceDateForExpense([], mirrorB), DAY_B);
+  // Manual rows have no roznamcha day to jump to.
+  const manual = expenses.find(isDirectManualExpense);
+  assert.equal(roznamchaSourceDateForExpense(days, manual), null);
+});
+
+test('SISP-182: filtering is view-only — state and P&L are untouched', () => {
+  const { expenses } = mixedLedger();
+  const state = revenueState(expenses);
+  const snapshot = JSON.stringify(state.expenses);
+  const before = calculatePnlAnalytics(state, { selectedMonth: '2026-10', referenceDate: REF });
+  filterExpenseRows(expenses, { source: 'roznamcha' });
+  filterExpenseRows(expenses, { source: 'manual', roznamchaCategory: 'Petrol / Bike Fuel' });
+  filterExpenseRows(expenses, { source: 'all', month: '2026-10', category: 'Cable', query: 'cable' });
+  listExpenseRoznamchaCategories(expenses);
+  assert.equal(JSON.stringify(state.expenses), snapshot, 'expense rows are byte-identical after filtering');
+  const after = calculatePnlAnalytics(state, { selectedMonth: '2026-10', referenceDate: REF });
+  assert.equal(after.selectedMonthCategoryBreakdown.totalExpenses, before.selectedMonthCategoryBreakdown.totalExpenses);
+  assert.equal(after.monthlyData.find((r) => r.month === '2026-10').expenses, before.monthlyData.find((r) => r.month === '2026-10').expenses);
+});
+
+test('SISP-182: i18n keys exist in English and Urdu', () => {
+  const keys = [
+    'exp_source_filter_label',
+    'exp_source_all',
+    'exp_source_manual',
+    'exp_source_roznamcha',
+    'exp_roznamcha_category_all',
+    'exp_roznamcha_category_label',
+    'exp_roznamcha_jump_title'
+  ];
+  for (const key of keys) {
+    assert.equal(typeof TRANSLATIONS.en[key], 'string', `en missing ${key}`);
+    assert.ok(TRANSLATIONS.en[key].length > 0, `en empty ${key}`);
+    assert.equal(typeof TRANSLATIONS.ur[key], 'string', `ur missing ${key}`);
+    assert.ok(TRANSLATIONS.ur[key].length > 0, `ur empty ${key}`);
+  }
+  assert.ok(TRANSLATIONS.en.exp_roznamcha_jump_title.includes('{date}'));
+  assert.ok(TRANSLATIONS.ur.exp_roznamcha_jump_title.includes('{date}'));
+});
+
+test('SISP-182: wiring — chips, sub-filter select and badge jump are in place', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.ok(html.includes('data-expense-source="all"'), 'source chip: all');
+  assert.ok(html.includes('data-expense-source="manual"'), 'source chip: manual');
+  assert.ok(html.includes('data-expense-source="roznamcha"'), 'source chip: roznamcha');
+  assert.ok(html.includes('id="expenseRoznamchaCategoryFilter"'), 'roznamcha category sub-filter select');
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.ok(app.includes('data-roznamcha-jump'), 'badge renders as a jump button');
+  assert.ok(app.includes('roznamchaSourceDateForExpense(loadRoznamchaDays(),row)'), 'jump resolves the date from the day ledger');
+  assert.ok(app.includes('roznamchaModalController.open({ date }'), 'jump opens the Roznamcha modal on that date');
+  assert.ok(app.includes("source: expenseSourceFilter"), 'render passes the source filter');
+  assert.ok(app.includes("roznamchaCategory: expenseRoznamchaCategoryFilter"), 'render passes the sub-filter');
 });

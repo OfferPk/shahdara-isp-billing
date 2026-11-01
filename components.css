@@ -268,6 +268,21 @@
 .profile-referral-section p strong { color: var(--ink); }
 .profile-referral-list { margin: 6px 0; padding-inline-start: 18px; font-size: 13px; color: var(--muted); }
 .profile-referral-list li { margin: 3px 0; }
+/* SISP-158: shared-router contributor split card + profile-form editor.
+   Theme tokens only (light + dark), wrapping rows so nothing overflows
+   at phone widths. */
+.profile-contributors-section { margin-top: 16px; }
+.profile-contributors-section h4 { margin: 0 0 8px; color: var(--ink); }
+.profile-contributors-section p { margin: 6px 0; font-size: 13px; color: var(--muted); }
+.profile-contributors-editor { margin-top: 16px; }
+.profile-contributors-editor h4 { margin: 0 0 8px; color: var(--ink); }
+.contrib-note, .contrib-empty { margin: 6px 0; font-size: 13px; color: var(--muted); }
+.contrib-warn { margin: 8px 0; font-size: 13px; color: var(--amber); background: var(--amber-bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.contrib-rows { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.contrib-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--surface); }
+.contrib-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); flex: 1 1 120px; min-width: 0; }
+.contrib-field input { width: 100%; min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 14px; }
+.contrib-remove-btn { flex: 0 0 auto; }
 /* SISP-117: upstream SLA & rebate claim log. Theme tokens only — no hardcoded surfaces, so dark mode stays correct. */
 .upstream-sla-summary { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 8px; }
 .upstream-sla-summary p { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; font-size: 13px; color: var(--muted); }

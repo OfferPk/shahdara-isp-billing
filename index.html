@@ -7686,6 +7686,19 @@
       <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog data-i18n="adv_cancel">Cancel</button><button id="manualBaqayaSaveButton" class="primary-button" type="submit" data-i18n="baqaya_save">Save Baqaya</button></div>
     </form>
   </dialog>
+  <dialog id="additionalPendingDialog" class="modal">
+    <form id="additionalPendingForm" method="dialog">
+      <div class="modal-heading"><div><p class="eyebrow" data-i18n="baqaya_title">Manual Baqaya (Loan)</p><h2 id="additionalPendingDialogTitle" data-i18n="addpend_dialog_title">Additional Pending</h2><button class="help-info-btn" type="button" data-help="additional_pending" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button></div><button class="close-button" type="button" data-close-dialog aria-label="Close">↩</button></div>
+      <p class="additional-pending-row"><span data-i18n="addpend_bill_label">Bill outstanding (already in bills)</span><strong id="additionalPendingBillDue">PKR 0</strong></p>
+      <p id="additionalPendingWarning" class="additional-pending-warning" role="note"></p>
+      <label class="field-label" for="additionalPendingAmount"><span data-i18n="addpend_amount_label">Additional pending (PKR)</span></label>
+      <input id="additionalPendingAmount" type="number" min="0" step="0.01" inputmode="decimal" required>
+      <p class="additional-pending-row"><span data-i18n="addpend_total_live">Total pending</span><strong id="additionalPendingTotal">PKR 0</strong></p>
+      <label class="field-label" for="additionalPendingNote"><span data-i18n="baqaya_note_label">Note</span> <span class="optional-label" data-i18n="baqaya_note_optional">Optional · e.g. last month balance</span></label>
+      <input id="additionalPendingNote" type="text" maxlength="200" autocomplete="off">
+      <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog data-i18n="adv_cancel">Cancel</button><button id="additionalPendingSaveButton" class="primary-button" type="submit" data-i18n="addpend_save">Save</button></div>
+    </form>
+  </dialog>
   <dialog id="addCustomerDialog" class="modal">
     <form id="addCustomerForm" method="dialog">
       <div class="modal-heading"><div><p class="eyebrow">NEW CUSTOMER</p><h2>Add a customer</h2></div><button class="close-button" type="button" data-close-dialog aria-label="Close">↩</button></div>

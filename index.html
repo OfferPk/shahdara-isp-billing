@@ -215,6 +215,10 @@
         <span id="fieldModeNearestStatus" class="field-mode-nearest-status" aria-live="polite"></span>
       </div>
       <div id="fieldModeZoneFilters" class="field-mode-zone-filters" role="group" aria-label="Filter by area or zone"></div>
+      <label class="field-mode-hide-contacted" for="fieldModeHideContactedToggle">
+        <input type="checkbox" id="fieldModeHideContactedToggle">
+        <span data-i18n="cct_hide_contacted_today">Hide contacted today</span>
+      </label>
       <div id="fieldModeShiftFilters" class="field-mode-zone-filters" role="group" aria-label="Filter by preferred visit time"></div>
       <p id="fieldModeZoneTarget" class="field-mode-target" aria-live="polite"></p>
       <div id="fieldModeCustomerList" class="field-mode-list"></div>
@@ -8502,6 +8506,12 @@
           <button id="reminderQueueNextBtn" class="primary-button queue-nav-btn" type="button" aria-label="Next customer in queue">Next ▶</button>
         </div>
       </div>
+      <div class="reminder-cooldown-toggle-row">
+        <label class="reminder-cooldown-toggle" for="reminderHideContactedTodayToggle">
+          <input type="checkbox" id="reminderHideContactedTodayToggle">
+          <span data-i18n="cct_hide_contacted_today">Hide contacted today</span>
+        </label>
+      </div>
       <div id="reminderQueueEmptyState" class="reminder-queue-empty-state" hidden>
         <div class="reminder-empty-icon" aria-hidden="true">✅</div>
         <h3 class="reminder-empty-title">All reminders sent today ✓</h3>
@@ -8552,6 +8562,15 @@
           <button id="reminderRecordPromiseToggleBtn" class="secondary-button" type="button">
             <span>🤝 Wada / Promise</span>
           </button>
+        </div>
+        <div class="reminder-contact-row">
+          <span class="reminder-contact-label" data-i18n="cct_mark_contacted">Mark contacted</span>
+          <div class="reminder-contact-channels">
+            <button type="button" class="secondary-button reminder-contact-btn" data-contact-channel="whatsapp">💬 <span data-i18n="cct_channel_whatsapp">WhatsApp</span></button>
+            <button type="button" class="secondary-button reminder-contact-btn" data-contact-channel="call">📞 <span data-i18n="cct_channel_call">Call</span></button>
+            <button type="button" class="secondary-button reminder-contact-btn" data-contact-channel="sms">✉️ <span data-i18n="cct_channel_sms">SMS</span></button>
+            <button type="button" class="secondary-button reminder-contact-btn" data-contact-channel="visit">🚶 <span data-i18n="cct_channel_visit">Visit</span></button>
+          </div>
         </div>
         <fieldset id="reminderInlinePromiseFieldset" class="reminder-promise-fieldset" hidden>
           <legend>🤝 Record Promise-to-Pay (Wada)</legend>
@@ -20714,6 +20733,7 @@
           <button id="topDefaultersExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
           <button id="topDefaultersCopyBriefingBtn" class="secondary-button" type="button">📋 Copy Briefing</button>
           <button id="topDefaultersLockDueBtn" class="secondary-button lock-due-toggle" type="button" aria-pressed="false" title="Filter to Lock Due (15th+, no active Waada) — the MikroTik Lock Script then covers exactly this suspension set">🔴 Lock Due (15th+)</button>
+          <button id="topDefaultersHideContactedBtn" class="secondary-button" type="button" aria-pressed="false" data-i18n="cct_hide_contacted_today">Hide contacted today</button>
           <button id="topDefaultersMikrotikLockBtn" class="secondary-button" type="button">📡 MikroTik Lock Script</button>
           <button id="topDefaultersMikrotikRestoreBtn" class="secondary-button" type="button">✅ MikroTik Restore Script</button>
           <button id="topDefaultersPrintA4Btn" class="secondary-button" type="button">📄 Print A4</button>

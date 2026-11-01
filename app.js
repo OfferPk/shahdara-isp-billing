@@ -192,6 +192,7 @@ import { buildUpstreamSlaLog, setupUpstreamSlaModal } from './upstream-sla-log.j
 import { setupPostRepairCheckinModal } from './post-repair-checkin.js';
 import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
 import { INVENTORY_ITEM_IDS, INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
+import { CONVERTER_SIDES_KEY, buildConverterReplacementSuggestion, converterSideLabel, converterSuggestionText, loadConverterSides, saveConverterSides, setupWdmConverterMatcher } from './wdm-converter-matcher.js';
 import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.11.0';
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { buildDaisyChainTree, setupDaisyChainTreeModal } from './daisy-chain-tree-view.js';
@@ -645,6 +646,7 @@ export let upstreamSlaModalController = null;
 export let postRepairCheckinModalController = null;
 export let roznamchaModalController = null;
 export let inventoryBookModalController = null;
+export let wdmConverterMatcherController = null;
 export let fieldBagModalController = null;
 export let outageImpactModalController = null;
 export let daisyChainTreeModalController = null;
@@ -3621,7 +3623,7 @@ function renderCustomerProfileView(customer) {
   // vs splitter-wide feeder fault) — pure derivation, read-only.
   const opticalFault = opticalStatus === 'weak' ? classifyCustomerOpticalFault(state.customers, customer.id) : null;
   const opticalFaultHtml = opticalFault ? `<p class="profile-optical-fault">${opticalFaultLineHtml(opticalFault)}</p>` : '';
-  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_optical_aria')}"><h4>${t('prof_optical_heading')} ${helpButtonMarkup('optical_rx')}</h4><p>${escapeHtml(t('prof_optical_box', null, { id: opticalFields.splitterBoxId || t('prof_not_recorded') }))}${opticalFields.splitterPort !== null ? escapeHtml(t('prof_optical_port', null, { port: opticalFields.splitterPort })) : ''}</p><p>${escapeHtml(t('prof_optical_pon', null, { port: opticalFields.oltPonPort || t('prof_not_recorded') }))}${escapeHtml(t('prof_optical_rx', null, { rx: formatRxDbm(opticalFields.lastRxDbm) }))} ${opticalBadge}</p>${opticalFaultHtml}<button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">${t('prof_optical_open')}</button><h5 class="signal-history-heading">${t('sig_history_title')}</h5>${signalHistoryHtml}<div class="signal-record-row"><label class="field-label" for="profileSignalDbmInput">${t('sig_dbm_label')}</label><input id="profileSignalDbmInput" class="form-input" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="-19.4"><label class="field-label" for="profileSignalNoteInput">${t('sig_note_label')}</label><input id="profileSignalNoteInput" class="form-input" type="text" maxlength="200"><button type="button" class="primary-button" id="profileSignalRecordBtn">${t('sig_record_btn')}</button></div></section>`;
+  const opticalSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_optical_aria')}"><h4>${t('prof_optical_heading')} ${helpButtonMarkup('optical_rx')}</h4><p>${escapeHtml(t('prof_optical_box', null, { id: opticalFields.splitterBoxId || t('prof_not_recorded') }))}${opticalFields.splitterPort !== null ? escapeHtml(t('prof_optical_port', null, { port: opticalFields.splitterPort })) : ''}</p><p>${escapeHtml(t('prof_optical_pon', null, { port: opticalFields.oltPonPort || t('prof_not_recorded') }))}${escapeHtml(t('prof_optical_rx', null, { rx: formatRxDbm(opticalFields.lastRxDbm) }))} ${opticalBadge}</p>${opticalFaultHtml}<p>${escapeHtml(t('wdmc_profile_side', null, { side: converterSideLabel(customer.customerConverterSide) || t('prof_not_recorded') }))}</p><button type="button" class="secondary-button" id="profileOpenSplitterMapBtn">${t('prof_optical_open')}</button><h5 class="signal-history-heading">${t('sig_history_title')}</h5>${signalHistoryHtml}<div class="signal-record-row"><label class="field-label" for="profileSignalDbmInput">${t('sig_dbm_label')}</label><input id="profileSignalDbmInput" class="form-input" type="number" min="-60" max="10" step="0.1" inputmode="decimal" placeholder="-19.4"><label class="field-label" for="profileSignalNoteInput">${t('sig_note_label')}</label><input id="profileSignalNoteInput" class="form-input" type="text" maxlength="200"><button type="button" class="primary-button" id="profileSignalRecordBtn">${t('sig_record_btn')}</button></div></section>`;
   // SISP-32: pole & landmark directory — where the drop and box live.
   const poleFields = normalizePoleFields(customer);
   const poleSectionHtml = `<section class="profile-splitter-section" aria-label="${t('prof_pole_aria')}"><h4>${t('prof_pole_heading')}</h4><p>${escapeHtml(t('prof_pole_number', null, { value: poleFields.poleNumber || t('prof_not_recorded') }))}</p><p>${escapeHtml(t('prof_pole_box', null, { value: poleFields.boxLocationNote || t('prof_not_recorded') }))}${escapeHtml(t('prof_pole_wire', null, { value: poleFields.dropWireCoreColor || t('prof_not_recorded') }))}</p><p class="profile-pole-note">${t('prof_pole_note')}</p></section>`;
@@ -4385,6 +4387,8 @@ function renderDetail() {
   $('#splitterPortInput').value = customer.splitterPort ?? '';
   $('#oltPonPortInput').value = customer.oltPonPort ?? '';
   $('#lastRxDbmInput').value = customer.lastRxDbm ?? '';
+  // SISP-162: WDM converter side (optional; '' = not recorded).
+  if ($('#converterSideInput')) $('#converterSideInput').value = customer.customerConverterSide ?? '';
   // SISP-32: pole & landmark directory (optional).
   if ($('#poleNumberInput')) $('#poleNumberInput').value = customer.poleNumber ?? '';
   if ($('#boxLocationNoteInput')) $('#boxLocationNoteInput').value = customer.boxLocationNote ?? '';
@@ -4552,7 +4556,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), converterSides: loadConverterSides(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), linemanPayouts: loadLinemanPayouts(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), emergencyRunbook: loadEmergencyRunbook(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -4561,6 +4565,7 @@ function backupRestoreOptions() {
   let roznamchaStored = false;
   let ticketsStored = false;
   let inventoryStored = false;
+  let converterSidesStored = false;
   let saadVisitsStored = false;
   let saadPaymentsStored = false;
   let linemanPayoutsStored = false;
@@ -4589,6 +4594,7 @@ function backupRestoreOptions() {
   try { roznamchaStored = localStorage.getItem(ROZNAMCHA_KEY) !== null; } catch { roznamchaStored = false; }
   try { ticketsStored = localStorage.getItem(TICKETS_KEY) !== null; } catch { ticketsStored = false; }
   try { inventoryStored = localStorage.getItem(INVENTORY_KEY) !== null; } catch { inventoryStored = false; }
+  try { converterSidesStored = localStorage.getItem(CONVERTER_SIDES_KEY) !== null; } catch { converterSidesStored = false; }
   try { saadVisitsStored = localStorage.getItem(SAAD_VISITS_KEY) !== null; } catch { saadVisitsStored = false; }
   try { saadPaymentsStored = localStorage.getItem(SAAD_PAYMENTS_KEY) !== null; } catch { saadPaymentsStored = false; }
   try { linemanPayoutsStored = localStorage.getItem(LINEMAN_PAYOUTS_KEY) !== null; } catch { linemanPayoutsStored = false; }
@@ -4635,7 +4641,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentLinemanPayouts: loadLinemanPayouts(), currentLinemanPayoutsStored: linemanPayoutsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentDeadPorts: loadDeadPorts(), currentDeadPortsStored: deadPortsStored, currentFeederCables: loadFeederCables(), currentFeederCablesStored: feederCablesStored, currentFieldBagMovements: loadFieldBagMovements(), currentFieldBagMovementsStored: fieldBagMovementsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentEmergencyRunbook: loadEmergencyRunbook(), currentEmergencyRunbookStored: emergencyRunbookStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentExpenseBudgets: loadExpenseBudgets(), currentExpenseBudgetsStored: expenseBudgetsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentConverterSides: loadConverterSides(), currentConverterSidesStored: converterSidesStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentLinemanPayouts: loadLinemanPayouts(), currentLinemanPayoutsStored: linemanPayoutsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentDeadPorts: loadDeadPorts(), currentDeadPortsStored: deadPortsStored, currentFeederCables: loadFeederCables(), currentFeederCablesStored: feederCablesStored, currentFieldBagMovements: loadFieldBagMovements(), currentFieldBagMovementsStored: fieldBagMovementsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentEmergencyRunbook: loadEmergencyRunbook(), currentEmergencyRunbookStored: emergencyRunbookStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentExpenseBudgets: loadExpenseBudgets(), currentExpenseBudgetsStored: expenseBudgetsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 // SISP-102: the device's current sibling collections, in the same shapes a
 // backup's settings sections carry — the delta merge's local side. Read
@@ -5492,6 +5498,10 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.inventory) {
       saveInventory(pendingBackupPreview.inventory);
+    }
+    if (pendingBackupPreview.converterSides) {
+      saveConverterSides(pendingBackupPreview.converterSides);
+      if (wdmConverterMatcherController) wdmConverterMatcherController.refresh();
     }
     if (pendingBackupPreview.loans) {
       saveLoans(pendingBackupPreview.loans);
@@ -7142,6 +7152,8 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       // SISP-24: optical splitter assignment + last RX reading (optional).
       splitterBoxId:$('#splitterBoxIdInput').value, splitterPort:$('#splitterPortInput').value,
       oltPonPort:$('#oltPonPortInput').value, lastRxDbm:$('#lastRxDbmInput').value,
+      // SISP-162: WDM converter side (recording it never moves stock).
+      ...($('#converterSideInput') ? { customerConverterSide: $('#converterSideInput').value } : {}),
       // SISP-32: pole & landmark directory (optional).
       ...($('#poleNumberInput') ? { poleNumber: $('#poleNumberInput').value } : {}),
       ...($('#boxLocationNoteInput') ? { boxLocationNote: $('#boxLocationNoteInput').value } : {}),
@@ -12864,6 +12876,12 @@ if (typeof document !== 'undefined') {
     // Log pre-filled from the resolved ticket; the logged-ticket list
     // (visits' ticketId links) drives the button's logged state.
     listLoggedVisitTicketIds: () => loadSaadVisits().map((v) => v.ticketId).filter(Boolean),
+    // SISP-162: display-only WDM replacement hint on converter-fault
+    // tickets, built from the customer's recorded side + side stock.
+    converterSuggestionForTicket: (ticket) => {
+      const customer = (state.customers || []).find((c) => String(c.id) === String(ticket.customerId));
+      return converterSuggestionText(buildConverterReplacementSuggestion(ticket, customer, loadConverterSides()));
+    },
     // OWNER-SIGNAL: a before/after signal saved on a ticket is a fresh
     // measurement — journal it into that customer's signal history
     // (which also refreshes their lastRxDbm) under the ticket's id.
@@ -13016,6 +13034,12 @@ if (typeof document !== 'undefined') {
       recordTicketStockBridge();
       renderDashboard();
     },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  // SISP-162: WDM converter A/B matcher panel inside the Stock Book
+  // modal — its own side ledger; the main stock book is never touched.
+  wdmConverterMatcherController = setupWdmConverterMatcher({
+    getInventoryMovements: () => loadInventory(),
     onToast: (msg, opts) => toast(msg, opts)
   });
   fieldBagModalController = setupFieldBagModal(() => state, {

@@ -43,6 +43,19 @@
  *
  * All helpers are pure except load/saveShopSettlements and the modal setup.
  * Tests use synthetic data only.
+ *
+ * SISP-124: unsettled-cash aging. A pure derivation over buildShopSummaries
+ * + pendingShopReceipts — nothing is stored and no settlement state ever
+ * changes. A shop alerts when its unsettled cash reaches
+ * SHOP_AGING_AMOUNT_THRESHOLD or the cash has waited
+ * SHOP_AGING_DAYS_THRESHOLD days. "Days waiting" is measured from the
+ * shop's last recorded handover; a shop with unsettled cash but NO handover
+ * on record is aged from its OLDEST unsettled receipt instead (that cash
+ * has been sitting there since that receipt). One condition = amber, both
+ * = red. The WhatsApp reminder is recipient-less (wa.me/?text=, the same
+ * pattern as shopSettlementWhatsAppUrl): no shopkeeper phone number is
+ * recorded anywhere in the app, so the owner picks the contact — a number
+ * is never invented here.
  */
 
 import {
@@ -54,6 +67,8 @@ import { t } from './nav-language.js';
 
 export const SHOP_SETTLEMENTS_KEY = 'sisp_shop_settlements_v1';
 
+export const SHOP_AGING_AMOUNT_THRESHOLD = 15000;
+export const SHOP_AGING_DAYS_THRESHOLD = 5;
 /**
  * SISP-68: where a handover's cash actually went. 'drawer' is the
  * historical behaviour (cash enters the ISP Roznamcha drawer; records
@@ -348,6 +363,116 @@ export function buildShopSummaries(state, settlements, referenceDate = new Date(
 export function pendingShopReceipts(state, shop) {
   const canonical = canonicalShopName(shop);
   return collectShopPayments(state).filter((p) => p.shop === canonical && p.remaining > 0);
+}
+
+/** Whole days between two YYYY-MM-DD dates (date-only math, >= 0; null on bad input). */
+function daysBetweenDates(fromDate, toDate) {
+  if (!DATE_RE.test(String(fromDate || '')) || !DATE_RE.test(String(toDate || ''))) return null;
+  const from = Date.parse(`${fromDate}T00:00:00Z`);
+  const to = Date.parse(`${toDate}T00:00:00Z`);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return null;
+  return Math.max(0, Math.round((to - from) / 86400000));
+}
+
+/**
+ * SISP-124: aging for ONE shop summary (from buildShopSummaries). Pure —
+ * reads pending receipts only for the oldest-unsettled date / count.
+ * Returns level null when the shop should render exactly as before:
+ * zero unsettled cash never alerts, and below both thresholds never alerts.
+ */
+export function shopAgingForSummary(state, summary, referenceDate = new Date()) {
+  const shop = summary && typeof summary.shop === 'string' ? summary.shop : '';
+  const unsettled = summary ? moneyValue(summary.unsettled) : 0;
+  const pending = shop ? pendingShopReceipts(state, shop) : [];
+  const datedPending = pending.filter((p) => DATE_RE.test(String(p.date || '')));
+  const oldestUnsettledDate = datedPending.length > 0 ? datedPending[0].date : null;
+  const lastHandoverDate = summary && DATE_RE.test(String(summary.lastHandoverDate || ''))
+    ? String(summary.lastHandoverDate)
+    : null;
+  const today = pakistanToday(referenceDate);
+  let daysWaiting = null;
+  let waitingBasis = null;
+  if (unsettled > 0) {
+    if (lastHandoverDate) {
+      daysWaiting = daysBetweenDates(lastHandoverDate, today);
+      waitingBasis = 'handover';
+    } else if (oldestUnsettledDate) {
+      daysWaiting = daysBetweenDates(oldestUnsettledDate, today);
+      waitingBasis = 'oldest-receipt';
+    }
+  }
+  const amountAlert = unsettled >= SHOP_AGING_AMOUNT_THRESHOLD;
+  const daysAlert = daysWaiting !== null && daysWaiting >= SHOP_AGING_DAYS_THRESHOLD;
+  const level = unsettled > 0 && (amountAlert || daysAlert)
+    ? (amountAlert && daysAlert ? 'red' : 'amber')
+    : null;
+  return {
+    shop,
+    unsettled,
+    pendingCount: pending.length,
+    oldestUnsettledDate,
+    lastHandoverDate,
+    daysWaiting,
+    waitingBasis,
+    amountAlert,
+    daysAlert,
+    level
+  };
+}
+
+/** SISP-124: aging entries for every shop summary, same order as buildShopSummaries. */
+export function buildShopAging(state, settlements, referenceDate = new Date()) {
+  return buildShopSummaries(state, settlements, referenceDate)
+    .map((summary) => shopAgingForSummary(state, summary, referenceDate));
+}
+
+/** SISP-124: badge label for an aging entry (empty string when not alerting or days unknown for the amount-only case handled by the nodays key). */
+export function shopAgingBadgeText(aging, lang = null) {
+  if (!aging || !aging.level) return '';
+  const params = { amount: formatShopPKR(aging.unsettled), days: aging.daysWaiting ?? '' };
+  return aging.daysWaiting === null
+    ? t('shopage_badge_nodays', lang, params)
+    : t('shopage_badge', lang, params);
+}
+
+/**
+ * SISP-124: itemized WhatsApp handover reminder for one shop's aging
+ * entry. Lines list each pending receipt's REMAINING cash (date, customer,
+ * amount) — the money still sitting at the shop — plus the total, which is
+ * the summary's unsettled figure from the existing settlement math.
+ */
+export function buildShopAgingReminderText(state, aging, lang = null) {
+  if (!aging || !aging.shop) return '';
+  const pending = pendingShopReceipts(state, aging.shop);
+  const lines = [];
+  lines.push(t('shopage_r_title', lang));
+  lines.push(t('shopage_r_shop', lang, { shop: aging.shop }));
+  const unsettledParams = { amount: formatShopPKR(aging.unsettled), count: pending.length };
+  lines.push(pending.length === 1
+    ? t('shopage_r_unsettled_sing', lang, unsettledParams)
+    : t('shopage_r_unsettled_plur', lang, unsettledParams));
+  if (aging.waitingBasis === 'handover' && aging.lastHandoverDate) {
+    lines.push(t('shopage_r_waiting_handover', lang, { days: aging.daysWaiting ?? '', date: aging.lastHandoverDate }));
+  } else if (aging.waitingBasis === 'oldest-receipt' && aging.oldestUnsettledDate) {
+    lines.push(t('shopage_r_waiting_first', lang, { days: aging.daysWaiting ?? '', date: aging.oldestUnsettledDate }));
+  }
+  lines.push('');
+  lines.push(t('shopage_r_pending', lang));
+  if (pending.length === 0) {
+    lines.push('- (none)');
+  } else {
+    for (const p of pending) {
+      lines.push(t('shopage_r_line', lang, {
+        number: p.customerNumber ?? '',
+        name: p.customerName || '',
+        date: p.date || '',
+        amount: formatShopPKR(p.remaining)
+      }));
+    }
+  }
+  lines.push('');
+  lines.push(t('shopage_r_total', lang, { amount: formatShopPKR(aging.unsettled) }));
+  return lines.join('\n');
 }
 
 /** Reads settlement records; [] on missing/corrupt storage. */
@@ -956,15 +1081,23 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
     if (cards) {
       cards.innerHTML = summaries.length === 0
         ? '<p class="shop-settlement-empty">No shop collections recorded yet.</p>'
-        : summaries.map((s) => `
-          <article class="shop-settlement-card" data-shop="${escapeHtml(s.shop)}">
+        : summaries.map((s) => {
+          // SISP-124: aging highlight + 1-tap WhatsApp handover reminder.
+          // Below both thresholds the card renders exactly as before.
+          const aging = shopAgingForSummary(state, s);
+          const agingBlock = aging.level ? `
+            <p class="shop-aging-line"><span class="shop-aging-badge shop-aging-badge--${aging.level}">${escapeHtml(shopAgingBadgeText(aging))}</span></p>
+            <button type="button" class="secondary-button shop-aging-remind-btn" data-shop-aging-remind="${escapeHtml(s.shop)}">📲 ${escapeHtml(t('shopage_remind_btn'))}</button>` : '';
+          return `
+          <article class="shop-settlement-card${aging.level ? ` shop-settlement-card--aging-${aging.level}` : ''}" data-shop="${escapeHtml(s.shop)}">
             <h3>${escapeHtml(s.shop)}</h3>
             <p><span>Unsettled cash in hand</span><strong>${escapeHtml(formatShopPKR(s.unsettled))}</strong></p>
             <p><span>Collected this month</span><strong>${escapeHtml(formatShopPKR(s.collectedThisMonth))}</strong></p>
             <p><span>Last handover</span><strong>${escapeHtml(s.lastHandoverDate || 'Never')}</strong></p>
-            <p><span>Receipts since last settlement</span><strong>${escapeHtml(String(s.receiptsSinceLastSettlement))}</strong></p>
+            <p><span>Receipts since last settlement</span><strong>${escapeHtml(String(s.receiptsSinceLastSettlement))}</strong></p>${agingBlock}
             <button type="button" class="secondary-button shop-settlement-view-btn" data-shop="${escapeHtml(s.shop)}">View pending receipts</button>
-          </article>`).join('');
+          </article>`;
+        }).join('');
     }
     if (shopSelect) {
       const previous = currentShop;
@@ -1116,6 +1249,19 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
   if (shopSelect) shopSelect.addEventListener('change', () => { currentShop = shopSelect.value || null; renderReceipts(); });
   const cards = $('shopSettlementCards');
   if (cards) cards.addEventListener('click', (event) => {
+    // SISP-124: itemized WhatsApp handover reminder (recipient-less draft —
+    // no shopkeeper phone is recorded in the app, the owner picks it).
+    const remindBtn = event.target.closest('.shop-aging-remind-btn');
+    if (remindBtn) {
+      const state = getState() || { customers: [] };
+      const settlements = loadShopSettlements();
+      const summary = buildShopSummaries(state, settlements).find((s) => s.shop === remindBtn.dataset.shopAgingRemind);
+      if (!summary) return;
+      const aging = shopAgingForSummary(state, summary);
+      const text = buildShopAgingReminderText(state, aging);
+      if (text) window.open(shopSettlementWhatsAppUrl(text), '_blank');
+      return;
+    }
     const btn = event.target.closest('.shop-settlement-view-btn');
     if (!btn || !shopSelect) return;
     currentShop = btn.dataset.shop;

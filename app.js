@@ -151,6 +151,7 @@ import { setupDuesAgingModal } from './dashboard-dues-aging.js';
 import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
 import { setupZoneSheetDialog } from './lineman-sheet-print.js';
 import { setupExpenseVoucherDialog } from './expense-voucher-print.js';
+import { setupLetterheadDialog } from './business-letterhead-print.js';
 import { setupBillVoucherDialog } from './a4-voucher-grid-print.js';
 import { setupOwnerPinGuard, guardDecision, loadOwnerPinRecord } from './owner-pin-guard.js';
 import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
@@ -484,6 +485,7 @@ export let duesAgingController = null;
 export let topDefaultersModalController = null;
 export let zoneSheetDialogController = null;
 export let expenseVoucherDialogController = null;
+export let letterheadDialogController = null;
 export let billVoucherDialogController = null;
 export let bulkTariffDialogController = null;
 export let ownerPinGuardController = null;
@@ -11969,6 +11971,9 @@ if (typeof document !== 'undefined') {
     getPartnerEntries: () => loadPartnerLedgerEntries(),
     onToast: (msg, opts) => toast(msg, opts)
   });
+  letterheadDialogController = setupLetterheadDialog(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   billVoucherDialogController = setupBillVoucherDialog(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
@@ -13440,6 +13445,13 @@ if (typeof document !== 'undefined') {
     });
   }
 
+  const letterheadDialog = $('#letterheadDialog');
+  if (letterheadDialog && !letterheadDialogController) {
+    letterheadDialogController = setupLetterheadDialog(() => state, {
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
   const ownerPinDialog = $('#ownerPinDialog');
   if (ownerPinDialog && !ownerPinGuardController) {
     ownerPinGuardController = setupOwnerPinGuard({
@@ -13664,6 +13676,7 @@ if (typeof document !== 'undefined') {
     window.topDefaultersModalController = topDefaultersModalController;
     window.zoneSheetDialogController = zoneSheetDialogController;
     window.expenseVoucherDialogController = expenseVoucherDialogController;
+    window.letterheadDialogController = letterheadDialogController;
     window.billVoucherDialogController = billVoucherDialogController;
     window.ownerPinGuardController = ownerPinGuardController;
     window.areaCollectionsModalController = areaCollectionsModalController;

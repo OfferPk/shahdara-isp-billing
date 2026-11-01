@@ -13,7 +13,24 @@
 // changes. Bills carry no invoice number in this app, so the row reference
 // is the real identifier the app has: customer number + bill month
 // (e.g. "#12 · 2026-10"). An INV- number is never fabricated.
-import { calculatePaymentAllocations, derivedBillStatus } from './core.js';
+//
+// SISP-176: each row also surfaces the SISP-43 ticket-charge split of the
+// cash recorded on that bill. A settled ticket charge rides INSIDE a
+// normal payment (payment.ticketCharges, stamped by Quick Collect); the
+// allocation engine deliberately keeps that portion out of bill money, so
+// the register's paidAmount never contained it. ticketChargesPaid is the
+// ticket portion of the bill's NON-VOIDED payments (core's
+// paymentTicketChargeCents — the one sanitization point), attributed to
+// the bill the payment was recorded on, exactly like the payment itself.
+// The split never inflates anything: totals.totalPaid stays the pre-split
+// bill figure byte-for-byte, and the new ticketTotals only ADD the two
+// views of the same cash (totalTicketChargesPaid, and totalCollected =
+// totalPaid + totalTicketChargesPaid). Pending (unsettled) ticket charges
+// are NOT surfaced here — they live on tickets, not on bill rows, and a
+// current receivable has no bill-month to belong to; the Owner Khata
+// closing report carries them as its month-end pending line instead.
+import { calculatePaymentAllocations, derivedBillStatus, paymentTicketChargeCents } from './core.js';
+import { isVoidedPayment } from './payment-void-audit.js';
 
 export const BILLING_REGISTER_PERIODS = ['this', 'last', 'last3', 'last6', 'last12'];
 export const BILLING_REGISTER_STATUSES = ['all', 'paid', 'partial', 'unpaid'];
@@ -87,6 +104,13 @@ export function buildBillingRegister(state, { period = BILLING_REGISTER_DEFAULT_
       const billAmountCents = summary?.billAmountCents ?? amountToCents(bill.dueAmount);
       const balanceDueCents = summary?.balanceDueCents ?? billAmountCents;
       const paidAmountCents = Math.max(0, billAmountCents - balanceDueCents);
+      // SISP-176: ticket-charge portion of this bill's own payments. A
+      // voided payment settles nothing (SISP-34), so its stamp counts
+      // neither here nor in the paid amount above.
+      const ticketChargesPaidCents = (bill.payments ?? []).reduce(
+        (sum, payment) => (isVoidedPayment(payment) ? sum : sum + paymentTicketChargeCents(payment)),
+        0
+      );
       rows.push({
         reference: `#${customer.customerNumber} · ${bill.month}`,
         customerId: customer.id,
@@ -97,6 +121,7 @@ export function buildBillingRegister(state, { period = BILLING_REGISTER_DEFAULT_
         month: bill.month,
         billAmount: centsToAmount(billAmountCents),
         paidAmount: centsToAmount(paidAmountCents),
+        ticketChargesPaid: centsToAmount(ticketChargesPaidCents),
         balanceDue: centsToAmount(balanceDueCents),
         status: rowStatus
       });
@@ -110,7 +135,15 @@ export function buildBillingRegister(state, { period = BILLING_REGISTER_DEFAULT_
     totalBilled: centsToAmount(rows.reduce((sum, row) => sum + amountToCents(row.billAmount), 0)),
     totalPaid: centsToAmount(rows.reduce((sum, row) => sum + amountToCents(row.paidAmount), 0))
   };
-  return { period: normalizedPeriod, status: normalizedStatus, months, rows, totals, periodBillCount };
+  // SISP-176: the ticket-charge split of the SAME visible rows. Kept out
+  // of `totals` so the pre-split figures stay byte-identical; the identity
+  // totalCollected = totalPaid + totalTicketChargesPaid holds in cents.
+  const totalTicketChargesPaidCents = rows.reduce((sum, row) => sum + amountToCents(row.ticketChargesPaid), 0);
+  const ticketTotals = {
+    totalTicketChargesPaid: centsToAmount(totalTicketChargesPaidCents),
+    totalCollected: centsToAmount(amountToCents(totals.totalPaid) + totalTicketChargesPaidCents)
+  };
+  return { period: normalizedPeriod, status: normalizedStatus, months, rows, totals, ticketTotals, periodBillCount };
 }
 
 // CSV export — house style (statement filtered export): English columns and
@@ -124,7 +157,11 @@ export const BILLING_REGISTER_CSV_HEADERS = [
   { key: 'month', label: 'Month' },
   { key: 'billAmount', label: 'Bill Amount' },
   { key: 'paidAmount', label: 'Paid Amount' },
-  { key: 'status', label: 'Status' }
+  { key: 'status', label: 'Status' },
+  // SISP-176: the split columns ride at the end so the long-standing
+  // column positions (and every figure in them) stay exactly as before.
+  { key: 'ticketChargesPaid', label: 'Ticket Charges Paid' },
+  { key: 'collectedAmount', label: 'Total Collected' }
 ];
 
 export const BILLING_REGISTER_STATUS_LABELS = { paid: 'Paid', partial: 'Partial', unpaid: 'Unpaid' };
@@ -138,7 +175,11 @@ export function billingRegisterCsvRows(register) {
     month: row.month,
     billAmount: row.billAmount,
     paidAmount: row.paidAmount,
-    status: BILLING_REGISTER_STATUS_LABELS[row.status] ?? row.status
+    status: BILLING_REGISTER_STATUS_LABELS[row.status] ?? row.status,
+    ticketChargesPaid: row.ticketChargesPaid ?? 0,
+    // Bill Paid + Ticket Charges Paid — the cash this row's receipts
+    // actually brought in (SISP-176 identity, per row).
+    collectedAmount: centsToAmount(amountToCents(row.paidAmount) + amountToCents(row.ticketChargesPaid ?? 0))
   }));
 }
 

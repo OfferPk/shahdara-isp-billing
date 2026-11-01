@@ -135,6 +135,7 @@ const BARE_GLYPH_ALLOWLIST = [
   { file: 'nav-wdm-spectrum.js', cls: 'wdm-remove-btn', why: 'PR #453 documented channel-remove exception' },
   { file: 'qa-otdr-bidirectional-inspection.js', cls: 'event-remove-btn', why: 'removes one inspection event row' },
   { file: 'roznamcha.js', aria: 'Remove expense', why: 'removes one roznamcha expense row' },
+  { file: 'field-mode.js', cls: 'field-mode-nearby-dismiss', why: 'SISP-168: dismisses the nearby-unpaid hint card (a banner above the list, never a dialog)' },
 ];
 
 test('SISP-87 audit: bare ✕ / × buttons exist only as allowlisted micro-controls', () => {

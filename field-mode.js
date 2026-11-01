@@ -111,6 +111,16 @@
  * last with NO distance label — a distance prints only when it was
  * really computed. The sort layers on top of the existing search + zone
  * filter; it never changes which customers are visible.
+ * SISP-168 (Nearby Unpaid Neighbor Prompt): after a successful
+ * collect() the controller asks nearby-unpaid-hint.js — on the
+ * POST-payment state — for up to 3 OTHER unpaid active subscribers on
+ * the same pole, the same upstreamCustomerId chain, or the same
+ * splitter box, and renders them as a dismissible card above the
+ * customer list (never over the receipt panel). Tapping a hint row is
+ * the ordinary selectCustomer() seam, so the neighbour's collect sheet
+ * opens exactly as if his list card had been tapped. The hints are
+ * session display state only: recomputed fresh by every collection,
+ * cleared by selection / dismiss / close, and never persisted.
  *
  * Pure helpers are DOM-free and unit-tested; setupFieldMode() is the DOM
  * controller (returns a no-op controller outside a browser, mirroring
@@ -134,6 +144,7 @@ import { canonicalLocation } from './phase3.js';
 import { paymentDayHabit, habitCoversDay, filterLikelyToPayEntries } from './payment-day-advisor.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
+import { buildNearbyUnpaidHints } from './nearby-unpaid-hint.js';
 import { fuzzyCustomerNameMatches, sanitizeSearchAliases } from './fuzzy-alias-search.js';
 import {
   computeWaadaChipDate,
@@ -714,6 +725,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   const zoneFiltersEl = document.getElementById('fieldModeZoneFilters');
   const shiftFiltersEl = document.getElementById('fieldModeShiftFilters');
   const zoneTargetEl = document.getElementById('fieldModeZoneTarget');
+  const hintsEl = document.getElementById('fieldModeNearbyHints');
   const listEl = document.getElementById('fieldModeCustomerList');
   const panelEl = document.getElementById('fieldModeActionPanel');
   const nearestBtn = document.getElementById('fieldModeNearestBtn');
@@ -740,6 +752,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let lastReceiptAdvanceTarget = null;
   let panelMode = 'collect';
   let busy = false;
+  // SISP-168: nearby unpaid neighbours of the last collection — pure
+  // session display state, recomputed by every collect(), never saved.
+  let nearbyHints = [];
   // SISP-126: the armed remainder-waada chip date on the custom-amount
   // sheet (null until a date chip is tapped — Skip / untouched arms
   // nothing, and the row appearing never writes a promise by itself).
@@ -813,6 +828,38 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     }
   }
 
+  // SISP-168: the nearby-unpaid card lives ABOVE the customer list —
+  // it never replaces or overlays the receipt panel below. No
+  // neighbours -> nothing renders at all (no empty card).
+  function renderNearbyHints() {
+    if (!hintsEl) return;
+    if (!nearbyHints.length) {
+      hintsEl.innerHTML = '';
+      return;
+    }
+    const rows = nearbyHints.map((hint) => {
+      const chipKey = hint.relation === 'pole'
+        ? 'fmnear_pole'
+        : hint.relation === 'chain' ? 'fmnear_chain' : 'fmnear_splitter';
+      const chip = hint.relationLabel
+        ? `${t(chipKey)} · ${escapeHtml(hint.relationLabel)}`
+        : t(chipKey);
+      return `<button type="button" class="field-mode-nearby-row" data-field-nearby-id="${escapeHtml(hint.customerId)}">
+        <span class="field-mode-customer-main">
+          <strong>${escapeHtml(hint.name)}</strong>
+          <small>#${escapeHtml(hint.customerNumber)} · ${chip}</small>
+        </span>
+        <span class="field-mode-customer-due">${escapeHtml(formatPKR(hint.duesCents / 100))}</span>
+      </button>`;
+    }).join('');
+    hintsEl.innerHTML = `<section class="field-mode-nearby" aria-label="${escapeHtml(t('fmnear_title'))}">
+      <div class="field-mode-nearby-head">
+        <h3>📍 ${escapeHtml(t('fmnear_title'))}</h3>
+        <button type="button" class="field-mode-nearby-dismiss" data-field-nearby-dismiss aria-label="${escapeHtml(t('fmnear_dismiss'))}">✕</button>
+      </div>
+      ${rows}
+    </section>`;
+  }
   // SISP-133: 1-tap shift chips (All times / Morning / Afternoon /
   // Evening / Weekend) + the "Now match first" sort toggle. Counts
   // describe the zone-filtered list, so a chip never claims customers
@@ -1180,6 +1227,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       state ? fieldModeCustomerStatus(state, entry.id, allocations) : null
     ]));
     renderZoneFilters(groups, base);
+    renderNearbyHints();
     renderList(visible, statusById);
     renderPanel();
   }
@@ -1190,6 +1238,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     lastReceiptAdvance = false;
     lastReceiptAdvanceTarget = null;
     panelMode = 'collect';
+    // SISP-168: moving on to any customer (incl. a tapped hint row)
+    // ends the previous stop's hint card.
+    nearbyHints = [];
     fieldRemainderWaadaDate = null;
     fieldRemainderSkipped = false;
     render();
@@ -1278,6 +1329,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     try {
       const { nextState, receipt, whatsapp } = collectFieldModeLooseChange(state, fresh, 'Cash', tendered);
       if (typeof onSaveState === 'function') onSaveState(nextState);
+      // SISP-168: neighbours are derived from the POST-payment state
+      // (nextState already carries the recorded collection), fresh on
+      // every collection — a stale card can never survive a new stop.
+      nearbyHints = buildNearbyUnpaidHints(nextState, fresh.id, calculatePaymentAllocations(nextState));
       lastReceipt = { receipt, whatsapp };
       lastReceiptAdvance = false;
       lastReceiptAdvanceTarget = null;
@@ -1406,6 +1461,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   function close() {
     if (!isOpen) return;
     isOpen = false;
+    nearbyHints = [];
     view.hidden = true;
     document.body.classList.remove('field-mode-open');
     toggleBtn.setAttribute('aria-pressed', 'false');
@@ -1431,6 +1487,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     lastReceiptAdvance = false;
     lastReceiptAdvanceTarget = null;
     panelMode = 'collect';
+    nearbyHints = [];
   };
   if (searchInput) {
     searchInput.addEventListener('input', () => {
@@ -1489,6 +1546,20 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const card = event.target.closest?.('[data-field-customer-id]');
       if (!card) return;
       selectCustomer(card.getAttribute('data-field-customer-id'));
+    });
+  }
+  if (hintsEl) {
+    // SISP-168: a hint-row tap is the ordinary selectCustomer() seam
+    // (the neighbour's collect sheet opens); the ✕ only dismisses.
+    hintsEl.addEventListener('click', (event) => {
+      if (event.target.closest?.('[data-field-nearby-dismiss]')) {
+        nearbyHints = [];
+        renderNearbyHints();
+        return;
+      }
+      const row = event.target.closest?.('[data-field-nearby-id]');
+      if (!row) return;
+      selectCustomer(row.getAttribute('data-field-nearby-id'));
     });
   }
   if (panelEl) {

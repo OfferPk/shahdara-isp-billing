@@ -21034,6 +21034,36 @@
     </div>
   </dialog>
 
+  <!-- SISP-156: 1-click payment channel reassignment. Only the channel
+       changes — amount, date and receipt number stay; settled or voided
+       receipts are locked (the controller shows the lock reason instead
+       of opening for them). -->
+  <dialog id="paymentMethodReassignDialog" class="billing-modal payment-reassign-dialog" aria-labelledby="paymentReassignDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <h2 id="paymentReassignDialogTitle" data-i18n="reassign_title">Change payment channel</h2>
+        <button id="paymentReassignCloseBtn" class="modal-close" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="payment-reassign-body">
+        <p id="paymentReassignSummary" class="payment-reassign-summary"></p>
+        <p class="field-help" data-i18n="reassign_help">Only the channel changes — amount, date and receipt number stay the same. The money moves between the shop tray, cash drawer and wallet totals automatically.</p>
+        <label class="field-label full" for="paymentReassignMethodSelect" data-i18n="reassign_new_channel">New channel</label>
+        <select id="paymentReassignMethodSelect" class="full"></select>
+        <div id="paymentReassignTidRow" hidden>
+          <label class="field-label full" for="paymentReassignTidInput" data-i18n="reassign_tid_label">Transaction ID / Ref</label>
+          <input id="paymentReassignTidInput" class="full" type="text" maxlength="64" autocomplete="off">
+          <label class="field-label full" for="paymentReassignOverrideInput" data-i18n="reassign_override_label">Override reason (if no TID)</label>
+          <input id="paymentReassignOverrideInput" class="full" type="text" maxlength="100" autocomplete="off">
+        </div>
+        <p id="paymentReassignError" class="payment-reassign-error" role="alert" hidden></p>
+      </div>
+      <div class="billing-modal-footer">
+        <button id="paymentReassignCancelBtn" class="secondary-button" type="button" data-i18n="reassign_cancel">Cancel</button>
+        <button id="paymentReassignConfirmBtn" class="primary-button" type="button" data-i18n="reassign_confirm">Change channel</button>
+      </div>
+    </div>
+  </dialog>
+
   <!-- SISP-80: Owner PIN lock. One dialog, two modes: a PIN prompt that
        gates Partner Settlement, partner share tabs, expense deletion and
        payment voiding while Restricted Mode is ON, and the settings mode

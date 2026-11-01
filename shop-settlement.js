@@ -41,6 +41,24 @@
  * from the SAME records (collectShopPayments + settlement records) — no
  * second arithmetic, no writes, no stamps.
  *
+ * SISP-149: a handover may split the settled gross into the net physical
+ * cash the owner actually received plus a shop deduction (the shop's
+ * cut / an expense the shop already spent). The invariant
+ * netCash + deduction === settled gross is enforced inside
+ * applySettlement; the split rides the settlement record (netCash /
+ * deduction fields, kept by the sanitizer only as a consistent pair).
+ * When deduction > 0 exactly ONE expense is appended to the returned
+ * state's Expenses ledger in the same pure call — deterministic id
+ * `shopded-<settlement id>` plus a shopSettlementId provenance field,
+ * the SISP-45/SISP-56 mirror shape — so a settlement can never post its
+ * deduction twice, and monthly P&L (dashboard-pnl.js) plus Daily
+ * Closing deduct it through the ordinary expense path. The Roznamcha
+ * drawer receives only the NET cash (roznamcha.js collectShopHandovers
+ * reads settlementNetCash), because the deduction never physically
+ * reaches the drawer. There is NO settlement-reversal path in the app:
+ * the auto-expense is an ordinary Expenses-ledger row the owner can
+ * delete by hand if a handover is ever undone manually.
+ *
  * All helpers are pure except load/saveShopSettlements and the modal setup.
  * Tests use synthetic data only.
  *
@@ -58,6 +76,7 @@
  * is never invented here.
  */
 
+import { EXPENSE_CATEGORIES } from './phase3.js';
 import {
   loadPartnerLedgerEntries,
   savePartnerLedgerEntries,
@@ -109,6 +128,76 @@ function moneyValue(value) {
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function round2(value) {
+  return Math.round(value * 100) / 100;
+}
+
+/**
+ * SISP-149: the Expenses-ledger category a shop deduction posts under.
+ * EXPENSE_CATEGORIES (phase3.js) is a frozen list with no shop-commission
+ * entry, so the honest existing fit is 'Other expenses' — the same bucket
+ * the roznamcha mirror maps non-material petty cash to (SISP-45).
+ */
+export const SHOP_DEDUCTION_EXPENSE_CATEGORY = EXPENSE_CATEGORIES.includes('Other expenses')
+  ? 'Other expenses'
+  : EXPENSE_CATEGORIES[EXPENSE_CATEGORIES.length - 1];
+
+/**
+ * SISP-149: the deduction recorded on a settlement, or 0. The split only
+ * counts when it is internally consistent (netCash + deduction equals
+ * the settled gross, deduction > 0) — a partial or inconsistent pair
+ * reads as a legacy no-split record, so readers never guess.
+ */
+export function settlementDeduction(settlement) {
+  if (!settlement || typeof settlement !== 'object') return 0;
+  const deduction = Number(settlement.deduction);
+  const netCash = Number(settlement.netCash);
+  if (!Number.isFinite(deduction) || !Number.isFinite(netCash)) return 0;
+  if (deduction <= 0 || netCash < 0) return 0;
+  if (round2(netCash + deduction) !== round2(moneyValue(settlement.amount))) return 0;
+  return round2(deduction);
+}
+
+/**
+ * SISP-149: the physical cash a handover actually delivered — the gross
+ * settled amount minus any shop deduction. Legacy settlements (no
+ * split) hand over their full amount, exactly as before.
+ */
+export function settlementNetCash(settlement) {
+  if (!settlement || typeof settlement !== 'object') return 0;
+  return round2(moneyValue(settlement.amount) - settlementDeduction(settlement));
+}
+
+/** SISP-149: deterministic Expenses-ledger id for a settlement's deduction. */
+export function shopDeductionExpenseId(settlementId) {
+  return `shopded-${settlementId}`;
+}
+
+/**
+ * SISP-149: the ONE expense row a split settlement posts, or null when
+ * the settlement carries no deduction. Built from the settlement alone
+ * (the SISP-45/SISP-56 mirror shape: deterministic id + provenance), so
+ * re-deriving it for the same settlement always yields the same row and
+ * can never double-post. The row satisfies the Expenses ledger's own
+ * validation (phase3.js): real category, handover date, notes naming
+ * the shop and the settlement.
+ */
+export function buildShopDeductionExpense(settlement) {
+  const deduction = settlementDeduction(settlement);
+  if (deduction <= 0 || !settlement || typeof settlement.id !== 'string' || !settlement.id) return null;
+  return {
+    id: shopDeductionExpenseId(settlement.id),
+    date: settlement.date,
+    amount: deduction,
+    category: SHOP_DEDUCTION_EXPENSE_CATEGORY,
+    notes: `Shop deduction · ${settlement.shop} · Settlement ${settlement.id}`.slice(0, 1000),
+    area: '',
+    shopSettlementId: settlement.id,
+    source: 'shop-settlement',
+    createdAt: typeof settlement.createdAt === 'string' ? settlement.createdAt : ''
+  };
 }
 
 export function formatShopPKR(value) {
@@ -511,7 +600,7 @@ export function sanitizeShopSettlements(value) {
     if (!Number.isFinite(amount) || amount <= 0) continue;
     if (typeof entry.date !== 'string' || !DATE_RE.test(entry.date)) continue;
     const receivedInto = normalizeReceivedInto(entry.receivedInto);
-    out.push({
+    const record = {
       id: typeof entry.id === 'string' && entry.id ? entry.id : `shop-settle-${Date.now()}`,
       shop: entry.shop,
       amount,
@@ -533,7 +622,20 @@ export function sanitizeShopSettlements(value) {
           }))
         : [],
       createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : ''
-    });
+    };
+    // SISP-149: keep the handover split only as a consistent pair
+    // (netCash + deduction === amount, deduction > 0). Anything else
+    // reads as a legacy no-split record — the fields are dropped, never
+    // half-kept, so no reader ever has to guess at a broken split.
+    const splitDeduction = Number(entry.deduction);
+    const splitNetCash = Number(entry.netCash);
+    if (Number.isFinite(splitDeduction) && Number.isFinite(splitNetCash)
+      && splitDeduction > 0 && splitNetCash >= 0
+      && round2(splitNetCash + splitDeduction) === round2(amount)) {
+      record.netCash = round2(splitNetCash);
+      record.deduction = round2(splitDeduction);
+    }
+    out.push(record);
   }
   return out;
 }
@@ -579,6 +681,16 @@ export function allocateSettlement(shopPayments, amount) {
  * with the covered receipts marked (shopSettledAmount / shopSettled /
  * settlementIds) plus the settlement record to persist via
  * saveShopSettlements. Throws on a non-positive amount or an unknown shop.
+ *
+ * SISP-149: pass `options.netCash` / `options.deduction` (alongside
+ * SISP-68's `options.receivedInto`) to record that the
+ * shop kept a deduction out of the settled gross. The invariant
+ * netCash + deduction === covered is enforced here: a broken split, a
+ * negative figure, or a handover amount beyond the unsettled total
+ * (leftover) throws and records NOTHING (this function is pure — a
+ * throw means no state and no settlement escape). A zero deduction
+ * (or no split at all) takes the legacy path exactly: the settlement
+ * record carries no split fields and no expense is posted.
  */
 export function applySettlement(state, shop, amount, date, note = '', options = {}) {
   const total = moneyValue(amount);
@@ -591,6 +703,23 @@ export function applySettlement(state, shop, amount, date, note = '', options = 
   if (pending.length === 0) throw new Error(`No unsettled cash found for ${canonicalShop}.`);
   const { allocations, covered, leftover } = allocateSettlement(pending, total);
   if (covered <= 0) throw new Error(`No unsettled cash found for ${canonicalShop}.`);
+  let splitNetCash = null;
+  let splitDeduction = 0;
+  if (options && (options.netCash !== undefined || options.deduction !== undefined)) {
+    const netCash = Number(options.netCash);
+    const deduction = Number(options.deduction);
+    if (!Number.isFinite(netCash) || !Number.isFinite(deduction) || netCash < 0 || deduction < 0) {
+      throw new Error('Net cash and shop deduction cannot be negative.');
+    }
+    if (leftover > 0) {
+      throw new Error('With a shop deduction, the handover amount must exactly equal the receipts being settled — lower the amount or clear the deduction.');
+    }
+    if (round2(netCash + deduction) !== round2(covered)) {
+      throw new Error(`Net cash plus shop deduction must equal the settled total (${formatShopPKR(covered)}).`);
+    }
+    splitNetCash = round2(netCash);
+    splitDeduction = round2(deduction);
+  }
   const id = settlementId();
   const handoverDate = typeof date === 'string' && DATE_RE.test(date) ? date : pakistanToday();
   const receivedInto = normalizeReceivedInto(options?.receivedInto);
@@ -607,6 +736,10 @@ export function applySettlement(state, shop, amount, date, note = '', options = 
     allocations,
     createdAt: new Date().toISOString()
   };
+  if (splitDeduction > 0) {
+    settlement.netCash = splitNetCash;
+    settlement.deduction = splitDeduction;
+  }
   const next = clone(state || { customers: [] });
   const byKey = new Map();
   for (const a of allocations) {
@@ -630,6 +763,17 @@ export function applySettlement(state, shop, amount, date, note = '', options = 
       }
     }
   }
+  // SISP-149: the deduction is an expense, posted exactly once — inside
+  // this same pure call, so the settlement and its expense persist (or
+  // fail) together with the returned state. The deterministic id makes
+  // a duplicate impossible even if the row were ever re-derived.
+  if (splitDeduction > 0) {
+    const expense = buildShopDeductionExpense(settlement);
+    const expenses = Array.isArray(next.expenses) ? next.expenses : [];
+    if (expense && !expenses.some((row) => row && row.id === expense.id)) {
+      next.expenses = [...expenses, expense];
+    }
+  }
   return { state: next, settlement, leftover };
 }
 
@@ -639,7 +783,16 @@ export function generateShopSettlementReceiptText({ shop, settlement, remainingU
   lines.push('Shahdara ISP Billing — Shop Settlement Receipt');
   lines.push(`Shop: ${shop}`);
   lines.push(`Handover date: ${settlement?.date || ''}`);
-  lines.push(`Amount received: ${formatShopPKR(settlement?.amount)}`);
+  // SISP-149: a split handover prints all three figures; a legacy
+  // handover (no deduction) prints the original single line unchanged.
+  const receiptDeduction = settlementDeduction(settlement);
+  if (receiptDeduction > 0) {
+    lines.push(`Gross receipts settled: ${formatShopPKR(settlement?.amount)}`);
+    lines.push(`Shop deduction / expense: -${formatShopPKR(receiptDeduction)}`);
+    lines.push(`Net cash received: ${formatShopPKR(settlementNetCash(settlement))}`);
+  } else {
+    lines.push(`Amount received: ${formatShopPKR(settlement?.amount)}`);
+  }
   // SISP-68: partner pickups say so on the receipt; drawer receipts are
   // unchanged from the SISP-1 text.
   if (partnerForReceivedInto(settlement?.receivedInto)) {
@@ -1066,6 +1219,10 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
   const shopSelect = $('shopSettlementShopSelect');
   const receiptList = $('shopSettlementReceiptList');
   const amountInput = $('shopSettlementAmountInput');
+  const grossValue = $('shopSettlementGrossValue');
+  const netInput = $('shopSettlementNetInput');
+  const deductionInput = $('shopSettlementDeductionInput');
+  const splitHint = $('shopSettlementSplitHint');
   const dateInput = $('shopSettlementDateInput');
   const noteInput = $('shopSettlementNoteInput');
   const receivedIntoSelect = $('shopSettlementReceivedIntoSelect');
@@ -1108,8 +1265,52 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
     renderReceipts();
   }
 
+  // SISP-149: split helpers. The gross is the handover amount; editing
+  // the amount or the deduction re-derives the net cash, editing the
+  // net re-derives the deduction, and the hint always shows whether
+  // net + deduction adds back up to the gross.
+  function splitValues() {
+    return {
+      gross: Number(amountInput ? amountInput.value : 0) || 0,
+      net: Number(netInput ? netInput.value : 0) || 0,
+      deduction: Number(deductionInput ? deductionInput.value : 0) || 0
+    };
+  }
+
+  function splitIsValid({ gross, net, deduction }) {
+    return gross > 0 && net >= 0 && deduction >= 0 && round2(net + deduction) === round2(gross);
+  }
+
+  function syncSplit(changed) {
+    if (!netInput || !deductionInput) return;
+    const values = splitValues();
+    if (changed === 'net') {
+      deductionInput.value = String(round2(values.gross - values.net));
+    } else {
+      netInput.value = String(round2(values.gross - values.deduction));
+    }
+    const next = splitValues();
+    if (splitHint) {
+      const valid = splitIsValid(next);
+      splitHint.textContent = valid
+        ? t('shopded_split_hint_ok', null, { net: formatShopPKR(next.net), deduction: formatShopPKR(next.deduction), total: formatShopPKR(next.gross) })
+        : t('shopded_split_hint_bad', null, { total: formatShopPKR(next.gross) });
+      splitHint.classList.toggle('is-invalid', !valid);
+    }
+  }
+
+  function updateGrossLine() {
+    if (!grossValue) return;
+    const state = getState() || { customers: [] };
+    const pendingTotal = currentShop
+      ? pendingShopReceipts(state, currentShop).reduce((sum, p) => sum + p.remaining, 0)
+      : 0;
+    grossValue.textContent = currentShop ? formatShopPKR(pendingTotal) : '—';
+  }
+
   function renderReceipts() {
     if (!receiptList) return;
+    updateGrossLine();
     const state = getState() || { customers: [] };
     if (!currentShop) {
       receiptList.innerHTML = '<p class="shop-settlement-empty">Select a shop to see its pending receipts.</p>';
@@ -1247,6 +1448,9 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
   }
 
   if (shopSelect) shopSelect.addEventListener('change', () => { currentShop = shopSelect.value || null; renderReceipts(); });
+  if (amountInput) amountInput.addEventListener('input', () => syncSplit('amount'));
+  if (deductionInput) deductionInput.addEventListener('input', () => syncSplit('deduction'));
+  if (netInput) netInput.addEventListener('input', () => syncSplit('net'));
   const cards = $('shopSettlementCards');
   if (cards) cards.addEventListener('click', (event) => {
     // SISP-124: itemized WhatsApp handover reminder (recipient-less draft —
@@ -1275,12 +1479,19 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
     const state = getState() || { customers: [] };
     const shop = shopSelect ? shopSelect.value : currentShop;
     const amount = Number(amountInput ? amountInput.value : 0);
+    // SISP-149: a deduction above zero takes the split path (validated
+    // live by the hint and again inside applySettlement); zero keeps
+    // the legacy call byte-identical.
+    const split = splitValues();
+    if (split.deduction > 0 && !splitIsValid(split)) {
+      onToast && onToast(t('shopded_split_invalid_toast'));
+      return;
+    }
     const receivedInto = normalizeReceivedInto(receivedIntoSelect ? receivedIntoSelect.value : 'drawer');
     try {
-      const { state: next, settlement, leftover } = applySettlement(
-        state, shop, amount, dateInput ? dateInput.value : '', noteInput ? noteInput.value : '',
-        { receivedInto }
-      );
+      const { state: next, settlement, leftover } = split.deduction > 0
+        ? applySettlement(state, shop, amount, dateInput ? dateInput.value : '', noteInput ? noteInput.value : '', { receivedInto, netCash: split.net, deduction: split.deduction })
+        : applySettlement(state, shop, amount, dateInput ? dateInput.value : '', noteInput ? noteInput.value : '', { receivedInto });
       const settlements = [...loadShopSettlements(), settlement];
       saveShopSettlements(settlements);
       onSettlementsSaved && onSettlementsSaved(settlements);
@@ -1296,7 +1507,12 @@ export function setupShopSettlementModal(getState, { onUpdateState, onSettlement
       onUpdateState && onUpdateState(next);
       const remaining = buildShopSummaries(next, settlements).find((s) => s.shop === shop)?.unsettled ?? 0;
       showReceipt(settlement, remaining);
-      if (leftover > 0) onToast && onToast(`Only ${formatShopPKR(settlement.amount)} was unsettled; ${formatShopPKR(leftover)} was not recorded.`);
+      if (split.deduction > 0) {
+        onToast && onToast(t('shopded_recorded_toast', null, { net: formatShopPKR(settlement.netCash), deduction: formatShopPKR(settlement.deduction), shop }));
+        if (deductionInput) deductionInput.value = '0';
+        if (netInput) netInput.value = '';
+        if (splitHint) splitHint.textContent = '';
+      } else if (leftover > 0) onToast && onToast(`Only ${formatShopPKR(settlement.amount)} was unsettled; ${formatShopPKR(leftover)} was not recorded.`);
       else if (pickupPartner) onToast && onToast(`Received ${formatShopPKR(settlement.amount)} from ${shop} — kept by ${pickupPartner}; partner drawing recorded.`);
       else onToast && onToast(`Received ${formatShopPKR(settlement.amount)} from ${shop}.`);
       renderShops();

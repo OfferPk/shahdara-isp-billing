@@ -190,6 +190,7 @@ import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, 
 import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, syncSaadPaymentLedgers, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, loadInstallRequests, saveInstallRequests, setupInstallTrackerModal } from './install-tracker.js';
+import { buildInstallationGate, setupInstallGateDialog } from './installation-completion-gate.js';
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet, resolvePackageSpeedMbps, buildSpeedBoostRestoreSnippet, buildSpeedBoostSnippet } from './mikrotik-generator.js';
@@ -407,6 +408,53 @@ function completeInstallRequest(plan) {
   return { customer: { id: customer.id, name: customer.name, customerNumber: customer.customerNumber } };
 }
 
+// SISP-137: the 5-point installation quality gate. Pre-completion, the
+// gate reads the PROSPECTIVE customer — for a link, the live record
+// merged with the fields the completion is about to write; for a
+// create, the new-customer draft the plan carries — plus the plan's
+// staged stock lines as pending evidence. The tracker runs this review
+// before completeInstallRequest, so a held gate means no customer and
+// no stock write happened at all. After install, the same builder runs
+// read-only on the real record + the completed request's stamp.
+function installGateSourcesForPlan(plan, request) {
+  return {
+    installRequest: request || null,
+    movements: loadInventory(),
+    pendingDeductions: plan.deductions,
+    pendingStockWarnings: plan.warnings,
+    pendingConnectionFee: plan.mode === 'link'
+      ? (plan.customerFields?.connectionFee ?? null)
+      : (plan.newCustomer?.connectionFee ?? null)
+  };
+}
+
+function reviewInstallGateBeforeCompletion(plan, request) {
+  if (!installGateModalController) return Promise.resolve({ proceed: true, gateReview: null });
+  let customer;
+  if (plan.mode === 'link') {
+    const existing = state.customers.find((c) => c.id === plan.customerId);
+    customer = { ...(existing || {}), ...(plan.customerFields || {}) };
+  } else {
+    customer = { ...(plan.newCustomer || {}) };
+  }
+  const gate = buildInstallationGate(customer, installGateSourcesForPlan(plan, request));
+  return installGateModalController.review(gate, {
+    customerLabel: plan.customerName || request?.requesterName || ''
+  });
+}
+
+function showInstallGateForRequest(request) {
+  if (!installGateModalController || !request) return;
+  const customer = state.customers.find((c) => c.id === request.completedCustomerId) || {};
+  const gate = buildInstallationGate(customer, {
+    installRequest: request,
+    movements: loadInventory()
+  });
+  installGateModalController.show(gate, {
+    customerLabel: request.customerName || request.requesterName || ''
+  });
+}
+
 // SISP-44 wiring: one complaint↔ticket reconcile pass after every
 // complaint or ticket change (and once at startup). Resolving a ticket
 // resolves its linked register complaint (downtime + note sync);
@@ -554,6 +602,7 @@ export let fieldBagModalController = null;
 export let outageImpactModalController = null;
 export let saadVisitsModalController = null;
 export let installTrackerModalController = null;
+export let installGateModalController = null;
 export let pendingWorksModalController = null;
 export let relocationModalController = null;
 export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
@@ -12432,6 +12481,9 @@ if (typeof document !== 'undefined') {
     listTicketIds: () => loadTickets().map((t) => t.id),
     onConfirm: (opts) => appConfirm(opts)
   });
+  installGateModalController = setupInstallGateDialog({
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   installTrackerModalController = setupInstallTrackerModal(() => state, {
     onRequestsChanged: () => renderDashboard(),
     onToast: (msg, opts) => toast(msg, opts),
@@ -12439,7 +12491,12 @@ if (typeof document !== 'undefined') {
     // SISP-57: completion pipeline — live stock context for the plan,
     // and the executor that creates/links the customer + deducts stock.
     getInstallStockContext: () => ({ movements: loadInventory(), inventoryItemIds: INVENTORY_ITEM_IDS }),
-    onCompleteInstall: (plan) => completeInstallRequest(plan)
+    onCompleteInstall: (plan) => completeInstallRequest(plan),
+    // SISP-137: 5-point quality gate — reviewed before every completion
+    // (a held gate leaves the request pending, nothing written), and
+    // viewable read-only from a completed request's card.
+    onReviewInstallGate: (plan, request) => reviewInstallGateBeforeCompletion(plan, request),
+    onShowInstallGate: (request) => showInstallGateForRequest(request)
   });
   pendingWorksModalController = setupPendingWorksModal(() => state, {
     onWorksChanged: () => renderDashboard(),

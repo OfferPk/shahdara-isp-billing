@@ -21628,6 +21628,12 @@
           <input id="shopSettlementDateInput" class="form-input" type="date" required>
           <label for="shopSettlementNoteInput">Note (optional)</label>
           <input id="shopSettlementNoteInput" class="form-input" type="text" placeholder="e.g. Cash received at home">
+          <p class="shop-settlement-gross-line"><span data-i18n="shopded_gross_label">Gross pending at selected shop</span>: <strong id="shopSettlementGrossValue">—</strong></p>
+          <label for="shopSettlementNetInput" data-i18n="shopded_net_label">Net cash received (PKR)</label>
+          <input id="shopSettlementNetInput" class="form-input" type="number" min="0" step="1" inputmode="numeric" placeholder="e.g. 17500">
+          <label for="shopSettlementDeductionInput" data-i18n="shopded_deduction_label">Shop deduction / expense (PKR)</label>
+          <input id="shopSettlementDeductionInput" class="form-input" type="number" min="0" step="1" inputmode="numeric" value="0">
+          <p id="shopSettlementSplitHint" class="shop-settlement-split-hint" role="status"></p>
           <label for="shopSettlementReceivedIntoSelect" data-i18n="shop_pickup_received_into">Received into</label>
           <select id="shopSettlementReceivedIntoSelect" class="form-input">
             <option value="drawer" data-i18n="shop_pickup_into_drawer">ISP Roznamcha Drawer</option>

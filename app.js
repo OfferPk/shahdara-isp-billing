@@ -4568,7 +4568,9 @@ function renderDetail() {
   if ($('#dropWireCoreColorInput')) $('#dropWireCoreColorInput').value = customer.dropWireCoreColor ?? '';
   if ($('#mediaConverterCostInput')) $('#mediaConverterCostInput').value = customer.mediaConverterCost ?? '';
   if ($('#linemanInstallFeeInput')) $('#linemanInstallFeeInput').value = customer.linemanInstallFee ?? '';
-  if ($('#fiberPerMeterRateInput')) $('#fiberPerMeterRateInput').value = customer.fiberPerMeterRate ?? '';  // SISP-7: feeder link fields — upstream select excludes this customer;
+  if ($('#fiberPerMeterRateInput')) $('#fiberPerMeterRateInput').value = customer.fiberPerMeterRate ?? '';
+  // SISP-173: installer attribution (optional).
+  if ($('#installedByLinemanInput')) $('#installedByLinemanInput').value = customer.installedByLineman ?? '';  // SISP-7: feeder link fields — upstream select excludes this customer;
   // the saved upstream stays visible even if that house was archived.
   const feederSaved = normalizeFeederFields(customer);
   const upstreamSelect = $('#upstreamCustomerInput');
@@ -7344,7 +7346,9 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       ...($('#dropWireCoreColorInput') ? { dropWireCoreColor: $('#dropWireCoreColorInput').value } : {}),
       ...($('#mediaConverterCostInput') ? { mediaConverterCost: $('#mediaConverterCostInput').value } : {}),
       ...($('#linemanInstallFeeInput') ? { linemanInstallFee: $('#linemanInstallFeeInput').value } : {}),
-      ...($('#fiberPerMeterRateInput') ? { fiberPerMeterRate: $('#fiberPerMeterRateInput').value } : {}),      upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
+      ...($('#fiberPerMeterRateInput') ? { fiberPerMeterRate: $('#fiberPerMeterRateInput').value } : {}),
+      // SISP-173: installer attribution (optional).
+      ...($('#installedByLinemanInput') ? { installedByLineman: $('#installedByLinemanInput').value } : {}),      upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
       fiberZone:$('#fiberZoneInput') ? $('#fiberZoneInput').value : '',
       // SISP-97: feeder-host bijli credit configured on this house.
       ...($('#feederHostCreditInput') ? { feederHostCreditPKR: $('#feederHostCreditInput').value } : {}),

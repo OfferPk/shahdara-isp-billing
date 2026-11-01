@@ -3584,10 +3584,20 @@ function renderBillingRegister() {
       <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_month')}</span><span class="report-cell-value">${escapeHtml(row.month)}</span></div>
       <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_bill')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.billAmount))}</span></div>
       <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_paid')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.paidAmount))}</span></div>
+      <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_ticket')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.ticketChargesPaid))}</span></div>
       <div class="report-cell"><span class="report-cell-label">${t('bill_reg_col_status')}</span><span class="report-status ${REGISTER_STATUS_CLASS[row.status]}">${t(REGISTER_STATUS_KEY[row.status])}</span></div>
     </li>`).join('');
   const totals = $('#billingRegisterTotals');
-  if (totals) totals.textContent = t('bill_reg_totals', null, { count: register.totals.count, billed: formatAmount(register.totals.totalBilled), paid: formatAmount(register.totals.totalPaid) });
+  if (totals) {
+    // SISP-176: the base totals string is unchanged; the ticket-charge
+    // split is appended only when the visible rows actually carry any,
+    // so a charge-free period reads exactly as before.
+    let totalsText = t('bill_reg_totals', null, { count: register.totals.count, billed: formatAmount(register.totals.totalBilled), paid: formatAmount(register.totals.totalPaid) });
+    if (register.ticketTotals && register.ticketTotals.totalTicketChargesPaid > 0) {
+      totalsText += ` · ${t('bill_reg_totals_ticket', null, { ticket: formatAmount(register.ticketTotals.totalTicketChargesPaid), collected: formatAmount(register.ticketTotals.totalCollected) })}`;
+    }
+    totals.textContent = totalsText;
+  }
   const empty = $('#billingRegisterEmpty');
   if (empty) empty.hidden = register.rows.length > 0;
 }
@@ -10991,7 +11001,7 @@ $('#billingRegisterDownloadBtn')?.addEventListener('click', () => {
     periodLabel: t(`bill_reg_period_${register.period}`),
     statusLabel: t(`bill_reg_status_${register.status}`)
   });
-  const noteRow = { reference: note, customer: '', mobile: '', package: '', month: '', billAmount: '', paidAmount: '', status: '' };
+  const noteRow = { reference: note, customer: '', mobile: '', package: '', month: '', billAmount: '', paidAmount: '', status: '', ticketChargesPaid: '', collectedAmount: '' };
   const csv = generateCsvContent(BILLING_REGISTER_CSV_HEADERS, [noteRow, ...billingRegisterCsvRows(register)]);
   downloadCsvFile(billingRegisterCsvFilename(register), csv);
   toast(t('bill_reg_exported', null, { count: register.rows.length }));

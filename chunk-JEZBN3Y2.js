@@ -1043,7 +1043,7 @@ ${n||"No discrete events recorded."}
 \u{1F468}\u200D\u{1F527} *QA Certifier:* ${e.technicianName||"Shahdara QA Lineman"}
 \u{1F4DD} *Notes:* ${e.notes||"Span verified in accordance with ITU-T G.650.1 / G.652 bidirectional averaging standards."}
 \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-_Shahdara ISP Network Operations Center - Baradari Road, Shahdara, Lahore_`}function Gi(e,i={}){if(!e)return"<div>No record provided.</div>";let t=i.format||"sheet",n=e.timestamp?new Date(e.timestamp).toLocaleString("en-PK",{timeZone:"Asia/Karachi"}):"N/A",a=Hi({events:e.events||[],fiberLengthKm:e.fiberLengthKm,wavelengthNm:e.wavelengthNm,width:t==="slip"?320:700,height:t==="slip"?180:260});return t==="slip"?`
+_Shahdara ISP Network Operations Center - Baradari Road, Shahdara, Islamabad_`}function Gi(e,i={}){if(!e)return"<div>No record provided.</div>";let t=i.format||"sheet",n=e.timestamp?new Date(e.timestamp).toLocaleString("en-PK",{timeZone:"Asia/Karachi"}):"N/A",a=Hi({events:e.events||[],fiberLengthKm:e.fiberLengthKm,wavelengthNm:e.wavelengthNm,width:t==="slip"?320:700,height:t==="slip"?180:260});return t==="slip"?`
       <div class="thermal-otdr-slip" style="width: 290px; font-family: monospace; font-size: 11px; line-height: 1.3; color: #000000; padding: 10px; background: #ffffff;">
         <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 8px; margin-bottom: 8px;">
           <h2 style="margin: 0; font-size: 14px; font-weight: bold; text-transform: uppercase;">SHAHDARA FIBER NET</h2>
@@ -1209,7 +1209,7 @@ _Shahdara ISP Network Operations Center - Baradari Road, Shahdara, Lahore_`}func
         </div>
         <div style="text-align: right;">
           <div><strong>NOC Supervisor Sign-off:</strong> _______________________</div>
-          <div style="color: #64748b; margin-top: 2px;">Baradari Road, Shahdara Town, Lahore</div>
+          <div style="color: #64748b; margin-top: 2px;">Baradari Road, Shahdara Town, Islamabad</div>
         </div>
       </div>
     </div>
@@ -3407,7 +3407,7 @@ _Certified under Telcordia GR-326-CORE Issue 4 & IEC 61300-3-15._
         <td>
           <div class="logo-text">SHAHDARA BROADBAND FIBER NETWORK</div>
           <div class="sub-text">Outside Plant & Metrological Engineering Laboratory</div>
-          <div style="font-size: 10px; color: #475569;">Baradari Road, Shahdara, Lahore, Punjab, Pakistan</div>
+          <div style="font-size: 10px; color: #475569;">Baradari Road, Shahdara, Islamabad, Pakistan</div>
         </td>
         <td style="text-align: right;">
           <div style="font-size: 12px; font-weight: 700;">Certificate No: ${W(e.id)}</div>
@@ -3786,7 +3786,7 @@ ${e.totalLossDb<=.08?"\u2705 *Approved for Outside Plant Splicing Tray Closing.*
         <td>
           <div class="logo-text">SHAHDARA BROADBAND FIBER NETWORK</div>
           <div class="sub-text">Outside Plant & Enclosure Joint Engineering Laboratory</div>
-          <div style="font-size: 10px; color: #475569;">Baradari Road, Shahdara, Lahore, Punjab, Pakistan</div>
+          <div style="font-size: 10px; color: #475569;">Baradari Road, Shahdara, Islamabad, Pakistan</div>
         </td>
         <td style="text-align: right;">
           <div style="font-size: 12px; font-weight: 700;">Certificate No: ${J(e.id)}</div>
@@ -7049,7 +7049,7 @@ _Official NOC Outside Plant Civil & Splicing Record (IEC 60794-1-21 Method E19 /
   `:""}
 
   <div class="footer">
-    <div>Shahdara Optical Outside Plant Engineering Division \xB7 Ravi Zone NOC Lahore</div>
+    <div>Shahdara Optical Outside Plant Engineering Division \xB7 Ravi Zone NOC Islamabad</div>
     <div>Accredited Laboratory Verification \xB7 No Unauthorized Alterations Permitted</div>
   </div>
 </body>
@@ -7342,7 +7342,7 @@ _Shahdara Outside Plant & Civil Engineering QA Division_`}function ss(e=[]){let 
   `:""}
 
   <div class="footer">
-    <div>Shahdara Optical Metrology Laboratory \xB7 Ravi Zone NOC Lahore</div>
+    <div>Shahdara Optical Metrology Laboratory \xB7 Ravi Zone NOC Islamabad</div>
     <div>ISO/IEC 17025 Certified Optical Metrology Document</div>
   </div>
 </body>
@@ -8281,7 +8281,7 @@ _Shahdara Optical Metrology & Quality Assurance Laboratory_`}function us(e=[]){l
       <td>
         <div class="brand-title">SHAHDARA BROADBAND &amp; FIBER NETWORKS</div>
         <div style="font-size:11px; color:#475569;">OFFICIAL BILLING AUDIT &amp; LEDGER RECONCILIATION STATEMENT</div>
-        <div style="font-size:10px; color:#64748b;">Shahdara Town, Vandala Road, Begum Kot, Jia Musa Nodes \xB7 Lahore, Pakistan</div>
+        <div style="font-size:10px; color:#64748b;">Shahdara Town, Vandala Road, Begum Kot, Jia Musa Nodes \xB7 Islamabad, Pakistan</div>
       </td>
       <td style="text-align: right;">
         <div class="brand-urdu">\u0633\u0631\u0679\u06CC\u0641\u06A9\u06CC\u0679 \u0628\u0631\u0627\u0626\u06D2 \u0628\u0644\u0646\u06AF \u062A\u0635\u062F\u06CC\u0642 \u0648 \u062F\u0631\u0633\u062A\u06AF\u06CC \u06A9\u06BE\u0627\u062A\u06C1 \u062C\u0627\u062A</div>

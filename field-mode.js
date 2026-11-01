@@ -651,6 +651,11 @@ function nullFieldModeController() {
  *   getState() -> live app state object
  *   onSaveState(nextState) -> host persists + refreshes its views
  *   onToast(msg) -> optional toast
+ *   onCollected(info) -> optional (SISP-141): called after a successful
+ *     1-tap COLLECT (never for advance collections) with { customerId,
+ *     month, paymentId, amount, customerName }; when present it replaces
+ *     the plain collected toast — the host shows the floating 10-second
+ *     undo toast instead.
  *   onPrint58mm(receipt) -> optional: host prints the 58mm thermal slip for
  *     a just-collected receipt via the EXISTING thermal path
  *     (printPaymentReceipt with format 'thermal-58'). When absent, the
@@ -681,7 +686,7 @@ export function fieldModeReceiptActionMarkup({ hasPrint58 = false, hasPngReceipt
     : `${print58Button}${pngReceiptButton}`;
 }
 
-export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, onPngReceipt, onSmsSlipUrl } = {}) {
+export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, onPngReceipt, onSmsSlipUrl, onCollected } = {}) {
   if (typeof document === 'undefined') return nullFieldModeController();
   const view = document.getElementById('fieldModeView');
   const toggleBtn = document.getElementById('fieldModeToggleBtn');
@@ -1206,7 +1211,21 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       lastReceipt = { receipt, whatsapp };
       lastReceiptAdvance = false;
       lastReceiptAdvanceTarget = null;
-      toast(`${formatPKR(receipt.amount)} collected from ${receipt.customerName}.`);
+      // SISP-141: with a host onCollected, the floating 10-second undo
+      // toast replaces the plain confirmation (it carries the same
+      // amount + name, plus the Undo action). Advance collections use
+      // a different path (collectAdvance) and never offer this toast.
+      if (typeof onCollected === 'function') {
+        onCollected({
+          customerId: receipt.customerId,
+          month: receipt.month,
+          paymentId: receipt.paymentId,
+          amount: receipt.amount,
+          customerName: receipt.customerName
+        });
+      } else {
+        toast(`${formatPKR(receipt.amount)} collected from ${receipt.customerName}.`);
+      }
     } catch (err) {
       toast(err?.message || 'Could not record payment.');
     } finally {

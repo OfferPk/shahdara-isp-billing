@@ -16,6 +16,7 @@ import { isCommercialVip } from './commercial-sla.js';
 
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
+import { activeDepositOffsetQuote, depositOffsetsOf } from './deposit-to-bill-offset.js';
 import { contributorSplitStatus, subContributorsOf } from './shared-router-contributors.js';
 import { normalizeOccupancyFields, hasOccupancyRecord, tenantDepositRisk } from './occupancy-guarantor.js';
 import { evaluateStarTimelyPayer } from './star-subscribers.js';
@@ -597,6 +598,42 @@ export function depositSettlementPresentation(customer, unpaidArrears = 0) {
   };
 }
 
+// SISP-166: active-customer deposit-offset presentation for the
+// profile custody area. Pure: it reads the live quote + stored offset
+// log from deposit-to-bill-offset.js and formats labels — it never
+// decides the money; activeDepositOffsetQuote does that, and app.js
+// supplies the engine pending balance. Visible only on ACTIVE
+// (non-archived) customers who hold a deposit or have offset history —
+// archived customers belong to the SISP-50 clearance block above.
+export function activeDepositOffsetPresentation(customer, pendingBalance = 0) {
+  if (isDisconnected(customer)) return { visible: false, canOffset: false, entries: [] };
+  const quote = activeDepositOffsetQuote(customer, pendingBalance);
+  const entries = depositOffsetsOf(customer).map((entry) => ({
+    id: entry.id,
+    date: entry.date,
+    amount: entry.amount,
+    reversed: entry.reversedAt !== null,
+    lineLabel: entry.reversedAt
+      ? t('depoff_entry_reversed', null, { date: entry.date, amount: formatPKR(entry.amount), rdate: entry.reversedAt })
+      : t('depoff_entry', null, { date: entry.date, amount: formatPKR(entry.amount) }),
+    receiptLabel: t('depoff_receipt_btn'),
+    reverseLabel: t('depoff_reverse_btn')
+  }));
+  if (!(quote.securityDeposit > 0) && entries.length === 0) return { visible: false, canOffset: false, entries: [] };
+  return {
+    visible: true,
+    canOffset: quote.eligible,
+    reason: quote.reason,
+    maxOffset: quote.maxOffset,
+    headingLabel: t('depoff_heading'),
+    depositLabel: t('depoff_deposit', null, { amount: formatPKR(quote.securityDeposit) }),
+    dueLabel: t('depoff_due', null, { amount: formatPKR(quote.pendingBalance) }),
+    noteLabel: t('depoff_note'),
+    actionLabel: t('depoff_action'),
+    historyLabel: t('depoff_history'),
+    entries
+  };
+}
 /**
  * SISP-111: profile presentation for cross-customer advance credit
  * transfers. Pure formatting over the register: every transfer that

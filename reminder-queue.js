@@ -33,6 +33,7 @@ import {
 } from './form-validation.js';
 import { getWaadaTier, WAADA_TIERS, waadaTemplateIdForTier } from './waada-queue.js';
 import { getWaTemplates, renderCustomWaTemplate } from './whatsapp-templates.js';
+import { contactedToday } from './contact-cooldown-tracker.js';
 
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 export const REMINDER_STAGES_SETTINGS_KEY = 'shahdara_reminder_stages_v1';
@@ -776,6 +777,13 @@ export function getRemindersTodayQueue(state, options = {}) {
     // broken promises pin to the very top of the queue below.
     const waadaTier = getWaadaTier(c, balance, todayStr);
     if (waadaTier === WAADA_TIERS.PROMISED) continue;
+
+    // SISP-138: "Hide Contacted Today" — a customer already contacted
+    // today on any channel (WhatsApp / call / SMS / visit stamp on the
+    // record) leaves the working queue entirely. Opt-in via options;
+    // the default keeps the queue exactly as before. overdueCustomers
+    // Count above is a balance statistic and is NOT reduced by this.
+    if (options.hideContactedToday === true && contactedToday(c, options.now ?? new Date())) continue;
 
     const match = getMatchingReminderStage(c, balance, todayStr, stages, { storage, history });
     if (!match || !match.matched) continue;

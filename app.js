@@ -181,6 +181,7 @@ import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, 
 import { roundToNearest50, roundingTagFor } from './bill-rounding-helper.js?v=1.11.0';
 import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
 import { buildSplitterOverview, createAttenuationTicket, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
+import { DEAD_PORTS_KEY, executePortSwap, isPortDead, loadDeadPorts, lockDeadPort, saveDeadPorts, setupPortSwapModal, unlockDeadPort } from './splitter-port-swap.js';
 import { classifyCustomerOpticalFault, classifySplitterBoxFault, opticalFaultBadgeHtml, opticalFaultLineHtml } from './optical-anomaly-detector.js';
 import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } from './signal-history.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
@@ -602,6 +603,7 @@ export let complaintRegisterModalController = null;
 export let fieldTicketsModalController = null;
 export let downtimeAnalyticsModalController = null;
 export let splitterMapModalController = null;
+export let portSwapModalController = null;
 export let darkFiberModalController = null;
 export let areaSignalModalController = null;
 export let monthlyComplaintReportModalController = null;
@@ -4473,8 +4475,7 @@ function nextBranchGuardStamp() {
   return stamp;
 }
 function backupExtras() {
-  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
-
+  return { digitalPaymentsSettings: getDigitalPaymentsSettings(), receiptFooter: getReceiptFooter(), shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks() , billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), deadPorts: loadDeadPorts(), feederCables: loadFeederCables(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), referralCredits: loadReferralCredits(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), badDebts: loadBadDebts(), spliceClosures: loadSpliceClosures(), monthlyClosingNotes: loadMonthlyClosingNotes(), splitterBoxGps: loadSplitterBoxPins(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), charityReserve: loadCharityReserveSettings(), partnerSettings: loadPartnerSettings(), overheads: loadOverheads(), expenseBudgets: loadExpenseBudgets(), voidPayments: loadVoidPayments(), waTemplates: getStoredWaTemplates(), branchGuard: nextBranchGuardStamp() };
 }
 function backupRestoreOptions() {
   let stored = false;
@@ -4516,6 +4517,8 @@ function backupRestoreOptions() {
   try { pendingWorksStored = localStorage.getItem(PENDING_WORKS_KEY) !== null; } catch { pendingWorksStored = false; }
   try { billingGroupsStored = localStorage.getItem(GROUP_BILLING_KEY) !== null; } catch { billingGroupsStored = false; }
   try { suspensePaymentsStored = localStorage.getItem(SUSPENSE_PAYMENTS_KEY) !== null; } catch { suspensePaymentsStored = false; }
+  let deadPortsStored = false;
+  try { deadPortsStored = localStorage.getItem(DEAD_PORTS_KEY) !== null; } catch { deadPortsStored = false; }
   try { feederCablesStored = localStorage.getItem(FEEDER_CABLES_KEY) !== null; } catch { feederCablesStored = false; }
   let fieldBagMovementsStored = false;
   try { fieldBagMovementsStored = localStorage.getItem(FIELD_BAG_KEY) !== null; } catch { fieldBagMovementsStored = false; }
@@ -4551,8 +4554,7 @@ function backupRestoreOptions() {
   try { waTemplatesStored = localStorage.getItem(WA_TEMPLATES_STORAGE_KEY) !== null; } catch { waTemplatesStored = false; }
   let voidPaymentsStored = false;
   try { voidPaymentsStored = localStorage.getItem(VOIDED_PAYMENTS_KEY) !== null; } catch { voidPaymentsStored = false; }
-  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentFeederCables: loadFeederCables(), currentFeederCablesStored: feederCablesStored, currentFieldBagMovements: loadFieldBagMovements(), currentFieldBagMovementsStored: fieldBagMovementsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentExpenseBudgets: loadExpenseBudgets(), currentExpenseBudgetsStored: expenseBudgetsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
-
+  return { currentDigitalPaymentsSettings: getDigitalPaymentsSettings(), currentDigitalPaymentsStored: stored, currentReceiptFooter: getReceiptFooter(), currentReceiptFooterStored: receiptFooterStored, currentShopSettlements: loadShopSettlements(), currentShopSettlementsStored: shopStored, currentComplaints: loadComplaints(), currentComplaintsStored: complaintsStored, currentHomeBudget: loadHomeBudgetExpenses(), currentHomeBudgetStored: homeBudgetStored, currentRoznamchaDays: loadRoznamchaDays(), currentRoznamchaDaysStored: roznamchaStored, currentTickets: loadTickets(), currentTicketsStored: ticketsStored, currentInventory: loadInventory(), currentInventoryStored: inventoryStored, currentSaadVisits: loadSaadVisits(), currentSaadVisitsStored: saadVisitsStored, currentSaadPayments: loadSaadPayments(), currentSaadPaymentsStored: saadPaymentsStored, currentInstallRequests: loadInstallRequests(), currentInstallRequestsStored: installRequestsStored, currentPendingWorks: loadPendingWorks(), currentPendingWorksStored: pendingWorksStored, currentBillingGroups: loadBillingGroups(), currentBillingGroupsStored: billingGroupsStored, currentSuspensePayments: loadSuspensePayments(), currentSuspensePaymentsStored: suspensePaymentsStored, currentDeadPorts: loadDeadPorts(), currentDeadPortsStored: deadPortsStored, currentFeederCables: loadFeederCables(), currentFeederCablesStored: feederCablesStored, currentFieldBagMovements: loadFieldBagMovements(), currentFieldBagMovementsStored: fieldBagMovementsStored, currentPolesRegistry: loadPolesRegistry(), currentPolesRegistryStored: polesRegistryStored, currentFiberDrums: loadFiberDrums(), currentFiberDrumsStored: fiberDrumsStored, currentStormInspections: loadStormInspections(), currentStormInspectionsStored: stormInspectionsStored, currentSupplierKhata: loadSupplierKhata(), currentSupplierKhataStored: supplierKhataStored, currentCommissionRules: loadCommissionRules(), currentCommissionRulesStored: commissionRulesStored, currentUpsNodes: loadUpsNodes(), currentUpsNodesStored: upsNodesStored, currentReferralCredits: loadReferralCredits(), currentBadDebts: loadBadDebts(), currentBadDebtsStored: badDebtsStored, currentSpliceClosures: loadSpliceClosures(), currentSpliceClosuresStored: spliceClosuresStored, currentReferralCreditsStored: referralCreditsStored, currentCreditTransfers: loadCreditTransfers(), currentCreditTransfersStored: creditTransfersStored, currentFieldTools: loadFieldTools(), currentFieldToolsStored: fieldToolsStored, currentMonthlyClosingNotes: loadMonthlyClosingNotes(), currentMonthlyClosingNotesStored: notesStored, currentSplitterBoxGps: loadSplitterBoxPins(), currentSplitterBoxGpsStored: splitterBoxGpsStored, currentPartnerLedger: loadPartnerLedgerEntries(), currentPartnerLedgerStored: partnerLedgerStored, currentPartnerSettlements: loadPartnerSettlements(), currentPartnerSettlementsStored: partnerSettlementsStored, currentCharityReserve: loadCharityReserveSettings(), currentCharityReserveStored: charityReserveStored, currentPartnerSettings: loadPartnerSettings(), currentPartnerSettingsStored: partnerSettingsStored, currentLoans: loadLoans(), currentLoansStored: loansStored, currentOverheads: loadOverheads(), currentOverheadsStored: overheadsStored, currentExpenseBudgets: loadExpenseBudgets(), currentExpenseBudgetsStored: expenseBudgetsStored, currentWaTemplates: getStoredWaTemplates(), currentWaTemplatesStored: waTemplatesStored, currentVoidPayments: loadVoidPayments(), currentVoidPaymentsStored: voidPaymentsStored, currentBranchGuard: ensureBranchGuard(localStorage) };
 }
 // SISP-102: the device's current sibling collections, in the same shapes a
 // backup's settings sections carry — the delta merge's local side. Read
@@ -5432,6 +5434,9 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     }
     if (pendingBackupPreview.suspensePayments) {
       saveSuspensePayments(pendingBackupPreview.suspensePayments);
+    }
+    if (pendingBackupPreview.deadPorts) {
+      saveDeadPorts(pendingBackupPreview.deadPorts);
     }
     if (pendingBackupPreview.feederCables) {
       saveFeederCables(pendingBackupPreview.feederCables);
@@ -6756,6 +6761,18 @@ function saveNewCustomer(allowDuplicateName = false) {
     }
     details.cnic = cnicVal.formatted;
   }
+  // SISP-152: a dead-locked splitter port refuses assignment for a new
+  // customer too (shared isPortDead check, same as the profile form).
+  if (details.splitterBoxId && String(details.splitterPort ?? '').trim() !== '') {
+    const newCustomerPort = Number(details.splitterPort);
+    if (Number.isInteger(newCustomerPort) && isPortDead(details.splitterBoxId, newCustomerPort, loadDeadPorts())) {
+      const errorBox = $('#addCustomerError');
+      errorBox.textContent = t('pswap_err_dead', null, { box: details.splitterBoxId.trim(), port: newCustomerPort });
+      errorBox.hidden = false;
+      $('#newCustomerSplitterPort').focus();
+      return;
+    }
+  }
   try {
     const matches = findPossibleDuplicateCustomers(state.customers, details);
     if (matches.length && !allowDuplicateName) {
@@ -6919,6 +6936,20 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     }
   }
 
+  // SISP-152: a dead-locked splitter port refuses a NEW assignment from
+  // the profile form (shared isPortDead check). An unchanged assignment
+  // is never blocked — the customer already sits there, and a lock can
+  // only land on a port that was spare when it was recorded.
+  const submittedBoxId = $('#splitterBoxIdInput').value.trim();
+  const submittedPort = Number($('#splitterPortInput').value);
+  const currentOptical = normalizeOpticalFields(current);
+  if (submittedBoxId && Number.isInteger(submittedPort)
+      && (submittedBoxId !== currentOptical.splitterBoxId || submittedPort !== currentOptical.splitterPort)
+      && isPortDead(submittedBoxId, submittedPort, loadDeadPorts())) {
+    toast(t('pswap_err_dead', null, { box: submittedBoxId, port: submittedPort }));
+    $('#splitterPortInput').focus();
+    return;
+  }
   // SISP-74: warn before saving when a NEWLY assigned MAC address or
   // hardware serial already belongs to another active customer (core
   // hard-blocks duplicate PPPoE usernames / static IPs inside
@@ -12689,6 +12720,20 @@ if (typeof document !== 'undefined') {
     onToast: (msg, opts) => toast(msg, opts)
   });
   splitterMapModalController = setupSplitterMapModal(() => state, {
+    // SISP-152: dead-port lockouts render on the map; per-port actions
+    // route to the swap dialog / the lockout store.
+    getDeadPorts: () => loadDeadPorts(),
+    onSwapPort: (customerId) => { if (portSwapModalController) portSwapModalController.open({ customerId }); },
+    onLockPort: (boxId, port) => {
+      saveDeadPorts(lockDeadPort(loadDeadPorts(), { boxId, port }));
+      if (splitterMapModalController) splitterMapModalController.refresh();
+      toast(t('pswap_locked_toast', null, { box: boxId, port }));
+    },
+    onUnlockPort: (boxId, port) => {
+      saveDeadPorts(unlockDeadPort(loadDeadPorts(), boxId, port));
+      if (splitterMapModalController) splitterMapModalController.refresh();
+      toast(t('pswap_unlocked_toast', null, { box: boxId, port }));
+    },
     // SISP-132: classification badges for weak-signal cards and the
     // selected box, derived live from recorded RX readings.
     getOpticalBadge: (customerId) => {
@@ -12709,6 +12754,21 @@ if (typeof document !== 'undefined') {
         if (fieldTicketsModalController) fieldTicketsModalController.refresh();
         renderDashboard();
       }
+      return result;
+    },
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  // SISP-152: the swap commit runs through core's updateCustomerProfile
+  // (the one real writer of splitterPort) via executePortSwap, then the
+  // optional old-port lock is recorded in the lockout store.
+  portSwapModalController = setupPortSwapModal(() => state, {
+    getDeadPorts: () => loadDeadPorts(),
+    onCommitSwap: (customerId, newPort, lockOld, note) => {
+      const result = executePortSwap(state, customerId, newPort, loadDeadPorts(), updateCustomerProfile);
+      state = result.state;
+      if (lockOld) saveDeadPorts(lockDeadPort(loadDeadPorts(), { boxId: result.boxId, port: result.oldPort, note }));
+      save(); renderDetail();
+      if (splitterMapModalController) splitterMapModalController.refresh();
       return result;
     },
     onToast: (msg, opts) => toast(msg, opts)

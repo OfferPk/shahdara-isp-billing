@@ -175,7 +175,8 @@ import { rootCauseAdviceForCustomer, rootCauseBannerHtml } from './root-cause-ad
 import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, buildVisitPrefillFromTicket, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment } from './complaint-tickets.js';
 import { assignTicketForComplaint, linkedTicketSummary, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
-import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession } from './concession-helper.js?v=1.11.0';
+import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
+import { roundToNearest50, roundingTagFor } from './bill-rounding-helper.js?v=1.11.0';
 import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
 import { buildSplitterOverview, createAttenuationTicket, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } from './signal-history.js';
@@ -2888,7 +2889,11 @@ function renderHistory(customer) {
     const concessionBalance = typeof monthAllocation?.balanceDueCents === 'number' ? monthAllocation.balanceDueCents / 100 : null;
     const concessionNetDue = concessionSuggestion?.alreadyApplied && concessionBalance !== null ? netDueAfterConcession(concessionBalance, concessionSuggestion.existingAmount) : null;
     const concessionAppliedMarkup = concessionSuggestion?.alreadyApplied ? `<span class="month-summary-wide">${t('prof_hist_concession_applied')}: <strong class="discount-badge-applied">−${formatAmount(concessionSuggestion.existingAmount)}</strong> <small>(${escapeHtml(concessionSuggestion.existingReason || t('prof_hist_concession_reason_default'))})</small> <button type="button" class="waive-late-fee-btn" data-remove-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_concession_remove_title')}">${t('prof_hist_concession_remove')}</button></span>` : '';
-    const concessionSuggestMarkup = concessionSuggestion && !concessionSuggestion.alreadyApplied && concessionSuggestion.eligible ? `<span class="month-summary-wide"><span class="discount-badge-applied">${escapeHtml(t('prof_hist_concession_suggest', null, { hours: concessionSuggestion.downtimeHours, amount: concessionSuggestion.suggestedAmount }))}</span>${concessionBalance !== null && concessionBalance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-apply-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_concession_apply_title')}">${t('prof_hist_concession_apply', null, { amount: concessionSuggestion.suggestedAmount })}</button>` : ''}</span>` : '';
+    // SISP-131: the [Round to Rs. 50] toggle + mode sit beside the apply
+    // button (only where an apply is possible). Default off — the stamped
+    // concession stays the raw computed figure, exactly as before.
+    const concessionRoundControls = concessionBalance !== null && concessionBalance > 0 ? ` <label class="round50-toggle-label"><input type="checkbox" data-round50-toggle> ${escapeHtml(t('round50_toggle'))}</label> <select data-round50-mode aria-label="${escapeHtml(t('round50_toggle'))}"><option value="nearest">${escapeHtml(t('round50_mode_nearest'))}</option><option value="down">${escapeHtml(t('round50_mode_down'))}</option><option value="exact">${escapeHtml(t('round50_mode_exact'))}</option></select> <small data-round50-hint hidden></small>` : '';
+    const concessionSuggestMarkup = concessionSuggestion && !concessionSuggestion.alreadyApplied && concessionSuggestion.eligible ? `<span class="month-summary-wide"><span class="discount-badge-applied">${escapeHtml(t('prof_hist_concession_suggest', null, { hours: concessionSuggestion.downtimeHours, amount: concessionSuggestion.suggestedAmount }))}</span>${concessionBalance !== null && concessionBalance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-apply-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_concession_apply_title')}">${t('prof_hist_concession_apply', null, { amount: concessionSuggestion.suggestedAmount })}</button>${concessionRoundControls}` : ''}</span>` : '';
     const concessionNetMarkup = concessionNetDue !== null ? `<span class="month-summary-stat">${t('prof_hist_net_after_concession')}: <strong>${formatAmount(concessionNetDue)}</strong></span>` : '';
     const summaryMarkup = !bill ? `<p class="empty-month">${t('prof_hist_empty_month')}</p>` : `<div class="month-summary"><span class="month-summary-stat">${t('prof_hist_status')}: <strong>${status.label}</strong></span><span class="month-summary-stat">${t('prof_hist_due_date')}: <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : t('prof_hist_due_not_set')}</strong></span><span class="month-summary-stat">${t('prof_hist_receipts')}: <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">${t('prof_hist_carry_in')}: <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">${t('prof_hist_bill_amount')}: <strong>${escapeHtml(displayAmount)}</strong></span>${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">${t('prof_hist_balance_due')}: <strong>${escapeHtml(balanceDue)}</strong></span>${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_generated')}:  <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_forwarded')}: <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">${t('prof_hist_credit_waiting')}: <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? `<span class="month-status status-pending month-summary-wide">${t('prof_hist_partial_badge')}</span>` : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
     const amountRequired = bill ? '' : 'required';
@@ -2951,9 +2956,42 @@ function renderHistory(customer) {
       if (!target || !targetBill) throw new Error('Bill not found for this concession.');
       const suggestion = buildConcessionSuggestion(target, targetBill, loadComplaints());
       if (!suggestion.eligible) throw new Error('No outage concession is due for this bill month.');
-      state = applyConcessionToBill(state, custId, month, { amount: suggestion.suggestedAmount, reason: suggestion.reason });
-      save(); renderDetail(); toast(`Outage concession of PKR ${suggestion.suggestedAmount} applied to bill ${month}.`);
+      // SISP-131: the toggle state is read from the controls rendered
+      // beside this button; off (or controls absent) the raw suggestion
+      // is stamped, byte-identical to the pre-SISP-131 behaviour.
+      const wrap = button.closest('.month-summary-wide');
+      const effective = roundedConcessionSuggestion(suggestion, {
+        enabled: wrap?.querySelector('[data-round50-toggle]')?.checked === true,
+        mode: wrap?.querySelector('[data-round50-mode]')?.value || 'nearest'
+      });
+      state = applyConcessionToBill(state, custId, month, { amount: effective.suggestedAmount, reason: suggestion.reason, rounding: effective.rounding });
+      save(); renderDetail(); toast(`Outage concession of PKR ${effective.suggestedAmount} applied to bill ${month}.`);
     } catch (err) { toast(err.message); }
+  }));
+  // SISP-131: keep the apply button's amount + the rounded-from hint in
+  // step with the toggle/mode, recomputed from fresh state like the
+  // apply handler itself. A rounded figure of Rs. 0 cannot be stamped
+  // (concessions must be positive), so the button disables instead.
+  historyContainer.querySelectorAll('[data-round50-toggle], [data-round50-mode]').forEach(control => control.addEventListener('change', () => {
+    const wrap = control.closest('.month-summary-wide');
+    const button = wrap?.querySelector('[data-apply-concession]');
+    if (!wrap || !button) return;
+    const target = state.customers.find(c => c.id === button.dataset.customerId);
+    const targetBill = target?.bills?.find(b => b.month === button.dataset.month);
+    if (!target || !targetBill) return;
+    const suggestion = buildConcessionSuggestion(target, targetBill, loadComplaints());
+    if (!suggestion.eligible) return;
+    const effective = roundedConcessionSuggestion(suggestion, {
+      enabled: wrap.querySelector('[data-round50-toggle]')?.checked === true,
+      mode: wrap.querySelector('[data-round50-mode]')?.value || 'nearest'
+    });
+    button.textContent = t('prof_hist_concession_apply', null, { amount: effective.suggestedAmount });
+    button.disabled = effective.suggestedAmount <= 0;
+    const hint = wrap.querySelector('[data-round50-hint]');
+    if (hint) {
+      hint.hidden = !effective.rounding;
+      hint.textContent = effective.rounding ? `→ ${formatAmount(effective.suggestedAmount)} (${t('round50_rounded_from', null, { amount: effective.rawSuggestedAmount })})` : '';
+    }
   }));
   historyContainer.querySelectorAll('[data-remove-concession]').forEach(button => button.addEventListener('click', async () => {
     const custId = button.dataset.customerId;
@@ -6660,6 +6698,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
   let proRataAdjustment = null;
   let proRatedBillAmount = null;
   let voucherId = null;
+  let proRataRounding = null;
 
   if ((planChanged || rateChanged) && oldRate > 0 && newRate > 0) {
     const today = new Date();
@@ -6668,14 +6707,29 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     proRataAdjustment = proration.netAdjustment;
     proRatedBillAmount = proration.proRatedCurrentBill;
 
+    // SISP-131: with the [Round to Rs. 50] toggle on, a pro-rata CREDIT
+    // is stamped at its rounded note figure — the recorded
+    // proRataAdjustment and the adjustment voucher both carry the
+    // rounded amount, and the unrounded figure survives as the audit
+    // tag on the packageHistory entry (proRataRounding). The pro-rated
+    // BILL amount is never rounded. Toggle off (default) or a charge
+    // (net adjustment >= 0): values stay exactly as computed.
+    if ($('#roundProrataCreditCheckbox')?.checked === true && proration.netAdjustment < 0) {
+      const roundMode = $('#roundProrataModeSelect')?.value || 'nearest';
+      const rawCredit = Math.abs(proration.netAdjustment);
+      const roundedCredit = roundToNearest50(rawCredit, roundMode);
+      proRataAdjustment = -roundedCredit;
+      proRataRounding = roundingTagFor(rawCredit, roundedCredit, roundMode);
+    }
+
     const shouldSaveVoucher = $('#saveProrataVoucherCheckbox')?.checked ?? true;
-    if (shouldSaveVoucher && proration.netAdjustment !== 0) {
+    if (shouldSaveVoucher && proRataAdjustment !== 0) {
       try {
         const store = typeof localStorage !== 'undefined' ? localStorage : null;
         const adjVoucher = buildAdjustmentVoucherData({
           customer: currentCustomer,
           category: 'prorated_package_change',
-          amount: Math.abs(proration.netAdjustment),
+          amount: Math.abs(proRataAdjustment),
           reason: `Mid-cycle package transition: ${oldPlan} (PKR ${oldRate}) → ${newPlan} (PKR ${newRate}). Pro-rated current-bill: PKR ${proration.proRatedCurrentBill.toLocaleString()} (Day ${proration.effectiveDay}/${proration.daysInMonth}).`,
           authorizedBy: $('#packageChangeStaffNameInput').value || 'Staff Operator',
           date: todayStr
@@ -6743,7 +6797,10 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       pauseStartDate: $('#pauseStartDateInput')?.value || '',
       autoResumeDate: $('#autoResumeDateInput')?.value || '',
       packageChangeStaffName:$('#packageChangeStaffNameInput').value,
-      proRataAdjustment, proRatedBillAmount, voucherId
+      proRataAdjustment, proRatedBillAmount, voucherId,
+      // SISP-131: audit tag for a rounded pro-rata credit (null unless
+      // the toggle rounded this save's credit).
+      proRataRounding
     });
     // OWNER-SIGNAL: a CHANGED Last RX value saved from this form is a
     // fresh manual measurement — journal it into the signal history so
@@ -6776,6 +6833,8 @@ $('#monthlySellingAmountInput').addEventListener('input', () => {
 });
 $('#packageSpeedInput').addEventListener('input', renderProfileProrataPreview);
 $('#packageSpeedInput').addEventListener('change', renderProfileProrataPreview);
+$('#roundProrataCreditCheckbox')?.addEventListener('change', renderProfileProrataPreview);
+$('#roundProrataModeSelect')?.addEventListener('change', renderProfileProrataPreview);
 
 function renderProfileProrataPreview() {
   const customer = selectedCustomer();
@@ -6798,11 +6857,20 @@ function renderProfileProrataPreview() {
     const todayStr = dateKey(today);
     const proration = calculatePlanMigrationProration(currentRate, newRate, todayStr);
 
+    // SISP-131: with the [Round to Rs. 50] toggle on, a pro-rata CREDIT
+    // (negative net adjustment) is previewed at its rounded note figure
+    // — the same figure the save flow stamps into packageHistory.
+    // Charges (net adjustment >= 0) and the pro-rated bill figure are
+    // never rounded.
+    const roundCredit = $('#roundProrataCreditCheckbox')?.checked === true && proration.netAdjustment < 0;
+    const roundMode = $('#roundProrataModeSelect')?.value || 'nearest';
+    const effectiveAdjustment = roundCredit ? -roundToNearest50(Math.abs(proration.netAdjustment), roundMode) : proration.netAdjustment;
+
     container.hidden = false;
     const badge = $('#prorataPreviewDeltaBadge');
     if (badge) {
       const isUp = proration.netAdjustment > 0;
-      badge.textContent = t('prof_prorata_badge', null, { adj: `${proration.netAdjustment > 0 ? '+' : ''}PKR ${proration.netAdjustment.toLocaleString()}`, direction: isUp ? t('prof_prorata_up') : (proration.netAdjustment < 0 ? t('prof_prorata_down') : t('prof_prorata_lateral')) });
+      badge.textContent = t('prof_prorata_badge', null, { adj: `${effectiveAdjustment > 0 ? '+' : ''}PKR ${effectiveAdjustment.toLocaleString()}`, direction: isUp ? t('prof_prorata_up') : (proration.netAdjustment < 0 ? t('prof_prorata_down') : t('prof_prorata_lateral')) });
       badge.className = `sim-delta-badge ${isUp ? 'badge-success' : (proration.netAdjustment < 0 ? 'badge-warning' : 'badge-info')}`;
     }
     const breakdown = $('#prorataPreviewDaysBreakdown');
@@ -6817,8 +6885,8 @@ function renderProfileProrataPreview() {
     }
     const netAdj = $('#prorataNetAdjustment');
     if (netAdj) {
-      const sign = proration.netAdjustment > 0 ? '+' : '';
-      netAdj.textContent = `${sign}PKR ${proration.netAdjustment.toLocaleString()}`;
+      const sign = effectiveAdjustment > 0 ? '+' : '';
+      netAdj.textContent = `${sign}PKR ${effectiveAdjustment.toLocaleString()}${roundCredit && effectiveAdjustment !== proration.netAdjustment ? ` (${t('round50_rounded_from', null, { amount: Math.abs(proration.netAdjustment).toLocaleString() })})` : ''}`;
       netAdj.style.color = proration.netAdjustment > 0 ? '#b91c1c' : (proration.netAdjustment < 0 ? '#047857' : 'inherit');
     }
   } else {

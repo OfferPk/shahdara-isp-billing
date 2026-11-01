@@ -45,6 +45,14 @@
  * data on every render and is strictly read-only — it never mutates,
  * hides or auto-closes any complaint.
  *
+ * SISP-163: an unresolved complaint whose customer still owes money
+ * (host-derived via fix-and-collect-bridge.js, passed in as the
+ * getFixCollect callback) renders a 🔧💰 Fix & Collect badge and a
+ * "Resolve + Collect Bill" action. That action is delegated to the
+ * host's onResolveAndCollect, which runs the normal resolve path (this
+ * module's setComplaintStatus + the app's sync/stock bridges) and only
+ * then opens Quick Collect; without host callbacks nothing renders.
+ *
  * SISP-104: each record carries followUpSentAt (null until stamped) —
  * the post-repair satisfaction check-in stamp owned by
  * post-repair-checkin.js. The follow-up lives on the COMPLAINT (this
@@ -434,7 +442,7 @@ export function collectComplaintZones(state) {
  * lives above; this controller only renders and persists via load/save
  * + the app's onComplaintsChanged callback (dashboard + profile refresh).
  */
-export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket, onLaunchOutageAlerts, getRootCauseAdvice } = {}) {
+export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket, onLaunchOutageAlerts, getRootCauseAdvice, getFixCollect, onResolveAndCollect } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('complaintRegisterModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -474,12 +482,19 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
     }
   }
 
-  function statusButtons(complaint) {
+  function statusButtons(complaint, fixCollect = null) {
+    // SISP-163: when the host reports money still due for this customer,
+    // offer the combined Fix & Collect action next to the plain resolve.
+    // The host performs resolve → Quick Collect (see app.js); without a
+    // host callback the button never renders.
+    const collectBtn = fixCollect && typeof onResolveAndCollect === 'function'
+      ? `<button type="button" class="primary-button complaint-status-btn" data-complaint-action="resolve-collect" data-complaint-id="${escapeHtml(complaint.id)}">${escapeHtml(t('fcx_resolve_collect_btn'))}</button>`
+      : '';
     if (complaint.status === 'Open') {
-      return `<button type="button" class="secondary-button complaint-status-btn" data-complaint-action="start" data-complaint-id="${escapeHtml(complaint.id)}">Start work</button><button type="button" class="primary-button complaint-status-btn" data-complaint-action="resolve" data-complaint-id="${escapeHtml(complaint.id)}">Mark resolved</button>`;
+      return `<button type="button" class="secondary-button complaint-status-btn" data-complaint-action="start" data-complaint-id="${escapeHtml(complaint.id)}">Start work</button><button type="button" class="primary-button complaint-status-btn" data-complaint-action="resolve" data-complaint-id="${escapeHtml(complaint.id)}">Mark resolved</button>${collectBtn}`;
     }
     if (complaint.status === 'In Progress') {
-      return `<button type="button" class="primary-button complaint-status-btn" data-complaint-action="resolve" data-complaint-id="${escapeHtml(complaint.id)}">Mark resolved</button><button type="button" class="secondary-button complaint-status-btn" data-complaint-action="reopen" data-complaint-id="${escapeHtml(complaint.id)}">Reopen</button>`;
+      return `<button type="button" class="primary-button complaint-status-btn" data-complaint-action="resolve" data-complaint-id="${escapeHtml(complaint.id)}">Mark resolved</button>${collectBtn}<button type="button" class="secondary-button complaint-status-btn" data-complaint-action="reopen" data-complaint-id="${escapeHtml(complaint.id)}">Reopen</button>`;
     }
     return `<button type="button" class="secondary-button complaint-status-btn" data-complaint-action="reopen" data-complaint-id="${escapeHtml(complaint.id)}">Reopen</button>`;
   }
@@ -552,6 +567,15 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       const assignControls = (!link || link.status === 'Resolved') && typeof onAssignTicket === 'function'
         ? `<input class="form-input complaint-assign-input" type="text" data-assign-technician="${escapeHtml(c.id)}" placeholder="${escapeHtml(t('cmp_link_technician_ph'))}" aria-label="${escapeHtml(t('cmp_link_technician_ph'))}"><button type="button" class="secondary-button complaint-status-btn" data-complaint-action="assign" data-complaint-id="${escapeHtml(c.id)}">${escapeHtml(t('cmp_link_assign_btn'))}</button>`
         : '';
+      // SISP-163: Fix & Collect badge — the host derives the customer's
+      // outstanding from the billing engine; the badge renders only for
+      // an unresolved complaint whose customer still owes money.
+      const fixCollect = c.status !== 'Resolved' && typeof getFixCollect === 'function'
+        ? getFixCollect(c.customerId)
+        : null;
+      const fixBadge = fixCollect && fixCollect.badgeHtml
+        ? `<p class="complaint-fix-collect-row">${fixCollect.badgeHtml}</p>`
+        : '';
       return `
       <article class="complaint-register-card" data-complaint-id="${escapeHtml(c.id)}">
         <header class="complaint-register-head">
@@ -562,6 +586,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         <p><span>Customer</span><strong>${escapeHtml(complaintCustomerLabel(c))}</strong></p>
         <p><span>Zone</span><strong>${escapeHtml(c.zone || 'Not set')}</strong></p>
         <p><span>Issue</span><strong>${escapeHtml(c.issueCategory)}</strong></p>
+        ${fixBadge}
         ${chainBanner}
         ${rcaBanner}
         ${ticketLine}
@@ -569,7 +594,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         <p><span>Resolved</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="resolvedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolvedAt || '')}" aria-label="Resolved at" ${c.status !== 'Resolved' ? 'disabled' : ''}></p>
         <p><span>Downtime</span><span class="complaint-downtime-wrap"><input class="form-input complaint-inline-input complaint-downtime-input" type="number" min="0" step="0.25" data-complaint-field="downtimeHours" data-complaint-id="${escapeHtml(c.id)}" value="${c.downtimeHours === null || c.downtimeHours === undefined ? '' : escapeHtml(String(c.downtimeHours))}" placeholder="auto" aria-label="Downtime hours"><small>h${c.downtimeManual ? ' (manual)' : ''}</small></span></p>
         <p><span>Fix note</span><input class="form-input complaint-inline-input" type="text" data-complaint-field="resolutionNote" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolutionNote || '')}" placeholder="Permanent fix…" aria-label="Resolution note"></p>
-        <div class="complaint-register-actions">${statusButtons(c)}${assignControls}</div>
+        <div class="complaint-register-actions">${statusButtons(c, fixCollect)}${assignControls}</div>
       </article>`;
     }).join('');
   }
@@ -683,6 +708,24 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         } catch (error) {
           onToast && onToast(error && error.message ? error.message : 'Ticket could not be assigned.');
         }
+        return;
+      }
+      if (action === 'resolve-collect') {
+        // SISP-163: the host runs the combined flow (resolve through the
+        // normal status path incl. the complaint↔ticket sync + stock
+        // bridges, then open Quick Collect). It returns a promise: a
+        // rejection means the RESOLVE failed, so no collection was
+        // opened and the complaint stays open. A skipped collection
+        // never reaches here — it cannot un-resolve.
+        const complaint = loadComplaints().find((c) => c.id === id);
+        if (!complaint || typeof onResolveAndCollect !== 'function') return;
+        Promise.resolve()
+          .then(() => onResolveAndCollect(complaint))
+          .then(() => renderList())
+          .catch((error) => {
+            onToast && onToast(error && error.message ? error.message : t('fcx_resolve_collect_failed'));
+            renderList();
+          });
         return;
       }
       try {

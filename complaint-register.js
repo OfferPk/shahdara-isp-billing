@@ -29,6 +29,13 @@
  * clears resolvedViaTicketId (the sync layer stamps it again after its
  * own calls), so manual resolutions are never overwritten by the sync.
  *
+ * SISP-123: a complaint whose category has repeated for the same
+ * customer within 60 days (register + standalone field tickets, SISP-44
+ * pairs counted once) renders a root-cause banner prescribing the
+ * permanent engineering fix for that category. The advice is derived by
+ * root-cause-advisor.js and supplied per customer through the host's
+ * getRootCauseAdvice callback; strictly read-only.
+ *
  * SISP-49: an unresolved complaint whose customer feeds downstream
  * homes (SISP-7 outage-impact.js) renders an inline daisy-chain alert
  * banner on its card listing every affected downstream home, with a
@@ -61,6 +68,7 @@
 
 import { t } from './nav-language.js';
 import { buildDaisyChainAlert, buildOutageQueueText, buildOutageQueue } from './outage-impact.js';
+import { complaintFaultGroup, rootCauseBannerHtml } from './root-cause-advisor.js';
 import { effectiveQueuePriority, isSlaPinned, priorityForNewQueueItem, sortQueueBySla } from './commercial-sla.js';
 import { getWaTemplates } from './whatsapp-templates.js';
 
@@ -426,7 +434,7 @@ export function collectComplaintZones(state) {
  * lives above; this controller only renders and persists via load/save
  * + the app's onComplaintsChanged callback (dashboard + profile refresh).
  */
-export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket, onLaunchOutageAlerts } = {}) {
+export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket, onLaunchOutageAlerts, getRootCauseAdvice } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('complaintRegisterModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -509,6 +517,14 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       // customer feeds downstream homes, list every affected home and
       // offer the 1-tap bulk WhatsApp outage launch. Purely additive:
       // it renders from live data and never touches the record.
+      // SISP-123: root-cause banner — when this complaint's category has
+      // repeated for the customer within 60 days (register + standalone
+      // tickets, SISP-44 pairs counted once), show the permanent-fix
+      // prescription. Advice is derived by the host callback; without it
+      // (or for area-outage rows) no banner renders. Read-only.
+      const rcaBanner = c.customerId !== AREA_OUTAGE_CUSTOMER_ID && typeof getRootCauseAdvice === 'function'
+        ? rootCauseBannerHtml((getRootCauseAdvice(c.customerId) || []).filter((entry) => entry.group === complaintFaultGroup(c)))
+        : '';
       const chainAlert = complaintDaisyChainAlert(allCustomers, c);
       const chainBanner = chainAlert ? `
         <div class="complaint-chain-banner" role="alert">
@@ -547,6 +563,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         <p><span>Zone</span><strong>${escapeHtml(c.zone || 'Not set')}</strong></p>
         <p><span>Issue</span><strong>${escapeHtml(c.issueCategory)}</strong></p>
         ${chainBanner}
+        ${rcaBanner}
         ${ticketLine}
         <p><span>Reported</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="reportedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.reportedAt || '')}" aria-label="Reported at"></p>
         <p><span>Resolved</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="resolvedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolvedAt || '')}" aria-label="Resolved at" ${c.status !== 'Resolved' ? 'disabled' : ''}></p>

@@ -77,11 +77,15 @@
  *   onTicketSignal hook so the app can journal it into the customer's
  *   signal history (signal-history.js); this module never touches the
  *   customer ledger itself.
+ * - SISP-123: this module also imports root-cause-advisor.js
+ *   for the repeat-fault banner — it imports only nav-language.js,
+ *   so the no-cycle property holds.
  *
  * All helpers are pure except load/saveTickets and the modal setup.
  * Tests use synthetic data only. Amounts are PKR rupees (not cents).
  */
 
+import { rootCauseBannerHtml, ticketFaultGroup } from './root-cause-advisor.js';
 import { t as translate } from './nav-language.js';
 import { effectiveQueuePriority, isSlaPinned, priorityForNewQueueItem, sortQueueBySla } from './commercial-sla.js';
 
@@ -822,7 +826,7 @@ function materialLineLabel(line) {
  * getState is the app state accessor (customers list); tickets live in
  * their own localStorage ledger, like the complaint register.
  */
-export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds, onTicketSignal } = {}) {
+export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds, onTicketSignal, getRootCauseAdvice } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('fieldTicketsModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -942,6 +946,14 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
       const warning = hasRecurringFaultWarning(loadTickets(), t.customerId)
         ? '<span class="ticket-warning-badge">⚠️ Recurring fault</span>'
         : '';
+      // SISP-123: root-cause banner — when this ticket's fault group has
+      // repeated for the customer within 60 days (register complaints +
+      // standalone tickets, SISP-44 pairs counted once), prescribe the
+      // permanent fix. Advice is derived by the host callback; without
+      // it no banner renders. Read-only.
+      const rcaBanner = typeof getRootCauseAdvice === 'function'
+        ? rootCauseBannerHtml((getRootCauseAdvice(t.customerId) || []).filter((entry) => entry.group === ticketFaultGroup(t)))
+        : '';
       const materials = t.materialsUsed.length
         ? `<p><span>Materials</span><span>${t.materialsUsed.map(materialLineLabel).map(escapeHtml).join('<br>')}</span></p>`
         : '';
@@ -977,6 +989,7 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         ${t.note ? `<p><span>Note</span><span>${escapeHtml(t.note)}</span></p>` : ''}
         ${ticketSignalLabel(t) ? `<p><span>Signal</span><strong>${escapeHtml(ticketSignalLabel(t))}</strong></p>` : ''}
         ${materials}${charge}${stock}
+        ${rcaBanner}
         <div class="ticket-card-actions">${statusButtons(t)}${chargeBtn}${saadVisitBtn}</div>
         <div class="ticket-resolve-slot" data-resolve-slot="${escapeHtml(t.id)}"></div>
       </article>`;

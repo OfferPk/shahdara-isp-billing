@@ -838,7 +838,7 @@ function materialLineLabel(line) {
  * getState is the app state accessor (customers list); tickets live in
  * their own localStorage ledger, like the complaint register.
  */
-export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds, onTicketSignal, getRootCauseAdvice } = {}) {
+export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds, onTicketSignal, getRootCauseAdvice, getOpticalBadge } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('fieldTicketsModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -963,6 +963,13 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
       const warning = hasRecurringFaultWarning(loadTickets(), t.customerId)
         ? '<span class="ticket-warning-badge">⚠️ Recurring fault</span>'
         : '';
+      // SISP-132: live optical fault classification for attenuation
+      // tickets (host callback from optical-anomaly-detector.js),
+      // derived from recorded RX readings at render time — the ticket
+      // record itself is never stamped or mutated.
+      const opticalBadge = t.faultPreset === 'Slow Speed / High Attenuation' && typeof getOpticalBadge === 'function'
+        ? getOpticalBadge(t.customerId)
+        : '';
       // SISP-123: root-cause banner — when this ticket's fault group has
       // repeated for the customer within 60 days (register complaints +
       // standalone tickets, SISP-44 pairs counted once), prescribe the
@@ -998,6 +1005,7 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         </header>
         <p><span>Customer</span><strong>${escapeHtml(ticketCustomerLabel(t))}</strong></p>
         <p><span>Fault</span><strong>${escapeHtml(ticketFaultLabel(t))}</strong></p>
+        ${opticalBadge ? `<p><span>Optical</span><span>${opticalBadge}</span></p>` : ''}
         ${t.complaintId ? `<p><span>Complaint</span><strong>${escapeHtml(t.complaintId)}</strong></p>` : ''}
         ${t.resolvedViaComplaintId ? `<p><span>Resolved via</span><strong>${escapeHtml(t.resolvedViaComplaintId)} · complaint register</strong></p>` : ''}
         <p><span>Lineman</span><strong>${escapeHtml(t.technician || 'Not set')}</strong></p>

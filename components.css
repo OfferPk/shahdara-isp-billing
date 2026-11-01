@@ -1603,6 +1603,10 @@ body.field-mode-open { overflow: hidden; }
 .suspense-card-claimed { opacity: 0.85; }
 .suspense-warn { color: var(--ink); font-size: 13px; display: block; }
 .suspense-claim-bar { display: grid; gap: 8px; margin-top: 8px; }
+/* SISP-179: auto-match suggestion chips — theme tokens only. */
+.suspense-suggest-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.suspense-suggest-label { font-size: 13px; color: var(--muted); }
+.suspense-suggest-chip { border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
 .suspense-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .suspense-empty { color: var(--muted); font-size: 13px; }
 .suspense-receipt-panel { margin-top: 16px; }

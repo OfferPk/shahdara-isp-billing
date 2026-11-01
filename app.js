@@ -216,6 +216,7 @@ import { applyDefaultCustomerRoster } from './default-customers.js';
 import { buildMonthlyScorecard, setupLinemanScorecardModal } from './lineman-scorecard.js';
 import { buildFuelEfficiency, fuelEfficiencyCardHtml, normalizeFuelMonth } from './fuel-efficiency-tracker.js';
 import { buildRecentPayments } from './recent-payments.js';
+import { ROSTER_PILL_DEFS, buildRosterPillSummary, applyRosterPillFilter, normalizeRosterPill } from './roster-quick-filters.js';
 import { buildAdvanceDashboard } from './advance-dashboard.js';
 import { buildCollectionForecast } from './collection-forecaster.js';
 import { buildDailyPartnerDigest, dailyPartnerDigestWhatsAppUrl } from './daily-partner-digest.js';
@@ -2209,6 +2210,7 @@ let customerPageSize = 15;
 let customerSortBy = 'number-asc';
 let customerAreaFilter = 'all';
 let customerSearchField = 'name';
+let customerRosterPill = 'all';
 let customerViewMode = (typeof localStorage !== 'undefined' && localStorage.getItem('shahdara_customer_view_mode')) || 'cards';
 
 // New-customers panel (customer ledger): view-only monthly join counts and
@@ -2310,6 +2312,23 @@ function renderNewCustomersPanel() {
   });
   mount.querySelectorAll('[data-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.customerId)));
 }
+// SISP-136: the roster pill bar is re-rendered from the fresh pill
+// summary on every roster render, so counts/totals are always live.
+function renderRosterPillBar(summary) {
+  const bar = $('#rosterPillBar');
+  if (!bar) return;
+  bar.innerHTML = ROSTER_PILL_DEFS.map((def) => {
+    const pill = summary?.pills?.[def.id] ?? { count: 0, totalCents: null };
+    const label = `${def.emoji ? `${def.emoji} ` : ''}${t(def.labelKey)}`;
+    const totalText = def.hasTotal && pill.totalCents > 0 ? formatAmount(pill.totalCents / 100) : '';
+    return `<button class="roster-pill" type="button" data-roster-pill="${def.id}" aria-pressed="${customerRosterPill === def.id ? 'true' : 'false'}" aria-label="${escapeHtml(`${label}: ${pill.count}${totalText ? ` · ${totalText}` : ''}`)}"><span class="roster-pill-label">${escapeHtml(label)}</span><span class="roster-pill-count">${pill.count}</span>${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</button>`;
+  }).join('');
+  bar.querySelectorAll('[data-roster-pill]').forEach((button) => button.addEventListener('click', () => {
+    customerRosterPill = normalizeRosterPill(button.dataset.rosterPill);
+    customerCurrentPage = 1;
+    renderCustomers();
+  }));
+}
 function renderCustomers() {
   const customerQuery = customerListQuery();
   const healthAllocations = calculatePaymentAllocations(state);
@@ -2354,6 +2373,17 @@ function renderCustomers() {
   let active = filtered.filter(customer => !customer.archived);
   let archived = filtered.filter(customer => customer.archived);
 
+  // SISP-136: 1-tap financial/status pills. The summary runs over the
+  // currently filtered ACTIVE pool (after status, search and area
+  // filters above), so pill counts describe exactly the roster on
+  // screen; the selected pill then narrows that pool — AND-composed
+  // with every existing filter, including the Mohalla card
+  // click-through (which arrives here as the Area field search). The
+  // archived panel is not pill-filtered.
+  const rosterPillSummary = buildRosterPillSummary(active, healthAllocations, { month: selectedBillingMonth });
+  renderRosterPillBar(rosterPillSummary);
+  active = applyRosterPillFilter(active, rosterPillSummary, customerRosterPill);
+
   // Apply Sorting
   active = sortCustomerRoster(active, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
   archived = sortCustomerRoster(archived, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
@@ -2397,6 +2427,7 @@ function renderCustomers() {
           if ($('#globalCustomerSearch')) $('#globalCustomerSearch').value = '';
           customerSearchField = 'name';
           if ($('#customerSearchField')) $('#customerSearchField').value = 'name';
+          customerRosterPill = 'all';
           customerAreaFilter = 'all';
           if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
           selectedServiceFilter = 'all';

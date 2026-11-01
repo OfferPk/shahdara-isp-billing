@@ -2169,6 +2169,51 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-136: roster 1-tap financial/status filter pills (token-only).
+   The bar scrolls horizontally on phones so the page itself never
+   overflows; each pill keeps its label, count and PKR total on one
+   line. Selected state follows the house pressed-button treatment. */
+.roster-pill-bar {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding: var(--space-2) 0;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.roster-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+  white-space: nowrap;
+  min-height: 38px;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+.roster-pill:hover { background: var(--surface-soft); }
+.roster-pill[aria-pressed="true"] {
+  background: var(--green);
+  border-color: var(--green-dark);
+  color: var(--color-neutral-0);
+}
+.roster-pill:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
+.roster-pill-count {
+  font-variant-numeric: var(--numeric);
+  font-weight: 800;
+}
+.roster-pill-total {
+  font-variant-numeric: var(--numeric);
+  color: var(--muted);
+  font-weight: 700;
+}
+.roster-pill[aria-pressed="true"] .roster-pill-total { color: var(--color-neutral-0); }
 /* SISP-134: Expense Budget Caps (token-only; bars render inside the
    P&L modal → var(--modal-surface) shell, the callout inside the
    Roznamcha modal). Fills follow the house status tokens: paid green,

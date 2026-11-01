@@ -40,7 +40,10 @@ import {
   getEscalationStage,
   escalationBadgeLabel,
   escalationBadgeClass,
-  ESCALATION_STAGES
+  ESCALATION_STAGES,
+  buildPrelockNoticeQueue,
+  recordReminderDispatched,
+  PRELOCK_NOTICE_STAGE
 } from './reminder-queue.js';
 import {
   sanitizePauseFields,
@@ -1309,4 +1312,146 @@ export function setupTopDefaultersModal(state, {
     },
     getData: () => currentData
   };
+}
+
+/**
+ * SISP-180: Final Pre-Lock WhatsApp Notice queue dialog.
+ *
+ * Opened from the Top Defaulters footer ("📲 Send Final Pre-Lock
+ * WhatsApp Notice", beside the Lock Due filter). The queue is rebuilt
+ * from live state on every open and on every language-variant switch:
+ * buildPrelockNoticeQueue (reminder-queue.js) yields exactly the Lock
+ * Due customers the suspension script would lock — Waada-promised and
+ * vacation-held customers are spared by isPrelockNoticeEligible, the
+ * same guards the generator applies. Each row's Send button opens that
+ * customer's wa.me draft in a new tab and stamps the reminder-history
+ * audit (recordReminderDispatched); a row can be opened once per dialog
+ * session. NOTHING is auto-sent and there is deliberately no "send
+ * all" affordance.
+ *
+ * Placement call: the dialog lives with the Top Defaulters modal (its
+ * footer button is the entry point and the queue IS the Lock Due set),
+ * not inside the Reminders Today modal — that queue is stage-driven
+ * and renders through a different template system
+ * (buildPaymentReminderMessage), while this notice is a
+ * whatsapp-templates.js catalogue template.
+ */
+export function setupPrelockNoticeDialog(getState, { onToast = null } = {}) {
+  if (typeof document === 'undefined') return null;
+
+  const dialog = document.getElementById('prelockNoticeModal');
+  if (!dialog) return null;
+
+  const readState = () => (typeof getState === 'function' ? getState() : getState);
+
+  const openBtn = document.getElementById('topDefaultersPrelockNoticeBtn');
+  const closeBtn = document.getElementById('prelockNoticeCloseBtn');
+  const closeBtn2 = document.getElementById('prelockNoticeCloseBtn2');
+  const langSelect = document.getElementById('prelockNoticeLangSelect');
+  const summaryEl = document.getElementById('prelockNoticeSummary');
+  const listEl = document.getElementById('prelockNoticeList');
+  const emptyEl = document.getElementById('prelockNoticeEmpty');
+  const progressEl = document.getElementById('prelockNoticeProgress');
+
+  let currentQueue = [];
+  const sentIds = new Set();
+
+  const syncProgress = () => {
+    if (!progressEl) return;
+    const sentCount = currentQueue.filter(item => sentIds.has(String(item.customerId))).length;
+    progressEl.textContent = currentQueue.length
+      ? t('prelock_progress', null, { sent: sentCount, count: currentQueue.length })
+      : '';
+  };
+
+  const rowHtml = (item) => {
+    const sent = sentIds.has(String(item.customerId));
+    const subParts = [
+      item.area ? escapeHtml(item.area) : '',
+      item.normalizedPhone ? escapeHtml(item.normalizedPhone) : ''
+    ].filter(Boolean).join(' · ');
+    return `
+      <div class="prelock-row" data-cust-id="${escapeHtml(item.customerId)}">
+        <div class="prelock-row-main">
+          <div class="prelock-row-name">#${item.customerNumber ?? ''} ${escapeHtml(item.customerName)}</div>
+          <div class="prelock-row-sub">${subParts}</div>
+        </div>
+        <div class="prelock-row-due">
+          <strong>${formatPKR(item.balance)}</strong>
+          <span>${t('prelock_days_overdue', null, { days: item.daysOverdue })}</span>
+        </div>
+        <button type="button" class="primary-button prelock-send-btn" data-cust-id="${escapeHtml(item.customerId)}" ${sent ? 'disabled' : ''}>
+          ${sent ? t('prelock_sent_btn') : t('prelock_send_btn')}
+        </button>
+        ${item.validPhone ? '' : `<p class="prelock-row-note">${t('prelock_invalid_phone')}</p>`}
+      </div>
+    `;
+  };
+
+  const render = () => {
+    const variant = langSelect?.value === 'urdu' ? 'urdu' : 'roman';
+    const data = buildPrelockNoticeQueue(readState(), {
+      todayString: formatDateYmd(new Date()),
+      variant
+    });
+    currentQueue = data.queue;
+    // Sent marks only survive for customers still in the rebuilt queue.
+    const liveIds = new Set(currentQueue.map(item => String(item.customerId)));
+    for (const id of [...sentIds]) {
+      if (!liveIds.has(id)) sentIds.delete(id);
+    }
+    if (summaryEl) {
+      summaryEl.textContent = t('prelock_summary', null, {
+        count: data.totalCount,
+        total: formatPKR(data.totalDuesPkr)
+      });
+    }
+    if (emptyEl) emptyEl.hidden = data.totalCount > 0;
+    if (listEl) listEl.innerHTML = currentQueue.map(rowHtml).join('');
+    syncProgress();
+  };
+
+  const open = () => {
+    render();
+    if (dialog.showModal) dialog.showModal();
+    else dialog.hidden = false;
+  };
+  const close = () => {
+    if (dialog.close) dialog.close();
+    else dialog.hidden = true;
+  };
+
+  if (openBtn) openBtn.addEventListener('click', open);
+  if (closeBtn) closeBtn.addEventListener('click', close);
+  if (closeBtn2) closeBtn2.addEventListener('click', close);
+  if (langSelect) langSelect.addEventListener('change', render);
+
+  if (listEl) {
+    listEl.addEventListener('click', (e) => {
+      const sendBtn = e.target.closest('.prelock-send-btn');
+      if (!sendBtn || sendBtn.disabled) return;
+      const custId = sendBtn.dataset.custId;
+      const item = currentQueue.find(q => String(q.customerId) === String(custId));
+      if (!item) return;
+      if (!item.validPhone || !item.whatsappUrl) {
+        if (typeof onToast === 'function') onToast(t('prelock_invalid_phone'));
+        return;
+      }
+      // Audit first (house pattern: the send handlers in the reminder
+      // modal and the campaign flow record, then open the draft).
+      recordReminderDispatched({
+        customer: item.customer,
+        stage: PRELOCK_NOTICE_STAGE,
+        templateType: 'disconnection',
+        dueAmount: item.balance,
+        month: formatDateYmd(new Date()).slice(0, 7),
+        customNote: 'SISP-180 final 24h pre-suspension notice'
+      });
+      window.open(item.whatsappUrl, '_blank', 'noopener,noreferrer');
+      sentIds.add(String(item.customerId));
+      render();
+    });
+  }
+
+  return { open, close, refresh: render };
 }

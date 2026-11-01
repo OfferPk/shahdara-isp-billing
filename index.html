@@ -20817,6 +20817,7 @@
           <button id="topDefaultersExportCsvBtn" class="secondary-button" type="button">📥 Export CSV</button>
           <button id="topDefaultersCopyBriefingBtn" class="secondary-button" type="button">📋 Copy Briefing</button>
           <button id="topDefaultersLockDueBtn" class="secondary-button lock-due-toggle" type="button" aria-pressed="false" title="Filter to Lock Due (15th+, no active Waada) — the MikroTik Lock Script then covers exactly this suspension set">🔴 Lock Due (15th+)</button>
+          <button id="topDefaultersPrelockNoticeBtn" class="secondary-button" type="button" data-i18n="prelock_open_btn" title="Final 24h WhatsApp notice queue for the Lock Due set (Waada-promised and paused customers are spared, as in the lock script)">📲 Send Final Pre-Lock WhatsApp Notice</button>
           <button id="topDefaultersHideContactedBtn" class="secondary-button" type="button" aria-pressed="false" data-i18n="cct_hide_contacted_today">Hide contacted today</button>
           <button id="topDefaultersMikrotikLockBtn" class="secondary-button" type="button">📡 MikroTik Lock Script</button>
           <button id="topDefaultersMikrotikRestoreBtn" class="secondary-button" type="button">✅ MikroTik Restore Script</button>
@@ -20825,6 +20826,37 @@
           <button id="topDefaultersZoneSheetBtn" class="secondary-button" type="button" data-i18n="zsheet_open_btn">🖨️ Zone Collection Sheet</button>
         </div>
         <button id="closeTopDefaultersSecondaryBtn" class="primary-button" type="button">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <!-- SISP-180: Final Pre-Lock WhatsApp Notice queue (Lock Due 15th+ courtesy notice before suspension) -->
+  <dialog id="prelockNoticeModal" class="billing-modal prelock-notice-modal" aria-labelledby="prelockNoticeTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="prelockNoticeTitle" data-i18n="prelock_title">Final Pre-Lock WhatsApp Notices</h2>
+          <span class="urdu-subtitle">معطلی سے پہلے آخری 24 گھنٹے کا نوٹس</span>
+        </div>
+        <button id="prelockNoticeCloseBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="billing-modal-body">
+        <p class="prelock-help" data-i18n="prelock_help">The Lock Due (15th+) customers who would actually be suspended next — promised (Waada) and paused customers are already spared, exactly as in the MikroTik lock script. Each notice is a WhatsApp draft: tap Send per customer, nothing is sent automatically.</p>
+        <div class="prelock-controls">
+          <label class="prelock-field" for="prelockNoticeLangSelect"><span data-i18n="prelock_lang_label">Message language</span>
+            <select id="prelockNoticeLangSelect" class="prelock-select">
+              <option value="roman" data-i18n="prelock_lang_roman">Roman Urdu</option>
+              <option value="urdu" data-i18n="prelock_lang_urdu">اردو</option>
+            </select>
+          </label>
+          <p id="prelockNoticeSummary" class="prelock-summary" role="status"></p>
+        </div>
+        <div id="prelockNoticeList" class="prelock-list"></div>
+        <p id="prelockNoticeEmpty" class="empty-state" hidden data-i18n="prelock_empty">No Lock Due customers are waiting for a final notice right now.</p>
+      </div>
+      <footer class="billing-modal-footer">
+        <span id="prelockNoticeProgress" class="prelock-progress" role="status"></span>
+        <button id="prelockNoticeCloseBtn2" class="primary-button" type="button" data-i18n="prelock_close">Close</button>
       </footer>
     </div>
   </dialog>

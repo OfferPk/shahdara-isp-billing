@@ -2441,6 +2441,42 @@ body.field-mode-open { overflow: hidden; }
 .zone-sheet-waada input { width: 18px; height: 18px; accent-color: var(--green); }
 .zone-sheet-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-180: Final Pre-Lock WhatsApp Notice queue dialog (token-only;
+   the dialog itself uses the shared .billing-modal shell →
+   var(--modal-surface)). Rows mirror the defaulter list: one customer,
+   one owner-tapped WhatsApp draft — no bulk auto-send affordance. */
+.prelock-help { margin: 0 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); }
+.prelock-controls { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: flex-end; margin-bottom: var(--space-3); }
+.prelock-field { display: flex; flex-direction: column; gap: var(--space-1); font-size: var(--text-sm); color: var(--muted); min-width: 180px; flex: 0 1 220px; }
+.prelock-select {
+  min-height: 42px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-md);
+}
+.prelock-summary { margin: 0; font-weight: 700; color: var(--ink); font-size: var(--text-sm); font-variant-numeric: var(--numeric); }
+.prelock-list { display: flex; flex-direction: column; gap: var(--space-2); max-height: 46vh; overflow-y: auto; }
+.prelock-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.prelock-row-main { flex: 1 1 200px; min-width: 0; }
+.prelock-row-name { font-weight: 700; color: var(--ink); font-size: var(--text-sm); }
+.prelock-row-sub { color: var(--muted); font-size: var(--text-xs); font-variant-numeric: var(--numeric); }
+.prelock-row-due { text-align: end; font-variant-numeric: var(--numeric); }
+.prelock-row-due strong { display: block; color: var(--color-overdue); font-size: var(--text-md); }
+.prelock-row-due span { color: var(--muted); font-size: var(--text-xs); }
+.prelock-row .prelock-send-btn { min-height: 38px; }
+.prelock-row .prelock-send-btn[disabled] { opacity: 0.65; }
+.prelock-row-note { flex-basis: 100%; margin: 0; color: var(--color-pending); font-size: var(--text-xs); }
+.prelock-progress { color: var(--muted); font-size: var(--text-sm); font-variant-numeric: var(--numeric); margin-inline-end: auto; }
+
 /* SISP-115: Bill Vouchers dialog (token-only; the dialog itself uses the
    shared .billing-modal shell → var(--modal-surface)). The printed A4
    sheet is a separate standalone document (paper black-on-white). */

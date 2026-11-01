@@ -150,7 +150,7 @@ import { getLateFeeConfig, isBillOverdue } from './qa-discounts-late-fee.js';
 import { loadQaSetups } from './lazy-qa.js';
 import { setupCollectionTargetModal } from './dashboard-collection-target.js';
 import { setupDuesAgingModal } from './dashboard-dues-aging.js';
-import { setupTopDefaultersModal } from './dashboard-top-defaulters.js';
+import { setupTopDefaultersModal, setupPrelockNoticeDialog } from './dashboard-top-defaulters.js';
 import { setupZoneSheetDialog } from './lineman-sheet-print.js';
 import { setupExpenseVoucherDialog } from './expense-voucher-print.js';
 import { setupUptimeCertificateDialog } from './uptime-certificate-print.js';
@@ -622,6 +622,7 @@ let pendingFallbackRecord = null;
 export let collectionTargetController = null;
 export let duesAgingController = null;
 export let topDefaultersModalController = null;
+export let prelockNoticeDialogController = null;
 export let zoneSheetDialogController = null;
 export let expenseVoucherDialogController = null;
 export let uptimeCertificateDialogController = null;
@@ -13027,6 +13028,9 @@ if (typeof document !== 'undefined') {
   zoneSheetDialogController = setupZoneSheetDialog(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
+  prelockNoticeDialogController = setupPrelockNoticeDialog(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
   expenseVoucherDialogController = setupExpenseVoucherDialog(() => state, {
     getPartnerEntries: () => loadPartnerLedgerEntries(),
     onToast: (msg, opts) => toast(msg, opts)
@@ -14720,6 +14724,13 @@ if (typeof document !== 'undefined') {
   const zoneSheetDialog = $('#zoneSheetDialog');
   if (zoneSheetDialog && !zoneSheetDialogController) {
     zoneSheetDialogController = setupZoneSheetDialog(() => state, {
+      onToast: (msg, opts) => toast(msg, opts)
+    });
+  }
+
+  const prelockNoticeModal = $('#prelockNoticeModal');
+  if (prelockNoticeModal && !prelockNoticeDialogController) {
+    prelockNoticeDialogController = setupPrelockNoticeDialog(() => state, {
       onToast: (msg, opts) => toast(msg, opts)
     });
   }

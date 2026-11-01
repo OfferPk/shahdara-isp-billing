@@ -208,7 +208,7 @@ import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySumm
 import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonChargesForPayment } from './speed-addon.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
-import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspensePendingBalanceCents, suspenseSummary } from './suspense-payments.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
 import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
@@ -13617,11 +13617,24 @@ if (typeof document !== 'undefined') {
   // SISP-37: suspense (unidentified) wallet payment register — claim
   // reuses quick collection, then persists exactly like a single quick
   // collection; the register entry is marked claimed, never deleted.
+  // SISP-179: suggestion chips read pending balances off the core
+  // allocation engine; the allocations result is memoized per state
+  // object (state is replaced on every save, so the cache can never go
+  // stale) and suspense-payments.js stays a leaf module.
+  let suspenseSuggestionAllocations = null;
+  let suspenseSuggestionAllocationsState = null;
   suspensePaymentsModalController = setupSuspensePaymentsModal(() => state, {
     onEntriesChanged: () => renderDashboard(),
     onToast: (msg, opts) => toast(msg, opts),
     onConfirm: (opts) => appConfirm(opts),
     currentMonth: () => monthsForHistory(new Date())[0],
+    pendingBalanceOf: (customer) => {
+      if (suspenseSuggestionAllocationsState !== state) {
+        suspenseSuggestionAllocations = calculatePaymentAllocations(state);
+        suspenseSuggestionAllocationsState = state;
+      }
+      return suspensePendingBalanceCents(suspenseSuggestionAllocations, customer);
+    },
     onClaim: (entry, { customerId, month }) => {
       const result = claimSuspensePayment(state, loadSuspensePayments(), entry.suspenseId, {
         customerId,

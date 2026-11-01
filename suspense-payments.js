@@ -37,6 +37,32 @@
  * under the same safe-merge rule as billing groups: adopted only when
  * this device has none stored yet.
  *
+ * SISP-179 adds an auto-match suggestion engine on top of the register:
+ * suggestSuspenseMatches(entry, customers, pendingBalanceOf) ranks up
+ * to SUSPENSE_SUGGESTION_LIMIT claim candidates for one unclaimed entry
+ * from two signals — the customer's live pending balance exactly
+ * equalling the entry amount, and the customer's mobile ending with
+ * the sender mobile's last 4 digits. Suggestions are advisory only:
+ * the modal renders them as 1-tap chips that run the SAME claim flow
+ * as the customer picker (onClaim -> claimSuspensePayment ->
+ * executeQuickCollection); nothing is ever claimed automatically.
+ * Eligibility mirrors the manual picker exactly: the picker offers
+ * every non-archived customer (FREE connections included — the claim
+ * then records like any other quick collection), and
+ * claimSuspensePayment refuses archived customers, so archived
+ * customers are never suggested.
+ *
+ * The pending-balance figure is the engine's: the sum of positive
+ * per-month balanceDueCents across all of the customer's bills from
+ * core's calculatePaymentAllocations — the same total-dues figure
+ * Quick Collect's getCustomerPaymentDefaults presents, and the amount
+ * a claim settles against through the FIFO executor. It reaches this
+ * module by injection (pendingBalanceOf, fed by
+ * suspensePendingBalanceCents over a caller-computed allocations
+ * result) because core.js imports THIS module's sanitizer: importing
+ * core.js back would close an import cycle, and no module in this
+ * codebase does that.
+ *
  * This module imports only the pure TID helpers from
  * wallet-reconciliation.js; customers, state and the payment executor
  * are passed in by callers, so the pure helpers stay testable without
@@ -46,6 +72,7 @@
  */
 
 import { normalizeTid, findPaymentsByTid } from './wallet-reconciliation.js';
+import { t } from './nav-language.js';
 import { findRecentDuplicate, buildDuplicatePaymentConfirmOptions } from './duplicate-payment-guard.js';
 
 export const SUSPENSE_PAYMENTS_KEY = 'sisp_suspense_payments_v1';
@@ -216,6 +243,103 @@ export function unclaimedSuspense(entries) {
   return sanitizeSuspensePayments(entries).filter((e) => !e.claimed);
 }
 
+/** SISP-179: how many suggestion chips one suspense entry shows at most. */
+export const SUSPENSE_SUGGESTION_LIMIT = 3;
+
+/** Digits only — the same normalization the customer search uses. */
+function phoneDigitsOf(value) {
+  return String(value ?? '').replace(/\D/g, '');
+}
+
+/** Last 4 digits of a phone value, or '' when it has fewer than 4 digits. */
+function lastFourDigits(value) {
+  const digits = phoneDigitsOf(value);
+  return digits.length >= 4 ? digits.slice(-4) : '';
+}
+
+/**
+ * SISP-179: one customer's live pending balance in CENTS, read off a
+ * calculatePaymentAllocations(state) result: the sum of positive
+ * per-month balanceDueCents across all their bills (unpriced months,
+ * whose balance is null, contribute nothing). This is the total-dues
+ * figure Quick Collect presents and the figure a suspense claim
+ * settles against. The allocations result is passed in, never computed
+ * here — see the header note on the import cycle.
+ */
+export function suspensePendingBalanceCents(allocations, customer) {
+  if (!allocations || typeof allocations.forMonth !== 'function' || !customer) return 0;
+  let totalCents = 0;
+  for (const bill of Array.isArray(customer.bills) ? customer.bills : []) {
+    const balance = allocations.forMonth(customer.id, bill.month)?.balanceDueCents;
+    if (typeof balance === 'number' && balance > 0) totalCents += balance;
+  }
+  return totalCents;
+}
+
+/**
+ * SISP-179: ranked claim suggestions for ONE unclaimed suspense entry.
+ * Pure — mutates nothing, claims nothing.
+ *
+ * Signals (a candidate needs at least one):
+ *  - amount: the customer's pending balance (via the injected
+ *    pendingBalanceOf(customer) -> cents, fed from the core allocation
+ *    engine by the caller) exactly equals the entry amount, compared
+ *    in cents. Without an injector the amount signal is unavailable
+ *    and only suffix matches are returned.
+ *  - suffix: the last 4 digits of the customer's mobile (phone or
+ *    customerPhone, digit-normalized) equal the last 4 digits of the
+ *    entry's senderMobile. A senderMobile with fewer than 4 digits
+ *    yields NO suffix candidates — never a match on an empty suffix.
+ *
+ * Eligibility mirrors the manual claim picker exactly: every
+ * non-archived customer is claimable (FREE connections included);
+ * archived customers are never suggested (the picker hides them and
+ * claimSuspensePayment refuses them).
+ *
+ * Ranking is deterministic: both signals first, then amount-only,
+ * then suffix-only; ties break by customerNumber ascending. At most
+ * `limit` (default SUSPENSE_SUGGESTION_LIMIT) are returned, each as
+ * { customerId, customerNumber, name, pendingBalanceCents,
+ *   matchedAmount, matchedSuffix } — pendingBalanceCents is null when
+ * no balance injector was supplied.
+ */
+export function suggestSuspenseMatches(entry, customers, pendingBalanceOf, limit = SUSPENSE_SUGGESTION_LIMIT) {
+  if (!entry || entry.claimed) return [];
+  const cap = Number.isInteger(limit) && limit > 0 ? limit : SUSPENSE_SUGGESTION_LIMIT;
+  const amountCents = Math.round((Number(entry.amount) || 0) * 100);
+  const senderSuffix = lastFourDigits(entry.senderMobile);
+  const balanceOf = typeof pendingBalanceOf === 'function' ? pendingBalanceOf : null;
+  const ranked = [];
+  for (const customer of Array.isArray(customers) ? customers : []) {
+    if (!customer || customer.archived) continue;
+    let pendingBalanceCents = null;
+    if (balanceOf) {
+      try {
+        const raw = balanceOf(customer);
+        pendingBalanceCents = Number.isFinite(raw) ? Math.round(raw) : null;
+      } catch {
+        pendingBalanceCents = null;
+      }
+    }
+    const matchedAmount = balanceOf !== null && pendingBalanceCents !== null && amountCents > 0 && pendingBalanceCents === amountCents;
+    const matchedSuffix = senderSuffix !== ''
+      && [customer.phone, customer.customerPhone].some((value) => lastFourDigits(value) === senderSuffix);
+    if (!matchedAmount && !matchedSuffix) continue;
+    ranked.push({
+      customerId: String(customer.id),
+      customerNumber: customer.customerNumber ?? null,
+      name: String(customer.name || ''),
+      pendingBalanceCents,
+      matchedAmount,
+      matchedSuffix,
+      rank: matchedAmount && matchedSuffix ? 0 : matchedAmount ? 1 : 2,
+      numberKey: Number.isFinite(Number(customer.customerNumber)) ? Number(customer.customerNumber) : Number.MAX_SAFE_INTEGER
+    });
+  }
+  ranked.sort((a, b) => (a.rank - b.rank) || (a.numberKey - b.numberKey));
+  return ranked.slice(0, cap).map(({ rank, numberKey, ...suggestion }) => suggestion);
+}
+
 /** Register totals for the dashboard card + modal header. */
 export function suspenseSummary(entries) {
   const clean = sanitizeSuspensePayments(entries);
@@ -358,10 +482,12 @@ function pakistanToday() {
  * Print. getState supplies the live app state; currentMonth supplies
  * the billing month; onClaim(entry, { customerId }) is the app's claim
  * implementation (quick-collection + persist) and must return
- * { ...claimResult, receipt } or throw.
+ * { ...claimResult, receipt } or throw. pendingBalanceOf(customer) ->
+ * cents is the optional SISP-179 balance source for the suggestion
+ * chips; without it the chips offer suffix matches only.
  */
 export function setupSuspensePaymentsModal(getState, {
-  onEntriesChanged, onToast, onConfirm, onClaim, currentMonth
+  onEntriesChanged, onToast, onConfirm, onClaim, currentMonth, pendingBalanceOf
 } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('suspensePaymentsModal') : null;
   if (!dialog) return null;
@@ -398,6 +524,25 @@ export function setupSuspensePaymentsModal(getState, {
     const state = (() => {
       try { return typeof getState === 'function' ? getState() : null; } catch { return null; }
     })();
+    // SISP-179: per-render memoized view of the injected balance source,
+    // so one render asks the engine at most once per customer.
+    const balanceCache = new Map();
+    const balanceOf = typeof pendingBalanceOf === 'function'
+      ? (customer) => {
+          const key = String(customer?.id);
+          if (!balanceCache.has(key)) {
+            let value = null;
+            try {
+              const raw = pendingBalanceOf(customer);
+              value = Number.isFinite(raw) ? Math.round(raw) : null;
+            } catch {
+              value = null;
+            }
+            balanceCache.set(key, value);
+          }
+          return balanceCache.get(key);
+        }
+      : null;
     const entries = loadSuspensePayments();
     const summary = suspenseSummary(entries);
     const customerOptions = customers
@@ -424,11 +569,19 @@ export function setupSuspensePaymentsModal(getState, {
           const warn = alreadyRecorded.length > 0
             ? `<p class="suspense-warn">⚠️ This TID is already recorded as a payment for ${escapeHtml(alreadyRecorded[0].customerName)} — claiming is blocked to avoid double-counting.</p>`
             : '';
+          // SISP-179: suggestion chips are shortcuts into the SAME claim
+          // flow as the picker below (data-suspense-suggest on the shared
+          // list click handler); rendering them claims nothing.
+          const suggestions = suggestSuspenseMatches(entry, customers, balanceOf);
+          const suggestBar = suggestions.length > 0
+            ? `<div class="suspense-suggest-bar"><span class="suspense-suggest-label">✨ ${escapeHtml(t('suspense_suggest_label'))}</span>${suggestions.map((s) => `<button type="button" class="secondary-button suspense-suggest-chip" data-suspense-suggest="${escapeHtml(entry.suspenseId)}" data-suspense-suggest-customer="${escapeHtml(s.customerId)}">${escapeHtml(t('suspense_suggest_claim'))}: ${escapeHtml(s.name)} (#${escapeHtml(String(s.customerNumber ?? ''))})</button>`).join('')}</div>`
+            : '';
           return `
           <article class="suspense-card">
             <p><span>${escapeHtml(entry.suspenseId)} · ${escapeHtml(entry.wallet)}</span><strong>${escapeHtml(formatSuspensePKR(entry.amount))}</strong></p>
             <p><span>${escapeHtml(senderLine)}</span><span>${escapeHtml(entry.date)} · ${escapeHtml(tidLine)}</span></p>
             ${warn}
+            ${suggestBar}
             <div class="suspense-claim-bar">
               <label for="suspenseCustomer-${escapeHtml(entry.suspenseId)}">Customer</label>
               <select id="suspenseCustomer-${escapeHtml(entry.suspenseId)}" class="form-input" data-suspense-customer aria-label="Customer for ${escapeHtml(entry.suspenseId)}">
@@ -504,10 +657,42 @@ export function setupSuspensePaymentsModal(getState, {
     });
   }
 
+  // The ONE claim dispatch for this modal: the picker's Claim & Link
+  // button and the SISP-179 suggestion chips both end here, so a chip
+  // claim is byte-for-byte the same flow (same onClaim -> app claim ->
+  // claimSuspensePayment -> executeQuickCollection, same receipt).
+  async function runClaim(entry, customerId) {
+    if (typeof onClaim !== 'function') {
+      if (typeof onToast === 'function') onToast('Claim is not wired yet.');
+      return;
+    }
+    // SISP-146: claiming records a payment for the picked
+    // customer — if the same amount + wallet was already logged
+    // for them moments ago (e.g. the transfer was ALSO collected
+    // by hand), ask before it lands twice. The TID layer above
+    // still refuses an exact re-claim of the same transfer.
+    const claimState = typeof getState === 'function' ? getState() : null;
+    const recentDuplicate = claimState ? findRecentDuplicate(claimState, {
+      customerId,
+      amount: entry.amount,
+      method: entry.wallet
+    }) : null;
+    if (recentDuplicate && typeof onConfirm === 'function') {
+      const confirmed = await onConfirm(buildDuplicatePaymentConfirmOptions(recentDuplicate, formatSuspensePKR));
+      if (confirmed !== 'confirm') return;
+    }
+    const result = await onClaim(entry, { customerId, month: getMonth() });
+    if (result?.receipt) showReceipt(result.receipt);
+    render();
+    if (typeof onEntriesChanged === 'function') onEntriesChanged();
+    if (typeof onToast === 'function') onToast(`Claimed: ${formatSuspensePKR(entry.amount)} linked to ${result?.entry?.claimedCustomerName || 'customer'}.`);
+  }
+
   const listEl = $('suspensePaymentsList');
   if (listEl) {
     listEl.addEventListener('click', async (event) => {
       const claimBtn = event.target.closest('[data-suspense-claim]');
+      const suggestChip = event.target.closest('[data-suspense-suggest]');
       const deleteBtn = event.target.closest('[data-suspense-delete]');
       try {
         if (claimBtn) {
@@ -519,30 +704,15 @@ export function setupSuspensePaymentsModal(getState, {
             if (typeof onToast === 'function') onToast('Pick the customer this transfer belongs to first.');
             return;
           }
-          if (typeof onClaim !== 'function') {
-            if (typeof onToast === 'function') onToast('Claim is not wired yet.');
-            return;
-          }
-          // SISP-146: claiming records a payment for the picked
-          // customer — if the same amount + wallet was already logged
-          // for them moments ago (e.g. the transfer was ALSO collected
-          // by hand), ask before it lands twice. The TID layer above
-          // still refuses an exact re-claim of the same transfer.
-          const claimState = typeof getState === 'function' ? getState() : null;
-          const recentDuplicate = claimState ? findRecentDuplicate(claimState, {
-            customerId,
-            amount: entry.amount,
-            method: entry.wallet
-          }) : null;
-          if (recentDuplicate && typeof onConfirm === 'function') {
-            const confirmed = await onConfirm(buildDuplicatePaymentConfirmOptions(recentDuplicate, formatSuspensePKR));
-            if (confirmed !== 'confirm') return;
-          }
-          const result = await onClaim(entry, { customerId, month: getMonth() });
-          if (result?.receipt) showReceipt(result.receipt);
-          render();
-          if (typeof onEntriesChanged === 'function') onEntriesChanged();
-          if (typeof onToast === 'function') onToast(`Claimed: ${formatSuspensePKR(entry.amount)} linked to ${result?.entry?.claimedCustomerName || 'customer'}.`);
+          await runClaim(entry, customerId);
+          return;
+        }
+        if (suggestChip) {
+          const entry = loadSuspensePayments().find((e) => String(e.suspenseId) === String(suggestChip.dataset.suspenseSuggest));
+          if (!entry || entry.claimed) return;
+          const customerId = suggestChip.dataset.suspenseSuggestCustomer || '';
+          if (!customerId) return;
+          await runClaim(entry, customerId);
           return;
         }
         if (deleteBtn) {

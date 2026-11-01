@@ -12,6 +12,7 @@ import { sanitizeTickets } from './complaint-tickets.js';
 import { sanitizeInventory } from './inventory-book.js';
 import { sanitizeLoanEntries } from './loan-ledger.js';
 import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
+import { sanitizeLinemanPayouts } from './lineman-payout-slip.js';
 import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
 import { sanitizeBillingGroups } from './group-billing.js';
@@ -3656,6 +3657,15 @@ export function createJsonBackup(state, exportedAt = new Date(), options = {}) {
     const cleaned = sanitizeSaadPayments(options.saadPayments);
     if (cleaned.length) document.settings = { ...(document.settings || {}), saadPayments: cleaned };
   }
+  // SISP-155: lineman monthly settlements live outside the ledger
+  // state (localStorage key sisp_lineman_payouts_v1), so they travel
+  // in an optional `settings.linemanPayouts` section. Written only
+  // when at least one settlement exists; readers that predate it
+  // ignore the unknown field.
+  if (options && typeof options === 'object' && Array.isArray(options.linemanPayouts) && options.linemanPayouts.length) {
+    const cleaned = sanitizeLinemanPayouts(options.linemanPayouts);
+    if (cleaned.length) document.settings = { ...(document.settings || {}), linemanPayouts: cleaned };
+  }
   // Installation tracker: requests live outside the ledger state
   // (localStorage key sisp_install_requests_v1), so they travel in an
   // optional `settings.installRequests` section. Written only when at
@@ -4453,6 +4463,29 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
       conflicts.push({ customerNumber:null, name:'', field:'Saad payment records differ from this device' });
     }
   }
+  // SISP-155: lineman monthly settlements — optional section (see
+  // createJsonBackup). Safe-merge rule, same as the Saad visit log:
+  // adopt the backup's records only when this device has none stored
+  // yet; when both sides hold different real records, keep + conflict.
+  let linemanPayouts = null;
+  const rawIncomingLinemanPayouts = (document.settings && typeof document.settings === 'object' && !Array.isArray(document.settings))
+    ? document.settings.linemanPayouts
+    : undefined;
+  if (Array.isArray(rawIncomingLinemanPayouts) && rawIncomingLinemanPayouts.length) {
+    const incomingLinemanPayouts = sanitizeLinemanPayouts(rawIncomingLinemanPayouts);
+    const currentLinemanPayouts = (options && typeof options === 'object' && Array.isArray(options.currentLinemanPayouts))
+      ? sanitizeLinemanPayouts(options.currentLinemanPayouts)
+      : [];
+    if (incomingLinemanPayouts.length && sameJson(incomingLinemanPayouts, currentLinemanPayouts)) {
+      // Identical on both sides — nothing to restore, no conflict.
+    } else if (incomingLinemanPayouts.length && (!options?.currentLinemanPayoutsStored || currentLinemanPayouts.length === 0)) {
+      linemanPayouts = incomingLinemanPayouts;
+      counts.linemanPayoutsRestored = 1;
+      counts.changes++;
+    } else if (incomingLinemanPayouts.length) {
+      conflicts.push({ customerNumber:null, name:'', field:'Lineman payout records differ from this device' });
+    }
+  }
   // Installation tracker: optional request section (see createJsonBackup).
   // Safe-merge rule, same as the Saad visit log: adopt the backup's
   // records only when this device has none stored yet; when both sides
@@ -5096,5 +5129,5 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
   }
   const state = counts.changes ? current : existingState;
-  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
+  return { state, counts, conflicts, canApply: checksum.status === 'mismatch' ? false : (branchGuard.blocked && !branchGuardOverrideApplied) ? false : counts.changes > 0, backupCustomerCount:incomingState.customers.length, exportedAt:document.exportedAt ?? '', digitalPaymentsSettings, receiptFooter, shopSettlements, complaints, roznamchaDays, tickets, inventory, loans, saadVisits, saadPayments, linemanPayouts, installRequests, pendingWorks, billingGroups, suspensePayments, deadPorts, feederCables, fieldBagMovements, polesRegistry, fiberDrums, stormInspections, supplierKhata, commissionRules, upsNodes, referralCredits, creditTransfers, fieldTools, badDebts, spliceClosures, monthlyClosingNotes, splitterBoxGps, overheads, expenseBudgets, partnerLedger, partnerSettlements, charityReserve, partnerSettings, voidPayments, homeBudget, waTemplates, checksumStatus:checksum.status, branchGuard, branchGuardOverrideApplied };
 }

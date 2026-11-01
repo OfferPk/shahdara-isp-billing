@@ -617,9 +617,14 @@ function slipLines(model, formatAmount) {
  * surface. Every figure comes from the stored settlement record.
  */
 export function buildLinemanPayoutSlipHtml(settlement, {
+  // Header identity defaults match the house print pattern (receipt.js /
+  // clearance-noc-slip.js): the app passes state.settings.businessName /
+  // businessPhone when the owner has configured them. The area default is
+  // the owner's Shahdara — the village near Islamabad (Margalla side),
+  // not the Punjab city of the same name (FU-SISP155-HEADER).
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Lahore',
+  areaName = 'Shahdara, Islamabad',
   generatedDate = ''
 } = {}) {
   const model = buildLinemanPayoutSlipModel(settlement);
@@ -689,9 +694,12 @@ export function buildLinemanPayoutSlipHtml(settlement, {
  * Wires the Lineman Payout dialog (index.html #linemanPayoutModal).
  * The controller owns only the settlement store; the caller passes
  * onChanged so app.js can run the ledger sync (Expenses + Roznamcha)
- * and re-render, exactly like the Saad payment sync wiring.
+ * and re-render, exactly like the Saad payment sync wiring. The
+ * caller may also pass getBusinessIdentity so the printed slip header
+ * carries the app's configured business name / phone (state.settings,
+ * the receipts' identity source — FU-SISP155-HEADER).
  */
-export function setupLinemanPayoutModal({ loadRoznamchaDays = () => [], onChanged, onToast } = {}) {
+export function setupLinemanPayoutModal({ loadRoznamchaDays = () => [], getBusinessIdentity = null, onChanged, onToast } = {}) {
   if (typeof document === 'undefined') return null;
   const dialog = document.getElementById('linemanPayoutModal');
   if (!dialog) return null;
@@ -806,7 +814,16 @@ export function setupLinemanPayoutModal({ loadRoznamchaDays = () => [], onChange
 
   const printSettlement = (settlement) => {
     const generatedDate = pakistanDateToday();
-    const html = buildLinemanPayoutSlipHtml(settlement, { generatedDate });
+    // FU-SISP155-HEADER: print the app's configured business identity
+    // (state.settings — the same source the receipts and the Clearance
+    // NOC use). Unset fields fall through to the builder's defaults.
+    const identity = (typeof getBusinessIdentity === 'function' ? getBusinessIdentity() : null) || {};
+    const html = buildLinemanPayoutSlipHtml(settlement, {
+      generatedDate,
+      businessName: identity.businessName || undefined,
+      businessPhone: identity.businessPhone || undefined,
+      areaName: identity.areaName || undefined
+    });
     const win = typeof window !== 'undefined' ? window.open('', '_blank') : null;
     if (win) {
       win.document.write(html);

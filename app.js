@@ -179,7 +179,7 @@ import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, saveComplaints, setComplaintStatus, setupComplaintRegisterModal } from './complaint-register.js';
 import { rootCauseAdviceForCustomer, rootCauseBannerHtml } from './root-cause-advisor.js';
 import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, buildVisitPrefillFromTicket, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment } from './complaint-tickets.js';
-import { assignTicketForComplaint, linkedTicketSummary, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
+import { assignTicketForComplaint, bulkAssignTicketsForComplaints, collectTechnicianNames, linkedTicketSummary, openUnlinkedComplaints, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
 import { roundToNearest50, roundingTagFor } from './bill-rounding-helper.js?v=1.11.0';
@@ -13178,6 +13178,26 @@ if (typeof document !== 'undefined') {
         if (fieldTicketsModalController) fieldTicketsModalController.refresh();
       }
       return { ticket: result.ticket, created: result.created };
+    },
+    // SISP-177: bulk-assign bar — live count of open complaints with
+    // no ticket yet + the technician names recorded on tickets (the
+    // picker suggestions), and the 1-click assignment itself, which
+    // runs the single-assign seam per complaint via the sync module.
+    getBulkAssignInfo: () => {
+      const complaints = loadComplaints();
+      const tickets = loadTickets();
+      return {
+        count: openUnlinkedComplaints(complaints, tickets).length,
+        technicians: collectTechnicianNames(tickets)
+      };
+    },
+    onBulkAssignTickets: (technician) => {
+      const result = bulkAssignTicketsForComplaints(loadComplaints(), loadTickets(), technician);
+      if (result.assigned.length) {
+        saveTickets(result.tickets);
+        if (fieldTicketsModalController) fieldTicketsModalController.refresh();
+      }
+      return { count: result.assigned.length, assigned: result.assigned };
     },
     // SISP-49: the card's daisy-chain banner launches the SISP-7 bulk
     // WhatsApp outage notifications for the complaint's downstream

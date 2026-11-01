@@ -53,6 +53,17 @@
  * data on every render and is strictly read-only — it never mutates,
  * hides or auto-closes any complaint.
  *
+ * SISP-177: a bulk-assign bar above the filters assigns every open
+ * unlinked complaint to one lineman in a click (host callbacks
+ * getBulkAssignInfo / onBulkAssignTickets, backed by complaint-ticket-
+ * sync.js's bulkAssignTicketsForComplaints, which reuses the single
+ * assign seam per complaint). The lineman input is free text — the
+ * same pattern as the per-card assign input — with a datalist of the
+ * technician names already recorded on tickets. A card whose displayed
+ * linked ticket is resolved with SISP-42 stock deductions consumed
+ * also shows its recorded materials as a badge line (from
+ * linkedTicketSummary's materialBadge; display-only).
+ *
  * SISP-163: an unresolved complaint whose customer still owes money
  * (host-derived via fix-and-collect-bridge.js, passed in as the
  * getFixCollect callback) renders a 🔧💰 Fix & Collect badge and a
@@ -463,7 +474,7 @@ export function collectComplaintZones(state) {
  * lives above; this controller only renders and persists via load/save
  * + the app's onComplaintsChanged callback (dashboard + profile refresh).
  */
-export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket, onLaunchOutageAlerts, getRootCauseAdvice, getFixCollect, onResolveAndCollect } = {}) {
+export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket, onLaunchOutageAlerts, getRootCauseAdvice, getFixCollect, onResolveAndCollect, getBulkAssignInfo, onBulkAssignTickets } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('complaintRegisterModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -520,9 +531,41 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
     return `<button type="button" class="secondary-button complaint-status-btn" data-complaint-action="reopen" data-complaint-id="${escapeHtml(complaint.id)}">Reopen</button>`;
   }
 
+  // SISP-177: the bulk-assign bar (static shell in index.html) is
+  // filled from the host's live info — how many open complaints still
+  // have no ticket, and the technician names recorded so far. Without
+  // the host callbacks the bar stays hidden, like the per-card assign
+  // controls. Shown above the filters, independent of them: the count
+  // always describes the whole register, not the filtered view.
+  function renderBulkBar() {
+    const bar = $('complaintBulkAssignBar');
+    if (!bar) return;
+    if (typeof onBulkAssignTickets !== 'function' || typeof getBulkAssignInfo !== 'function') {
+      bar.hidden = true;
+      return;
+    }
+    const info = getBulkAssignInfo() || { count: 0, technicians: [] };
+    bar.hidden = false;
+    const countEl = $('complaintBulkAssignCount');
+    if (countEl) countEl.textContent = t('cmp_bulk_count', null, { count: info.count || 0 });
+    const btn = $('complaintBulkAssignBtn');
+    if (btn) {
+      btn.textContent = t('cmp_bulk_assign_btn');
+      btn.disabled = !(info.count > 0);
+    }
+    const input = $('complaintBulkAssignTechnician');
+    if (input) input.placeholder = t('cmp_link_technician_ph');
+    const list = $('complaintTechnicianOptions');
+    if (list) {
+      list.innerHTML = (Array.isArray(info.technicians) ? info.technicians : [])
+        .map((name) => `<option value="${escapeHtml(name)}">`).join('');
+    }
+  }
+
   function renderList() {
     const listEl = $('complaintRegisterList');
     if (!listEl) return;
+    renderBulkBar();
     const rows = filterComplaints(loadComplaints(), filters);
     const summaryEl = $('complaintRegisterSummaryLine');
     if (summaryEl) {
@@ -581,6 +624,12 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       const ticketLine = link
         ? `<p><span>${escapeHtml(t('cmp_link_ticket_label'))}</span><strong>${escapeHtml(link.id)} · ${escapeHtml(link.status)}</strong></p>`
         : '';
+      // SISP-177: material badge — the displayed linked ticket is
+      // resolved and its SISP-42 stock deductions were consumed, so
+      // show the recorded materials (display-only, from the summary).
+      const materialLine = link && link.materialBadge
+        ? `<p class="complaint-material-line"><span>${escapeHtml(t('cmp_materials_badge', null, { items: link.materialBadge.items.join(', ') }))}</span></p>`
+        : '';
       // Assign stays available when the only linked ticket is already
       // resolved: idempotency reuses open/in-progress tickets only, so
       // a resolved link must never block a fresh ticket for the same
@@ -611,6 +660,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         ${chainBanner}
         ${rcaBanner}
         ${ticketLine}
+        ${materialLine}
         <p><span>Reported</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="reportedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.reportedAt || '')}" aria-label="Reported at"></p>
         <p><span>Resolved</span><input class="form-input complaint-inline-input" type="datetime-local" data-complaint-field="resolvedAt" data-complaint-id="${escapeHtml(c.id)}" value="${escapeHtml(c.resolvedAt || '')}" aria-label="Resolved at" ${c.status !== 'Resolved' ? 'disabled' : ''}></p>
         <p><span>Downtime</span><span class="complaint-downtime-wrap"><input class="form-input complaint-inline-input complaint-downtime-input" type="number" min="0" step="0.25" data-complaint-field="downtimeHours" data-complaint-id="${escapeHtml(c.id)}" value="${c.downtimeHours === null || c.downtimeHours === undefined ? '' : escapeHtml(String(c.downtimeHours))}" placeholder="auto" aria-label="Downtime hours"><small>h${c.downtimeManual ? ' (manual)' : ''}</small></span></p>
@@ -650,6 +700,27 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       if (el) el.value = '';
     }
     renderList();
+  });
+
+  // SISP-177: 1-click bulk assign. Like the per-card assign, there is
+  // no separate confirm step — the bar itself shows the live count it
+  // will act on before the click. The host creates one linked ticket
+  // per open unlinked complaint via the single-assign seam.
+  const bulkBtn = $('complaintBulkAssignBtn');
+  if (bulkBtn) bulkBtn.addEventListener('click', () => {
+    const input = $('complaintBulkAssignTechnician');
+    const technician = input ? input.value.trim() : '';
+    if (!technician) { onToast && onToast(t('cmp_link_technician_required')); return; }
+    try {
+      const result = typeof onBulkAssignTickets === 'function' ? onBulkAssignTickets(technician) : null;
+      if (result && result.count > 0) {
+        onToast && onToast(t('cmp_bulk_assigned_toast', null, { count: result.count, technician }));
+        if (input) input.value = '';
+      }
+      renderList();
+    } catch (error) {
+      onToast && onToast(error && error.message ? error.message : 'Tickets could not be assigned.');
+    }
   });
 
   const addForm = $('complaintAddForm');

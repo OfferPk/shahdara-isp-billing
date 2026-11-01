@@ -21956,6 +21956,12 @@
           <input id="complaintAddNote" class="form-input" type="text" placeholder="e.g. Fiber cut near the bridge">
           <button id="complaintAddSubmitBtn" class="primary-button" type="submit">Record complaint</button>
         </form>
+        <div id="complaintBulkAssignBar" class="complaint-bulk-bar" hidden>
+          <span id="complaintBulkAssignCount" class="complaint-bulk-count"></span>
+          <input id="complaintBulkAssignTechnician" class="form-input complaint-bulk-input" type="text" list="complaintTechnicianOptions" autocomplete="off" aria-label="Lineman name for bulk assign">
+          <datalist id="complaintTechnicianOptions"></datalist>
+          <button id="complaintBulkAssignBtn" class="primary-button" type="button"></button>
+        </div>
         <h3>Filters</h3>
         <div class="complaint-register-filters">
           <label for="complaintFilterMonth">Month</label>

@@ -229,6 +229,12 @@
 .complaint-chain-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; font-size: 13px; color: var(--muted); min-width: 0; }
 .complaint-chain-list li strong { color: var(--ink); overflow-wrap: anywhere; }
 .complaint-chain-list li span { overflow-wrap: anywhere; }
+/* SISP-177: bulk-assign bar above the register filters + material badge line on synced cards. Theme tokens only. */
+.complaint-bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 0 0 16px; }
+.complaint-bulk-bar[hidden] { display: none; }
+.complaint-bulk-count { font-size: 13px; font-weight: 600; color: var(--ink); }
+.complaint-bulk-input { flex: 1 1 160px; min-width: 0; }
+.complaint-register-card .complaint-material-line span { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
 .root-cause-banner { background: var(--amber-bg); border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 10px; padding: 10px 12px; margin: 10px 0; min-width: 0; }
 .root-cause-title { font-size: 13px; font-weight: 700; color: var(--amber); }
 .root-cause-body { font-size: 13px; color: var(--ink); margin: 6px 0; overflow-wrap: anywhere; }

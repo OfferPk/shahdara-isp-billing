@@ -54,7 +54,7 @@ import {
   settleAddonCharges,
   unsettleAddonChargesForPayment
 } from './speed-addon.js';
-import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
+import { buildConcessionSuggestion, buildUptimeConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
 import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFeeWaiverOf, restoreWaivedLateFee } from './late-fee-waiver.js';
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
 import { findRecentDuplicate, duplicatePaymentBypassKey, askDuplicatePayment } from './duplicate-payment-guard.js';
@@ -1710,6 +1710,13 @@ export function setupQuickCollectModal({
   const doneCloseBtn = document.getElementById('quickCollectDoneCloseBtn');
   const goToTransactionsBtn = document.getElementById('quickCollectGoToTransactionsBtn');
 
+  // SISP-181: set when the operator taps "⚡ Apply Uptime Concession" — the
+  // concession box then renders (and its Apply button recomputes) the
+  // uptime-tracking-based suggestion for this exact customer + month
+  // instead of the SISP-16 complaint-register one. The fill alone stamps
+  // nothing; the bill changes only through the box's normal Apply path.
+  let uptimeConcessionFill = null;
+
   let activeFilter = 'all-dues';
   // SISP-101: the operator's waiver tick for the currently open form.
   // Kept outside the waiver box's DOM because the box re-renders on
@@ -1900,6 +1907,8 @@ export function setupQuickCollectModal({
 
   // SISP-30: refresh the concession badge when the operator picks another month.
   monthSelect?.addEventListener('change', () => {
+    // SISP-181: an uptime fill belongs to the month it was made for.
+    uptimeConcessionFill = null;
     if (activeCustomerId) renderConcessionBox(activeCustomerId, monthSelect.value);
     if (activeCustomerId) renderUptimeLine(activeCustomerId, monthSelect.value);
     // SISP-101: the waiver tick belongs to one bill's fee — a month
@@ -2022,8 +2031,51 @@ export function setupQuickCollectModal({
         offline: qcDurationText(summary.offlineMinutes),
         days: summary.daysInMonth
       });
+      // SISP-181: 1-tap bridge from this uptime summary to the SISP-30
+      // concession box. The button acts on the month's bill, so — exactly
+      // like the concession box itself — it renders only when a bill
+      // exists for the month and no concession is stamped on it yet.
+      // Free connections never get a bill, so for them the button is
+      // absent just like the manual concession control is.
+      const bill = customer.bills?.find(b => b.month === month);
+      if (bill && !(Number(bill.concessionAmount) > 0)) {
+        const fillBtn = document.createElement('button');
+        fillBtn.type = 'button';
+        fillBtn.className = 'apply-late-fee-btn';
+        fillBtn.setAttribute('data-qc-uptime-concession', '');
+        fillBtn.textContent = t('upt_qc_apply_concession');
+        fillBtn.addEventListener('click', () => fillUptimeConcession(customerId, month));
+        uptimeLine.appendChild(document.createTextNode(' '));
+        uptimeLine.appendChild(fillBtn);
+      }
     } catch {
       uptimeLine.textContent = '';
+    }
+  }
+
+  // SISP-181: the ⚡ button's whole job is to FILL the concession box with
+  // the uptime-based suggestion. It stamps nothing itself — the operator
+  // still taps the box's normal Apply button, which runs the existing
+  // applyConcessionToBill path, so an auto-filled concession lands on the
+  // bill exactly like a manually applied one. Below the SISP-30 threshold
+  // the button invents nothing: a toast reports the recorded hours.
+  function fillUptimeConcession(customerId, month) {
+    try {
+      const state = getState();
+      if (!state || !customerId || !month) return;
+      const customer = state.customers.find(c => c.id === customerId);
+      const bill = customer?.bills?.find(b => b.month === month);
+      if (!customer || !bill) return;
+      const suggestion = buildUptimeConcessionSuggestion(customer, bill, { referenceDate: new Date() });
+      if (!suggestion.eligible) {
+        if (typeof onToast === 'function') onToast(t('upt_qc_concession_below_threshold', null, { hours: suggestion.downtimeHours, threshold: suggestion.thresholdHours }));
+        return;
+      }
+      uptimeConcessionFill = { customerId, month };
+      renderConcessionBox(customerId, month);
+      if (typeof onToast === 'function') onToast(t('upt_qc_concession_filled', null, { amount: suggestion.suggestedAmount }));
+    } catch {
+      // Leave the concession box exactly as it was.
     }
   }
 
@@ -2114,7 +2166,13 @@ export function setupQuickCollectModal({
       const customer = state.customers.find(c => c.id === customerId);
       const bill = customer?.bills?.find(b => b.month === month);
       if (!customer || !bill) return;
-      const suggestion = buildConcessionSuggestion(customer, bill, loadComplaints());
+      // SISP-181: while an uptime fill is active for this customer + month,
+      // the box renders the uptime-tracking suggestion; otherwise the
+      // SISP-16 complaint-register suggestion, exactly as before.
+      const useUptimeFill = Boolean(uptimeConcessionFill && uptimeConcessionFill.customerId === customerId && uptimeConcessionFill.month === month);
+      const suggestion = useUptimeFill
+        ? buildUptimeConcessionSuggestion(customer, bill, { referenceDate: new Date() })
+        : buildConcessionSuggestion(customer, bill, loadComplaints());
       const allocations = calculatePaymentAllocations(state);
       const balanceCents = allocations.forMonth(customerId, month)?.balanceDueCents;
       const balance = typeof balanceCents === 'number' ? balanceCents / 100 : null;
@@ -2136,7 +2194,12 @@ export function setupQuickCollectModal({
           const freshCustomer = freshState.customers.find(c => c.id === customerId);
           const freshBill = freshCustomer?.bills?.find(b => b.month === month);
           if (!freshCustomer || !freshBill) throw new Error('Bill not found for this concession.');
-          const fresh = buildConcessionSuggestion(freshCustomer, freshBill, loadComplaints());
+          // SISP-181: recompute from the SAME source that filled the box —
+          // an uptime fill must stamp the uptime figure, never silently
+          // swap in the complaint-register one.
+          const fresh = useUptimeFill
+            ? buildUptimeConcessionSuggestion(freshCustomer, freshBill, { referenceDate: new Date() })
+            : buildConcessionSuggestion(freshCustomer, freshBill, loadComplaints());
           if (!fresh.eligible) throw new Error('No outage concession is due for this bill month.');
           // SISP-131: read the toggle rendered beside this button; off
           // (or absent) the raw suggestion is stamped unchanged.
@@ -2146,6 +2209,7 @@ export function setupQuickCollectModal({
           });
           const next = applyConcessionToBill(freshState, customerId, month, { amount: effective.suggestedAmount, reason: fresh.reason, rounding: effective.rounding });
           if (typeof onSaveState === 'function') onSaveState(next);
+          uptimeConcessionFill = null;
           openCustomerCollectionForm(customerId);
           const netAllocations = calculatePaymentAllocations(getState());
           const netBalanceCents = netAllocations.forMonth(customerId, month)?.balanceDueCents;
@@ -2179,6 +2243,7 @@ export function setupQuickCollectModal({
         try {
           const next = removeConcessionFromBill(getState(), customerId, month, { reason: 'Outage concession removed by owner' });
           if (typeof onSaveState === 'function') onSaveState(next);
+          uptimeConcessionFill = null;
           openCustomerCollectionForm(customerId);
           if (typeof onToast === 'function') onToast(`Outage concession removed from bill ${month}.`);
         } catch (err) {

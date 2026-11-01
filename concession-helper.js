@@ -19,9 +19,15 @@
 //
 // All helpers are pure except buildConcessionSuggestion's reads of the passed
 // complaints list. Tests use synthetic data only.
+//
+// SISP-181 adds buildUptimeConcessionSuggestion: the identical suggestion
+// computation fed from uptime-tracking's recorded offline periods instead of
+// the complaint register, so Quick Collect can fill the concession box from
+// the customer's exact calendar-month offline hours.
 
 import { buildCustomerDowntimeSummary } from './downtime-analytics.js';
 import { applicablePriceForMonth } from './billing-cycle.js';
+import { buildMonthlyUptime } from './uptime-tracking.js';
 import { roundedAmountFor } from './bill-rounding-helper.js';
 
 /** Downtime hours in a billed month at/above which a concession is suggested. */
@@ -104,6 +110,43 @@ export function buildConcessionSuggestion(customer, bill, complaints, { threshol
     month: bill.month,
     customerId: customer.id,
     complaintCount: summary.complaintCount,
+    existingAmount,
+    existingReason: typeof bill.concessionReason === 'string' ? bill.concessionReason : '',
+    alreadyApplied: existingAmount > 0
+  };
+}
+
+/**
+ * SISP-181 bridge: the SAME suggestion computation as
+ * buildConcessionSuggestion (same pro-rata formula, same >= 12h threshold,
+ * same price-schedule rate with the bill's due amount as fallback), but the
+ * downtime hours come from uptime-tracking's exact calendar-month offline
+ * total (buildMonthlyUptime: recorded offline periods UNIONED with the
+ * service-status history, double-recorded periods counted once) instead of
+ * the SISP-16 complaint-register downtime. There is deliberately no second
+ * formula here: the hours are fed into suggestConcession untouched, so the
+ * two sources can never drift apart mathematically.
+ *
+ * The offline minutes are exact; the hours handed to the shared formula are
+ * rounded to 2 decimals so the stamped audit reason stays readable
+ * (e.g. 54h, 54.5h). Pure: reads the customer record, stamps nothing.
+ */
+export function buildUptimeConcessionSuggestion(customer, bill, { thresholdHours = CONCESSION_THRESHOLD_HOURS, referenceDate = new Date() } = {}) {
+  if (!customer || !bill || !bill.month) {
+    return { ...suggestConcession({ packageRate: null, downtimeHours: 0, thresholdHours }), month: bill?.month ?? '', customerId: customer?.id ?? null, existingAmount: 0, existingReason: '', alreadyApplied: false, offlineMinutes: 0, source: 'uptime' };
+  }
+  const uptime = buildMonthlyUptime(customer, bill.month, referenceDate);
+  const downtimeHours = Math.round((uptime.offlineMinutes / 60) * 100) / 100;
+  const scheduled = applicablePriceForMonth(customer, bill.month);
+  const fallback = positiveNumber(bill.dueAmount);
+  const suggestion = suggestConcession({ packageRate: scheduled ?? fallback, downtimeHours, thresholdHours });
+  const existingAmount = sanitizeConcessionAmount(bill.concessionAmount);
+  return {
+    ...suggestion,
+    month: bill.month,
+    customerId: customer.id,
+    offlineMinutes: uptime.offlineMinutes,
+    source: 'uptime',
     existingAmount,
     existingReason: typeof bill.concessionReason === 'string' ? bill.concessionReason : '',
     alreadyApplied: existingAmount > 0

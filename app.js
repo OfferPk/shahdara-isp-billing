@@ -175,7 +175,7 @@ import { applyFifoPaymentEventToState, applicablePriceForMonth, buildArrearsBrea
 import { sanitizeSubContributors } from './shared-router-contributors.js?v=1.11.0';
 import { setupMonthEndWizard } from './month-end-wizard.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
-import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
+import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, saveComplaints, setComplaintStatus, setupComplaintRegisterModal } from './complaint-register.js';
 import { rootCauseAdviceForCustomer, rootCauseBannerHtml } from './root-cause-advisor.js';
 import { TICKETS_KEY, applyTicketStockBridge, billedTicketChargesPending, buildTicketSummary, buildVisitPrefillFromTicket, hasRecurringFaultWarning, loadTickets, saveTickets, setupFieldTicketsModal, ticketFaultLabel, ticketsForCustomer, unsettleTicketChargesForPayment } from './complaint-tickets.js';
 import { assignTicketForComplaint, linkedTicketSummary, syncComplaintTicketLinks } from './complaint-ticket-sync.js?v=1.11.0';
@@ -287,6 +287,7 @@ import {
   buildCampaignQueue,
   markCustomerLastReminded
 } from './reminder-queue.js?v=1.11.0';
+import { fixCollectInfo, runResolveAndCollect } from './fix-and-collect-bridge.js';
 import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor, renderCustomWaTemplate } from './whatsapp-templates.js?v=1.11.0';
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
@@ -11491,9 +11492,37 @@ function updateReminderCharCount() {
   reminderCharCount.textContent = `${len} characters`;
 }
 
+// SISP-163: every Reminders Today build receives the live complaint +
+// ticket ledgers so customers with an open service fault are paused
+// (and counted) instead of being chased for payment.
+function reminderQueueLedgerOptions() {
+  return { ...reminderQueueOptions(), complaints: loadComplaints(), tickets: loadTickets() };
+}
+
+// SISP-163: how many of today's reminders the open-fault rule paused in
+// the queue session currently on screen. Traversal (Next/Prev) reopens
+// this modal without a count, so the value is kept until a non-queue
+// open resets it.
+let currentReminderSuppressedCount = 0;
+
+function renderReminderSuppressedLine() {
+  const line = $('#reminderSuppressedLine');
+  if (!line) return;
+  const count = currentReminderSuppressedCount;
+  line.hidden = !(count > 0);
+  line.textContent = count > 0 ? t('fcx_suppressed_line', null, { count }) : '';
+}
+
 export function openPaymentReminderModal(cust, options = {}) {
   const emptyState = $('#reminderQueueEmptyState');
   const modalBody = document.querySelector('.reminder-modal-body');
+
+  if (Number.isInteger(options.suppressedCount)) {
+    currentReminderSuppressedCount = options.suppressedCount;
+  } else if (!options.queue && !options.isEmptyQueue) {
+    currentReminderSuppressedCount = 0;
+  }
+  renderReminderSuppressedLine();
 
   if (options.isEmptyQueue || (!cust && options.isEmpty)) {
     currentReminderCustomer = null;
@@ -11645,7 +11674,7 @@ if (reminderQueueSkipBtn) {
 if (reminderHideContactedTodayToggle) {
   reminderHideContactedTodayToggle.addEventListener('change', () => {
     if (!reminderModal || !reminderModal.open) return;
-    const res = getRemindersTodayQueue(state, reminderQueueOptions());
+    const res = getRemindersTodayQueue(state, reminderQueueLedgerOptions());
     if (!res.queue || res.queue.length === 0) {
       openPaymentReminderModal(null, {
         isEmptyQueue: true,
@@ -12000,17 +12029,19 @@ if (wadaListContainer) {
 if (openRemindersFromWadaBtn) {
   openRemindersFromWadaBtn.addEventListener('click', () => {
     closeWadaFollowupModal();
-    const queueData = getRemindersTodayQueue(state, reminderQueueOptions());
+    const queueData = getRemindersTodayQueue(state, reminderQueueLedgerOptions());
     if (!queueData.queue || queueData.queue.length === 0) {
       openPaymentReminderModal(null, {
         isEmptyQueue: true,
-        overdueCount: queueData.overdueCustomersCount
+        overdueCount: queueData.overdueCustomersCount,
+        suppressedCount: queueData.suppressedCount
       });
       return;
     }
     openPaymentReminderModal(queueData.queue[0].customer, {
       queue: queueData.queue,
-      index: 0
+      index: 0,
+      suppressedCount: queueData.suppressedCount
     });
   });
 }
@@ -12832,17 +12863,48 @@ if (typeof document !== 'undefined') {
     onOpenShops: () => { $('#openShopSettlementModalBtn')?.click(); },
     onOpenOverheads: () => { expenseActiveTab = 'overheads'; switchView('expenses'); syncExpenseTabs(); renderOverheads(); }
   });
+  // Shared by the register modal's own changes and the SISP-163
+  // host-run resolve below, so both paths converge the ledgers and
+  // refresh exactly the same surfaces.
+  const handleRegisterComplaintsChanged = () => {
+    recordComplaintTicketSync('complaint');
+    recordTicketStockBridge();
+    renderDashboard();
+    renderDetail();
+    if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.refresh();
+    if (monthlyComplaintReportModalController) monthlyComplaintReportModalController.refresh();
+    if (upstreamSlaModalController) upstreamSlaModalController.refresh();
+    if (postRepairCheckinModalController) postRepairCheckinModalController.refresh();
+  };
   complaintRegisterModalController = setupComplaintRegisterModal(() => state, {
-    onComplaintsChanged: () => {
-      recordComplaintTicketSync('complaint');
-      recordTicketStockBridge();
-      renderDashboard();
-      renderDetail();
-      if (downtimeAnalyticsModalController) downtimeAnalyticsModalController.refresh();
-      if (monthlyComplaintReportModalController) monthlyComplaintReportModalController.refresh();
-      if (upstreamSlaModalController) upstreamSlaModalController.refresh();
-      if (postRepairCheckinModalController) postRepairCheckinModalController.refresh();
-    },
+    onComplaintsChanged: handleRegisterComplaintsChanged,
+    // SISP-163: Fix & Collect — the badge/button data comes from the
+    // engine-derived outstanding (fix-and-collect-bridge.js); the
+    // combined action resolves through the SAME status path a plain
+    // resolve uses (setComplaintStatus + save + the shared change
+    // handler above, which runs the SISP-44 sync and SISP-42/127 stock
+    // bridges) and only then opens Quick Collect, prefilled by the
+    // existing QC defaults. Skipping the collection leaves the
+    // complaint resolved — runResolveAndCollect has no undo path.
+    getFixCollect: (customerId) => fixCollectInfo(state, customerId),
+    onResolveAndCollect: (complaint) => runResolveAndCollect({
+      resolve: () => {
+        const next = setComplaintStatus(loadComplaints(), complaint.id, 'Resolved');
+        saveComplaints(next);
+        handleRegisterComplaintsChanged();
+        const entry = next.find((c) => c.id === complaint.id);
+        toast(`Complaint ${complaint.id} resolved — downtime ${formatDowntimeHours(entry ? entry.downtimeHours : null)}.`);
+        if (complaintRegisterModalController) complaintRegisterModalController.refresh();
+        return entry;
+      },
+      launchCollect: () => {
+        if (window.quickCollectModalController?.selectAndOpen) {
+          window.quickCollectModalController.selectAndOpen(complaint.customerId);
+          return true;
+        }
+        return false;
+      }
+    }),
     // SISP-44: the register card shows the linked ticket (or the
     // 1-click assign controls) via complaint-ticket-sync.js.
     getTicketLink: (complaintId) => linkedTicketSummary(loadTickets(), complaintId),
@@ -12876,6 +12938,16 @@ if (typeof document !== 'undefined') {
     // Log pre-filled from the resolved ticket; the logged-ticket list
     // (visits' ticketId links) drives the button's logged state.
     listLoggedVisitTicketIds: () => loadSaadVisits().map((v) => v.ticketId).filter(Boolean),
+    // SISP-163: Fix & Collect — badge data from the engine-derived
+    // outstanding; after a resolve with the collect box checked, the
+    // modal calls this to open Quick Collect for the ticket's customer
+    // (the ticket is already resolved and persisted by then).
+    getFixCollect: (customerId) => fixCollectInfo(state, customerId),
+    onResolveAndCollect: (ticket) => {
+      if (ticket && window.quickCollectModalController?.selectAndOpen) {
+        window.quickCollectModalController.selectAndOpen(ticket.customerId);
+      }
+    },
     // SISP-162: display-only WDM replacement hint on converter-fault
     // tickets, built from the customer's recorded side + side stock.
     converterSuggestionForTicket: (ticket) => {
@@ -14543,17 +14615,19 @@ if (typeof document !== 'undefined') {
     mobileMoreRemindersQueueBtn.addEventListener('click', () => {
       const moreMenu = $('#mobileMoreMenu');
       if (moreMenu) moreMenu.hidden = true;
-      const res = getRemindersTodayQueue(state, reminderQueueOptions());
+      const res = getRemindersTodayQueue(state, reminderQueueLedgerOptions());
       if (!res.queue || res.queue.length === 0) {
         openPaymentReminderModal(null, {
           isEmptyQueue: true,
-          overdueCount: res.overdueCustomersCount
+          overdueCount: res.overdueCustomersCount,
+          suppressedCount: res.suppressedCount
         });
         return;
       }
       openPaymentReminderModal(res.queue[0].customer, {
         queue: res.queue,
-        index: 0
+        index: 0,
+        suppressedCount: res.suppressedCount
       });
     });
   }
@@ -14564,12 +14638,12 @@ if (typeof document !== 'undefined') {
     mobileMoreButtonEl.dataset.remindersBadgeWired = 'true';
     mobileMoreButtonEl.addEventListener('click', () => {
       try {
-        updateRemindersQueueNavBadge(state);
+        updateRemindersQueueNavBadge(state, reminderQueueLedgerOptions());
       } catch {}
     });
   }
   try {
-    updateRemindersQueueNavBadge(state);
+    updateRemindersQueueNavBadge(state, reminderQueueLedgerOptions());
   } catch {}
 
   // Wada / Promise-to-Pay Follow-up List Button from Mobile More Menu

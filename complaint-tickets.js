@@ -56,6 +56,16 @@
  *   stamps are not work duration. The link is the visit's ticketId, so
  *   a ticket with a logged visit shows "Saad visit logged" instead of
  *   the button and can never be logged twice from here.
+ * - SISP-163: an unresolved ticket whose customer still owes money
+ *   (host-derived via fix-and-collect-bridge.js, passed in as the
+ *   getFixCollect callback) shows a 🔧💰 Fix & Collect badge, and its
+ *   resolve form gains a pre-checked "collect bill too" checkbox. On a
+ *   successful resolve with the box checked, the host's
+ *   onResolveAndCollect opens Quick Collect; skipping the payment can
+ *   never un-resolve the ticket. All strings arrive via the callback,
+ *   so this module still imports nothing.
+ * - This module imports nothing: it is self-contained so the backup merge
+ *   in core.js can sanitize tickets without a module cycle.
  * - This module imports only leaf modules (nav-language.js and
  *   commercial-sla.js, neither of which imports anything), so the
  *   backup merge in core.js can sanitize tickets without a module
@@ -838,7 +848,7 @@ function materialLineLabel(line) {
  * getState is the app state accessor (customers list); tickets live in
  * their own localStorage ledger, like the complaint register.
  */
-export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds, converterSuggestionForTicket, onTicketSignal, getRootCauseAdvice, getOpticalBadge } = {}) {
+export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, onLogSaadVisit, listLoggedVisitTicketIds, converterSuggestionForTicket, onTicketSignal, getRootCauseAdvice, getOpticalBadge, getFixCollect, onResolveAndCollect } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('fieldTicketsModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -893,6 +903,15 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         <input id="ticketResolve_${ticket.id}_${m.key}" class="form-input" type="number" min="0" step="${m.allowDecimal ? '0.01' : '1'}" inputmode="decimal" placeholder="Qty" data-resolve-material="${m.key}" data-resolve-field="qty">
         <input class="form-input" type="number" min="0" step="0.01" inputmode="decimal" placeholder="Amount PKR" data-resolve-material="${m.key}" data-resolve-field="amount">
       </div>`).join('');
+    // SISP-163: when the host reports this customer still owes money,
+    // the resolve form offers the combined Fix & Collect step. The label
+    // (amount included) arrives fully translated via the callback.
+    const fixCollect = typeof getFixCollect === 'function' && typeof onResolveAndCollect === 'function'
+      ? getFixCollect(ticket.customerId)
+      : null;
+    const collectRow = fixCollect && fixCollect.collectLabel
+      ? `<label class="ticket-resolve-collect"><input type="checkbox" data-resolve-collect checked> ${escapeHtml(fixCollect.collectLabel)}</label>`
+      : '';
     return `<form class="ticket-resolve-form" data-resolve-form="${escapeHtml(ticket.id)}">
       <p class="ticket-resolve-hint">Log what left the store. Billed to Customer adds the amounts to this customer's pending ticket charges; Free Maintenance bills nothing.</p>
       ${rows}
@@ -900,6 +919,7 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         <label><input type="radio" name="ticketResolveBilling_${ticket.id}" value="free" checked> Free Maintenance</label>
         <label><input type="radio" name="ticketResolveBilling_${ticket.id}" value="billed"> Billed to Customer</label>
       </div>
+      ${collectRow}
       <div class="ticket-resolve-billing">
         <span>Stock source:</span>
         <label><input type="radio" name="ticketResolveSource_${ticket.id}" value="main" checked> Main Store</label>
@@ -963,6 +983,14 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
       const warning = hasRecurringFaultWarning(loadTickets(), t.customerId)
         ? '<span class="ticket-warning-badge">⚠️ Recurring fault</span>'
         : '';
+      // SISP-163: Fix & Collect badge — host-derived outstanding for
+      // this ticket's customer; only on unresolved tickets.
+      const fixCollect = t.status !== 'Resolved' && typeof getFixCollect === 'function'
+        ? getFixCollect(t.customerId)
+        : null;
+      const fixBadge = fixCollect && fixCollect.badgeHtml
+        ? `<p class="ticket-fix-collect-row">${fixCollect.badgeHtml}</p>`
+        : '';
       // SISP-132: live optical fault classification for attenuation
       // tickets (host callback from optical-anomaly-detector.js),
       // derived from recorded RX readings at render time — the ticket
@@ -1015,6 +1043,7 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
         </header>
         <p><span>Customer</span><strong>${escapeHtml(ticketCustomerLabel(t))}</strong></p>
         <p><span>Fault</span><strong>${escapeHtml(ticketFaultLabel(t))}</strong></p>
+        ${fixBadge}
         ${opticalBadge ? `<p><span>Optical</span><span>${opticalBadge}</span></p>` : ''}
         ${t.complaintId ? `<p><span>Complaint</span><strong>${escapeHtml(t.complaintId)}</strong></p>` : ''}
         ${t.resolvedViaComplaintId ? `<p><span>Resolved via</span><strong>${escapeHtml(t.resolvedViaComplaintId)} · complaint register</strong></p>` : ''}
@@ -1174,6 +1203,9 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
       }
       const billingInput = form.querySelector(`input[name="ticketResolveBilling_${CSS.escape(id)}"]:checked`);
       const billingType = billingInput ? billingInput.value : 'free';
+      // SISP-163: read the Fix & Collect choice before the re-render
+      // destroys the form.
+      const collectChecked = Boolean(form.querySelector('[data-resolve-collect]')?.checked);
       const sourceInput = form.querySelector(`input[name="ticketResolveSource_${CSS.escape(id)}"]:checked`);
       const stockSource = sourceInput ? sourceInput.value : 'main';
       const signalAfterRaw = form.querySelector('[data-resolve-signal-after]')?.value ?? '';
@@ -1188,6 +1220,12 @@ export function setupFieldTicketsModal(getState, { onTicketsChanged, onToast, on
           ? `Ticket ${id} resolved — PKR ${entry.billedAmount} added to pending ticket charges.`
           : `Ticket ${id} resolved.`);
         renderList();
+        // SISP-163: the ticket is resolved and persisted at this point;
+        // opening Quick Collect is a separate, optional act — skipping
+        // or cancelling it can never un-resolve the ticket.
+        if (collectChecked && entry && typeof onResolveAndCollect === 'function') {
+          onResolveAndCollect(entry);
+        }
       } catch (error) {
         onToast && onToast(error && error.message ? error.message : 'Ticket could not be resolved.');
       }

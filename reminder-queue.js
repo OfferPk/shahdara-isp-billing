@@ -35,6 +35,7 @@ import { getWaadaTier, WAADA_TIERS, waadaTemplateIdForTier } from './waada-queue
 import { getWaTemplates, renderCustomWaTemplate } from './whatsapp-templates.js';
 import { contactedToday } from './contact-cooldown-tracker.js';
 import { classifyCustomerDefaulter } from './defaulter-risk-segment.js';
+import { buildFaultSuppressedCustomerIds } from './fix-and-collect-bridge.js';
 
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 export const REMINDER_STAGES_SETTINGS_KEY = 'shahdara_reminder_stages_v1';
@@ -746,7 +747,12 @@ export function getCustomerOutstandingDues(customer, state, monthStr) {
  * @param {string} [options.todayString] - YYYY-MM-DD
  * @param {Storage|object} [options.storage]
  * @param {Array<Object>} [options.stages]
- * @returns {{ date: string, queue: Array<Object>, totalCount: number, pendingCount: number, completedCount: number, totalDuesPkr: number }}
+ * @param {Array<Object>} [options.complaints] - SISP-163: live complaint
+ *   register entries; customers with an OPEN service-fault complaint are
+ *   held out of the queue (see fix-and-collect-bridge.js).
+ * @param {Array<Object>} [options.tickets] - SISP-163: live field tickets,
+ *   same suppression rule as complaints.
+ * @returns {{ date: string, queue: Array<Object>, totalCount: number, pendingCount: number, completedCount: number, totalDuesPkr: number, suppressedCount: number }}
  */
 export function getRemindersTodayQueue(state, options = {}) {
   const storage = options.storage ?? (typeof localStorage !== 'undefined' ? localStorage : null);
@@ -764,6 +770,13 @@ export function getRemindersTodayQueue(state, options = {}) {
 
   const history = options.history || (storage ? getReminderHistory(storage) : null);
   let overdueCustomersCount = 0;
+
+  // SISP-163: customers whose line is down with an open service-fault
+  // complaint/ticket are NOT chased for payment today. The set is
+  // derived from the live ledgers on every build (never stored), so a
+  // customer returns to the queue automatically once the fault closes.
+  const faultSuppressedIds = buildFaultSuppressedCustomerIds(options.complaints, options.tickets);
+  let suppressedCount = 0;
 
   for (const c of customers) {
     if (c.archived) continue;
@@ -788,6 +801,14 @@ export function getRemindersTodayQueue(state, options = {}) {
 
     const match = getMatchingReminderStage(c, balance, todayStr, stages, { storage, history });
     if (!match || !match.matched) continue;
+
+    // SISP-163: the stage matched, but an open fault pauses the
+    // automated reminder. Counted separately so the UI can say so
+    // honestly instead of the customer silently vanishing.
+    if (faultSuppressedIds.has(String(c.id))) {
+      suppressedCount++;
+      continue;
+    }
 
     const alreadyReminded = Boolean(match.alreadyReminded) || isCustomerRemindedToday(c.id, match.stage.id, todayStr, storage);
     if (alreadyReminded) {
@@ -881,7 +902,8 @@ export function getRemindersTodayQueue(state, options = {}) {
     pendingCount,
     completedCount,
     totalDuesPkr,
-    overdueCustomersCount
+    overdueCustomersCount,
+    suppressedCount
   };
 }
 

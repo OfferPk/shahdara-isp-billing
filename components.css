@@ -2169,6 +2169,14 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-141: the quick-undo toast's action carries a live countdown
+   ("↩ Undo (10s)") — keep it bold, on one line, with tabular digits so
+   the label never wraps or jitters on a 390px phone. Token-only. */
+.toast-action-btn.qundo-undo-btn {
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: var(--numeric);
+}
 /* SISP-138: contact cooldown — "Reminded Today" badge, Hide-contacted
    toggles and Mark-contacted affordances. Theme tokens only, so the
    badge reads correctly in dark mode on every surface. */

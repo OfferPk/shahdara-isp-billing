@@ -22,7 +22,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
@@ -169,7 +169,7 @@ import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, v
 import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
-import { applyFifoPaymentEventToState, applicablePriceForMonth, buildArrearsBreakdown, loadBillingCycles, setupBillingCycleModal } from './billing-cycle.js';
+import { applyFifoPaymentEventToState, applicablePriceForMonth, buildArrearsBreakdown, loadBillingCycles, pakistanMonthKey, setupBillingCycleModal } from './billing-cycle.js';
 import { setupMonthEndWizard } from './month-end-wizard.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
 import { AREA_OUTAGE_CUSTOMER_ID, COMPLAINTS_KEY, buildComplaintSummary, collectComplaintZones, complaintCustomerLabel, createComplaint, formatDowntimeHours, loadComplaints, pakistanDateTimeNow, pakistanMonthNow, saveComplaints, setupComplaintRegisterModal } from './complaint-register.js';
@@ -3480,6 +3480,9 @@ function renderCustomerProfileView(customer) {
   // without this line every profile render (and every payment save, via the
   // save callback's renderDetail) threw "pauseSummary is not defined".
   const pauseSummary = pauseBillingSummary(customer);
+  // SISP-153: seasonal keep-alive row for the Service group — rendered
+  // only while the current month is inside the seasonal window.
+  const seasonalSummary = seasonalBillingSummary(customer, pakistanMonthKey());
   // SISP-148: do-not-suspend shield summary for the Service group row.
   const shieldSummary = suspensionShieldSummary(customer, localDate());
   // SISP-79: habitual pay-day line for the Service group (derived live
@@ -3606,7 +3609,7 @@ function renderCustomerProfileView(customer) {
   // markup builder only receives the reveal flags, so a masked render
   // never contains the secrets at all.
   const routerCredSectionHtml = routerCredentialsSectionHtml(customer, { revealWifi: routerCredRevealed.wifi, revealAdmin: routerCredRevealed.admin });
-  const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), phone || t('prof_not_set')], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : t('prof_not_set')]])}${profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), customer.mohalla || t('prof_not_set')], [t('prof_field_zone'), customer.zone || t('prof_not_set')], [t('prof_field_address'), customer.address || t('prof_not_set'), true], [t('prof_field_notes'), customer.notes?.trim() || t('prof_not_set'), true]])}${profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), customer.ispProvider || t('prof_not_set')], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], [t('prof_field_package'), customer.packageSpeed || t('prof_not_set')], [t('prof_field_payday'), paydaySummary.label], [t('prof_field_purchase_cost'), formatAmount(customer.monthlyPurchaseCost)], [t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : t('prof_not_recorded')], [t('prof_field_conn_fee'), formatAmount(customer.connectionFee)], [t('prof_field_router'), customer.routerModel || t('prof_not_recorded')], [t('prof_field_router_price'), formatAmount(customer.routerPrice)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_mc_cost'), formatAmount(customer.mediaConverterCost)], [t('prof_field_lineman_fee'), formatAmount(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? t('prof_not_recorded') : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_pppoe'), customer.pppoeUsername || t('prof_not_set')], [t('prof_field_static_ip'), customer.staticIp || t('prof_not_set')], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : t('prof_not_set')], [t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : t('prof_not_recorded')], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : t('prof_not_recorded')]])}</div>`;
+  const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), phone || t('prof_not_set')], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : t('prof_not_set')]])}${profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), customer.mohalla || t('prof_not_set')], [t('prof_field_zone'), customer.zone || t('prof_not_set')], [t('prof_field_address'), customer.address || t('prof_not_set'), true], [t('prof_field_notes'), customer.notes?.trim() || t('prof_not_set'), true]])}${profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), customer.ispProvider || t('prof_not_set')], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), customer.packageSpeed || t('prof_not_set')], [t('prof_field_payday'), paydaySummary.label], [t('prof_field_purchase_cost'), formatAmount(customer.monthlyPurchaseCost)], [t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : t('prof_not_recorded')], [t('prof_field_conn_fee'), formatAmount(customer.connectionFee)], [t('prof_field_router'), customer.routerModel || t('prof_not_recorded')], [t('prof_field_router_price'), formatAmount(customer.routerPrice)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_mc_cost'), formatAmount(customer.mediaConverterCost)], [t('prof_field_lineman_fee'), formatAmount(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? t('prof_not_recorded') : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_pppoe'), customer.pppoeUsername || t('prof_not_set')], [t('prof_field_static_ip'), customer.staticIp || t('prof_not_set')], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : t('prof_not_set')], [t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : t('prof_not_recorded')], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : t('prof_not_recorded')]])}</div>`;
   // SISP-19: profile hardware custody — ownership fields on the record,
   // plus the disconnection recovery checklist once archived (archive is
   // the app's disconnect action). Fiber drop length reuses fiberMeters.
@@ -4270,6 +4273,13 @@ function renderDetail() {
   if ($('#preferredReceiptChannelSelect')) $('#preferredReceiptChannelSelect').value = customer.preferredReceiptChannel ?? '';
   if ($('#pauseStartDateInput')) $('#pauseStartDateInput').value = customer.pauseStartDate ?? '';
   if ($('#autoResumeDateInput')) $('#autoResumeDateInput').value = customer.autoResumeDate ?? '';
+  // SISP-153: seasonal keep-alive edit fields. The restore rate is a
+  // stored value (never re-derived after saving); it only PRE-FILLS
+  // with the currently applicable rate when no triple is stored yet,
+  // as a convenience the owner can change before saving.
+  if ($('#seasonalRateInput')) $('#seasonalRateInput').value = customer.seasonalRatePKR ?? '';
+  if ($('#seasonalUntilMonthInput')) $('#seasonalUntilMonthInput').value = customer.seasonalUntilMonth ?? '';
+  if ($('#seasonalRestoreRateInput')) $('#seasonalRestoreRateInput').value = customer.restorePackageRatePKR ?? applicablePriceForMonth(customer, pakistanMonthKey()) ?? '';
   const pauseBadge = $('#pauseStateBadge');
   if (pauseBadge) {
     pauseBadge.textContent = `⏸ ${pauseSummary.label}`;
@@ -7082,6 +7092,11 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       preferredReceiptChannel: $('#preferredReceiptChannelSelect')?.value || '',
       pauseStartDate: $('#pauseStartDateInput')?.value || '',
       autoResumeDate: $('#autoResumeDateInput')?.value || '',
+      // SISP-153: seasonal keep-alive triple (all-or-nothing; clearing
+      // all three fields removes the seasonal rate).
+      seasonalRatePKR: $('#seasonalRateInput')?.value ?? '',
+      seasonalUntilMonth: $('#seasonalUntilMonthInput')?.value ?? '',
+      restorePackageRatePKR: $('#seasonalRestoreRateInput')?.value ?? '',
       // SISP-148: do-not-suspend shield (blank date + reason clears it).
       doNotSuspendUntil: $('#doNotSuspendUntilInput')?.value || '',
       doNotSuspendReason: $('#doNotSuspendReasonInput')?.value || '',

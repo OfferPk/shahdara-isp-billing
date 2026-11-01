@@ -135,7 +135,9 @@ test('register PINNED (g): CSV rows == visible filtered rows (same count, same t
   const noteRow = { reference: note, customer: '', mobile: '', package: '', month: '', billAmount: '', paidAmount: '', status: '' };
   const csv = generateCsvContent(BILLING_REGISTER_CSV_HEADERS, [noteRow, ...billingRegisterCsvRows(register)]);
   const lines = csv.replace(/^\uFEFF/, '').split('\r\n').filter((line) => line.length);
-  assert.equal(lines[0], 'Reference,Customer,Mobile,Package,Month,Bill Amount,Paid Amount,Status');
+  // SISP-176 appended the two split columns at the END; the original
+  // eight columns keep their positions and figures.
+  assert.equal(lines[0], 'Reference,Customer,Mobile,Package,Month,Bill Amount,Paid Amount,Status,Ticket Charges Paid,Total Collected');
   assert.ok(lines[1].includes('Note: Filtered view:'), 'second line is the filtered-view NOTE row');
   const dataLines = lines.slice(2);
   assert.equal(dataLines.length, register.rows.length);
@@ -146,6 +148,104 @@ test('register PINNED (g): CSV rows == visible filtered rows (same count, same t
   assert.equal(register.totals.totalBilled, 11000);
   assert.equal(register.totals.totalPaid, 4500);
   assert.equal(billingRegisterCsvFilename(register), 'billing-register-last3-all_filtered.csv');
+});
+
+// ---------------------------------------------------------------------------
+// SISP-176: the SISP-43 ticket-charge split. Quick Collect settles bill
+// dues + billed ticket charges in ONE receipt; the ticket portion rides
+// the payment as a ticketCharges stamp and is NOT bill money (the engine
+// keeps it out of allocation). The register splits it out per row —
+// it never ADDS to the bill figures.
+// ---------------------------------------------------------------------------
+const ticketBill = (id, month, dueAmount, payments = []) => bill(id, month, dueAmount, payments);
+const ticketPay = (id, amount, ticketAmount) => pay(id, amount, { ticketCharges: [{ ticketId: 'TKT-101', amount: ticketAmount }] });
+
+test('register SISP-176 PINNED: Rs 3,000 bill + Rs 500 ticket charge -> Bill Paid 3,000 + Ticket Charges Paid 500', () => {
+  const state = { customers: [{
+    id: 'c-t1', customerNumber: 21, name: 'Ticket Pin', phone: '', packageSpeed: '15 Mbps',
+    bills: [ticketBill('b-t1', '2026-10', 3000, [ticketPay('p-t1', 3500, 500)])]
+  }] };
+  const register = buildBillingRegister(state, { period: 'this', status: 'all', currentMonth: CURRENT_MONTH });
+  assert.equal(register.rows.length, 1);
+  const row = register.rows[0];
+  assert.equal(row.status, 'paid');
+  assert.equal(row.paidAmount, 3000, 'bill portion only — the ticket cash is not bill money');
+  assert.equal(row.ticketChargesPaid, 500);
+  assert.equal(row.paidAmount + row.ticketChargesPaid, 3500, 'the split sums to the one receipt amount, never more');
+  assert.deepEqual(register.totals, { count: 1, totalBilled: 3000, totalPaid: 3000 }, 'pre-split totals stay byte-identical');
+  assert.deepEqual(register.ticketTotals, { totalTicketChargesPaid: 500, totalCollected: 3500 });
+});
+
+test('register SISP-176: mixed period — charge-free rows read 0 and bill totals are unchanged', () => {
+  const state = { customers: [
+    { id: 'c-t1', customerNumber: 21, name: 'Ticket Mix A', phone: '', packageSpeed: '15 Mbps',
+      bills: [ticketBill('b-t1', '2026-10', 3000, [ticketPay('p-t1', 3500, 500)])] },
+    { id: 'c-t2', customerNumber: 22, name: 'Ticket Mix B', phone: '', packageSpeed: '10 Mbps',
+      bills: [ticketBill('b-t2', '2026-10', 2000, [pay('p-t2', 2000)])] }
+  ] };
+  const register = buildBillingRegister(state, { period: 'this', status: 'all', currentMonth: CURRENT_MONTH });
+  const plain = register.rows.find((row) => row.customerNumber === 22);
+  assert.equal(plain.ticketChargesPaid, 0);
+  assert.equal(register.totals.totalBilled, 5000);
+  assert.equal(register.totals.totalPaid, 5000, 'bill-paid total identical to the pre-split computation');
+  assert.equal(register.ticketTotals.totalTicketChargesPaid, 500);
+  assert.equal(register.ticketTotals.totalCollected, 5500);
+  assert.equal(
+    register.ticketTotals.totalCollected,
+    register.totals.totalPaid + register.ticketTotals.totalTicketChargesPaid,
+    'identity: Bill Paid + Ticket Charges Paid == Total Collected'
+  );
+});
+
+test('register SISP-176: a VOIDED payment settles no ticket charge either', () => {
+  const state = { customers: [{
+    id: 'c-t3', customerNumber: 23, name: 'Ticket Void', phone: '', packageSpeed: '10 Mbps',
+    bills: [ticketBill('b-t3', '2026-10', 3000, [
+      pay('p-t3', 3500, { ticketCharges: [{ ticketId: 'TKT-102', amount: 500 }], voided: true, voidedAt: '2026-10-09T10:00:00', voidReason: 'Wrong entry' })
+    ])]
+  }] };
+  const register = buildBillingRegister(state, { period: 'this', status: 'all', currentMonth: CURRENT_MONTH });
+  const row = register.rows[0];
+  assert.equal(row.status, 'unpaid');
+  assert.equal(row.paidAmount, 0);
+  assert.equal(row.ticketChargesPaid, 0, 'the voided stamp contributes nothing to the split');
+  assert.deepEqual(register.ticketTotals, { totalTicketChargesPaid: 0, totalCollected: 0 });
+});
+
+test('register SISP-176: partial receipt splits bill portion and ticket portion', () => {
+  const state = { customers: [{
+    id: 'c-t4', customerNumber: 24, name: 'Ticket Partial', phone: '', packageSpeed: '10 Mbps',
+    bills: [ticketBill('b-t4', '2026-10', 3000, [ticketPay('p-t4', 2000, 500)])]
+  }] };
+  const register = buildBillingRegister(state, { period: 'this', status: 'all', currentMonth: CURRENT_MONTH });
+  const row = register.rows[0];
+  assert.equal(row.status, 'partial');
+  assert.equal(row.paidAmount, 1500, 'only 2,000 - 500 of the receipt is bill money');
+  assert.equal(row.ticketChargesPaid, 500);
+  assert.equal(row.balanceDue, 1500);
+});
+
+test('register SISP-176: CSV carries the split columns and they sum to ticketTotals', () => {
+  const state = { customers: [
+    { id: 'c-t1', customerNumber: 21, name: 'Ticket Mix A', phone: '', packageSpeed: '15 Mbps',
+      bills: [ticketBill('b-t1', '2026-10', 3000, [ticketPay('p-t1', 3500, 500)])] },
+    { id: 'c-t2', customerNumber: 22, name: 'Ticket Mix B', phone: '', packageSpeed: '10 Mbps',
+      bills: [ticketBill('b-t2', '2026-10', 2000, [pay('p-t2', 2000)])] }
+  ] };
+  const register = buildBillingRegister(state, { period: 'this', status: 'all', currentMonth: CURRENT_MONTH });
+  const csvRows = billingRegisterCsvRows(register);
+  const withTicket = csvRows.find((row) => row.customer === 'Ticket Mix A');
+  assert.equal(withTicket.ticketChargesPaid, 500);
+  assert.equal(withTicket.collectedAmount, 3500);
+  const noteRow = { reference: 'Note: x', customer: '', mobile: '', package: '', month: '', billAmount: '', paidAmount: '', status: '', ticketChargesPaid: '', collectedAmount: '' };
+  const csv = generateCsvContent(BILLING_REGISTER_CSV_HEADERS, [noteRow, ...csvRows]);
+  const lines = csv.replace(/^\uFEFF/, '').split('\r\n').filter((line) => line.length);
+  assert.ok(lines[0].endsWith(',Ticket Charges Paid,Total Collected'));
+  const dataLines = lines.slice(2);
+  const ticketTotal = dataLines.reduce((sum, line) => sum + Number(line.split(',')[8]), 0);
+  const collectedTotal = dataLines.reduce((sum, line) => sum + Number(line.split(',')[9]), 0);
+  assert.equal(ticketTotal, register.ticketTotals.totalTicketChargesPaid);
+  assert.equal(collectedTotal, register.ticketTotals.totalCollected);
 });
 
 test('register: unpriced bills are not invoices; module ships in the build', async () => {

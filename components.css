@@ -1735,7 +1735,7 @@ body.field-mode-open { overflow: hidden; }
 .billing-register-controls .report-filters { margin: 0; }
 .billing-register-totals { font-size: 12px; font-weight: 700; color: var(--ink); margin: 8px 0 10px; }
 .billing-register-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.register-row { display: grid; grid-template-columns: minmax(170px, 1.5fr) repeat(4, minmax(90px, .8fr)) minmax(86px, .6fr); gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; }
+.register-row { display: grid; grid-template-columns: minmax(170px, 1.5fr) repeat(5, minmax(90px, .8fr)) minmax(86px, .6fr); gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; }
 .register-customer { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .register-reference { font-size: 10px; font-weight: 700; letter-spacing: .2px; color: var(--green); }
 .register-customer-sub { font-size: 10px; color: var(--muted); overflow-wrap: anywhere; }

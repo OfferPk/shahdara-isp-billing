@@ -12,6 +12,8 @@
 // round-trip.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { TRANSLATIONS } from '../nav-language.js';
 import {
   addPayment, saveBillMonth, calculatePaymentAllocations,
   createInitialState, createJsonBackup, previewJsonBackupMerge
@@ -31,8 +33,11 @@ import {
   nextSuspenseId,
   sanitizeSuspensePayments,
   saveSuspensePayments,
+  suggestSuspenseMatches,
+  suspensePendingBalanceCents,
   suspenseSummary,
-  unclaimedSuspense
+  unclaimedSuspense,
+  SUSPENSE_SUGGESTION_LIMIT
 } from '../suspense-payments.js';
 
 const now = new Date();
@@ -265,4 +270,183 @@ test('backup safe-merge: suspense entries travel in settings.suspensePayments an
   const identical = previewJsonBackupMerge(createInitialState(), backupText, { currentSuspensePayments: entries, currentSuspensePaymentsStored: true });
   assert.equal(identical.suspensePayments, null);
   assert.equal(identical.conflicts.filter((c) => c.field.startsWith('Suspense')).length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// SISP-179: auto-match suggestion engine. The balance source in these
+// tests is the REAL core allocation engine, read through the module's
+// own suspensePendingBalanceCents — the same composition app.js wires
+// into the modal as pendingBalanceOf.
+// ---------------------------------------------------------------------------
+
+const balanceOfFromState = (state) => {
+  const allocations = calculatePaymentAllocations(state);
+  return (cust) => suspensePendingBalanceCents(allocations, cust);
+};
+
+function suggestionState() {
+  // a: due 3,000 + phone ends 8887 (BOTH signals for entry3000)
+  // b: due 3,000, other phone (amount only)
+  // c: no due, phone ends 8887 (suffix only)
+  // d: due 1,500, other phone (no signal)
+  // z: due 3,000 + phone ends 8887, archived AFTER billing (picker never
+  // offers archived; saveBillMonth itself refuses archived customers)
+  let s = { customers: [
+    customer('a', 1, { phone: '03009998887' }),
+    customer('b', 2, { phone: '03210001122' }),
+    customer('c', 3, { phone: '03458878887' }),
+    customer('d', 4, { phone: '03001112233' }),
+    customer('z', 9, { phone: '03009998887' })
+  ] };
+  s = saveBillMonth(s, 'a', { month, dueAmount: 3000, status: 'pending' });
+  s = saveBillMonth(s, 'b', { month, dueAmount: 3000, status: 'pending' });
+  s = saveBillMonth(s, 'd', { month, dueAmount: 1500, status: 'pending' });
+  s = saveBillMonth(s, 'z', { month, dueAmount: 3000, status: 'pending' });
+  return { ...s, customers: s.customers.map((c) => (c.id === 'z' ? { ...c, archived: true } : c)) };
+}
+
+test('SISP-179 PIN: exact amount match + 4-digit suffix match ranking (both > amount > suffix)', () => {
+  const state = suggestionState();
+  const suggestions = suggestSuspenseMatches(entry3000(), state.customers, balanceOfFromState(state));
+  assert.deepEqual(suggestions.map((s) => s.customerId), ['a', 'b', 'c']);
+  assert.deepEqual(
+    suggestions.map((s) => [s.matchedAmount, s.matchedSuffix]),
+    [[true, true], [true, false], [false, true]]
+  );
+  assert.equal(suggestions[0].customerNumber, 1);
+  assert.equal(suggestions[0].name, 'Customer 1');
+  assert.equal(suggestions[0].pendingBalanceCents, 300000);
+  assert.equal(suggestions[1].pendingBalanceCents, 300000);
+  assert.equal(suggestions[2].pendingBalanceCents, 0);
+  // archived 'z' (both signals!) and no-signal 'd' are never suggested
+  assert.ok(!suggestions.some((s) => s.customerId === 'z'));
+  assert.ok(!suggestions.some((s) => s.customerId === 'd'));
+});
+
+test('SISP-179: pending balance is the engine total across months; partial payment moves it', () => {
+  const prevMonth = (() => {
+    const d = new Date(`${month}-01T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - 1);
+    return d.toISOString().slice(0, 7);
+  })();
+  let s = { customers: [customer('a', 1), customer('b', 2)] };
+  s = saveBillMonth(s, 'a', { month: prevMonth, dueAmount: 1200, status: 'pending' });
+  s = saveBillMonth(s, 'a', { month, dueAmount: 1800, status: 'pending' });
+  s = saveBillMonth(s, 'b', { month, dueAmount: 3000, status: 'pending' });
+  s = addPayment(s, 'b', month, { date: today, amount: 1000, method: 'Cash' });
+  const balanceOf = balanceOfFromState(s);
+  assert.equal(balanceOf(s.customers[0]), 300000); // 1,200 arrears + 1,800 current
+  assert.equal(balanceOf(s.customers[1]), 200000); // 3,000 billed - 1,000 paid
+  // so the 3,000 entry amount-matches 'a' only, never the partially-paid 'b'
+  const forA = suggestSuspenseMatches(entry3000({ senderMobile: '' }), s.customers, balanceOf);
+  assert.deepEqual(forA.map((x) => x.customerId), ['a']);
+  // degenerate allocation inputs contribute nothing instead of throwing
+  assert.equal(suspensePendingBalanceCents(null, s.customers[0]), 0);
+  assert.equal(suspensePendingBalanceCents({ forMonth: () => null }, s.customers[0]), 0);
+  assert.equal(suspensePendingBalanceCents({ forMonth: () => ({ balanceDueCents: null }) }, s.customers[0]), 0);
+});
+
+test('SISP-179: suffix matching is digit-normalized (dashes, spaces, +92) and reads customerPhone too', () => {
+  const customers = [
+    customer('a', 1, { phone: '+92 300-999 8887' }),
+    customer('b', 2, { phone: '', customerPhone: '0300 111-8887' }),
+    customer('c', 3, { phone: '03005554444' })
+  ];
+  const entry = entry3000({ senderMobile: '0300 999-8887', amount: 12345 });
+  const suggestions = suggestSuspenseMatches(entry, customers, null);
+  assert.deepEqual(suggestions.map((s) => s.customerId), ['a', 'b']);
+  assert.ok(suggestions.every((s) => s.matchedSuffix && !s.matchedAmount));
+});
+
+test('SISP-179: ties break by customerNumber ascending and the list caps at the suggestion limit', () => {
+  const customers = [5, 3, 4, 6].map((n) => customer(`c${n}`, n, { phone: `0311000000${n}` }));
+  const state = { customers };
+  const allocations = { forMonth: () => ({ balanceDueCents: 300000 }) };
+  const balanceOf = (cust) => suspensePendingBalanceCents(allocations, cust);
+  // give each customer one bill so the stub allocations apply per customer
+  const withBills = customers.map((c) => ({ ...c, bills: [{ month }] }));
+  const entry = entry3000({ senderMobile: '' });
+  const suggestions = suggestSuspenseMatches(entry, withBills, balanceOf);
+  assert.equal(SUSPENSE_SUGGESTION_LIMIT, 3);
+  assert.equal(suggestions.length, 3);
+  assert.deepEqual(suggestions.map((s) => s.customerNumber), [3, 4, 5]);
+  assert.ok(suggestions.every((s) => s.matchedAmount && !s.matchedSuffix));
+  assert.equal(state.customers.length, 4); // input untouched (pure)
+});
+
+test('SISP-179: senderMobile shorter than 4 digits yields NO suffix candidates (never matches on empty)', () => {
+  const state = suggestionState();
+  const shortEntry = entry3000({ senderMobile: '887' });
+  const suggestions = suggestSuspenseMatches(shortEntry, state.customers, balanceOfFromState(state));
+  // amount signal still works; NOBODY gains a suffix match from '887'
+  assert.deepEqual(suggestions.map((s) => s.customerId), ['a', 'b']);
+  assert.ok(suggestions.every((s) => s.matchedAmount && !s.matchedSuffix));
+  const blankEntry = entry3000({ senderMobile: '' });
+  assert.deepEqual(
+    suggestSuspenseMatches(blankEntry, state.customers, balanceOfFromState(state)).map((s) => s.customerId),
+    ['a', 'b']
+  );
+});
+
+test('SISP-179: claimed entries get no suggestions; FREE customers stay suggestible (picker parity)', () => {
+  const state = suggestionState();
+  const claimedEntry = { ...entry3000(), claimed: true, claimedCustomerId: 'a' };
+  assert.deepEqual(suggestSuspenseMatches(claimedEntry, state.customers, balanceOfFromState(state)), []);
+  // the manual picker offers every non-archived customer, FREE included —
+  // a FREE customer (no dues by construction) can still suffix-match.
+  const free = customer('f', 6, { isFreeConnection: true, phone: '03119998887' });
+  const withFree = [...state.customers, free];
+  // generous limit here: the default cap of 3 is already filled by a/b/c
+  const suggestions = suggestSuspenseMatches(entry3000(), withFree, balanceOfFromState(state), 10);
+  const freeSuggestion = suggestions.find((s) => s.customerId === 'f');
+  assert.ok(freeSuggestion, 'FREE customer should be suffix-suggested like the picker offers them');
+  assert.deepEqual([freeSuggestion.matchedAmount, freeSuggestion.matchedSuffix], [false, true]);
+});
+
+test('SISP-179: without a balance injector only the suffix signal ranks (amount never guessed)', () => {
+  const state = suggestionState();
+  const suggestions = suggestSuspenseMatches(entry3000(), state.customers);
+  assert.deepEqual(suggestions.map((s) => s.customerId), ['a', 'c']);
+  assert.ok(suggestions.every((s) => s.matchedSuffix && !s.matchedAmount && s.pendingBalanceCents === null));
+});
+
+test('SISP-179: claiming the top suggestion settles the due through the real claim path', () => {
+  const state = suggestionState();
+  const entries = [entry3000()];
+  const [top] = suggestSuspenseMatches(entries[0], state.customers, balanceOfFromState(state));
+  assert.equal(top.customerId, 'a');
+  const result = claimSuspensePayment(state, entries, 'SUS-101', {
+    customerId: top.customerId, month, date: today, execute: executeQuickCollection
+  });
+  assert.equal(result.entry.claimed, true);
+  assert.equal(result.entry.claimedCustomerId, 'a');
+  assert.equal(balanceDueCents(result.nextState, 'a'), 0);
+});
+
+test('SISP-179 wiring: chips and picker share ONE claim dispatch; app.js injects engine balances', () => {
+  const source = readFileSync(new URL('../suspense-payments.js', import.meta.url), 'utf8');
+  assert.match(source, /data-suspense-suggest="/);
+  assert.match(source, /data-suspense-suggest-customer="/);
+  assert.match(source, /async function runClaim\(entry, customerId\)/);
+  assert.match(source, /onClaim\(entry, \{ customerId, month: getMonth\(\) \}\)/);
+  // both entry points (picker button + suggestion chip) funnel into runClaim
+  assert.equal((source.match(/await runClaim\(entry, customerId\)/g) || []).length, 2);
+  // rendering a chip never claims: suggestions are computed in render(),
+  // the claim fires only from the click handler's runClaim call.
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.match(app, /pendingBalanceOf: \(customer\) =>/);
+  assert.match(app, /suspensePendingBalanceCents\(suspenseSuggestionAllocations, customer\)/);
+  assert.match(app, /suspenseSuggestionAllocations = calculatePaymentAllocations\(state\)/);
+});
+
+test('SISP-179 i18n audit: every t() key the suggestion UI uses exists in BOTH dictionaries', () => {
+  const source = readFileSync(new URL('../suspense-payments.js', import.meta.url), 'utf8');
+  const keys = [...new Set([...source.matchAll(/\bt\('([a-z0-9_]+)'\)/g)].map((m) => m[1]))].sort();
+  assert.deepEqual(keys, ['suspense_suggest_claim', 'suspense_suggest_label']);
+  for (const key of keys) {
+    assert.equal(typeof TRANSLATIONS.en[key], 'string', `en missing ${key}`);
+    assert.ok(TRANSLATIONS.en[key].length > 0, `en empty ${key}`);
+    assert.equal(typeof TRANSLATIONS.ur[key], 'string', `ur missing ${key}`);
+    assert.ok(TRANSLATIONS.ur[key].length > 0, `ur empty ${key}`);
+  }
 });

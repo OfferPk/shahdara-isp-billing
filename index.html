@@ -21915,6 +21915,28 @@
     </div>
   </dialog>
 
+  <dialog id="splitterPortSwapModal" class="billing-modal splitter-port-swap-modal" aria-labelledby="splitterPortSwapTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="splitterPortSwapTitle">🔀 <span data-i18n="pswap_title">Swap Splitter Port</span></h2>
+        <button id="portSwapCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p id="portSwapCustomerLine" class="splitter-map-summary-line"></p>
+        <p id="portSwapCurrentLine" class="splitter-map-summary-line"></p>
+        <label for="portSwapTargetSelect" data-i18n="pswap_target_label">Move to port</label>
+        <select id="portSwapTargetSelect" class="form-input" aria-label="New splitter port"></select>
+        <label class="port-swap-lock-option" for="portSwapLockOld"><input id="portSwapLockOld" type="checkbox"> <span data-i18n="pswap_lock_old_label">Lock the old port as faulty / dead after the swap</span></label>
+        <label for="portSwapLockNote" data-i18n="pswap_lock_note_label">Fault note (optional)</label>
+        <input id="portSwapLockNote" class="form-input" type="text" maxlength="200" autocomplete="off">
+        <p id="portSwapError" class="port-swap-error" hidden></p>
+        <div class="port-swap-actions">
+          <button id="portSwapConfirmBtn" class="action-btn-sm daily-slip-btn" type="button">🔀 <span data-i18n="pswap_confirm">Swap port</span></button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="darkFiberModal" class="billing-modal dark-fiber-modal" aria-labelledby="darkFiberModalTitle">
     <div class="modal-card">
       <header class="modal-header">

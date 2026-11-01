@@ -425,7 +425,7 @@ export function formatSplitTenderWhatsAppText(combined) {
 export function generateSplitTenderReceiptHtml(combined, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Lahore'
+  areaName = 'Shahdara, Islamabad'
 } = {}) {
   if (!combined) return '';
   const displayName = combined.customerNameUrdu && combined.customerNameUrdu !== combined.customerName

@@ -216,3 +216,61 @@ test('SISP-36: wiring — doctor card, buttons and bundle entry exist', async ()
   const { ENTRY_FILES } = await import('../build.mjs');
   assert.ok(ENTRY_FILES.includes('qa-khata-doctor.js'));
 });
+
+test('SISP-171: referral-credit scenario — Doctor reports zero warnings and the referral credit in its working', () => {
+  // Spec pin: Rs. 3,000 bill − Rs. 500 referral credit (SISP-40) settled
+  // with Rs. 2,500 cash. FU1b (PR #512) aligned the engine and added the
+  // Doctor's referralCreditsCents mirror; this pins the Doctor end of
+  // that alignment through runKhataDoctor itself. Provenance included:
+  // the credit rides as an audited bill field and never rewrites
+  // dueAmount, so priceSnapshot 3,000 still reproduces the bill and no
+  // bill-amount-mismatch may fire.
+  const customer = {
+    id: 'c171', customerNumber: 171, name: 'Synthetic Referral',
+    bills: [{
+      id: 'b171', month: '2026-10', dueAmount: 3000, dueDate: '2026-10-05', status: 'pending',
+      priceSnapshot: 3000, amountHistory: [],
+      referralCreditAmount: 500, referralCreditReason: 'Hamsaya Referral Credit',
+      payments: [{ id: 'pay171', date: '2026-10-06', amount: 2500, method: 'Cash' }]
+    }],
+    installmentPlans: []
+  };
+  const ledger = computeLedgerBalance(customer);
+  assert.equal(ledger.balanceCents, 0);
+  assert.equal(ledger.referralCreditsCents, 50000);
+  const state = { customers: [customer] };
+  const report = runKhataDoctor(state, { cache: buildKhataDoctorCache(state, NOW) });
+  const row = report.customers.find((entry) => entry.customerId === 'c171');
+  assert.equal(row.issues.filter((entry) => entry.severity === 'error' || entry.severity === 'warning').length, 0);
+  assert.ok(!row.issues.some((entry) => entry.code === 'bill-amount-mismatch'));
+  assert.equal(report.healthy, true);
+});
+
+test('SISP-171: FREE connections draw no unpriced/unpaid warnings from the Doctor', () => {
+  // A FREE connection (isFreeConnection, PR #475) never gets a bill, fee
+  // or pending by owner rule. The Doctor has no price/pending nag class,
+  // and this pins that a free record is audited exactly like any other
+  // record: no warning fires because its bill is unpriced or unpaid,
+  // while the derived balance stays ledger-faithful (the exclusion is
+  // about warnings, never about hiding a recorded balance).
+  const shapes = [
+    { dueAmount: null, priceSnapshot: null, payments: [] },
+    { dueAmount: 3000, priceSnapshot: 3000, payments: [] }
+  ];
+  for (const shape of shapes) {
+    const mk = (id, free) => ({
+      id, customerNumber: 172, name: `Synthetic ${id}`,
+      ...(free ? { isFreeConnection: true } : {}),
+      bills: [{ id: `${id}-b`, month: '2026-10', dueDate: '2026-10-05', status: 'pending', amountHistory: [], ...shape }],
+      installmentPlans: []
+    });
+    const freeState = { customers: [mk('c-free', true)] };
+    const freeReport = runKhataDoctor(freeState, { cache: buildKhataDoctorCache(freeState, NOW) });
+    const freeRow = freeReport.customers[0];
+    assert.deepEqual(freeRow.issues.filter((entry) => entry.severity === 'error' || entry.severity === 'warning'), []);
+    const twinState = { customers: [mk('c-twin', false)] };
+    const twinReport = runKhataDoctor(twinState, { cache: buildKhataDoctorCache(twinState, NOW) });
+    assert.deepEqual(freeRow.issues.map((entry) => entry.code), twinReport.customers[0].issues.map((entry) => entry.code));
+    assert.equal(freeRow.ledgerBalanceCents, twinReport.customers[0].ledgerBalanceCents);
+  }
+});

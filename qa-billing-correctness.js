@@ -239,8 +239,14 @@ export function auditBillingCorrectness(state, referenceDate = new Date()) {
         }
       }
 
-      // Check Unpriced rule
-      if (isUnpriced) {
+      // Check Unpriced rule. SISP-171: a FREE connection
+      // (isFreeConnection, PR #475) is exempt — the owner rule is that
+      // free connections never get a bill, fee or pending, so an
+      // unpriced bill row on a free record is the expected shape, not
+      // a configuration gap, and the "configure a selling amount"
+      // advice below would contradict the FREE rule. Every other
+      // check on the bill (payments, due date, allocation) still runs.
+      if (isUnpriced && customer.isFreeConnection !== true) {
         customerHasDiscrepancy = true;
         discrepancies.push({
           id: `disc-unpriced-${customerId}-${month}`,

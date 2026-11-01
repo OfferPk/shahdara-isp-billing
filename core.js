@@ -51,6 +51,7 @@ import { isVoidedPayment, sanitizeVoidPayments } from './payment-void-audit.js';
 import { sanitizeEmergencyRunbook, hasEmergencyRunbookContacts } from './emergency-runbook-card.js';
 import { lateFeeWaiverOf, sanitizeWaivedLateFeeStamp } from './late-fee-waiver.js';
 import { sanitizeDepositSettlement } from './hardware-custody.js';
+import { sanitizeDepositOffsets } from './deposit-to-bill-offset.js';
 import { sanitizeFatherOrReferenceName, sanitizeSearchAliases, fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
 import { sanitizeSubContributors, sanitizePaidByContributorStamp } from './shared-router-contributors.js';
 import { normalizeOccupancyFields, sanitizeResidenceType, sanitizeLandlordOrGuarantorName, sanitizeLandlordPhone } from './occupancy-guarantor.js';
@@ -246,6 +247,9 @@ export function readState(storage, key = STORAGE_KEY) {
       // SISP-50: a stamped deposit settlement survives reloads; a
       // malformed record sanitizes to null instead of posing as settled.
       depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
+      // SISP-166: active deposit-offset log survives reloads; malformed
+      // entries sanitize away instead of posing as real offsets.
+      depositOffsets:sanitizeDepositOffsets(customer.depositOffsets),
       // SISP-158: shared-router contributors (attribution layer only) —
       // legacy records without the field load as an empty list.
       subContributors:sanitizeSubContributors(customer.subContributors),
@@ -578,7 +582,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // SISP-153: a new record starts with no seasonal rate unless the
   // caller passes a complete valid triple (sanitized all-or-nothing).
   const seasonalFields = sanitizeSeasonalFields(options);
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, customerConverterSide, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, fatherOrReferenceName, searchAliases, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, depositOffsets:[], hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, customerConverterSide, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, fatherOrReferenceName, searchAliases, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -3661,6 +3665,8 @@ function validateBackupState(source) {
       residenceType:sanitizeResidenceType(customer.residenceType), landlordOrGuarantorName:sanitizeLandlordOrGuarantorName(customer.landlordOrGuarantorName), landlordPhone:sanitizeLandlordPhone(customer.landlordPhone),
       // SISP-50: the deposit settlement stamp travels in JSON backups.
       depositSettlement:sanitizeDepositSettlement(customer.depositSettlement),
+      // SISP-166: the active deposit-offset log travels in JSON backups.
+      depositOffsets:sanitizeDepositOffsets(customer.depositOffsets),
       // SISP-148: the do-not-suspend shield travels with the customer
       // in JSON backups; corrupt values sanitize to "no shield".
       doNotSuspendUntil:sanitizeDoNotSuspendUntil(customer.doNotSuspendUntil),
@@ -4274,6 +4280,24 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     customer.relocationLog = customer.relocationLog ?? [];
     for (const incomingEntry of backupCustomer.relocationLog ?? []) {
       if (!customer.relocationLog.some(existing => String(existing.id) === String(incomingEntry.id))) { customer.relocationLog.push(deepCopy(incomingEntry)); counts.changes++; }
+    }
+    // SISP-166: active deposit-offset entries merge by entry id (the
+    // log is append-only and only ever grows). A missing entry is
+    // adopted; when both sides hold the same id, a reversal recorded on
+    // either side wins (reversal history only moves forward — the
+    // SISP-19 hardwareRecovered discipline); otherwise local is kept.
+    {
+      const localOffsets = sanitizeDepositOffsets(customer.depositOffsets);
+      const mergedOffsets = [...localOffsets];
+      for (const incomingEntry of sanitizeDepositOffsets(backupCustomer.depositOffsets)) {
+        const existing = mergedOffsets.find((entry) => entry.id === incomingEntry.id);
+        if (!existing) { mergedOffsets.push(deepCopy(incomingEntry)); counts.changes++; continue; }
+        if (!existing.reversedAt && incomingEntry.reversedAt) {
+          mergedOffsets[mergedOffsets.indexOf(existing)] = deepCopy(incomingEntry);
+          counts.changes++;
+        }
+      }
+      customer.depositOffsets = mergedOffsets;
     }
     // OWNER-SIGNAL: signal readings merge by reading id (never
     // duplicated, and a differing reading with an id already on this

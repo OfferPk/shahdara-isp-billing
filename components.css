@@ -1241,6 +1241,14 @@ body.field-mode-open { overflow: hidden; }
 .custody-pending { color: var(--color-overdue); font-weight: 700; }
 .profile-deposit-settlement { border-top: 1px solid var(--line); padding-top: 12px; }
 .profile-deposit-settlement p { margin: 4px 0; color: var(--ink); }
+/* SISP-166: active deposit-offset block + dialog — token-only, no new hex. */
+.profile-deposit-offset { border-top: 1px solid var(--line); padding-top: 12px; }
+.profile-deposit-offset p { margin: 4px 0; color: var(--ink); }
+.profile-deposit-offset h5 { margin: 12px 0 6px; }
+.deposit-offset-entries { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.deposit-offset-entries li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.deposit-offset-modal .billing-modal-body { display: grid; gap: 10px; }
+.deposit-offset-modal input[type="number"] { width: 100%; box-sizing: border-box; }
 .hardware-recovery-list { display: grid; gap: 12px; }
 .hardware-recovery-entry { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
 .hardware-recovery-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }

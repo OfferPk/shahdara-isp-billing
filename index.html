@@ -24128,6 +24128,29 @@
     </section>
   </dialog>
 
+  <dialog id="depositOffsetModal" class="billing-modal deposit-offset-modal" aria-labelledby="depositOffsetModalTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="depositOffsetModalTitle" data-i18n="depoff_dialog_title">🔄 Offset Bill from Security Deposit</h2>
+        </div>
+        <button id="closeDepositOffsetModalBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="billing-modal-body">
+        <p id="depositOffsetCustomerLine"></p>
+        <p id="depositOffsetFiguresLine"></p>
+        <label class="field-label" for="depositOffsetAmountInput"><span data-i18n="depoff_amount_label">Offset amount (PKR)</span></label>
+        <input id="depositOffsetAmountInput" type="number" min="0.01" step="0.01" inputmode="decimal">
+        <p id="depositOffsetMaxLine" class="profile-custody-note"></p>
+        <p id="depositOffsetPreviewLine"></p>
+        <p class="profile-custody-note" data-i18n="depoff_note">Applies the held deposit against the oldest dues first. No cash changes hands — the deposit goes down and the bill due goes down by the same amount. The rest of the deposit stays held.</p>
+      </div>
+      <footer class="billing-modal-footer">
+        <button id="depositOffsetCancelBtn" class="secondary-button" type="button" data-i18n="depoff_cancel">Cancel</button>
+        <button id="depositOffsetConfirmBtn" class="primary-button" type="button" data-i18n="depoff_confirm">Apply offset</button>
+      </footer>
+    </div>
+  </dialog>
   <dialog id="welcomeSlipModal" class="modal welcome-slip-modal" aria-labelledby="welcomeSlipModalTitle">
     <section class="welcome-slip">
       <div class="modal-heading">

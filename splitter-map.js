@@ -116,13 +116,33 @@ export function formatRxDbm(lastRxDbm) {
 }
 
 /**
+ * SISP-152: the dead-port lock entry covering one port of a box, read
+ * from the (already sanitized — see splitter-port-swap.js
+ * sanitizeDeadPorts) lockout list the host passes in. Display-level
+ * lookup only; the assignment guard itself is isPortDead there.
+ */
+function deadEntryFor(deadPorts, boxId, port) {
+  if (!Array.isArray(deadPorts)) return null;
+  for (const entry of deadPorts) {
+    if (!entry || typeof entry !== 'object') continue;
+    if (String(entry.boxId ?? '').trim() === boxId && Number(entry.port) === port) return entry;
+  }
+  return null;
+}
+
+/**
  * Port map for ONE splitter box. Ports are 1-based; a customer counts as
  * occupying a port only when their box id matches and their port falls
  * inside 1..portCount. Assignments outside that range are reported in
  * outOfRange instead of silently vanishing (e.g. port 12 saved against a
  * 1:8 box is a data-entry mistake worth seeing, not a free port).
+ *
+ * SISP-152: when the host passes the dead-port lockout list, a spare
+ * port that is locked out renders as status 'dead' (never counted as
+ * free). An occupied port always wins over a lock — the customer using
+ * it stays visible; the lock still blocks any NEW assignment.
  */
-export function buildSplitterPortMap(customers, boxId, portCount = 8) {
+export function buildSplitterPortMap(customers, boxId, portCount = 8, deadPorts = []) {
   const cleanBoxId = cleanText(boxId);
   const count = SPLITTER_PORT_COUNTS.includes(portCount) ? portCount : 8;
   const ports = [];
@@ -164,14 +184,28 @@ export function buildSplitterPortMap(customers, boxId, portCount = 8) {
     slot.lastRxDbm = optical.lastRxDbm;
     slot.signalStatus = rxSignalStatus(optical.lastRxDbm);
   }
+  // SISP-152: lockout marking — only spare slots can be dead; an
+  // occupied slot keeps its customer (see the header note above).
+  for (const slot of ports) {
+    if (slot.status !== 'spare') continue;
+    const dead = deadEntryFor(deadPorts, cleanBoxId, slot.port);
+    if (dead) {
+      slot.status = 'dead';
+      slot.deadNote = cleanText(dead.note);
+      slot.deadLockedAt = typeof dead.lockedAt === 'string' ? dead.lockedAt : '';
+    }
+  }
   const occupied = ports.filter((slot) => slot.status === 'occupied');
+  const dead = ports.filter((slot) => slot.status === 'dead');
   const weak = occupied.filter((slot) => slot.signalStatus === 'weak');
   return {
     boxId: cleanBoxId,
     portCount: count,
     ports,
     occupiedCount: occupied.length,
-    freeCount: count - occupied.length,
+    deadCount: dead.length,
+    deadPorts: dead,
+    freeCount: count - occupied.length - dead.length,
     freePorts: ports.filter((slot) => slot.status === 'spare').map((slot) => slot.port),
     weakCount: weak.length,
     weakPorts: weak,
@@ -184,7 +218,7 @@ export function buildSplitterPortMap(customers, boxId, portCount = 8) {
  * count derived from the data itself: a box with any port above 8 is a
  * 1:16 box, otherwise 1:8. Boxes sort by id so the selector order is stable.
  */
-export function buildSplitterBoxes(customers) {
+export function buildSplitterBoxes(customers, deadPorts = []) {
   const list = Array.isArray(customers) ? customers : [];
   const boxIds = [...new Set(list.map((c) => normalizeOpticalFields(c).splitterBoxId).filter(Boolean))].sort();
   return boxIds.map((boxId) => {
@@ -194,7 +228,7 @@ export function buildSplitterBoxes(customers) {
         ? Math.max(max, optical.splitterPort)
         : max;
     }, 0);
-    return buildSplitterPortMap(list, boxId, maxPort > 8 ? 16 : 8);
+    return buildSplitterPortMap(list, boxId, maxPort > 8 ? 16 : 8, deadPorts);
   });
 }
 
@@ -220,20 +254,40 @@ export function buildSplitterOverview(customers) {
   };
 }
 
-/** One port cell of the visual grid. Occupied ports name their customer. */
-export function renderSplitterPortCell(slot) {
+/**
+ * One port cell of the visual grid. Occupied ports name their customer.
+ * SISP-152: dead-locked ports render with the 🔴 Faulty / Dead Port
+ * lockout label, and when the host enables `actions`, each cell carries
+ * its port action (Swap on occupied, Lock on spare, Unlock on dead) as
+ * a data-attribute button the modal controller delegates clicks for.
+ * Without `actions` the markup is exactly the pre-SISP-152 grid.
+ */
+export function renderSplitterPortCell(slot, { actions = false } = {}) {
+  if (slot.status === 'dead') {
+    const unlock = actions
+      ? `<button type="button" class="splitter-port-action" data-pswap-unlock="${slot.port}">${escapeHtml(t('pswap_action_unlock'))}</button>`
+      : '';
+    const note = slot.deadNote ? `<span class="splitter-port-state">${escapeHtml(slot.deadNote)}</span>` : '';
+    return `<div class="splitter-port splitter-port-dead"><span class="splitter-port-number">${slot.port}</span><span class="splitter-port-state splitter-port-dead-label">${escapeHtml(t('pswap_dead_label'))}</span>${note}${unlock}</div>`;
+  }
   if (slot.status === 'spare') {
-    return `<div class="splitter-port splitter-port-spare"><span class="splitter-port-number">${slot.port}</span><span class="splitter-port-state">Spare</span></div>`;
+    const lock = actions
+      ? `<button type="button" class="splitter-port-action" data-pswap-lock="${slot.port}">${escapeHtml(t('pswap_action_lock'))}</button>`
+      : '';
+    return `<div class="splitter-port splitter-port-spare"><span class="splitter-port-number">${slot.port}</span><span class="splitter-port-state">Spare</span>${lock}</div>`;
   }
   const badge = slot.signalStatus === 'weak'
     ? '<span class="safety-badge badge-danger splitter-weak-badge">High-loss · weak signal</span>'
     : slot.signalStatus === 'healthy'
       ? '<span class="safety-badge badge-healthy splitter-weak-badge">Signal OK</span>'
       : '';
+  const swap = actions && slot.customerId
+    ? `<button type="button" class="splitter-port-action" data-pswap-swap="${escapeHtml(String(slot.customerId))}">🔀 ${escapeHtml(t('pswap_action_swap'))}</button>`
+    : '';
   const attBadge = isAttenuationTicketRx(slot.lastRxDbm)
     ? '<span class="safety-badge badge-danger splitter-weak-badge">Attenuation ticket advised</span>'
     : '';
-  return `<div class="splitter-port splitter-port-occupied${slot.signalStatus === 'weak' ? ' splitter-port-weak' : ''}"><span class="splitter-port-number">${slot.port}</span><span class="splitter-port-customer">${escapeHtml(slot.customerName || 'Unnamed')}</span><span class="splitter-port-rx">${escapeHtml(formatRxDbm(slot.lastRxDbm))}</span>${badge}${attBadge}</div>`;
+  return `<div class="splitter-port splitter-port-occupied${slot.signalStatus === 'weak' ? ' splitter-port-weak' : ''}"><span class="splitter-port-number">${slot.port}</span><span class="splitter-port-customer">${escapeHtml(slot.customerName || 'Unnamed')}</span><span class="splitter-port-rx">${escapeHtml(formatRxDbm(slot.lastRxDbm))}</span>${badge}${attBadge}${swap}</div>`;
 }
 
 /* ------------------------------------------------------------------ */
@@ -390,9 +444,9 @@ export function createAttenuationTicket(existingTickets, input, referenceDate = 
   return { tickets: [...list, ticket], ticket, created: true };
 }
 
-export function renderSplitterPortGrid(box) {
+export function renderSplitterPortGrid(box, { actions = false } = {}) {
   if (!box) return '<p class="splitter-map-empty">No splitter box selected.</p>';
-  return `<div class="splitter-port-grid" aria-label="Splitter ${escapeHtml(box.boxId)} port map">${box.ports.map(renderSplitterPortCell).join('')}</div>`;
+  return `<div class="splitter-port-grid" aria-label="Splitter ${escapeHtml(box.boxId)} port map">${box.ports.map((slot) => renderSplitterPortCell(slot, { actions })).join('')}</div>`;
 }
 
 /**
@@ -420,19 +474,26 @@ export function renderSplitterBoxGpsRow(boxId, pin) {
  * Modal controller, mirroring setupDowntimeAnalyticsModal: a box selector,
  * the visual port grid, and the weak-signal list. getState supplies the
  * live app state ({ customers }); nothing is cached between renders.
+ * SISP-152 host callbacks (all optional — without them the modal renders
+ * exactly as before): getDeadPorts supplies the lockout list so dead
+ * ports render locked; onSwapPort(customerId) opens the port-swap
+ * dialog; onLockPort(boxId, port) / onUnlockPort(boxId, port) persist a
+ * lock change and the host re-renders via refresh().
  */
-export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTicket, getOpticalBadge, getBoxOpticalBadge } = {}) {
+export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTicket, getOpticalBadge, getBoxOpticalBadge, getDeadPorts, onSwapPort, onLockPort, onUnlockPort } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('splitterMapModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
   let selectedBoxId = '';
+  const portActions = Boolean(onSwapPort || onLockPort || onUnlockPort);
   let simulated = false;
   let simUrdu = false;
 
   function render() {
     const state = typeof getState === 'function' ? getState() : {};
     const customers = state?.customers ?? [];
-    const boxes = buildSplitterBoxes(customers);
+    const deadPorts = typeof getDeadPorts === 'function' ? getDeadPorts() : [];
+    const boxes = buildSplitterBoxes(customers, deadPorts);
     const select = $('splitterMapBoxSelect');
     if (select) {
       const previous = selectedBoxId;
@@ -447,7 +508,7 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
     if (summaryEl) {
       summaryEl.textContent = !box
         ? 'No splitter box recorded yet — add a splitter box id and port on a customer profile to start the map.'
-        : `${box.boxId} · 1:${box.portCount} PLC · ${box.occupiedCount} occupied · ${box.freeCount} spare${box.weakCount ? ` · ${box.weakCount} weak signal${box.weakCount === 1 ? '' : 's'} (below ${WEAK_RX_DBM_THRESHOLD} dBm)` : ''}${box.outOfRange.length ? ` · ${box.outOfRange.length} assignment${box.outOfRange.length === 1 ? '' : 's'} need attention` : ''}`;
+        : `${box.boxId} · 1:${box.portCount} PLC · ${box.occupiedCount} occupied · ${box.freeCount} spare${box.deadCount ? ` · ${box.deadCount} dead (locked)` : ''}${box.weakCount ? ` · ${box.weakCount} weak signal${box.weakCount === 1 ? '' : 's'} (below ${WEAK_RX_DBM_THRESHOLD} dBm)` : ''}${box.outOfRange.length ? ` · ${box.outOfRange.length} assignment${box.outOfRange.length === 1 ? '' : 's'} need attention` : ''}`;
     }
     const gpsEl = $('splitterMapGpsRow');
     if (gpsEl) {
@@ -461,7 +522,7 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
       // callback from optical-anomaly-detector.js; absent callback or
       // no weak port on the box -> nothing extra renders).
       const boxBadge = box && typeof getBoxOpticalBadge === 'function' ? getBoxOpticalBadge(box.boxId) : '';
-      gridEl.innerHTML = renderSplitterPortGrid(box) + (boxBadge ? `<p class="splitter-box-fault">${boxBadge}</p>` : '');
+      gridEl.innerHTML = renderSplitterPortGrid(box, { actions: portActions }) + (boxBadge ? `<p class="splitter-box-fault">${boxBadge}</p>` : '');
     }
     const weakEl = $('splitterMapWeakList');
     if (weakEl) {
@@ -527,6 +588,18 @@ export function setupSplitterMapModal(getState, { onToast, onCreateAttenuationTi
       selectedBoxId = select.value;
       simulated = false;
       render();
+    });
+  }
+  // SISP-152: one delegated listener for the per-port action buttons
+  // rendered into the grid (Swap / Lock / Unlock).
+  const gridEl = $('splitterMapGrid');
+  if (gridEl && portActions) {
+    gridEl.addEventListener('click', (event) => {
+      const button = event.target?.closest?.('button[data-pswap-swap], button[data-pswap-lock], button[data-pswap-unlock]');
+      if (!button) return;
+      if (button.dataset.pswapSwap && typeof onSwapPort === 'function') onSwapPort(button.dataset.pswapSwap);
+      else if (button.dataset.pswapLock && typeof onLockPort === 'function') onLockPort(selectedBoxId, Number(button.dataset.pswapLock));
+      else if (button.dataset.pswapUnlock && typeof onUnlockPort === 'function') onUnlockPort(selectedBoxId, Number(button.dataset.pswapUnlock));
     });
   }
   // SISP-92: box GPS actions (delegated — the row re-renders per box).

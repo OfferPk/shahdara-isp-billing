@@ -17,6 +17,10 @@
  *   twice. Since SISP-68 a handover recorded as kept by Nasir or Aqib
  *   (receivedInto on the settlement) never enters the drawer at all: it is
  *   mirrored as that partner's drawing in the SISP-22 ledger instead.
+ *   Since SISP-149 a split handover contributes only its NET cash
+ *   (shop-settlement.js settlementNetCash); the deduction rides the entry
+ *   as a display memo and is accounted as an Expenses-ledger expense by
+ *   shop-settlement.js, never as drawer money here.
  * - The persistent day ledger (localStorage sisp_roznamcha_v1) stores only
  *   what the drawer itself owns: petty-cash outflows plus, once closed, a
  *   frozen snapshot (opening, inflows, expected closing, counted cash,
@@ -42,7 +46,7 @@
  * synthetic data only.
  */
 
-import { canonicalShopName, loadShopSettlements, partnerForReceivedInto } from './shop-settlement.js';
+import { canonicalShopName, loadShopSettlements, partnerForReceivedInto, settlementDeduction, settlementNetCash } from './shop-settlement.js';
 import { buildCategoryBudgetStatus, loadExpenseBudgets, renderBudgetAlertsHtml } from './expense-budget-caps.js';
 
 export const ROZNAMCHA_KEY = 'sisp_roznamcha_v1';
@@ -149,10 +153,21 @@ export function sanitizeRoznamchaDay(day) {
       customerNumber: cleanText(p?.customerNumber, 100),
       amount: round2(moneyValue(p?.amount))
     })).filter((p) => p.amount > 0) : [];
-    record.handovers = Array.isArray(day.handovers) ? day.handovers.map((h) => ({
-      shop: cleanText(h?.shop, 100),
-      amount: round2(moneyValue(h?.amount))
-    })).filter((h) => h.amount > 0) : [];
+    record.handovers = Array.isArray(day.handovers) ? day.handovers.map((h) => {
+      // SISP-149: a frozen snapshot keeps a split handover's gross /
+      // deduction memo next to its net amount, so a closed day keeps
+      // showing why the drawer received less than the receipts total.
+      const entry = {
+        shop: cleanText(h?.shop, 100),
+        amount: round2(moneyValue(h?.amount))
+      };
+      const deduction = round2(moneyValue(h?.deduction));
+      if (deduction > 0) {
+        entry.gross = round2(moneyValue(h?.gross));
+        entry.deduction = deduction;
+      }
+      return entry;
+    }).filter((h) => h.amount > 0 || h.deduction > 0) : [];
     record.expectedClosing = round2(moneyValue(day.expectedClosing));
     record.closingBalance = round2(moneyValue(day.closingBalance));
     record.countedCash = round2(moneyValue(day.countedCash));
@@ -238,18 +253,29 @@ export function collectDirectCashPayments(state, date) {
  * enters the drawer — it is mirrored as that partner's drawing in the
  * SISP-22 ledger instead — so it is excluded here. Drawer handovers and
  * legacy records (no receivedInto field) count exactly as before.
+ * SISP-149: the drawer receives the NET cash of a split handover — the
+ * shop deduction never physically reaches the drawer, so it is carried
+ * on the entry as a memo (gross / deduction) for the day view and the
+ * summary text, and is NEVER added to any inflow or outflow total.
+ * Legacy settlements (no split) hand over their full amount as before.
  */
 export function collectShopHandovers(settlements, date) {
   const handovers = [];
   for (const settlement of Array.isArray(settlements) ? settlements : []) {
     if (settlement?.date === date) {
       if (partnerForReceivedInto(settlement?.receivedInto)) continue;
-      const amount = moneyValue(settlement.amount);
-      if (amount > 0) {
+      const amount = settlementNetCash(settlement);
+      const deduction = settlementDeduction(settlement);
+      if (amount > 0 || deduction > 0) {
         // OWNER-CASH-SHOP: handovers read under the ONE canonical shop
         // name even when the settlement record was stored under a legacy
         // one ('Hassan Shop' / 'Balla Shop'); the record is not rewritten.
-        handovers.push({ shop: canonicalShopName(cleanText(settlement.shop, 100)), amount: round2(amount) });
+        const handover = { shop: canonicalShopName(cleanText(settlement.shop, 100)), amount: round2(amount) };
+        if (deduction > 0) {
+          handover.gross = round2(moneyValue(settlement.amount));
+          handover.deduction = round2(deduction);
+        }
+        handovers.push(handover);
       }
     }
   }
@@ -588,6 +614,12 @@ export function generateRoznamchaSummaryText(view) {
   lines.push(`Cash in (door-to-door): ${formatRoznamchaPKR(view.cashIn)} (${view.cashPayments.length} payment${view.cashPayments.length === 1 ? '' : 's'})`);
   for (const handover of view.handovers) {
     lines.push(`Shop handover — ${handover.shop || 'Shop'}: ${formatRoznamchaPKR(handover.amount)}`);
+    // SISP-149: memo line only — the deduction is a shop expense (it is
+    // in the Expenses ledger for this date), it never entered the
+    // drawer, so it stays out of every total above and below.
+    if (handover.deduction > 0) {
+      lines.push(`Shop deduction — ${handover.shop || 'Shop'}: ${formatRoznamchaPKR(handover.deduction)} (gross ${formatRoznamchaPKR(handover.gross)} — sirf net cash drawer me aaya)`);
+    }
   }
   lines.push(`Total cash in: ${formatRoznamchaPKR(view.totalIn)}`);
   if (view.outflows.length === 0) {
@@ -648,7 +680,11 @@ export function setupRoznamchaModal(getState, { onToast, onChanged } = {}) {
       const shopLines = view.handovers.length === 0
         ? ''
         : view.handovers.map((h) => `<p><span>Shop handover — ${escapeHtml(h.shop || 'Shop')}</span><strong>${escapeHtml(formatRoznamchaPKR(h.amount))}</strong></p>`).join('');
-      inflowsEl.innerHTML = cashLines + shopLines;
+      // SISP-149: deduction memo lines — informational only; the net
+      // handover above is already the full drawer inflow for the shop.
+      const deductionLines = view.handovers.filter((h) => h.deduction > 0)
+        .map((h) => `<p><span>Shop deduction — ${escapeHtml(h.shop || 'Shop')} <small>(gross ${escapeHtml(formatRoznamchaPKR(h.gross))} · shop expense)</small></span><strong>${escapeHtml(formatRoznamchaPKR(h.deduction))}</strong></p>`).join('');
+      inflowsEl.innerHTML = cashLines + shopLines + deductionLines;
     }
     const outflowsEl = $('roznamchaOutflows');
     if (outflowsEl) {

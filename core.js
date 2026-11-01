@@ -268,6 +268,9 @@ export function readState(storage, key = STORAGE_KEY) {
       splitterPort:Number.isInteger(Number(customer.splitterPort)) && Number(customer.splitterPort) >= 1 && Number(customer.splitterPort) <= 16 ? Number(customer.splitterPort) : null,
       oltPonPort:typeof customer.oltPonPort === 'string' ? customer.oltPonPort.trim().slice(0, 100) : '',
       lastRxDbm:Number.isFinite(Number(customer.lastRxDbm)) && customer.lastRxDbm !== '' && customer.lastRxDbm !== null && customer.lastRxDbm !== undefined ? Math.round(Number(customer.lastRxDbm) * 10) / 10 : null,
+      // SISP-173: installer attribution — old saves without it load as
+      // empty (not recorded), never as an invented name.
+      installedByLineman:typeof customer.installedByLineman === 'string' ? customer.installedByLineman.trim().slice(0, 100) : '',
       // SISP-167: ONU connector polish ('UPC' | 'APC'); anything else
       // sanitizes to '' (unknown) — a physical fact is never guessed.
       onuConnectorType:sanitizeOnuConnectorType(customer.onuConnectorType),
@@ -527,6 +530,9 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   const poleNumber = cleanText(options.poleNumber, 100, 'Pole / landmark');
   const boxLocationNote = cleanText(options.boxLocationNote, 200, 'Box location note');
   const dropWireCoreColor = cleanText(options.dropWireCoreColor, 100, 'Drop wire color');
+  // SISP-173: who installed this connection (optional free text; the
+  // lineman scorecard splits new connections by it — blank = not recorded).
+  const installedByLineman = cleanText(options.installedByLineman, 100, 'Installed by lineman');
   const mediaConverterCost = checkCost(options.mediaConverterCost);
   const linemanInstallFee = checkCost(options.linemanInstallFee);
   const fiberPerMeterRate = checkCost(options.fiberPerMeterRate);  const nameUrdu = cleanText(options.nameUrdu, 100, 'Urdu name');
@@ -588,7 +594,7 @@ export function addCustomer(state, name, referenceDate = new Date(), options = {
   // SISP-153: a new record starts with no seasonal rate unless the
   // caller passes a complete valid triple (sanitized all-or-nothing).
   const seasonalFields = sanitizeSeasonalFields(options);
-  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, depositOffsets:[], hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, onuConnectorType, customerConverterSide, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, nameUrdu, fatherOrReferenceName, searchAliases, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
+  return { ...state, nextCustomerNumber, customers: [...state.customers, { id: makeId(), customerNumber, name: cleaned, addedOn:dateKey(referenceDate), mohalla, zone, address, phone, whatsappPhone, alternatePhone, cnic, ispProvider:'', serviceStatus:initialServiceStatus, serviceStatusHistory:initialStatusHistory, packageSpeed: '', monthlyPurchaseCost: null, monthlySellingAmount: null, monthlyPriceSchedule: [], billingStartMonth:null, connectionDate:null, connectionFee, routerModel, routerPrice, fiberMeters, mediaConverterCost, linemanInstallFee, fiberPerMeterRate, routerOwnership, mediaConverterOwnership, serialNumber, securityDeposit, residenceType, landlordOrGuarantorName, landlordPhone, depositSettlement:null, depositOffsets:[], hardwareRecovered:{ router:null, mediaConverter:null }, splitterBoxId, splitterPort, oltPonPort, lastRxDbm, onuConnectorType, customerConverterSide, gpsLat, gpsLng, poleNumber, boxLocationNote, dropWireCoreColor, installedByLineman, nameUrdu, fatherOrReferenceName, searchAliases, pppoeUsername, pppoePassword, staticIp, macAddress, wifiSsid, wifiPassword, routerAdminPort, routerAdminPassword, referredByCustomerId, ...(preferredVisitWindow ? { preferredVisitWindow } : {}), expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], isFreeConnection:options.isFreeConnection === true, connectionType:options.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential', prefersSms:prefersSmsForChannel(preferredReceiptChannel, options.prefersSms === true), preferredReceiptLang, preferredReceiptChannel, archived:false, archivedAt:null, disconnectReason:'', winBackEligible:false, disconnectNote:'', disconnectHistory:[], winBackOfferSentAt:null, paused:false, pauseStartDate:null, autoResumeDate:null, pauseSkippedMonths:[], doNotSuspendUntil, doNotSuspendReason, seasonalRatePKR:seasonalFields.seasonalRatePKR, seasonalUntilMonth:seasonalFields.seasonalUntilMonth, restorePackageRatePKR:seasonalFields.restorePackageRatePKR, bills: [], manualBaqaya: [], incidents: [], installmentPlans: [], subContributors: sanitizeSubContributors(options.subContributors) }] };}
 // ---------------------------------------------------------------------------
 // SISP-74: network-identity conflict guard + identity search.
 //
@@ -1002,6 +1008,9 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     poleNumber: cleanText(valueOrCurrent('poleNumber') ?? '', 100, 'Pole / landmark'),
     boxLocationNote: cleanText(valueOrCurrent('boxLocationNote') ?? '', 200, 'Box location note'),
     dropWireCoreColor: cleanText(valueOrCurrent('dropWireCoreColor') ?? '', 100, 'Drop wire color'),
+    // SISP-173: installer attribution (optional; feeds the lineman
+    // scorecard's per-installer new-connection split).
+    installedByLineman: cleanText(valueOrCurrent('installedByLineman') ?? '', 100, 'Installed by lineman'),
     routerModel: cleanText(valueOrCurrent('routerModel') ?? '', 100, 'Router model'),
     routerPrice: checkCost(valueOrCurrent('routerPrice')),
     fiberMeters: checkFiberMeters(valueOrCurrent('fiberMeters')),
@@ -3688,6 +3697,8 @@ function validateBackupState(source) {
       customerConverterSide:['A','B'].includes(customer.customerConverterSide) ? customer.customerConverterSide : '',
       // SISP-32: pole & landmark fields travel with the customer in JSON backups.
       poleNumber:customer.poleNumber ?? '', boxLocationNote:customer.boxLocationNote ?? '', dropWireCoreColor:customer.dropWireCoreColor ?? '',
+      // SISP-173: installer attribution travels with the customer in JSON backups.
+      installedByLineman:customer.installedByLineman ?? '',
       // SISP-118: WhatsApp + alternate contact numbers travel with the
       // customer in JSON backups (old backups import them as empty).
       whatsappPhone:customer.whatsappPhone ?? '', alternatePhone:customer.alternatePhone ?? '',
@@ -4182,7 +4193,7 @@ export function previewJsonBackupMerge(existingState, backupText, options = {}) 
     }
     counts.mergedCustomers++;
     const customer = byId;
-    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','fatherOrReferenceName','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','referredByCustomerId','customerConverterSide','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone','seasonalRatePKR','seasonalUntilMonth','restorePackageRatePKR','onuConnectorType']) mergeField(customer, backupCustomer, key, backupCustomer);
+    for (const key of ['mohalla','zone','address','phone','whatsappPhone','alternatePhone','cnic','ispProvider','serviceStatus','packageSpeed','monthlySellingAmount','monthlyPurchaseCost','billingStartMonth','connectionDate','expiryDate','cancellationDate','connectionFee','routerModel','routerPrice','fiberMeters','mediaConverterCost','linemanInstallFee','fiberPerMeterRate','routerOwnership','mediaConverterOwnership','serialNumber','securityDeposit','depositSettlement','addedOn','archived','archivedAt','promiseDate','promiseAmount','promiseNote','nameUrdu','fatherOrReferenceName','upstreamCustomerId','fiberZone','feederHostCreditPKR','paused','pauseStartDate','autoResumeDate','pppoeUsername','pppoePassword','staticIp','macAddress','wifiSsid','wifiPassword','routerAdminPort','routerAdminPassword','poleNumber','boxLocationNote','dropWireCoreColor','installedByLineman','referredByCustomerId','customerConverterSide','doNotSuspendUntil','doNotSuspendReason','preferredVisitWindow','disconnectReason','disconnectNote','winBackOfferSentAt','residenceType','landlordOrGuarantorName','landlordPhone','seasonalRatePKR','seasonalUntilMonth','restorePackageRatePKR','onuConnectorType']) mergeField(customer, backupCustomer, key, backupCustomer);
     // SISP-138: the last-contact stamp merges by recency, never as a
     // plain field fill and never as a conflict — contact history only
     // moves forward, so the later stamp (fixed-format strings compare

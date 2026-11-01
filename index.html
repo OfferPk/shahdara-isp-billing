@@ -7421,6 +7421,7 @@
               <button id="clearExpenseFilters" class="secondary-button table-filter-clear" type="button">Clear</button>
               <button id="exportExpensesCsvBtn" class="secondary-button" type="button" title="Export expenses to CSV">Export CSV</button>
               <button id="expenseVoucherOpenBtn" class="secondary-button" type="button" data-i18n="evouch_open_btn">🖨️ Voucher Book</button>
+              <button id="letterheadOpenBtn" class="secondary-button" type="button" data-i18n="lh_open_btn">🖨️ Letterhead Statement</button>
             </div>
             <p id="expenseTableCount" class="table-filter-count" role="status" aria-live="polite"></p>
           </div>
@@ -20646,6 +20647,36 @@
           <button id="expenseVoucherPrintBtn" class="secondary-button" type="button" data-i18n="evouch_print_a4">📄 Print A4</button>
         </div>
         <button id="expenseVoucherCloseBtn2" class="primary-button" type="button" data-i18n="evouch_close">Close</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <dialog id="letterheadDialog" class="billing-modal letterhead-modal" aria-labelledby="letterheadDialogTitle">
+    <div class="billing-modal-content">
+      <header class="billing-modal-header">
+        <div class="billing-modal-title-group">
+          <h2 id="letterheadDialogTitle" data-i18n="lh_title">Letterhead Financial Statement</h2>
+          <span class="urdu-subtitle">سرکاری لیٹر ہیڈ مالیاتی گوشوارہ</span>
+        </div>
+        <button id="letterheadCloseBtn" class="close-btn" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="billing-modal-body">
+        <p class="letterhead-help" data-i18n="lh_help">An official printable statement on the Shahdara Fiber Net letterhead for any month range: active subscribers, gross collections, operating expenses and net profit, ready for both partners to sign.</p>
+        <div class="letterhead-controls">
+          <label class="letterhead-field" for="letterheadFromMonth"><span data-i18n="lh_from_label">From month</span>
+            <input id="letterheadFromMonth" class="letterhead-input" type="month">
+          </label>
+          <label class="letterhead-field" for="letterheadToMonth"><span data-i18n="lh_to_label">To month</span>
+            <input id="letterheadToMonth" class="letterhead-input" type="month">
+          </label>
+        </div>
+        <p id="letterheadPreview" class="letterhead-preview" role="status"></p>
+      </div>
+      <footer class="billing-modal-footer">
+        <div class="footer-actions-left" style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button id="letterheadPrintBtn" class="secondary-button" type="button" data-i18n="lh_print_a4">📄 Print A4</button>
+        </div>
+        <button id="letterheadCloseBtn2" class="primary-button" type="button" data-i18n="lh_close">Close</button>
       </footer>
     </div>
   </dialog>

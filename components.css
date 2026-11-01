@@ -2510,6 +2510,31 @@ body.field-mode-open { overflow: hidden; }
 }
 .expense-voucher-preview { margin: var(--space-3) 0 0; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); }
 
+/* SISP-182: expense source filter chips + clickable Roznamcha badge.
+ * Token-only (components.css rule); dark theme follows the tokens. */
+.expense-source-chips { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.expense-source-chip {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: var(--radius-pill);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.expense-source-chip.is-active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--color-neutral-0);
+}
+button.expense-roznamcha-badge {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
 /* SISP-154: Daily Collection Method Matrix dialog (token-only; the
    dialog itself uses the shared .billing-modal shell →
    var(--modal-surface)). The matrix is wide, so the table scrolls

@@ -13370,6 +13370,54 @@ export function validateStaffAttendanceDate(date, existingDates = [], label = 'D
 }
 
 /**
+ * SISP-182: provenance predicates for expense rows. These read the SAME
+ * fields the Expenses UI badge logic reads — a row mirrored from the
+ * Daily Cash Roznamcha (SISP-45) carries a non-empty string
+ * roznamchaEntryId, a row mirrored from the Saad Visit Log (SISP-56)
+ * carries a non-empty string saadPaymentId, and a row the owner typed
+ * by hand carries neither. No new tags are introduced.
+ */
+export function isRoznamchaMirrorExpense(row) {
+  return typeof row?.roznamchaEntryId === 'string' && row.roznamchaEntryId !== '';
+}
+
+export function isSaadMirrorExpense(row) {
+  return typeof row?.saadPaymentId === 'string' && row.saadPaymentId !== '';
+}
+
+/** Hand-entered rows only: neither auto-sync provenance is present. */
+export function isDirectManualExpense(row) {
+  return !isRoznamchaMirrorExpense(row) && !isSaadMirrorExpense(row);
+}
+
+/** 'roznamcha' | 'saad' | 'manual' — the row's provenance class. */
+export function expenseSourceOf(row) {
+  if (isRoznamchaMirrorExpense(row)) return 'roznamcha';
+  if (isSaadMirrorExpense(row)) return 'saad';
+  return 'manual';
+}
+
+/**
+ * Roznamcha petty-cash categories actually present among the mirrored
+ * rows in the given list (the values a mirror row's roznamchaCategory
+ * can hold are constrained to ROZNAMCHA_CATEGORIES by the SISP-45 sync;
+ * this list is derived from the data so the filter never offers a
+ * category with zero rows on this device). Sorted alphabetically.
+ *
+ * @param {Array<Object>} [expenses=[]] - List of expense objects
+ * @returns {Array<string>} Unique roznamchaCategory values, sorted
+ */
+export function listExpenseRoznamchaCategories(expenses = []) {
+  const seen = new Set();
+  for (const row of (expenses || [])) {
+    if (isRoznamchaMirrorExpense(row) && typeof row.roznamchaCategory === 'string' && row.roznamchaCategory !== '') {
+      seen.add(row.roznamchaCategory);
+    }
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
+/**
  * Pure filter helper for expense rows supporting month, category, and text search across category, notes, and area.
  *
  * @param {Array<Object>} [expenses=[]] - List of expense objects
@@ -13377,13 +13425,21 @@ export function validateStaffAttendanceDate(date, existingDates = [], label = 'D
  * @param {string} [filters.month='all'] - Calendar month YYYY-MM or 'all'
  * @param {string} [filters.category='all'] - Expense category or 'all'
  * @param {string} [filters.query=''] - Search term
+ * @param {string} [filters.source='all'] - SISP-182 provenance: 'all' |
+ *   'manual' (hand-entered only) | 'roznamcha' (Roznamcha mirrors only)
+ * @param {string} [filters.roznamchaCategory='all'] - SISP-182 petty-cash
+ *   category as recorded on the mirror row; rows without one (every
+ *   manual row) never match a specific value
  * @returns {Array<Object>} Filtered expense objects
  */
-export function filterExpenseRows(expenses = [], { month = 'all', category = 'all', query = '' } = {}) {
+export function filterExpenseRows(expenses = [], { month = 'all', category = 'all', query = '', source = 'all', roznamchaCategory = 'all' } = {}) {
   const q = String(query || '').trim().toLowerCase();
   return (expenses || []).filter(row => {
     if (month && month !== 'all' && (!row.date || row.date.slice(0, 7) !== month)) return false;
     if (category && category !== 'all' && row.category !== category) return false;
+    if (source === 'roznamcha' && !isRoznamchaMirrorExpense(row)) return false;
+    if (source === 'manual' && !isDirectManualExpense(row)) return false;
+    if (roznamchaCategory && roznamchaCategory !== 'all' && row.roznamchaCategory !== roznamchaCategory) return false;
     if (q) {
       const matchCat = String(row.category || '').toLowerCase().includes(q);
       const matchNotes = String(row.notes || '').toLowerCase().includes(q);

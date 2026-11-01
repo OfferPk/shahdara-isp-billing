@@ -137,6 +137,9 @@ import {
   buildPayrollExpensePrefill,
   validateStaffAttendanceDate,
   filterExpenseRows,
+  isRoznamchaMirrorExpense,
+  isSaadMirrorExpense,
+  listExpenseRoznamchaCategories,
   buildExpenseCategoryTotals,
   sortExpenseRows,
   generateExpensesCsv
@@ -192,7 +195,7 @@ import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } 
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { buildUpstreamSlaLog, setupUpstreamSlaModal } from './upstream-sla-log.js';
 import { setupPostRepairCheckinModal } from './post-repair-checkin.js';
-import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
+import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, roznamchaSourceDateForExpense, saveRoznamchaDays, setupRoznamchaModal, syncRoznamchaExpenses } from './roznamcha.js';
 import { INVENTORY_ITEM_IDS, INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { CONVERTER_SIDES_KEY, buildConverterReplacementSuggestion, converterSideLabel, converterSuggestionText, loadConverterSides, saveConverterSides, setupWdmConverterMatcher } from './wdm-converter-matcher.js';
 import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.11.0';
@@ -9512,6 +9515,10 @@ let expenseSortAsc = false;
 let expenseMonthFilter = 'all';
 let expenseCategoryFilter = 'all';
 let expenseSearchQuery = '';
+// SISP-182: session-only view state (same treatment as the filters
+// above — never persisted, never written into state.expenses).
+let expenseSourceFilter = 'all';
+let expenseRoznamchaCategoryFilter = 'all';
 let expenseActiveTab = 'ledger';
 let nasirShareMonth = '';
 let aqibShareMonth = '';
@@ -10120,10 +10127,29 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
     if(curVal&&areas.includes(curVal))expenseAreaSelect.value=curVal;
   }
 
+  // SISP-182: the roznamcha-category sub-filter offers only the
+  // petty-cash categories actually present on mirrored rows, and the
+  // source chips reflect the session view state.
+  const expenseRoznamchaCategorySelect = $('#expenseRoznamchaCategoryFilter');
+  if (expenseRoznamchaCategorySelect) {
+    const roznamchaCategories = listExpenseRoznamchaCategories(allRows);
+    const currentRoznamchaCategory = expenseRoznamchaCategoryFilter;
+    expenseRoznamchaCategorySelect.innerHTML = `<option value="all">${escapeHtml(t('exp_roznamcha_category_all'))}</option>` + roznamchaCategories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join('');
+    expenseRoznamchaCategorySelect.value = roznamchaCategories.includes(currentRoznamchaCategory) ? currentRoznamchaCategory : 'all';
+    expenseRoznamchaCategoryFilter = expenseRoznamchaCategorySelect.value;
+  }
+  document.querySelectorAll('[data-expense-source]').forEach(chip => {
+    const active = chip.dataset.expenseSource === expenseSourceFilter;
+    chip.classList.toggle('is-active', active);
+    chip.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+
   const filteredRows = filterExpenseRows(allRows, {
     month: expenseMonthFilter,
     category: expenseCategoryFilter,
-    query: expenseSearchQuery
+    query: expenseSearchQuery,
+    source: expenseSourceFilter,
+    roznamchaCategory: expenseRoznamchaCategoryFilter
   });
 
   const filteredTotal = filteredRows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
@@ -10131,7 +10157,7 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   if (filteredTotalEl) filteredTotalEl.textContent = formatAmount(filteredTotal);
   const filteredHelpEl = $('#expenseFilteredHelp');
   if (filteredHelpEl) {
-    const hasFilter = expenseMonthFilter !== 'all' || expenseCategoryFilter !== 'all' || Boolean(expenseSearchQuery);
+    const hasFilter = expenseMonthFilter !== 'all' || expenseCategoryFilter !== 'all' || Boolean(expenseSearchQuery) || expenseSourceFilter !== 'all' || expenseRoznamchaCategoryFilter !== 'all';
     if (hasFilter) {
       filteredHelpEl.textContent = `${filteredRows.length} of ${allRows.length} entries matching filters`;
     } else {
@@ -10157,12 +10183,15 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
     // would be overwritten by the next sync pass anyway.
     // SISP-56: rows mirrored from the Saad Visit Log carry saadPaymentId
     // and get the same treatment, with their own badge and hint.
-    const synced = typeof row.roznamchaEntryId === 'string' && row.roznamchaEntryId !== '';
-    const saadSynced = typeof row.saadPaymentId === 'string' && row.saadPaymentId !== '';
+    const synced = isRoznamchaMirrorExpense(row);
+    const saadSynced = isSaadMirrorExpense(row);
     // SISP-107: rows mirrored from the Supplier Khata carry
     // supplierPayoutId and get the same badge + locked treatment.
     const supplierSynced = typeof row.supplierPayoutId === 'string' && row.supplierPayoutId !== '';
-    const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_roznamcha_badge'))}</span>` : ''}${saadSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_saad_badge'))}</span>` : ''}${supplierSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_supplier_badge'))}</span>` : ''}`;
+    // SISP-182: the Roznamcha badge is a button — clicking it opens the
+    // Daily Cash Roznamcha on the day this expense came from (handler
+    // attached after render). The Saad badge stays a plain label.
+    const notesCell = `${phase3Cell(row.notes || 'Not recorded')}${synced ? ` <button type="button" class="expense-roznamcha-badge" data-roznamcha-jump="${phase3Cell(row.id)}" title="${escapeHtml(t('exp_roznamcha_jump_title', null, { date: row.date }))}" aria-label="${escapeHtml(t('exp_roznamcha_jump_title', null, { date: row.date }))}">${escapeHtml(t('exp_roznamcha_badge'))}</button>` : ''}${saadSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_saad_badge'))}</span>` : ''}${supplierSynced ? ` <span class="expense-roznamcha-badge">${escapeHtml(t('exp_supplier_badge'))}</span>` : ''}`;
     const actionsCell = (synced || saadSynced || supplierSynced)
       ? `<span class="expense-roznamcha-hint">${escapeHtml(t(synced ? 'exp_roznamcha_synced_hint' : saadSynced ? 'exp_saad_synced_hint' : 'exp_supplier_synced_hint'))}</span>`
       : `<button type="button" class="edit-payment" data-edit-expense="${phase3Cell(row.id)}">Edit</button> <button type="button" class="delete-incident" data-delete-expense="${phase3Cell(row.id)}">Delete</button>`;
@@ -10191,6 +10220,15 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
     if (indicator) indicator.textContent = isCurrent ? (expenseSortAsc ? '▲' : '▼') : '⇅';
   });
 
+  // SISP-182: badge jump — open the Roznamcha modal on the source day.
+  // The date is resolved from the day ledger by roznamchaEntryId (the
+  // record itself), never guessed from createdAt.
+  $('#expenseTable').querySelectorAll('[data-roznamcha-jump]').forEach(button=>button.addEventListener('click',()=>{
+    const row=allRows.find(item=>item.id===button.dataset.roznamchaJump);
+    if(!row)return;
+    const date=roznamchaSourceDateForExpense(loadRoznamchaDays(),row);
+    if(date&&roznamchaModalController)roznamchaModalController.open({ date });
+  }));
   $('#expenseTable').querySelectorAll('[data-edit-expense]').forEach(button=>button.addEventListener('click',()=>{
     const row=allRows.find(item=>item.id===button.dataset.editExpense);
     if(!row)return;
@@ -10355,6 +10393,14 @@ $('#expenseCategoryFilter')?.addEventListener('change',e=>{
   expenseCategoryFilter=e.currentTarget.value;
   renderExpenses();
 });
+document.querySelectorAll('[data-expense-source]').forEach(chip=>chip.addEventListener('click',()=>{
+  expenseSourceFilter=chip.dataset.expenseSource||'all';
+  renderExpenses();
+}));
+$('#expenseRoznamchaCategoryFilter')?.addEventListener('change',e=>{
+  expenseRoznamchaCategoryFilter=e.currentTarget.value;
+  renderExpenses();
+});
 $('#expenseSearchInput')?.addEventListener('input',e=>{
   expenseSearchQuery=e.currentTarget.value.trim();
   renderExpenses();
@@ -10363,8 +10409,11 @@ const resetExpenseFiltersHandler = () => {
   expenseMonthFilter = 'all';
   expenseCategoryFilter = 'all';
   expenseSearchQuery = '';
+  expenseSourceFilter = 'all';
+  expenseRoznamchaCategoryFilter = 'all';
   const mSel = $('#expenseMonthFilter'); if (mSel) mSel.value = 'all';
   const cat = $('#expenseCategoryFilter'); if (cat) cat.value = 'all';
+  const rozCat = $('#expenseRoznamchaCategoryFilter'); if (rozCat) rozCat.value = 'all';
   const inp = $('#expenseSearchInput'); if (inp) inp.value = '';
   renderExpenses();
 };
@@ -10876,11 +10925,13 @@ $('#exportTransactionsCsvBtn')?.addEventListener('click', () => {
 
 $('#exportExpensesCsvBtn')?.addEventListener('click', () => {
   const allRows = state.expenses || [];
-  const hasFilter = expenseMonthFilter !== 'all' || expenseCategoryFilter !== 'all' || Boolean(expenseSearchQuery);
+  const hasFilter = expenseMonthFilter !== 'all' || expenseCategoryFilter !== 'all' || Boolean(expenseSearchQuery) || expenseSourceFilter !== 'all' || expenseRoznamchaCategoryFilter !== 'all';
   const expenses = filterExpenseRows(allRows, {
     month: expenseMonthFilter,
     category: expenseCategoryFilter,
-    query: expenseSearchQuery
+    query: expenseSearchQuery,
+    source: expenseSourceFilter,
+    roznamchaCategory: expenseRoznamchaCategoryFilter
   });
   const csv = generateExpensesCsv(expenses);
   const filename = `shahdara-expenses-${hasFilter ? 'filtered' : 'all'}-${new Date().toISOString().slice(0, 10)}.csv`;

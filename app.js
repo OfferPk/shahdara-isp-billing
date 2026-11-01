@@ -199,6 +199,7 @@ import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonCharges
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspenseSummary } from './suspense-payments.js';
+import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
 import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
 import { setupExpansionEstimatorModal } from './expansion-estimator.js';
@@ -12901,6 +12902,12 @@ if (typeof document !== 'undefined') {
   });
   $('#qrScanTopbarBtn')?.addEventListener('click', () => qrScannerModalController?.open());
   $('#fieldModeScanQrBtn')?.addEventListener('click', () => qrScannerModalController?.open());
+  // SISP-150: 150-Phase Self-Test — mounts its Run button + results
+  // panel into the System Health Center dialog (SISP-100) when that
+  // dialog is in the document; a safe no-op until the host lands. The
+  // checks run on synthetic in-memory fixtures only and never read or
+  // write the live ledger.
+  setupInAppSelfTest({ onToast: (msg, opts) => toast(msg, opts) });
   // SISP-135: new-street expansion estimator — a pure planning dialog;
   // it only reads state for recorded-data prefill defaults and never
   // writes anything back.

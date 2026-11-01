@@ -906,6 +906,20 @@ body.field-mode-open { overflow: hidden; }
   .inventory-stock-card p strong { text-align: left; }
   .inventory-log-card p strong { text-align: left; }
 }
+/* SISP-127: Field Bag — token-only, mirrors the stock book cards. */
+.field-bag-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
+.field-bag-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }
+.field-bag-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin: 8px 0 16px; }
+.field-bag-card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.field-bag-card p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.field-bag-card p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.field-bag-form label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin: 10px 0 4px; }
+.field-bag-form .form-input { width: 100%; }
+.field-bag-empty { color: var(--muted); font-size: 13px; }
+@media (max-width: 480px) {
+  .field-bag-list { grid-template-columns: 1fr; }
+  .field-bag-card p strong { text-align: left; }
+}
 /* SISP-119: Fiber Drum Tracker — token-only, mirrors the stock book cards. */
 .fiber-drum-intro { color: var(--muted); font-size: 13px; margin: 0 0 8px; }
 .fiber-drum-summary-line { color: var(--muted); font-size: 13px; margin: 8px 0 12px; }

@@ -162,3 +162,29 @@ test('register: unpriced bills are not invoices; module ships in the build', asy
   const { ENTRY_FILES } = await import('../build.mjs');
   assert.ok(ENTRY_FILES.includes('billing-register.js'));
 });
+
+test('register: SISP-171 referral-credit bill (Rs. 3,000 − Rs. 500 credit, Rs. 2,500 cash) reads Paid', () => {
+  // Spec pin: the SISP-40 referral credit settles the bill together with
+  // the cash (FU1b aligned the engine the register derives from), so
+  // the register must show the bill Paid with zero balance due — never
+  // Unpaid/Partial over the waived Rs. 500.
+  const state = {
+    customers: [{
+      id: 'c-ref171', customerNumber: 21, name: 'Register Referral', phone: '', packageSpeed: '15 Mbps',
+      bills: [{
+        id: 'b-ref-2026-10', month: '2026-10', dueAmount: 3000, dueDate: '2026-10-05', status: 'pending',
+        referralCreditAmount: 500, referralCreditReason: 'Hamsaya Referral Credit',
+        payments: [pay('p-ref-oct', 2500)]
+      }]
+    }]
+  };
+  const all = buildBillingRegister(state, { period: 'this', status: 'all', currentMonth: CURRENT_MONTH });
+  assert.equal(all.rows.length, 1);
+  assert.equal(all.rows[0].status, 'paid');
+  assert.equal(all.rows[0].balanceDue, 0);
+  assert.equal(all.rows[0].billAmount, 3000);
+  const paidOnly = buildBillingRegister(state, { period: 'this', status: 'paid', currentMonth: CURRENT_MONTH });
+  assert.equal(paidOnly.rows.length, 1);
+  const unpaidOnly = buildBillingRegister(state, { period: 'this', status: 'unpaid', currentMonth: CURRENT_MONTH });
+  assert.equal(unpaidOnly.rows.length, 0);
+});

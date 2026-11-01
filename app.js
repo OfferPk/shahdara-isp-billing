@@ -227,6 +227,7 @@ import { buildBottleneckSuspects, buildBottleneckSummary, bottleneckForCustomer 
 import { buildFieldDispatchBoard, DISPATCH_ITEM_TYPES, UNASSIGNED_ZONE_KEY } from './field-dispatch-board.js';
 import { advanceBalanceCents, normalPaymentBlockReason, recordAdvancePayment, advanceTargetMonthOptions, defaultAdvanceTargetMonth, advancePaymentTargetMonth } from './advance-payment.js';
 import { recordPrepay, prepayQuote, PREPAY_MONTH_OPTIONS } from './advance-prepay.js';
+import { customerVisitWindow, VISIT_WINDOW_LABEL_KEYS } from './visit-time-window.js';
 import { planDeltaMergeSections, applyDeltaMergeSections, findIncomingVoidNotices } from './delta-merge-sync.js';
 import { sameNameBadgeHtml } from './name-disambiguator.js';
 import { buildSmsReceiptUrl, buildSmsReminderUrl, customerPrefersSms } from './sms-fallback.js';
@@ -4066,6 +4067,8 @@ function renderDetail() {
   $('#customerProfileView').hidden = profileEditMode;
   $('#customerProfileForm').hidden = !profileEditMode;
   $('#serviceStatusInput').value = customer.serviceStatus ?? 'not-set';
+  // SISP-133: preferred visit window — legacy records read as 'anytime'.
+  if ($('#preferredVisitWindowInput')) $('#preferredVisitWindowInput').value = customerVisitWindow(customer);
   // SISP-84: connection type select (legacy records read residential).
   if ($('#connectionTypeInput')) $('#connectionTypeInput').value = customer.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential';
   const serviceStatus = ['active','offline'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set';
@@ -6759,6 +6762,8 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       cnic: formattedCnic,
       ispProvider:$('#ispProviderInput').value,
       serviceStatus:$('#serviceStatusInput').value,
+      // SISP-133: preferred collection visit window (optional).
+      ...($('#preferredVisitWindowInput') ? { preferredVisitWindow: $('#preferredVisitWindowInput').value } : {}),
       // SISP-84: connection type (residential / commercial_vip SLA tag).
       ...($('#connectionTypeInput') ? { connectionType: $('#connectionTypeInput').value } : {}),
       packageSpeed:$('#packageSpeedInput').value, monthlyPurchaseCost:$('#monthlyPurchaseCostInput').value,
@@ -10847,7 +10852,7 @@ function renderReminderContent() {
     reminderCustomerSummary.innerHTML = `
       <div class="reminder-cust-left">
         <span class="reminder-cust-name">${escapeHtml(c.name)} (#${c.customerNumber})</span>
-        <span class="reminder-cust-sub">${escapeHtml(c.area || c.mohalla || 'Area unassigned')} · Phone: ${escapeHtml(c.phone || 'Not recorded')}</span>
+        <span class="reminder-cust-sub">${escapeHtml(c.area || c.mohalla || 'Area unassigned')} · Phone: ${escapeHtml(c.phone || 'Not recorded')}${customerVisitWindow(c) !== 'anytime' ? ` · 🕐 ${escapeHtml(t(VISIT_WINDOW_LABEL_KEYS[customerVisitWindow(c)]))}` : ''}</span>
       </div>
       <div class="reminder-cust-right">
         <span class="reminder-due-tag">Total Balance</span>

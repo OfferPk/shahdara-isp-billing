@@ -2918,3 +2918,16 @@ button.field-dispatch-item { cursor: pointer; }
   padding-top: 8px;
   margin-top: 8px;
 }
+
+/* SISP-155: lineman monthly payout settlement dialog (tokens only). */
+.lineman-payout-form label { display: block; font-size: 13px; font-weight: 600; color: var(--ink); margin: 10px 0 4px; }
+.lineman-payout-form .form-input { width: 100%; }
+.lineman-payout-intro { color: var(--muted); font-size: var(--text-md); }
+.lineman-payout-hint { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+.lineman-payout-drawer { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--ink); margin-top: 12px; }
+.lineman-payout-totals { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 10px 12px; font-weight: 700; color: var(--ink); font-variant-numeric: var(--numeric); margin: 12px 0 0; }
+.lineman-payout-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.lineman-payout-list { display: grid; gap: 8px; }
+.lineman-payout-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 10px; color: var(--ink); }
+.lineman-payout-row span { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.lineman-payout-empty { color: var(--muted); }

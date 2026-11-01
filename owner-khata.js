@@ -94,6 +94,7 @@ import {
   isDigitalWalletMethod
 } from './wallet-reconciliation.js';
 import { buildMonthEndCashInHand, loadRoznamchaDays } from './roznamcha.js';
+import { buildShopScorecard, renderShopScorecardHtml } from './shop-performance-analytics.js';
 import { computeCharityReserve, loadCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
 import { t } from './nav-language.js';
 import {
@@ -552,6 +553,7 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
           ${report.installationCount > 0 && !report.installationCapexIncluded ? `<p><span>${escapeHtml(t('capex_tracked_separately'))}</span></p>` : ''}
           ${cashInHandLine}
         </article>
+        ${renderShopScorecardHtml(buildShopScorecard(getState(), loadShopSettlements(), month))}
         <article class="owner-khata-section"><h3>Network reliability</h3>
           <p><span>Total Complaints</span><strong>${escapeHtml(String(report.totalComplaints))}</strong></p>
           <p><span>Total Network Offline Hours</span><strong>${escapeHtml(String(report.totalDowntime))} h</strong></p>

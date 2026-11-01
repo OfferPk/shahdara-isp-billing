@@ -94,6 +94,14 @@
  * engine never flows credit backward), and money owed is the truth the
  * collector must act on; the waiting credit still prints on the card.
  *
+ * SISP-133 adds, again display-only: a 1-tap shift filter over the
+ * customers' preferred collection visit window (preferredVisitWindow,
+ * visit-time-window.js) — chips for All times / Morning / Afternoon /
+ * Evening / Weekend, where 'anytime' customers appear under every
+ * shift — plus a "Now match first" toggle that floats customers whose
+ * window matches the current moment to the top, and a 🕐 window label
+ * on cards that recorded a preference. Filtering and sorting are pure
+ * (visit-time-window.js) and never write a record.
  * SISP-92 adds, on the same list and the same no-dead-button rule: a
  * "📍 Nearest first" toggle that captures the rider's live position
  * (gps-pin-helper.js captureCurrentPosition — fail-safe: denial or an
@@ -134,6 +142,13 @@ import {
   clearCustomerWaada,
   waadaBadgeLabel
 } from './waada-queue.js';
+import {
+  VISIT_SHIFT_FILTERS,
+  VISIT_WINDOW_LABEL_KEYS,
+  customerVisitWindow,
+  filterByVisitShift,
+  sortByVisitWindowNowMatch
+} from './visit-time-window.js';
 import { captureCurrentPosition, formatGpsDistance, sortEntriesByNearest } from './gps-pin-helper.js';
 import { shopCollectorMethods } from './shop-settlement.js';
 
@@ -667,6 +682,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   const searchInput = document.getElementById('fieldModeSearchInput');
   const searchClearBtn = document.getElementById('fieldModeSearchClearBtn');
   const zoneFiltersEl = document.getElementById('fieldModeZoneFilters');
+  const shiftFiltersEl = document.getElementById('fieldModeShiftFilters');
   const zoneTargetEl = document.getElementById('fieldModeZoneTarget');
   const listEl = document.getElementById('fieldModeCustomerList');
   const panelEl = document.getElementById('fieldModeActionPanel');
@@ -677,6 +693,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let openedViaHash = false;
   let query = '';
   let zoneKey = FIELD_MODE_ALL_ZONES;
+  // SISP-133: preferred-visit-window shift filter + "Now match" sort.
+  // Display state only — filtering/sorting never writes a record.
+  let shiftKey = 'all';
+  let nowMatchFirst = false;
   // SISP-92: the rider's captured position while "Nearest first" is on
   // (null = normal order). Held only in memory — never persisted.
   let nearestOrigin = null;
@@ -761,6 +781,22 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     }
   }
 
+  // SISP-133: 1-tap shift chips (All times / Morning / Afternoon /
+  // Evening / Weekend) + the "Now match first" sort toggle. Counts
+  // describe the zone-filtered list, so a chip never claims customers
+  // the area filter already hid. 'anytime' customers count under every
+  // shift — the same rule filterByVisitShift applies.
+  function renderShiftFilters(zoneVisible, windowOf) {
+    if (!shiftFiltersEl) return;
+    const chips = VISIT_SHIFT_FILTERS.map((shift) => {
+      const count = filterByVisitShift(zoneVisible, windowOf, shift).length;
+      const label = shift === 'all' ? t('visitwin_all_shifts') : t(VISIT_WINDOW_LABEL_KEYS[shift]);
+      return `<button type="button" class="field-mode-zone-chip${shiftKey === shift ? ' is-active' : ''}" data-field-shift="${shift}" aria-pressed="${shiftKey === shift}">${escapeHtml(label)} · ${count}</button>`;
+    });
+    chips.push(`<button type="button" class="field-mode-zone-chip${nowMatchFirst ? ' is-active' : ''}" data-field-now-match="1" aria-pressed="${nowMatchFirst}">${escapeHtml(t('visitwin_now_match'))}</button>`);
+    shiftFiltersEl.innerHTML = chips.join('');
+  }
+
   function renderList(visible, statusById) {
     if (!listEl) return;
     if (!visible.length) {
@@ -784,6 +820,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         ? '<span class="ds-chip ds-chip--paid">🎯 Likely today</span>'
         : '';
       const zone = fieldModeZoneOf(liveCustomer(entry.id) ?? entry);
+      // SISP-133: the customer's preferred visit window, shown only
+      // when they recorded one (an 'anytime' customer needs no label).
+      const visitWindow = customerVisitWindow(liveCustomer(entry.id) ?? entry);
+      const visitNote = visitWindow !== 'anytime' ? ` · 🕐 ${escapeHtml(t(VISIT_WINDOW_LABEL_KEYS[visitWindow]))}` : '';
       // SEARCH FIX colour coding: strip + word chip from the engine
       // figures — RED due, YELLOW advance credit waiting, GREEN paid.
       const status = statusById?.get(entry.id)
@@ -809,7 +849,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         <span class="field-mode-status-strip" aria-hidden="true"></span>
         <span class="field-mode-customer-main">
           <strong>${escapeHtml(entry.name)}</strong>
-          <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${creditNote}${distanceNote}</small>
+          <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${creditNote}${distanceNote}${visitNote}</small>
           ${sameNameBadge}
           ${chip}
           ${likelyChip}
@@ -1052,17 +1092,25 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     const zoneVisible = zoneKey === FIELD_MODE_ALL_ZONES
       ? base
       : (groups.find(g => g.key === zoneKey)?.entries ?? []);
+    // SISP-133: shift filter, then the optional Now-match sort — both
+    // pure re-orderings/filters of the visible list (visit-time-window.js);
+    // search and zone behaviour above are untouched.
+    const customerById = new Map((state?.customers ?? []).map(c => [String(c.id), c]));
+    const windowOf = entry => customerVisitWindow(customerById.get(String(entry.id)) ?? entry);
+    renderShiftFilters(zoneVisible, windowOf);
+    const shiftFiltered = filterByVisitShift(zoneVisible, windowOf, shiftKey);
     // SISP-79: with the 🎯 toggle on, only customers whose habitual
     // pay window contains today stay in the list (zone filter first,
     // then the habit filter — the two compose).
     const habitFiltered = likelyOnly
-      ? filterLikelyToPayEntries(zoneVisible, state?.customers ?? [], Number(todayStr().slice(8, 10)))
-      : zoneVisible;
+      ? filterLikelyToPayEntries(shiftFiltered, state?.customers ?? [], Number(todayStr().slice(8, 10)))
+      : shiftFiltered;
     // SISP-92: nearest-first layers on top of search + zone filtering —
     // it reorders the SAME visible set, it never adds or hides anyone.
-    const visible = nearestOrigin
+    let visible = nearestOrigin
       ? sortEntriesByNearest(habitFiltered, state?.customers ?? [], nearestOrigin)
       : habitFiltered;
+    if (nowMatchFirst) visible = sortByVisitWindowNowMatch(visible, windowOf, new Date());
     syncNearestButton();
     // One engine pass shared by every card's colour status.
     const allocations = state ? calculatePaymentAllocations(state) : null;
@@ -1298,6 +1346,21 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const chip = event.target.closest?.('[data-field-zone]');
       if (!chip) return;
       zoneKey = chip.getAttribute('data-field-zone') || FIELD_MODE_ALL_ZONES;
+      resetSelection();
+      render();
+    });
+  }
+  if (shiftFiltersEl) {
+    shiftFiltersEl.addEventListener('click', (event) => {
+      const nowChip = event.target.closest?.('[data-field-now-match]');
+      if (nowChip) {
+        nowMatchFirst = !nowMatchFirst;
+        render();
+        return;
+      }
+      const chip = event.target.closest?.('[data-field-shift]');
+      if (!chip) return;
+      shiftKey = chip.getAttribute('data-field-shift') || 'all';
       resetSelection();
       render();
     });

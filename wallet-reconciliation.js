@@ -178,16 +178,31 @@ export function buildWalletReconciliation(customers, month, settlements = []) {
   }
   duplicateGroups.sort((a, b) => String(a.payments[0].date).localeCompare(String(b.payments[0].date)));
 
-  const shopHandovers = { amount: 0, count: 0, perShop: {} };
+  const shopHandovers = { amount: 0, count: 0, deduction: 0, perShop: {} };
   for (const settlement of (Array.isArray(settlements) ? settlements : [])) {
     if (!settlement || typeof settlement !== 'object') continue;
     if (typeof settlement.date !== 'string' || settlement.date.slice(0, 7) !== month) continue;
-    const amount = Number(settlement.amount) || 0;
+    // SISP-149: a split handover delivered only its NET cash to the
+    // owner, so the handovers total counts the net and reports the
+    // deduction separately — never the gross as received cash. This
+    // mirrors shop-settlement.js settlementNetCash; this module is
+    // import-free by design, so the split pair is re-checked inline.
+    const gross = Number(settlement.amount) || 0;
+    const splitDeduction = Number(settlement.deduction);
+    const splitNetCash = Number(settlement.netCash);
+    const deduction = Number.isFinite(splitDeduction) && Number.isFinite(splitNetCash)
+      && splitDeduction > 0 && splitNetCash >= 0
+      && Math.round((splitNetCash + splitDeduction) * 100) === Math.round(gross * 100)
+      ? splitDeduction
+      : 0;
+    const amount = gross - deduction;
     shopHandovers.amount += amount;
+    shopHandovers.deduction += deduction;
     shopHandovers.count += 1;
     const shop = String(settlement.shop || 'Shop');
-    if (!shopHandovers.perShop[shop]) shopHandovers.perShop[shop] = { amount: 0, count: 0 };
+    if (!shopHandovers.perShop[shop]) shopHandovers.perShop[shop] = { amount: 0, count: 0, deduction: 0 };
     shopHandovers.perShop[shop].amount += amount;
+    shopHandovers.perShop[shop].deduction += deduction;
     shopHandovers.perShop[shop].count += 1;
   }
 

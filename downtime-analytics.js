@@ -27,10 +27,13 @@
 import {
   AREA_OUTAGE_CUSTOMER_ID,
   COMPLAINT_CATEGORIES,
+  computeDowntimeHours,
   formatDowntimeHours,
   loadComplaints,
   pakistanMonthNow
 } from './complaint-register.js';
+import { loadTickets } from './complaint-tickets.js';
+import { traceDownstreamImpact } from './outage-impact.js';
 
 const MONTH_RE = /^\d{4}-\d{2}$/;
 
@@ -162,6 +165,195 @@ export function buildMonthlyDowntimeAnalytics(list, month) {
 }
 
 /**
+ * SISP-139: Power Outage & Charger-Off Downtime Correlation Report.
+ *
+ * Answers two questions SISP-16 could not: (1) what share of the month's
+ * closed-incident downtime was upstream power/adapter trouble vs. fiber
+ * plant damage, and (2) which upstream "root houses" (customers whose
+ * recorded feeder position feeds other houses — SISP-7 topology) caused
+ * the most downstream outage when they went down.
+ *
+ * Incident set: CLOSED (Resolved) records from BOTH real stores — the
+ * SISP-15 register and the SISP-12 tickets — for the selected month
+ * (complaint month = reportedAt month, ticket month = createdAt month,
+ * the SISP-16 month rule). A ticket linked to a complaint
+ * (ticket.complaintId) whose complaint is itself in the closed set is
+ * the SISP-44 synced pair and counts ONCE, through the complaint record
+ * (the register owns the category + downtime). A linked ticket whose
+ * complaint is not closed/in-month counts on its own — the field work
+ * did close, so the incident is real.
+ *
+ * Durations follow SISP-16 exactly: a complaint's duration is its stored
+ * downtimeHours (the register's resolvedAt − reportedAt figure, manual
+ * overrides honoured); when that field is absent the same
+ * computeDowntimeHours(reportedAt, resolvedAt) derivation is applied; a
+ * ticket's duration is computeDowntimeHours(createdAt, resolvedAt).
+ * An incident with no valid duration is excluded from every minute
+ * figure and counted in unmeasurableIncidents — never given invented
+ * minutes. AREA_OUTAGE zone faults DO enter the cause shares (their
+ * recorded category is real network downtime, exactly as SISP-16 counts
+ * them in the network breakdown) but can never anchor a root house.
+ */
+
+/** Stated root-cause mapping over the real COMPLAINT_CATEGORIES values. */
+export const ROOT_CAUSE_CATEGORY_BUCKETS = Object.freeze({
+  'WAPDA / Power Outage': 'power',
+  'Media Converter / Charger Off': 'power',
+  'Fiber Cut': 'fiber',
+  'Fiber Splice Loss': 'fiber'
+});
+
+/** Stated root-cause mapping over the real ticket fault presets. */
+export const ROOT_CAUSE_PRESET_BUCKETS = Object.freeze({
+  'Media Converter Power/Charger': 'power',
+  'Fiber Cut / Splice Loss': 'fiber'
+});
+
+export const ROOT_CAUSE_BUCKET_LABELS = Object.freeze({
+  power: 'Power / adapter (upstream)',
+  fiber: 'Fiber cuts & splice loss',
+  other: 'Other causes'
+});
+
+function rootBucketForCategory(category) {
+  return ROOT_CAUSE_CATEGORY_BUCKETS[category] || 'other';
+}
+
+function rootBucketForTicket(ticket) {
+  return ROOT_CAUSE_PRESET_BUCKETS[ticket?.faultPreset] || 'other';
+}
+
+/** Minutes for a closed complaint, or null when no valid duration exists. */
+function complaintDurationMinutes(complaint) {
+  // NB: an absent downtimeHours is null on the record — Number(null)
+  // would coerce to 0, so absence is checked BEFORE coercion. A stored
+  // 0 is a real recorded figure (resolved within the minute) and stays
+  // measurable; only a missing figure falls through to derivation.
+  const raw = complaint?.downtimeHours;
+  const stored = raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
+  if (Number.isFinite(stored) && stored >= 0) return Math.round(stored * 60);
+  const computed = computeDowntimeHours(complaint?.reportedAt, complaint?.resolvedAt);
+  return computed === null ? null : Math.round(computed * 60);
+}
+
+/** Minutes for a closed ticket, or null when no valid duration exists. */
+function ticketDurationMinutes(ticket) {
+  const computed = computeDowntimeHours(ticket?.createdAt, ticket?.resolvedAt);
+  return computed === null ? null : Math.round(computed * 60);
+}
+
+function sharePct(minutes, totalMinutes) {
+  if (!totalMinutes) return null;
+  return Math.round((minutes / totalMinutes) * 1000) / 10;
+}
+
+/**
+ * Whole-month correlation report. Pure: reads nothing, writes nothing.
+ * { complaints, tickets, customers } are the raw store arrays; month is
+ * YYYY-MM (anything else yields a zeroed result, like SISP-16).
+ */
+export function buildPowerOutageCorrelation(sources = {}, month) {
+  const validMonth = MONTH_RE.test(String(month || '')) ? String(month) : '';
+  const complaints = Array.isArray(sources?.complaints) ? sources.complaints : [];
+  const tickets = Array.isArray(sources?.tickets) ? sources.tickets : [];
+  const customers = Array.isArray(sources?.customers) ? sources.customers : [];
+
+  const closedComplaints = complaints.filter((c) =>
+    c && typeof c === 'object' && c.status === 'Resolved' && validMonth && monthOf(c) === validMonth);
+  const closedComplaintIds = new Set(closedComplaints.map((c) => String(c.id)));
+  const standaloneTickets = tickets.filter((tk) =>
+    tk && typeof tk === 'object' && tk.status === 'Resolved' && validMonth &&
+    String(tk.createdAt || '').slice(0, 7) === validMonth &&
+    !(tk.complaintId && closedComplaintIds.has(String(tk.complaintId))));
+
+  const incidents = [
+    ...closedComplaints.map((c) => ({
+      customerId: c.customerId ?? null,
+      customerName: cleanText(c.customerName),
+      bucket: rootBucketForCategory(COMPLAINT_CATEGORIES.includes(c.issueCategory) ? c.issueCategory : 'Other'),
+      minutes: complaintDurationMinutes(c),
+      areaOutage: isAreaOutage(c)
+    })),
+    ...standaloneTickets.map((tk) => ({
+      customerId: tk.customerId ?? null,
+      customerName: cleanText(tk.customerName),
+      bucket: rootBucketForTicket(tk),
+      minutes: ticketDurationMinutes(tk),
+      areaOutage: false
+    }))
+  ];
+
+  const bucketTotals = {
+    power: { minutes: 0, incidents: 0 },
+    fiber: { minutes: 0, incidents: 0 },
+    other: { minutes: 0, incidents: 0 }
+  };
+  let totalMinutes = 0;
+  let measurableIncidents = 0;
+  for (const incident of incidents) {
+    if (incident.minutes === null) continue;
+    measurableIncidents += 1;
+    bucketTotals[incident.bucket].minutes += incident.minutes;
+    bucketTotals[incident.bucket].incidents += 1;
+    totalMinutes += incident.minutes;
+  }
+
+  // Root houses: impact = Σ (incident minutes × ACTIVE downstream count)
+  // over the house's measurable closed incidents — "customer-minutes of
+  // downstream outage caused". Downstream comes only from the recorded
+  // SISP-7 topology (traceDownstreamImpact: archived traversed through,
+  // never counted). Houses with no active downstream never rank.
+  const customerById = new Map(customers.filter((c) => c && c.id !== null && c.id !== undefined).map((c) => [String(c.id), c]));
+  const houseMap = new Map();
+  for (const incident of incidents) {
+    if (incident.areaOutage || incident.minutes === null) continue;
+    const customerId = incident.customerId;
+    if (customerId === null || customerId === undefined || String(customerId) === '') continue;
+    const key = String(customerId);
+    let entry = houseMap.get(key);
+    if (!entry) {
+      const downstreamCount = traceDownstreamImpact(customers, customerId).length;
+      const record = customerById.get(key);
+      entry = {
+        customerId,
+        customerName: cleanText(record?.name) || incident.customerName || 'Unknown customer',
+        customerNumber: Number.isSafeInteger(record?.customerNumber) ? record.customerNumber : null,
+        incidents: 0,
+        downstreamCount,
+        impactCustomerMinutes: 0
+      };
+      houseMap.set(key, entry);
+    }
+    entry.incidents += 1;
+    entry.impactCustomerMinutes += incident.minutes * entry.downstreamCount;
+  }
+  const topRootHouses = [...houseMap.values()]
+    .filter((entry) => entry.downstreamCount >= 1 && entry.impactCustomerMinutes > 0)
+    .sort((a, b) =>
+      (b.impactCustomerMinutes - a.impactCustomerMinutes) ||
+      (b.incidents - a.incidents) ||
+      ((a.customerNumber ?? Number.MAX_SAFE_INTEGER) - (b.customerNumber ?? Number.MAX_SAFE_INTEGER)) ||
+      String(a.customerName).localeCompare(String(b.customerName)))
+    .slice(0, 5);
+
+  return {
+    month: validMonth,
+    closedIncidents: incidents.length,
+    measurableIncidents,
+    unmeasurableIncidents: incidents.length - measurableIncidents,
+    totalMinutes,
+    buckets: ['power', 'fiber', 'other'].map((key) => ({
+      key,
+      label: ROOT_CAUSE_BUCKET_LABELS[key],
+      minutes: bucketTotals[key].minutes,
+      incidents: bucketTotals[key].incidents,
+      sharePct: sharePct(bucketTotals[key].minutes, totalMinutes)
+    })),
+    topRootHouses
+  };
+}
+
+/**
  * One customer's downtime summary. month '' means all months (all-time).
  * Returns zeros + '' tag when the customer has no complaints in scope.
  */
@@ -228,6 +420,40 @@ export function setupDowntimeAnalyticsModal(getState, { onToast } = {}) {
           <p><span>Incidents</span><strong>${escapeHtml(String(row.incidents))}</strong></p>
           <p><span>Offline hours</span><strong>${escapeHtml(String(row.totalDowntime))} h</strong></p>
         </article>`).join('');
+    }
+    // SISP-139: power/fiber root-cause correlation + top root houses for
+    // the same month, from the register + tickets + recorded topology.
+    const correlation = buildPowerOutageCorrelation(
+      { complaints: loadComplaints(), tickets: loadTickets(), customers: getState()?.customers ?? [] },
+      month
+    );
+    const correlationEl = $('downtimeAnalyticsCorrelationList');
+    if (correlationEl) {
+      const rows = correlation.buckets.map((row) => `
+        <article class="downtime-cause-card">
+          <p><span>Cause</span><strong>${escapeHtml(row.label)}</strong></p>
+          <p><span>Closed incidents</span><strong>${escapeHtml(String(row.incidents))}</strong></p>
+          <p><span>Offline</span><strong>${escapeHtml(String(round2(row.minutes / 60)))} h</strong></p>
+          <p><span>Share of downtime</span><strong>${row.sharePct === null ? '—' : `${escapeHtml(String(row.sharePct))}%`}</strong></p>
+        </article>`).join('');
+      const unmeasured = correlation.unmeasurableIncidents > 0
+        ? `<p class="downtime-analytics-empty">${escapeHtml(String(correlation.unmeasurableIncidents))} closed incident${correlation.unmeasurableIncidents === 1 ? '' : 's'} without a measurable duration (not counted in the shares).</p>`
+        : '';
+      correlationEl.innerHTML = rows + unmeasured;
+    }
+    const rootHousesEl = $('downtimeAnalyticsRootHouses');
+    if (rootHousesEl) {
+      if (correlation.topRootHouses.length === 0) {
+        rootHousesEl.innerHTML = '<p class="downtime-analytics-empty">No upstream root house caused downstream downtime this month.</p>';
+      } else {
+        rootHousesEl.innerHTML = correlation.topRootHouses.map((entry) => `
+          <article class="downtime-customer-card">
+            <p><span>Root house</span><strong>${escapeHtml(entry.customerName)}${entry.customerNumber !== null ? ` #${escapeHtml(String(entry.customerNumber))}` : ''}</strong></p>
+            <p><span>Closed incidents</span><strong>${escapeHtml(String(entry.incidents))}</strong></p>
+            <p><span>Houses fed downstream</span><strong>${escapeHtml(String(entry.downstreamCount))}</strong></p>
+            <p><span>Downstream outage impact</span><strong>${escapeHtml(String(entry.impactCustomerMinutes))} customer-min</strong></p>
+          </article>`).join('');
+      }
     }
     const customerEl = $('downtimeAnalyticsCustomerList');
     if (customerEl) {

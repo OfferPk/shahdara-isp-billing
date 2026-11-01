@@ -15,6 +15,7 @@ import { formatPKR, calculateDashboard } from './core.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { pkrNoteChipsMarkup } from './pkr-notes.js';
 import { calculateDailyClosingSummary } from './dashboard-daily-closing.js';
+import { buildMorningBriefing, buildMorningBriefingText, renderMorningBriefing } from './morning-briefing.js';
 import { t } from './nav-language.js';
 
 export const OWNER_WHATSAPP_PHONE_KEY = 'shahdara_owner_whatsapp_phone';
@@ -254,14 +255,71 @@ export function renderHomeTodaySummary(doc = document, summary) {
  *
  * @param {Object} options
  */
-export function setupHomeTodaySection({ getState, getRefDate = () => new Date(), doc = document, win = window } = {}) {
+export function setupHomeTodaySection({ getState, getRefDate = () => new Date(), getBriefingExtras = null, onBriefingNavigate = null, onToast = null, doc = document, win = window } = {}) {
+  const computeBriefing = () => {
+    const state = getState ? getState() : {};
+    const refDate = getRefDate();
+    const extras = typeof getBriefingExtras === 'function' ? (getBriefingExtras() || {}) : {};
+    return buildMorningBriefing(state, refDate, { ...extras, now: refDate });
+  };
+
   const update = () => {
     const state = getState ? getState() : {};
     const refDate = getRefDate();
     const summary = calculateHomeTodaySummary(state, refDate);
     renderHomeTodaySummary(doc, summary);
+    // SISP-145: the Morning Briefing strip rides the same refresh cycle
+    // (dashboard renders + language changes) as the Today card.
+    renderMorningBriefing(doc, computeBriefing());
     return summary;
   };
+
+  // SISP-145: pill taps route to the real surfaces through the host
+  // (waada → recovery/defaulters, complaints → register modal, shops →
+  // settlement modal, backup → the top-bar backup badge action). Without
+  // a host handler the pills stay plain buttons that do nothing on tap —
+  // never a fake route.
+  const pillsEl = doc.getElementById('morningBriefingPills');
+  if (pillsEl && !pillsEl._briefingWired) {
+    pillsEl._briefingWired = true;
+    pillsEl.addEventListener('click', (event) => {
+      const pill = event.target?.closest?.('[data-brief-nav]');
+      if (!pill) return;
+      if (typeof onBriefingNavigate === 'function') onBriefingNavigate(pill.getAttribute('data-brief-nav'));
+    });
+  }
+
+  // SISP-145: [📋 Copy Morning Briefing for WhatsApp] — clipboard first
+  // (house pattern); when the clipboard is unavailable the text opens as
+  // a recipient-less WhatsApp draft instead. Never auto-sent.
+  const copyBtn = doc.getElementById('copyMorningBriefingBtn');
+  if (copyBtn && !copyBtn._briefingWired) {
+    copyBtn._briefingWired = true;
+    copyBtn.addEventListener('click', async () => {
+      const text = buildMorningBriefingText(computeBriefing());
+      let copied = false;
+      try {
+        if (win.navigator?.clipboard?.writeText) {
+          await win.navigator.clipboard.writeText(text);
+          copied = true;
+        } else if (doc.body && doc.createElement) {
+          const ta = doc.createElement('textarea');
+          ta.value = text;
+          doc.body.appendChild(ta);
+          ta.select();
+          copied = doc.execCommand ? doc.execCommand('copy') : false;
+          ta.remove();
+        }
+      } catch { copied = false; }
+      if (copied) {
+        if (typeof onToast === 'function') onToast(t('brief_copied'));
+      } else if (win.open) {
+        win.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+      } else if (typeof onToast === 'function') {
+        onToast(t('brief_copy_failed'));
+      }
+    });
+  }
 
   // Wire WhatsApp button
   const waBtn = doc.getElementById('sendDailySummaryWhatsAppBtn');

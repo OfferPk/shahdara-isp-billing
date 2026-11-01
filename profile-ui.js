@@ -14,6 +14,7 @@ import { isCommercialVip } from './commercial-sla.js';
 
 import { referralEntriesForReferrer, referralTotalsForReferrer } from './referral-credits.js';
 import { depositSettlementOf, depositSettlementQuote, isDisconnected } from './hardware-custody.js';
+import { normalizeOccupancyFields, hasOccupancyRecord, tenantDepositRisk } from './occupancy-guarantor.js';
 import { evaluateStarTimelyPayer } from './star-subscribers.js';
 import { isRandomizedMac, macOuiVendor } from './mac-oui-lookup.js';
 import { disconnectDetailsOf, disconnectReasonLabel } from './churn-winback.js';
@@ -651,6 +652,33 @@ export function kistSettlementPresentation(plan) {
         ? t('prof_kist_settled', null, { amount: formatPKR(sane.payoffAmount ?? 0), date: sane.payoffDate })
         : t('prof_kist_settled_nodate', null, { amount: formatPKR(sane.payoffAmount ?? 0) }))
       : ''
+  };
+}
+
+/**
+ * SISP-143: profile occupancy presentation — the residence type and
+ * landlord/guarantor recorded on the customer, plus the tenant deposit
+ * guard warning. Pure: reads through occupancy-guarantor.js's
+ * normalizers, so a legacy record with nothing recorded reports
+ * visible:false and app.js renders nothing extra for it.
+ */
+export function occupancyPresentation(customer) {
+  const fields = normalizeOccupancyFields(customer);
+  const risk = tenantDepositRisk(customer);
+  if (!hasOccupancyRecord(customer) && !risk) {
+    return { visible: false, residenceType: '', residenceLabel: '', guarantorName: '', guarantorPhone: '', risk: false, riskLabel: '' };
+  }
+  const typeKey = fields.residenceType === 'owner' ? 'occ_type_owner'
+    : fields.residenceType === 'tenant' ? 'occ_type_tenant'
+    : fields.residenceType === 'commercial_shop' ? 'occ_type_commercial' : '';
+  return {
+    visible: true,
+    residenceType: fields.residenceType,
+    residenceLabel: typeKey ? t('occ_residence_line', null, { label: t(typeKey) }) : '',
+    guarantorName: fields.landlordOrGuarantorName,
+    guarantorPhone: fields.landlordPhone,
+    risk,
+    riskLabel: risk ? t('occ_risk_warning') : ''
   };
 }
 

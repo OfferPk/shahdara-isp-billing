@@ -5038,7 +5038,7 @@ test('formatDropInspectionWhatsApp generates bilingual technician dispatch text'
     groundingBonded: true,
     dripLoopInstalled: true,
     notes: 'Rooftop anchor tested up to 25 kg load.'
-  }, { sequence: 888 });
+  }, { now: '2026-10-16T15:00:00Z', sequence: 888 });
 
   const msg = formatDropInspectionWhatsApp(record);
   assert.match(msg, /DROP CABLE SAFETY QA CERTIFICATE/);
@@ -5064,7 +5064,7 @@ test('generateDropInspectionHtml renders valid formal A4 certificate and 80mm th
     groundingBonded: true,
     dripLoopInstalled: true,
     opticalPowerDbm: -19.8
-  }, { sequence: 999 });
+  }, { now: '2026-10-16T15:00:00Z', sequence: 999 });
 
   const a4 = generateDropInspectionHtml(record, { mode: 'a4' });
   assert.match(a4, /drop-a4-cert/);
@@ -5095,7 +5095,7 @@ test('generateDropInspectionsCsv produces compliant RFC-4180 CSV with UTF-8 BOM'
     groundingBonded: true,
     dripLoopInstalled: true,
     notes: 'Line crosses street, verified clear'
-  }, { sequence: 404 });
+  }, { now: '2026-10-16T15:00:00Z', sequence: 404 });
 
   const csv = generateDropInspectionsCsv([record]);
   assert.ok(csv.startsWith('\uFEFF'));
@@ -7820,7 +7820,12 @@ test('validateSplitterQaInput validates required fields correctly', async () => 
 
 test('buildSplitterQaRecord creates sequential cert IDs and preserves data', async () => {
   const { buildSplitterQaRecord } = await import('../qa-setups.js');
-  const existing = [{ certId: 'SPL-202610-0001' }, { certId: 'SPL-202610-0002' }];
+  // Cert IDs are month-scoped (SPL-YYYYMM-NNNN): the sequence continues only
+  // within the issue month, read from the real clock. Derive the fixture
+  // month the same way the builder does — a hardcoded month rolls over and
+  // breaks on the 1st (FU-FORMSQA-DRP).
+  const ym = new Date().toISOString().slice(0, 7).replace('-', '');
+  const existing = [{ certId: `SPL-${ym}-0001` }, { certId: `SPL-${ym}-0002` }];
   const record = buildSplitterQaRecord({
     splitterType: '1:8',
     location: 'Baradari Hub FAT-08',
@@ -7830,7 +7835,23 @@ test('buildSplitterQaRecord creates sequential cert IDs and preserves data', asy
     portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
   }, existing);
 
-  assert.equal(record.certId, 'SPL-202610-0003');
+  assert.equal(record.certId, `SPL-${ym}-0003`);
+
+  // A previous month's certs do NOT continue into this month's sequence:
+  // the first cert of a new month starts again at 0001 under its own prefix.
+  const prevDate = new Date();
+  prevDate.setUTCDate(1);
+  prevDate.setUTCMonth(prevDate.getUTCMonth() - 1);
+  const prevYm = prevDate.toISOString().slice(0, 7).replace('-', '');
+  const freshMonth = buildSplitterQaRecord({
+    splitterType: '1:8',
+    location: 'Baradari Hub FAT-08',
+    technicianName: 'Sample Technician',
+    wavelengthNm: 1550,
+    inputPowerDbm: 3.5,
+    portLosses: [9.85, 9.92, 10.05, 9.88, 9.95, 10.12, 9.80, 10.02]
+  }, [{ certId: `SPL-${prevYm}-0007` }]);
+  assert.equal(freshMonth.certId, `SPL-${ym}-0001`);
   assert.equal(record.splitterType, '1:8');
   assert.equal(record.evaluation.overallVerdict, 'CERTIFIED_CLASS_A');
 });

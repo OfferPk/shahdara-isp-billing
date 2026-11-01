@@ -30,14 +30,17 @@ const customer = (overrides = {}) => ({
   ...overrides
 });
 
-test('template studio: five types under the spec storage key, with defaults', () => {
+test('template studio: six types under the spec storage key, with defaults', () => {
   assert.equal(WA_TEMPLATES_STORAGE_KEY, 'sisp_wa_templates_v1');
-  assert.deepEqual([...WA_TEMPLATE_IDS], ['billGenerated', 'politeReminder', 'brokenWaada', 'outageNotice', 'paymentReceived']);
+  // SISP-180 extended the catalogue with 'finalPrelockNotice' (the final
+  // 24h pre-suspension notice) — the id list and counts below pin the
+  // extended catalogue, not the original five.
+  assert.deepEqual([...WA_TEMPLATE_IDS], ['billGenerated', 'politeReminder', 'brokenWaada', 'outageNotice', 'paymentReceived', 'finalPrelockNotice']);
   assert.equal(WA_TEMPLATE_LABELS.politeReminder, 'Polite Reminder');
   const templates = getWaTemplates(null);
-  assert.equal(templates.length, 5);
+  assert.equal(templates.length, 6);
   assert.ok(templates.every(entry => entry.roman.includes('{name}') || entry.id === 'outageNotice'));
-  assert.equal(DEFAULT_WA_TEMPLATES.length, 5);
+  assert.equal(DEFAULT_WA_TEMPLATES.length, 6);
 });
 
 test('rendering substitutes every placeholder with exact customer values', () => {

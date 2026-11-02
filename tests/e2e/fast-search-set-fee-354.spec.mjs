@@ -6,8 +6,12 @@
  * chips. Once the fee exists, the same action opens Quick Collect.
  */
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 async function freshApp(page) {
+  // Searches below target seed customers by name ("Test Customer 01/02"):
+  // written against the old built-in seed (PR #478 emptied the roster).
+  await installSyntheticRoster(page);
   await page.goto('/#/home');
   await page.waitForSelector('#mobileCustomerSearchTrigger', { state: 'attached' });
   await page.evaluate(() => localStorage.clear());

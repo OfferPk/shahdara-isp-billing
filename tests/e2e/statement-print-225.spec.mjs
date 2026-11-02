@@ -5,8 +5,15 @@
  * no horizontal overflow).
  */
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 test.describe('Issue #225: statement print modes', () => {
+  test.beforeEach(async ({ page }) => {
+    // Opens the first customer's statement: needs the roster the old
+    // built-in seed provided (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
+  });
+
   test('statement modal offers A4 + 58mm print and the 58mm layout fits the roll', async ({ page }) => {
     await page.goto('/#customers');
     const firstCustomerBtn = page.locator('#customerList [data-customer-id]').first();

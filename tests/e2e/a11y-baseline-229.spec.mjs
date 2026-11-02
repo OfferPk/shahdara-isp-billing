@@ -6,6 +6,14 @@
  * without horizontal scroll.
  */
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
+
+// The customer-detail drill-down below clicks the first list row: it
+// needs the roster the old built-in seed provided (PR #478 emptied the
+// shipped roster), so every test in this file plants the synthetic one.
+test.beforeEach(async ({ page }) => {
+  await installSyntheticRoster(page);
+});
 import AxeBuilder from '@axe-core/playwright';
 
 const ROUTES = [

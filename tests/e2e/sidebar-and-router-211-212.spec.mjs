@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -136,6 +137,12 @@ test.describe('Desktop persistent sidebar navigation (#212)', () => {
 });
 
 test.describe('Customer deep link #/customers/:id (#212)', () => {
+  test.beforeEach(async ({ page }) => {
+    // Customer 1 must exist as "Test Customer 01": this spec was written
+    // against the old built-in seed (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
+  });
+
   test('direct link #/customers/:id opens customer ledger offline and on reload', async ({ page }) => {
     const errors = trackErrors(page);
 

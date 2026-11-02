@@ -271,6 +271,7 @@ import { activeDepositOffsetQuote, applyActiveDepositOffset, depositOffsetEntryO
 import { normalizeOccupancyFields } from './occupancy-guarantor.js';
 import { buildClearanceNocSlip, clearanceNocPresentation, generateClearanceNocSlipHtml } from './clearance-noc-slip.js';
 import { buildOwnerKhataReport, setupOwnerKhataModal } from './owner-khata.js';
+import { setupOwnerMonthReport } from './owner-month-report.js';
 import { MONTHLY_CLOSING_NOTES_KEY, loadMonthlyClosingNotes, saveMonthlyClosingNotes } from './monthly-closing-notes.js';import { setupWorklistsModal, calculateDisconnectReconnectWorklists } from './dashboard-worklists.js';
 import { buildWalletReconciliation, walletVerificationLabel, walletReconciliationSummaryText, DIGITAL_BREAKDOWN_METHODS } from './wallet-reconciliation.js';import { setupStaffPerformanceModal } from './dashboard-staff-performance.js';
 import { setupDataIntegrityModal } from './qa-data-integrity.js';
@@ -691,7 +692,7 @@ export let installTrackerModalController = null;
 export let installGateModalController = null;
 export let pendingWorksModalController = null;
 export let relocationModalController = null;
-export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let walletLedgerModalController = null;
+export let poleLandmarkModalController = null;export let ownerKhataModalController = null;export let ownerMonthReportController = null;export let walletLedgerModalController = null;
 export let groupBillingModalController = null;
 export let suspensePaymentsModalController = null;
 export let poleRegistryModalController = null;
@@ -14242,6 +14243,10 @@ if (typeof document !== 'undefined') {
   });
 
   ownerKhataModalController = setupOwnerKhataModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
+  });
+  // M8: Month-End Owner Report dialog (entry button inside Owner Khata).
+  ownerMonthReportController = setupOwnerMonthReport(() => state, {
     onToast: (msg, opts) => toast(msg, opts)
   });
   // SISP-21: Digital Wallet Ledger modal (breakdown + verification toggles + duplicates).

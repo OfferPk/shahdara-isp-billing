@@ -2,6 +2,7 @@
 // Issue #220: 3-tap cash collection: customer -> amount (prefilled with dues) -> Save -> receipt; works offline with Undo
 // Issue #223: WhatsApp receipts: normalize 03xx -> 923xx for wa.me, validate numbers, bilingual text, share receipt as image/PDF
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -14,6 +15,9 @@ function trackErrors(page) {
 
 test.describe('Quick Collect 3-tap collection, 5s Undo, and WhatsApp normalization', () => {
   test.beforeEach(async ({ page }) => {
+    // Collect Setup runs over the existing roster: written against the
+    // old built-in seed (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.clear();

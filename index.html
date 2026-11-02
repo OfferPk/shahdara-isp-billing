@@ -23395,6 +23395,10 @@
           <div class="bci-input-actions">
             <button id="bciSampleBtn" class="text-button" type="button" data-i18n="bci_sample">Use example</button>
           </div>
+          <label class="bci-enrich-toggle" for="bciEnrichMode">
+            <input type="checkbox" id="bciEnrichMode">
+            <span data-i18n="bci_enrich_mode">🔄 Fill missing phone / package on matching existing customers</span>
+          </label>
           <p id="bciInputStatus" class="bci-status" role="status" aria-live="polite" hidden></p>
           <button id="bciPreviewBtn" class="primary-button bci-primary" type="button" data-i18n="bci_preview">Preview rows</button>
         </div>
@@ -23409,6 +23413,7 @@
         <div id="bciStepDone" class="bci-step" hidden>
           <h3 id="bciDoneTitle"></h3>
           <p id="bciDoneDetail" class="bci-hint"></p>
+          <p id="bciDoneEnrich" class="bci-hint" hidden></p>
           <ul id="bciDoneList" class="bci-done-list"></ul>
           <p id="bciDoneStatus" class="bci-status" role="status" aria-live="polite" hidden></p>
           <div class="bci-actions">

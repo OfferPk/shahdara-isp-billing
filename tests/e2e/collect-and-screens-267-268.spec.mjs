@@ -3,6 +3,7 @@
 // Issue #267: More menu items (Bills, Backup & Restore, Owner Assistant, Dues Recovery, Smart Alerts)
 //             and deep links open dedicated screens at the top.
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -39,6 +40,9 @@ async function openMoreItem(page, item, isMobile) {
 
 test.describe('Issue #268: Quick Collect & Bulk Collect data path', () => {
   test.beforeEach(async ({ page }) => {
+    // Written against the old built-in 74-customer seed (PR #478 emptied
+    // the shipped roster): plant the synthetic roster before booting.
+    await installSyntheticRoster(page);
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
     await page.reload();
@@ -93,14 +97,14 @@ test.describe('Issue #268: Quick Collect & Bulk Collect data path', () => {
 
     // 6. Search Test Customer 01
     await page.locator('#bulkCollectSearch').fill('Test Customer 01');
-    const firstRow = page.locator('[data-bulk-row="seed-001"]');
-    await expect(firstRow).toBeVisible();
-    await expect(firstRow.locator('.bc-badge-due')).toHaveText('Due PKR 1,000');
+    const bulkRow = page.locator('[data-bulk-row="seed-001"]');
+    await expect(bulkRow).toBeVisible();
+    await expect(bulkRow.locator('.bc-badge-due')).toHaveText('Due PKR 1,000');
     // Amount input is prefilled with 1000
-    await expect(firstRow.locator('.bc-amount')).toHaveValue('1000');
+    await expect(bulkRow.locator('.bc-amount')).toHaveValue('1000');
 
     // Add Test Customer 01 to batch
-    await firstRow.locator('.bc-row-add').click();
+    await bulkRow.locator('.bc-row-add').click();
     await expect(page.locator('#bulkCollectCount')).toHaveText('1 customer');
     await expect(page.locator('#bulkCollectTotal')).toHaveText('PKR 1,000');
 

@@ -31,6 +31,18 @@
  *  - Quick Collect passes the tag through and hits the same guard;
  *  - every new UI string exists in BOTH language dictionaries, and the
  *    static wiring (dialog, buttons, build entry) is present.
+ *
+ * SISP-194 (receipt credit line + register badge) pins:
+ *  - advanceCreditForReceipt derives BOTH figures from the allocation
+ *    engine (applied = the bill summary's creditAppliedCents, or the
+ *    credit this advance payment generated; remaining = advanceBalance
+ *    on a point-in-time scoped engine re-run, never today's balance);
+ *  - the line prints on HTML (A4 + both thermals), PNG, ESC/POS and
+ *    the WhatsApp draft exactly when advance money is involved, and
+ *    every surface stays clean (PNG still 1600x2000) when it is not;
+ *  - prepay receipts (SISP-61) and voided advances never get the line;
+ *  - the Billing Register flags advance-settled rows (💎) from the
+ *    same engine signal, cash-settled rows never, CSV/totals untouched.
  * Synthetic data only.
  */
 import test from 'node:test';
@@ -41,14 +53,21 @@ import {
   addPayment, validatePayment, calculatePaymentAllocations, calculateDashboard,
   listTransactions, persistState, readState, isAdvancePayment
 } from '../core.js';
-import { recordAdvancePayment, advanceBalance, advanceBalanceCents, normalPaymentBlockReason } from '../advance-payment.js';
+import { recordAdvancePayment, advanceBalance, advanceBalanceCents, normalPaymentBlockReason, advanceCreditForReceipt } from '../advance-payment.js';
 import { arrearsAndAdvance, planCustomerCycleLine } from '../billing-cycle.js';
+import { buildPaymentReceipt, generatePaymentReceiptHtml } from '../receipt.js';
+import { buildPngReceiptModel, computePngReceiptLayout, PNG_RECEIPT_WIDTH, PNG_RECEIPT_HEIGHT } from '../png-receipt.js';
+import { buildEscPosReceipt, escPosFieldsFromPaymentReceipt } from '../thermal-printer.js';
+import { createReceiptWhatsAppDraft } from '../profile-ui.js';
+import { buildBillingRegister, billingRegisterCsvRows, BILLING_REGISTER_CSV_HEADERS } from '../billing-register.js';
 import { voidPayment } from '../payment-void-audit.js';
 import { executeQuickCollection } from '../nav-quick-collect.js';
 import { TRANSLATIONS } from '../nav-language.js';
 
 const OCT_29 = new Date(2026, 9, 29, 12);
 const NOV_2 = new Date(2026, 10, 2, 12);
+const NOV_3 = new Date(2026, 10, 3, 12);
+const DEC_3 = new Date(2026, 11, 3, 12);
 const store = () => { const data = new Map(); return { getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, value) }; };
 
 /** One synthetic customer, PKR 3,000/month, October 2026 bill generated. */
@@ -233,6 +252,15 @@ test('i18n: every advance string exists in both dictionaries', () => {
   }
   assert.ok(TRANSLATIONS.en.adv_current_balance.includes('{amount}'));
   assert.ok(TRANSLATIONS.ur.adv_current_balance.includes('{amount}'));
+  // SISP-194: the register badge strings, placeholder parity included.
+  for (const key of ['adv_register_badge', 'adv_credit_applied_title']) {
+    assert.equal(typeof TRANSLATIONS.en[key], 'string', `en missing ${key}`);
+    assert.equal(typeof TRANSLATIONS.ur[key], 'string', `ur missing ${key}`);
+  }
+  assert.ok(TRANSLATIONS.en.adv_credit_applied_title.includes('{amount}'));
+  assert.ok(TRANSLATIONS.ur.adv_credit_applied_title.includes('{amount}'));
+  assert.ok(!TRANSLATIONS.en.adv_register_badge.includes('{'));
+  assert.ok(!TRANSLATIONS.ur.adv_register_badge.includes('{'));
 });
 
 test('wiring: dialog, buttons, badge style and build entry are in place', () => {
@@ -259,4 +287,224 @@ test('wiring: dialog, buttons, badge style and build entry are in place', () => 
   assert.ok(badgeRule, 'advance-badge rule exists');
   assert.ok(badgeRule[0].includes('var(--color-paid)'));
   assert.ok(!/#[0-9a-fA-F]{3,8}/.test(badgeRule[0]), 'advance-badge uses tokens only, no hex');
+});
+
+// ---------------------------------------------------------------------
+// SISP-194: Advance Credit line on receipts + 💎 badge in the register
+// ---------------------------------------------------------------------
+
+const billOf = (state, month) => state.customers[0].bills.find((row) => row.month === month);
+const paymentOf = (state, month, id) => billOf(state, month).payments.find((row) => row.id === id);
+
+test('SISP-194 recording: the advance receipt prints applied + remaining on every surface, figures from the engine', () => {
+  const { nextState, payment } = recordAdvancePayment(octoberPaidState(), 'seed-001', { amount: 3000, date: '2026-10-29', method: 'Cash' }, OCT_29);
+  const customer = nextState.customers[0];
+  const receipt = buildPaymentReceipt(customer, billOf(nextState, '2026-10'), payment);
+
+  // Exact figures, cross-checked against the engine's own outputs —
+  // not hand-typed duplicates. The October bill itself consumed no
+  // credit (it was cash-paid first); this payment GENERATED the
+  // 3,000 credit, which the pool then holds in full.
+  const allocations = calculatePaymentAllocations(nextState);
+  assert.equal(allocations.forMonth('seed-001', '2026-10').creditAppliedCents, 0);
+  assert.equal(allocations.byPaymentId.get(payment.id).excessCents, 300000);
+  assert.equal(allocations.byPaymentId.get(payment.id).unappliedCreditCents, 300000);
+  assert.equal(advanceBalanceCents(nextState, 'seed-001'), 300000);
+  assert.deepEqual(receipt.advanceCredit, { appliedCents: 300000, remainingCents: 300000, applied: 3000, remaining: 3000 });
+  assert.deepEqual(advanceCreditForReceipt(customer, billOf(nextState, '2026-10'), payment), receipt.advanceCredit);
+
+  // HTML — A4 + both thermals carry the bilingual pair.
+  for (const format of ['a4', 'thermal-80', 'thermal-58']) {
+    const html = generatePaymentReceiptHtml(receipt, { format });
+    assert.ok(html.includes('Advance Credit Applied'), format);
+    assert.ok(html.includes('Remaining Advance Balance'), format);
+    assert.ok(html.includes('PKR 3,000'), format);
+  }
+
+  // PNG — the two rows ride the shared model's financial list.
+  const model = buildPngReceiptModel(receipt, customer);
+  const pngRows = model.financial.filter((row) => row.label.includes('Advance'));
+  assert.deepEqual(pngRows, [
+    { label: 'Advance Credit Applied / پیشگی کریڈٹ', value: 'PKR 3,000' },
+    { label: 'Remaining Advance Balance / باقی پیشگی بیلنس', value: 'PKR 3,000' }
+  ]);
+
+  // ESC/POS — the adapter exposes the pair and the slip prints both.
+  const fields = escPosFieldsFromPaymentReceipt(receipt);
+  assert.equal(fields.advanceApplied, 'PKR 3,000');
+  assert.equal(fields.advanceRemaining, 'PKR 3,000');
+  const text = buildEscPosReceipt(fields).text;
+  assert.ok(text.includes('Advance applied'));
+  assert.ok(text.includes('Advance balance'));
+
+  // WhatsApp draft — the spec's combined line shape (app.js attaches
+  // the block from the receipt model, exactly like ticketCharges).
+  const draft = createReceiptWhatsAppDraft('+92 300 123 4567', {
+    customerId: 'seed-001', customerName: 'Advance Tester', customerNumber: 1,
+    amount: payment.amount, date: payment.date, method: payment.method, month: '2026-10',
+    advanceCredit: receipt.advanceCredit
+  });
+  assert.ok(draft.message.includes('💎 Advance Credit Applied: PKR 3,000 • Remaining Advance Balance: PKR 3,000'));
+});
+
+test('SISP-194 consumption: a later cash receipt shows the advance the bill consumed, rest cash', () => {
+  const advance = recordAdvancePayment(octoberPaidState(), 'seed-001', { amount: 2000, date: '2026-10-29', method: 'Cash' }, OCT_29);
+  let state = generateMonthlyBillsThroughCurrentMonth(advance.nextState, NOV_2);
+  state = addPayment(state, 'seed-001', '2026-11', { date: '2026-11-03', amount: '1000', method: 'Cash' }, NOV_3);
+  const november = billOf(state, '2026-11');
+  const cashPayment = november.payments.find((row) => row.amount === 1000);
+  const receipt = buildPaymentReceipt(state.customers[0], november, cashPayment);
+
+  // Partial consumption: the 2,000 advance covered part of the 3,000
+  // November bill and the 1,000 cash covered the rest. The expected
+  // applied figure comes from the engine itself.
+  const engineApplied = calculatePaymentAllocations(state).forMonth('seed-001', '2026-11').creditAppliedCents;
+  assert.equal(engineApplied, 200000);
+  assert.deepEqual(receipt.advanceCredit, { appliedCents: engineApplied, remainingCents: 0, applied: 2000, remaining: 0 });
+  const html = generatePaymentReceiptHtml(receipt, { format: 'thermal-80' });
+  assert.ok(html.includes('Advance Credit Applied'));
+  assert.ok(html.includes('Remaining Advance Balance'));
+});
+
+test('SISP-194 point-in-time: reprinting the advance receipt after the pool drained keeps its own figures', () => {
+  const advance = recordAdvancePayment(octoberPaidState(), 'seed-001', { amount: 5000, date: '2026-10-29', method: 'Cash' }, OCT_29);
+  let state = generateMonthlyBillsThroughCurrentMonth(advance.nextState, NOV_2);
+  state = generateMonthlyBillsThroughCurrentMonth(state, DEC_3);
+  state = addPayment(state, 'seed-001', '2026-12', { date: '2026-12-03', amount: '1000', method: 'Cash' }, DEC_3);
+
+  // Today's balance is fully drained (Nov spent 3,000, Dec the rest)…
+  assert.equal(advanceBalanceCents(state, 'seed-001'), 0);
+  // …the December cash receipt shows its own consumption…
+  const december = billOf(state, '2026-12');
+  const decPayment = december.payments.find((row) => row.amount === 1000);
+  assert.deepEqual(buildPaymentReceipt(state.customers[0], december, decPayment).advanceCredit,
+    { appliedCents: 200000, remainingCents: 0, applied: 2000, remaining: 0 });
+  // …but reprinting the OCTOBER advance receipt still shows the
+  // figures as they stood right after that payment — the whole point
+  // of the point-in-time scoped derivation.
+  const reprinted = buildPaymentReceipt(state.customers[0], billOf(state, '2026-10'), paymentOf(state, '2026-10', advance.payment.id));
+  assert.deepEqual(reprinted.advanceCredit, { appliedCents: 500000, remainingCents: 500000, applied: 5000, remaining: 5000 });
+});
+
+test('SISP-194 partial due: dues settle first, only the remainder reads as advance credit', () => {
+  const partial = addPayment(octoberState(), 'seed-001', '2026-10', { date: '2026-10-05', amount: '2000', method: 'Cash' }, OCT_29);
+  const advance = recordAdvancePayment(partial, 'seed-001', { amount: 3000, date: '2026-10-29', method: 'Cash' }, OCT_29);
+  const receipt = buildPaymentReceipt(advance.nextState.customers[0], billOf(advance.nextState, '2026-10'), advance.payment);
+  // Same engine ledger the pre-existing FIFO pin asserts: 1,000 same-
+  // month + 2,000 excess credit.
+  const ledger = calculatePaymentAllocations(advance.nextState).byPaymentId.get(advance.payment.id);
+  assert.equal(ledger.excessCents, 200000);
+  assert.equal(ledger.unappliedCreditCents, 200000);
+  assert.deepEqual(receipt.advanceCredit, { appliedCents: 200000, remainingCents: 200000, applied: 2000, remaining: 2000 });
+});
+
+test('SISP-194 no advance involvement: the receipt model and every surface stay untouched', () => {
+  const state = octoberPaidState();
+  const customer = state.customers[0];
+  const payment = billOf(state, '2026-10').payments[0];
+  const receipt = buildPaymentReceipt(customer, billOf(state, '2026-10'), payment);
+  assert.equal(receipt.advanceCredit, null);
+
+  for (const format of ['a4', 'thermal-80', 'thermal-58']) {
+    const html = generatePaymentReceiptHtml(receipt, { format });
+    assert.ok(!html.includes('Advance Credit Applied'), format);
+    assert.ok(!html.includes('Remaining Advance Balance'), format);
+  }
+  // PNG: financial rows are exactly the pre-SISP-194 five and the
+  // canvas stays exactly 1600x2000.
+  const model = buildPngReceiptModel(receipt, customer);
+  assert.deepEqual(model.financial.map((row) => row.label), [
+    'Previous Balance / Sabiqa Baqaya',
+    'Current Month Bill / Mahana Package',
+    'Amount Paid / Wusool Paya',
+    'Payment Method / طریقہ',
+    'Remaining Balance / Baqi Rehta'
+  ]);
+  const layout = computePngReceiptLayout(model);
+  assert.equal(layout.width, PNG_RECEIPT_WIDTH);
+  assert.equal(layout.height, PNG_RECEIPT_HEIGHT);
+  assert.equal(layout.width, 1600);
+  assert.equal(layout.height, 2000);
+  // ESC/POS + WhatsApp stay clean too.
+  const fields = escPosFieldsFromPaymentReceipt(receipt);
+  assert.equal(fields.advanceApplied, '');
+  assert.equal(fields.advanceRemaining, '');
+  assert.ok(!buildEscPosReceipt(fields).text.includes('Advance applied'));
+  const draft = createReceiptWhatsAppDraft('+92 300 123 4567', {
+    customerId: 'seed-001', customerName: 'Advance Tester', customerNumber: 1,
+    amount: payment.amount, date: payment.date, method: payment.method, month: '2026-10',
+    advanceCredit: receipt.advanceCredit
+  });
+  assert.ok(!draft.message.includes('Advance Credit Applied'));
+});
+
+test('SISP-194 voided advance: the voided receipt shows no credit line and holds no credit', () => {
+  const { nextState, payment } = recordAdvancePayment(octoberPaidState(), 'seed-001', { amount: 3000, date: '2026-10-29', method: 'Cash' }, OCT_29);
+  const voided = voidPayment(nextState, 'seed-001', '2026-10', payment.id, { voidReason: 'Customer refunded' });
+  const voidedPayment = paymentOf(voided.state, '2026-10', payment.id);
+  assert.equal(voidedPayment.voided, true);
+  const receipt = buildPaymentReceipt(voided.state.customers[0], billOf(voided.state, '2026-10'), voidedPayment);
+  assert.equal(receipt.advanceCredit, null);
+  assert.equal(advanceCreditForReceipt(voided.state.customers[0], billOf(voided.state, '2026-10'), voidedPayment), null);
+  assert.ok(!generatePaymentReceiptHtml(receipt, { format: 'a4' }).includes('Advance Credit Applied'));
+});
+
+test('SISP-194 prepay boundary: a SISP-61 prepay receipt keeps only its own prepay lines', () => {
+  // A prepay IS an advance-kind record carrying prepay terms — its
+  // receipt already prints gross / discount / cash, so the advance
+  // line must never double-print there.
+  const state = addPayment(octoberPaidState(), 'seed-001', '2026-10', {
+    date: '2026-10-29', amount: '8500', method: 'Cash', kind: 'advance', targetMonth: '2026-11',
+    prepayMonths: 3, prepayGross: 9000, prepayRate: 3000, discount: 500, discountReason: 'Prepay discount'
+  }, OCT_29);
+  const prepayPayment = billOf(state, '2026-10').payments.find((row) => row.prepayMonths);
+  assert.equal(prepayPayment.kind, 'advance');
+  const receipt = buildPaymentReceipt(state.customers[0], billOf(state, '2026-10'), prepayPayment);
+  assert.notEqual(receipt.prepay, null);
+  assert.equal(receipt.advanceCredit, null);
+  const html = generatePaymentReceiptHtml(receipt, { format: 'a4' });
+  assert.ok(html.includes('Prepay Coverage'));
+  assert.ok(!html.includes('Advance Credit Applied'));
+  assert.ok(!html.includes('Remaining Advance Balance'));
+});
+
+test('SISP-194 register badge: advance-settled rows flagged, cash rows never, CSV and totals untouched', () => {
+  const advance = recordAdvancePayment(octoberPaidState(), 'seed-001', { amount: 3000, date: '2026-10-29', method: 'Cash' }, OCT_29);
+  const state = generateMonthlyBillsThroughCurrentMonth(advance.nextState, NOV_2);
+  const register = buildBillingRegister(state, { period: 'last3', status: 'all', currentMonth: '2026-11' });
+  assert.equal(register.rows.length, 2);
+  const november = register.rows.find((row) => row.month === '2026-11');
+  const october = register.rows.find((row) => row.month === '2026-10');
+  // November settled wholly by the advance: badge on, engine figure.
+  assert.equal(november.status, 'paid');
+  assert.equal(november.advanceAdjusted, true);
+  assert.equal(november.advanceApplied, 3000);
+  // October settled by plain cash: never badged.
+  assert.equal(october.status, 'paid');
+  assert.equal(october.advanceAdjusted, false);
+  assert.equal(october.advanceApplied, 0);
+  // Display-only: the CSV keeps exactly its pre-SISP-194 columns and
+  // the totals are the plain register sums. (Reconciled onto SISP-176:
+  // that phase legitimately appended ticketChargesPaid + collectedAmount
+  // at the END of the header list; SISP-194 itself adds no CSV column.)
+  assert.deepEqual(BILLING_REGISTER_CSV_HEADERS.map((header) => header.key),
+    ['reference', 'customer', 'mobile', 'package', 'month', 'billAmount', 'paidAmount', 'status', 'ticketChargesPaid', 'collectedAmount']);
+  const csvRows = billingRegisterCsvRows(register);
+  assert.deepEqual(Object.keys(csvRows[0]), BILLING_REGISTER_CSV_HEADERS.map((header) => header.key));
+  assert.equal(register.totals.totalBilled, 6000);
+  assert.equal(register.totals.totalPaid, 6000);
+});
+
+test('SISP-194 wiring: app.js attaches the credit block and renders the badge; the CSS is token-only', () => {
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.ok(app.includes('advanceCredit:receiptData.advanceCredit'));
+  assert.ok(app.includes('advanceCredit:receiptData?.advanceCredit ?? null'));
+  assert.ok(app.includes("t('adv_register_badge')"));
+  assert.ok(app.includes("t('adv_credit_applied_title'"));
+  assert.ok(app.includes('register-advance-badge'));
+  const css = readFileSync(new URL('../components.css', import.meta.url), 'utf8');
+  const badgeRule = css.match(/\.register-advance-badge\s*\{([^}]*)\}/)?.[1] ?? '';
+  assert.match(badgeRule, /var\(--color-paid-bg\)/);
+  assert.match(badgeRule, /var\(--color-paid\)/);
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b/.test(badgeRule), 'register badge must be theme tokens only');
 });

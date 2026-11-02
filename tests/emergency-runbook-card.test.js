@@ -3,7 +3,7 @@
  * NOC, Splicer & Top-10 Feeder Root Homes Runbook Card.
  *
  * Spec criterion (read-latest.txt, SISP-160): "Store emergency contacts
- * (Upstream Bandwidth NOC, Contract Splicer, LESCO/WAPDA Complaint,
+ * (Upstream Bandwidth NOC, Contract Splicer, IESCO/WAPDA Complaint,
  * Shop Numbers) in sisp_emergency_runbook_v1 and combine with the
  * auto-ranked Top 10 upstream root homes into a 1-page printable
  * runbook sheet." Tests pin Top-10 root house ranking and printable
@@ -284,7 +284,7 @@ test('print: saved contacts print verbatim and top-10 rows print with counts', (
   assert.ok(html.includes('0300-1234567'));
   assert.ok(html.includes('Fiber Splicer Team'));
   assert.ok(html.includes('0300-7654321'));
-  assert.ok(html.includes('LESCO / WAPDA Complaint'), 'a contact with no custom label prints under its default heading');
+  assert.ok(html.includes('IESCO / WAPDA Complaint'), 'a contact with no custom label prints under its default heading');
   assert.ok(html.includes('118'));
   assert.ok(html.includes('Corner Shop Alpha'));
   assert.ok(html.includes('0321-5554443'));

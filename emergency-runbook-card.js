@@ -4,7 +4,7 @@
  * (ایمرجنسی رن بُک کارڈ).
  *
  * Spec (read-latest.txt, SISP-160 block): "Store emergency contacts
- * (Upstream Bandwidth NOC, Contract Splicer, LESCO/WAPDA Complaint,
+ * (Upstream Bandwidth NOC, Contract Splicer, IESCO/WAPDA Complaint,
  * Shop Numbers) in sisp_emergency_runbook_v1 and combine with the
  * auto-ranked Top 10 upstream root homes into a 1-page printable
  * runbook sheet."

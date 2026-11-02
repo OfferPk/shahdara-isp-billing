@@ -17,7 +17,7 @@ export const THERMAL_CYCLE_PROFILES = {
     nominalDeltaT: 50,
     solarIrradianceWm2: 950,
     humidityPercent: 85,
-    description: 'Direct rooftop solar thermal heating and night radiation cooling typical of Lahore / Shahdara climate.'
+    description: 'Direct rooftop solar thermal heating and night radiation cooling typical of Islamabad / Shahdara climate.'
   },
   'ARCTIC_FROST_FREEZE': {
     id: 'ARCTIC_FROST_FREEZE',

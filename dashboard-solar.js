@@ -3,7 +3,7 @@ import { formatPKR } from './core.js';
 /**
  * Solar Hybrid Inverter Charge Cycle & Utility Grid Load Shedding Monitor
  * Tracks solar photovoltaic generation (kW), equipment AC load, battery bank SoC autonomy,
- * inverter operational modes (SBU/SUB/Island), and LESCO grid load shedding resilience
+ * inverter operational modes (SBU/SUB/Island), and IESCO grid load shedding resilience
  * across Shahdara ISP Central Hub and distribution Point-of-Presence (POP) stations.
  */
 
@@ -128,7 +128,7 @@ function escapeXml(str) {
 }
 
 /**
- * Calculates Solar PV generation, battery charge status, equipment AC load, and LESCO grid resilience.
+ * Calculates Solar PV generation, battery charge status, equipment AC load, and IESCO grid resilience.
  */
 export function calculateSolarInverterMetrics(state, options = {}) {
   const referenceDate = options.referenceDate instanceof Date && !isNaN(options.referenceDate)
@@ -191,7 +191,7 @@ export function calculateSolarInverterMetrics(state, options = {}) {
     const dailySolarKwh = Number(((hub.solarArrayWp * 4.8 * 0.82) / 1000).toFixed(1));
     totalDailySolarKwh += dailySolarKwh;
 
-    // Commercial LESCO Tariff: ~65 PKR / kWh
+    // Commercial IESCO Tariff: ~65 PKR / kWh
     const dailySavedPkr = Math.round(dailySolarKwh * 65);
     const monthlySavedPkr = dailySavedPkr * 30;
     totalAvoidedCostPkr += dailySavedPkr;
@@ -202,11 +202,11 @@ export function calculateSolarInverterMetrics(state, options = {}) {
     let batteryAmps = 0;
     let batterySoC = 88; // Default good charge
 
-    // LESCO Grid Outage status: check if offline rate > 25% or manual Island mode
+    // IESCO Grid Outage status: check if offline rate > 25% or manual Island mode
     const offlineCount = matchedSubs.length - activeSubs;
     const isGridDown = mode === 'Island' || (matchedSubs.length >= 3 && (offlineCount / matchedSubs.length) >= 0.25);
 
-    let gridStatusLabel = 'LESCO GRID ONLINE (224V / 50.1Hz)';
+    let gridStatusLabel = 'IESCO GRID ONLINE (224V / 50.1Hz)';
     let gridBadgeClass = 'badge-success';
     let inverterOperationMode = mode;
 
@@ -331,7 +331,7 @@ export function generateSolarReport(solarData, referenceDate = new Date()) {
     `🔋 Battery Bank State: ${hub.batteryState} at ${hub.batterySoC}% SoC (${hub.batteryAmps} A)`,
     `⏱ Battery Autonomy Runtime: ~${hub.autonomyHours} hours remaining`,
     `🌱 Daily Solar Energy Harvest: ${hub.dailySolarKwh} kWh / day`,
-    `💰 LESCO Grid Cost Avoided: ${formatPKR(hub.dailySavedPkr)} / day (~${formatPKR(hub.monthlySavedPkr)} / month)`,
+    `💰 IESCO Grid Cost Avoided: ${formatPKR(hub.dailySavedPkr)} / day (~${formatPKR(hub.monthlySavedPkr)} / month)`,
     '----------------------------------------------------------------',
     'HOURLY SOLAR GENERATION CURVE:',
     '----------------------------------------------------------------'
@@ -348,7 +348,7 @@ export function generateSolarReport(solarData, referenceDate = new Date()) {
   lines.push('LOAD SHEDDING OPERATING PROTOCOL:');
   lines.push('----------------------------------------------------------------');
   lines.push('1. Peak Solar Window (10:00 - 15:00): Run SBU mode; batteries float at 100%.');
-  lines.push('2. If LESCO grid drops, inverter switches to Island mode in < 15 milliseconds.');
+  lines.push('2. If IESCO grid drops, inverter switches to Island mode in < 15 milliseconds.');
   lines.push('3. If Battery SoC drops below 25%, automatic ATS starts backup diesel generator.');
   lines.push('================================================================');
 

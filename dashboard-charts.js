@@ -2859,7 +2859,7 @@ export function renderPowerBackupSvg(powerData, options = {}) {
         <!-- Power Source Tag -->
         <rect x="175" y="10" width="70" height="18" rx="4" fill="${pwrBg}" />
         <text x="210" y="22" text-anchor="middle" font-family="'DM Sans', system-ui, sans-serif" font-size="8.5" font-weight="700" fill="${pwrClass}">
-          ${escapeXml(h.powerSource.replace(' (LESCO)', ''))}
+          ${escapeXml(h.powerSource.replace(' (IESCO)', ''))}
         </text>
 
         <!-- Battery Bar -->

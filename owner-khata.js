@@ -47,8 +47,10 @@
  *   (canonical labels from wallet-reconciliation.js), and Direct Cash
  *   for everything else (plain Cash and any legacy/custom method), so
  *   the split always sums to the collected total. The partner basis
- *   counts receipts by payment date with no void exclusion, so the
- *   split follows the same basis to stay consistent with `collected`.
+ *   counts receipts by payment date and, since FU4, paymentEntries
+ *   excludes voided receipts at the shared source, so the split
+ *   follows the same void-exclusive basis to stay consistent with
+ *   `collected`.
  * - Closing cash-in-hand (closingCashInHand): the month-end cash
  *   drawer balance from SISP-11's roznamcha — buildMonthEndCashInHand
  *   (roznamcha.js) over the day records passed in as
@@ -87,11 +89,10 @@
  *   non-voided collections. VOIDED payments are excluded from BOTH
  *   lines (SISP-34: a voided receipt settles nothing — its ticket stamp
  *   settles nothing either). The partner basis behind `collected`
- *   itself still counts voided receipts in this build (the FU4 fix owns
- *   that change); the moment it lands, the split total equals
- *   `collected` exactly. Until then the split total equals `collected`
- *   minus the month's voided amounts — the voided cash is in neither
- *   split line.
+ *   excludes voided receipts too: since FU4, phase3.js paymentEntries
+ *   filters voided payments at the shared source, so the split total
+ *   equals `collected` exactly and the voided cash is in neither
+ *   split line nor in `collected`.
  * - ticketChargesPending: billed ticket charges still unpaid at MONTH
  *   END, rebuilt from the ticket records passed in as inputs.tickets
  *   (SISP-12 store, sanitized here): a ticket counts when it was

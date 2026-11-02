@@ -8721,8 +8721,13 @@ window.quickCollectModalController = setupQuickCollectModal({
   },
   onToast: (msg, opts) => toast(msg, opts),
   // SISP-141: the floating 10s undo toast (presenter above) owns the
-  // post-collection confirmation for this host.
-  onCollected: offerCollectedUndo,
+  // post-collection confirmation for this host. SISP-187: the same
+  // actually-saved payment is also reported to the QR scanner, whose
+  // Continuous Counter Scan can re-open after a scan-initiated collect.
+  onCollected: (info) => {
+    offerCollectedUndo(info);
+    qrScannerModalController?.noteCollectionSaved?.();
+  },
   onSelectCustomer: (customerId) => {
     selectedCustomerId = customerId;
     renderDetail();
@@ -13754,7 +13759,19 @@ if (typeof document !== 'undefined') {
       if (action === 'pay' && window.quickCollectModalController?.selectAndOpen) {
         window.quickCollectModalController.selectAndOpen(customer.id);
       }
-    }
+    },
+    // SISP-187: a scanned group member can jump straight into the
+    // existing Group Billing modal — its own Collect Group Total flow,
+    // date/method controls and combined receipt stay in charge.
+    onOpenGroup: () => { groupBillingModalController?.open(); },
+    getAllocations: (liveState) => calculatePaymentAllocations(liveState),
+    currentMonth: () => monthsForHistory(new Date())[0]
+  });
+  // SISP-187: Continuous Counter Scan — when the Quick Collect dialog
+  // closes, the scanner decides whether to re-open (continuous mode +
+  // a scan-initiated session with a noted save only; see qr-scanner.js).
+  document.getElementById('quickCollectModal')?.addEventListener('close', () => {
+    qrScannerModalController?.noteCollectionClosed?.();
   });
   $('#qrScanTopbarBtn')?.addEventListener('click', () => qrScannerModalController?.open());
   $('#fieldModeScanQrBtn')?.addEventListener('click', () => qrScannerModalController?.open());

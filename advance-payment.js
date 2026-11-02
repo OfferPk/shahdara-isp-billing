@@ -33,7 +33,7 @@
 //
 // Tests use synthetic data only; no customer, bill or payment data is
 // ever fabricated here.
-import { addPayment, calculatePaymentAllocations, monthsForHistory, ADVANCE_PAYMENT_KIND, isAdvancePayment, advancePaymentTargetMonth } from './core.js';
+import { addPayment, calculatePaymentAllocations, monthsForHistory, ADVANCE_PAYMENT_KIND, isAdvancePayment, advancePaymentTargetMonth, prepayTermsOf } from './core.js';
 
 export { ADVANCE_PAYMENT_KIND, isAdvancePayment, advancePaymentTargetMonth };
 
@@ -87,6 +87,86 @@ export function advanceBalanceCents(state, customerId, allocations = null) {
 /** The customer's current advance balance in rupees (see above). */
 export function advanceBalance(state, customerId) {
   return advanceBalanceCents(state, customerId) / 100;
+}
+
+/**
+ * SISP-194: the advance-credit figures ONE payment receipt must print —
+ * "Advance Credit Applied: X • Remaining Advance Balance: Y" — or null
+ * when the receipt involves no advance money at all (the caller then
+ * renders nothing, so ordinary receipts stay byte-identical).
+ *
+ * Which receipts qualify (the trigger): the payment is itself an
+ * advance-tagged payment (PR #488 lineage — recorded with this
+ * payment), OR advance credit was applied to the bill this payment
+ * settles (consumed by this bill). Two exclusions, both deliberate:
+ *  - SISP-61 prepay payments: a prepay IS an advance-kind record (its
+ *    terms ride a targeted advance), but its receipt already prints its
+ *    own gross / discount / cash lines — the advance line must never
+ *    double-print there. A later bill that spends pool credit a prepay
+ *    funded still shows the line (see "applied" below): the pool is
+ *    one engine pool, the same one advanceBalanceCents reports.
+ *  - Voided payments (SISP-34): the engine excludes them from
+ *    allocations entirely, so a voided advance contributes nothing and
+ *    its receipt shows no credit line.
+ *
+ * The figures are the engine's own, never a parallel computation:
+ *  - applied: when the bill consumed credit, the bill summary's
+ *    creditAppliedCents — the allocation engine's attribution of
+ *    pending credit to this bill (the same figure buildPaymentReceipt
+ *    already reads as the receipt's carry-in). When the bill consumed
+ *    none and the payment is advance-tagged, the credit THIS payment
+ *    generated: its allocation ledger's excessCents (the bill portion
+ *    left after same-month settlement, forwarded into the pool).
+ *  - remaining: the advance balance still held for the customer AFTER
+ *    this payment, point-in-time — NOT today's balance when an old
+ *    receipt is reprinted. Derived the honest way: a scoped re-run of
+ *    the allocation engine over a truncated ledger (bills before this
+ *    bill's month whole; this bill's payments cut at this payment in
+ *    the engine's own date/id processing order; later bills dropped),
+ *    read back through advanceBalanceCents, so the figure can never
+ *    disagree with the engine or with the profile advance balance as
+ *    it stood at that moment.
+ *
+ * Amounts are returned in cents (exact) and rupees (receipt-model
+ * convention). Pure: the customer record is never mutated.
+ */
+export function advanceCreditForReceipt(customer, bill, payment) {
+  if (!customer || !bill || !payment) return null;
+  if (payment.voided === true) return null;
+  if (prepayTermsOf(payment)) return null;
+  const allocations = calculatePaymentAllocations({ customers: [customer] });
+  const summary = allocations.forMonth(customer.id, bill.month);
+  const creditAppliedCents = Math.max(0, Number(summary?.creditAppliedCents) || 0);
+  if (!isAdvancePayment(payment) && creditAppliedCents <= 0) return null;
+
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  const matchingBill = bills.find(row => row === bill || (row?.id && bill.id && row.id === bill.id)) ?? bill;
+  const engineOrder = (a, b) => String(a?.date ?? '').localeCompare(String(b?.date ?? ''))
+    || String(a?.id ?? '').localeCompare(String(b?.id ?? ''));
+  const livePayments = (Array.isArray(matchingBill.payments) ? matchingBill.payments : [])
+    .filter(row => row?.voided !== true)
+    .sort(engineOrder);
+  const selectedIndex = livePayments.findIndex(row => row === payment
+    || (row?.id && payment.id && row.id === payment.id));
+  const scopedBill = selectedIndex >= 0
+    ? { ...matchingBill, payments: livePayments.slice(0, selectedIndex + 1) }
+    : matchingBill;
+  const scopedCustomer = {
+    ...customer,
+    bills: [...bills.filter(row => String(row?.month ?? '') < String(bill.month ?? '')), scopedBill]
+  };
+  const scopedAllocations = calculatePaymentAllocations({ customers: [scopedCustomer] });
+  const remainingCents = advanceBalanceCents({ customers: [scopedCustomer] }, customer.id, scopedAllocations);
+  const ledger = scopedAllocations.byPaymentId.get(payment.id);
+  const generatedCents = Math.max(0, Number(ledger?.excessCents) || 0);
+  const appliedCents = creditAppliedCents > 0 ? creditAppliedCents : generatedCents;
+  const toAmount = (value) => Number((value / 100).toFixed(2));
+  return {
+    appliedCents,
+    remainingCents,
+    applied: toAmount(appliedCents),
+    remaining: toAmount(remainingCents)
+  };
 }
 
 /**

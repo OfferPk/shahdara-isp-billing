@@ -1,4 +1,5 @@
 import { addonChargeLinesOf, calculatePaymentAllocations, isAdvancePayment, manualBaqayaSettlementLinesOf, paymentAddonChargeCents, paymentManualBaqayaCents, paymentSenderLabel, paymentTicketChargeCents, prepayTermsOf, ticketChargeLinesOf } from './core.js';
+import { advanceCreditForReceipt } from './advance-payment.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { looseChangeCreditCents } from './loose-change-credit.js';
 
@@ -350,6 +351,13 @@ export function buildPaymentReceipt(customer, bill, payment) {
       if (!terms) return null;
       return { months: terms.months, gross: terms.gross, rate: terms.rate, startMonth: terms.startMonth, discount: positiveAmount(payment.discount) || 0, cashPaid: positiveAmount(payment.amount) };
     })(),
+    // SISP-194: advance credit involved in this receipt — credit this
+    // bill consumed, or credit this advance-tagged payment recorded,
+    // plus the advance balance still held right after this payment.
+    // Derived from the allocation engine by advance-payment.js; null
+    // whenever no advance money is involved (and on prepay + voided
+    // receipts), so those receipts render exactly as before.
+    advanceCredit: advanceCreditForReceipt(customer, matchingBill, payment),
     // SISP-126: the remainder waada set with this partial payment (from
     // the payment's stamp, read through the validating reader). Null on
     // every other receipt, so receipts without one render byte-identical.
@@ -432,6 +440,17 @@ const looseChangeReceiptRows = (receipt, formatAmount) => {
 const ticketChargeReceiptRows = (receipt, formatAmount) => {
   const lines = Array.isArray(receipt?.ticketCharges) ? receipt.ticketCharges : [];
   return lines.map((line) => `<div class="receipt-field"><dt>Murammat / Material Charge (${escapeHtml(line.ticketId)}):</dt><dd>${formatAmount(line.amount)}</dd></div>`).join('');
+};
+
+// SISP-194: the advance-credit pair — advance credit applied (to this
+// bill, or recorded by this advance payment) and the advance balance
+// still held after it. Empty when the receipt involves no advance
+// money, so ordinary receipts render exactly as before.
+const advanceCreditReceiptRows = (receipt, formatAmount) => {
+  const credit = receipt?.advanceCredit;
+  if (!credit) return '';
+  return `<div class="receipt-field"><dt>Advance Credit Applied / لاگو شدہ پیشگی کریڈٹ:</dt><dd>${formatAmount(credit.applied)}</dd></div>`
+    + `<div class="receipt-field"><dt>Remaining Advance Balance / باقی پیشگی بیلنس:</dt><dd>${formatAmount(credit.remaining)}</dd></div>`;
 };
 
 // SISP-126: the remainder waada row for the HTML receipt layouts —
@@ -641,6 +660,7 @@ export function generatePaymentReceiptHtml(receipt, {
 
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
+    ${advanceCreditReceiptRows(receipt, formatAmount)}
     ${contributorSplitReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>PAID / موصولہ:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     ${looseChangeReceiptRows(receipt, formatAmount)}
@@ -694,6 +714,7 @@ export function generatePaymentReceiptHtml(receipt, {
 
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
+    ${advanceCreditReceiptRows(receipt, formatAmount)}
     ${contributorSplitReceiptRows(receipt, formatAmount)}
     <div class="receipt-field receipt-paid-field"><dt><strong>Amount Received / رقم موصول:</strong></dt><dd><strong>${formatAmount(receipt.paidAmount)}</strong></dd></div>
     ${looseChangeReceiptRows(receipt, formatAmount)}
@@ -758,6 +779,10 @@ export function generatePaymentReceiptHtml(receipt, {
       ['Baqi Sabiqa Baqaya', formatAmount(receipt.fifoRemaining.arrears)],
       ['Baqi Mahana Bill', formatAmount(receipt.fifoRemaining.package)],
       ['Baqi Kist', formatAmount(receipt.fifoRemaining.kist)]
+    ] : []),
+    ...(receipt.advanceCredit ? [
+      ['Advance Credit Applied / لاگو شدہ پیشگی کریڈٹ', formatAmount(receipt.advanceCredit.applied)],
+      ['Remaining Advance Balance / باقی پیشگی بیلنس', formatAmount(receipt.advanceCredit.remaining)]
     ] : []),
     ...(receipt.contributorSplit ? [
       ['Hamsaya Hissa Taqseem / حصہ تقسیم', ''],

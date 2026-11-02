@@ -260,6 +260,17 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
     lines.push('', ...ticketChargeLines);
   }
 
+  // SISP-194: advance credit involved in this receipt, when the caller
+  // attached it (app.js passes it from buildPaymentReceipt). Only a
+  // well-formed pair of figures prints — a malformed block never
+  // breaks the draft.
+  const advanceCredit = receipt?.advanceCredit;
+  if (advanceCredit
+    && Number.isFinite(Number(advanceCredit.applied)) && Number(advanceCredit.applied) >= 0
+    && Number.isFinite(Number(advanceCredit.remaining)) && Number(advanceCredit.remaining) >= 0) {
+    lines.push('', `💎 Advance Credit Applied: ${formatPKR(Number(advanceCredit.applied))} • Remaining Advance Balance: ${formatPKR(Number(advanceCredit.remaining))}`);
+  }
+
   // SISP-158: shared-router split lines, when the caller attached the
   // receipt's contributor split (app.js passes buildPaymentReceipt's
   // contributorSplit). Shape-checked like the ticket lines above — a

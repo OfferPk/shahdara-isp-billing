@@ -1764,6 +1764,9 @@ body.field-mode-open { overflow: hidden; }
 .billing-register-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .register-row { display: grid; grid-template-columns: minmax(170px, 1.5fr) repeat(5, minmax(90px, .8fr)) minmax(86px, .6fr); gap: 12px; align-items: center; border: 1px solid var(--line); border-radius: 11px; padding: 12px 14px; }
 .register-customer { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+/* SISP-194: 💎 Advance Adjusted badge on register rows whose bill was
+   settled (partly or wholly) by advance credit. Tokens only. */
+.register-advance-badge { display: inline-block; margin-left: 6px; border-radius: 999px; padding: 2px 8px; font-size: 9px; font-weight: 700; background: var(--color-paid-bg); color: var(--color-paid); white-space: nowrap; vertical-align: middle; }
 .register-reference { font-size: 10px; font-weight: 700; letter-spacing: .2px; color: var(--green); }
 .register-customer-sub { font-size: 10px; color: var(--muted); overflow-wrap: anywhere; }
 @media (max-width: 700px) {

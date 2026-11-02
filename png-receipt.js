@@ -144,6 +144,15 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   if (receipt.creditTransferInAmount > 0) financial.push({ label: 'Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر', value: `-${money(receipt.creditTransferInAmount)}` });
   // SISP-97: the feeder-host bijli credit line, next to the deposit offset.
   if (receipt.feederHostCreditAmount > 0) financial.push({ label: L('Feeder Host Credit / فیڈر ہوسٹ کریڈٹ'), value: `-${money(receipt.feederHostCreditAmount)}` });
+  // SISP-194: the advance-credit pair (credit applied to this bill /
+  // recorded by this advance payment + the balance still held after
+  // it), derived by buildPaymentReceipt from the allocation engine.
+  // Absent on every receipt with no advance involvement, so those
+  // models — and the fixed 1600x2000 canvas — stay exactly as before.
+  if (receipt.advanceCredit) {
+    financial.push({ label: 'Advance Credit Applied / پیشگی کریڈٹ', value: money(receipt.advanceCredit.applied) });
+    financial.push({ label: 'Remaining Advance Balance / باقی پیشگی بیلنس', value: money(receipt.advanceCredit.remaining) });
+  }
   // SISP-43: billed ticket charges this payment settled, one line each.
   for (const line of Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []) {
     financial.push({ label: L(`Murammat / Material Charge (${line.ticketId})`), value: money(line.amount) });

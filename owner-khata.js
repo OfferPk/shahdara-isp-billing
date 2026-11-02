@@ -55,6 +55,27 @@
  *   inputs.roznamchaDays, anchored on the latest closed day with the
  *   still-open days rolled forward.
  *
+ * SISP-196 (Closing 2.0, cont.) adds one more read-only block:
+ *
+ * - Non-cash adjustments (nonCashAdjustments): an itemization of the
+ *   month's NON-CASH bill reductions — the audited waiver stamps the
+ *   billing cycle leaves on the bills themselves, attributed by
+ *   bill.month === report month (the bill-month rule the billing
+ *   register uses; revenue above keeps its payment-date basis):
+ *   concessionAmount (SISP-30), referralCreditAmount (SISP-40) and
+ *   depositOffsetAmount (SISP-50), plus feederHostCreditAmount
+ *   (SISP-97) as its own clearly separate fourth total — the FU1b
+ *   allocation engine subtracts all four identically, so omitting the
+ *   fourth would under-explain billed vs collected; it is never
+ *   folded into the three named totals. Stamps are read with the
+ *   engine's coercion (core.js moneyCents reads Number(value || 0);
+ *   qa-khata-doctor.js mirrors it): absent, non-finite or negative
+ *   junk counts as 0 — the app writers only ever stamp validated
+ *   non-negative amounts clamped to the bill. The totals are the
+ *   stamped amounts, not the engine's due-capped application; on real
+ *   ledgers the two agree. The block never feeds collected, profit or
+ *   shares — it only explains why billed ≠ collected.
+ *
  * SISP-176 adds the SISP-43 ticket-charge split of the month's
  * collections, derived live like everything else here:
  *
@@ -199,6 +220,70 @@ function buildCollectionChannels(state, month) {
 }
 
 /**
+ * SISP-196: one bill waiver stamp read the way the allocation engine
+ * reads it — core.js moneyCents coerces with Number(value || 0) (the
+ * Khata Doctor's cents() mirrors it). Absent, non-numeric and
+ * non-finite stamps read as 0, and a negative stamp counts as 0 too:
+ * the writers (applyConcessionToBill, the cycle's referral stamping,
+ * applyDepositSettlement, the feeder-host stamping) only ever record
+ * validated non-negative amounts, so a negative is junk, never a
+ * negative "reduction".
+ */
+function stampAmount(value) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * SISP-196: the month's non-cash bill reductions, summed from the
+ * audited stamps on the bills whose bill.month IS the report month —
+ * never recomputed from payments or settings. Whole rupees, like
+ * every other figure on this report's surface. All customers count
+ * (the arrears and revenue computations above do not filter by
+ * archive status either); the block is always present, zeroed when
+ * the month carries no stamps, so consumers get a stable shape.
+ */
+function buildNonCashAdjustments(state, month) {
+  let concessions = 0;
+  let referralCredits = 0;
+  let depositOffsets = 0;
+  let feederHostCredits = 0;
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  for (const customer of customers) {
+    const bills = Array.isArray(customer?.bills) ? customer.bills : [];
+    for (const bill of bills) {
+      if (!bill || bill.month !== month) continue;
+      concessions += stampAmount(bill.concessionAmount);
+      referralCredits += stampAmount(bill.referralCreditAmount);
+      depositOffsets += stampAmount(bill.depositOffsetAmount);
+      feederHostCredits += stampAmount(bill.feederHostCreditAmount);
+    }
+  }
+  return {
+    concessionsTotal: wholeRupees(concessions),
+    referralCreditsTotal: wholeRupees(referralCredits),
+    depositOffsetsTotal: wholeRupees(depositOffsets),
+    feederHostCreditsTotal: wholeRupees(feederHostCredits)
+  };
+}
+
+/** SISP-196: tolerate hand-built / older report objects in the text builders. */
+function nonCashOf(report) {
+  const raw = report?.nonCashAdjustments ?? {};
+  return {
+    concessionsTotal: wholeRupees(raw.concessionsTotal),
+    referralCreditsTotal: wholeRupees(raw.referralCreditsTotal),
+    depositOffsetsTotal: wholeRupees(raw.depositOffsetsTotal),
+    feederHostCreditsTotal: wholeRupees(raw.feederHostCreditsTotal)
+  };
+}
+
+function nonCashSum(nonCash) {
+  return nonCash.concessionsTotal + nonCash.referralCreditsTotal
+    + nonCash.depositOffsetsTotal + nonCash.feederHostCreditsTotal;
+}
+
+/**
  * SISP-176: the month's collections split into bill money vs settled
  * SISP-43 ticket charges, over the partner report's own payment
  * enumeration (same payment-date basis as `collected` and the channel
@@ -308,6 +393,7 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
       pendingArrears: 0, arrearsBillCount: 0, arrearsCutoff: '', arrearsPartial: false,
       shopSettled: 0, shopSettledCount: 0, shopSettledByShop: [],
       collectionChannels: [], closingCashInHand: null,
+      nonCashAdjustments: { concessionsTotal: 0, referralCreditsTotal: 0, depositOffsetsTotal: 0, feederHostCreditsTotal: 0 },
       billCollections: 0, ticketChargesCollected: 0, ticketChargeReceiptCount: 0,
       ticketChargesPending: 0, ticketChargesPendingCount: 0,
       expenses: 0, expenseCount: 0, expenseCategories: [], bandwidthFieldExpenses: 0,
@@ -377,6 +463,10 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
   // classified per payment, so the lines sum to `collected`.
   const collectionChannels = buildCollectionChannels(state, validMonth);
 
+  // SISP-196: non-cash bill reductions — the month's audited waiver
+  // stamps, itemized read-only (see buildNonCashAdjustments).
+  const nonCashAdjustments = buildNonCashAdjustments(state, validMonth);
+
   // SISP-176: ticket-charge split of the same month's collections
   // (void-exclusive, so the lines sum to non-voided collections) and the
   // month-end pending ticket charges from the ticket store.
@@ -421,6 +511,7 @@ export function buildOwnerKhataReport(state, month, inputs = {}) {
     shopSettledByShop,
     collectionChannels,
     closingCashInHand,
+    nonCashAdjustments,
     billCollections: ticketSplit.billCollections,
     ticketChargesCollected: ticketSplit.ticketChargesCollected,
     ticketChargeReceiptCount: ticketSplit.ticketChargeReceiptCount,
@@ -510,6 +601,12 @@ export function buildOwnerKhataWhatsAppText(report) {
   if (Array.isArray(report.collectionChannels) && report.collectionChannels.length) {
     lines.splice(2, 0, `Channel Split: ${report.collectionChannels.map((c) => `${c.channel} ${formatPKR(c.amount)}`).join(' · ')}`);
   }
+  // SISP-196: the month's non-cash bill reductions, one summary line,
+  // only when the month actually carries waiver stamps.
+  const waNonCash = nonCashOf(report);
+  if (nonCashSum(waNonCash) > 0) {
+    lines.push(`Non-Cash Adjustments: Concessions ${formatPKR(waNonCash.concessionsTotal)} · Referral Credits ${formatPKR(waNonCash.referralCreditsTotal)} · Deposit Offsets ${formatPKR(waNonCash.depositOffsetsTotal)}${waNonCash.feederHostCreditsTotal > 0 ? ` · Feeder Host Credits ${formatPKR(waNonCash.feederHostCreditsTotal)}` : ''}`);
+  }
   // SISP-73: installation CapEx position, plus the distributable profit
   // when the toggle was ON (fixed report language, like the rest of
   // this summary — the modal UI carries the t() strings).
@@ -544,6 +641,13 @@ export function buildOwnerKhataPrintHtml(report) {
     `<tr><td>${escapeHtml(row.channel)}</td><td>${escapeHtml(String(row.count))}</td><td>${escapeHtml(formatPKR(row.amount))}</td></tr>`).join('');
   const causeRows = report.topCauses.map((row) =>
     `<tr><td>${escapeHtml(row.category)}</td><td>${escapeHtml(String(row.incidents))}</td><td>${escapeHtml(String(row.totalDowntime))} h</td></tr>`).join('');
+  // SISP-196: non-cash adjustments pairs, only when the month carries stamps.
+  const printNonCash = nonCashOf(report);
+  const nonCashSection = nonCashSum(printNonCash) > 0 ? `<h2>Non-cash adjustments</h2>
+  <div class="pair"><span>Concessions</span><strong>${escapeHtml(formatPKR(printNonCash.concessionsTotal))}</strong></div>
+  <div class="pair"><span>Referral credits</span><strong>${escapeHtml(formatPKR(printNonCash.referralCreditsTotal))}</strong></div>
+  <div class="pair"><span>Security deposit offsets</span><strong>${escapeHtml(formatPKR(printNonCash.depositOffsetsTotal))}</strong></div>${printNonCash.feederHostCreditsTotal > 0 ? `
+  <div class="pair"><span>Feeder host bijli credits</span><strong>${escapeHtml(formatPKR(printNonCash.feederHostCreditsTotal))}</strong></div>` : ''}` : '';
   // SISP-73: installation CapEx pairs — shown whenever the month had
   // new installations; the distributable-profit pair appears only when
   // the toggle was ON and the shares above were computed from it.
@@ -574,6 +678,7 @@ export function buildOwnerKhataPrintHtml(report) {
   ${shopRows ? `<h2>Shop cash settled by shop</h2><table><tr><th>Shop</th><th>Handovers</th><th>Amount</th></tr>${shopRows}</table>` : ''}
   ${channelRows ? `<h2>Collections by channel</h2><table><tr><th>Channel</th><th>Receipts</th><th>Amount</th></tr>${channelRows}</table>` : ''}
   ${report.closingCashInHand ? `<div class="pair"><span>Closing Cash-in-Hand (Roznamcha) — ${report.closingCashInHand.monthEndClosed ? `drawer closed ${escapeHtml(report.closingCashInHand.monthEndDate)}` : 'expected, month-end day not closed'}</span><strong>${escapeHtml(formatPKR(report.closingCashInHand.balance))}</strong></div>` : ''}
+  ${nonCashSection}
   ${categoryRows ? `<h2>Expenses by category</h2><table><tr><th>Category</th><th>Entries</th><th>Amount</th></tr>${categoryRows}</table>` : ''}
   <h2>Network reliability</h2>
   <div class="pair"><span>Total Complaints</span><strong>${escapeHtml(String(report.totalComplaints))}</strong></div>
@@ -638,6 +743,18 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
       const cashInHandLine = report.closingCashInHand
         ? `<p><span>${escapeHtml(t('khata2_cash_in_hand'))}</span><strong>${escapeHtml(formatPKR(report.closingCashInHand.balance))}</strong><small> · ${escapeHtml(report.closingCashInHand.monthEndClosed ? t('khata2_cash_closed_through', null, { date: report.closingCashInHand.monthEndDate }) : t('khata2_cash_expected'))}</small></p>`
         : '';
+      // SISP-196: non-cash adjustments lines — a title plus the three
+      // named totals (the feeder-host line rides along only when the
+      // month actually carries one), shown only when the month has
+      // any waiver stamps at all, like the channel block above.
+      const nonCash = nonCashOf(report);
+      const nonCashLines = nonCashSum(nonCash) > 0 ? `
+          <p><span>${escapeHtml(t('khata2_noncash_title'))}</span></p>
+          <p><span>${escapeHtml(t('khata2_noncash_concessions'))}</span><strong>${escapeHtml(formatPKR(nonCash.concessionsTotal))}</strong></p>
+          <p><span>${escapeHtml(t('khata2_noncash_referral'))}</span><strong>${escapeHtml(formatPKR(nonCash.referralCreditsTotal))}</strong></p>
+          <p><span>${escapeHtml(t('khata2_noncash_deposit'))}</span><strong>${escapeHtml(formatPKR(nonCash.depositOffsetsTotal))}</strong></p>${nonCash.feederHostCreditsTotal > 0 ? `
+          <p><span>${escapeHtml(t('khata2_noncash_feeder'))}</span><strong>${escapeHtml(formatPKR(nonCash.feederHostCreditsTotal))}</strong></p>` : ''}`
+        : '';
       // SISP-114: charity / sadqah reserve line, shown only when a
       // reserve was set aside for the month (report carries the fields
       // only then); the share lines below already reflect it.
@@ -653,6 +770,7 @@ export function setupOwnerKhataModal(getState, { onToast } = {}) {
           <p><span>Shop Cash Settled</span><strong>${escapeHtml(formatPKR(report.shopSettled))}</strong><small> · ${escapeHtml(String(report.shopSettledCount))} handovers</small></p>
           ${shopLines}
           ${channelLines ? `<p><span>${escapeHtml(t('khata2_channels_title'))}</span></p>${channelLines}` : ''}
+          ${nonCashLines}
           <p><span>Expenses</span><strong>${escapeHtml(formatPKR(report.expenses))}</strong><small> · ${escapeHtml(String(report.expenseCount))} entries</small></p>
           <p><span>NayaPay Bandwidth + Field Expenses</span><strong>${escapeHtml(formatPKR(report.bandwidthFieldExpenses))}</strong><small> · keyword-matched categories</small></p>
           ${categoryLines}

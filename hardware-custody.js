@@ -294,7 +294,7 @@ export function sanitizeDepositSettlement(raw) {
       amount: sanitizeMoney(row.amount),
       priceRecorded: row.priceRecorded === true
     }));
-  return {
+  const settlement = {
     settledAt: raw.settledAt,
     securityDeposit: sanitizeMoney(raw.securityDeposit),
     arrearsOffset: sanitizeMoney(raw.arrearsOffset),
@@ -307,6 +307,12 @@ export function sanitizeDepositSettlement(raw) {
     offsets,
     hardwareCharges
   };
+  // SISP-195: the owner's settle-time choice to record the cash refund
+  // in the Daily Roznamcha (see syncDepositRefundRoznamcha below). Kept
+  // ONLY when true, so a settlement recorded without the option keeps
+  // exactly the pre-SISP-195 record shape.
+  if (raw.roznamchaRefund === true) settlement.roznamchaRefund = true;
+  return settlement;
 }
 
 export function depositSettlementOf(customer = {}) {
@@ -374,7 +380,7 @@ export function depositSettlementQuote(customer = {}, unpaidArrears = 0) {
 // returns a NEW customer; the input is never mutated. Throws on an
 // ineligible customer or an invalid date so the UI can never record a
 // meaningless settlement.
-export function applyDepositSettlement(customer = {}, unpaidArrears = 0, { date, billBalances = [], receiptNumber = '' } = {}) {
+export function applyDepositSettlement(customer = {}, unpaidArrears = 0, { date, billBalances = [], receiptNumber = '', recordRoznamchaRefund = false } = {}) {
   if (!isValidDateString(date)) throw new Error('Enter a valid settlement date.');
   const quote = depositSettlementQuote(customer, unpaidArrears);
   if (!quote.eligible) {
@@ -438,5 +444,175 @@ export function applyDepositSettlement(customer = {}, unpaidArrears = 0, { date,
     offsets,
     hardwareCharges: quote.unrecoveredItems
   };
+  // SISP-195: stamp the owner's choice only when there is a cash
+  // refund for the Roznamcha bridge to record — with a refund of 0
+  // there is no drawer cash to log, so no stamp is written.
+  if (recordRoznamchaRefund === true && settlement.refundAmount > 0) settlement.roznamchaRefund = true;
   return { ...customer, securityDeposit: 0, bills, depositSettlement: settlement };
+}
+
+// ------------------------------------------------------------------ SISP-195
+// Optional Roznamcha Cash Refund Outflow Bridge for the settlement
+// above (PR #489 companion: closingCashInHand reads the drawer through
+// roznamcha.js, so the refund cash must leave the drawer exactly once
+// or every later closing is overstated by the refund amount).
+//
+// The bridge follows the SISP-56 house precedent (saad-visits.js
+// syncSaadPaymentLedgers) rule for rule:
+//  * CHOICE IS A STAMP: applyDepositSettlement records
+//    settlement.roznamchaRefund === true when the owner ticks the
+//    "record in today's Roznamcha" option — the settlement record is
+//    the source of truth, exactly like a Saad payment's paidFromDrawer.
+//  * DETERMINISTIC ID: a settlement is ONE-SHOT per customer (the
+//    quote refuses 'already-settled' forever), so the outflow id
+//    `deposit-refund-<customer id>` can only ever name one refund.
+//  * CONVERGENT SYNC: syncDepositRefundRoznamcha re-runs safely at
+//    startup, after a restore and after every settle — a drifted
+//    outflow is restored to the stamped refund, an outflow whose
+//    settlement record has disappeared (e.g. a pre-settlement backup
+//    was restored) is removed, and re-running changes nothing.
+//    Settlements themselves can never be unsettled in the app (no
+//    code path clears depositSettlement), so removal can only follow
+//    the record, never an in-app undo that does not exist.
+//  * CLOSED DAYS ARE NEVER MUTATED: a refund whose settlement day is
+//    already closed is reported in skippedClosed and the outflow is
+//    left unrecorded (the UI tells the owner); an outflow already
+//    frozen into a closed day stays exactly as frozen.
+//  * DRAWER-ONLY MONEY: a security deposit was the customer's own
+//    money held against the connection — it was never ledger income,
+//    so the refund is NOT an expense. roznamcha.js
+//    syncRoznamchaExpenses skips `deposit-refund-` outflows (the same
+//    prefix skip it applies to `saad-`), so the refund never reaches
+//    the Expenses ledger, monthly P&L or the partners' 50% shares.
+//    It exists only so buildRoznamchaDay's expected closing and the
+//    Owner Khata closingCashInHand stay exact.
+//  * The outflow date is the settlement's own settledAt — app.js
+//    settles with the PKT today (getTodayDateString), i.e. the refund
+//    lands in "today's Roznamcha" as the option promises, never on
+//    the customer's disconnection date.
+
+export const DEPOSIT_REFUND_ROZNAMCHA_CATEGORY = 'Security Deposit Refund';
+const DEPOSIT_REFUND_OUTFLOW_PREFIX = 'deposit-refund-';
+
+/** Deterministic roznamcha outflow id for a customer's deposit refund. */
+export function syncedDepositRefundOutflowId(customerId) {
+  return `${DEPOSIT_REFUND_OUTFLOW_PREFIX}${customerId}`;
+}
+
+const refundText = (value, maxLength) => (typeof value === 'string'
+  ? value.replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, maxLength)
+  : '');
+
+/** Note text for the refund outflow (roznamcha caps notes at 200). */
+export function buildDepositRefundOutflowNote(customer = {}) {
+  const name = refundText(customer?.name, 100);
+  const number = refundText(String(customer?.customerNumber ?? ''), 100);
+  const head = `Security deposit refund${name ? ` · ${name}` : ''}${number ? ` (#${number})` : ''}`;
+  return head.slice(0, 200);
+}
+
+function syncedDepositRefundOutflow(customer, settlement) {
+  return {
+    id: syncedDepositRefundOutflowId(customer.id),
+    category: DEPOSIT_REFUND_ROZNAMCHA_CATEGORY,
+    amount: Math.round(settlement.refundAmount * 100) / 100,
+    lineman: '',
+    note: buildDepositRefundOutflowNote(customer)
+  };
+}
+
+function sameDepositRefundOutflow(a, b) {
+  return a && b && a.category === b.category && a.amount === b.amount
+    && a.lineman === b.lineman && a.note === b.note;
+}
+
+/**
+ * Reconcile the roznamcha day ledger with every settlement that
+ * carries the roznamchaRefund stamp. Pure: returns { days,
+ * daysChanged, changed, added, updated, removed, skippedClosed } and
+ * never mutates its inputs. `days` is the SAME array reference when
+ * nothing changed, so callers can skip persisting. `days` is treated
+ * as plain sanitized day data (see roznamcha.js
+ * sanitizeRoznamchaDays); closed days are read but never written.
+ */
+export function syncDepositRefundRoznamcha(days, customers) {
+  // Desired: one outflow per stamped settlement, keyed by its
+  // deterministic id, dated on the settlement day.
+  const desired = new Map();
+  for (const customer of Array.isArray(customers) ? customers : []) {
+    if (!customer || typeof customer.id !== 'string' || !customer.id) continue;
+    const settlement = depositSettlementOf(customer);
+    if (!settlement || settlement.roznamchaRefund !== true || !(settlement.refundAmount > 0)) continue;
+    desired.set(syncedDepositRefundOutflowId(customer.id), {
+      date: settlement.settledAt,
+      outflow: syncedDepositRefundOutflow(customer, settlement)
+    });
+  }
+  const currentDays = Array.isArray(days) ? days : [];
+  let nextDays = currentDays;
+  let added = 0;
+  let updated = 0;
+  let removed = 0;
+  let skippedClosed = 0;
+  const writableDays = () => {
+    if (nextDays === currentDays) {
+      nextDays = currentDays.map((d) => ({ ...d, outflows: [...(Array.isArray(d?.outflows) ? d.outflows : [])] }));
+    }
+    return nextDays;
+  };
+  // Pass 1: drop or repair existing bridge-owned outflows in OPEN
+  // days; an outflow frozen into a closed day counts as present and
+  // stays exactly as frozen.
+  const present = new Set();
+  currentDays.forEach((day, dayIndex) => {
+    if (!day || !Array.isArray(day.outflows)) return;
+    for (const outflow of day.outflows) {
+      const outflowId = typeof outflow?.id === 'string' ? outflow.id : '';
+      if (!outflowId.startsWith(DEPOSIT_REFUND_OUTFLOW_PREFIX)) continue;
+      if (day.closed === true) { present.add(outflowId); continue; }
+      const want = desired.get(outflowId);
+      if (!want || want.date !== day.date) {
+        const target = writableDays()[dayIndex];
+        target.outflows = target.outflows.filter((o) => o.id !== outflowId);
+        removed += 1;
+        continue;
+      }
+      present.add(outflowId);
+      if (!sameDepositRefundOutflow(outflow, want.outflow)) {
+        const target = writableDays()[dayIndex];
+        target.outflows = target.outflows.map((o) => (o.id === outflowId ? want.outflow : o));
+        updated += 1;
+      }
+    }
+  });
+  // Pass 2: add missing outflows; a closed target day is reported in
+  // skippedClosed, never mutated.
+  for (const [outflowId, want] of desired) {
+    if (present.has(outflowId)) continue;
+    const existingIndex = currentDays.findIndex((d) => d && d.date === want.date);
+    if (existingIndex >= 0 && currentDays[existingIndex].closed === true) {
+      skippedClosed += 1;
+      continue;
+    }
+    const target = writableDays();
+    const writableIndex = target.findIndex((d) => d && d.date === want.date);
+    if (writableIndex >= 0) {
+      target[writableIndex].outflows = [...target[writableIndex].outflows, want.outflow];
+    } else {
+      target.push({ date: want.date, outflows: [want.outflow], closed: false });
+      target.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    }
+    present.add(outflowId);
+    added += 1;
+  }
+  const daysChanged = added + updated + removed > 0;
+  return {
+    days: daysChanged ? nextDays : currentDays,
+    daysChanged,
+    changed: daysChanged,
+    added,
+    updated,
+    removed,
+    skippedClosed
+  };
 }

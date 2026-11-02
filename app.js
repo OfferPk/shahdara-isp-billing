@@ -265,7 +265,7 @@ import { receiptChannelPreference } from './receipt-preferences.js';
 import { BAD_DEBTS_KEY, activeBadDebtFor, badDebtSummary, loadBadDebts, restoreBadDebt, saveBadDebts, writeOffBadDebt } from './bad-debt-ledger.js';
 import { manualBaqayaCardBadgeMarkup, manualBaqayaStatMarkup, manualBaqayaSectionMarkup, additionalPendingControlsMarkup, totalOutstandingFigures } from './manual-baqaya.js';
 import { UPS_NODES_KEY, activeOutages, checkUpsNodeDepletions, formatClockTime, loadUpsNodes, powerBackupSummary, saveUpsNodes, setupPowerBackupModal } from './power-backup-monitor.js';
-import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement } from './hardware-custody.js';
+import { CUSTODY_OWNERSHIP_OPTIONS, custodyOwnershipLabel, disconnectionChecklist, isDisconnected, markAllHardwareRecovered, markHardwareRecovered, normalizeCustodyFields, pendingHardwareRecovery, recoveryStockMovements, applyDepositSettlement, syncDepositRefundRoznamcha } from './hardware-custody.js';
 import { activeDepositOffsetQuote, applyActiveDepositOffset, depositOffsetEntryOf, reverseActiveDepositOffset } from './deposit-to-bill-offset.js';
 import { normalizeOccupancyFields } from './occupancy-guarantor.js';
 import { buildClearanceNocSlip, clearanceNocPresentation, generateClearanceNocSlipHtml } from './clearance-noc-slip.js';
@@ -552,6 +552,29 @@ function recordSaadPaymentSync() {
   if (!result.expensesChanged) return;
   state = { ...state, expenses: result.expenses };
   if (storageAvailable) { try { persistState(state, localStorage); } catch { /* next pass retries */ } }
+}
+
+// SISP-195 wiring: mirror deposit settlements the owner chose to
+// record (settlement stamp roznamchaRefund, set by the SISP-50 settle
+// action) into the Daily Roznamcha as exactly one cash outflow each
+// (hardware-custody.js syncDepositRefundRoznamcha), so the drawer
+// closing and the Owner Khata closingCashInHand stay exact after a
+// cash refund is handed back. Convergent like the SISP-45/56 passes —
+// the settlement record is the source of truth, re-running changes
+// nothing, closed days are never mutated (a skipped refund is
+// reported in the result so the settle action can tell the owner),
+// and syncRoznamchaExpenses skips these outflows so the refund never
+// becomes an expense. Returns the sync result (or null on failure) so
+// the settle handler can surface a closed-day skip.
+function recordDepositRefundSync() {
+  let result;
+  try {
+    result = syncDepositRefundRoznamcha(loadRoznamchaDays(), state.customers ?? []);
+  } catch { return null; }
+  if (result.daysChanged) {
+    try { saveRoznamchaDays(result.days); } catch { /* next pass retries */ }
+  }
+  return result;
 }
 
 // SISP-155 wiring: mirror recorded lineman monthly settlements into
@@ -4032,7 +4055,7 @@ function renderCustomerProfileView(customer) {
   const nocSectionHtml = !nocPres.visible ? '' : `<section class="profile-custody-section profile-clearance-noc" aria-label="${escapeHtml(nocPres.ariaLabel)}"><h4>${escapeHtml(nocPres.headingLabel)}</h4>${nocPres.eligible ? `<p class="custody-recovered">${escapeHtml(nocPres.readyLabel)}</p>` : nocPres.blockerLabels.map((label) => `<p class="custody-pending">${escapeHtml(label)}</p>`).join('')}${nocPres.creditLabel ? `<p class="profile-custody-note">${escapeHtml(nocPres.creditLabel)}</p>` : ''}${nocPres.eligible ? `<button type="button" class="primary-button" id="profileNocPrintBtn">${escapeHtml(nocPres.printLabel)}</button>` : ''}</section>`;
   const depositSettlementHtml = !depositPres.visible ? '' : (depositPres.settled
     ? `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p class="custody-recovered">${escapeHtml(depositPres.settledLabel)}</p>${depositPres.stillDueLabel ? `<p class="custody-pending">${escapeHtml(depositPres.stillDueLabel)}</p>` : ''}<button type="button" class="secondary-button" id="profileDepositReceiptBtn">${escapeHtml(depositPres.receiptLabel)}</button></section>`
-    : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p><button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
+    : `<section class="profile-custody-section profile-deposit-settlement" aria-label="${t('prof_dep_aria')}"><h4>${t('prof_dep_heading')}</h4><p>${escapeHtml(depositPres.depositLabel)}${escapeHtml(depositPres.arrearsLabel)}${escapeHtml(depositPres.hardwareLabel)}</p><p><strong>${escapeHtml(depositPres.refundLabel)}</strong></p><p class="profile-custody-note">${escapeHtml(depositPres.noteLabel)}</p>${depositPres.roznamchaRefundLabel ? `<label class="profile-deposit-roznamcha"><input type="checkbox" id="profileDepositRoznamchaRefund"> ${escapeHtml(depositPres.roznamchaRefundLabel)}</label>` : ''}<button type="button" class="primary-button" id="profileDepositSettleBtn">${escapeHtml(depositPres.settleLabel)}</button></section>`);
   // SISP-166: active-customer deposit-offset block — the mirror of the
   // SISP-50 block for customers still connected: visible when an active
   // customer holds a deposit or has offset history. The pending balance
@@ -4438,13 +4461,24 @@ function renderCustomerProfileView(customer) {
             billBalances.push({ month: bill.month, balanceDue: summary.balanceDueCents / 100 });
           }
         }
-        const updated = applyDepositSettlement(customer, arrearsCents / 100, { date: getTodayDateString(), billBalances });
+        // SISP-195: the optional checkbox stamps the owner's choice
+        // onto the settlement record (roznamchaRefund) — the bridge
+        // sync below then records the cash refund in today's
+        // Roznamcha exactly once. Unchecked = the settlement record
+        // keeps its pre-SISP-195 shape and no outflow is written.
+        const recordRoznamchaRefund = depositSection.querySelector('#profileDepositRoznamchaRefund')?.checked === true;
+        const updated = applyDepositSettlement(customer, arrearsCents / 100, { date: getTodayDateString(), billBalances, recordRoznamchaRefund });
         const idx = state.customers.findIndex(c => c.id === customer.id);
         if (idx >= 0) state.customers[idx] = updated;
         try { persistState(state, localStorage); } catch {}
+        const refundSync = recordRoznamchaRefund ? recordDepositRefundSync() : null;
         renderDetail();
         renderDashboard();
-        toast('Security deposit settled — arrears cleared from the deposit.');
+        if (refundSync && refundSync.skippedClosed > 0) {
+          toast(t('prof_dep_roznamcha_closed'));
+        } else {
+          toast('Security deposit settled — arrears cleared from the deposit.');
+        }
       } catch (err) { toast(err?.message || 'Could not settle the security deposit.'); }
     });
     depositSection.querySelector('#profileDepositReceiptBtn')?.addEventListener('click', () => {
@@ -5855,6 +5889,10 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
     const restored = generateMonthlyBillsThroughCurrentMonth(pendingBackupPreview.state, new Date());
     persistState(restored, localStorage);
     state = restored; storageAvailable = true; persistenceBlocked = false; readFailureMessage = '';
+    // SISP-195: converge the deposit-refund bridge with the restored
+    // ledger (a restored settlement stamp gains its outflow; a
+    // settlement that is gone again loses it — open days only).
+    recordDepositRefundSync();
     if (pendingBackupPreview.digitalPaymentsSettings) {
       saveDigitalPaymentsSettings(pendingBackupPreview.digitalPaymentsSettings);
       const ownerPhone = pendingBackupPreview.digitalPaymentsSettings.ownerPhone;
@@ -13515,6 +13553,10 @@ if (typeof document !== 'undefined') {
   // before this wiring existed (or restored) mirror into Expenses and
   // the Roznamcha exactly once.
   recordSaadPaymentSync();
+  // SISP-195: one deposit-refund bridge pass at startup so a refund
+  // chosen at settle time (or restored with its settlement stamp)
+  // lands in the Roznamcha exactly once.
+  recordDepositRefundSync();
   // SISP-155: same startup pass for lineman monthly settlements.
   recordLinemanPayoutSync();
   // SISP-107: one supplier-khata expense sync pass at startup so khata
@@ -13618,7 +13660,7 @@ if (typeof document !== 'undefined') {
     }
   });
   roznamchaModalController = setupRoznamchaModal(() => state, {
-    onChanged: () => { recordRoznamchaExpenseSync(); recordSaadPaymentSync(); recordLinemanPayoutSync(); renderDashboard(); },
+    onChanged: () => { recordRoznamchaExpenseSync(); recordSaadPaymentSync(); recordDepositRefundSync(); recordLinemanPayoutSync(); renderDashboard(); },
     onToast: (msg, opts) => toast(msg, opts)
   });
   inventoryBookModalController = setupInventoryBookModal(() => state, {

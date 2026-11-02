@@ -53,6 +53,19 @@
  * data on every render and is strictly read-only — it never mutates,
  * hides or auto-closes any complaint.
  *
+ * SISP-188: the reverse check. An unresolved complaint whose customer
+ * is FED through upstream homes renders an "Upstream Feeder Chain"
+ * banner on its card listing each ancestor home, warning by name when
+ * an ancestor already has an open complaint (register record, or an
+ * unlinked SISP-12 field ticket — SISP-44 pairs count once, via the
+ * register; see buildUpstreamChainCheck in outage-impact.js). The add
+ * form shows the same banner live for the selected customer, so the
+ * parent check happens while the complaint is being logged, not only
+ * afterwards. Ticket data reaches this modal through the host's
+ * getTickets callback (the getTicketLink pattern); without a host it
+ * simply sees the register alone. Like SISP-49 the banner is computed
+ * fresh on every render and is strictly read-only.
+ *
  * SISP-177: a bulk-assign bar above the filters assigns every open
  * unlinked complaint to one lineman in a click (host callbacks
  * getBulkAssignInfo / onBulkAssignTickets, backed by complaint-ticket-
@@ -94,7 +107,7 @@
  */
 
 import { t } from './nav-language.js';
-import { buildDaisyChainAlert, buildOutageQueueText, buildOutageQueue } from './outage-impact.js';
+import { buildDaisyChainAlert, buildOutageQueueText, buildOutageQueue, buildUpstreamChainCheck } from './outage-impact.js';
 import { complaintFaultGroup, rootCauseBannerHtml } from './root-cause-advisor.js';
 import { effectiveQueuePriority, isSlaPinned, priorityForNewQueueItem, sortQueueBySla } from './commercial-sla.js';
 import { getWaTemplates } from './whatsapp-templates.js';
@@ -344,6 +357,27 @@ export function complaintDaisyChainAlert(customers, complaint) {
 }
 
 /**
+ * SISP-188: upstream feeder-chain check for one complaint, or null
+ * when no banner should show. Same live-fault gate as SISP-49: the
+ * banner exists to steer work on an UNRESOLVED complaint (check the
+ * parent home first), so a resolved complaint's card stays quiet.
+ * Area-outage records have no single customer chain, a customer fed
+ * directly from the root has no ancestors, and an unknown customer id
+ * has no traceable chain — all return null. The extras carry the two
+ * complaint seams ({ complaints, tickets }); they default to empty,
+ * in which case the chain still lists, just without warnings.
+ * Read-only by construction (buildUpstreamChainCheck never mutates).
+ */
+export function complaintUpstreamChainAlert(customers, complaint, extras = {}) {
+  if (!complaint || typeof complaint !== 'object') return null;
+  if (complaint.status === 'Resolved') return null;
+  if (!complaint.customerId || complaint.customerId === AREA_OUTAGE_CUSTOMER_ID) return null;
+  const check = buildUpstreamChainCheck(customers, complaint.customerId, extras);
+  if (!check || check.count === 0) return null;
+  return check;
+}
+
+/**
  * Applies a status change. Resolving auto-fills resolvedAt (now, unless
  * given) and auto-computes downtime unless a manual override is on record.
  * Reopening clears resolvedAt/downtime so the timeline restarts cleanly;
@@ -474,7 +508,7 @@ export function collectComplaintZones(state) {
  * lives above; this controller only renders and persists via load/save
  * + the app's onComplaintsChanged callback (dashboard + profile refresh).
  */
-export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket, onLaunchOutageAlerts, getRootCauseAdvice, getFixCollect, onResolveAndCollect, getBulkAssignInfo, onBulkAssignTickets } = {}) {
+export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onToast, getTicketLink, onAssignTicket, onLaunchOutageAlerts, getRootCauseAdvice, getFixCollect, onResolveAndCollect, getBulkAssignInfo, onBulkAssignTickets, getTickets } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('complaintRegisterModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -531,6 +565,55 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
     return `<button type="button" class="secondary-button complaint-status-btn" data-complaint-action="reopen" data-complaint-id="${escapeHtml(complaint.id)}">Reopen</button>`;
   }
 
+  // SISP-188: shared markup for the upstream feeder-chain banner —
+  // used on complaint cards and as the add form's live preview. The
+  // neutral variant just lists the chain; when an ancestor already has
+  // an open complaint the banner turns amber, becomes an alert, and
+  // names each open record (id · recorded label · status).
+  function upstreamChainBannerHtml(check) {
+    const warn = check.hasOpenUpstreamComplaint;
+    const rows = check.ancestors.map((entry) => {
+      const home = entry.customer;
+      const meta = [cleanText(home.mohalla), cleanText(home.fiberZone)].filter(Boolean).join(' · ') || t('cmp_chain_no_area');
+      const number = home.customerNumber === null || home.customerNumber === undefined || home.customerNumber === '' ? '' : ` #${home.customerNumber}`;
+      return `<li><strong>${escapeHtml(cleanText(home.name) || 'Unknown')}${escapeHtml(number)}</strong><span>${escapeHtml(meta)}</span></li>`;
+    }).join('');
+    const warnings = warn ? check.warnings.map((w) => {
+      const detail = [w.issue.id, w.issue.label, w.issue.status].filter(Boolean).join(' · ');
+      return `<p class="complaint-upchain-warning">⚠️ ${escapeHtml(t('cmp_upchain_warn', null, { name: cleanText(w.customer.name) || 'Unknown', detail }))}</p>`;
+    }).join('') : '';
+    return `
+        <div class="complaint-upchain-banner${warn ? ' complaint-upchain-banner-warn' : ''}"${warn ? ' role="alert"' : ''}>
+          <div class="complaint-upchain-title">⬆️ ${escapeHtml(t('cmp_upchain_title'))}</div>
+          <p class="complaint-upchain-body">${escapeHtml(t('cmp_upchain_body'))}</p>
+          <ul class="complaint-chain-list complaint-upchain-list">
+            ${rows}
+          </ul>
+          ${warnings}
+        </div>`;
+  }
+
+  // SISP-188: the add form's parent check — while a complaint is being
+  // logged, show the selected customer's feeder chain (and any open
+  // complaint above it) before the record is even saved. No customer
+  // (or the area-outage sentinel, which has no single chain) clears it.
+  function renderAddUpstreamPreview() {
+    const previewEl = $('complaintAddUpstreamPreview');
+    if (!previewEl) return;
+    const customerId = $('complaintAddCustomer')?.value || '';
+    if (!customerId || customerId === AREA_OUTAGE_CUSTOMER_ID) {
+      previewEl.innerHTML = '';
+      return;
+    }
+    const state = getState() || { customers: [] };
+    const check = buildUpstreamChainCheck(
+      Array.isArray(state.customers) ? state.customers : [],
+      customerId,
+      { complaints: loadComplaints(), tickets: typeof getTickets === 'function' ? (getTickets() || []) : [] }
+    );
+    previewEl.innerHTML = check && check.count > 0 ? upstreamChainBannerHtml(check) : '';
+  }
+
   // SISP-177: the bulk-assign bar (static shell in index.html) is
   // filled from the host's live info — how many open complaints still
   // have no ticket, and the technician names recorded so far. Without
@@ -566,7 +649,9 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
     const listEl = $('complaintRegisterList');
     if (!listEl) return;
     renderBulkBar();
-    const rows = filterComplaints(loadComplaints(), filters);
+    const allComplaints = loadComplaints();
+    const allTickets = typeof getTickets === 'function' ? (getTickets() || []) : [];
+    const rows = filterComplaints(allComplaints, filters);
     const summaryEl = $('complaintRegisterSummaryLine');
     if (summaryEl) {
       summaryEl.textContent = rows.length === 0
@@ -618,6 +703,13 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
           </ul>
           <button type="button" class="primary-button complaint-status-btn" data-complaint-action="notify-chain" data-complaint-id="${escapeHtml(c.id)}">${escapeHtml(t('cmp_chain_notify_btn'))}</button>
         </div>` : '';
+      // SISP-188: upstream feeder-chain banner — the reverse of the
+      // SISP-49 alert above. When this complaint's customer is fed
+      // through other homes, list the chain and warn if a feeder home
+      // already has an open complaint: the fault may live up there.
+      // Purely additive and read-only, like the SISP-49 banner.
+      const upCheck = complaintUpstreamChainAlert(allCustomers, c, { complaints: allComplaints, tickets: allTickets });
+      const upBanner = upCheck ? upstreamChainBannerHtml(upCheck) : '';
       // SISP-44: linked-ticket line, or the 1-click assign controls when
       // no ticket is linked yet (host callbacks supplied by app.js).
       const link = typeof getTicketLink === 'function' ? getTicketLink(c.id) : null;
@@ -658,6 +750,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
         <p><span>Issue</span><strong>${escapeHtml(c.issueCategory)}</strong></p>
         ${fixBadge}
         ${chainBanner}
+        ${upBanner}
         ${rcaBanner}
         ${ticketLine}
         ${materialLine}
@@ -679,6 +772,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
   function renderAll() {
     refreshFilterSelects();
     renderList();
+    renderAddUpstreamPreview();
   }
 
   const filterIds = {
@@ -701,6 +795,10 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
     }
     renderList();
   });
+
+  // SISP-188: the parent check follows the add form's customer pick.
+  const addCustomerSelect = $('complaintAddCustomer');
+  if (addCustomerSelect) addCustomerSelect.addEventListener('change', renderAddUpstreamPreview);
 
   // SISP-177: 1-click bulk assign. Like the per-card assign, there is
   // no separate confirm step — the bar itself shows the live count it
@@ -744,6 +842,7 @@ export function setupComplaintRegisterModal(getState, { onComplaintsChanged, onT
       persist(next);
       onToast && onToast(`Complaint ${next[next.length - 1].id} recorded.`);
       addForm.reset();
+      renderAddUpstreamPreview();
       const reportedInput = $('complaintAddReportedAt');
       if (reportedInput) reportedInput.value = pakistanDateTimeNow();
       renderList();

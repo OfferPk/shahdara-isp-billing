@@ -21967,6 +21967,10 @@
         <button id="billingCycleCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
       </header>
       <div class="modal-body">
+        <div id="billingCycleBackupBanner" class="backup-preaction-banner" role="alert" hidden>
+          <p id="billingCycleBackupBannerText" class="backup-preaction-text"></p>
+          <button id="billingCycleBackupShareBtn" class="secondary-button backup-preaction-btn" type="button">📤 <span data-i18n="bkup_preaction_share_btn">Share Off-Device Backup First</span></button>
+        </div>
         <p class="billing-cycle-intro">Run one billing cycle for a month: each active customer gets their package bill plus previous arrears, minus advance credit. Rates lock per bill — later price changes never alter this cycle. A month can only be cycled once.</p>
         <p id="billingCycleLastRun" class="billing-cycle-last-run"></p>
         <form class="billing-cycle-form" onsubmit="return false;">
@@ -23416,6 +23420,10 @@
         <button id="bciCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
       </header>
       <div class="modal-body">
+        <div id="bulkImportBackupBanner" class="backup-preaction-banner" role="alert" hidden>
+          <p id="bulkImportBackupBannerText" class="backup-preaction-text"></p>
+          <button id="bulkImportBackupShareBtn" class="secondary-button backup-preaction-btn" type="button">📤 <span data-i18n="bkup_preaction_share_btn">Share Off-Device Backup First</span></button>
+        </div>
         <div id="bciStepInput" class="bci-step">
           <p class="bci-hint" data-i18n="bci_hint">Paste rows copied from Excel or Sheets — a header row maps the columns (Connection ID, Name, Phone, Package, Fee, Area). Phones are normalized to +92 form, Urdu names are generated automatically, and rows with a duplicate Connection ID or phone are flagged and never imported.</p>
           <label class="field-label" for="bciText" data-i18n="bci_paste_label">Pasted rows</label>

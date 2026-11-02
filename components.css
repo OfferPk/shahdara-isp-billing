@@ -2000,6 +2000,18 @@ body.field-mode-open { overflow: hidden; }
   font-weight: 700;
   color: var(--color-overdue);
 }
+/* SISP-189: opt-in toggle for the inherited-upstream outage view.
+   Token colours only, so dark mode follows the rest of the panel. */
+.uptime-inherited-toggle {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: 600 12px 'DM Sans', sans-serif;
+  cursor: pointer;
+}
 /* Live status-session counter: shared by the customer cards (under
    the status pills) and the profile uptime panel. Token colours only,
    so dark mode keeps both states readable. */

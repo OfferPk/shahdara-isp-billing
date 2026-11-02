@@ -604,6 +604,12 @@ export function depositSettlementPresentation(customer, unpaidArrears = 0) {
       ? t('prof_dep_hardware', null, { amount: formatPKR(quote.unrecoveredHardwareCharge) })
       : t('prof_dep_hardware_none'),
     refundLabel: t('prof_dep_refund', null, { amount: formatPKR(quote.netDepositRefund) }),
+    // SISP-195: the optional Roznamcha refund checkbox exists only
+    // when cash will actually be handed back — a refund of 0 means
+    // no drawer movement, so there is nothing to record.
+    roznamchaRefundLabel: quote.netDepositRefund > 0
+      ? t('prof_dep_roznamcha_refund', null, { amount: formatPKR(quote.netDepositRefund) })
+      : '',
     noteLabel: t('prof_dep_note'),
     settleLabel: t('prof_dep_settle_btn')
   };

@@ -93,7 +93,7 @@ function createMockState() {
         date: '2026-08-15',
         amount: 800,
         category: 'Electricity',
-        notes: 'LESCO Office Bill'
+        notes: 'IESCO Office Bill'
       },
       {
         id: 'exp-2',

@@ -199,7 +199,7 @@ import { ROZNAMCHA_KEY, buildRoznamchaDay, loadRoznamchaDays, pakistanToday, roz
 import { INVENTORY_ITEM_IDS, INVENTORY_KEY, addMovement, computeStock, loadInventory, saveInventory, setupInventoryBookModal } from './inventory-book.js';
 import { CONVERTER_SIDES_KEY, buildConverterReplacementSuggestion, converterSideLabel, converterSuggestionText, loadConverterSides, saveConverterSides, setupWdmConverterMatcher } from './wdm-converter-matcher.js';
 import { HOME_BUDGET_CATEGORIES, addHomeBudgetExpense, deleteHomeBudgetExpense, filterHomeBudget, homeBudgetCategories, homeBudgetMonths, loadHomeBudgetExpenses, pakistanDateNow, saveHomeBudgetExpenses, sortHomeBudgetEntries, summarizeHomeBudget, updateHomeBudgetExpense } from './home-budget.js?v=1.11.0';
-import { FIBER_ZONES, buildOutageQueue, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
+import { FIBER_ZONES, buildOutageQueue, buildUpstreamChainCheck, normalizeFeederFields, setupOutageImpactModal, summarizeFeederNetwork, traceDownstreamImpact } from './outage-impact.js';
 import { buildDaisyChainTree, setupDaisyChainTreeModal } from './daisy-chain-tree-view.js';
 import { SAAD_PAYMENTS_KEY, SAAD_VISITS_KEY, buildMonthlySaadSummary, formatHours, visitHours, loadSaadPayments, loadSaadVisits, saveSaadPayments, saveSaadVisits, setupSaadVisitsModal, syncSaadPaymentLedgers, visitTypeLabel, visitWhereLabel } from './saad-visits.js';
 import { LINEMAN_PAYOUTS_KEY, loadLinemanPayouts, saveLinemanPayouts, setupLinemanPayoutModal, syncLinemanPayoutLedgers } from './lineman-payout-slip.js';
@@ -3824,7 +3824,13 @@ function renderCustomerProfileView(customer) {
   // counted once) earns the permanent-fix prescription. Purely derived
   // from the two ledgers; renders nothing when no category repeats.
   const rootCauseBanner = rootCauseBannerHtml(rootCauseAdviceForCustomer({ complaints: loadComplaints(), tickets: loadTickets() }, customer.id));
-  const complaintsSectionHtml = `<section class="profile-complaints-section" aria-label="${t('prof_complaint_aria')}"><h4>${t('prof_complaint_heading')}</h4>${customerComplaints.length === 0 ? `<p class="profile-complaints-empty">${t('prof_complaint_empty')}</p>` : `<ul class="profile-complaints-list">${customerComplaints.map((c) => `<li><span><strong>${escapeHtml(c.id)}</strong> · ${escapeHtml(c.issueCategory)} · ${escapeHtml(c.status)}</span><span>${escapeHtml(t('prof_complaint_reported', null, { date: c.reportedAt || t('prof_complaint_not_recorded') }))} · ${escapeHtml(t('prof_complaint_downtime', null, { hours: formatDowntimeHours(c.downtimeHours) }))}</span></li>`).join('')}</ul>`}<button type="button" class="secondary-button" id="profileOpenComplaintRegisterBtn">${t('prof_complaint_open')}</button></section>`;
+  // SISP-188: upstream feeder-chain banner — this customer's ancestor
+  // homes, warning when one already has an open complaint or field
+  // ticket (SISP-44 pairs count once). Same markup, classes and keys
+  // as the complaint register card banner; read-only derivation.
+  const upstreamChainCheck = buildUpstreamChainCheck(state.customers, customer.id, { complaints: loadComplaints(), tickets: loadTickets() });
+  const upstreamChainBannerHtml = upstreamChainCheck && upstreamChainCheck.count > 0 ? `<div class="complaint-upchain-banner${upstreamChainCheck.hasOpenUpstreamComplaint ? ' complaint-upchain-banner-warn' : ''}"${upstreamChainCheck.hasOpenUpstreamComplaint ? ' role="alert"' : ''}><div class="complaint-upchain-title">⬆️ ${escapeHtml(t('cmp_upchain_title'))}</div><p class="complaint-upchain-body">${escapeHtml(t('cmp_upchain_body'))}</p><ul class="complaint-chain-list complaint-upchain-list">${upstreamChainCheck.ancestors.map((entry) => { const home = entry.customer; const meta = [String(home.mohalla || '').trim(), String(home.fiberZone || '').trim()].filter(Boolean).join(' · ') || t('cmp_chain_no_area'); const number = home.customerNumber === null || home.customerNumber === undefined || home.customerNumber === '' ? '' : ` #${home.customerNumber}`; return `<li><strong>${escapeHtml(String(home.name || '').trim() || 'Unknown')}${escapeHtml(number)}</strong><span>${escapeHtml(meta)}</span></li>`; }).join('')}</ul>${upstreamChainCheck.warnings.map((w) => `<p class="complaint-upchain-warning">⚠️ ${escapeHtml(t('cmp_upchain_warn', null, { name: String(w.customer.name || '').trim() || 'Unknown', detail: [w.issue.id, w.issue.label, w.issue.status].filter(Boolean).join(' · ') }))}</p>`).join('')}</div>` : '';
+  const complaintsSectionHtml = `<section class="profile-complaints-section" aria-label="${t('prof_complaint_aria')}"><h4>${t('prof_complaint_heading')}</h4>${customerComplaints.length === 0 ? `<p class="profile-complaints-empty">${t('prof_complaint_empty')}</p>` : `<ul class="profile-complaints-list">${customerComplaints.map((c) => `<li><span><strong>${escapeHtml(c.id)}</strong> · ${escapeHtml(c.issueCategory)} · ${escapeHtml(c.status)}</span><span>${escapeHtml(t('prof_complaint_reported', null, { date: c.reportedAt || t('prof_complaint_not_recorded') }))} · ${escapeHtml(t('prof_complaint_downtime', null, { hours: formatDowntimeHours(c.downtimeHours) }))}</span></li>`).join('')}</ul>`}${upstreamChainBannerHtml}<button type="button" class="secondary-button" id="profileOpenComplaintRegisterBtn">${t('prof_complaint_open')}</button></section>`;
   // SISP-12: profile field tickets — this customer's worklist only, plus
   // pending ticket charges and the recurring-fault warning badge. Charges
   // live on the tickets, never inside bills or the billing cycle.
@@ -13388,6 +13394,10 @@ if (typeof document !== 'undefined') {
     onLaunchOutageAlerts: (customerId) => {
       if (outageImpactModalController) outageImpactModalController.open({ sourceId: String(customerId) });
     },
+    // SISP-188: the card's upstream feeder-chain banner also counts
+    // open field tickets at ancestor homes (SISP-44 pairs count once,
+    // via the register), so the modal needs the live ticket list.
+    getTickets: () => loadTickets(),
     // SISP-123: the register card's root-cause banner derives from both
     // ledgers (register complaints + standalone field tickets).
     getRootCauseAdvice: (customerId) => rootCauseAdviceForCustomer({ complaints: loadComplaints(), tickets: loadTickets() }, customerId),

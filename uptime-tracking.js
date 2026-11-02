@@ -409,3 +409,80 @@ export function buildMonthlyUptime(customer, month, referenceDate = new Date()) 
     openSinceMs
   };
 }
+
+/**
+ * SISP-184: chronic-offline display rule for the fleet card. A counted
+ * subscriber is flagged chronic when their recorded uptime for the
+ * month falls below 95% OR they were offline for 24 hours or more in
+ * total. It is a display rule for the dashboard card only — it is not
+ * an SLA threshold, a promise, or a billing input.
+ */
+export const FLEET_CHRONIC_UPTIME_PERCENT = 95;
+export const FLEET_CHRONIC_OFFLINE_MINUTES = 24 * 60;
+
+/**
+ * Fleet-wide uptime for one 'YYYY-MM' month, aggregated ONLY from
+ * buildMonthlyUptime — the same per-customer summary the profile
+ * shows — so the fleet figures can never disagree with a profile.
+ *
+ * Population: active subscribers (archived excluded). FREE
+ * connections are included: uptime is about service, not fees.
+ * A subscriber whose counted window for the month is empty (the
+ * connection starts after the month, or ended before it) cannot be
+ * scored honestly: they are EXCLUDED from the average and reported
+ * in `excluded` — never dropped silently, never scored as 100%.
+ *
+ * uptimePercent per subscriber = onlineMinutes / windowMinutes × 100,
+ * rounded to 1 decimal. fleetAvgPercent is the plain MEAN of those
+ * per-subscriber percentages (each subscriber counts once, however
+ * long their counted window is), rounded to 1 decimal; null when no
+ * subscriber could be counted. rows are the counted subscribers
+ * sorted by uptime ascending (ties by customerNumber), lowestFive is
+ * the head of that list.
+ */
+export function buildFleetUptime(customers, month, referenceDate = new Date()) {
+  if (!MONTH_RE.test(String(month ?? ''))) throw new Error('Choose a valid month (YYYY-MM) for the fleet uptime summary.');
+  const rows = [];
+  const excluded = [];
+  for (const customer of customers ?? []) {
+    if (!customer || customer.archived === true) continue;
+    const summary = buildMonthlyUptime(customer, month, referenceDate);
+    if (summary.windowMinutes <= 0) {
+      excluded.push({ customerId: customer.id, customerNumber: customer.customerNumber ?? null });
+      continue;
+    }
+    const uptimePercent = Math.round((summary.onlineMinutes / summary.windowMinutes) * 1000) / 10;
+    rows.push({
+      customerId: customer.id,
+      customerNumber: customer.customerNumber ?? null,
+      name: String(customer.name ?? ''),
+      mohalla: String(customer.mohalla ?? ''),
+      isFreeConnection: customer.isFreeConnection === true,
+      uptimePercent,
+      onlineMinutes: summary.onlineMinutes,
+      offlineMinutes: summary.offlineMinutes,
+      windowMinutes: summary.windowMinutes,
+      lifetimeClamped: summary.lifetimeClamped,
+      chronic: uptimePercent < FLEET_CHRONIC_UPTIME_PERCENT || summary.offlineMinutes >= FLEET_CHRONIC_OFFLINE_MINUTES
+    });
+  }
+  rows.sort((a, b) => (a.uptimePercent - b.uptimePercent)
+    || ((a.customerNumber ?? Number.POSITIVE_INFINITY) - (b.customerNumber ?? Number.POSITIVE_INFINITY))
+    || String(a.customerId).localeCompare(String(b.customerId)));
+  const perfectCount = rows.filter(row => row.offlineMinutes === 0).length;
+  const chronicCount = rows.filter(row => row.chronic).length;
+  const fleetAvgPercent = rows.length
+    ? Math.round((rows.reduce((sum, row) => sum + row.uptimePercent, 0) / rows.length) * 10) / 10
+    : null;
+  return {
+    month: String(month),
+    includedCount: rows.length,
+    excludedCount: excluded.length,
+    excluded,
+    perfectCount,
+    chronicCount,
+    fleetAvgPercent,
+    rows,
+    lowestFive: rows.slice(0, 5)
+  };
+}

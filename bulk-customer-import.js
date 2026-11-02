@@ -24,9 +24,22 @@
  * tested directly. The dialog glue at the bottom follows the customer-import
  * pattern: state comes from window.quickCollectModalController, saving goes
  * through commitState, and the app re-renders on a global-search input event.
+ *
+ * SISP-197 adds an OPTIONAL enrich mode (computeBulkStatusesWithEnrich,
+ * default OFF — the plain wizard above is byte-for-byte unchanged when it
+ * is off). With the mode on, a row the guard above flags as a duplicate
+ * stops being a plain skip when it resolves to exactly ONE existing
+ * customer: it becomes a fill-gaps candidate that may write ONLY the
+ * fields that are blank on that customer's record (phone via core
+ * updateCustomerProfile, package/fee via customer-plan applyCustomerPlan).
+ * A stored phone or package is NEVER overwritten, a free connection never
+ * gains a priced package, an ambiguous row (one that could match two
+ * different customers) fills nothing, and rows matching nobody still
+ * import as new customers exactly as before.
  */
-import { addCustomer } from './core.js';
+import { addCustomer, updateCustomerProfile } from './core.js';
 import { applyCustomerPlan } from './customer-plan.js';
+import { rosterGroupKey } from './default-customers.js';
 import { matchPackage, splitDelimited, undoImport } from './customer-import-core.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
 import { validateCustomerName } from './form-validation.js';
@@ -177,7 +190,11 @@ export const BULK_ROW_STATUS = {
   'missing-fee': { i18nKey: 'bci_status_missing_fee', tone: 'warn' },
   'duplicate-connection': { i18nKey: 'bci_status_dup_id', tone: 'warn' },
   'duplicate-phone': { i18nKey: 'bci_status_dup_phone', tone: 'warn' },
-  error: { i18nKey: 'bci_status_error', tone: 'error' }
+  error: { i18nKey: 'bci_status_error', tone: 'error' },
+  // SISP-197 enrich mode only (never produced with the mode off).
+  enrich: { i18nKey: 'bci_status_enrich', tone: 'ok' },
+  'enrich-none': { i18nKey: 'bci_status_enrich_none', tone: 'warn' },
+  'enrich-ambiguous': { i18nKey: 'bci_status_enrich_ambiguous', tone: 'warn' }
 };
 
 /**
@@ -252,6 +269,168 @@ export function summarizeBulkRows(rows) {
   };
 }
 
+/* ------------------------------------------------------------------ */
+/* SISP-197: enrich mode — fill blank phone / package on the existing  */
+/* customer a duplicate-flagged row belongs to. Pure logic; the write  */
+/* side (importBulkCustomersWithEnrich) only ever touches blank        */
+/* fields, through the same seams a manual edit would use.             */
+/* ------------------------------------------------------------------ */
+
+const hasStoredPhone = c => Boolean(String(c?.phone ?? '').trim());
+
+/** A package counts as SET when a speed/label is recorded OR a monthly
+ *  selling amount is on the record (customer records store no packageId). */
+export function customerHasPackage(c) {
+  return Boolean(String(c?.packageSpeed ?? '').trim()) || Number(c?.monthlySellingAmount) > 0;
+}
+
+function nameGroupMatches(row, customers) {
+  const key = rosterGroupKey(row.name, row.area);
+  return customers.filter(c => !c.archived && rosterGroupKey(c.name, c.mohalla) === key);
+}
+
+/**
+ * Resolve a duplicate-flagged row to ONE existing customer, using the
+ * wizard's own identity channels in its own precedence:
+ *  1. Connection ID — the register's own key, unique across every stored
+ *     customer, archived included (an archived hit resolves here and the
+ *     caller leaves the row a plain duplicate: archived records are never
+ *     enriched). A unique phone match pointing at a DIFFERENT live
+ *     customer vetoes it — the row mixes two customers' identities.
+ *  2. Phone (+92 national key, live customers only, exactly as the
+ *     duplicate-phone guard compares). Two live customers sharing the
+ *     phone is ambiguous; a name+mohalla group uniquely naming a
+ *     different customer vetoes it.
+ *  3. Name + mohalla group (the roster planner's rosterGroupKey) — only
+ *     when the row carries no usable phone (a bad phone is an error row
+ *     before it can be a duplicate) and names a mohalla to group by. It
+ *     resolves already-flagged rows only; it never turns a row the guard
+ *     called "ok" into a match, because the same name in the same
+ *     mohalla can legitimately be two different customers.
+ * Anything that could mean two different customers is ambiguous.
+ */
+function resolveEnrichMatch(row, customers) {
+  const byId = row.connectionId !== null
+    ? customers.find(c => c.customerNumber === row.connectionId) ?? null
+    : null;
+  const phoneKey = row.phone ? phoneNationalKey(row.phone) : '';
+  const phoneMatches = phoneKey
+    ? customers.filter(c => !c.archived && phoneNationalKey(c.phone) === phoneKey)
+    : [];
+  if (byId) {
+    if (phoneMatches.length === 1 && phoneMatches[0].id !== byId.id) return { match: null, ambiguous: true };
+    return { match: byId, ambiguous: false };
+  }
+  if (phoneMatches.length > 1) return { match: null, ambiguous: true };
+  if (phoneMatches.length === 1) {
+    const candidate = phoneMatches[0];
+    if (tidy(row.area)) {
+      const group = nameGroupMatches(row, customers);
+      if (group.length === 1 && group[0].id !== candidate.id) return { match: null, ambiguous: true };
+    }
+    return { match: candidate, ambiguous: false };
+  }
+  if (!phoneKey && tidy(row.area)) {
+    const group = nameGroupMatches(row, customers);
+    if (group.length === 1) return { match: group[0], ambiguous: false };
+    if (group.length > 1) return { match: null, ambiguous: true };
+  }
+  return { match: null, ambiguous: false };
+}
+
+/**
+ * Per-field verdicts for a matched row. Fields are independent: one may
+ * fill while the other is kept / skipped, and nothing here ever plans to
+ * overwrite a stored value.
+ *  phone:   fill | kept | invalid (row typed an unusable number) | absent
+ *  package: fill | kept | free (free connection — never priced) |
+ *           invalid (package text matches nothing and carries no fee) |
+ *           absent (the row offers no package at all)
+ */
+function enrichFieldOutcomes(row, customer) {
+  let phone;
+  if (hasStoredPhone(customer)) phone = 'kept';
+  else if (row.phone) phone = 'fill';
+  else if (row.phoneRaw) phone = 'invalid';
+  else phone = 'absent';
+  const offersPackage = Number(row.fee) > 0 || Boolean(tidy(row.packageLabel));
+  const usablePackage = Number(row.fee) > 0 || row.packageId != null;
+  let pkg;
+  if (customerHasPackage(customer)) pkg = 'kept';
+  else if (!offersPackage) pkg = 'absent';
+  else if (customer.isFreeConnection === true) pkg = 'free';
+  else if (!usablePackage) pkg = 'invalid';
+  else pkg = 'fill';
+  return { phone, package: pkg };
+}
+
+function enrichDetail(row, customer, outcomes) {
+  const who = { num: customer.customerNumber, name: customer.name };
+  const parts = [];
+  if (outcomes.phone === 'fill') parts.push(t('bci_enrich_add_phone', null, { ...who, phone: row.phone }));
+  if (outcomes.package === 'fill') parts.push(t('bci_enrich_add_package', null, { ...who, package: row.packageLabel || `PKR ${Number(row.fee).toLocaleString('en-PK')}` }));
+  if (outcomes.phone === 'kept') parts.push(t('bci_enrich_kept_phone', null, who));
+  if (outcomes.package === 'kept') parts.push(t('bci_enrich_kept_package', null, who));
+  if (outcomes.package === 'free') parts.push(t('bci_enrich_free_package', null, who));
+  if (outcomes.phone === 'invalid') parts.push(t('bci_enrich_bad_phone_field'));
+  if (outcomes.package === 'invalid') parts.push(t('bci_enrich_bad_package_field', null, { package: row.packageLabel }));
+  if (!parts.length) parts.push(t('bci_enrich_nothing', null, who));
+  return parts.join(' ');
+}
+
+/**
+ * Statuses with the enrich mode considered. With `enrich: false` (the
+ * default) this returns computeBulkStatuses untouched — the shipped
+ * wizard's behaviour, byte for byte. With it on, rows the guard flagged
+ * duplicate-connection / duplicate-phone (plus error rows whose ONLY
+ * fault is an unusable phone — the guard errors those before it can call
+ * them duplicates) are re-examined:
+ *  - resolves to exactly one live customer with at least one blank field
+ *    the row can fill → 'enrich' (ticked by default, applies on import);
+ *  - resolves, but every offered field is already stored / not usable /
+ *    free-blocked → 'enrich-none' (locked, reported per field);
+ *  - could match two different customers → 'enrich-ambiguous' (locked);
+ *  - no resolution (in-file twin, archived owner, or the customer was
+ *    already claimed by an earlier row in this same paste) → the guard's
+ *    original duplicate status stands.
+ * The first row in the paste claims a customer; later rows for the same
+ * customer stay duplicates, exactly like the twin rule.
+ */
+export function computeBulkStatusesWithEnrich(rows, customers = [], { enrich = false } = {}) {
+  const base = computeBulkStatuses(rows, customers);
+  if (!enrich) return base;
+  const claimed = new Set();
+  return base.map(row => {
+    const badPhoneOnly = row.status === 'error'
+      && validateCustomerName(row.name ?? '').valid
+      && Boolean(row.phoneRaw) && !row.phone;
+    if (row.status !== 'duplicate-connection' && row.status !== 'duplicate-phone' && !badPhoneOnly) return row;
+    const { match, ambiguous } = resolveEnrichMatch(row, customers);
+    if (ambiguous) {
+      return { ...row, status: 'enrich-ambiguous', detail: t('bci_enrich_ambiguous'), included: false, enrich: null };
+    }
+    if (!match || match.archived === true || claimed.has(match.id)) return row;
+    claimed.add(match.id);
+    const outcomes = enrichFieldOutcomes(row, match);
+    const detail = enrichDetail(row, match, outcomes);
+    const enrichInfo = { customerId: match.id, customerNumber: match.customerNumber, phone: outcomes.phone, package: outcomes.package };
+    if (outcomes.phone !== 'fill' && outcomes.package !== 'fill') {
+      return { ...row, status: 'enrich-none', detail, included: false, enrich: enrichInfo };
+    }
+    return { ...row, status: 'enrich', detail, included: row.include ?? true, enrich: enrichInfo };
+  });
+}
+
+export function summarizeBulkEnrich(rows) {
+  return {
+    fill: rows.filter(r => r.status === 'enrich').length,
+    none: rows.filter(r => r.status === 'enrich-none').length,
+    ambiguous: rows.filter(r => r.status === 'enrich-ambiguous').length,
+    phones: rows.filter(r => r.status === 'enrich' && r.enrich?.phone === 'fill').length,
+    packages: rows.filter(r => r.status === 'enrich' && r.enrich?.package === 'fill').length
+  };
+}
+
 /**
  * Add the included rows through core addCustomer — with the register's own
  * Connection ID when it is free (core requestedCustomerNumber) and the
@@ -294,6 +473,63 @@ export function importBulkCustomers(state, statusRows, { referenceDate = new Dat
   return { nextState: next, addedIds, added: addedIds.length, skipped: statusRows.length - addedIds.length, billed, failed };
 }
 
+/**
+ * Import with the SISP-197 enrich mode: creation rows go through
+ * importBulkCustomers exactly as the plain wizard does (enrich never
+ * suppresses a new customer), then each ticked 'enrich' row fills its
+ * blank fields on the matched existing customer — phone through core
+ * updateCustomerProfile, package/fee through applyCustomerPlan, the same
+ * seams the profile Edit form and the Add Customer form use. The plan
+ * deliberately carries NO connectionDate: an existing customer keeps the
+ * connection date already on their record. Each field is applied in its
+ * own try/catch (per-field, mirroring the per-field verdicts), so one
+ * failing field never loses the other, and one failing row never loses
+ * the batch. Batch undo (undoBulkImport) still covers only the customers
+ * this import created — enrich fills are profile edits on pre-existing
+ * records and persist like any manual edit.
+ */
+export function importBulkCustomersWithEnrich(state, statusRows, { referenceDate = new Date(), connectionDate = null } = {}) {
+  const isEnrichFamily = r => r.status === 'enrich' || r.status === 'enrich-none' || r.status === 'enrich-ambiguous';
+  const created = importBulkCustomers(state, statusRows.filter(r => !isEnrichFamily(r)), { referenceDate, connectionDate });
+  let next = created.nextState;
+  let billed = created.billed;
+  const enrichFailed = [];
+  const enrichedIds = [];
+  let enrichedPhones = 0;
+  let enrichedPackages = 0;
+  for (const row of statusRows) {
+    if (row.status !== 'enrich' || !row.included || !row.enrich) continue;
+    const id = row.enrich.customerId;
+    let applied = false;
+    if (row.enrich.phone === 'fill') {
+      try {
+        next = updateCustomerProfile(next, id, { phone: row.phone }, referenceDate);
+        enrichedPhones += 1; applied = true;
+      } catch (err) {
+        enrichFailed.push({ line: row.line, name: row.name, error: err.message });
+      }
+    }
+    if (row.enrich.package === 'fill') {
+      try {
+        const res = applyCustomerPlan(next, id, { packageLabel: row.packageLabel || '', fee: row.fee ?? null }, referenceDate);
+        next = res.nextState;
+        if (res.billed) billed += 1;
+        enrichedPackages += 1; applied = true;
+      } catch (err) {
+        enrichFailed.push({ line: row.line, name: row.name, error: err.message });
+      }
+    }
+    if (applied) enrichedIds.push(id);
+  }
+  return {
+    nextState: next,
+    addedIds: created.addedIds, added: created.added, skipped: created.skipped, billed, failed: created.failed,
+    enrichedIds, enrichedCustomers: enrichedIds.length, enrichedPhones, enrichedPackages, enrichFailed,
+    enrichSkipped: statusRows.filter(r => r.status === 'enrich-none').length,
+    enrichAmbiguous: statusRows.filter(r => r.status === 'enrich-ambiguous').length
+  };
+}
+
 export { undoImport as undoBulkImport };
 
 /* ------------------------------------------------------------------ */
@@ -322,7 +558,8 @@ export function setupBulkCustomerImport({ win = window, doc = document, getContr
     const search = $('globalCustomerSearch');
     if (search) search.dispatchEvent(new win.Event('input', { bubbles: true }));
   };
-  const statusRows = () => computeBulkStatuses(rows, state()?.customers ?? []);
+  const enrichOn = () => Boolean($('bciEnrichMode')?.checked);
+  const statusRows = () => computeBulkStatusesWithEnrich(rows, state()?.customers ?? [], { enrich: enrichOn() });
   const getPakistanLocalDate = () => {
     const d = new Date(Date.now() + 5 * 3600 * 1000);
     return d.toISOString().slice(0, 10);
@@ -331,14 +568,18 @@ export function setupBulkCustomerImport({ win = window, doc = document, getContr
   function renderRows() {
     const list = statusRows();
     const sum = summarizeBulkRows(list);
-    if ($('bciCounts')) $('bciCounts').innerHTML = `<strong>${sum.total}</strong> ${sum.total === 1 ? t('bci_row') : t('bci_rows')} · <strong>${sum.ready}</strong> ${t('bci_to_add')}${sum.attention ? ` · <span class="bci-attn">${sum.attention} ${t('bci_need_look')}</span>` : ''}`;
+    const enr = summarizeBulkEnrich(list);
+    if ($('bciCounts')) $('bciCounts').innerHTML = `<strong>${sum.total}</strong> ${sum.total === 1 ? t('bci_row') : t('bci_rows')} · <strong>${sum.ready}</strong> ${t('bci_to_add')}${enr.fill ? ` · <strong>${enr.fill}</strong> ${t('bci_to_enrich')}` : ''}${sum.attention ? ` · <span class="bci-attn">${sum.attention} ${t('bci_need_look')}</span>` : ''}`;
     if (!rowsEl) return;
     rowsEl.innerHTML = list.map(r => {
       const st = BULK_ROW_STATUS[r.status];
-      const locked = r.status === 'error' || r.status.startsWith('duplicate');
+      const locked = r.status === 'error' || r.status.startsWith('duplicate') || r.status === 'enrich-none' || r.status === 'enrich-ambiguous';
+      const rowLabel = r.status === 'enrich'
+        ? t('bci_enrich_row', null, { name: r.name || t('bci_line', null, { line: r.line }) })
+        : t('bci_import_row', null, { name: r.name || t('bci_line', null, { line: r.line }) });
       return `<li class="bci-row is-${st.tone}${r.included ? ' is-included' : ''}" data-bci-row="${esc(r.key)}">
         <div class="bci-row-top">
-          <label class="bci-include"><input type="checkbox" data-bci-include ${r.included ? 'checked' : ''} ${locked ? 'disabled' : ''} aria-label="${esc(t('bci_import_row', null, { name: r.name || t('bci_line', null, { line: r.line }) }))}"><span class="bci-line">${esc(t('bci_line', null, { line: r.line }))}</span></label>
+          <label class="bci-include"><input type="checkbox" data-bci-include ${r.included ? 'checked' : ''} ${locked ? 'disabled' : ''} aria-label="${esc(rowLabel)}"><span class="bci-line">${esc(t('bci_line', null, { line: r.line }))}</span></label>
           <span class="bci-chip bci-chip-${st.tone}">${esc(t(st.i18nKey))}</span>
         </div>
         <div class="bci-fields">
@@ -353,6 +594,8 @@ export function setupBulkCustomerImport({ win = window, doc = document, getContr
   function open() {
     rows = []; lastImport = null;
     if (textArea) textArea.value = '';
+    if ($('bciEnrichMode')) $('bciEnrichMode').checked = false;
+    if ($('bciDoneEnrich')) { $('bciDoneEnrich').textContent = ''; $('bciDoneEnrich').hidden = true; }
     say($('bciInputStatus'), '');
     show('input');
     modal.showModal?.();
@@ -386,18 +629,34 @@ export function setupBulkCustomerImport({ win = window, doc = document, getContr
     syncFromPreview();
     try {
       const list = statusRows();
-      const res = importBulkCustomers(st, list, { connectionDate: getPakistanLocalDate() });
+      const enrichMode = enrichOn();
+      const res = enrichMode
+        ? importBulkCustomersWithEnrich(st, list, { connectionDate: getPakistanLocalDate() })
+        : importBulkCustomers(st, list, { connectionDate: getPakistanLocalDate() });
       ctl.commitState(res.nextState);
       refreshApp();
       lastImport = res;
       if ($('bciDoneTitle')) $('bciDoneTitle').textContent = t('bci_done_title', null, { count: res.added });
       if ($('bciDoneDetail')) $('bciDoneDetail').textContent = t('bci_done_detail', null, { billed: res.billed, skipped: res.skipped });
+      const doneEnrich = $('bciDoneEnrich');
+      if (doneEnrich) {
+        if (enrichMode && (res.enrichedCustomers || res.enrichSkipped || res.enrichAmbiguous)) {
+          doneEnrich.textContent = t('bci_done_enrich', null, {
+            customers: res.enrichedCustomers ?? 0, phones: res.enrichedPhones ?? 0, packages: res.enrichedPackages ?? 0,
+            skipped: res.enrichSkipped ?? 0, ambiguous: res.enrichAmbiguous ?? 0
+          });
+          doneEnrich.hidden = false;
+        } else { doneEnrich.textContent = ''; doneEnrich.hidden = true; }
+      }
       const added = res.nextState.customers.filter(c => res.addedIds.includes(c.id));
       if ($('bciDoneList')) $('bciDoneList').innerHTML = added.slice(0, 8).map(c =>
         `<li><strong>#${c.customerNumber} ${esc(c.name)}</strong>${c.nameUrdu ? ` <span class="bci-urdu">${esc(c.nameUrdu)}</span>` : ''} <span>${esc(c.packageSpeed || t('bci_no_package'))} · ${c.monthlySellingAmount ? esc(pkr(c.monthlySellingAmount)) : t('bci_no_fee')}</span></li>`).join('')
         + (added.length > 8 ? `<li>${esc(t('bci_more', null, { count: added.length - 8 }))}</li>` : '');
       if ($('bciUndoBtn')) $('bciUndoBtn').disabled = !res.added;
-      say($('bciDoneStatus'), res.failed?.length ? t('bci_done_failed', null, { count: res.failed.length, lines: res.failed.map(f => f.line).join(', ') }) : '', res.failed?.length ? 'error' : 'info');
+      const failMsgs = [];
+      if (res.failed?.length) failMsgs.push(t('bci_done_failed', null, { count: res.failed.length, lines: res.failed.map(f => f.line).join(', ') }));
+      if (res.enrichFailed?.length) failMsgs.push(t('bci_enrich_failed', null, { count: res.enrichFailed.length, lines: res.enrichFailed.map(f => f.line).join(', ') }));
+      say($('bciDoneStatus'), failMsgs.join(' '), failMsgs.length ? 'error' : 'info');
       show('done');
     } catch (err) {
       say($('bciInputStatus'), err.message, 'error');
@@ -434,7 +693,7 @@ export function setupBulkCustomerImport({ win = window, doc = document, getContr
   });
   modal.addEventListener('close', () => { rows = []; });
 
-  const api = { open, close, parseBulkImportText, computeBulkStatuses, importBulkCustomers };
+  const api = { open, close, parseBulkImportText, computeBulkStatuses, importBulkCustomers, computeBulkStatusesWithEnrich, importBulkCustomersWithEnrich };
   win.bulkCustomerImport = api;
   return api;
 }

@@ -1027,6 +1027,16 @@ body.field-mode-open { overflow: hidden; }
 
 
 }
+/* SISP-198: Daily Cash Closing note counter strip (theme tokens only). */
+.roznamcha-note-counter { display: flex; flex-direction: column; gap: 6px; }
+.roznamcha-note-toggle { align-self: flex-start; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-md); color: var(--ink); cursor: pointer; font-size: 13px; padding: 6px 10px; }
+.roznamcha-note-body { display: flex; flex-direction: column; gap: 6px; background: var(--surface-soft); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 10px; }
+.roznamcha-note-body[hidden] { display: none; }
+.roznamcha-note-help { color: var(--muted); font-size: 12px; margin: 0; }
+.roznamcha-note-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.roznamcha-note-row label { color: var(--ink); font-size: 13px; }
+.roznamcha-note-input { max-width: 110px; text-align: right; font-variant-numeric: var(--numeric); }
+.roznamcha-note-line { color: var(--ink); font-size: 13px; font-weight: 600; margin: 0; font-variant-numeric: var(--numeric); }
 /* SISP-12: field ticket cards, badges and resolve form. Token-only: no
  * hard-coded hex (design-tokens ratchet). The dialog itself reuses the
  * shared .billing-modal / .modal-card rules, so its container already

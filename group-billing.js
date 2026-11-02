@@ -198,6 +198,17 @@ export function groupMembers(group, customers) {
   return out;
 }
 
+/** The group a customer belongs to (the first stored group whose
+ *  memberIds contain this customer id), or null. Groups are links held
+ *  on the group record itself — a customer record carries no group
+ *  field — so membership is always resolved from the group list. */
+export function billingGroupForCustomer(groups, customerId) {
+  const id = cleanText(customerId);
+  if (!id) return null;
+  return sanitizeBillingGroups(groups)
+    .find((group) => group.memberIds.some((memberId) => String(memberId) === id)) ?? null;
+}
+
 /**
  * One member's current-month balance.
  * With allocations (the app passes calculatePaymentAllocations(state)),

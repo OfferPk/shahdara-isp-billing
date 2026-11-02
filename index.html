@@ -22451,6 +22451,34 @@
         <div id="roznamchaCloseBlock" class="roznamcha-close-block">
           <label for="roznamchaCountedCash">Gina hua cash (khali = expected ke barabar)</label>
           <input id="roznamchaCountedCash" class="form-input" type="number" min="0" step="0.01" inputmode="decimal" aria-label="Counted cash">
+          <div id="roznamchaNoteCounter" class="roznamcha-note-counter">
+            <button id="roznamchaNoteToggle" class="roznamcha-note-toggle" type="button" aria-expanded="false" aria-controls="roznamchaNoteBody">💵 Count Physical Notes</button>
+            <div id="roznamchaNoteBody" class="roznamcha-note-body" hidden>
+              <p id="roznamchaNoteHelp" class="roznamcha-note-help"></p>
+              <div class="roznamcha-note-row">
+                <label id="roznamchaNoteLabel5000" for="roznamchaNoteCount5000">PKR 5,000 note</label>
+                <input id="roznamchaNoteCount5000" class="form-input roznamcha-note-input" type="number" min="0" step="1" inputmode="numeric" data-note-denomination="5000" aria-label="PKR 5000 notes">
+              </div>
+              <div class="roznamcha-note-row">
+                <label id="roznamchaNoteLabel1000" for="roznamchaNoteCount1000">PKR 1,000 note</label>
+                <input id="roznamchaNoteCount1000" class="form-input roznamcha-note-input" type="number" min="0" step="1" inputmode="numeric" data-note-denomination="1000" aria-label="PKR 1000 notes">
+              </div>
+              <div class="roznamcha-note-row">
+                <label id="roznamchaNoteLabel500" for="roznamchaNoteCount500">PKR 500 note</label>
+                <input id="roznamchaNoteCount500" class="form-input roznamcha-note-input" type="number" min="0" step="1" inputmode="numeric" data-note-denomination="500" aria-label="PKR 500 notes">
+              </div>
+              <div class="roznamcha-note-row">
+                <label id="roznamchaNoteLabel100" for="roznamchaNoteCount100">PKR 100 note</label>
+                <input id="roznamchaNoteCount100" class="form-input roznamcha-note-input" type="number" min="0" step="1" inputmode="numeric" data-note-denomination="100" aria-label="PKR 100 notes">
+              </div>
+              <div class="roznamcha-note-row">
+                <label id="roznamchaNoteLabel50" for="roznamchaNoteCount50">PKR 50 note</label>
+                <input id="roznamchaNoteCount50" class="form-input roznamcha-note-input" type="number" min="0" step="1" inputmode="numeric" data-note-denomination="50" aria-label="PKR 50 notes">
+              </div>
+              <p id="roznamchaNoteTotalLine" class="roznamcha-note-line"></p>
+              <p id="roznamchaNoteFarqLine" class="roznamcha-note-line"></p>
+            </div>
+          </div>
           <button id="roznamchaCloseDayBtn" class="action-btn-sm daily-slip-btn" type="button">🔒 Roznamcha band karein</button>
         </div>
         <div id="roznamchaReopenBlock" class="roznamcha-close-block" hidden>

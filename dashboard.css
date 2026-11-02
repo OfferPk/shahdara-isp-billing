@@ -4609,6 +4609,89 @@
   color: var(--color-overdue);
 }
 
+/* SISP-186: Dashboard Expired Vacation Holds alert queue — customers
+   whose auto-resume date passed while the record still says paused.
+   Theme tokens only, so the card reads correctly in light and dark
+   mode; the section is hidden entirely while the queue is empty. */
+.expired-holds-section {
+  margin-top: 10px;
+}
+.expired-holds-section[hidden] {
+  display: none;
+}
+.expired-holds-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  padding: 14px 13px;
+}
+.expired-holds-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.expired-holds-title {
+  font: 700 15px Manrope, system-ui, sans-serif;
+  color: var(--ink);
+  margin: 0;
+}
+.expired-holds-count {
+  font: 600 12px 'DM Sans', system-ui, sans-serif;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.expired-holds-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.expired-holds-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.expired-hold-item + .expired-hold-item {
+  border-top: 1px solid var(--line);
+}
+.expired-hold-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 0;
+  cursor: pointer;
+}
+.expired-hold-check {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  accent-color: var(--green);
+}
+.expired-hold-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.expired-hold-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.expired-hold-meta {
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.expired-holds-resume-btn {
+  margin-top: 10px;
+  width: 100%;
+}
+
 /* SISP-59: Dashboard Package Upgrade Suggestions card — upsell
    candidates with the projected +Rs/month ARPU lift and a 1-tap
    WhatsApp offer per row. Theme tokens only (light + dark); the gain

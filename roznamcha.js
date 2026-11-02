@@ -3,7 +3,8 @@
  * Petty Cash Register).
  *
  * Problem: during daily operations cash comes in from several sources
- * (door-to-door cash, Waseem Abbasi Shop handover, Hassan Shop handover)
+ * (door-to-door cash, Waseem Abbasi Shop handover, Hassan Balla Shop
+ * handover)
  * while small field expenses (bike petrol, splicing tape, RJ45 connectors,
  * tea) are paid out of the cash drawer with no daily closing reconciliation.
  *
@@ -31,9 +32,16 @@
  *   is not a fact yet.
  * - Petty outflows are owned by this ledger. Since SISP-45 they are also
  *   mirrored into the main Expenses ledger by syncRoznamchaExpenses
- *   (below): every outflow appears there exactly once, deduplicated by
- *   roznamchaEntryId, so monthly P&L and the Nasir/Aqib 50% shares deduct
- *   field spending while no total ever counts it twice. The roznamcha
+ *   (below): each mirrored outflow appears there exactly once,
+ *   deduplicated by roznamchaEntryId, so monthly P&L and the Nasir/Aqib
+ *   50% shares deduct field spending while no total ever counts it
+ *   twice. Three outflow kinds are exceptions to that mirror: `saad-`
+ *   outflows are skipped here because the Saad payment sync already
+ *   mirrors them under saadPaymentId (SISP-56), `lineman-payout-`
+ *   outflows likewise ride the lineman payout sync under
+ *   linemanPayoutId (SISP-155), and `deposit-refund-` outflows are
+ *   never mirrored at all — a refunded security deposit is the
+ *   customer's own money, not an expense (SISP-195). The roznamcha
  *   stays the source of truth — the mirror is a convergent reconcile, not
  *   a copy, so re-running it (startup, every roznamcha change, re-close)
  *   never duplicates.

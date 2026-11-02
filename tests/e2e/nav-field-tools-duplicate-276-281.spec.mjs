@@ -8,6 +8,13 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
+
+// The #279/#281 test runs Collect Setup over the existing roster:
+// written against the old built-in seed (PR #478 emptied it).
+test.beforeEach(async ({ page }) => {
+  await installSyntheticRoster(page);
+});
 
 function trackErrors(page) {
   const errors = [];

@@ -844,6 +844,17 @@
           <ul id="recentPaymentsList" class="recent-payments-list" aria-label="Latest payments"></ul>
         </div>
       </section>
+      <section class="expired-holds-section" id="expiredHoldsSection" aria-labelledby="expiredHoldsHeading" hidden>
+        <div class="expired-holds-card">
+          <div class="expired-holds-header">
+            <h3 id="expiredHoldsHeading" class="expired-holds-title" data-i18n="exphold_title">⏸️ Expired Vacation Holds</h3>
+            <span id="expiredHoldsCount" class="expired-holds-count"></span>
+          </div>
+          <p class="expired-holds-sub" data-i18n="exphold_sub">These holds reached their auto-resume date but are still paused in the app. Select who to resume — billing restarts and the combined MikroTik enable script is copied for WinBox.</p>
+          <ul id="expiredHoldsList" class="expired-holds-list" aria-label="Expired vacation holds waiting to resume"></ul>
+          <button id="expiredHoldsResumeBtn" class="primary-button expired-holds-resume-btn" type="button" data-i18n="exphold_resume_btn">▶️ Resume Selected &amp; Copy MikroTik Enable Script</button>
+        </div>
+      </section>
       <section class="collection-velocity-section" aria-labelledby="collectionVelocityHeading">
         <div class="collection-velocity-card">
           <div class="collection-velocity-header">

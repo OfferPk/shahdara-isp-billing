@@ -121,6 +121,22 @@
  * opens exactly as if his list card had been tapped. The hints are
  * session display state only: recomputed fresh by every collection,
  * cleared by selection / dismiss / close, and never persisted.
+ * FU2 (Field Mode Change Package, follow-up to PR #507): the collect
+ * sheet AND the advance sheet carry the same Change Package row the
+ * Quick Collect payment step has — current package + the real catalogue
+ * picker — and applying it rides the EXACT same pure path,
+ * changeCustomerPackage from nav-quick-collect.js (updateCustomerProfile
+ * audit + current-month bill create/reprice via the core writers; FREE
+ * never billed, paused month never billed, same package = no-op, kist
+ * preserved, payments untouched). There is deliberately NO second
+ * repricing implementation here: changeFieldModePackage() only adapts
+ * the sheet's entry shape to that one function, the picker markup only
+ * mirrors the QC row (same qcpkg_* strings, both languages), and after
+ * the host saves, the sheet simply re-renders — the dues line and the
+ * Cash Full / shop amounts are recomputed from the engine as always, so
+ * the operator collects at the new fee without leaving Field Mode. The
+ * success toast carries the same Undo (restores the exact pre-change
+ * state), via the host's onToast(msg, opts) contract.
  *
  * Pure helpers are DOM-free and unit-tested; setupFieldMode() is the DOM
  * controller (returns a no-op controller outside a browser, mirroring
@@ -132,9 +148,12 @@ import {
   executeQuickCollection,
   formatQuickCollectWhatsAppReceipt,
   formatRemainderWaadaLine,
-  getPakistanLocalDate
+  getPakistanLocalDate,
+  changeCustomerPackage
 } from './nav-quick-collect.js';
 import { PAYMENT_METHODS, formatPKR, calculatePaymentAllocations, manualBaqayaOutstandingCents, whatsappPhoneFor } from './core.js';
+import { BILL_PACKAGES, billPackageByLabel } from './package-catalog.js';
+import { isBillingPaused } from './pause-billing.js';
 import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
 import { receiptChannelPreference, receiptLangPreference } from './receipt-preferences.js';
 import { looseChangeSuggestions, isLooseChangeTender } from './loose-change-credit.js';
@@ -698,6 +717,66 @@ export function collectFieldModeAdvance(state, entry, { amount, method, targetMo
   return { nextState, receipt, whatsapp: formatQuickCollectWhatsAppReceipt(receipt, { whatsappPhone: customer ? whatsappPhoneFor(customer) : '', lang: receiptLangPreference(customer) }) };
 }
 
+/**
+ * FU2: Field Mode Change Package — the sheet-side seam over the Quick
+ * Collect pure function. It adds NO rules of its own: every guard and
+ * every write is changeCustomerPackage's (PR #507) — plan change via
+ * updateCustomerProfile with the packageHistory audit, a missing
+ * current-month bill created at the new fee, an existing one repriced
+ * via saveBillMonth with any billed kist preserved on top, payments
+ * never rewritten, FREE connections and billing-paused months never
+ * billed, same package (label AND fee) a strict no-op, archived
+ * customers and unknown package ids throwing. `entry` is the sheet's
+ * pending-list entry (only its id is read). Returns the
+ * changeCustomerPackage result verbatim: { nextState, changed, reason?,
+ * package, month, bill, billRepriced, billCreated, billSkipped,
+ * balanceDue } — balanceDue is the current month's balance after the
+ * change, from the allocation engine.
+ */
+export function changeFieldModePackage(state, entry, packageId, referenceDate = new Date()) {
+  if (!entry?.id) throw new Error('Customer not found.');
+  return changeCustomerPackage(state, entry.id, packageId, referenceDate);
+}
+
+/**
+ * FU2: the Change Package row markup, mirroring the Quick Collect
+ * payment step's package box (PR #507) in Field Mode's own classes:
+ * the CURRENT package (label + monthly fee from the live record), a
+ * picker of the real BILL_PACKAGES catalogue (the current package's
+ * option disabled — picking it would be the no-op anyway), and the
+ * apply button, rendered disabled until the controller arms it on a
+ * selection. All strings are the shared qcpkg_* keys, so both
+ * languages and the FREE / paused notes read exactly as in Quick
+ * Collect. Pure string builder — DOM-free and unit-tested.
+ */
+export function fieldModePackageBoxMarkup(customer) {
+  if (!customer) return '';
+  const month = getPakistanLocalDate().slice(0, 7);
+  const currentPkg = billPackageByLabel(customer.packageSpeed ?? '');
+  const fee = Number(customer.monthlySellingAmount);
+  const currentText = (customer.packageSpeed ?? '').trim()
+    ? t('qcpkg_current', null, {
+      label: customer.packageSpeed,
+      amount: Number.isFinite(fee) && fee > 0 ? formatPKR(fee) : t('qcpkg_fee_not_set')
+    })
+    : t('qcpkg_none');
+  const freeNote = customer.isFreeConnection === true
+    ? `<p class="field-mode-note">${escapeHtml(t('qcpkg_free_note'))}</p>`
+    : '';
+  const pausedNote = customer.isFreeConnection !== true && isBillingPaused(customer, month)
+    ? `<p class="field-mode-note">${escapeHtml(t('qcpkg_paused_note'))}</p>`
+    : '';
+  return `<div class="field-mode-package">
+      <p class="field-mode-package-current">📦 ${escapeHtml(currentText)}</p>
+      <select id="fieldModePackageSelect" class="field-mode-package-select" aria-label="${escapeHtml(t('qcpkg_label'))}">
+        <option value="">${escapeHtml(t('qcpkg_pick'))}</option>
+        ${BILL_PACKAGES.map(p => `<option value="${escapeHtml(p.id)}" ${currentPkg && p.id === currentPkg.id ? 'disabled' : ''}>${escapeHtml(p.label)} · ${escapeHtml(formatPKR(p.price))}</option>`).join('')}
+      </select>
+      <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="change-package" disabled>${escapeHtml(t('qcpkg_change_btn'))}</button>
+      ${freeNote}${pausedNote}
+    </div>`;
+}
+
 /** 'November 2026'-style label for a 'YYYY-MM' key (sheet convention). */
 const fieldModeMonthLabel = month => new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${month}-01T00:00:00Z`));
 
@@ -825,6 +904,12 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let lastReceiptAdvanceTarget = null;
   let panelMode = 'collect';
   let busy = false;
+  let packageChangeBusy = false;
+
+  const toast = (msg) => { if (typeof onToast === 'function') onToast(msg); };
+  // FU2: the host's onToast accepts (msg, opts) — the Quick Collect
+  // contract — which is what carries the package-change Undo action.
+  const toastAction = (msg, opts) => { if (typeof onToast === 'function') onToast(msg, opts); };
   // SISP-168: nearby unpaid neighbours of the last collection — pure
   // session display state, recomputed by every collect(), never saved.
   let nearbyHints = [];
@@ -834,7 +919,6 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   let fieldRemainderWaadaDate = null;
   let fieldRemainderSkipped = false;
 
-  const toast = (msg) => { if (typeof onToast === 'function') onToast(msg); };
   // SISP-65: the [🔊 Speak Due] button shared by both collection
   // sheets (existing field-mode-action-btn class — theme tokens only).
   const speakDueBtn = () =>
@@ -1112,6 +1196,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         ${speakDueBtn()}
         <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="advance" ${busy ? 'disabled' : ''}>💰 Advance payment</button>
       </div>
+      ${fieldModePackageBoxMarkup(customer)}
       ${looseChips ? `<div class="field-mode-loose-change">${looseChips}</div>` : ''}
       <div class="field-mode-waada">
         <p class="field-mode-waada-label">🤝 Waada (promise-to-pay)</p>
@@ -1224,6 +1309,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       <div class="field-mode-action-grid">
         ${methodButtons}
       </div>
+      ${fieldModePackageBoxMarkup(liveCustomer(entry.id))}
       ${speakDueBtn()}
       <p class="field-mode-note">Money received before its bill — it stays tagged as advance for the selected month and adjusts against that month's bill automatically.</p>
       ${zeroDues ? '' : '<button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="advance-back">← Back to collection</button>'}
@@ -1488,6 +1574,73 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     render();
   }
 
+  /**
+   * FU2: applies the Change Package pick from either sheet. Mirrors the
+   * Quick Collect handler exactly: the pure change runs on the CURRENT
+   * host state, a no-op pick only toasts, a real change saves through
+   * the host and the success toast's Undo restores the exact pre-change
+   * state. The sheet is NOT re-rendered mid-flight (that would lose the
+   * pick) — the button/select are disabled in place, and the closing
+   * render() re-derives the entry from the saved state, so the dues
+   * line and the Cash Full / shop amounts immediately show the new fee.
+   * panelMode resets to 'collect': when the change itself creates dues
+   * (the paid-in-full upgrade), the operator lands on the collect sheet
+   * facing the recomputed amount; a still-zero-dues customer (FREE /
+   * paused) stays on the advance sheet by the totalDues rule.
+   */
+  function changePackage() {
+    if (busy || packageChangeBusy || !selectedId) return;
+    const select = panelEl?.querySelector('#fieldModePackageSelect');
+    if (!select?.value) return;
+    const state = typeof getState === 'function' ? getState() : null;
+    if (!state) return;
+    const entry = getPendingCollectionCustomers(state, '', 'all').find(e => e.id === selectedId);
+    if (!entry) {
+      toast('This customer is not available for collection.');
+      selectedId = null;
+      render();
+      return;
+    }
+    const applyBtn = panelEl?.querySelector('[data-field-action="change-package"]');
+    packageChangeBusy = true;
+    if (applyBtn) applyBtn.disabled = true;
+    select.disabled = true;
+    try {
+      const beforeState = state;
+      const result = changeFieldModePackage(beforeState, entry, select.value, new Date());
+      if (!result.changed) {
+        toast(t('qcpkg_same'));
+        return;
+      }
+      if (typeof onSaveState === 'function') onSaveState(result.nextState);
+      panelMode = 'collect';
+      const message = !result.billSkipped && result.bill
+        ? t('qcpkg_done', null, {
+          label: result.package.label,
+          month: result.month,
+          amount: formatPKR(Number(result.bill.dueAmount)),
+          due: formatPKR(result.balanceDue ?? 0)
+        })
+        : t('qcpkg_done_nobill', null, { label: result.package.label, month: result.month });
+      toastAction(message, {
+        type: 'success',
+        title: t('qcpkg_change_btn'),
+        actionLabel: t('qcpkg_undo'),
+        duration: 8000,
+        onAction: () => {
+          if (typeof onSaveState === 'function') onSaveState(beforeState);
+          panelMode = 'collect';
+          render();
+        }
+      });
+    } catch (err) {
+      toast(err?.message || 'Could not change package.');
+    } finally {
+      packageChangeBusy = false;
+    }
+    render();
+  }
+
   // SISP-138: Mark-contacted — the lineman records that he already
   // reached this customer today (a call from his own phone, an SMS, a
   // WhatsApp, or standing at the door). Same state path as applyWaada:
@@ -1689,6 +1842,14 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     // zero dues it stays ticked (an untagged payment on a paid bill is
     // the owner's ruled-out double-record) and explains itself.
     panelEl.addEventListener('change', (event) => {
+      // FU2: picking a package in the Change Package row arms the apply
+      // button (the Quick Collect pattern); the current package's own
+      // option is disabled in the markup, so any pick is a real change.
+      if (event.target?.id === 'fieldModePackageSelect') {
+        const applyBtn = panelEl.querySelector('[data-field-action="change-package"]');
+        if (applyBtn) applyBtn.disabled = !event.target.value || packageChangeBusy;
+        return;
+      }
       if (event.target?.id !== 'fieldModeAdvanceCheckbox') return;
       const state = typeof getState === 'function' ? getState() : null;
       const entry = state
@@ -1735,6 +1896,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       if (actionBtn) {
         const action = actionBtn.getAttribute('data-field-action');
         if (action === 'cash') collect('Cash');
+        else if (action === 'change-package') changePackage();
         else if (action === 'loose-change') collectLooseChange(Number(actionBtn.getAttribute('data-field-tender')));
         else if (action === 'shop') collect(actionBtn.getAttribute('data-field-method') || 'Cash');
         else if (action === 'advance') {

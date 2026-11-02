@@ -35,6 +35,133 @@ const stripComments = (source, ext) => {
   return source;
 };
 
+// SISP-191 (PR #494 follow-up): mask everything in a JS source that is not
+// code — string contents, template-literal text, regex literals and both
+// comment kinds — before the import scanner below runs its regexes over it.
+// The naive scanner used to start matching at the word "import" inside a
+// translation string (e.g. a dictionary value ending in '... import') and pair
+// that string's closing quote with the next entry's opening quote, inventing a
+// garbage module reference that failed the build. String delimiters are kept
+// and each string's raw content is replaced by a \u0001N\u0001 placeholder, so
+// a real import specifier is captured as a placeholder and restored verbatim
+// by extractReferences; text inside strings/templates can never be captured.
+export function maskJsNonCode(source) {
+  const strings = [];
+  let out = '';
+  let i = 0;
+  const n = source.length;
+  let lastCode = '';   // last significant code character emitted
+  let lastWord = '';   // last identifier/keyword emitted in code position
+  const WORD_CHAR = /[A-Za-z0-9_$]/;
+  const REGEX_PREFIX_KEYWORDS = new Set(['return', 'typeof', 'case', 'delete', 'void', 'in', 'of', 'instanceof', 'new', 'do', 'else', 'yield', 'await', 'throw']);
+
+  const noteCode = ch => {
+    if (WORD_CHAR.test(ch)) { lastWord += ch; lastCode = ch; }
+    else if (!/\s/.test(ch)) { if (!(ch === '+' && lastCode === '+') && !(ch === '-' && lastCode === '-')) lastWord = ''; lastCode = ch; }
+  };
+  const noteValue = () => { lastCode = '0'; lastWord = ''; };
+  const regexAllowed = () => {
+    if (!lastCode) return true;
+    if (WORD_CHAR.test(lastCode)) return REGEX_PREFIX_KEYWORDS.has(lastWord);
+    return '(,=:[!&|?{;*%~^<>'.includes(lastCode);
+  };
+
+  function scanString(quote) {
+    const start = i;
+    i += 1;
+    let closed = false;
+    while (i < n) {
+      const c = source[i];
+      if (c === '\\') { i += 2; continue; }
+      if (c === quote) { closed = true; break; }
+      if (c === '\n') break; // unterminated literal: resync at the newline
+      i += 1;
+    }
+    strings.push(source.slice(start + 1, i));
+    if (closed) i += 1;
+    out += `${quote}\u0001${strings.length - 1}\u0001${closed ? quote : ''}`;
+    noteValue();
+  }
+
+  function scanTemplate() {
+    i += 1; // opening backtick
+    out += '`';
+    while (i < n) {
+      const c = source[i];
+      if (c === '\\') { out += '  '; i += 2; continue; }
+      if (c === '`') { i += 1; out += '`'; noteValue(); return; }
+      if (c === '$' && source[i + 1] === '{') {
+        out += '${'; i += 2;
+        lastCode = '{'; lastWord = '';
+        scanCode(true); // the ${ } expression is real code: scan it as such
+        continue;
+      }
+      out += c === '\n' ? '\n' : ' ';
+      i += 1;
+    }
+    noteValue();
+  }
+
+  function scanRegex() {
+    i += 1; // opening slash
+    out += '/';
+    let inClass = false;
+    while (i < n) {
+      const c = source[i];
+      if (c === '\\') { out += '  '; i += 2; continue; }
+      if (c === '\n') break;
+      if (c === '[') inClass = true;
+      else if (c === ']') inClass = false;
+      else if (c === '/' && !inClass) {
+        i += 1;
+        out += '/';
+        while (i < n && /[a-z]/i.test(source[i])) { out += source[i]; i += 1; }
+        noteValue();
+        return;
+      }
+      out += ' ';
+      i += 1;
+    }
+    noteValue();
+  }
+
+  function scanCode(stopAtCloseBrace) {
+    let depth = 0;
+    while (i < n) {
+      const c = source[i];
+      const next = source[i + 1];
+      if (c === '/' && next === '/') {
+        while (i < n && source[i] !== '\n') { out += ' '; i += 1; }
+        continue;
+      }
+      if (c === '/' && next === '*') {
+        out += '  '; i += 2;
+        while (i < n && !(source[i] === '*' && source[i + 1] === '/')) { out += source[i] === '\n' ? '\n' : ' '; i += 1; }
+        if (i < n) { out += '  '; i += 2; }
+        continue;
+      }
+      if (c === "'" || c === '"') { scanString(c); continue; }
+      if (c === '`') { scanTemplate(); continue; }
+      if (c === '/') {
+        if (regexAllowed()) scanRegex();
+        else { out += c; noteCode(c); i += 1; }
+        continue;
+      }
+      if (c === '{') { depth += 1; out += c; noteCode(c); i += 1; continue; }
+      if (c === '}') {
+        out += c; noteCode(c); i += 1;
+        if (stopAtCloseBrace && depth === 0) return;
+        depth -= 1;
+        continue;
+      }
+      out += c; noteCode(c); i += 1;
+    }
+  }
+
+  scanCode(false);
+  return { text: out, strings };
+}
+
 export function extractReferences(source, ext) {
   const refs = [];
   const text = stripComments(source, ext);
@@ -44,9 +171,18 @@ export function extractReferences(source, ext) {
     for (const m of text.matchAll(/serviceWorker\.register\(\s*["']([^"']+)["']/g)) push(m[1]);
     for (const m of text.matchAll(/<script\b[^>]*type=["']module["'][^>]*>([\s\S]*?)<\/script>/gi)) refs.push(...extractReferences(m[1], '.js'));
   } else if (ext === '.js' || ext === '.mjs') {
-    for (const m of text.matchAll(/\b(?:import|export)\b[^'"`;]*?\bfrom\s*["']([^"']+)["']/g)) push(m[1]);
-    for (const m of text.matchAll(/\bimport\s*["']([^"']+)["']/g)) push(m[1]);
-    for (const m of text.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)) push(m[1]);
+    // SISP-191: run the reference regexes over a masked copy (see
+    // maskJsNonCode) so words inside strings, templates and comments can
+    // never be misparsed as imports; captured placeholders are restored to
+    // the real specifiers here.
+    const { text: code, strings } = maskJsNonCode(source);
+    const pushRef = value => {
+      const token = /^\u0001(\d+)\u0001$/.exec(value);
+      push(token ? strings[Number(token[1])] : value);
+    };
+    for (const m of code.matchAll(/\b(?:import|export)\b[^'"`;]*?\bfrom\s*["']([^"']+)["']/g)) pushRef(m[1]);
+    for (const m of code.matchAll(/\bimport\s*["']([^"']+)["']/g)) pushRef(m[1]);
+    for (const m of code.matchAll(/\bimport\s*\(\s*["']([^"']+)["']\s*\)/g)) pushRef(m[1]);
   } else if (ext === '.css') {
     for (const m of text.matchAll(/@import\s+(?:url\()?\s*["']?([^"')\s;]+)/g)) push(m[1]);
     for (const m of text.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)/g)) push(m[1]);

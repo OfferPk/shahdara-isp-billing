@@ -5186,7 +5186,7 @@ test('calculateSolarInverterMetrics calculates solar irradiance, diurnal curve a
   assert.equal(nightResult.selectedHub.currentPvW, 0);
 });
 
-test('calculateSolarInverterMetrics detects LESCO load shedding during offline clusters or Island mode', () => {
+test('calculateSolarInverterMetrics detects IESCO load shedding during offline clusters or Island mode', () => {
   let state = createInitialState(['Sub 1', 'Sub 2', 'Sub 3', 'Sub 4']);
   // Put 4 subscribers in Wandala Road, 2 offline (50%)
   state.customers[0].area = 'Vandala Road';
@@ -5236,7 +5236,7 @@ test('generateSolarReport formats operational briefing with hourly breakdown', (
   assert.ok(report.includes('Shahdara Station Central POP'));
   assert.ok(report.includes('LOAD SHEDDING OPERATING PROTOCOL'));
   assert.ok(report.includes('HOURLY SOLAR GENERATION CURVE'));
-  assert.ok(report.includes('LESCO Grid Cost Avoided'));
+  assert.ok(report.includes('IESCO Grid Cost Avoided'));
 });
 
 test('renderSolarInverterSvg renders technical SVG with solar curve and battery autonomy', () => {

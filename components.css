@@ -1250,6 +1250,15 @@ body.field-mode-open { overflow: hidden; }
 .backup-checksum-note.checksum-verified { color: var(--ink); }
 .backup-checksum-note.checksum-unverified { color: var(--color-overdue); }
 .backup-checksum-note.checksum-mismatch { color: var(--color-overdue); font-weight: 700; }
+/* SISP-199: pre-action backup banner inside the billing-cycle + bulk-import
+   modals. Theme tokens only (amber lineage for Due, overdue accent for
+   Critical), so dark mode stays correct. Non-blocking: pure layout, it never
+   overlays or disables the modals' own controls. */
+.backup-preaction-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: var(--amber-bg); border: 1px solid var(--line); border-left: 4px solid var(--amber); border-radius: 10px; padding: 10px 12px; margin: 0 0 12px; }
+.backup-preaction-banner[hidden] { display: none; }
+.backup-preaction-banner.is-critical { border-left-color: var(--color-overdue); }
+.backup-preaction-text { margin: 0; flex: 1 1 230px; font-size: 13px; line-height: 1.5; color: var(--ink); }
+.backup-preaction-btn { flex: 0 0 auto; }
 .sync-code-paste { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
 .sync-code-paste textarea { width: 100%; box-sizing: border-box; resize: vertical; }
 /* Installation tracker: dashboard card + modal lists. Theme tokens only — no hardcoded surfaces, so dark mode stays correct. */

@@ -192,6 +192,7 @@ import { SPLITTER_POLISH_KEY, loadSplitterPolish, saveSplitterPolish, setSplitte
 import { DEAD_PORTS_KEY, executePortSwap, isPortDead, loadDeadPorts, lockDeadPort, saveDeadPorts, setupPortSwapModal, unlockDeadPort } from './splitter-port-swap.js';
 import { classifyCustomerOpticalFault, classifySplitterBoxFault, opticalFaultBadgeHtml, opticalFaultLineHtml } from './optical-anomaly-detector.js';
 import { appendSignalReading, setupAreaSignalModal, signalReadingsNewestFirst } from './signal-history.js';
+import { setupOpticalBudgetModal } from './optical-budget-calc.js';
 import { buildMonthlyComplaintReport, setupMonthlyComplaintReportModal } from './monthly-complaint-report.js';
 import { buildUpstreamSlaLog, setupUpstreamSlaModal } from './upstream-sla-log.js';
 import { setupPostRepairCheckinModal } from './post-repair-checkin.js';
@@ -675,6 +676,7 @@ export let splitterMapModalController = null;
 export let portSwapModalController = null;
 export let darkFiberModalController = null;
 export let areaSignalModalController = null;
+export let opticalBudgetModalController = null;
 export let monthlyComplaintReportModalController = null;
 export let upstreamSlaModalController = null;
 export let postRepairCheckinModalController = null;
@@ -13683,6 +13685,9 @@ if (typeof document !== 'undefined') {
   spliceClosureModalController = setupSpliceClosureModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts),
     onConfirm: (opts) => appConfirm(opts)
+  });
+  opticalBudgetModalController = setupOpticalBudgetModal(() => state, {
+    onToast: (msg, opts) => toast(msg, opts)
   });
   monthlyComplaintReportModalController = setupMonthlyComplaintReportModal(() => state, {
     onToast: (msg, opts) => toast(msg, opts)

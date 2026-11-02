@@ -72,3 +72,185 @@ test('topbar fit: <=480px compacts brand title and language label, keeps both bu
   assert.ok(index.includes('id="languageToggleBtn"'), 'language button stays in the markup');
   assert.ok(index.includes('id="backupHealthBadge"'), 'backup badge stays in the markup');
 });
+
+// ---------------------------------------------------------------------------
+// SISP-193: repo-wide CSS brace-balance & @media scope ratchet (PR #491
+// extension). The PR #491 guard above covers components.css only, with a
+// naive split('{') count. That is not enough: the same unclosed-@media
+// accident in ANY other stylesheet would silently trap every following
+// rule inside the unclosed block, and the naive count itself breaks on
+// braces inside comments/strings (urdu-font.css already carries a matched
+// pair inside a comment: `body * { font-family: ...; }`). The ratchet
+// below therefore:
+//   * discovers every shipped .css file dynamically (tree walk; only
+//     node_modules/, dist/ and .git/ are excluded) so a future stylesheet
+//     is covered the day it lands — no hardcoded list to exempt it;
+//   * parses each file with a comment/string-aware stack scanner: every
+//     opened block must close, and the FIRST unclosed opener is reported
+//     with its line and prelude, so a count-compensated trap (an unclosed
+//     @media plus a stray extra "}" elsewhere) still fails.
+// ---------------------------------------------------------------------------
+import { readdirSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = fileURLToPath(new URL('../', import.meta.url));
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.git']);
+
+function discoverCssFiles(root) {
+  const found = [];
+  const pending = [root];
+  while (pending.length) {
+    const dir = pending.pop();
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!SKIP_DIRS.has(entry.name)) pending.push(full);
+      } else if (entry.isFile() && entry.name.endsWith('.css')) {
+        found.push(relative(root, full));
+      }
+    }
+  }
+  return found.sort();
+}
+
+// Comment/string-aware block scanner. Returns the raw brace counts plus
+// the stack of blocks still open at EOF (index 0 = first unclosed opener)
+// and the line of the first stray "}" that closed nothing.
+function scanCssBlocks(source) {
+  const stack = [];
+  let line = 1;
+  let i = 0;
+  let prelude = '';
+  let opens = 0;
+  let closes = 0;
+  let firstExtraCloseLine = 0;
+  const n = source.length;
+  while (i < n) {
+    const ch = source[i];
+    if (ch === '\n') { line++; i++; continue; }
+    if (ch === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2);
+      const stop = end === -1 ? n : end + 2;
+      for (let j = i; j < stop; j++) if (source[j] === '\n') line++;
+      i = stop; continue;
+    }
+    if (ch === '"' || ch === "'") {
+      const quote = ch; i++;
+      while (i < n && source[i] !== quote) {
+        if (source[i] === '\\') { i += 2; continue; }
+        if (source[i] === '\n') line++;
+        i++;
+      }
+      i++; continue;
+    }
+    if (ch === '{') {
+      opens++;
+      stack.push({ line, prelude: prelude.trim().replace(/\s+/g, ' ').slice(0, 80) });
+      prelude = ''; i++; continue;
+    }
+    if (ch === '}') {
+      closes++;
+      if (stack.length === 0) { if (!firstExtraCloseLine) firstExtraCloseLine = line; }
+      else stack.pop();
+      prelude = ''; i++; continue;
+    }
+    if (ch === ';') { prelude = ''; i++; continue; }
+    prelude += ch; i++;
+  }
+  return { opens, closes, unclosed: stack, firstExtraCloseLine };
+}
+
+const cssFiles = discoverCssFiles(repoRoot);
+
+test('css ratchet: discovery finds every shipped stylesheet (independent walk agrees)', () => {
+  // Independent second enumeration (recursive, written separately on
+  // purpose): if the two walks ever disagree, discovery itself is broken
+  // and a stylesheet could be silently exempt from the guard.
+  const independent = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name === '.git') continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile() && entry.name.endsWith('.css')) independent.push(relative(repoRoot, full));
+    }
+  };
+  walk(repoRoot);
+  assert.deepEqual(cssFiles, independent.sort());
+  // The stylesheets shipping today must all be under the guard, including
+  // the four the SISP-193 spec names.
+  for (const name of ['styles.css', 'components.css', 'nav.css', 'screen-router.css',
+    'bulk-collect.css', 'customer-import.css', 'dark-contrast.css', 'dashboard.css',
+    'payments-inbox.css', 'payments-list.css', 'profile-ui.css', 'tokens.css',
+    'ui-feedback.css', 'urdu-font.css']) {
+    assert.ok(cssFiles.includes(name), `${name} must be covered by the CSS brace ratchet`);
+  }
+});
+
+test('css ratchet: a future stylesheet is picked up automatically (scratch tree)', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'sisp193-css-'));
+  try {
+    writeFileSync(join(scratch, 'new-feature.css'), '.a { color: red; }\n');
+    mkdirSync(join(scratch, 'sub'));
+    writeFileSync(join(scratch, 'sub', 'nested.css'), '.b { color: blue; }\n');
+    mkdirSync(join(scratch, 'node_modules'));
+    writeFileSync(join(scratch, 'node_modules', 'dep.css'), '.c { color: green; }\n');
+    mkdirSync(join(scratch, 'dist'));
+    writeFileSync(join(scratch, 'dist', 'built.css'), '.d { color: pink; }\n');
+    assert.deepEqual(discoverCssFiles(scratch), ['new-feature.css', join('sub', 'nested.css')]);
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+});
+
+for (const relFile of cssFiles) {
+  test(`css ratchet: ${relFile} braces balanced, zero unclosed blocks`, () => {
+    const source = readFileSync(join(repoRoot, relFile), 'utf8');
+    const { opens, closes, unclosed, firstExtraCloseLine } = scanCssBlocks(source);
+    assert.equal(firstExtraCloseLine, 0, `${relFile} has a stray "}" at line ${firstExtraCloseLine} that closes nothing`);
+    assert.equal(unclosed.length, 0,
+      unclosed.length
+        ? `${relFile}: first unclosed block opens at line ${unclosed[0].line} ("${unclosed[0].prelude}") — every rule after it is trapped inside that block`
+        : '');
+    assert.equal(opens, closes, `${relFile} has ${opens} "{" but ${closes} "}"`);
+  });
+}
+
+test('css ratchet canary: an unclosed @media block is caught with its line', () => {
+  const bad = '.a { color: red; }\n@media (max-width: 480px) {\n  .b { color: blue; }\n';
+  const r = scanCssBlocks(bad);
+  assert.equal(r.unclosed.length, 1);
+  assert.equal(r.unclosed[0].line, 2);
+  assert.match(r.unclosed[0].prelude, /^@media/);
+});
+
+test('css ratchet canary: an unclosed plain rule is caught with its line', () => {
+  const bad = '.a { color: red; }\n.b { color: blue;\n';
+  const r = scanCssBlocks(bad);
+  assert.equal(r.unclosed.length, 1);
+  assert.equal(r.unclosed[0].line, 2);
+  assert.equal(r.unclosed[0].prelude, '.b');
+});
+
+test('css ratchet canary: braces inside comments and strings are not blocks', () => {
+  const ok = '/* note: body * { font-family: x; } */\n.a::after { content: "}"; }\n.b { content: \'{\'; }\n';
+  const r = scanCssBlocks(ok);
+  assert.equal(r.opens, 2);
+  assert.equal(r.closes, 2);
+  assert.equal(r.unclosed.length, 0);
+  assert.equal(r.firstExtraCloseLine, 0);
+});
+
+test('css ratchet canary: a count-compensated trap still fails (naive counting would pass)', () => {
+  // Raw counts balance (3 "{" vs 3 "}"), yet the @media never closes and a
+  // stray "}" closes nothing — exactly the silent-trap shape this ratchet
+  // exists to catch.
+  const bad = '.a { color: red; }}\n@media (max-width: 480px) {\n  .b { color: blue; }\n';
+  const r = scanCssBlocks(bad);
+  assert.equal(r.opens, r.closes);
+  assert.equal(r.firstExtraCloseLine, 1);
+  assert.equal(r.unclosed.length, 1);
+  assert.match(r.unclosed[0].prelude, /^@media/);
+});

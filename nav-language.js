@@ -3694,6 +3694,16 @@ export const TRANSLATIONS = {
     bill_reg_totals_ticket: 'Ticket charges {ticket} · Collected {collected}',
     bill_reg_empty: 'No bills match this period and status.',
     bill_reg_exported: 'Exported {count} register rows to CSV.',
+    bill_reg_print: 'Print Register',
+    bill_reg_print_format: 'Print size',
+    bill_reg_print_a4: 'A4 Summary',
+    bill_reg_print_80mm: '80mm Thermal',
+    bill_reg_col_mobile: 'Mobile',
+    bill_reg_col_balance: 'Balance Due',
+    bill_reg_print_generated: 'Generated {date}',
+    bill_reg_print_total_row: 'Totals',
+    bill_reg_sign_prepared: 'Prepared by / Owner',
+    bill_reg_print_popup_blocked: 'Print window was blocked — allow popups for this app and try again.',
 
     // Lineman monthly payout settlement (SISP-155)
     linpayout_open_btn: '🧾 Lineman Monthly Settlement',
@@ -7564,6 +7574,16 @@ export const TRANSLATIONS = {
     bill_reg_totals_ticket: 'ٹکٹ چارجز {ticket} · وصولی {collected}',
     bill_reg_empty: 'اس مدت اور حالت کے مطابق کوئی بل نہیں ملا۔',
     bill_reg_exported: '{count} رجسٹر قطاریں CSV میں برآمد ہو گئیں۔',
+    bill_reg_print: 'رجسٹر پرنٹ کریں',
+    bill_reg_print_format: 'پرنٹ سائز',
+    bill_reg_print_a4: 'A4 خلاصہ',
+    bill_reg_print_80mm: '80mm تھرمل',
+    bill_reg_col_mobile: 'موبائل',
+    bill_reg_col_balance: 'بقایا رقم',
+    bill_reg_print_generated: 'تیار کردہ: {date}',
+    bill_reg_print_total_row: 'کل',
+    bill_reg_sign_prepared: 'تیار کنندہ / مالک',
+    bill_reg_print_popup_blocked: 'پرنٹ ونڈو بلاک ہو گئی — اس ایپ کے لیے پاپ اپ کی اجازت دیں اور دوبارہ کوشش کریں۔',
 
     // Lineman monthly payout settlement (SISP-155)
     linpayout_open_btn: '🧾 لائن مین ماہانہ تصفیہ',

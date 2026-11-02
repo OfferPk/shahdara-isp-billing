@@ -7491,6 +7491,11 @@
               <button type="button" class="report-filter-button" data-register-status="unpaid" aria-pressed="false" data-i18n="bill_reg_status_unpaid">Unpaid</button>
             </div>
             <button type="button" class="owner-report-btn" id="billingRegisterDownloadBtn">⬇ <span data-i18n="bill_reg_download">Download CSV</span></button>
+            <label class="report-month-label"><span data-i18n="bill_reg_print_format">Print size</span><select id="billingRegisterPrintFormat">
+              <option value="a4" selected data-i18n="bill_reg_print_a4">A4 Summary</option>
+              <option value="80mm" data-i18n="bill_reg_print_80mm">80mm Thermal</option>
+            </select></label>
+            <button type="button" class="owner-report-btn" id="billingRegisterPrintBtn">🖨️ <span data-i18n="bill_reg_print">Print Register</span></button>
           </div>
           <p class="billing-register-totals" id="billingRegisterTotals" role="status" aria-live="polite"></p>
           <ul id="billingRegisterList" class="billing-register-list" data-i18n-aria-label="bill_reg_title" aria-label="Billing Register"></ul>

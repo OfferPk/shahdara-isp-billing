@@ -145,7 +145,7 @@ import {
   generateExpensesCsv
 } from './form-validation.js?v=1.11.0';
 import { normalizeCustomerSearchField, filterCustomersBySearchField, buildMohallaUserCounts, buildMohallaCardStats } from './customer-search-filter.js?v=1.11.0';
-import { BILLING_REGISTER_CSV_HEADERS, billingRegisterCsvFilename, billingRegisterCsvNote, billingRegisterCsvRows, buildBillingRegister, normalizeBillingRegisterPeriod, normalizeBillingRegisterStatus } from './billing-register.js?v=1.11.0';
+import { BILLING_REGISTER_CSV_HEADERS, billingRegisterCsvFilename, billingRegisterCsvNote, billingRegisterCsvRows, buildBillingRegister, buildBillingRegisterPrintHtml, normalizeBillingRegisterPeriod, normalizeBillingRegisterPrintFormat, normalizeBillingRegisterStatus } from './billing-register.js?v=1.11.0';
 // FIRST-LOAD SPLIT: getLateFeeConfig/isBillOverdue are used by renderHistory
 // (synchronous), so they stay static via a direct import; all other QA names
 // load lazily through qa-setups.js (see lazy-qa.js).
@@ -168,7 +168,7 @@ import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
 import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
-import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
+import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
@@ -11099,6 +11099,35 @@ $('#billingRegisterDownloadBtn')?.addEventListener('click', () => {
   const csv = generateCsvContent(BILLING_REGISTER_CSV_HEADERS, [noteRow, ...billingRegisterCsvRows(register)]);
   downloadCsvFile(billingRegisterCsvFilename(register), csv);
   toast(t('bill_reg_exported', null, { count: register.rows.length }));
+});
+
+// SISP-185: print the SAME register the screen is showing — the builder
+// consumes the register object built from the current period + status
+// selection, so the sheet can never carry stale or re-filtered rows. The
+// phone header prints only when settings record one (never the receipt
+// placeholder); sign-offs iterate the recorded PARTNERS set.
+$('#billingRegisterPrintBtn')?.addEventListener('click', () => {
+  const register = buildBillingRegister(state, {
+    period: billingRegisterPeriod,
+    status: billingRegisterStatus,
+    currentMonth: monthsForHistory()[0]
+  });
+  const html = buildBillingRegisterPrintHtml(register, {
+    format: normalizeBillingRegisterPrintFormat($('#billingRegisterPrintFormat')?.value),
+    businessName: state.settings?.businessName || 'Shahdara ISP',
+    businessPhone: state.settings?.businessPhone || '',
+    partners: PARTNERS,
+    generatedDate: new Date(Date.now() + 5 * 3600 * 1000).toISOString().slice(0, 10)
+  });
+  const win = window.open('', '_blank');
+  if (win) {
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    win.print();
+  } else {
+    toast(t('bill_reg_print_popup_blocked'));
+  }
 });
 
 // Phase 12 · Monthly Batch Receipt Sheet

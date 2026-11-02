@@ -4,6 +4,7 @@
 // The dialog must ALWAYS close (header ×, success-step Done, Escape) whatever
 // state the toast / undo timers are in, and the recorded payment must stay.
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -15,6 +16,9 @@ function trackErrors(page) {
 }
 
 async function openQuickCollectWithDues(page) {
+  // Collect Setup runs over the existing roster: written against the
+  // old built-in seed (PR #478 emptied the shipped roster).
+  await installSyntheticRoster(page);
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();

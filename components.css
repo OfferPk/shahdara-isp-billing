@@ -1341,6 +1341,9 @@ body.field-mode-open { overflow: hidden; }
 .custody-pending { color: var(--color-overdue); font-weight: 700; }
 .profile-deposit-settlement { border-top: 1px solid var(--line); padding-top: 12px; }
 .profile-deposit-settlement p { margin: 4px 0; color: var(--ink); }
+/* SISP-195: optional Roznamcha refund checkbox — token-only. */
+.profile-deposit-roznamcha { display: flex; align-items: center; gap: 8px; margin: 8px 0; color: var(--ink); cursor: pointer; }
+.profile-deposit-roznamcha input { accent-color: var(--green); width: 18px; height: 18px; margin: 0; }
 /* SISP-166: active deposit-offset block + dialog — token-only, no new hex. */
 .profile-deposit-offset { border-top: 1px solid var(--line); padding-top: 12px; }
 .profile-deposit-offset p { margin: 4px 0; color: var(--ink); }

@@ -29,8 +29,19 @@
 // are NOT surfaced here — they live on tickets, not on bill rows, and a
 // current receivable has no bill-month to belong to; the Owner Khata
 // closing report carries them as its month-end pending line instead.
-import { calculatePaymentAllocations, derivedBillStatus, paymentTicketChargeCents } from './core.js';
+import { calculatePaymentAllocations, derivedBillStatus, formatPKR, paymentTicketChargeCents } from './core.js';
 import { isVoidedPayment } from './payment-void-audit.js';
+//
+// SISP-185 adds a printable summary sheet (A4 + 80mm) of the SAME register
+// the screen shows: buildBillingRegisterPrintHtml consumes the register
+// object buildBillingRegister already produced — the exact filtered rows
+// and the exact totals — and never re-derives or re-filters anything, so
+// the printed sheet, the screen and the CSV can never disagree. Because
+// the sheet renders from the register's live row model, register columns
+// added later (e.g. the SISP-176 ticket-charge split) flow into the sheet
+// at reconciliation without a second column list being maintained here.
+import { t } from './nav-language.js';
+import { PARTNERS } from './partner-settlement.js';
 
 export const BILLING_REGISTER_PERIODS = ['this', 'last', 'last3', 'last6', 'last12'];
 export const BILLING_REGISTER_STATUSES = ['all', 'paid', 'partial', 'unpaid'];
@@ -191,4 +202,195 @@ export function billingRegisterCsvNote(register, { periodLabel = '', statusLabel
 
 export function billingRegisterCsvFilename(register) {
   return `billing-register-${register?.period || BILLING_REGISTER_DEFAULT_PERIOD}-${register?.status || BILLING_REGISTER_DEFAULT_STATUS}_filtered.csv`;
+}
+
+// ---------------------------------------------------------------------------
+// Printable summary sheet (SISP-185) — a standalone black-on-white HTML
+// document (house print convention: SISP-60 voucher book, SISP-55 zone
+// sheet) opened in a print window by app.js. Two sizes, like the receipt
+// surfaces: a full A4 table and a condensed 80mm thermal table.
+//
+// Column call for 80mm: an 80mm roll cannot honestly fit all nine A4
+// columns, so Mobile, Package and Balance Due are dropped and the
+// "#12 · 2026-10" reference is split back into its parts — a bare
+// customer-number column plus the existing Month column. What remains
+// (#, Customer, Month, Bill, Paid, Status) still identifies every row
+// and carries the money columns the totals line is built from.
+//
+// Header honesty: the brand is whatever the caller's settings hold (the
+// app-wide 'Shahdara ISP' fallback lives in app.js, as on every receipt);
+// the phone line prints ONLY when settings actually record one — the
+// placeholder phone some receipt defaults carry is never used here, and
+// no address line is invented. Sign-off blocks iterate the recorded
+// partner set (partner-settlement PARTNERS, the SISP-125 precedent) —
+// a partner added there appears on the sheet with no code change here.
+export const BILLING_REGISTER_PRINT_FORMATS = ['a4', '80mm'];
+export const BILLING_REGISTER_DEFAULT_PRINT_FORMAT = 'a4';
+
+export function normalizeBillingRegisterPrintFormat(value) {
+  return BILLING_REGISTER_PRINT_FORMATS.includes(value) ? value : BILLING_REGISTER_DEFAULT_PRINT_FORMAT;
+}
+
+function escapePrintHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+export function buildBillingRegisterPrintHtml(register, {
+  format = BILLING_REGISTER_DEFAULT_PRINT_FORMAT,
+  businessName = '',
+  businessPhone = '',
+  partners = PARTNERS,
+  generatedDate = '',
+  lang = null
+} = {}) {
+  const normalizedFormat = normalizeBillingRegisterPrintFormat(format);
+  const thermal = normalizedFormat === '80mm';
+  const rows = register?.rows ?? [];
+  const totals = register?.totals ?? { count: rows.length, totalBilled: 0, totalPaid: 0 };
+  const months = register?.months ?? [];
+  const range = months.length > 1
+    ? `${months[0]} – ${months[months.length - 1]}`
+    : (months[0] ?? '');
+  const periodLabel = t(`bill_reg_period_${register?.period || BILLING_REGISTER_DEFAULT_PERIOD}`, lang);
+  const statusLabel = t(`bill_reg_status_${register?.status || BILLING_REGISTER_DEFAULT_STATUS}`, lang);
+  const filterLine = `${t('bill_reg_period_label', lang)}: ${periodLabel}${range ? ` (${range})` : ''} · ${t('bill_reg_status_label', lang)}: ${statusLabel}`;
+  const brand = String(businessName ?? '').trim() || 'Shahdara ISP';
+  const phone = String(businessPhone ?? '').trim();
+  const partnerNames = (Array.isArray(partners) ? partners : [])
+    .map((name) => String(name ?? '').trim())
+    .filter(Boolean);
+  // Balance is not part of register.totals (the screen totals line is
+  // count / billed / paid), so its column total follows the voucher-book
+  // precedent: a plain sum of the printed rows.
+  const balanceTotal = centsToAmount(rows.reduce((sum, row) => sum + amountToCents(row.balanceDue), 0));
+  // SISP-176 split, flowed in at SISP-185's reconciliation per the note at
+  // the top of this file: the ticket column reads the SAME live row model
+  // (row.ticketChargesPaid) and the register's own ticketTotals — never a
+  // recomputation here. The split rides AFTER the long-standing money
+  // columns (SISP-176's own CSV discipline) and adds nothing to any total:
+  // the ticket cash already sits inside the payments behind Paid.
+  const ticketTotal = register?.ticketTotals?.totalTicketChargesPaid
+    ?? centsToAmount(rows.reduce((sum, row) => sum + amountToCents(row.ticketChargesPaid ?? 0), 0));
+
+  const statusText = (row) => t(`bill_reg_status_${row.status}`, lang);
+  const columns = thermal
+    ? [
+      { label: '#', className: 'ref', value: (row) => `#${row.customerNumber}` },
+      { label: t('bill_reg_col_customer', lang), className: 'cust', value: (row) => row.customerName },
+      { label: t('bill_reg_col_month', lang), className: 'nowrap', value: (row) => row.month },
+      { label: t('bill_reg_col_bill', lang), className: 'amt', value: (row) => formatPKR(row.billAmount), total: totals.totalBilled },
+      { label: t('bill_reg_col_paid', lang), className: 'amt', value: (row) => formatPKR(row.paidAmount), total: totals.totalPaid },
+      { label: t('bill_reg_col_status', lang), className: '', value: statusText }
+    ]
+    : [
+      { label: t('bill_reg_col_reference', lang), className: 'ref', value: (row) => row.reference },
+      { label: t('bill_reg_col_customer', lang), className: '', value: (row) => row.customerName },
+      { label: t('bill_reg_col_mobile', lang), className: 'nowrap', value: (row) => row.mobile || '—' },
+      { label: t('bill_reg_col_package', lang), className: '', value: (row) => row.packageSpeed || '—' },
+      { label: t('bill_reg_col_month', lang), className: 'nowrap', value: (row) => row.month },
+      { label: t('bill_reg_col_bill', lang), className: 'amt', value: (row) => formatPKR(row.billAmount), total: totals.totalBilled },
+      { label: t('bill_reg_col_paid', lang), className: 'amt', value: (row) => formatPKR(row.paidAmount), total: totals.totalPaid },
+      { label: t('bill_reg_col_balance', lang), className: 'amt', value: (row) => formatPKR(row.balanceDue), total: balanceTotal },
+      { label: t('bill_reg_col_ticket', lang), className: 'amt', value: (row) => formatPKR(row.ticketChargesPaid ?? 0), total: ticketTotal },
+      { label: t('bill_reg_col_status', lang), className: '', value: statusText }
+    ];
+
+  const headCells = columns.map((column) => `<th${column.className ? ` class="${column.className}"` : ''}>${escapePrintHtml(column.label)}</th>`).join('');
+  const bodyRows = rows.map((row) => `<tr>${columns.map((column) => `<td${column.className ? ` class="${column.className}"` : ''}>${escapePrintHtml(column.value(row))}</td>`).join('')}</tr>`).join('');
+  const firstAmountIndex = columns.findIndex((column) => column.className === 'amt');
+  const amountCells = columns
+    .filter((column) => column.className === 'amt')
+    .map((column) => `<td class="amt">${escapePrintHtml(formatPKR(column.total))}</td>`)
+    .join('');
+  // Totals row: label spans up to the first money column, money totals sit
+  // under their own columns, and any non-money column after them (Status)
+  // stays blank.
+  const amountCount = columns.filter((column) => column.className === 'amt').length;
+  const trailingCount = columns.length - firstAmountIndex - amountCount;
+  const totalsRow = `<tr class="grand"><td colspan="${firstAmountIndex}">${escapePrintHtml(t('bill_reg_print_total_row', lang))}</td>${amountCells}${'<td></td>'.repeat(trailingCount)}</tr>`;
+
+  const totalsLine = t('bill_reg_totals', lang, {
+    count: totals.count,
+    billed: formatPKR(totals.totalBilled),
+    paid: formatPKR(totals.totalPaid)
+  });
+
+  const signatureBlock = (label) => `<div class="sig"><div class="line"></div>${escapePrintHtml(label)}</div>`;
+  const signatures = [
+    signatureBlock(t('bill_reg_sign_prepared', lang)),
+    ...partnerNames.map((name) => signatureBlock(name))
+  ].join('');
+
+  const pageStyle = thermal
+    ? `@page { size: 80mm auto; margin: 3mm; }
+        body { font-size: 10px; }
+        th, td { padding: 3px 2px; font-size: 10px; }
+        .brand { font-size: 15px; }
+        .title { font-size: 12px; }
+        td.cust { max-width: 24mm; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }`
+    : `@page { size: A4; margin: 12mm; }
+        body { font-size: 12px; }
+        th, td { padding: 5px 6px; }
+        th { font-size: 11px; }
+        .brand { font-size: 19px; }
+        .title { font-size: 14px; }`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${escapePrintHtml(t('bill_reg_title', lang))} — ${escapePrintHtml(periodLabel)}</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; color: #111; line-height: 1.4; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; gap: 12px; }
+  .brand { font-weight: 800; }
+  .title { font-weight: 700; }
+  .meta { font-size: 11px; text-align: right; }
+  .filter-line { font-size: 11px; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #999; text-align: left; vertical-align: top; }
+  th { background: #eee; }
+  td.ref { font-weight: 700; white-space: nowrap; }
+  td.nowrap { white-space: nowrap; }
+  td.amt, th.amt { text-align: right; white-space: nowrap; }
+  tr.grand td { border-top: 2px solid #000; font-weight: 800; }
+  .empty { text-align: center; padding: 22px; font-size: 12px; border: 1px solid #999; }
+  .totals-line { margin-top: 10px; font-weight: 700; }
+  .signatures { display: flex; justify-content: space-between; margin-top: 34px; font-size: 11px; gap: 18px; }
+  .sig { flex: 1; text-align: center; }
+  .sig .line { border-top: 1px solid #000; margin-bottom: 4px; height: 28px; }
+  ${pageStyle}
+</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand">${escapePrintHtml(brand)}</div>
+      <div class="title">${escapePrintHtml(t('bill_reg_title', lang))}</div>
+    </div>
+    <div class="meta">
+      <div>${escapePrintHtml(t('bill_reg_print_generated', lang, { date: generatedDate || '—' }))}</div>
+      ${phone ? `<div>${escapePrintHtml(phone)}</div>` : ''}
+    </div>
+  </div>
+  <p class="filter-line">${escapePrintHtml(filterLine)}</p>
+  ${rows.length ? `<table>
+    <thead><tr>${headCells}</tr></thead>
+    <tbody>
+      ${bodyRows}
+      ${totalsRow}
+    </tbody>
+  </table>` : `<div class="empty">${escapePrintHtml(t('bill_reg_empty', lang))}</div>`}
+  <p class="totals-line">${escapePrintHtml(totalsLine)}</p>
+  <div class="signatures">
+    ${signatures}
+  </div>
+</body>
+</html>`;
 }

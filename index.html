@@ -23337,6 +23337,20 @@
           <label class="secondary-button qr-scanner-image-label" for="qrScannerImageInput" data-i18n="qrscan_image_btn">🖼️ Scan a photo</label>
           <input id="qrScannerImageInput" type="file" accept="image/*" hidden>
         </div>
+        <div class="qr-scanner-continuous">
+          <label>
+            <input id="qrScannerContinuousToggle" type="checkbox">
+            <span data-i18n="qrscan_continuous_label">🔄 Continuous Counter Scan</span>
+          </label>
+          <p class="qr-scanner-hint" data-i18n="qrscan_continuous_hint">After each saved payment, the scanner opens again for the next customer.</p>
+        </div>
+        <div id="qrScannerGroupPrompt" class="qr-scanner-group-prompt" hidden>
+          <p id="qrScannerGroupPromptText" class="qr-scanner-group-text"></p>
+          <div class="qr-scanner-actions">
+            <button id="qrScannerGroupCollectBtn" class="primary-button" type="button"></button>
+            <button id="qrScannerSingleCollectBtn" class="secondary-button" type="button" data-i18n="qrscan_single_collect">💰 Collect this customer only</button>
+          </div>
+        </div>
         <form id="qrScannerManualForm" class="qr-scanner-manual">
           <label for="qrScannerManualInput" data-i18n="qrscan_manual_label">Or paste the QR link / code text</label>
           <div class="qr-scanner-manual-row">

@@ -19,9 +19,11 @@
  * conflict, never silently overwritten.
  *
  * Core model: cores are numbered 1..coreCount and follow the TIA-598
- * colour order (FIBER_CORE_COLORS below — defined here once because no
- * splice-closure module exists in this build to export it; SISP-78's
- * closure map is not part of main). Core 13–24 repeat the same 12 colours
+ * colour order (FIBER_CORE_COLORS below — defined in this module;
+ * SISP-78's fiber-splice-closure.js IS part of main and carries the
+ * same TIA-598 sequence in its TIA598_CORES table, but this module
+ * keeps its own names-only copy and imports nothing from it). Core
+ * 13–24 repeat the same 12 colours
  * on the second cycle (tracer), as in a real 24-core cable.
  *
  * A core carries at most ONE splitter box id, and a box hangs on at most

@@ -22414,7 +22414,32 @@
         <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
           <button id="ownerKhataSaveNoteBtn" class="action-btn-sm daily-slip-btn" type="button">💾 Save note</button>
           <button id="ownerKhataPrintBtn" class="action-btn-sm daily-slip-btn" type="button">🖨️ Print / Save PDF</button>
-          <button id="ownerKhataCopyBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Copy WhatsApp summary</button>        </div>
+          <button id="ownerKhataCopyBtn" class="action-btn-sm daily-slip-btn" type="button">📋 Copy WhatsApp summary</button>
+          <button id="ownerMonthReportBtn" class="action-btn-sm daily-slip-btn" type="button">📊 Month-End Report</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="ownerMonthReportModal" class="billing-modal owner-month-report-modal" aria-labelledby="ownerMonthReportTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="ownerMonthReportTitle" data-i18n="omr_title">📊 Month-End Owner Report</h2>
+        <button id="ownerMonthReportCloseBtn" class="modal-close" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="owner-month-report-help" data-i18n="omr_help">A one-page month-end summary for the owner: collections by channel, expenses, partner shares, arrears movement, top defaulters and new connections — composed from the same figures as Owner Khata. This report only summarizes the ledger; it never changes any record.</p>
+        <div class="owner-month-report-controls">
+          <label class="owner-month-report-field" for="ownerMonthReportMonth"><span data-i18n="omr_month_label">Month</span>
+            <input id="ownerMonthReportMonth" class="form-input" type="month" aria-label="Report month">
+          </label>
+        </div>
+        <p id="ownerMonthReportSummary" class="owner-month-report-summary" role="status" aria-live="polite"></p>
+        <div id="ownerMonthReportBody" class="owner-month-report-body"></div>
+        <div class="owner-month-report-actions">
+          <button id="ownerMonthReportPrintBtn" class="secondary-button" type="button" data-i18n="omr_print_btn">📄 Print A4</button>
+          <button id="ownerMonthReportCloseBtn2" class="primary-button" type="button" data-i18n="omr_close">Close</button>
+        </div>
       </div>
     </div>
   </dialog>

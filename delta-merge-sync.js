@@ -52,8 +52,10 @@
  *     customer balances after a merge are always RECALCULATED by the
  *     engine (calculatePaymentAllocations) from the merged records, never
  *     copied from either device.
- *   - `settings.digitalPaymentsSettings` — a single settings object, not a
- *     record family; the shipped safe-merge rule governs it.
+ *   - the single-object settings sections — `digitalPayments`,
+ *     `partnerSettings`, `charityReserve`, `receiptFooter` and
+ *     `emergencyRunbook` — one settings object each, not record
+ *     families; the shipped safe-merge rule governs them.
  *   - `settings.branchGuard` — the SISP-46 lineage stamp; never merged.
  *     The app still runs the guard classification through the shipped
  *     preview and a blocked verdict blocks the delta apply too.
@@ -70,6 +72,20 @@
  * still-live payment the other device voided. The void is therefore never
  * lost and never silently applied: the owner voids locally through the
  * audited SISP-34 flow if the other device's void is correct.
+ *
+ * M5 extension: the registry below now covers EVERY record family a
+ * backup can carry — the twenty SISP-102 families plus the eighteen
+ * sibling ledgers later phases added (SISP-62 upsNodes, SISP-64 badDebts,
+ * SISP-78 spliceClosures, SISP-82 fieldTools, SISP-92 splitterBoxGps,
+ * SISP-93 commissionRules, SISP-107 supplierKhata, SISP-109
+ * stormInspections, SISP-111 creditTransfers, SISP-119 fiberDrums,
+ * SISP-122 polesRegistry, SISP-127 fieldBagMovements, SISP-134
+ * expenseBudgets, SISP-147 feederCables, SISP-152 deadPorts, SISP-155
+ * linemanPayouts, SISP-162 converterSides, SISP-167 splitterPolish).
+ * Each was added with the family's own shipped sanitizer and its natural
+ * record key, exactly like the original twenty; the only `settings`
+ * sections still outside are the single-object sections and the
+ * branch-guard stamp listed above.
  *
  * Pure module: no storage, no DOM. The app wires file → gate → shipped
  * state preview + this plan → pre-merge safety snapshot (a failed snapshot
@@ -95,6 +111,24 @@ import { sanitizeMonthlyClosingNotes } from './monthly-closing-notes.js';
 import { sanitizeOverheads } from './fixed-overheads.js';
 import { sanitizePartnerLedgerEntries, sanitizePartnerSettlements } from './partner-settlement.js';
 import { sanitizeVoidPayments } from './payment-void-audit.js';
+import { sanitizeConverterSideMovements } from './wdm-converter-matcher.js';
+import { sanitizeLinemanPayouts } from './lineman-payout-slip.js';
+import { sanitizeDeadPorts } from './splitter-port-swap.js';
+import { sanitizeFieldBagMovements } from './field-bag-stock.js';
+import { sanitizePolesRegistry } from './pole-asset-tracker.js';
+import { sanitizeFiberDrums } from './fiber-drum-tracker.js';
+import { sanitizeStormInspections } from './storm-inspection.js';
+import { sanitizeSupplierKhata } from './supplier-khata.js';
+import { sanitizeCommissionRules } from './collector-commission.js';
+import { sanitizeUpsNodes } from './power-backup-monitor.js';
+import { sanitizeFeederCables } from './dark-fiber-finder.js';
+import { sanitizeCreditTransfers } from './credit-transfer.js';
+import { sanitizeFieldTools } from './tool-custody-register.js';
+import { sanitizeSpliceClosures } from './fiber-splice-closure.js';
+import { sanitizeBadDebts } from './bad-debt-ledger.js';
+import { sanitizeSplitterPolishMap } from './connector-polish-guard.js';
+import { sanitizeSplitterBoxGps } from './gps-pin-helper.js';
+import { sanitizeExpenseBudgets } from './expense-budget-caps.js';
 
 // Same cap the shipped preview enforces (core.js MAX_BACKUP_CHARACTERS).
 const MAX_DELTA_BACKUP_CHARACTERS = 25 * 1024 * 1024;
@@ -154,6 +188,68 @@ export const DELTA_MERGE_FAMILIES = Object.freeze([
       templates: records.filter((row) => row.__deltaKind === 'template').map(({ __deltaKind, ...row }) => row),
       postings: records.filter((row) => row.__deltaKind === 'posting').map(({ __deltaKind, ...row }) => row)
     })
+  },
+  // ---- M5 extension: record families added after SISP-102's build base.
+  // Same discipline as the original twenty: the family's own shipped
+  // sanitizer, keyed by the record's natural unique id (the field the
+  // family's own sanitizer dedupes on, where it dedupes).
+  { key: 'converterSides', idField: 'id', sanitize: sanitizeConverterSideMovements, keyOf: byId },
+  { key: 'linemanPayouts', idField: 'id', sanitize: sanitizeLinemanPayouts, keyOf: byId },
+  // A dead-port lock has no id of its own: its identity is the physical
+  // port itself, the same (boxId, port) pair its sanitizer dedupes on.
+  { key: 'deadPorts', idField: 'boxId|port', sanitize: sanitizeDeadPorts, keyOf: (entry) => (typeof entry?.boxId === 'string' && entry.boxId && Number.isInteger(entry?.port) ? `${entry.boxId}|${entry.port}` : '') },
+  { key: 'fieldBagMovements', idField: 'id', sanitize: sanitizeFieldBagMovements, keyOf: byId },
+  { key: 'polesRegistry', idField: 'poleId', sanitize: sanitizePolesRegistry, keyOf: (pole) => (typeof pole?.poleId === 'string' ? pole.poleId : '') },
+  { key: 'fiberDrums', idField: 'drumId', sanitize: sanitizeFiberDrums, keyOf: (drum) => (typeof drum?.drumId === 'string' ? drum.drumId : '') },
+  {
+    // One inspection run per date, held in an object section ({ runs });
+    // runs union by date exactly like roznamcha days.
+    key: 'stormInspections', idField: 'date', sanitize: sanitizeStormInspections,
+    keyOf: (run) => (typeof run?.date === 'string' ? run.date : ''),
+    toRecords: (value) => (Array.isArray(value?.runs) ? value.runs : []),
+    fromRecords: (records) => ({ runs: [...records].sort((a, b) => String(a.date).localeCompare(String(b.date))) })
+  },
+  { key: 'supplierKhata', idField: 'purchaseId', sanitize: sanitizeSupplierKhata, keyOf: (row) => (typeof row?.purchaseId === 'string' ? row.purchaseId : '') },
+  { key: 'commissionRules', idField: 'collectorKey', sanitize: sanitizeCommissionRules, keyOf: (rule) => (typeof rule?.collectorKey === 'string' ? rule.collectorKey : '') },
+  { key: 'upsNodes', idField: 'nodeId', sanitize: sanitizeUpsNodes, keyOf: (node) => (typeof node?.nodeId === 'string' ? node.nodeId : '') },
+  { key: 'feederCables', idField: 'cableId', sanitize: sanitizeFeederCables, keyOf: (cable) => (typeof cable?.cableId === 'string' ? cable.cableId : '') },
+  { key: 'creditTransfers', idField: 'transferId', sanitize: sanitizeCreditTransfers, keyOf: (entry) => (typeof entry?.transferId === 'string' ? entry.transferId : '') },
+  { key: 'fieldTools', idField: 'toolId', sanitize: sanitizeFieldTools, keyOf: (tool) => (typeof tool?.toolId === 'string' ? tool.toolId : '') },
+  { key: 'spliceClosures', idField: 'closureId', sanitize: sanitizeSpliceClosures, keyOf: (closure) => (typeof closure?.closureId === 'string' ? closure.closureId : '') },
+  { key: 'badDebts', idField: 'badDebtId', sanitize: sanitizeBadDebts, keyOf: (entry) => (typeof entry?.badDebtId === 'string' ? entry.badDebtId : '') },
+  {
+    // Box-id keyed map ({ [boxId]: 'UPC' | 'APC' }), adapted like the
+    // monthly closing notes: the map key becomes the record identity.
+    key: 'splitterPolish', idField: 'boxId', sanitize: sanitizeSplitterPolishMap,
+    keyOf: (entry) => (typeof entry?.boxId === 'string' ? entry.boxId : ''),
+    toRecords: (map) => Object.entries(map && typeof map === 'object' ? map : {})
+      .map(([boxId, type]) => ({ boxId, type }))
+      .sort((a, b) => a.boxId.localeCompare(b.boxId)),
+    fromRecords: (records) => Object.fromEntries(
+      [...records].sort((a, b) => a.boxId.localeCompare(b.boxId)).map((entry) => [entry.boxId, entry.type])
+    )
+  },
+  {
+    // Box-id keyed pin map ({ [boxId]: { lat, lng } }); same adaptation.
+    key: 'splitterBoxGps', idField: 'boxId', sanitize: sanitizeSplitterBoxGps,
+    keyOf: (entry) => (typeof entry?.boxId === 'string' ? entry.boxId : ''),
+    toRecords: (map) => Object.entries(map && typeof map === 'object' ? map : {})
+      .map(([boxId, pin]) => ({ boxId, lat: pin.lat, lng: pin.lng }))
+      .sort((a, b) => a.boxId.localeCompare(b.boxId)),
+    fromRecords: (records) => Object.fromEntries(
+      [...records].sort((a, b) => a.boxId.localeCompare(b.boxId)).map((entry) => [entry.boxId, { lat: entry.lat, lng: entry.lng }])
+    )
+  },
+  {
+    // Category keyed caps map ({ [category]: cap }); same adaptation.
+    key: 'expenseBudgets', idField: 'category', sanitize: sanitizeExpenseBudgets,
+    keyOf: (entry) => (typeof entry?.category === 'string' ? entry.category : ''),
+    toRecords: (caps) => Object.entries(caps && typeof caps === 'object' ? caps : {})
+      .map(([category, cap]) => ({ category, cap }))
+      .sort((a, b) => a.category.localeCompare(b.category)),
+    fromRecords: (records) => Object.fromEntries(
+      [...records].sort((a, b) => a.category.localeCompare(b.category)).map((entry) => [entry.category, entry.cap])
+    )
   }
 ]);
 

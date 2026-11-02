@@ -1,5 +1,6 @@
 // Regression for #235: roster "📥 Export CSV" threw `ReferenceError: customerQuery is not defined`.
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 import { readFile } from 'node:fs/promises';
 
 async function openCustomerTable(page) {
@@ -27,6 +28,12 @@ async function exportCsv(page) {
 }
 
 test.describe('Customer roster CSV export (#235)', () => {
+  test.beforeEach(async ({ page }) => {
+    // The export must contain real rows and filter by a roster name:
+    // written against the old built-in seed (PR #478 emptied it).
+    await installSyntheticRoster(page);
+  });
+
   test('downloads the full roster with a header row and a confirmation toast', async ({ page }) => {
     const errors = await openCustomerTable(page);
     const lines = await exportCsv(page);

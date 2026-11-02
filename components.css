@@ -430,6 +430,18 @@
 .splitter-sim-actions { margin: 8px 0 16px; }
 .splitter-map-technician { margin: 4px 0 8px; }
 .splitter-att-btn { margin-top: 8px; }
+.optical-budget-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin: 8px 0 12px; }
+.optical-budget-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); min-width: 0; }
+.optical-budget-result { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-width: 0; }
+.optical-budget-rows p { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; margin: 6px 0; font-size: 13px; color: var(--muted); }
+.optical-budget-rows p strong { color: var(--ink); text-align: right; overflow-wrap: anywhere; }
+.optical-budget-verdict { margin: 10px 0 2px; }
+.optical-budget-note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+.optical-budget-empty { color: var(--muted); font-size: 13px; margin: 0; }
+@media (max-width: 480px) {
+  .optical-budget-form { grid-template-columns: 1fr; }
+  .optical-budget-rows p strong { text-align: left; }
+}
 @media (max-width: 480px) {
   .splitter-port-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .splitter-map-weak-list { grid-template-columns: 1fr; }

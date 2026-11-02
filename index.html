@@ -511,6 +511,7 @@
             <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_splitter">🔌 Splitter Port Map</button>
             <button id="openDarkFiberModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_dark_fiber">🧵 Dark Fiber Finder</button>
             <button id="openSpliceClosureModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="jcmap_open_btn">🧵 JC Splice Map</button>
+            <button id="openOpticalBudgetCalcBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="obcalc_button">📐 Link Budget</button>
           </div>
         </article>
 
@@ -22331,6 +22332,30 @@
       <div class="modal-body">
         <p class="area-signal-intro" id="areaSignalIntro">Average of the latest signal reading of every active customer, grouped by mohalla. Weakest signals are listed first.</p>
         <div id="areaSignalList" class="area-signal-list"></div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="opticalBudgetModal" class="billing-modal optical-budget-modal" aria-labelledby="opticalBudgetModalTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="opticalBudgetModalTitle" data-i18n="obcalc_title">📐 Optical Link Budget Calculator</h2>
+        <button id="opticalBudgetCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="splitter-map-intro" data-i18n="obcalc_intro">Work out the RX signal a port SHOULD receive from the OLT power, splitter size and fiber run — then compare it with the measured reading. A port far weaker than its budget usually has a bent fiber or a dirty connector.</p>
+        <div class="optical-budget-form">
+          <label for="obcalcTxInput"><span data-i18n="obcalc_tx_label">OLT TX power (dBm)</span><input id="obcalcTxInput" class="form-input" type="number" step="0.1" value="5"></label>
+          <label for="obcalcRatioSelect"><span data-i18n="obcalc_ratio_label">Splitter ratio</span><select id="obcalcRatioSelect" class="form-input"><option value="1:2">1:2</option><option value="1:4">1:4</option><option value="1:8" selected>1:8</option><option value="1:16">1:16</option></select></label>
+          <label for="obcalcSplicesInput"><span data-i18n="obcalc_splices_label">Splices (count)</span><input id="obcalcSplicesInput" class="form-input" type="number" min="0" step="1" value="0"></label>
+          <label for="obcalcCouplersInput"><span data-i18n="obcalc_couplers_label">Couplers / connectors (count)</span><input id="obcalcCouplersInput" class="form-input" type="number" min="0" step="1" value="0"></label>
+          <label for="obcalcDistanceInput"><span data-i18n="obcalc_distance_label">Fiber distance (km)</span><input id="obcalcDistanceInput" class="form-input" type="number" min="0" step="0.1" value="0"></label>
+          <label for="obcalcMarginInput"><span data-i18n="obcalc_margin_label">Safety margin (dB, optional)</span><input id="obcalcMarginInput" class="form-input" type="number" min="0" step="0.1" value="0"></label>
+          <label for="obcalcCustomerSelect"><span data-i18n="obcalc_customer_label">Compare a recorded port (optional)</span><select id="obcalcCustomerSelect" class="form-input"></select></label>
+          <label for="obcalcMeasuredInput"><span data-i18n="obcalc_measured_label">Measured RX (dBm)</span><input id="obcalcMeasuredInput" class="form-input" type="number" step="0.1" placeholder="-19.4"></label>
+        </div>
+        <div id="obcalcResult" class="optical-budget-result"></div>
+        <p class="optical-budget-note" data-i18n="obcalc_constants_note">Loss figures are standard reference values (splitter table, fiber 0.35 dB/km, splice 0.1 dB, connector 0.5 dB) — a planning check, not a measurement.</p>
       </div>
     </div>
   </dialog>

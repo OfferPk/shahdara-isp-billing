@@ -500,6 +500,266 @@ export function setupPwaInstallPrompt({
   return pwaInstallControllerInstance;
 }
 
+/* ------------------------------------------------------------------ */
+/* M9: Update-Ready Refresh Prompt                                     */
+/*                                                                     */
+/* The <head> script in index.html owns service-worker registration    */
+/* and update detection (registration.waiting on load, updatefound ->  */
+/* installed with an existing controller, controllerchange). It no     */
+/* longer renders the old hardcoded #swUpdateBanner bar; instead it    */
+/* stashes the pending update on window.__swUpdatePending (plus the    */
+/* registration on window.__swUpdateRegistration) and dispatches a     */
+/* 'sw-update-pending' window event. This controller is the seam that  */
+/* decides whether the owner is actually prompted:                     */
+/*   - only for a waiting / newly-installed worker on a page that      */
+/*     already had a controller (a real update, never a first install) */
+/*   - at most once per version (the version is the ?v= in the         */
+/*     worker's scriptURL — the shipped release versioning)            */
+/*   - never again for a version the owner dismissed, until the next   */
+/*     deploy carries a new version                                    */
+/* The prompt itself is the app toast (ui-feedback: theme tokens,      */
+/* dark-mode safe) with Refresh / Later actions. Refresh posts         */
+/* SKIP_WAITING to the waiting worker (sw.js already handles that      */
+/* message) and reloads exactly once when it takes control, with a     */
+/* timed fallback for a worker that had already activated.             */
+/* The two storage records are UI state only (the PWA banner-key       */
+/* precedent); no app data, storage schema or cache name changes.      */
+/* ------------------------------------------------------------------ */
+
+export const SW_UPDATE_EVENT = 'sw-update-pending';
+export const SW_UPDATE_SHOWN_KEY = 'shahdara_sw_update_shown_v1';
+export const SW_UPDATE_DISMISSED_KEY = 'shahdara_sw_update_dismissed_v1';
+/** Long-lived prompt: an update decision should not vanish in seconds. */
+export const SW_UPDATE_TOAST_DURATION_MS = 600000;
+/** If an activated worker never raises controllerchange, reload anyway. */
+export const SW_UPDATE_RELOAD_FALLBACK_MS = 1500;
+
+/**
+ * The update's version identity: the ?v= release stamp in the worker's
+ * scriptURL ('./sw.js?v=1.11.0'). Falls back to the full URL so an
+ * unstamped worker still gets a stable per-script identity.
+ *
+ * @param {string} scriptUrl
+ * @returns {string} version string, or '' when no URL was given
+ */
+export function swUpdateVersionFromScriptUrl(scriptUrl) {
+  const raw = String(scriptUrl ?? '').trim();
+  if (!raw) return '';
+  try {
+    return new URL(raw).searchParams.get('v') || raw;
+  } catch {
+    const match = raw.match(/[?&]v=([^&#]+)/);
+    return match ? decodeURIComponent(match[1]) : raw;
+  }
+}
+
+/**
+ * Pure prompt decision: show only when an update is waiting, and only
+ * if this exact version was neither shown nor dismissed before.
+ *
+ * @param {Object} input
+ * @param {string} [input.waitingVersion]
+ * @param {string} [input.dismissedVersion]
+ * @param {string} [input.shownVersion]
+ * @returns {boolean}
+ */
+export function decideSwUpdatePrompt({ waitingVersion = '', dismissedVersion = '', shownVersion = '' } = {}) {
+  const version = String(waitingVersion ?? '');
+  if (!version) return false;
+  if (dismissedVersion && dismissedVersion === version) return false;
+  if (shownVersion && shownVersion === version) return false;
+  return true;
+}
+
+function readSwUpdateRecord(storage, key) {
+  if (!storage) return '';
+  try { return storage.getItem(key) || ''; } catch { return ''; }
+}
+
+function writeSwUpdateRecord(storage, key, version) {
+  if (!storage || !version) return;
+  try { storage.setItem(key, version); } catch { /* storage blocked: the prompt simply behaves session-only */ }
+}
+
+/**
+ * The prompt decision against the persisted shown/dismissed records.
+ *
+ * @param {Object} input
+ * @param {string} [input.waitingVersion]
+ * @param {Storage|Object} [input.storage]
+ * @returns {boolean}
+ */
+export function shouldShowSwUpdatePrompt({ waitingVersion = '', storage = null } = {}) {
+  return decideSwUpdatePrompt({
+    waitingVersion,
+    dismissedVersion: readSwUpdateRecord(storage, SW_UPDATE_DISMISSED_KEY),
+    shownVersion: readSwUpdateRecord(storage, SW_UPDATE_SHOWN_KEY)
+  });
+}
+
+/** Records that this version's prompt has been shown (at most once per version). */
+export function markSwUpdatePromptShown(storage, version) {
+  writeSwUpdateRecord(storage, SW_UPDATE_SHOWN_KEY, version);
+}
+
+/** Records that the owner dismissed this version (no re-prompt until the next deploy). */
+export function markSwUpdatePromptDismissed(storage, version) {
+  writeSwUpdateRecord(storage, SW_UPDATE_DISMISSED_KEY, version);
+}
+
+/**
+ * Asks a waiting worker to activate now. sw.js handles both the string
+ * and the {type} form of SKIP_WAITING; the object form is used here.
+ * Returns false when there is no waiting worker to ask (it already
+ * activated — the caller should simply reload).
+ *
+ * @param {ServiceWorker|Object|null} waitingWorker
+ * @returns {boolean} true when the activation message was posted
+ */
+export function requestSwUpdateActivation(waitingWorker) {
+  if (!waitingWorker || typeof waitingWorker.postMessage !== 'function') return false;
+  waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+  return true;
+}
+
+/**
+ * Reload-once guard: however many signals fire (controllerchange, the
+ * fallback timer, a second tap), the page reloads exactly once.
+ */
+export function createSwUpdateReloadGuard() {
+  let reloaded = false;
+  return {
+    get reloaded() { return reloaded; },
+    reloadOnce(reloadFn) {
+      if (reloaded) return false;
+      reloaded = true;
+      if (typeof reloadFn === 'function') reloadFn();
+      return true;
+    }
+  };
+}
+
+/**
+ * Wires the update-ready prompt to the <head> detection seam: reads the
+ * stashed pending update, listens for later 'sw-update-pending' events,
+ * and shows the bilingual app toast with Refresh / Later actions.
+ *
+ * @param {Object} options
+ * @param {Window} [options.win=window]
+ * @param {Storage|Object} [options.storage=localStorage]
+ * @param {Function} [options.onToast] - app toast presenter (msg, opts)
+ * @param {number} [options.reloadFallbackMs]
+ * @returns {Object} Update prompt controller
+ */
+export function setupSwUpdatePrompt({
+  win = (typeof window !== 'undefined' ? window : null),
+  storage = (typeof localStorage !== 'undefined' ? localStorage : null),
+  onToast = (msg) => console.log(msg),
+  reloadFallbackMs = SW_UPDATE_RELOAD_FALLBACK_MS
+} = {}) {
+  const reloadGuard = createSwUpdateReloadGuard();
+  let registrationRef = null;
+  let pendingVersion = '';
+  let activationRequested = false;
+  let fallbackTimer = null;
+
+  const serviceWorker = () => {
+    try {
+      const nav = win?.navigator;
+      return nav && 'serviceWorker' in nav ? nav.serviceWorker : null;
+    } catch { return null; }
+  };
+
+  function liveWaitingWorker() {
+    try { return registrationRef?.waiting || win?.__swUpdateRegistration?.waiting || null; }
+    catch { return null; }
+  }
+
+  function reloadOnce() {
+    const did = reloadGuard.reloadOnce(() => {
+      try { if (win?.location) win.location.reload(); } catch { /* nowhere to reload */ }
+    });
+    if (did && fallbackTimer) { clearTimeout(fallbackTimer); fallbackTimer = null; }
+    return did;
+  }
+
+  /** Refresh action: activate the waiting worker, reload exactly once. */
+  function refresh() {
+    if (requestSwUpdateActivation(liveWaitingWorker())) {
+      activationRequested = true;
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      fallbackTimer = setTimeout(() => { fallbackTimer = null; reloadOnce(); }, reloadFallbackMs);
+      return true;
+    }
+    return reloadOnce();
+  }
+
+  /** Later action: never prompt again for this version. */
+  function dismiss() {
+    if (pendingVersion) markSwUpdatePromptDismissed(storage, pendingVersion);
+  }
+
+  /**
+   * Considers a pending-update signal (the head script's stash/event,
+   * or a live registration check). Returns true when the toast showed.
+   */
+  function consider(detail = null) {
+    const svc = serviceWorker();
+    if (!svc) return false;
+    const waiting = liveWaitingWorker();
+    const scriptURL = detail?.scriptURL || waiting?.scriptURL || '';
+    const version = swUpdateVersionFromScriptUrl(scriptURL);
+    const updateReady = Boolean(waiting) || Boolean(detail && version);
+    const hasController = detail ? detail.hasController !== false : Boolean(svc.controller);
+    if (!updateReady || !version || !hasController) return false;
+    if (!shouldShowSwUpdatePrompt({ waitingVersion: version, storage })) return false;
+    pendingVersion = version;
+    markSwUpdatePromptShown(storage, version);
+    const message = t('sw_update_ready', null, {});
+    try { announceToScreenReader(message); } catch { /* announcement is best-effort */ }
+    onToast(message, {
+      type: 'info',
+      duration: SW_UPDATE_TOAST_DURATION_MS,
+      actions: [
+        { label: t('sw_update_refresh', null, {}), onAction: refresh },
+        { label: t('sw_update_dismiss', null, {}), onAction: dismiss }
+      ]
+    });
+    return true;
+  }
+
+  if (win && typeof win.addEventListener === 'function') {
+    win.addEventListener(SW_UPDATE_EVENT, (evt) => {
+      consider(evt?.detail || win.__swUpdatePending || null);
+    });
+  }
+
+  const svc = serviceWorker();
+  if (svc && typeof svc.addEventListener === 'function') {
+    svc.addEventListener('controllerchange', () => { if (activationRequested) reloadOnce(); });
+  }
+
+  try { registrationRef = win?.__swUpdateRegistration || registrationRef; } catch { /* the stash is optional */ }
+  if (win?.__swUpdatePending) {
+    consider(win.__swUpdatePending);
+  } else if (svc && typeof svc.getRegistration === 'function') {
+    svc.getRegistration().then((reg) => {
+      if (!reg) return;
+      registrationRef = reg;
+      if (reg.waiting) consider({ scriptURL: reg.waiting.scriptURL, hasController: Boolean(svc.controller) });
+    }).catch(() => {});
+  }
+
+  return {
+    consider,
+    refresh,
+    dismiss,
+    checkNow: () => consider(win?.__swUpdatePending || null),
+    get pendingVersion() { return pendingVersion; },
+    get reloaded() { return reloadGuard.reloaded; }
+  };
+}
+
 /**
  * Sets up the PWA Status & Offline Health Modal dialog (#pwaStatusModal).
  *

@@ -6462,7 +6462,20 @@ export {
   measurePwaPerformance,
   setupPwaInstallPrompt,
   setupPwaStatusModal,
-  setupPwaShortcuts
+  setupPwaShortcuts,
+  SW_UPDATE_EVENT,
+  SW_UPDATE_SHOWN_KEY,
+  SW_UPDATE_DISMISSED_KEY,
+  SW_UPDATE_TOAST_DURATION_MS,
+  SW_UPDATE_RELOAD_FALLBACK_MS,
+  swUpdateVersionFromScriptUrl,
+  decideSwUpdatePrompt,
+  shouldShowSwUpdatePrompt,
+  markSwUpdatePromptShown,
+  markSwUpdatePromptDismissed,
+  requestSwUpdateActivation,
+  createSwUpdateReloadGuard,
+  setupSwUpdatePrompt
 } from './nav-pwa.js';
 
 export {

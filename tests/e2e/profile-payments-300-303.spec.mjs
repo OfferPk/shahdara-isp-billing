@@ -1,6 +1,7 @@
 // #300 "+ Add Payment" always opens Quick Collect; #301 every profile action opens its dialog (Dispute threw);
 // #302 desktop profile action grid never clips; #303 payments-list polish (totals bar, dark details, scoped Undo toast).
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function track(page) {
   const errors = [];
@@ -37,6 +38,12 @@ const contrast = (fg, bg) => {
 };
 
 test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
+  test.beforeEach(async ({ page }) => {
+    // Opens customer rows by index and records payments on them: needs
+    // the roster the old built-in seed provided (PR #478 emptied it).
+    await installSyntheticRoster(page);
+  });
+
   test('#300: + Add Payment opens Quick Collect after a profile was opened (Transactions, Bills, Report, Home)', async ({ page }) => {
     const { errors, native } = track(page);
     await openCustomer(page, 1);

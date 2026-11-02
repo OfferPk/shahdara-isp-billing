@@ -8,18 +8,25 @@
 // filtered rows (same count, same totals).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   BILLING_REGISTER_CSV_HEADERS,
+  BILLING_REGISTER_PERIODS,
+  BILLING_REGISTER_STATUSES,
   billingRegisterCsvFilename,
   billingRegisterCsvNote,
   billingRegisterCsvRows,
   billingRegisterMonths,
   buildBillingRegister,
+  buildBillingRegisterPrintHtml,
   normalizeBillingRegisterPeriod,
+  normalizeBillingRegisterPrintFormat,
   normalizeBillingRegisterStatus,
   shiftBillingRegisterMonth
 } from '../billing-register.js';
 import { generateCsvContent } from '../form-validation.js';
+import { TRANSLATIONS, t } from '../nav-language.js';
+import { PARTNERS } from '../partner-settlement.js';
 
 const CURRENT_MONTH = '2026-10';
 
@@ -261,6 +268,145 @@ test('register: unpriced bills are not invoices; module ships in the build', asy
   assert.equal(register.periodBillCount, 2);
   const { ENTRY_FILES } = await import('../build.mjs');
   assert.ok(ENTRY_FILES.includes('billing-register.js'));
+});
+
+// ---------------------------------------------------------------------------
+// SISP-185: printable summary sheet (A4 + 80mm) of the filtered register.
+// The sheet consumes the register object itself — the exact filtered rows
+// and totals — so these pins compare the printed HTML against the same
+// register the screen/CSV tests above already pinned.
+const printTotalsLine = (register) => t('bill_reg_totals', 'en', {
+  count: register.totals.count,
+  billed: `PKR ${register.totals.totalBilled.toLocaleString('en-PK')}`,
+  paid: `PKR ${register.totals.totalPaid.toLocaleString('en-PK')}`
+});
+const printedRefs = (html) => [...html.matchAll(/<td class="ref">([^<]+)<\/td>/g)].map((m) => m[1]);
+const dataRowCount = (html) => (html.match(/<tr><td/g) ?? []).length;
+
+test('register print PINNED: A4 sheet under Paid (default) carries exactly the paid rows + screen totals', () => {
+  const register = buildBillingRegister(registerState(), { period: 'last3', status: 'paid', currentMonth: CURRENT_MONTH });
+  const html = buildBillingRegisterPrintHtml(register, { businessName: 'Test Fiber', generatedDate: '2026-10-31', lang: 'en' });
+  assert.deepEqual(printedRefs(html), register.rows.map((row) => row.reference), 'printed rows == filtered rows, in register order');
+  assert.equal(dataRowCount(html), register.rows.length);
+  assert.ok(html.includes('Register Alpha'));
+  assert.ok(!html.includes('Register Beta'), 'the voided-only bill is not a Paid row and never reaches the Paid sheet');
+  assert.ok(html.includes('0300 1112223'), 'A4 keeps the Mobile column');
+  assert.ok(html.includes(t('bill_reg_col_balance', 'en')), 'A4 keeps the Balance Due column');
+  assert.ok(html.includes(printTotalsLine(register)), 'sheet totals line == the screen totals for the same selection');
+  assert.ok(html.includes(`Period: Last 3 Months (2026-08 – 2026-10) · Bill status: Paid`), 'sheet header describes the exact filter');
+  assert.ok(html.includes('Test Fiber'), 'brand comes from the caller settings');
+  assert.ok(html.includes('Generated 2026-10-31'));
+});
+
+test('register print PINNED: A4 sheet under All matches the full filtered set (voided-only bill prints Unpaid, paid 0)', () => {
+  const register = buildBillingRegister(registerState(), { period: 'last3', status: 'all', currentMonth: CURRENT_MONTH });
+  assert.equal(register.rows.length, 4);
+  const html = buildBillingRegisterPrintHtml(register, { generatedDate: '2026-10-31', lang: 'en' });
+  assert.deepEqual(printedRefs(html), register.rows.map((row) => row.reference));
+  assert.equal(dataRowCount(html), 4);
+  const betaRow = html.split('<tr>').find((chunk) => chunk.includes('#13 · 2026-10'));
+  assert.ok(betaRow, 'voided-only bill row is printed under All');
+  assert.ok(betaRow.includes('PKR 0'), 'its paid amount prints as 0 — a voided payment never counts as paid');
+  assert.ok(betaRow.includes('Unpaid'));
+  assert.ok(html.includes(printTotalsLine(register)), 'totals: 4 invoices · Billed PKR 11,000 · Paid PKR 4,500');
+  assert.ok(html.includes('PKR 6,500'), 'balance column total is the plain sum of the printed rows (0 + 2000 + 1500 + 3000)');
+});
+
+test('register print: zero-row selection prints the honest empty sheet with zero totals', () => {
+  const register = buildBillingRegister(registerState(), { period: 'last', status: 'paid', currentMonth: CURRENT_MONTH });
+  assert.equal(register.rows.length, 0, 'fixture: September holds only a partial bill, so Paid is empty');
+  const html = buildBillingRegisterPrintHtml(register, { generatedDate: '2026-10-31', lang: 'en' });
+  assert.ok(html.includes(t('bill_reg_empty', 'en')), 'empty message prints instead of stale rows');
+  assert.ok(!html.includes('Register Alpha') && !html.includes('Register Beta'));
+  assert.equal(dataRowCount(html), 0);
+  assert.ok(html.includes(printTotalsLine(register)), 'zero totals line still prints');
+  assert.ok(html.includes('Period: Last Month (2026-09) · Bill status: Paid'), 'header still describes the empty selection');
+});
+
+test('register print: sign-offs iterate the given partner set — a third partner appears with no code change', () => {
+  const register = buildBillingRegister(registerState(), { period: 'last3', status: 'all', currentMonth: CURRENT_MONTH });
+  const html = buildBillingRegisterPrintHtml(register, { partners: ['Partner One', 'Partner Two', 'Partner Three'], lang: 'en' });
+  for (const name of ['Partner One', 'Partner Two', 'Partner Three']) assert.ok(html.includes(name), `${name} sign-off block prints`);
+  assert.ok(html.includes(t('bill_reg_sign_prepared', 'en')), 'prepared-by block prints');
+  assert.equal((html.match(/class="sig"/g) ?? []).length, 4, 'prepared-by + one block per partner');
+  const fallback = buildBillingRegisterPrintHtml(register, { lang: 'en' });
+  for (const name of PARTNERS) assert.ok(fallback.includes(name), `default partner set includes ${name}`);
+  assert.equal((fallback.match(/class="sig"/g) ?? []).length, PARTNERS.length + 1);
+});
+
+test('register print PINNED: 80mm sheet uses the condensed columns only, rows still identified', () => {
+  const register = buildBillingRegister(registerState(), { period: 'last3', status: 'all', currentMonth: CURRENT_MONTH });
+  const html = buildBillingRegisterPrintHtml(register, { format: '80mm', generatedDate: '2026-10-31', lang: 'en' });
+  assert.ok(html.includes('size: 80mm auto'), 'thermal page size is set');
+  assert.ok(html.includes('<th class="ref">#</th>'), 'reference condenses to the customer number');
+  assert.ok(html.includes('<th class="cust">Customer</th>'));
+  assert.ok(html.includes('<th class="nowrap">Month</th>'));
+  assert.ok(!html.includes(t('bill_reg_col_mobile', 'en')), 'Mobile column is dropped on 80mm');
+  assert.ok(!html.includes(t('bill_reg_col_package', 'en')), 'Package column is dropped on 80mm');
+  assert.ok(!html.includes(t('bill_reg_col_balance', 'en')), 'Balance Due column is dropped on 80mm');
+  assert.deepEqual(printedRefs(html), register.rows.map((row) => `#${row.customerNumber}`), 'rows identified by customer number, in register order');
+  assert.equal(dataRowCount(html), register.rows.length);
+  assert.ok(html.includes(printTotalsLine(register)), 'totals survive the condensed layout');
+  assert.equal(normalizeBillingRegisterPrintFormat('80mm'), '80mm');
+  assert.equal(normalizeBillingRegisterPrintFormat('bogus'), 'a4');
+});
+
+test('register print: business phone prints only when settings record one — never the receipt placeholder', () => {
+  const register = buildBillingRegister(registerState(), { period: 'last3', status: 'all', currentMonth: CURRENT_MONTH });
+  const noPhone = buildBillingRegisterPrintHtml(register, { businessPhone: '', lang: 'en' });
+  assert.ok(!noPhone.includes('0300-1234567'), 'the placeholder phone from receipt defaults never leaks onto the sheet');
+  const withPhone = buildBillingRegisterPrintHtml(register, { businessName: 'Settings Fiber', businessPhone: '0321 5556677', lang: 'en' });
+  assert.ok(withPhone.includes('0321 5556677'), 'a recorded settings phone prints');
+  assert.ok(withPhone.includes('Settings Fiber'));
+  const noBrand = buildBillingRegisterPrintHtml(register, { businessName: '', lang: 'en' });
+  assert.ok(noBrand.includes('Shahdara ISP'), 'blank brand falls back to the app-wide receipt fallback');
+});
+
+test('register print: generating the sheet mutates neither state nor register (byte-identical)', () => {
+  const state = registerState();
+  const stateBefore = JSON.stringify(state);
+  const register = buildBillingRegister(state, { period: 'last3', status: 'all', currentMonth: CURRENT_MONTH });
+  const registerBefore = JSON.stringify(register);
+  buildBillingRegisterPrintHtml(register, { lang: 'en' });
+  buildBillingRegisterPrintHtml(register, { format: '80mm', partners: ['Someone'], lang: 'ur' });
+  assert.equal(JSON.stringify(register), registerBefore);
+  assert.equal(JSON.stringify(state), stateBefore);
+});
+
+test('register print: i18n audit — every bill_reg_* key used by module, markup and handler exists in en + ur', () => {
+  const moduleSource = readFileSync(new URL('../billing-register.js', import.meta.url), 'utf8');
+  const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const used = new Set();
+  for (const m of moduleSource.matchAll(/t\('(bill_reg_[a-z_]+)'/g)) used.add(m[1]);
+  for (const m of appSource.matchAll(/t\('(bill_reg_[a-z_]+)'/g)) used.add(m[1]);
+  for (const m of indexHtml.matchAll(/data-i18n="(bill_reg_[a-z_]+)"/g)) used.add(m[1]);
+  // Dynamic keys the sheet builds from the register's own period/status:
+  for (const period of BILLING_REGISTER_PERIODS) used.add(`bill_reg_period_${period}`);
+  for (const status of BILLING_REGISTER_STATUSES) used.add(`bill_reg_status_${status}`);
+  assert.ok(used.has('bill_reg_print') && used.has('bill_reg_col_balance') && used.has('bill_reg_sign_prepared'));
+  for (const key of used) {
+    assert.ok(Object.hasOwn(TRANSLATIONS.en, key), `en missing ${key}`);
+    assert.ok(Object.hasOwn(TRANSLATIONS.ur, key), `ur missing ${key}`);
+  }
+  const urduSheet = buildBillingRegisterPrintHtml(
+    buildBillingRegister(registerState(), { period: 'last3', status: 'all', currentMonth: CURRENT_MONTH }),
+    { lang: 'ur' }
+  );
+  assert.ok(urduSheet.includes(TRANSLATIONS.ur.bill_reg_title), 'Urdu sheet renders dictionary text, never raw keys');
+  assert.ok(!urduSheet.includes('bill_reg_'), 'no raw bill_reg_* key leaks into the Urdu sheet');
+});
+
+test('register print: wiring — print button + format select in markup, handler in app.js', () => {
+  const indexHtml = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.ok(indexHtml.includes('id="billingRegisterPrintBtn"'), 'print button sits in the register controls');
+  assert.ok(indexHtml.includes('id="billingRegisterPrintFormat"'), 'A4 / 80mm format select present');
+  assert.ok(indexHtml.includes('id="billingRegisterDownloadBtn"'), 'CSV download button untouched');
+  assert.ok(appSource.includes('buildBillingRegisterPrintHtml'), 'app.js builds the sheet from the live register');
+  assert.ok(appSource.includes("$('#billingRegisterPrintBtn')"), 'app.js wires the print handler');
+  assert.ok(appSource.includes('partners: PARTNERS'), 'sign-offs come from the recorded partner set');
+  assert.ok(appSource.includes("businessPhone: state.settings?.businessPhone || ''"), 'phone comes from settings only, no placeholder fallback');
 });
 
 test('register: SISP-171 referral-credit bill (Rs. 3,000 − Rs. 500 credit, Rs. 2,500 cash) reads Paid', () => {

@@ -207,7 +207,8 @@ import { INSTALL_REQUESTS_KEY, buildMonthlyInstallSummary, installTrackerToday, 
 import { buildInstallationGate, setupInstallGateDialog } from './installation-completion-gate.js';
 import { PENDING_WORKS_KEY, countActiveCustomers, loadPendingWorks, pendingWorksSummary, savePendingWorks, setupPendingWorksModal } from './pending-works.js';
 import { renderRelocationTimeline, setupRelocationModal } from './relocation-log.js';
-import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet, resolvePackageSpeedMbps, buildSpeedBoostRestoreSnippet, buildSpeedBoostSnippet } from './mikrotik-generator.js';
+import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet, resolvePackageSpeedMbps, buildSpeedBoostRestoreSnippet, buildSpeedBoostSnippet, buildExpiredHoldResumeScript } from './mikrotik-generator.js';
+import { buildExpiredVacationHoldQueue } from './pause-billing.js';
 import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonChargesForPayment } from './speed-addon.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
@@ -1223,6 +1224,57 @@ function renderDashboard() {
     if (recentAllBtn && !recentAllBtn.dataset.wired) {
       recentAllBtn.dataset.wired = 'true';
       recentAllBtn.addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
+    }
+  }
+  // SISP-186: Expired Vacation Holds alert queue — customers whose
+  // SISP-47 hold state is exactly 'expired' (auto-resume date reached,
+  // record still paused). The section stays hidden when the queue is
+  // empty. Rendering is read-only (the queue is a pure derivation over
+  // vacationHoldState); the only write is the bulk-resume button, which
+  // resumes each selected customer through the SAME core
+  // updateCustomerProfile transition as the profile Edit form's resume
+  // (paused:false with the stored dates passed back, which finalizes
+  // pauseSkippedMonths in core) and copies ONE combined MikroTik enable
+  // script built by the generator for exactly those customers.
+  const expiredHoldsSection = $('#expiredHoldsSection');
+  if (expiredHoldsSection) {
+    const expiredQueue = buildExpiredVacationHoldQueue(state.customers, localDate());
+    expiredHoldsSection.hidden = expiredQueue.length === 0;
+    if (expiredQueue.length > 0) {
+      const countEl = $('#expiredHoldsCount');
+      if (countEl) countEl.textContent = t('exphold_count', null, { count: expiredQueue.length });
+      const listEl = $('#expiredHoldsList');
+      if (listEl) {
+        listEl.setAttribute('aria-label', t('exphold_list_aria'));
+        listEl.innerHTML = expiredQueue.map((row) => `<li class="expired-hold-item"><label class="expired-hold-row"><input type="checkbox" class="expired-hold-check" data-expired-hold-id="${escapeHtml(String(row.id))}" checked aria-label="${escapeHtml(t('exphold_row_aria', null, { name: row.name }))}"><span class="expired-hold-main"><strong class="expired-hold-name" dir="auto">#${escapeHtml(String(row.customerNumber ?? ''))} ${escapeHtml(row.name)}</strong><span class="expired-hold-meta">${escapeHtml(t('exphold_row_meta', null, { start: row.pauseStartDate || '', resume: row.autoResumeDate || '' }))}</span></span></label></li>`).join('');
+      }
+      const resumeBtn = $('#expiredHoldsResumeBtn');
+      if (resumeBtn && !resumeBtn.dataset.wired) {
+        resumeBtn.dataset.wired = 'true';
+        resumeBtn.addEventListener('click', async () => {
+          const checkedIds = [...document.querySelectorAll('.expired-hold-check:checked')].map((box) => box.dataset.expiredHoldId);
+          if (checkedIds.length === 0) { toast(t('exphold_none_selected')); return; }
+          const todayStr = localDate();
+          const selected = buildExpiredVacationHoldQueue(state.customers, todayStr)
+            .filter((row) => checkedIds.includes(String(row.id)))
+            .map((row) => row.customer);
+          if (selected.length === 0) { toast(t('exphold_none_selected')); return; }
+          const { script, resumed } = buildExpiredHoldResumeScript(selected, { todayStr });
+          const now = new Date();
+          for (const customer of resumed) {
+            state = updateCustomerProfile(state, customer.id, {
+              paused: false, pauseStartDate: customer.pauseStartDate ?? '', autoResumeDate: customer.autoResumeDate ?? ''
+            }, now);
+          }
+          save();
+          renderDashboard();
+          let copied = false;
+          try {
+            if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(script); copied = true; }
+          } catch { copied = false; }
+          toast(t(copied ? 'exphold_resumed' : 'exphold_resumed_copy_failed', null, { count: resumed.length }));
+        });
+      }
     }
   }
   // SISP-144: Collection Velocity card — this month's collections in

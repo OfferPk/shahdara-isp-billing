@@ -144,6 +144,41 @@ export function pauseStatusLabel(customer) {
   return `Paused since ${pauseStartDate} · until resumed`;
 }
 
+// SISP-186: the Dashboard "Expired Vacation Holds" alert queue. A pure
+// derivation over vacationHoldState — the SAME day-level state every
+// other consumer (profile router section, MikroTik lock guard) reads —
+// so the queue can never disagree with them. Only the exact 'expired'
+// state qualifies: the auto-resume date has been reached but the record
+// still says paused, so resuming stays an explicit operator action.
+// Archived customers are excluded (a disconnected record has no hold to
+// resume; unarchive is its own flow). FREE connections are NOT excluded:
+// a free line's hold is real for the router even though it never bills
+// (SISP-47 pins the same treatment). Read-only: returns row data only,
+// never mutates the input records. Order is deterministic — earliest
+// auto-resume date first (longest waiting on top), then customerNumber.
+export function buildExpiredVacationHoldQueue(customers, todayStr) {
+  const list = Array.isArray(customers) ? customers : [];
+  const rows = [];
+  for (const customer of list) {
+    if (!customer || typeof customer !== 'object') continue;
+    if (customer.archived === true) continue;
+    if (vacationHoldState(customer, todayStr) !== 'expired') continue;
+    const { pauseStartDate, autoResumeDate } = sanitizePauseFields(customer);
+    rows.push({
+      customer,
+      id: customer.id,
+      customerNumber: customer.customerNumber,
+      name: String(customer.name ?? ''),
+      pauseStartDate,
+      autoResumeDate
+    });
+  }
+  rows.sort((a, b) =>
+    String(a.autoResumeDate).localeCompare(String(b.autoResumeDate)) ||
+    (Number(a.customerNumber) || 0) - (Number(b.customerNumber) || 0));
+  return rows;
+}
+
 // Months to record as skipped when a hold ends (manual resume): every
 // month from the pause month up to — but not including — the resume
 // month, minus months that already have a bill (a bill created before

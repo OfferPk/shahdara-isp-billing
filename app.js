@@ -2407,6 +2407,11 @@ function profileAgeMarkup(customer) {
   return `<article class="profile-summary-stat profile-summary-age"><span>${t('upt_age_label')}</span><strong>${escapeHtml(primary)}</strong><small>${escapeHtml(detail)}</small></article>`;
 }
 let selectedUptimeMonth = null;
+// SISP-189: inherited-upstream view of the uptime panel — opt-in per
+// profile (collapsed by default, reset whenever the panel opens for a
+// different customer), so the default panel stays exactly as before.
+let uptimeInheritedOpen = false;
+let uptimeInheritedCustomerId = null;
 // Uptime tracking panel: month summary (real calendar days, online vs
 // offline) + the recorded offline periods with their reasons for the
 // chosen month. Periods come from the complaint/outage records and the
@@ -2438,7 +2443,39 @@ function renderUptimePanel(customer) {
       return `<li class="uptime-period"><div class="uptime-period-head"><strong>${escapeHtml(uptimeDurationText(period.minutes))}</strong><span>${escapeHtml(range)}</span></div><p class="uptime-period-reason">${escapeHtml(reason)}</p></li>`;
     }).join('')}</ul>`
     : `<p class="uptime-note">${escapeHtml(t('upt_none_offline'))}</p>`;
-  body.innerHTML = `${liveLine}${stats}${partial}${currently}${periods}`;
+  // SISP-189: inherited upstream outages (opt-in). The toggle only
+  // appears when an ancestor home actually has a recorded outage in
+  // the chosen month — every other profile's panel is byte-identical
+  // to before. Expanding swaps in the unioned totals (own + upstream,
+  // overlaps counted once) and lists each inherited period with the
+  // ancestor home it came from. Figures stay record-derived, exactly
+  // like the summary above (see uptime-tracking.js buildMonthlyUptime).
+  if (uptimeInheritedCustomerId !== String(customer.id)) {
+    uptimeInheritedCustomerId = String(customer.id);
+    uptimeInheritedOpen = false;
+  }
+  const inheritedSummary = buildMonthlyUptime(customer, selectedUptimeMonth, new Date(), { includeInherited: true, customers: state.customers ?? [] });
+  let inherited = '';
+  if (inheritedSummary.inheritedUpstreamPeriods.length) {
+    const toggle = `<button type="button" class="uptime-inherited-toggle" data-uptime-inherited-toggle aria-expanded="${uptimeInheritedOpen ? 'true' : 'false'}">${escapeHtml(t('upt_inherited_toggle'))}</button>`;
+    let detail = '';
+    if (uptimeInheritedOpen) {
+      const totals = `<p class="uptime-note">${escapeHtml(t('upt_inherited_totals', null, { online: uptimeDurationText(inheritedSummary.onlineMinutes), offline: uptimeDurationText(inheritedSummary.offlineMinutes) }))}</p>`;
+      const items = inheritedSummary.inheritedUpstreamPeriods.map(period => {
+        const range = t('upt_period_range', null, { from: formatInstant(period.startMs), to: period.open ? t('upt_period_open') : formatInstant(period.endMs) });
+        const reason = period.reason || (period.source === 'status' ? t('upt_reason_status') : t('upt_reason_none'));
+        const from = t('upt_inherited_from', null, { name: period.ancestorName || `#${period.ancestorId}` });
+        return `<li class="uptime-period"><div class="uptime-period-head"><strong>${escapeHtml(uptimeDurationText(period.minutes))}</strong><span>${escapeHtml(range)}</span></div><p class="uptime-period-reason">${escapeHtml(from)}</p><p class="uptime-period-reason">${escapeHtml(reason)}</p></li>`;
+      }).join('');
+      detail = `<h4 class="uptime-periods-heading">${escapeHtml(t('upt_inherited_heading'))}</h4><p class="uptime-note">${escapeHtml(t('upt_inherited_note'))}</p>${totals}<ul class="uptime-period-list">${items}</ul>`;
+    }
+    inherited = `${toggle}${detail}`;
+  }
+  body.innerHTML = `${liveLine}${stats}${partial}${currently}${periods}${inherited}`;
+  body.querySelector('[data-uptime-inherited-toggle]')?.addEventListener('click', () => {
+    uptimeInheritedOpen = !uptimeInheritedOpen;
+    renderUptimePanel(customer);
+  });
 }
 // Phase 3 mirror of buildCustomerPaymentBehavior's averageMonthlyPaymentBasis:
 // the behavior object carries the sentence, not the priced-month count, so

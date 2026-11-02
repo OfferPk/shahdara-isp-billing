@@ -9,6 +9,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -25,6 +26,12 @@ function trackErrors(page) {
 }
 
 test.describe('Mobile More Menu: Payments Inbox & PWA Integration', () => {
+  test.beforeEach(async ({ page }) => {
+    // The Fast Search test expects "Test Customer 01" to exist: written
+    // against the old built-in seed (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
+  });
+
   test('More menu opens Payments Inbox and highlights More tab on mobile', async ({ page, isMobile }) => {
     test.skip(!isMobile, 'Mobile More menu flow is tested on mobile viewport');
     const errors = trackErrors(page);

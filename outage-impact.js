@@ -234,6 +234,124 @@ export function buildDaisyChainAlert(customers, sourceId) {
   };
 }
 
+/**
+ * SISP-188: the upstream feeder chain of one customer, nearest first —
+ * the direct feeder home, then ITS feeder home, up to the chain root.
+ * The reverse walk of traceDownstreamImpact, with the same cycle
+ * safety: a visited set seeded with the subject, so a stored feeder
+ * cycle (A feeds B, B feeds A) or a self-link terminates instead of
+ * looping, and no home is ever listed twice. Archived homes are
+ * traversed THROUGH and listed — the chain physically passes through
+ * a cancelled house's converter, so hiding it would misstate the
+ * chain (downstream impact, by contrast, never lists them because a
+ * cancelled house has no internet left to lose). A dangling upstream
+ * id (feeder record deleted) simply ends the chain there. Returns []
+ * when the subject is unknown or feeds directly from the root.
+ */
+export function traceUpstreamChain(customers, customerId) {
+  const subject = customerById(customers, customerId);
+  if (!subject) return [];
+  const visited = new Set([String(subject.id)]);
+  const chain = [];
+  let current = subject;
+  while (current) {
+    const nextId = cleanText(current.upstreamCustomerId);
+    if (nextId === '') break;
+    if (visited.has(String(nextId))) break;
+    const next = customerById(customers, nextId);
+    if (!next) break;
+    visited.add(String(next.id));
+    chain.push(next);
+    current = next;
+  }
+  return chain;
+}
+
+/**
+ * SISP-188: open fault records for ONE ancestor, from both complaint
+ * seams. "Open" means exactly what each ledger itself means: status
+ * Open or In Progress — a Resolved record never warns. Sources:
+ * - the SISP-15 register (complaint-register.js): records whose
+ *   customerId is this ancestor; the label is the recorded category.
+ * - the SISP-12 field tickets (complaint-tickets.js): records whose
+ *   customerId is this ancestor; the label follows ticketFaultLabel
+ *   (preset, else the custom fault text).
+ * SISP-44 pair rule: a ticket linked to a register complaint
+ * (ticket.complaintId) is the SAME fault event as that complaint, so
+ * when the complaint itself is counted the ticket adds nothing — the
+ * pair is counted once, via the register entry. A ticket whose linked
+ * complaint is already Resolved still counts on its own: the field
+ * side was reopened and there genuinely is open work at that home.
+ * Area-outage records (customerId AREA_OUTAGE) belong to no home and
+ * can never match an ancestor id.
+ */
+function openUpstreamIssues(ancestorId, complaints, tickets) {
+  const issues = [];
+  const countedComplaintIds = new Set();
+  for (const complaint of complaints ?? []) {
+    if (!complaint || typeof complaint !== 'object') continue;
+    if (String(complaint.customerId ?? '') !== String(ancestorId)) continue;
+    if (complaint.status === 'Resolved') continue;
+    issues.push({
+      source: 'complaint',
+      id: cleanText(complaint.id),
+      label: cleanText(complaint.issueCategory),
+      status: cleanText(complaint.status)
+    });
+    if (complaint.id) countedComplaintIds.add(String(complaint.id));
+  }
+  for (const ticket of tickets ?? []) {
+    if (!ticket || typeof ticket !== 'object') continue;
+    if (String(ticket.customerId ?? '') !== String(ancestorId)) continue;
+    if (ticket.status === 'Resolved') continue;
+    const linkedId = cleanText(ticket.complaintId);
+    if (linkedId && countedComplaintIds.has(linkedId)) continue;
+    issues.push({
+      source: 'ticket',
+      id: cleanText(ticket.id),
+      label: cleanText(ticket.faultPreset) || cleanText(ticket.customFault),
+      status: cleanText(ticket.status)
+    });
+  }
+  return issues;
+}
+
+/**
+ * SISP-188: reverse daisy-chain check for ONE customer — every
+ * upstream ancestor home (nearest first, each with its depth and its
+ * open fault records) plus a flattened warning list. This is the
+ * parent check the SISP-49 downstream banner never made: before
+ * chasing a fault at this home, is the real problem already logged at
+ * a feeder home above it? Returns null only when the subject id is
+ * unknown; a known customer with no feeder chain returns an empty
+ * result (count 0, no ancestors, no warnings) so callers can tell
+ * "no chain" apart from "no such customer". Pure and read-only: it
+ * never mutates customers, complaints or tickets, so a banner built
+ * from it can never alter any record.
+ */
+export function buildUpstreamChainCheck(customers, customerId, { complaints = [], tickets = [] } = {}) {
+  const subject = customerById(customers, customerId);
+  if (!subject) return null;
+  const ancestors = traceUpstreamChain(customers, customerId).map((ancestor, index) => ({
+    customer: ancestor,
+    depth: index + 1,
+    openIssues: openUpstreamIssues(ancestor.id, complaints, tickets)
+  }));
+  const warnings = [];
+  for (const entry of ancestors) {
+    for (const issue of entry.openIssues) {
+      warnings.push({ customer: entry.customer, depth: entry.depth, issue });
+    }
+  }
+  return {
+    customer: subject,
+    ancestors,
+    warnings,
+    count: ancestors.length,
+    hasOpenUpstreamComplaint: warnings.length > 0
+  };
+}
+
 /** Copy-all text for a queue: one "Name — message" line per subscriber. */
 export function buildOutageQueueText(queue, { urdu = false } = {}) {
   if (!queue) return '';

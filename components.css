@@ -229,6 +229,14 @@
 .complaint-chain-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 8px; font-size: 13px; color: var(--muted); min-width: 0; }
 .complaint-chain-list li strong { color: var(--ink); overflow-wrap: anywhere; }
 .complaint-chain-list li span { overflow-wrap: anywhere; }
+.complaint-upchain-banner { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 10px; padding: 10px 12px; margin: 10px 0; min-width: 0; }
+.complaint-upchain-banner-warn { background: var(--amber-bg); border-left-color: var(--amber); }
+.complaint-upchain-title { font-size: 13px; font-weight: 700; color: var(--ink); }
+.complaint-upchain-banner-warn .complaint-upchain-title { color: var(--amber); }
+.complaint-upchain-body { display: block; font-size: 13px; color: var(--ink); margin: 6px 0; }
+.complaint-upchain-warning { font-size: 13px; font-weight: 600; color: var(--amber); margin: 6px 0 2px; overflow-wrap: anywhere; }
+.complaint-register-card .complaint-upchain-body { display: block; color: var(--ink); }
+.complaint-register-card .complaint-upchain-warning { display: block; }
 /* SISP-177: bulk-assign bar above the register filters + material badge line on synced cards. Theme tokens only. */
 .complaint-bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 0 0 16px; }
 .complaint-bulk-bar[hidden] { display: none; }

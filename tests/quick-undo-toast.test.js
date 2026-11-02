@@ -417,7 +417,13 @@ test('wiring: app.js hosts the presenter for both setups; the module stays out o
   const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.ok(appSource.includes("from './quick-undo-toast.js'"));
   assert.ok(appSource.includes('createQuickUndoController'));
-  assert.equal(appSource.split('onCollected: offerCollectedUndo').length - 1, 2);
+  // Field Mode wires the presenter directly. Quick Collect wires it
+  // through the SISP-187 composed handler (the presenter plus the QR
+  // scanner's saved-payment note share the one host hook), so the bare
+  // literal survives exactly once — the presenter is still hosted for
+  // both setups, and the composition still calls it for Quick Collect.
+  assert.equal(appSource.split('onCollected: offerCollectedUndo').length - 1, 1);
+  assert.ok(appSource.includes('offerCollectedUndo(info)'));
   const buildSource = readFileSync(new URL('../build.mjs', import.meta.url), 'utf8');
   const entryLine = buildSource.split('\n').find(line => line.includes('ENTRY_FILES'));
   assert.ok(entryLine && !entryLine.includes('quick-undo-toast.js'));

@@ -29,8 +29,23 @@
 //    decode images, and every device keeps the paste-the-link manual
 //    path plus a clear camera-denied message. The camera stream is
 //    stopped on every exit path (result, close, cancel, error).
+//
+// SISP-187 adds two counter-flow extras on top of that shipped scanner,
+// without touching the parser's acceptance rules:
+//  - Continuous Counter Scan: an opt-in, session-only toggle. After a
+//    scan-initiated Quick Collect session in which a payment was
+//    actually saved ends, the scanner re-opens for the next customer —
+//    always through the same open()/startCamera() path, so the
+//    permission/fallback behaviour is identical and the camera never
+//    runs while any other dialog is up.
+//  - Group-Billing prompt: a scanned customer who belongs to a SISP-35
+//    billing group gets a choice — collect this customer only (the
+//    original flow, unchanged), or open the existing Group Billing
+//    modal for the full group total. The total shown is buildGroupDue's
+//    own live figure; no second group collection exists.
 
 import { KHATA_APP_URL, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
+import { billingGroupForCustomer, buildGroupDue, formatGroupPKR, loadBillingGroups } from './group-billing.js';
 import { t } from './nav-language.js';
 
 // ---------------------------------------------------------------- constants
@@ -162,6 +177,74 @@ export function routeScannedKhata(customers, text, options = {}) {
     return { status: 'not-found', customerId: parsed.customerId, action: parsed.action };
   }
   return { status: 'found', customer, action: parsed.action };
+}
+
+// ------------------------------------------------------- SISP-187 extras
+
+/** SISP-187: when a scanned customer belongs to a billing group
+ *  (SISP-35), the scanner offers the group's full-total collection
+ *  alongside the ordinary single-customer collect. This pure helper is
+ *  the whole decision: it resolves membership through group-billing's
+ *  own lookup and the amount through buildGroupDue — the SAME live
+ *  derivation the Group Billing modal renders — so the prompt's figure
+ *  can never disagree with the flow it routes into. Returns null for
+ *  ungrouped customers (they never see the prompt). */
+export function scannedGroupPrompt(customer, { groups, customers, month, allocations } = {}) {
+  if (!customer || customer.id === null || customer.id === undefined) return null;
+  const group = billingGroupForCustomer(groups, customer.id);
+  if (!group) return null;
+  const due = buildGroupDue(group, customers, month, allocations);
+  return {
+    billingGroupId: group.billingGroupId,
+    groupTitle: group.groupTitle,
+    group,
+    totalCents: due.totalCents,
+    payableCount: due.payableCount
+  };
+}
+
+/** SISP-187: Continuous Counter Scan flow — a tiny pure state machine
+ *  deciding whether the scanner re-opens after a scan-initiated Quick
+ *  Collect session ends. Rules:
+ *   - a scan-routed pay collection "begins" a pending session;
+ *   - a payment actually saved during it is "noted" (the host wires
+ *     Quick Collect's onCollected here — cancel/dismiss never note);
+ *   - when the collect dialog closes, endCollection() answers whether
+ *     to re-open: only when continuous mode is ON, a session is
+ *     pending, and at least one payment was saved. Every outcome
+ *     consumes the pending session, so a later unrelated collection
+ *     can never trigger a stale re-entry;
+ *   - turning continuous mode OFF disarms any pending session.
+ *  The toggle is session-only state: the shipped scanner persists no
+ *  preferences, and neither does this. */
+export function createContinuousScanFlow() {
+  let continuous = false;
+  let pending = false;
+  let saved = false;
+  return {
+    setContinuous(on) {
+      continuous = !!on;
+      if (!continuous) {
+        pending = false;
+        saved = false;
+      }
+    },
+    isContinuous: () => continuous,
+    beginScanCollection() {
+      pending = true;
+      saved = false;
+    },
+    noteSaved() {
+      if (pending) saved = true;
+    },
+    hasPending: () => pending,
+    endCollection() {
+      const reopen = continuous && pending && saved;
+      pending = false;
+      saved = false;
+      return reopen;
+    }
+  };
 }
 
 // ---------------------------------------------------------------- session
@@ -296,7 +379,7 @@ export function qrScannerSupport(env) {
  *  browser / when the dialog markup is absent (mirrors the suspense
  *  modal's fallback). All strings go through t() so the modal follows
  *  the app language; static labels also carry data-i18n in index.html. */
-export function setupQrScannerModal(getState, { onToast, onOpenCustomer } = {}) {
+export function setupQrScannerModal(getState, { onToast, onOpenCustomer, onOpenGroup, getAllocations, currentMonth } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('qrScannerModal') : null;
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
@@ -306,6 +389,12 @@ export function setupQrScannerModal(getState, { onToast, onOpenCustomer } = {}) 
   const imageInput = $('qrScannerImageInput');
   const manualForm = $('qrScannerManualForm');
   const manualInput = $('qrScannerManualInput');
+  // SISP-187 elements (null on older markup — every use is guarded).
+  const continuousToggle = $('qrScannerContinuousToggle');
+  const groupPromptEl = $('qrScannerGroupPrompt');
+  const groupPromptText = $('qrScannerGroupPromptText');
+  const groupCollectBtn = $('qrScannerGroupCollectBtn');
+  const singleCollectBtn = $('qrScannerSingleCollectBtn');
 
   const toast = (msg) => {
     if (typeof onToast === 'function') onToast(msg);
@@ -328,6 +417,70 @@ export function setupQrScannerModal(getState, { onToast, onOpenCustomer } = {}) 
   let detector = null;
   let session = null;
 
+  // SISP-187: continuous counter-scan flow + the group choice awaiting
+  // the owner's tap (set only while the group prompt is on screen).
+  const flow = createContinuousScanFlow();
+  let pendingRoute = null;
+
+  const getMonth = () => {
+    try {
+      return typeof currentMonth === 'function' ? currentMonth() : '';
+    } catch {
+      return '';
+    }
+  };
+  const getAlloc = () => {
+    try {
+      const state = typeof getState === 'function' ? getState() : null;
+      return typeof getAllocations === 'function' ? getAllocations(state) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  /** The group prompt for a found customer, or null. Groups ride the
+   *  same loadBillingGroups() the Group Billing modal itself reads. */
+  function groupPromptFor(customer) {
+    try {
+      return scannedGroupPrompt(customer, {
+        groups: loadBillingGroups(),
+        customers: getCustomers(),
+        month: getMonth(),
+        allocations: getAlloc()
+      });
+    } catch {
+      return null;
+    }
+  }
+  function hideGroupPrompt() {
+    pendingRoute = null;
+    if (groupPromptEl) groupPromptEl.hidden = true;
+  }
+  function showGroupPrompt(customer, prompt) {
+    pendingRoute = { customer, prompt };
+    if (groupPromptText) {
+      groupPromptText.textContent = t('qrscan_group_prompt', null, {
+        name: customer.name || '',
+        group: prompt.groupTitle
+      });
+    }
+    if (groupCollectBtn) {
+      groupCollectBtn.textContent = t('qrscan_group_collect', null, {
+        total: formatGroupPKR(prompt.totalCents)
+      });
+    }
+    if (groupPromptEl) groupPromptEl.hidden = false;
+    setStatus('');
+  }
+  /** The original SISP-48 handoff, unchanged: close + host opens the
+   *  customer (Quick Collect for action=pay, profile otherwise). A pay
+   *  handoff also begins the continuous-flow pending session. */
+  function routeToCustomer(customer, action) {
+    hideGroupPrompt();
+    if (action === 'pay') flow.beginScanCollection();
+    close();
+    if (typeof onOpenCustomer === 'function') onOpenCustomer(customer, action);
+  }
+
   function ensureDetector() {
     if (detector) return detector;
     if (typeof window !== 'undefined' && typeof window.BarcodeDetector === 'function') {
@@ -341,13 +494,23 @@ export function setupQrScannerModal(getState, { onToast, onOpenCustomer } = {}) 
   }
 
   /** Route one decoded/pasted payload. Found → close + hand the customer
-   *  to the host (Quick Collect for action=pay, profile otherwise).
+   *  to the host (Quick Collect for action=pay, profile otherwise) —
+   *  except a pay scan of a GROUPED customer, which first shows the
+   *  SISP-187 group choice inside this dialog (the camera session has
+   *  already fully stopped by the time any payload is delivered).
    *  Anything else → a safe toast + inline status, and NOWHERE else. */
   function handlePayload(text) {
     const result = routeScannedKhata(getCustomers(), text, { allowedBases: allowedBases() });
     if (result.status === 'found') {
-      close();
-      if (typeof onOpenCustomer === 'function') onOpenCustomer(result.customer, result.action);
+      hideGroupPrompt();
+      if (result.action === 'pay') {
+        const prompt = groupPromptFor(result.customer);
+        if (prompt) {
+          showGroupPrompt(result.customer, prompt);
+          return result;
+        }
+      }
+      routeToCustomer(result.customer, result.action);
       return result;
     }
     if (result.status === 'not-found') {
@@ -452,6 +615,7 @@ export function setupQrScannerModal(getState, { onToast, onOpenCustomer } = {}) 
   }
 
   function open() {
+    hideGroupPrompt();
     if (!dialog.open) dialog.showModal();
     setStatus(t('qrscan_hint'));
     void startCamera();
@@ -479,13 +643,58 @@ export function setupQrScannerModal(getState, { onToast, onOpenCustomer } = {}) 
       if (manualInput) manualInput.value = '';
     });
   }
+  // SISP-187: continuous toggle — session-only, default OFF, so with it
+  // off (or absent) the scanner behaves exactly as SISP-48 shipped.
+  if (continuousToggle) {
+    continuousToggle.checked = false;
+    continuousToggle.addEventListener('change', () => {
+      flow.setContinuous(!!continuousToggle.checked);
+    });
+  }
+  // SISP-187: group choice buttons. Single = the original handoff.
+  // Group = hand the group to the host, which opens the EXISTING Group
+  // Billing modal (its own Collect Group Total button, date/method
+  // controls and combined receipt) — no second collection flow. The
+  // group handoff ends the scan session: continuous re-entry applies
+  // to the Quick Collect counter flow only.
+  if (singleCollectBtn) {
+    singleCollectBtn.addEventListener('click', () => {
+      if (!pendingRoute) return;
+      routeToCustomer(pendingRoute.customer, 'pay');
+    });
+  }
+  if (groupCollectBtn) {
+    groupCollectBtn.addEventListener('click', () => {
+      if (!pendingRoute) return;
+      const { prompt } = pendingRoute;
+      hideGroupPrompt();
+      close();
+      if (typeof onOpenGroup === 'function') onOpenGroup(prompt.group, prompt);
+    });
+  }
   const closeBtn = $('qrScannerCloseBtn');
   if (closeBtn) closeBtn.addEventListener('click', close);
   // Esc / backdrop dismissal fires 'close' too: the camera must stop on
   // EVERY exit path, never linger.
   dialog.addEventListener('close', () => {
+    hideGroupPrompt();
     if (session) session.stop();
   });
 
-  return { open, close, handlePayload, startCamera };
+  return {
+    open,
+    close,
+    handlePayload,
+    startCamera,
+    // SISP-187 host hooks for Continuous Counter Scan: the host calls
+    // noteCollectionSaved() from Quick Collect's onCollected (a payment
+    // was actually saved) and noteCollectionClosed() when the Quick
+    // Collect dialog closes; only then — and only in continuous mode —
+    // does the scanner re-open, through the same open() path as always.
+    noteCollectionSaved: () => flow.noteSaved(),
+    noteCollectionClosed: () => {
+      if (flow.endCollection()) open();
+    },
+    isContinuousScan: () => flow.isContinuous()
+  };
 }

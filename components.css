@@ -1719,6 +1719,11 @@ body.field-mode-open { overflow: hidden; }
 .receipt-verify-facts dd { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink); text-align: end; overflow-wrap: anywhere; }
 .qr-scanner-manual-row { display: flex; gap: 8px; }
 .qr-scanner-manual-row .form-input { flex: 1 1 auto; min-width: 0; }
+.qr-scanner-continuous { display: grid; gap: 4px; }
+.qr-scanner-continuous label { display: flex; gap: 8px; align-items: center; color: var(--ink); font-size: 14px; cursor: pointer; }
+.qr-scanner-group-prompt { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--modal-surface); }
+.qr-scanner-group-prompt[hidden] { display: none; }
+.qr-scanner-group-text { color: var(--ink); font-size: 14px; margin: 0; overflow-wrap: anywhere; }
 @media (max-width: 480px) {
   .qr-scanner-actions .action-btn-sm, .qr-scanner-actions .secondary-button { flex: 1 1 100%; text-align: center; justify-content: center; }
   .qr-scanner-viewport { max-width: 100%; }

@@ -16,14 +16,19 @@
 //    exactly once after the session has fully stopped.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { KHATA_APP_URL, buildKhataDeepLink } from '../qr-card.js';
 import {
   parseScannedKhataPayload,
   qrScannerAllowedBases,
   qrScannerSupport,
   routeScannedKhata,
-  createQrScannerSession
+  createQrScannerSession,
+  scannedGroupPrompt,
+  createContinuousScanFlow
 } from '../qr-scanner.js';
+import { billingGroupForCustomer, buildGroupDue } from '../group-billing.js';
+import { TRANSLATIONS, t } from '../nav-language.js';
 
 const customers = [
   { id: 'cust-12', customerNumber: 12, name: 'Test Customer 12' },
@@ -281,4 +286,173 @@ test('session: a per-frame decode error never kills the loop; acquire failure re
   assert.equal(failing.calls.errors.length, 1);
   assert.equal(failing.session.getState(), 'idle');
   assert.equal(failing.calls.release, 0);
+});
+
+// ------------------------------------------------------------ SISP-187
+// Group-Billing prompt + Continuous Counter Scan. Spec test criteria:
+// pin continuous-scan re-entry after collection and group-billing
+// prompt visibility. Fixtures are synthetic only.
+
+const GROUP_MONTH = '2026-10';
+const groupCustomers = [
+  { id: 'cust-12', customerNumber: 12, name: 'Test Customer 12', bills: [{ month: GROUP_MONTH, dueAmount: 3000, payments: [] }] },
+  { id: 'cust-abc', customerNumber: 42, name: 'Test Customer 42', bills: [{ month: GROUP_MONTH, dueAmount: 2000, payments: [{ amount: 500 }] }] },
+  { id: 'cust-solo', customerNumber: 7, name: 'Test Solo 7', bills: [{ month: GROUP_MONTH, dueAmount: 1500, payments: [] }] },
+  { id: 'cust-old', customerNumber: 9, name: 'Test Archived 9', archived: true, bills: [{ month: GROUP_MONTH, dueAmount: 9000, payments: [] }] }
+];
+const groupsFixture = [
+  { billingGroupId: 'GRP-101', groupTitle: 'Test Family', memberIds: ['cust-12', 'cust-abc', 'cust-old'], createdAt: '' }
+];
+
+test('SISP-187: billingGroupForCustomer resolves membership from the group record (no customer-side field)', () => {
+  const group = billingGroupForCustomer(groupsFixture, 'cust-abc');
+  assert.equal(group.billingGroupId, 'GRP-101');
+  assert.equal(billingGroupForCustomer(groupsFixture, 'cust-solo'), null);
+  assert.equal(billingGroupForCustomer(groupsFixture, 'nobody'), null);
+  assert.equal(billingGroupForCustomer(groupsFixture, ''), null);
+  assert.equal(billingGroupForCustomer(null, 'cust-12'), null);
+  assert.equal(billingGroupForCustomer([null, { groupTitle: '', memberIds: [] }, 'junk'], 'cust-12'), null);
+});
+
+test('SISP-187: group prompt appears ONLY for grouped customers, with the existing flow\'s own total', () => {
+  const prompt = scannedGroupPrompt(groupCustomers[0], {
+    groups: groupsFixture, customers: groupCustomers, month: GROUP_MONTH
+  });
+  assert.ok(prompt);
+  assert.equal(prompt.billingGroupId, 'GRP-101');
+  assert.equal(prompt.groupTitle, 'Test Family');
+  // 3000 (cust-12) + 1500 remaining (cust-abc) = 4500 → 450000 cents.
+  // The archived member's 9000 is listed by the flow but NEVER totals.
+  assert.equal(prompt.totalCents, 450000);
+  assert.equal(prompt.payableCount, 2);
+  // No parallel math: the prompt figure IS buildGroupDue's figure.
+  const due = buildGroupDue(groupsFixture[0], groupCustomers, GROUP_MONTH);
+  assert.equal(prompt.totalCents, due.totalCents);
+  assert.equal(prompt.payableCount, due.payableCount);
+  // Ungrouped customers never see the prompt.
+  assert.equal(scannedGroupPrompt(groupCustomers[2], {
+    groups: groupsFixture, customers: groupCustomers, month: GROUP_MONTH
+  }), null);
+  assert.equal(scannedGroupPrompt(null, { groups: groupsFixture, customers: groupCustomers, month: GROUP_MONTH }), null);
+  assert.equal(scannedGroupPrompt(undefined, {}), null);
+});
+
+test('SISP-187: group prompt total follows the allocation engine when the host supplies it', () => {
+  const allocations = {
+    forMonth: (id) => (id === 'cust-12'
+      ? { balanceDueCents: 123400 }
+      : id === 'cust-abc' ? { balanceDueCents: 0 } : { balanceDueCents: null })
+  };
+  const prompt = scannedGroupPrompt(groupCustomers[1], {
+    groups: groupsFixture, customers: groupCustomers, month: GROUP_MONTH, allocations
+  });
+  assert.ok(prompt);
+  assert.equal(prompt.totalCents, 123400);
+  assert.equal(prompt.payableCount, 1);
+});
+
+test('SISP-187: continuous flow re-opens ONLY after a saved scan-initiated collection, in continuous mode', () => {
+  const flow = createContinuousScanFlow();
+  // Default OFF: a saved scan collection does not re-open (legacy behaviour).
+  flow.beginScanCollection();
+  flow.noteSaved();
+  assert.equal(flow.endCollection(), false);
+  // ON + save + close → re-open, exactly once.
+  flow.setContinuous(true);
+  assert.equal(flow.isContinuous(), true);
+  flow.beginScanCollection();
+  flow.noteSaved();
+  assert.equal(flow.endCollection(), true);
+  assert.equal(flow.endCollection(), false);
+  // Multiple saves in one session (Collect Another) still end in one re-open.
+  flow.beginScanCollection();
+  flow.noteSaved();
+  flow.noteSaved();
+  assert.equal(flow.endCollection(), true);
+});
+
+test('SISP-187: continuous flow never re-opens after cancel/dismiss, and a stale pending can never pair with a later save', () => {
+  const flow = createContinuousScanFlow();
+  flow.setContinuous(true);
+  // Cancel/dismiss: session ends with no save noted → no re-entry…
+  flow.beginScanCollection();
+  assert.equal(flow.hasPending(), true);
+  assert.equal(flow.endCollection(), false);
+  assert.equal(flow.hasPending(), false);
+  // …and the consumed pending cannot pair with a later unrelated save.
+  flow.noteSaved();
+  assert.equal(flow.endCollection(), false);
+  // A save with no scan session at all is ignored.
+  const fresh = createContinuousScanFlow();
+  fresh.setContinuous(true);
+  fresh.noteSaved();
+  assert.equal(fresh.endCollection(), false);
+});
+
+test('SISP-187: turning continuous mode OFF disarms a pending session', () => {
+  const flow = createContinuousScanFlow();
+  flow.setContinuous(true);
+  flow.beginScanCollection();
+  flow.noteSaved();
+  flow.setContinuous(false);
+  assert.equal(flow.isContinuous(), false);
+  assert.equal(flow.hasPending(), false);
+  assert.equal(flow.endCollection(), false);
+});
+
+test('SISP-187: hostile payloads stay rejected — continuous/group features never widen the parser', () => {
+  for (const payload of [
+    'https://evil.example.com/?customer=12&action=pay',
+    '?customer=12&action=pay&admin=1',
+    'javascript:alert(1)'
+  ]) {
+    const routed = routeScannedKhata(groupCustomers, payload, { allowedBases: BASES });
+    assert.equal(routed.status, 'invalid', payload);
+    assert.equal('customer' in routed, false, payload);
+  }
+  // And a valid grouped scan still routes normally.
+  const ok = routeScannedKhata(groupCustomers, '?customer=12&action=pay', { allowedBases: BASES });
+  assert.equal(ok.status, 'found');
+  assert.equal(ok.customer.id, 'cust-12');
+});
+
+test('SISP-187: i18n — every new qrscan key exists in en + ur with placeholder parity', () => {
+  const keys = [
+    'qrscan_continuous_label',
+    'qrscan_continuous_hint',
+    'qrscan_group_prompt',
+    'qrscan_group_collect',
+    'qrscan_single_collect'
+  ];
+  const placeholders = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+  for (const key of keys) {
+    assert.ok(TRANSLATIONS.en[key], `en missing ${key}`);
+    assert.ok(TRANSLATIONS.ur[key], `ur missing ${key}`);
+    assert.notEqual(TRANSLATIONS.en[key], key);
+    assert.notEqual(TRANSLATIONS.ur[key], key);
+    assert.deepEqual(placeholders(TRANSLATIONS.ur[key]), placeholders(TRANSLATIONS.en[key]), key);
+  }
+  // t() interpolation actually fills the group prompt + button strings.
+  assert.equal(
+    t('qrscan_group_prompt', 'en', { name: 'Test Customer 12', group: 'Test Family' }),
+    'Test Customer 12 belongs to group “Test Family”.'
+  );
+  assert.ok(t('qrscan_group_collect', 'en', { total: 'Rs. 4,500' }).includes('Rs. 4,500'));
+  assert.ok(t('qrscan_group_collect', 'ur', { total: 'Rs. 4,500' }).includes('Rs. 4,500'));
+});
+
+test('SISP-187: wiring pins — dialog controls, scanner hooks and the Quick Collect onCollected seam exist', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  for (const id of ['qrScannerContinuousToggle', 'qrScannerGroupPrompt', 'qrScannerGroupPromptText', 'qrScannerGroupCollectBtn', 'qrScannerSingleCollectBtn']) {
+    assert.ok(html.includes(`id="${id}"`), `index.html missing #${id}`);
+  }
+  const scannerSrc = readFileSync(new URL('../qr-scanner.js', import.meta.url), 'utf8');
+  assert.ok(scannerSrc.includes('createContinuousScanFlow'));
+  assert.ok(scannerSrc.includes('scannedGroupPrompt'));
+  assert.ok(scannerSrc.includes('noteCollectionClosed'));
+  const qcSrc = readFileSync(new URL('../nav-quick-collect.js', import.meta.url), 'utf8');
+  assert.ok(qcSrc.includes('onCollected'), 'Quick Collect must expose the saved-payment hook');
+  const appSrc = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.ok(appSrc.includes('noteCollectionSaved'), 'app.js must forward saved payments to the scanner');
+  assert.ok(appSrc.includes('onOpenGroup'), 'app.js must route the group prompt into the group modal');
 });

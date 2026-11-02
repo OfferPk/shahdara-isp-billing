@@ -1553,6 +1553,7 @@ export function quickCollectShopChoices() {
  * @param {Function} options.onSaveState
  * @param {Function} options.onToast
  * @param {Function} [options.onSelectCustomer]
+ * @param {Function} [options.onCollected] - SISP-187: called exactly once after a payment is actually saved in the submit flow (never on cancel, dismiss or undo).
  * @returns {Object} Controller with { open, close, selectAndOpen, isOpen, getState, commitState, refresh }
  */
 export function setupQuickCollectModal({

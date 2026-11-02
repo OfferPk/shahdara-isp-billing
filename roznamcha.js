@@ -41,13 +41,17 @@
  * This module imports loadShopSettlements from shop-settlement.js and
  * the SISP-134 budget-status helpers from expense-budget-caps.js (which
  * imports phase3.js + nav-language.js only). Neither import reaches
- * core.js, so there is no module cycle. PKR formatting and PKT dates
+ * core.js, so there is no module cycle. The only other imports are leaf
+ * modules — nav-language.js (t) and pkr-notes.js (SISP-198 note
+ * counter) — which import nothing back. PKR formatting and PKT dates
  * are small local helpers mirroring shop-settlement.js. Tests use
  * synthetic data only.
  */
 
 import { canonicalShopName, loadShopSettlements, partnerForReceivedInto, settlementDeduction, settlementNetCash } from './shop-settlement.js';
 import { buildCategoryBudgetStatus, loadExpenseBudgets, renderBudgetAlertsHtml } from './expense-budget-caps.js';
+import { t } from './nav-language.js';
+import { PKR_COUNT_DENOMINATIONS, countPkrNotesTotal, noteCountDiscrepancy } from './pkr-notes.js';
 
 export const ROZNAMCHA_KEY = 'sisp_roznamcha_v1';
 
@@ -692,10 +696,74 @@ export function setupRoznamchaModal(getState, { onToast, onChanged } = {}) {
   if (!dialog) return null;
   const $ = (id) => dialog.querySelector(`#${id}`);
   let date = pakistanToday();
+  // SISP-198: true while the note-count inputs were the last thing the
+  // owner edited — renders then keep the counted-cash box synced to the
+  // notes total. Typing in the counted box itself flips it back off
+  // (last edit wins). Session-only: counts are never persisted.
+  let notesLastEdited = false;
 
   function currentView() {
     const state = typeof getState === 'function' ? getState() : {};
     return buildRoznamchaDay(state, loadRoznamchaDays(), date, loadShopSettlements());
+  }
+
+  function readNoteCounts() {
+    const counts = {};
+    for (const denomination of PKR_COUNT_DENOMINATIONS) {
+      const input = $(`roznamchaNoteCount${denomination}`);
+      counts[denomination] = input ? input.value : '';
+    }
+    return counts;
+  }
+
+  /**
+   * SISP-198: refresh the note counter strip against this view. The
+   * expected figure is the day view's own expectedClosing — the same
+   * value the dialog already displays — never a second derivation. The
+   * farq line compares the EFFECTIVE counted figure (what the counted
+   * box currently holds, or the notes total while the box is empty)
+   * against that expected figure, so it always previews the discrepancy
+   * closeRoznamchaDay will store.
+   */
+  function refreshNoteCounter(view) {
+    const toggle = $('roznamchaNoteToggle');
+    if (!toggle || !view) return;
+    toggle.textContent = t('roz_notes_toggle');
+    const help = $('roznamchaNoteHelp');
+    if (help) help.textContent = t('roz_notes_help');
+    for (const denomination of PKR_COUNT_DENOMINATIONS) {
+      const label = $(`roznamchaNoteLabel${denomination}`);
+      if (label) label.textContent = t('roz_notes_denom', null, { amount: denomination.toLocaleString('en-US') });
+    }
+    const notesTotal = countPkrNotesTotal(readNoteCounts());
+    const countedEl = $('roznamchaCountedCash');
+    if (notesLastEdited && countedEl) countedEl.value = String(notesTotal);
+    const countedRaw = countedEl ? countedEl.value : '';
+    const countedNumber = countedRaw === '' ? notesTotal : Number(countedRaw);
+    const discrepancy = noteCountDiscrepancy(Number.isFinite(countedNumber) ? countedNumber : 0, view.expectedClosing);
+    const totalLine = $('roznamchaNoteTotalLine');
+    if (totalLine) totalLine.textContent = t('roz_notes_counted', null, { amount: formatRoznamchaPKR(notesTotal) });
+    const farqLine = $('roznamchaNoteFarqLine');
+    if (farqLine) {
+      farqLine.textContent = discrepancy === 0
+        ? t('roz_notes_tally', null, { amount: formatRoznamchaPKR(0) })
+        : discrepancy < 0
+          ? t('roz_notes_short', null, { amount: formatRoznamchaPKR(Math.abs(discrepancy)) })
+          : t('roz_notes_extra', null, { amount: formatRoznamchaPKR(discrepancy) });
+    }
+  }
+
+  /** Clear the strip after a close, mirroring the counted-box clearing. */
+  function resetNoteCounter() {
+    notesLastEdited = false;
+    for (const denomination of PKR_COUNT_DENOMINATIONS) {
+      const input = $(`roznamchaNoteCount${denomination}`);
+      if (input) input.value = '';
+    }
+    const body = $('roznamchaNoteBody');
+    if (body) body.hidden = true;
+    const toggle = $('roznamchaNoteToggle');
+    if (toggle) toggle.setAttribute('aria-expanded', 'false');
   }
 
   function render() {
@@ -764,6 +832,9 @@ export function setupRoznamchaModal(getState, { onToast, onChanged } = {}) {
     if (reopenBlock) reopenBlock.hidden = !view.closed;
     const form = $('roznamchaOutflowForm');
     if (form) form.hidden = view.closed;
+    // The note counter strip lives inside the close block, so a closed
+    // day (close block hidden) never shows an editable counter.
+    refreshNoteCounter(view);
   }
 
   const dateInput = $('roznamchaDate');
@@ -796,6 +867,37 @@ export function setupRoznamchaModal(getState, { onToast, onChanged } = {}) {
       }
     });
   }
+  // SISP-198: note counter strip wiring. Expanding/collapsing only
+  // toggles the body — typed counts survive it. Editing a count makes
+  // the notes total win (it fills the counted box); typing in the
+  // counted box makes the manual figure win until a count changes
+  // again (last edit wins).
+  const noteToggle = $('roznamchaNoteToggle');
+  if (noteToggle) {
+    noteToggle.addEventListener('click', () => {
+      const body = $('roznamchaNoteBody');
+      if (!body) return;
+      body.hidden = !body.hidden;
+      noteToggle.setAttribute('aria-expanded', String(!body.hidden));
+    });
+  }
+  for (const denomination of PKR_COUNT_DENOMINATIONS) {
+    const input = $(`roznamchaNoteCount${denomination}`);
+    if (input) {
+      input.addEventListener('input', () => {
+        notesLastEdited = true;
+        refreshNoteCounter(currentView());
+      });
+    }
+  }
+  const countedCashEl = $('roznamchaCountedCash');
+  if (countedCashEl) {
+    countedCashEl.addEventListener('input', () => {
+      notesLastEdited = false;
+      refreshNoteCounter(currentView());
+    });
+  }
+
   const closeBtn = $('roznamchaCloseDayBtn');
   if (closeBtn) {
     closeBtn.addEventListener('click', () => {
@@ -805,6 +907,7 @@ export function setupRoznamchaModal(getState, { onToast, onChanged } = {}) {
         saveRoznamchaDays(closeRoznamchaDay(loadRoznamchaDays(), currentView(), counted));
         const countedEl = $('roznamchaCountedCash');
         if (countedEl) countedEl.value = '';
+        resetNoteCounter();
         render();
         if (typeof onChanged === 'function') onChanged();
         if (typeof onToast === 'function') onToast('Roznamcha band ho gaya — din lock ho gaya.');

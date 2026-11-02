@@ -119,6 +119,11 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
   if (fields.concession) push(rowLine('Outage concession', fields.concession, width));
   if (fields.lateFeeWaived) push(rowLine('Late fee waived', fields.lateFeeWaived, width));
   if (fields.referralCredit) push(rowLine('Referral credit', fields.referralCredit, width));
+  // SISP-194: advance credit applied + the balance still held after
+  // this receipt (short labels — the 32-char slip cannot fit the full
+  // receipt wording, the SISP-43 ticket-charge precedent).
+  if (fields.advanceApplied) push(rowLine('Advance applied', fields.advanceApplied, width));
+  if (fields.advanceRemaining) push(rowLine('Advance balance', fields.advanceRemaining, width));
   if (fields.feederHostCredit) push(rowLine('Feeder host credit', fields.feederHostCredit, width));
   if (fields.arrearsPackage || fields.arrearsPrevious || fields.arrearsTotal) {
     push(rowLine('Monthly pkg', fields.arrearsPackage, width));
@@ -219,6 +224,11 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     lateFeeWaived: receipt.waivedAmount ? money(receipt.waivedAmount) : '',
     // SISP-40: hamsaya referral credit line, printed next to the concession.
     referralCredit: receipt.referralCreditAmount ? money(receipt.referralCreditAmount) : '',
+    // SISP-194: advance-credit pair from the receipt model (present
+    // only when the receipt involves advance money; 'PKR 0' is a real
+    // figure here, so presence rides the model field, not the amount).
+    advanceApplied: receipt.advanceCredit ? money(receipt.advanceCredit.applied) : '',
+    advanceRemaining: receipt.advanceCredit ? money(receipt.advanceCredit.remaining) : '',
     // SISP-97: feeder-host bijli credit line, printed next to the referral credit.
     feederHostCredit: receipt.feederHostCreditAmount ? money(receipt.feederHostCreditAmount) : '',
     // SISP-43: billed ticket charges settled by this payment (short

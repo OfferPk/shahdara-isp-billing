@@ -4385,7 +4385,7 @@ export const SHAHDARA_POWER_HUBS = [
     name: 'Shahdara Core NOC (Vandala Road)',
     role: 'Central NOC & Core OLT',
     primaryAreas: ['Vandala Road', 'Main Bazaar', 'Railway Road'],
-    powerSource: 'Mains (LESCO)',
+    powerSource: 'Mains (IESCO)',
     batteryVoltage: 53.2,
     batteryCapacityAh: 200,
     batteryType: '48V LiFePO4 Smart Lithium',
@@ -4419,7 +4419,7 @@ export const SHAHDARA_POWER_HUBS = [
     name: 'Saeed Park Distribution Hub',
     role: 'Secondary OLT Node',
     primaryAreas: ['Saeed Park', 'Baradari Road'],
-    powerSource: 'Mains (LESCO)',
+    powerSource: 'Mains (IESCO)',
     batteryVoltage: 52.8,
     batteryCapacityAh: 100,
     batteryType: '48V Tubular Deep Cycle',
@@ -4436,7 +4436,7 @@ export const SHAHDARA_POWER_HUBS = [
     name: 'Jia Musa Remote OLT Node',
     role: 'Edge OLT & Solar Hybrid',
     primaryAreas: ['Jia Musa', 'Kot Mohibbu', 'Chah Jhabbay Wala'],
-    powerSource: 'Mains (LESCO)',
+    powerSource: 'Mains (IESCO)',
     batteryVoltage: 51.5,
     batteryCapacityAh: 50,
     batteryType: '48V Lithium-Ion Rack',
@@ -4548,7 +4548,7 @@ export function calculatePowerBackupMetrics(state, options = {}) {
 
     const totalOutageRunwayHours = Number((batteryRunwayHours + genRunwayHours).toFixed(1));
 
-    const isOutage = h.powerSource !== 'Mains (LESCO)';
+    const isOutage = h.powerSource !== 'Mains (IESCO)';
     if (isOutage) activeOutagesCount++;
 
     let statusTier = 'Normal / Grid Stable';
@@ -4643,7 +4643,7 @@ export function generatePowerBriefingReport(metrics, referenceDate = new Date())
     'SHAHDARA ISP - POWER OUTAGE & OLT BATTERY HEALTH BRIEFING',
     '================================================================',
     `Date: ${dateStr} | Central NOC: Shahdara Core Hub (Vandala Rd)`,
-    `Grid Utility: LESCO (Lahore Electric Supply) | Telecom Standard: -48V DC`,
+    `Grid Utility: IESCO (Islamabad Electric Supply Company) | Telecom Standard: -48V DC`,
     '',
     `Fleet Telecom Battery Capacity: ${metrics.totalBatteryCapacityKwh} kWh (Avg Runway: ${metrics.avgBatteryRunwayHours} hrs)`,
     `Diesel / Petrol Fuel Reserves: ${metrics.totalFuelReservesLiters} Liters (${metrics.overallFuelPercent}% Capacity | Runway: ${metrics.totalGeneratorRunwayHours} hrs)`,

@@ -10,6 +10,12 @@
  * Test criterion: "Generating the A4 4-Up view for 9 unpaid customers
  * in Barrian renders 3 pages (4 + 4 + 1 vouchers) with accurate
  * totals."
+ * (The quote's "3 Payment Shops (Waseem • Hassan • Balla)" predates
+ * the OWNER-CASH-SHOP unification: Hassan and Balla are one shop —
+ * Hassan Balla Shop — so the line the voucher actually prints
+ * carries two shops, Waseem Abbasi Shop • Hassan Balla Shop, from
+ * the shared KHATA_PAYMENT_SHOPS export; see the Shops line note
+ * below.)
  *
  * This module is a builder + print renderer + dialog controller in
  * the lineman-sheet-print.js (SISP-55) mould. It writes nothing,
@@ -52,11 +58,11 @@
  *     figures the Billing Register and profile show.
  *
  * Shops line: qr-card.js KHATA_PAYMENT_SHOPS — the single shop list
- * the SISP-14 Khata card already prints. This base still carries it
- * as a literal export; SISP-86 (built locally) derives that same
- * export from PAYMENT_METHODS via resolveShopCollector, which
- * supersedes the literal at merge time — the vouchers keep reading
- * the one shared export either way and never hardcode a second list.
+ * the SISP-14 Khata card already prints. On main that export is
+ * derived from PAYMENT_METHODS via resolveShopCollector (SISP-86):
+ * the distinct collectors the payment methods resolve to — today
+ * Waseem Abbasi Shop and Hassan Balla Shop. The vouchers read the
+ * one shared export and never hardcode a second list.
  *
  * QR: the SISP-14 payload, unchanged — buildKhataCardModel's deep
  * link (?customer=<id>&action=pay) encoded with qr-card.js's own

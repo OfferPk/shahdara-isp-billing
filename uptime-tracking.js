@@ -16,6 +16,13 @@
  *     and the next non-offline stamp closes it.
  *   - The two sources are UNIONED before totalling, so a period that
  *     was recorded both ways is never double-counted.
+ *   - SISP-189: a downstream subscriber may OPT IN to inherited
+ *     upstream attribution — the recorded periods of every ancestor
+ *     home on its daisy chain (upstreamCustomerId) join the same
+ *     union, so time an upstream feeder outage and the customer's
+ *     own recorded outage overlap is still counted exactly once.
+ *     The default summary is untouched; inheritance is derived from
+ *     the ancestors' own records, never monitored or estimated.
  *   - The live "in this status since" counter on the customer cards
  *     and the profile (currentStatusSession) reads the same status
  *     history, so the counter and the month summary cannot disagree.
@@ -33,6 +40,7 @@
  */
 
 import { summarizeCustomerTenure } from './core.js';
+import { traceUpstreamChain } from './outage-impact.js';
 
 const PKT_OFFSET_MS = 5 * 60 * 60 * 1000;
 const MINUTE_MS = 60 * 1000;
@@ -311,6 +319,53 @@ export function refreshLiveSessionCounters(root, { getCustomer, formatText, now 
   return updated;
 }
 
+/**
+ * SISP-189: the daisy-chain ancestors of one customer, nearest first
+ * (the direct upstream home, then its upstream, up to the root).
+ * Follows customer.upstreamCustomerId through the roster with a
+ * visited-set cycle guard: a pre-existing A<->B link cycle terminates
+ * with each home listed at most once, and a dangling id (an upstream
+ * that is not in the roster) simply ends the chain. Archived homes
+ * are traversed and listed like any other — the chain physically ran
+ * through them (the same treatment traceDownstreamImpact gives
+ * archived homes on the way down). Pure; never mutates.
+ */
+/* SISP-189 ancestor walk: COMPOSED onto SISP-188's shared
+ * traceUpstreamChain (outage-impact.js) at the post-188 merge — the
+ * build's local collectUpstreamAncestors was deleted so the app keeps
+ * exactly ONE upstream walk. Semantics on every real call path are
+ * identical (the subject is always a roster member here); the shared
+ * walk resolves the subject by id in the roster and returns [] for
+ * an unknown id. */
+
+/**
+ * One customer's recorded offline periods inside a counted window:
+ * raw intervals from collectOfflineIntervals, clamped to the window,
+ * each with its own minutes — plus the plain [startMs, endMs] spans
+ * the union total is computed from. Shared verbatim by the customer's
+ * own summary and by every ancestor's inherited contribution, so an
+ * inherited period is derived exactly the way an own period is.
+ */
+function collectWindowPeriods(sourceCustomer, windowStartMs, windowEndMs) {
+  const periods = [];
+  const spans = [];
+  for (const interval of collectOfflineIntervals(sourceCustomer)) {
+    const startMs = Math.max(interval.startMs, windowStartMs);
+    const endMs = Math.min(interval.endMs ?? windowEndMs, windowEndMs);
+    if (endMs <= startMs) continue;
+    spans.push([startMs, endMs]);
+    periods.push({
+      startMs,
+      endMs,
+      open: interval.endMs === null,
+      minutes: Math.floor((endMs - startMs) / MINUTE_MS),
+      reason: interval.reason,
+      source: interval.source
+    });
+  }
+  return { periods, spans };
+}
+
 /** Total minutes covered by the UNION of [startMs, endMs] spans. */
 function unionMinutes(spans) {
   if (!spans.length) return 0;
@@ -346,8 +401,16 @@ function unionMinutes(spans) {
  * clamped to it, newest first, with its own minutes and reason —
  * overlapping periods are listed individually (their minutes describe
  * the record) while the offline total stays unioned, never doubled.
+ *
+ * SISP-189 opt-in: pass options { includeInherited: true, customers }
+ * (the full roster) and the summary gains inheritedUpstreamPeriods —
+ * every daisy-chain ancestor's own recorded periods inside the same
+ * window, each stamped with its source ancestor's id/name/number —
+ * plus inheritedAncestors (the chain, nearest first). The offline /
+ * online totals then come from the single union of own + inherited
+ * spans. Without the option the result is exactly the legacy summary.
  */
-export function buildMonthlyUptime(customer, month, referenceDate = new Date()) {
+export function buildMonthlyUptime(customer, month, referenceDate = new Date(), options = {}) {
   if (!MONTH_RE.test(String(month ?? ''))) throw new Error('Choose a valid month (YYYY-MM) for the uptime summary.');
   const [year, monthNumber] = String(month).split('-').map(Number);
   const daysInMonth = daysInCalendarMonth(year, monthNumber);
@@ -366,25 +429,48 @@ export function buildMonthlyUptime(customer, month, referenceDate = new Date()) 
   const windowMinutes = Math.max(0, Math.floor((windowEndMs - windowStartMs) / MINUTE_MS));
 
   const intervals = collectOfflineIntervals(customer);
-  const periods = [];
-  const spans = [];
-  for (const interval of intervals) {
-    const startMs = Math.max(interval.startMs, windowStartMs);
-    const endMs = Math.min(interval.endMs ?? windowEndMs, windowEndMs);
-    if (endMs <= startMs) continue;
-    spans.push([startMs, endMs]);
-    periods.push({
-      startMs,
-      endMs,
-      open: interval.endMs === null,
-      minutes: Math.floor((endMs - startMs) / MINUTE_MS),
-      reason: interval.reason,
-      source: interval.source
-    });
-  }
+  const { periods, spans } = collectWindowPeriods(customer, windowStartMs, windowEndMs);
   periods.sort((a, b) => b.startMs - a.startMs);
 
-  const offlineMinutes = windowMinutes > 0 ? unionMinutes(spans) : 0;
+  // SISP-189 (opt-in only): inherited upstream periods. Each ancestor's
+  // recorded periods are derived by the very same collectWindowPeriods
+  // path and clipped to THIS customer's counted window — the window
+  // stays the connection's own, so inherited minutes can never exceed
+  // it — and every span (own + inherited) enters ONE union, so any
+  // overlap counts its minutes exactly once. With the option off the
+  // summary gains no keys and its figures are exactly today's.
+  const includeInherited = options?.includeInherited === true;
+  let inheritedUpstreamPeriods = null;
+  let inheritedAncestors = null;
+  let totalSpans = spans;
+  if (includeInherited) {
+    const roster = Array.isArray(options?.customers) ? options.customers : [];
+    const ancestors = traceUpstreamChain(roster, customer?.id);
+    inheritedAncestors = ancestors.map((ancestor) => ({
+      id: String(ancestor.id),
+      name: String(ancestor.name ?? ''),
+      customerNumber: ancestor.customerNumber ?? null,
+      archived: ancestor.archived === true
+    }));
+    inheritedUpstreamPeriods = [];
+    totalSpans = [...spans];
+    for (const ancestor of ancestors) {
+      const inherited = collectWindowPeriods(ancestor, windowStartMs, windowEndMs);
+      totalSpans.push(...inherited.spans);
+      for (const period of inherited.periods) {
+        inheritedUpstreamPeriods.push({
+          ...period,
+          inherited: true,
+          ancestorId: String(ancestor.id),
+          ancestorName: String(ancestor.name ?? ''),
+          ancestorNumber: ancestor.customerNumber ?? null
+        });
+      }
+    }
+    inheritedUpstreamPeriods.sort((a, b) => b.startMs - a.startMs);
+  }
+
+  const offlineMinutes = windowMinutes > 0 ? unionMinutes(totalSpans) : 0;
   const onlineMinutes = Math.max(0, windowMinutes - offlineMinutes);
 
   let openSinceMs = null;
@@ -394,7 +480,7 @@ export function buildMonthlyUptime(customer, month, referenceDate = new Date()) 
     }
   }
 
-  return {
+  const summary = {
     month,
     daysInMonth,
     windowMinutes,
@@ -408,6 +494,11 @@ export function buildMonthlyUptime(customer, month, referenceDate = new Date()) 
     periods,
     openSinceMs
   };
+  if (includeInherited) {
+    summary.inheritedUpstreamPeriods = inheritedUpstreamPeriods;
+    summary.inheritedAncestors = inheritedAncestors;
+  }
+  return summary;
 }
 
 /**

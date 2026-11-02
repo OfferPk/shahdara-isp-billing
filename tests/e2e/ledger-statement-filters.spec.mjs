@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 // Customer ledger statement filters: the statement modal (CUSTOMER ACCOUNT
 // LEDGER) previously offered only a time-range filter. These specs cover the
@@ -7,6 +8,9 @@ import { test, expect } from '@playwright/test';
 // guaranteed non-matching query, so they hold on empty and populated ledgers.
 test.describe('Customer Ledger Statement Filters', () => {
   test.beforeEach(async ({ page }) => {
+    // Opens the first customer's statement: needs the roster the old
+    // built-in seed provided (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
     await page.goto('/#customers');
     const firstCustomerBtn = page.locator('#customerList [data-customer-id]').first();
     await expect(firstCustomerBtn).toBeVisible();

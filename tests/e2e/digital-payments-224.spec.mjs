@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -11,6 +12,9 @@ function trackErrors(page) {
 
 test.describe('Digital Payments (Issue #224): JazzCash / Easypaisa / Raast / Bank and Settings', () => {
   test.beforeEach(async ({ page }) => {
+    // "Setup initial customer packages so dues exist" needs the roster:
+    // written against the old built-in seed (PR #478 emptied it).
+    await installSyntheticRoster(page);
     await page.goto('/');
     await page.evaluate(() => {
       localStorage.clear();

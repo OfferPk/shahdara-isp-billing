@@ -6,14 +6,17 @@
 // /ppp secret enable."
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   buildVacationHoldDisableSnippet,
   buildVacationHoldEnableSnippet,
+  buildExpiredHoldResumeScript,
   buildDefaulterLockScript,
   buildLockDueSuspensionScript,
   buildDefaulterRestoreScript
 } from '../mikrotik-generator.js';
-import { vacationHoldState, isBillingPaused } from '../pause-billing.js';
+import { vacationHoldState, isBillingPaused, buildExpiredVacationHoldQueue } from '../pause-billing.js';
+import { TRANSLATIONS } from '../nav-language.js';
 import { vacationHoldRouterPresentation } from '../profile-ui.js';
 import { calculateTopDefaulters } from '../dashboard-top-defaulters.js';
 import { createInitialState, addCustomer, updateCustomerProfile } from '../core.js';
@@ -259,6 +262,174 @@ test('core flow: pause via profile -> disable state; resume via profile -> skipp
   assert.equal(p2.visible, true);
   assert.equal(p2.mode, 'enable');
   assert.ok(p2.snippet.includes(`/ppp secret enable [find name="cust-${created.customerNumber}"]`));
+});
+
+// ---------------------------------------------------------------------------
+// SISP-186: Expired Vacation Holds Dashboard alert queue + bulk resume +
+// combined MikroTik enable script. Queue derivation is the shipped
+// vacationHoldState itself; the batch script is composed from the
+// single-customer enable snippet; the resume transition is the exact
+// core updateCustomerProfile call the profile Edit form makes.
+// ---------------------------------------------------------------------------
+
+const expiredCustomer = (overrides = {}) => heldCustomer({
+  id: 'cust-exp-1',
+  customerNumber: 61,
+  name: 'Test Expired 61',
+  pauseStartDate: '2026-09-01',
+  autoResumeDate: '2026-10-01',
+  ...overrides
+});
+
+test('SISP-186 queue: only the exact expired state qualifies', () => {
+  const today = '2026-10-06';
+  const customers = [
+    expiredCustomer(),
+    expiredCustomer({ id: 'cust-exp-2', customerNumber: 62, name: 'Test Expired 62', autoResumeDate: '2026-09-15' }),
+    // Active hold (no auto-resume date): never expires on its own.
+    heldCustomer({ id: 'cust-act', customerNumber: 63, name: 'Test Active 63' }),
+    // Scheduled hold: start date still ahead.
+    heldCustomer({ id: 'cust-sch', customerNumber: 64, name: 'Test Sched 64', pauseStartDate: '2026-11-01', autoResumeDate: '2026-12-01' }),
+    // Expired but archived: a disconnected record has no hold to resume.
+    expiredCustomer({ id: 'cust-arch', customerNumber: 65, name: 'Test Arch 65', archived: true }),
+    // Not paused at all.
+    heldCustomer({ id: 'cust-none', customerNumber: 66, name: 'Test None 66', paused: false, pauseStartDate: null }),
+    // Paused flag without a valid start date reads as no hold.
+    heldCustomer({ id: 'cust-junk', customerNumber: 67, name: 'Test Junk 67', pauseStartDate: null, autoResumeDate: '2026-10-01' })
+  ];
+  const queue = buildExpiredVacationHoldQueue(customers, today);
+  // Earliest auto-resume date first (longest waiting on top).
+  assert.deepEqual(queue.map((row) => row.id), ['cust-exp-2', 'cust-exp-1']);
+  assert.equal(queue[1].pauseStartDate, '2026-09-01');
+  assert.equal(queue[1].autoResumeDate, '2026-10-01');
+  assert.equal(queue[1].customerNumber, 61);
+  // Boundary: the day before the auto-resume date the hold is still active.
+  assert.deepEqual(buildExpiredVacationHoldQueue([expiredCustomer()], '2026-09-30'), []);
+  assert.equal(buildExpiredVacationHoldQueue([expiredCustomer()], '2026-10-01').length, 1);
+  // An unreadable "today" can prove no expiry -> empty queue (safe direction).
+  assert.deepEqual(buildExpiredVacationHoldQueue([expiredCustomer()], 'not-a-date'), []);
+  assert.deepEqual(buildExpiredVacationHoldQueue(null, today), []);
+});
+
+test('SISP-186 queue: FREE connection with an expired hold stays listed', () => {
+  const free = expiredCustomer({ id: 'cust-exp-free', customerNumber: 68, name: 'Test Free 68', isFreeConnection: true });
+  const queue = buildExpiredVacationHoldQueue([free], '2026-10-06');
+  assert.deepEqual(queue.map((row) => row.id), ['cust-exp-free']);
+});
+
+test('SISP-186 queue + script builders are read-only (render purity)', () => {
+  const customers = [expiredCustomer(), heldCustomer({ id: 'cust-act-2', customerNumber: 69, name: 'Test Active 69' })];
+  const snapshot = JSON.stringify(customers);
+  const frozen = Object.freeze(customers.map((c) => Object.freeze({ ...c })));
+  assert.doesNotThrow(() => buildExpiredVacationHoldQueue(frozen, '2026-10-06'));
+  assert.doesNotThrow(() => buildExpiredHoldResumeScript(frozen, { todayStr: '2026-10-06' }));
+  assert.equal(JSON.stringify(customers), snapshot);
+});
+
+test('SISP-186 bulk script: combined output is the per-customer enable snippets, expired only', () => {
+  const today = '2026-10-06';
+  const a = expiredCustomer();
+  const b = expiredCustomer({ id: 'cust-exp-2', customerNumber: 62, name: 'Test Expired 62', pppoeUsername: 'expuser62', autoResumeDate: '2026-09-15' });
+  const active = heldCustomer({ id: 'cust-act-3', customerNumber: 70, name: 'Test Active 70' });
+  const { script, resumed, skipped } = buildExpiredHoldResumeScript([a, active, b], { todayStr: today });
+  assert.deepEqual(resumed.map((c) => c.id), ['cust-exp-1', 'cust-exp-2']);
+  assert.deepEqual(skipped.map((c) => c.id), ['cust-act-3']);
+  assert.match(script, /Expired vacation holds bulk ENABLE/);
+  // Each resumed customer's block is byte-identical to the single-customer generator output.
+  assert.ok(script.includes(buildVacationHoldEnableSnippet(a, { todayStr: today })));
+  assert.ok(script.includes(buildVacationHoldEnableSnippet(b, { todayStr: today })));
+  assert.ok(script.includes('/ppp secret enable [find name="cust-61"]'));
+  assert.ok(script.includes('/ppp secret enable [find name="expuser62"]'));
+  // The non-expired customer contributes no command, only the skipped note.
+  assert.ok(!script.includes('/ppp secret enable [find name="cust-70"]'));
+  assert.match(script, /# Skipped \(hold not expired/);
+  // A hold enable is not a lock: no profile switch, no walled garden.
+  assert.ok(!script.includes('/ppp secret set'));
+  assert.ok(!script.includes('payment-reminder-pool'));
+});
+
+test('SISP-186 bulk script: empty selection is an honest no-op script', () => {
+  const { script, resumed, skipped } = buildExpiredHoldResumeScript([], { todayStr: '2026-10-06' });
+  assert.deepEqual(resumed, []);
+  assert.deepEqual(skipped, []);
+  assert.match(script, /No expired vacation holds selected/);
+  assert.ok(!script.includes('/ppp secret enable'));
+});
+
+test('SISP-186 bulk resume: core transition resumes the selected, leaves the rest untouched', () => {
+  let state = createInitialState([]);
+  const mk = (name, date) => {
+    state = addCustomer(state, name, new Date(date), {});
+    return state.customers[state.customers.length - 1];
+  };
+  const c1 = mk('Test Bulk 71', '2026-08-01T12:00:00Z');
+  const c2 = mk('Test Bulk 72', '2026-08-01T12:00:00Z');
+  const c3 = mk('Test Bulk 73', '2026-08-01T12:00:00Z');
+  const hold = { paused: true, pauseStartDate: '2026-09-05', autoResumeDate: '2026-10-01' };
+  for (const c of [c1, c2, c3]) {
+    state = updateCustomerProfile(state, c.id, hold, new Date('2026-09-05T12:00:00Z'));
+  }
+  const todayStr = '2026-10-06';
+  const queue = buildExpiredVacationHoldQueue(state.customers, todayStr);
+  assert.equal(queue.length, 3);
+  // Bills snapshot before: resume must not create/alter any bill by itself.
+  const billsBefore = JSON.stringify(state.customers.map((c) => c.bills));
+  // Resume exactly two of the three through the app.js bulk path's core call
+  // (paused:false with the stored dates passed back, as the Edit form does).
+  const selectedIds = [queue[0].id, queue[2].id];
+  const { resumed } = buildExpiredHoldResumeScript(queue.filter((row) => selectedIds.includes(row.id)).map((row) => row.customer), { todayStr });
+  assert.equal(resumed.length, 2);
+  for (const customer of resumed) {
+    state = updateCustomerProfile(state, customer.id, {
+      paused: false, pauseStartDate: customer.pauseStartDate ?? '', autoResumeDate: customer.autoResumeDate ?? ''
+    }, new Date('2026-10-06T12:00:00Z'));
+  }
+  const after = Object.fromEntries(state.customers.map((c) => [c.id, c]));
+  for (const id of selectedIds) {
+    assert.equal(after[id].paused, false);
+    // Hold months with no bill are finalized as skipped, never backfilled.
+    assert.deepEqual(after[id].pauseSkippedMonths, ['2026-09']);
+    assert.equal(vacationHoldState(after[id], todayStr), 'none');
+    assert.equal(isBillingPaused(after[id], '2026-09'), true, 'skipped month stays unbilled');
+    assert.equal(isBillingPaused(after[id], '2026-10'), false, 'billing restarts from the resume month');
+  }
+  const untouched = queue.map((row) => row.id).find((id) => !selectedIds.includes(id));
+  assert.equal(after[untouched].paused, true);
+  assert.equal(vacationHoldState(after[untouched], todayStr), 'expired');
+  // The queue re-derives from state: resumed customers leave it, the rest stay.
+  assert.deepEqual(buildExpiredVacationHoldQueue(state.customers, todayStr).map((row) => row.id), [untouched]);
+  assert.equal(JSON.stringify(state.customers.map((c) => c.bills)), billsBefore, 'no bill created or rewritten by the resume transition');
+});
+
+test('SISP-186 i18n: every exphold_* key exists in en + ur with matching placeholders', () => {
+  const keys = ['exphold_title', 'exphold_sub', 'exphold_count', 'exphold_row_meta', 'exphold_row_aria', 'exphold_resume_btn', 'exphold_none_selected', 'exphold_resumed', 'exphold_resumed_copy_failed', 'exphold_list_aria'];
+  const placeholders = (text) => [...String(text).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+  for (const key of keys) {
+    assert.equal(typeof TRANSLATIONS.en[key], 'string', `en missing ${key}`);
+    assert.ok(TRANSLATIONS.en[key].length > 0, `en empty ${key}`);
+    assert.equal(typeof TRANSLATIONS.ur[key], 'string', `ur missing ${key}`);
+    assert.ok(TRANSLATIONS.ur[key].length > 0, `ur empty ${key}`);
+    assert.deepEqual(placeholders(TRANSLATIONS.ur[key]), placeholders(TRANSLATIONS.en[key]), `placeholder mismatch ${key}`);
+  }
+});
+
+test('SISP-186 wiring: dashboard section, app render + bulk action, token CSS', () => {
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.ok(html.includes('id="expiredHoldsSection"'));
+  assert.ok(html.includes('id="expiredHoldsList"'));
+  assert.ok(html.includes('id="expiredHoldsResumeBtn"'));
+  assert.ok(html.includes('data-i18n="exphold_title"'));
+  assert.ok(html.includes('data-i18n="exphold_resume_btn"'));
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  assert.ok(app.includes("from './pause-billing.js'"), 'app.js imports the queue builder module');
+  assert.ok(app.includes('buildExpiredVacationHoldQueue(state.customers, localDate())'));
+  assert.ok(app.includes('buildExpiredHoldResumeScript(selected, { todayStr })'));
+  assert.ok(app.includes('updateCustomerProfile(state, customer.id, {'), 'bulk resume reuses the core profile transition');
+  assert.ok(app.includes("t('exphold_none_selected')"));
+  const css = readFileSync(new URL('../dashboard.css', import.meta.url), 'utf8');
+  const block = css.slice(css.indexOf('.expired-holds-section'));
+  assert.ok(block.includes('var(--surface)'), 'card surface uses the theme token');
+  assert.ok(!/#fff|#ffffff|white/.test(block.slice(0, block.indexOf('.upsell-section'))), 'no hardcoded white in the expired-holds CSS');
 });
 
 test('generators are read-only: frozen held input is untouched', () => {

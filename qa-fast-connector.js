@@ -89,7 +89,7 @@ export const FAST_CONNECTOR_MODELS = {
     camMechanism: 'Plastic Snap-Ring Wedge',
     gelType: 'Standard Mineral Oil Index Gel',
     maxOperatingTempC: 55.0,
-    description: 'Low-cost field connector vulnerable to thermal gel drying under hot Lahore summer rooftop environments.'
+    description: 'Low-cost field connector vulnerable to thermal gel drying under hot Islamabad summer rooftop environments.'
   }
 };
 

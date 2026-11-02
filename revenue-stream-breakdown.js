@@ -23,10 +23,15 @@
  *   - The arrears / package / kist attribution of the rest comes from
  *     the shipped FIFO attribution (billing-cycle.js
  *     fifoAllocationForPayment — the same split receipts print).
- *     That helper does NOT skip voided payments on its own, while the
- *     core engine excludes them from its ledger; the FIFO helper is
- *     therefore fed the engine's non-voided view of each bill, so both
- *     views see the same payment set.
+ *     Since FU4 the FIFO derivation itself skips voided payments
+ *     (allocateFifoForBill, via the canonical isVoidedPayment), and
+ *     this module's own cash-partition walk iterates a bill's payments
+ *     directly, so it likewise walks the non-voided view of each
+ *     bill — filtered with the same isVoidedPayment predicate, so the
+ *     FIFO view and this walk can never drift onto different payment
+ *     sets. (M1: this filter previously hand-rolled the same check,
+ *     and this note previously claimed — from before FU4 — that the
+ *     FIFO helper does not skip voided payments on its own.)
  *   - Shifting fees ride inside bills as bill.shiftingFee
  *     (relocation-log.js stamps them onto a bill). FIFO buckets do not
  *     model them, so the cash a payment leaves beyond its FIFO
@@ -70,6 +75,7 @@
 
 import { calculatePaymentAllocations, customerJoinMonth, formatPKR } from './core.js';
 import { fifoAllocationForPayment } from './billing-cycle.js';
+import { isVoidedPayment } from './payment-void-audit.js';
 import { t } from './nav-language.js';
 
 const centsOf = (value) => Math.round(Number(value || 0) * 100);
@@ -156,10 +162,12 @@ export function buildRevenueStreamBreakdown(state, month) {
   for (const customer of customers) {
     const bills = Array.isArray(customer?.bills) ? customer.bills : [];
     if (!bills.length) continue;
-    // The engine's non-voided view of this customer (rule 2).
+    // The non-voided view of this customer (rule 2): the canonical
+    // isVoidedPayment predicate — the same one the FIFO derivation
+    // and the core engine exclude by (M1).
     const liveBills = bills.map((bill) => ({
       ...bill,
-      payments: (Array.isArray(bill?.payments) ? bill.payments : []).filter((payment) => payment && payment.voided !== true)
+      payments: (Array.isArray(bill?.payments) ? bill.payments : []).filter((payment) => payment && !isVoidedPayment(payment))
     }));
     const customerView = { ...customer, bills: liveBills };
     for (const bill of liveBills) {

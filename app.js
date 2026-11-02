@@ -54,7 +54,7 @@ import {
 } from './backup-store.js?v=1.11.0';
 import { saveBranchGuard, ensureBranchGuard, createBranchGuardStamp, recordBranchGuardExport, recordBranchGuardApply } from './branch-guard.js?v=1.11.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.11.0';
-import { BACKUP_HEALTH_KEY, assessBackupHealth, countAllPayments, countPaymentsAfterDate, recordBackupHealthExport, shareBackupOffDevice } from './backup-health.js?v=1.11.0';
+import { BACKUP_HEALTH_KEY, assessBackupHealth, backupPreActionPrompt, countAllPayments, countPaymentsAfterDate, recordBackupHealthExport, shareBackupOffDevice } from './backup-health.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast, buildPonCapacityReport, renderPonCapacityRows } from './dashboard.js?v=1.11.0';
@@ -833,9 +833,10 @@ function readBackupHealthRecord() {
 
 // SISP-10 top-bar badge. Refreshed from updateDataSafetyUi, which already
 // runs on load, on dashboard renders, and after every export.
-function renderBackupHealthBadge() {
-  const badge = $('#backupHealthBadge');
-  if (!badge) return;
+// The ONE Backup Health derivation (SISP-10 record + payments-since-export
+// math). The top-bar badge and the SISP-199 modal banners both read it —
+// there is deliberately no second health computation anywhere.
+function deriveBackupHealth() {
   const record = readBackupHealthRecord();
   let paymentsSinceExport = null;
   if (Number.isSafeInteger(record.paymentCountAtExport)) {
@@ -843,6 +844,13 @@ function renderBackupHealthBadge() {
   } else if (record.lastExportAt) {
     paymentsSinceExport = countPaymentsAfterDate(state, record.lastExportAt.slice(0, 10));
   }
+  return { record, paymentsSinceExport };
+}
+
+function renderBackupHealthBadge() {
+  const badge = $('#backupHealthBadge');
+  if (!badge) return;
+  const { record, paymentsSinceExport } = deriveBackupHealth();
   const health = assessBackupHealth({ lastExportAt: record.lastExportAt, paymentsSinceExport, now: new Date() });
   const emojiEl = $('#backupHealthEmoji');
   const labelEl = $('#backupHealthLabel');
@@ -851,6 +859,32 @@ function renderBackupHealthBadge() {
   badge.className = `backup-health-badge health-${health.status}${health.pulse ? ' is-critical' : ''}`;
   badge.title = `${health.title} Tap to download a JSON backup.`;
   badge.setAttribute('aria-label', `${health.label}. ${health.title} Tap to download a JSON backup.`);
+}
+
+// SISP-199: pre-action backup banners inside the Monthly Billing Cycle and
+// Bulk Customer Import modals — ONE implementation, two static mounts in
+// index.html. Re-derived fresh on every call (modal open + the
+// updateDataSafetyUi refresh that follows every export), so a backup taken
+// anywhere dismisses both banners, while a cancelled share — which records
+// nothing — leaves them standing. Strictly non-blocking: this only toggles
+// the banner slots; the cycle run and the import controls are never touched.
+const BACKUP_PREACTION_BANNERS = [
+  { banner: '#billingCycleBackupBanner', text: '#billingCycleBackupBannerText' },
+  { banner: '#bulkImportBackupBanner', text: '#bulkImportBackupBannerText' }
+];
+function renderBackupPreActionBanners() {
+  const { record, paymentsSinceExport } = deriveBackupHealth();
+  const prompt = backupPreActionPrompt({ lastExportAt: record.lastExportAt, paymentsSinceExport, now: new Date() });
+  for (const mount of BACKUP_PREACTION_BANNERS) {
+    const banner = $(mount.banner);
+    if (!banner) continue;
+    banner.hidden = !prompt;
+    banner.classList.toggle('is-critical', prompt?.status === 'critical');
+    if (prompt) {
+      const text = $(mount.text);
+      if (text) text.textContent = t(prompt.never ? 'bkup_preaction_never' : prompt.status === 'critical' ? 'bkup_preaction_critical' : 'bkup_preaction_due');
+    }
+  }
 }
 
 $('#backupHealthBadge')?.addEventListener('click', () => {
@@ -889,6 +923,7 @@ function updateDataSafetyUi(status = null) {
       : 'Storage quota API not supported in this browser';
   }
   renderBackupHealthBadge();
+  renderBackupPreActionBanners();
 }
 
 const zonedDateTimeParts = date => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone:PAKISTAN_TIME_ZONE, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(date).filter(part => part.type !== 'literal').map(part => [part.type,part.value]));
@@ -5535,6 +5570,12 @@ $('#shareJsonBackupButton')?.addEventListener('click', handleShareBackupAction);
 $('#dataSafetyShareBackupBtn')?.addEventListener('click', handleShareBackupAction);
 // SISP-52: the 1-tap share button inside the Backup Health panel itself.
 $('#shareBackupHealthButton')?.addEventListener('click', handleShareBackupAction);
+// SISP-199: the modal banners' share buttons run the SAME SISP-52 flow, and
+// each modal open re-derives banner visibility from fresh Backup Health.
+$('#billingCycleBackupShareBtn')?.addEventListener('click', handleShareBackupAction);
+$('#bulkImportBackupShareBtn')?.addEventListener('click', handleShareBackupAction);
+$('#openBillingCycleModalBtn')?.addEventListener('click', () => renderBackupPreActionBanners());
+$('#bulkImportOpenBtn')?.addEventListener('click', () => renderBackupPreActionBanners());
 $('#requestStoragePersistenceBtn')?.addEventListener('click', handleProtectStorageAction);
 $('#dataSafetyProtectStorageBtn')?.addEventListener('click', handleProtectStorageAction);
 

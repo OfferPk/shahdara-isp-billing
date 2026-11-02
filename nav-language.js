@@ -3260,6 +3260,11 @@ export const TRANSLATIONS = {
     dmerge_fam_monthlyClosingNotes: 'Monthly closing notes',
     dmerge_fam_overheads: 'Fixed overheads',
     bkup_share_wa_drive_btn: 'Share Backup to WhatsApp / Drive',
+    // SISP-199: pre-action backup banner in the billing-cycle + bulk-import modals
+    bkup_preaction_share_btn: 'Share Off-Device Backup First',
+    bkup_preaction_due: '⚠️ Backup is due — your last off-device backup is 1–3 days old. Share a fresh backup before this change; you can also continue without one.',
+    bkup_preaction_critical: '🔴 Backup is critical — your last off-device backup is over 3 days old, or many new payments are not backed up yet. Share a fresh backup before this change; you can also continue without one.',
+    bkup_preaction_never: '🔴 No off-device backup yet — if this device is lost, the whole ledger goes with it. Share a backup before this change; you can also continue without one.',
     prof_incident_edit: 'Edit',
     prof_incident_delete: 'Delete',
     prof_incident_audit_title: 'Correction history ({count})',
@@ -7196,6 +7201,11 @@ export const TRANSLATIONS = {
     dmerge_fam_monthlyClosingNotes: 'ماہانہ اختتامی نوٹس',
     dmerge_fam_overheads: 'مقررہ اخراجات',
     bkup_share_wa_drive_btn: 'بیک اپ WhatsApp / Drive پر شیئر کریں',
+    // SISP-199: pre-action backup banner in the billing-cycle + bulk-import modals
+    bkup_preaction_share_btn: 'پہلے آف ڈیوائس بیک اپ شیئر کریں',
+    bkup_preaction_due: '⚠️ بیک اپ واجب ہے — آپ کا آخری آف ڈیوائس بیک اپ 1–3 دن پرانا ہے۔ اس تبدیلی سے پہلے تازہ بیک اپ شیئر کریں؛ آپ بیک اپ کے بغیر بھی جاری رکھ سکتے ہیں۔',
+    bkup_preaction_critical: '🔴 بیک اپ نازک حالت میں ہے — آپ کا آخری آف ڈیوائس بیک اپ 3 دن سے زیادہ پرانا ہے، یا کئی نئی ادائیگیاں ابھی بیک اپ میں شامل نہیں۔ اس تبدیلی سے پہلے تازہ بیک اپ شیئر کریں؛ آپ بیک اپ کے بغیر بھی جاری رکھ سکتے ہیں۔',
+    bkup_preaction_never: '🔴 ابھی تک کوئی آف ڈیوائس بیک اپ نہیں — اگر یہ ڈیوائس گم ہو جائے تو پورا کھاتہ بھی ساتھ جائے گا۔ اس تبدیلی سے پہلے بیک اپ شیئر کریں؛ آپ بیک اپ کے بغیر بھی جاری رکھ سکتے ہیں۔',
     prof_incident_edit: 'ترمیم کریں',
     prof_incident_delete: 'حذف کریں',
     prof_incident_audit_title: 'تصحیح کی تاریخ ({count})',

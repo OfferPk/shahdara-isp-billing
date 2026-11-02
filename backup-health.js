@@ -243,3 +243,21 @@ export function assessBackupHealth({ lastExportAt, paymentsSinceExport, now = ne
     pulse: true
   };
 }
+
+// ------------------------------------------------------------ SISP-199 ----
+// Pre-action safety prompt for the two bulk-change modals (Monthly Billing
+// Cycle + Bulk Customer Import): whenever Backup Health is Due or Critical,
+// the modal shows a non-blocking "share a backup first" banner. This is the
+// single derivation the banner reads — it wraps assessBackupHealth and
+// never recomputes thresholds: Safe → null (no banner); Due / Critical →
+// the prompt model. `never` distinguishes the never-exported case (its own
+// warning wording) from a merely stale or payment-heavy export history. A
+// cancelled share records nothing (see shareBackupOffDevice), so the prompt
+// naturally survives a cancelled share and clears after a real export.
+export function backupPreActionPrompt({ lastExportAt, paymentsSinceExport, now = new Date() } = {}) {
+  const health = assessBackupHealth({ lastExportAt, paymentsSinceExport, now });
+  if (health.status === 'safe') return null;
+  const exported = lastExportAt ? new Date(lastExportAt) : null;
+  const never = !exported || Number.isNaN(exported.getTime());
+  return { status: health.status, never, emoji: health.emoji, label: health.label, title: health.title };
+}

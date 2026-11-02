@@ -5086,7 +5086,7 @@ function backupRestoreOptions() {
 // fresh at preview AND at apply time (never the export path: producing a
 // backup advances the branch-guard head, a preview must not).
 function currentDeltaSections() {
-  return { shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), waTemplates: getStoredWaTemplates(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks(), billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), referralCredits: loadReferralCredits(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments() };
+  return { shopSettlements: loadShopSettlements(), complaints: loadComplaints(), homeBudget: loadHomeBudgetExpenses(), roznamchaDays: loadRoznamchaDays(), tickets: loadTickets(), inventory: loadInventory(), loans: loadLoans(), waTemplates: getStoredWaTemplates(), saadVisits: loadSaadVisits(), saadPayments: loadSaadPayments(), installRequests: loadInstallRequests(), pendingWorks: loadPendingWorks(), billingGroups: loadBillingGroups(), suspensePayments: loadSuspensePayments(), referralCredits: loadReferralCredits(), monthlyClosingNotes: loadMonthlyClosingNotes(), partnerLedger: loadPartnerLedgerEntries(), partnerSettlements: loadPartnerSettlements(), overheads: loadOverheads(), voidPayments: loadVoidPayments(), converterSides: loadConverterSides(), linemanPayouts: loadLinemanPayouts(), deadPorts: loadDeadPorts(), fieldBagMovements: loadFieldBagMovements(), polesRegistry: loadPolesRegistry(), fiberDrums: loadFiberDrums(), stormInspections: loadStormInspections(), supplierKhata: loadSupplierKhata(), commissionRules: loadCommissionRules(), upsNodes: loadUpsNodes(), feederCables: loadFeederCables(), creditTransfers: loadCreditTransfers(), fieldTools: loadFieldTools(), spliceClosures: loadSpliceClosures(), badDebts: loadBadDebts(), splitterPolish: loadSplitterPolish(), splitterBoxGps: loadSplitterBoxPins(), expenseBudgets: loadExpenseBudgets() };
 }
 const DELTA_MERGE_SAVE = {
   shopSettlements: (value) => saveShopSettlements(value),
@@ -5108,7 +5108,25 @@ const DELTA_MERGE_SAVE = {
   partnerLedger: (value) => savePartnerLedgerEntries(value),
   partnerSettlements: (value) => savePartnerSettlements(value),
   overheads: (value) => saveOverheads(value),
-  voidPayments: (value) => saveVoidPayments(value)
+  voidPayments: (value) => saveVoidPayments(value),
+  converterSides: (value) => saveConverterSides(value),
+  linemanPayouts: (value) => saveLinemanPayouts(value),
+  deadPorts: (value) => saveDeadPorts(value),
+  fieldBagMovements: (value) => saveFieldBagMovements(value),
+  polesRegistry: (value) => savePolesRegistry(value),
+  fiberDrums: (value) => saveFiberDrums(value),
+  stormInspections: (value) => saveStormInspections(value),
+  supplierKhata: (value) => saveSupplierKhata(value),
+  commissionRules: (value) => saveCommissionRules(value),
+  upsNodes: (value) => saveUpsNodes(value),
+  feederCables: (value) => saveFeederCables(value),
+  creditTransfers: (value) => saveCreditTransfers(value),
+  fieldTools: (value) => saveFieldTools(value),
+  spliceClosures: (value) => saveSpliceClosures(value),
+  badDebts: (value) => saveBadDebts(value),
+  splitterPolish: (value) => saveSplitterPolish(value),
+  splitterBoxGps: (value) => saveSplitterBoxPins(value),
+  expenseBudgets: (value) => saveExpenseBudgets(value)
 };
 function renderStorageWarning() {
   const warning = $('#storageRecoveryWarning');

@@ -3142,6 +3142,14 @@ export const TRANSLATIONS = {
     upt_live_online: '🟢 Online · {duration} · since {datetime}',
     upt_live_offline: '🔴 Offline · {duration} · since {datetime}',
     upt_live_active_since: '🟢 Active since {date} · {duration}',
+    upt_fleet_title: '📶 Fleet Uptime',
+    upt_fleet_period: '{perfect} of {count} subscribers at 100% uptime this month',
+    upt_fleet_period_none: 'No subscriber uptime counted for this month yet',
+    upt_fleet_excluded: '{count} not counted — no connection time in this month',
+    upt_fleet_lowest: 'Lowest uptime this month',
+    upt_fleet_row_offline: 'Offline {duration}',
+    upt_fleet_chronic_note: '⚠️ Chronic offline: below 95% uptime or 24 hours+ offline this month',
+    upt_fleet_note: 'Average of each counted subscriber’s own uptime %. Counted from recorded incidents and status changes only — this app does not monitor the connection itself.',
 
     // SISP-46: Multi-Branch Merge Guard (backup restore warnings)
     bkgrd_foreign_note: '⛔ Different ledger branch: this backup was exported from another copy of the app (a different phone or branch) whose history this device has never shared. Merging it here could double-count money, so the merge is blocked.',
@@ -7004,6 +7012,14 @@ export const TRANSLATIONS = {
     upt_live_online: '🟢 {datetime} سے آن لائن · {duration}',
     upt_live_offline: '🔴 {datetime} سے آف لائن · {duration}',
     upt_live_active_since: '🟢 {date} سے فعال · {duration}',
+    upt_fleet_title: '📶 فلیٹ اپ ٹائم',
+    upt_fleet_period: '{count} صارفین میں سے {perfect} اس مہینے 100٪ اپ ٹائم پر',
+    upt_fleet_period_none: 'اس مہینے ابھی کسی صارف کا اپ ٹائم شمار نہیں ہوا',
+    upt_fleet_excluded: '{count} شمار نہیں ہوئے — اس مہینے ان کا کنکشن وقت نہیں تھا',
+    upt_fleet_lowest: 'اس مہینے سب سے کم اپ ٹائم',
+    upt_fleet_row_offline: 'آف لائن {duration}',
+    upt_fleet_chronic_note: '⚠️ دائمی آف لائن: اس مہینے 95٪ سے کم اپ ٹائم یا 24 گھنٹے سے زیادہ آف لائن',
+    upt_fleet_note: 'ہر شمار شدہ صارف کے اپنے اپ ٹائم ٪ کی اوسط۔ گنتی صرف درج شدہ واقعات اور اسٹیٹس تبدیلیوں سے ہے — یہ ایپ خود کنکشن کی نگرانی نہیں کرتی۔',
 
     // SISP-46: Multi-Branch Merge Guard (backup restore warnings)
     bkgrd_foreign_note: '⛔ مختلف کھاتہ برانچ: یہ بیک اپ ایپ کی کسی دوسری کاپی (دوسرے فون یا برانچ) سے آیا ہے جس کی تاریخ اس ڈیوائس سے کبھی نہیں ملی۔ اسے یہاں ملانے سے رقم دُہری گنی جا سکتی ہے، اس لیے مرج روک دیا گیا ہے۔',

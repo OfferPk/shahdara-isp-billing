@@ -2055,6 +2055,70 @@ body.field-mode-open { overflow: hidden; }
   display: none;
 }
 
+/* SISP-184: Fleet Uptime card — lowest-uptime rows + honest footnotes
+   inside the shared .ds-stat summary card. Theme tokens only, so light
+   and dark modes both stay readable. */
+.fleet-uptime-lowest-heading {
+  margin: 10px 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.fleet-uptime-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.fleet-uptime-item + .fleet-uptime-item {
+  border-top: 1px solid var(--line);
+}
+.fleet-uptime-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 8px 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fleet-uptime-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.fleet-uptime-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.fleet-uptime-sub {
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.fleet-uptime-pct {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.fleet-uptime-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
 /* SISP-126: Remainder Waada row inside the Quick Collect payment step
    and the Field Mode custom-amount sheet. Theme tokens only (the waada
    chip precedent), so light and dark render alike; 44px tap targets. */

@@ -186,7 +186,7 @@ import { assignTicketForComplaint, bulkAssignTicketsForComplaints, collectTechni
 import { buildCustomerDowntimeSummary, buildMonthlyDowntimeAnalytics, setupDowntimeAnalyticsModal } from './downtime-analytics.js';
 import { buildConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
 import { roundToNearest50, roundingTagFor } from './bill-rounding-helper.js?v=1.11.0';
-import { buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
+import { buildFleetUptime, buildMonthlyUptime, currentStatusSession, refreshLiveSessionCounters, splitMinutes, summarizeProfileAge } from './uptime-tracking.js';
 import { buildSplitterOverview, createAttenuationTicket, formatRxDbm, normalizeOpticalFields, rxSignalStatus, setupSplitterMapModal } from './splitter-map.js';
 import { SPLITTER_POLISH_KEY, loadSplitterPolish, saveSplitterPolish, setSplitterPolish, evaluateConnectorMismatch, buildPolishMismatchReport, polishLabel } from './connector-polish-guard.js';
 import { DEAD_PORTS_KEY, executePortSwap, isPortDead, loadDeadPorts, lockDeadPort, saveDeadPorts, setupPortSwapModal, unlockDeadPort } from './splitter-port-swap.js';
@@ -1507,6 +1507,25 @@ function renderDashboard() {
     downtimeSummaryEl.innerHTML = analytics.totalComplaints === 0
       ? ''
       : `<p><span>${t('dash_downtime_top')}</span><strong>${escapeHtml(analytics.perCustomer.length ? `${analytics.perCustomer[0].customerName} · ${analytics.perCustomer[0].totalDowntime} h` : '—')}</strong><small> · ${escapeHtml(t('dash_downtime_detail', null, { count: analytics.areaOutageComplaints, hours: analytics.areaOutageDowntime }))}</small></p>`;
+  }
+  // SISP-184: fleet uptime card — this month's RECORDED uptime across
+  // every active subscriber, aggregated from uptime-tracking's own
+  // per-customer month summary (buildFleetUptime). Read-only; rows open
+  // the customer profile. Nothing is monitored live: the figures come
+  // from recorded incidents and status changes, as the footnote says.
+  const fleetUptimeEl = $('#fleetUptimeSummary');
+  if (fleetUptimeEl) {
+    const fleet = buildFleetUptime(state.customers, pakistanMonthNow(referenceDate), referenceDate);
+    const fleetValueEl = $('#dashboardFleetUptimeValue');
+    const fleetPeriodEl = $('#dashboardFleetUptimePeriod');
+    if (fleetValueEl) fleetValueEl.textContent = fleet.fleetAvgPercent === null ? '—' : `${fleet.fleetAvgPercent}%`;
+    if (fleetPeriodEl) fleetPeriodEl.textContent = fleet.includedCount === 0
+      ? t('upt_fleet_period_none')
+      : t('upt_fleet_period', null, { perfect: fleet.perfectCount, count: fleet.includedCount });
+    fleetUptimeEl.innerHTML = fleet.includedCount === 0
+      ? ''
+      : `<p class="fleet-uptime-lowest-heading">${escapeHtml(t('upt_fleet_lowest'))}</p><ul class="fleet-uptime-list">${fleet.lowestFive.map((row) => `<li class="fleet-uptime-item"><button type="button" class="fleet-uptime-row" data-fleet-uptime-customer-id="${escapeHtml(row.customerId)}"><span class="fleet-uptime-main"><strong class="fleet-uptime-name" dir="auto">${escapeHtml(row.name || t('dash_fallback_unnamed'))}${row.customerNumber !== null ? ` · #${row.customerNumber}` : ''}${row.mohalla ? ` · ${escapeHtml(row.mohalla)}` : ''}</strong><span class="fleet-uptime-sub">${escapeHtml(t('upt_fleet_row_offline', null, { duration: uptimeDurationText(row.offlineMinutes) }))}</span></span><strong class="fleet-uptime-pct">${row.chronic ? '⚠️ ' : ''}${row.uptimePercent}%</strong></button></li>`).join('')}</ul>${fleet.chronicCount ? `<p class="fleet-uptime-note">${escapeHtml(t('upt_fleet_chronic_note'))}</p>` : ''}${fleet.excludedCount ? `<p class="fleet-uptime-note">${escapeHtml(t('upt_fleet_excluded', null, { count: fleet.excludedCount }))}</p>` : ''}<p class="fleet-uptime-note">${escapeHtml(t('upt_fleet_note'))}</p>`;
+    fleetUptimeEl.querySelectorAll('[data-fleet-uptime-customer-id]').forEach(button => button.addEventListener('click', () => selectCustomer(button.dataset.fleetUptimeCustomerId)));
   }
   // SISP-117: upstream SLA card (this-month uplink downtime, availability
   // % and the suggested pro-rata rebate claim against the recorded

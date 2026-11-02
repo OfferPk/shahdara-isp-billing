@@ -9,6 +9,12 @@
  * unkeyed/duplicate records never silently added, idempotent re-merge,
  * void records travelling with their audit state, and the app wiring
  * (snapshot-before-apply hard gate). Synthetic fixtures only.
+ *
+ * M5 extension pins: the registry covers every record family a backup
+ * can emit (38 families; the six single-object sections are documented
+ * exclusions), a byte-identical backup → delta-restore round-trip per
+ * added family, natural-key union/conflict for the new families, and
+ * app wiring (loaders, savers, en+ur family labels) for all of them.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -21,6 +27,7 @@ import {
   DELTA_MERGE_FAMILIES, verifyDeltaMergeBackup, planDeltaMergeSections,
   applyDeltaMergeSections, findIncomingVoidNotices
 } from '../delta-merge-sync.js';
+import { canonicalize } from '../backup-health.js';
 import { TRANSLATIONS } from '../nav-language.js';
 
 const REF = new Date('2026-10-15T12:00:00+05:00');
@@ -58,6 +65,41 @@ const voidRecord = (customerId, overrides = {}) => ({
   promiseRestored: false, restoredPromiseDate: '', createdAt: '2026-10-14T09:00',
   ...overrides
 });
+
+// M5: one representative fixture per record family added after SISP-102's
+// build base. Keys are the createJsonBackup option names (= the backup
+// `settings` section names). Synthetic data only.
+const m5FamilySections = () => ({
+  converterSides: [{ id: 'WDM-101', side: 'A', kind: 'in', qty: 2, date: '2026-10-05', note: '', createdAt: '2026-10-05T09:00' }],
+  linemanPayouts: [{ linemanName: 'Test Lineman', month: '2026-09', baseSalary: 15000, paidDate: '2026-09-30', note: '', createdAt: '2026-09-30T10:00' }],
+  deadPorts: [{ boxId: 'BOX-101', port: 3, lockedAt: '2026-10-01T09:00', note: 'Burnt port' }],
+  fieldBagMovements: [{ id: 'BAG-101', itemId: 'router', kind: 'in', qty: 1, date: '2026-10-05', ticketId: '', note: '', createdAt: '2026-10-05T09:00' }],
+  polesRegistry: [{ poleId: 'POLE-101', label: 'Test pole', zone: '', type: 'wapda', landmark: '', notes: '', inventoryItemId: '', dropCustomerIds: [], splitterBoxIds: [], createdAt: '2026-10-01T09:00' }],
+  fiberDrums: [{ label: 'Test drum', initialLength: 1000, startJacketMark: 0, cuts: [], createdAt: '2026-10-01T09:00' }],
+  stormInspections: { runs: [{ date: '2026-10-14', startedAt: '2026-10-14T08:00', checks: {} }] },
+  supplierKhata: [{ supplierName: 'Test Supplier', itemId: 'router', qty: 2, totalBillPKR: 4000, date: '2026-10-04', note: '', stockMovementId: '', payments: [], createdAt: '2026-10-04T09:00' }],
+  commissionRules: [{ kind: 'field', label: 'Test Collector', mode: 'perReceipt', perReceiptFixed: 50, percentageOfCollection: 0 }],
+  upsNodes: [{ nodeId: 'UPS-101', name: 'Test UPS', ratedBatteryHours: 4, fedZones: [], history: [], createdAt: '2026-10-01T09:00' }],
+  feederCables: [{ cableId: 'FC-101', label: 'Test feeder', coreCount: 12, cores: [], history: [] }],
+  creditTransfers: [{ fromCustomerId: 'cust-a', fromCustomerNumber: 1, fromCustomerName: 'Test A', toCustomerId: 'cust-b', toCustomerNumber: 2, toCustomerName: 'Test B', amount: 500, date: '2026-10-05', note: '', status: 'active', consumedFrom: [{ paymentId: 'RCP-501', month: '2026-09', amount: 500 }], appliedTo: [{ month: '2026-10', amount: 500 }], createdAt: '2026-10-05T09:00' }],
+  fieldTools: [{ type: 'fusion-splicer', name: 'Test Splicer', serial: '', assignedToLineman: '', condition: 'good', history: [], createdAt: '2026-10-01T09:00' }],
+  spliceClosures: [{ closureId: 'JC-01', name: 'Test closure', landmark: '', cores: [], createdAt: '2026-10-01T09:00', updatedAt: '' }],
+  badDebts: [{ badDebtId: 'BD-101', customerId: 'cust-x', customerNumber: 7, amount: 1500, bills: [], writeOffDate: '2026-10-01', writeOffReason: 'Test write-off', status: 'written-off', restoredAt: '' }],
+  splitterPolish: { 'BOX-101': 'APC' },
+  splitterBoxGps: { 'BOX-101': { lat: 33.7, lng: 73.1 } },
+  expenseBudgets: { Cable: 5000, Electricity: 20000 }
+});
+
+// Record counts each M5 fixture contributes after sanitization (the
+// expense-budget map carries two category records; every other fixture
+// carries exactly one).
+const M5_FIXTURE_RECORD_COUNTS = {
+  converterSides: 1, linemanPayouts: 1, deadPorts: 1, fieldBagMovements: 1,
+  polesRegistry: 1, fiberDrums: 1, stormInspections: 1, supplierKhata: 1,
+  commissionRules: 1, upsNodes: 1, feederCables: 1, creditTransfers: 1,
+  fieldTools: 1, spliceClosures: 1, badDebts: 1, splitterPolish: 1,
+  splitterBoxGps: 1, expenseBudgets: 2
+};
 
 test('SISP-102 gate: only CRC-verified backups may delta-merge', () => {
   const { state } = baseState();
@@ -277,7 +319,8 @@ test('SISP-102: every record family a backup can carry is covered by the delta r
     partnerSettlements: [{ id: 'partner-settle-2026-09', month: '2026-09', revenue: 10000, expenses: 4000, profit: 6000, perPartner: [{ partner: 'Nasir', share: 3000, drawings: 0, capital: 0, netPayout: 3000 }], note: '', status: 'confirmed', confirmedAt: '', reopenedAt: '', createdAt: '' }],
     voidPayments: [voidRecord(customerId)],
     monthlyClosingNotes: { '2026-09': { note: 'Test closing note', savedAt: '2026-10-01T10:00' } },
-    overheads: { templates: [{ id: 'upstream-bandwidth', defaultAmount: 35000 }], postings: [{ id: 'oh-1', templateId: 'upstream-bandwidth', month: '2026-10', expenseId: '', amount: 35000, date: '2026-10-01', note: '' }] }
+    overheads: { templates: [{ id: 'upstream-bandwidth', defaultAmount: 35000 }], postings: [{ id: 'oh-1', templateId: 'upstream-bandwidth', month: '2026-10', expenseId: '', amount: 35000, date: '2026-10-01', note: '' }] },
+    ...m5FamilySections()
   };
   const backupText = createJsonBackup(state, REF, allSections);
   const emitted = Object.keys(JSON.parse(backupText).settings ?? {});
@@ -293,12 +336,18 @@ test('SISP-102: every record family a backup can carry is covered by the delta r
   );
   const { sections, applied } = applyDeltaMergeSections({ currentSections: {}, plan });
   assert.equal(applied.added, plan.totals.added);
-  assert.ok(plan.totals.added >= 21, 'every fixture record was added');
+  assert.ok(plan.totals.added >= 40, 'every fixture record was added (21 SISP-102 records + 19 M5 records)');
   assert.equal(sections.complaints[0].id, 'CMP-201');
   assert.equal(sections.suspensePayments[0].suspenseId, 'SUS-101');
   assert.equal(sections.referralCredits[0].referralId, 'REF-101');
   assert.equal(sections.billingGroups[0].billingGroupId, 'GRP-101');
   assert.equal(sections.voidPayments[0].paymentId, 'RCP-501');
+  assert.equal(sections.feederCables[0].cableId, 'FC-101');
+  assert.equal(sections.deadPorts[0].boxId, 'BOX-101');
+  assert.equal(sections.stormInspections.runs[0].date, '2026-10-14');
+  assert.equal(sections.expenseBudgets.Cable, 5000);
+  assert.equal(sections.splitterBoxGps['BOX-101'].lat, 33.7);
+  assert.equal(sections.splitterPolish['BOX-101'], 'APC');
 });
 
 test('SISP-102 wiring: app composes gate + shipped preview + delta plan, snapshot hard-gates the apply, dialog + i18n exist', () => {
@@ -329,5 +378,138 @@ test('SISP-102 wiring: app composes gate + shipped preview + delta plan, snapsho
   // Every t('dmerge_…') call in app.js resolves in both dictionaries.
   for (const match of appSource.matchAll(/t\('(dmerge_[a-z_]+)'/g)) {
     assert.ok(TRANSLATIONS.en[match[1]] && TRANSLATIONS.ur[match[1]], `t('${match[1]}') resolves in en+ur`);
+  }
+});
+
+test('M5: every settings section a backup can emit is delta-registered or a documented single-object exclusion', () => {
+  const { state, customerId } = baseState();
+  // Kitchen-sink backup: every record family plus the six single-object
+  // sections createJsonBackup can write.
+  const backupText = createJsonBackup(state, REF, {
+    shopSettlements: [{ id: 'shop-settle-1', shop: 'Test Shop', amount: 500, date: '2026-10-05', note: '', allocations: [], createdAt: '' }],
+    complaints: [complaint()],
+    tickets: [{ id: 'TKT-101', customerId: 'cust-x', customFault: 'Fiber cut', status: 'Open', createdAt: '2026-10-12T09:00' }],
+    roznamchaDays: [{ date: '2026-10-05', outflows: [], closed: false }],
+    inventory: [{ id: 'STK-101', itemId: 'router', kind: 'in', qty: 2, date: '2026-10-05', customerName: '', note: '', createdAt: '' }],
+    homeBudget: [{ id: 'HB-1', date: '2026-10-05', category: 'Groceries', amount: 1500, notes: '' }],
+    loans: [{ id: 'loan-1', person: 'Test Person', phone: '', direction: 'dena', kind: 'loan', amount: 1000, date: '2026-10-01', note: '', createdAt: '' }],
+    waTemplates: [{ id: 'billGenerated', roman: 'Test roman template', urdu: 'Test urdu template' }],
+    saadVisits: [{ id: 'visit-1', date: '2026-10-03', type: 'splicing', hoursWorked: 2 }],
+    saadPayments: [{ id: 'saad-pay-1', date: '2026-10-03', type: 'salary', amount: 5000, note: '', paidFromDrawer: false, createdAt: '' }],
+    installRequests: [{ id: 'inst-1', requesterName: 'Test Person', requestDate: '2026-10-02', amountPaid: 0, payMethod: 'cash' }],
+    pendingWorks: [{ id: 'work-1', note: 'Fix pole drop wire', source: '', threshold: null, status: 'pending', createdAt: '' }],
+    billingGroups: [{ billingGroupId: 'GRP-101', groupTitle: 'Test Group', memberIds: ['cust-x'], createdAt: '' }],
+    suspensePayments: [{ suspenseId: 'SUS-101', amount: 2000, wallet: 'Easypaisa', senderName: 'Test Sender', senderMobile: '', tid: 'TID-TEST-1', date: '2026-10-06', claimed: false, claimedCustomerId: '', claimedCustomerName: '', claimedAt: '', claimedMonth: '', createdAt: '' }],
+    referralCredits: [{ referralId: 'REF-101', referrerCustomerId: 'cust-a', referredCustomerId: 'cust-b', amount: 500, applications: [] }],
+    partnerLedger: [{ id: 'pl-1', partner: 'Nasir', type: 'drawing', amount: 3000, date: '2026-10-07', note: '', createdAt: '' }],
+    partnerSettlements: [{ id: 'partner-settle-2026-09', month: '2026-09', revenue: 10000, expenses: 4000, profit: 6000, perPartner: [{ partner: 'Nasir', share: 3000, drawings: 0, capital: 0, netPayout: 3000 }], note: '', status: 'confirmed', confirmedAt: '', reopenedAt: '', createdAt: '' }],
+    voidPayments: [voidRecord(customerId)],
+    monthlyClosingNotes: { '2026-09': { note: 'Test closing note', savedAt: '2026-10-01T10:00' } },
+    overheads: { templates: [{ id: 'upstream-bandwidth', defaultAmount: 35000 }], postings: [{ id: 'oh-1', templateId: 'upstream-bandwidth', month: '2026-10', expenseId: '', amount: 35000, date: '2026-10-01', note: '' }] },
+    ...m5FamilySections(),
+    digitalPaymentsSettings: { ownerRaastId: 'TEST-RAAST-1' },
+    receiptFooter: { footerText: 'Test footer' },
+    partnerSettings: { includeInstallationCapexInSplit: true },
+    charityReserve: { charityReservePct: 5 },
+    emergencyRunbook: { upstreamNoc: { label: 'Test NOC', phone: '0300-0000000' } },
+    branchGuard: { lineageId: 'test-lineage', instanceId: 'test-instance', seq: 3, stampId: '3:test-instance', parentStampId: '', exportedAt: '2026-10-15T07:00:00.000Z', fingerprint: '', prevFingerprint: '' }
+  });
+  const emitted = Object.keys(JSON.parse(backupText).settings ?? {}).sort();
+  // The full emission surface of createJsonBackup on current main: 38
+  // record families + 6 single-object sections. A future new section
+  // fails this pin until it is registered below or excluded on purpose.
+  assert.deepEqual(emitted, [
+    'badDebts', 'billingGroups', 'branchGuard', 'charityReserve', 'commissionRules',
+    'complaints', 'converterSides', 'creditTransfers', 'deadPorts', 'digitalPayments',
+    'emergencyRunbook', 'expenseBudgets', 'feederCables', 'fiberDrums', 'fieldBagMovements',
+    'fieldTools', 'homeBudget', 'installRequests', 'inventory', 'linemanPayouts',
+    'loans', 'monthlyClosingNotes', 'overheads', 'partnerLedger', 'partnerSettings',
+    'partnerSettlements', 'pendingWorks', 'polesRegistry', 'receiptFooter', 'referralCredits',
+    'roznamchaDays', 'saadPayments', 'saadVisits', 'shopSettlements', 'spliceClosures',
+    'splitterBoxGps', 'splitterPolish', 'stormInspections', 'supplierKhata', 'suspensePayments',
+    'tickets', 'upsNodes', 'voidPayments', 'waTemplates'
+  ]);
+  // Single-object sections and the lineage stamp are deliberately NOT
+  // record families (see the delta-merge-sync.js header): the shipped
+  // safe-merge rule governs them, and the stamp is never merged.
+  const EXCLUDED = ['branchGuard', 'charityReserve', 'digitalPayments', 'emergencyRunbook', 'partnerSettings', 'receiptFooter'];
+  const registered = DELTA_MERGE_FAMILIES.map((family) => family.key).sort();
+  assert.deepEqual(emitted.filter((key) => !EXCLUDED.includes(key)), registered,
+    'every emitted record family is in the delta registry');
+  const plan = planDeltaMergeSections({ backupText, currentSections: {} });
+  assert.equal(plan.ok, true);
+  assert.deepEqual(Object.keys(plan.families).sort(), registered,
+    'the delta plan covers every registered family the backup carries');
+  for (const key of EXCLUDED) {
+    assert.equal(plan.families[key], undefined, `excluded section ${key} never enters the delta plan`);
+  }
+});
+
+test('M5: per-family backup → delta-restore round-trip restores byte-identical sections for every added family', () => {
+  const { state } = baseState();
+  const fixtures = m5FamilySections();
+  for (const [key, recordCount] of Object.entries(M5_FIXTURE_RECORD_COUNTS)) {
+    const backupText = createJsonBackup(state, REF, { [key]: fixtures[key] });
+    const emitted = JSON.parse(backupText).settings[key];
+    assert.ok(emitted !== undefined, `${key}: fixture actually emitted a backup section`);
+    const plan = planDeltaMergeSections({ backupText, currentSections: {} });
+    assert.equal(plan.ok, true, `${key}: plan verifies`);
+    assert.equal(plan.families[key].added.length, recordCount, `${key}: all fixture records planned as additions`);
+    const { sections } = applyDeltaMergeSections({ currentSections: {}, plan });
+    assert.equal(canonicalize(sections[key]), canonicalize(emitted),
+      `${key}: restored section is byte-identical (canonical form) to the backup section`);
+    assert.deepEqual(sections[key], emitted, `${key}: restored section deep-equals the backup section`);
+    // Restoring the same backup again is a no-op for this family.
+    const secondPlan = planDeltaMergeSections({ backupText, currentSections: sections });
+    assert.equal(secondPlan.families[key].added.length, 0, `${key}: re-merge adds nothing`);
+    assert.equal(secondPlan.families[key].unchanged, recordCount, `${key}: re-merge counts every record unchanged`);
+  }
+});
+
+test('M5: new families union by their natural keys and conflict per record (feeder cables, dead ports)', () => {
+  const { state } = baseState();
+  const localSections = {
+    feederCables: [{ cableId: 'FC-102', label: 'Local feeder', coreCount: 6, cores: [], history: [] }],
+    deadPorts: [{ boxId: 'BOX-101', port: 3, lockedAt: '2026-10-01T09:00', note: 'Local note' }]
+  };
+  const backupText = createJsonBackup(state, REF, {
+    feederCables: [{ cableId: 'FC-101', label: 'Test feeder', coreCount: 12, cores: [], history: [] }],
+    deadPorts: [
+      { boxId: 'BOX-101', port: 3, lockedAt: '2026-10-02T09:00', note: 'PC note' },
+      { boxId: 'BOX-102', port: 1, lockedAt: '2026-10-02T09:30', note: 'Second lock' }
+    ]
+  });
+  const plan = planDeltaMergeSections({ backupText, currentSections: localSections });
+  assert.equal(plan.families.feederCables.added.length, 1, 'the other device cable is an addition');
+  assert.equal(plan.families.deadPorts.added.length, 1, 'the new port lock is an addition');
+  assert.equal(plan.families.deadPorts.conflicts.length, 1, 'the same physical port with different details conflicts');
+  assert.equal(plan.families.deadPorts.conflicts[0].key, 'deadPorts:BOX-101|3', 'the composite (boxId, port) key names the conflict');
+
+  const kept = applyDeltaMergeSections({ currentSections: localSections, plan });
+  assert.deepEqual(kept.sections.feederCables.map((cable) => cable.cableId), ['FC-102', 'FC-101'],
+    'local cable keeps its place, incoming cable appends');
+  assert.equal(kept.sections.deadPorts.find((entry) => entry.boxId === 'BOX-101').note, 'Local note',
+    'conflict keeps the local record by default');
+  assert.equal(kept.sections.deadPorts.length, 2, 'the new lock joined the union');
+
+  const resolved = applyDeltaMergeSections({
+    currentSections: localSections, plan, resolutions: { 'deadPorts:BOX-101|3': 'incoming' }
+  });
+  assert.equal(resolved.sections.deadPorts.find((entry) => entry.boxId === 'BOX-101').note, 'PC note',
+    'an explicit per-record resolution adopts the incoming copy');
+});
+
+test('M5 wiring: app delta sections, savers and family labels cover every registry family', () => {
+  const appSource = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const sectionsStart = appSource.indexOf('function currentDeltaSections()');
+  const saveStart = appSource.indexOf('const DELTA_MERGE_SAVE');
+  assert.ok(sectionsStart > 0 && saveStart > sectionsStart, 'delta section wiring exists');
+  const sectionsBody = appSource.slice(sectionsStart, saveStart);
+  const saveBody = appSource.slice(saveStart, appSource.indexOf('};', saveStart));
+  for (const family of DELTA_MERGE_FAMILIES) {
+    assert.ok(sectionsBody.includes(`${family.key}:`), `currentDeltaSections loads ${family.key}`);
+    assert.ok(saveBody.includes(`${family.key}:`), `DELTA_MERGE_SAVE saves ${family.key}`);
+    assert.ok(TRANSLATIONS.en[`dmerge_fam_${family.key}`], `en label exists for ${family.key}`);
+    assert.ok(TRANSLATIONS.ur[`dmerge_fam_${family.key}`], `ur label exists for ${family.key}`);
   }
 });

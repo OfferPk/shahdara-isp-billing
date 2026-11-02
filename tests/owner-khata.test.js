@@ -373,3 +373,122 @@ test('closing notes travel in JSON backup under the safe-merge rule', () => {
   assert.equal(conflicting.monthlyClosingNotes, null);
   assert.equal(conflicting.conflicts.some((c) => c.field === 'Monthly closing notes differ from this device'), true);
 });
+
+// SISP-196: Non-Cash Settlement Breakdown. The block itemizes the
+// month's audited bill waiver stamps (concessionAmount SISP-30,
+// referralCreditAmount SISP-40, depositOffsetAmount SISP-50, and
+// feederHostCreditAmount SISP-97 as its own fourth line), attributed
+// by bill.month — read-only, and never feeding the cash figures.
+function stampedState() {
+  const state = baseState();
+  // c1's September bill: its stamps belong to September, never October.
+  Object.assign(state.customers[0].bills[0], {
+    concessionAmount: 999, referralCreditAmount: 999, depositOffsetAmount: 999
+  });
+  // October bills: concessions 300 + 200, referral 500, offsets 800 + 200.
+  Object.assign(state.customers[0].bills[1], {
+    concessionAmount: 300, referralCreditAmount: 500, depositOffsetAmount: 800
+  });
+  Object.assign(state.customers[1].bills[0], {
+    concessionAmount: 200, depositOffsetAmount: 200
+  });
+  return state;
+}
+
+test('SISP-196: non-cash adjustments aggregate the month’s bill stamps exactly', () => {
+  const report = build(stampedState());
+  assert.deepEqual(report.nonCashAdjustments, {
+    concessionsTotal: 500,
+    referralCreditsTotal: 500,
+    depositOffsetsTotal: 1000,
+    feederHostCreditsTotal: 0
+  });
+});
+
+test('SISP-196: stamps are attributed by bill month, other months excluded', () => {
+  const september = buildOwnerKhataReport(stampedState(), '2026-09', {
+    complaints: baseComplaints(), settlements: baseSettlements(), notes: baseNotes(),
+    savedSnapshot: baseSnapshot(), referenceDate: REF
+  });
+  assert.deepEqual(september.nonCashAdjustments, {
+    concessionsTotal: 999,
+    referralCreditsTotal: 999,
+    depositOffsetsTotal: 999,
+    feederHostCreditsTotal: 0
+  });
+});
+
+test('SISP-196: no stamps → zeroed block present; feeder host is its own fourth total', () => {
+  assert.deepEqual(build().nonCashAdjustments, {
+    concessionsTotal: 0,
+    referralCreditsTotal: 0,
+    depositOffsetsTotal: 0,
+    feederHostCreditsTotal: 0
+  });
+  const state = baseState();
+  state.customers[0].bills[1].feederHostCreditAmount = 150;
+  state.customers[1].bills[0].feederHostCreditAmount = 50;
+  const report = build(state);
+  assert.equal(report.nonCashAdjustments.feederHostCreditsTotal, 200);
+  // The fourth line is never folded into the three named totals.
+  assert.equal(report.nonCashAdjustments.concessionsTotal, 0);
+  assert.equal(report.nonCashAdjustments.referralCreditsTotal, 0);
+  assert.equal(report.nonCashAdjustments.depositOffsetsTotal, 0);
+});
+
+test('SISP-196: junk stamps count as zero under the engine coercion, valid stamps still count', () => {
+  const state = baseState();
+  Object.assign(state.customers[0].bills[1], {
+    concessionAmount: 'abc',
+    referralCreditAmount: -500,
+    depositOffsetAmount: Number.NaN,
+    feederHostCreditAmount: null
+  });
+  state.customers[1].bills[0].concessionAmount = 100;
+  const report = build(state);
+  assert.deepEqual(report.nonCashAdjustments, {
+    concessionsTotal: 100,
+    referralCreditsTotal: 0,
+    depositOffsetsTotal: 0,
+    feederHostCreditsTotal: 0
+  });
+});
+
+test('SISP-196: the breakdown never touches the closing’s cash figures', () => {
+  const plain = build();
+  const stamped = build(stampedState());
+  for (const key of [
+    'collected', 'receiptCount', 'expenses', 'expenseCount', 'bandwidthFieldExpenses',
+    'profit', 'isLoss', 'nasirShare', 'aqibShare',
+    'shopSettled', 'shopSettledCount', 'totalComplaints', 'totalDowntime'
+  ]) {
+    assert.equal(stamped[key], plain[key], key);
+  }
+  assert.deepEqual(stamped.shopSettledByShop, plain.shopSettledByShop);
+  assert.deepEqual(stamped.collectionChannels, plain.collectionChannels);
+  // Arrears still comes purely from the engine on each state — the
+  // stamps lower it there (FU1b), never through this block.
+  assert.equal(stamped.pendingArrears, outstandingAtMonthEnd(stampedState(), '2026-10', REF).total);
+  assert.equal(plain.pendingArrears, outstandingAtMonthEnd(baseState(), '2026-10', REF).total);
+});
+
+test('SISP-196: invalid month carries the zeroed block; surfaces show it only when non-zero', () => {
+  const invalid = buildOwnerKhataReport(baseState(), 'bogus', { referenceDate: REF });
+  assert.deepEqual(invalid.nonCashAdjustments, {
+    concessionsTotal: 0,
+    referralCreditsTotal: 0,
+    depositOffsetsTotal: 0,
+    feederHostCreditsTotal: 0
+  });
+  const stamped = build(stampedState());
+  assert.match(
+    buildOwnerKhataWhatsAppText(stamped),
+    /Non-Cash Adjustments: Concessions Rs\. 500 · Referral Credits Rs\. 500 · Deposit Offsets Rs\. 1,000/
+  );
+  const html = buildOwnerKhataPrintHtml(stamped);
+  assert.match(html, /Non-cash adjustments/);
+  assert.match(html, /Security deposit offsets<\/span><strong>Rs\. 1,000<\/strong>/);
+  const plain = build();
+  assert.doesNotMatch(buildOwnerKhataWhatsAppText(plain), /Non-Cash Adjustments/);
+  assert.doesNotMatch(buildOwnerKhataPrintHtml(plain), /Non-cash adjustments/);
+});

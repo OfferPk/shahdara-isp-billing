@@ -627,16 +627,15 @@ export const PRELOCK_NOTICE_STAGE = Object.freeze({
  *    scheduled, or expired-but-not-resumed): a hold is not a lock, and
  *    a held customer must never be told suspension is 24 hours away.
  *
- * ── MERGE-TIME CLAUSE SLOT (SISP-148) ──────────────────────────────
- * The do-not-suspend shield (SISP-148) is not in this base yet. When
- * it lands, add its clause HERE, as clause 4, in this exact shape:
- *   // 4. DO-NOT-SUSPEND SHIELD (SISP-148) — a shielded customer cannot
- *   //    be suspended, so the final notice must not go out either:
- *   //    if (isShielded(customer, todayStr)) return false;
- * (with the matching import of isShielded from its module). No other
- * part of the queue builder or UI needs to change: every consumer
- * funnels through this predicate.
- * ────────────────────────────────────────────────────────────────────
+ * 4. DO-NOT-SUSPEND SHIELD (SISP-148) — a customer under an active
+ *    do-not-suspend shield (isShielded, suspension-shield.js: both
+ *    shield fields recorded and valid, the until date on or after
+ *    today) cannot be suspended, so the final notice must not go out
+ *    either. A half-recorded shield is inert — a valid date without
+ *    a valid reason, or a free-text reason the sanitizer drops,
+ *    spares nobody. Every consumer funnels through this predicate,
+ *    and the clause is pinned by tests/shield-prelock-pin.test.js
+ *    (M2).
  *
  * @param {Object} customer - Customer record.
  * @param {number} outstanding - Total unpaid balance (PKR); must be > 0.

@@ -11,6 +11,7 @@
  * recorded the payment as Cash.
  */
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -45,6 +46,9 @@ async function qcPay(page, name, { method = null, amount = null, txn = null } = 
 test.describe('Issue 356: Payments screens deep functional test', () => {
   test.setTimeout(150000);
   test.beforeEach(async ({ page }) => {
+    // Payments are recorded for seed customers 01/02/03 by name: written
+    // against the old built-in seed (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
     await page.goto('/#/home');
     await page.waitForSelector('#mobileCustomerSearchTrigger', { state: 'attached' });
     await page.evaluate(() => localStorage.clear());

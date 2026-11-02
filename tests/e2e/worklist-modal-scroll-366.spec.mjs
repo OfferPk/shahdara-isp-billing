@@ -12,6 +12,7 @@
  * search, area filter, footer actions) must still be present.
  */
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -104,6 +105,9 @@ test.describe('Issue #366: Worklists modal single scroll area + visible rows', (
   test.setTimeout(180000);
 
   test.beforeEach(async ({ page }) => {
+    // Worklist rows below are built over the old built-in 74-customer
+    // seed (PR #478 emptied the shipped roster): plant the synthetic one.
+    await installSyntheticRoster(page);
     await page.goto('/#/home');
     await page.waitForSelector('#quickAddPaymentButton', { state: 'attached', timeout: 20000 });
     await page.evaluate(() => localStorage.clear());

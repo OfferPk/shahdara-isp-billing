@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -10,6 +11,9 @@ test.describe('Issue #255: Collect badge synchronization with pending dues', () 
   test('Collect badge shows 74 after bills are created and drops to 71 when 3 payments are saved (persists across reload)', async ({ page, isMobile }) => {
     test.skip(!isMobile, 'Mobile bottom navigation badge test');
     const errors = trackErrors(page);
+    // Badge counts (74 -> 71) assume the old built-in seed roster
+    // (PR #478 emptied the shipped roster): plant the synthetic roster.
+    await installSyntheticRoster(page);
     await page.goto('/');
 
     // 1. Open Collect tab

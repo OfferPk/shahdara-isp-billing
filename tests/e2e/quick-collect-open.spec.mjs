@@ -4,6 +4,13 @@
 // gaya", or "No pending dues" + Set packages when no fee is set, #248) with a "Show all" button
 // instead of the old automatic fall back to "All", and the payment form stays reachable.
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
+
+// The picker must list customers and reach the payment form: written
+// against the old built-in seed (PR #478 emptied the shipped roster).
+test.beforeEach(async ({ page }) => {
+  await installSyntheticRoster(page);
+});
 
 for (const opener of ['#quickAddPaymentButton', '#quickActionReceivePayment']) {
   test(`${opener} opens a picker with customers or the all-collected state, and reaches the payment form`, async ({ page }) => {

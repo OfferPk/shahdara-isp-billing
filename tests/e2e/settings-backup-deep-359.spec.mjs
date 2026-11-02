@@ -17,6 +17,7 @@
  * - Theme + language persistence, incl. a dark-mode pass over both screens.
  */
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -86,6 +87,9 @@ test.describe('Issue 359: Settings & Backup deep test', () => {
   test.setTimeout(300000);
 
   test.beforeEach(async ({ page }) => {
+    // Backup state assertions expect exactly the old built-in seed's 74
+    // customers (PR #478 emptied the shipped roster): plant synthetic.
+    await installSyntheticRoster(page);
     await fresh(page);
   });
 

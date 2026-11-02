@@ -1,6 +1,7 @@
 // #263: Quick Collect / Bulk Collect behave like app screens: Back closes the top sheet,
 // #collect / #/collect deep links and reload open Quick Collect.
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -20,6 +21,12 @@ async function openCollect(page, isMobile) {
 }
 
 test.describe('#263 Collect routes', () => {
+  test.beforeEach(async ({ page }) => {
+    // Bulk Collect rows and Quick Collect behaviour below assume the old
+    // built-in 74-customer seed (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
+  });
+
   test('one Back closes Quick Collect and stays on the screen underneath; Forward reopens it', async ({ page, isMobile }) => {
     const errors = trackErrors(page);
     await page.goto('/#/customers');

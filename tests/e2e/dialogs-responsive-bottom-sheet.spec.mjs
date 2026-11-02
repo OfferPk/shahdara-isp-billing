@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 test.describe('Responsive Dialogs & Bottom-Sheet Standard (#215)', () => {
+  test.beforeEach(async ({ page }) => {
+    // The Quick Collect dialog test lists customer cards: written
+    // against the old built-in seed (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
+  });
+
   test('all dialogs fit within 360x640 viewport with fully clickable close button', async ({ page }) => {
     test.setTimeout(120000);
     await page.setViewportSize({ width: 360, height: 640 });

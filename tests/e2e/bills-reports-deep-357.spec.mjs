@@ -8,6 +8,7 @@
  * profile bill form (due date save) + account statement dialog.
  */
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 function trackErrors(page) {
   const errors = [];
@@ -38,6 +39,9 @@ test.describe('Issue 357: Bills, Reports, Recovery, Alerts deep test', () => {
   test.setTimeout(150000);
 
   test.beforeEach(async ({ page }) => {
+    // Written against the old built-in 74-customer seed (PR #478 emptied
+    // the shipped roster): plant the synthetic roster before booting.
+    await installSyntheticRoster(page);
     await page.goto('/#/home');
     await page.waitForSelector('#mobileCustomerSearchTrigger', { state: 'attached' });
     await page.evaluate(() => localStorage.clear());

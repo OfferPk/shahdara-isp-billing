@@ -6,8 +6,12 @@
 // geometry with a full 74-customer overdue list, on mobile and desktop,
 // and confirms the tabs still switch panes.
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 async function seedAndOpenWorklists(page) {
+  // The long worklist is built by Collect Setup over the existing
+  // roster: written against the old built-in seed (PR #478 emptied it).
+  await installSyntheticRoster(page);
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();

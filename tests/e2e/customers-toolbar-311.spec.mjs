@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 // #311: the Customers "Filters & sort / Show details" toolbar must line up
 // with the pane heading (same inner inset), and in the narrow desktop list
@@ -11,6 +12,12 @@ async function box(page, selector) {
 }
 
 test.describe('Customers toolbar alignment (#311)', () => {
+  test.beforeEach(async ({ page }) => {
+    // One test selects the first customer row: needs the roster the old
+    // built-in seed provided (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
+  });
+
   test('toolbar button aligns with the heading on mobile 390x844', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/#/customers');

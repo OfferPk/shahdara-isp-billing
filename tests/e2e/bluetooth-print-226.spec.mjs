@@ -8,6 +8,7 @@
  *   ESC/POS bytes for that receipt.
  */
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 const FAKE_BT_INIT = () => {
   window.__btWrites = [];
@@ -40,6 +41,10 @@ test.describe('Issue #226: Bluetooth thermal printing', () => {
   // The printer settings live in the mobile More menu and Quick Collect is
   // a field flow; the desktop layout has neither surface.
   test.beforeEach(async ({ page }) => {
+    // The BT print test records a payment via Quick Collect after
+    // Collect Setup over the existing roster: written against the old
+    // built-in seed (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
     if ((page.viewportSize()?.width || 0) > 600) test.skip();
   });
   test('hidden when Web Bluetooth is unavailable; fallback print buttons remain', async ({ page }) => {

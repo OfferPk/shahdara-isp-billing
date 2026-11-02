@@ -5,8 +5,15 @@
  * customer list, and survives a reload. Empty names are rejected inline.
  */
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 test.describe('Customer rename from the profile header', () => {
+  test.beforeEach(async ({ page }) => {
+    // Opens seed customer #7 ("Test Customer 07"): written against the
+    // old built-in seed (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
+  });
+
   test('edit name, save, and the new name sticks everywhere', async ({ page }) => {
     await page.goto('/#/customers');
     await page.waitForSelector('#customerList');

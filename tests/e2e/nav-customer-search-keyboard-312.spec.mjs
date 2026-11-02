@@ -14,6 +14,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 // Since #354, Enter / Collect on a customer with NO monthly fee opens the
 // Set monthly bill editor instead of Quick Collect. These #312 keyboard
@@ -45,6 +46,12 @@ function trackErrors(page) {
 }
 
 test.describe('Issue #312: Fast Customer Search Keyboard Navigation & Quick Collect', () => {
+  test.beforeEach(async ({ page }) => {
+    // "Exactly 1 result for Test Customer 01" assumes the old built-in
+    // seed roster (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
+  });
+
   test('single result: typing Test Customer 01 and pressing Enter opens Quick Collect (#312)', async ({ page, isMobile }) => {
     const errors = trackErrors(page);
     await page.goto('/');

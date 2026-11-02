@@ -1,6 +1,13 @@
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 test.describe('Customer Ledger Statement, Batch Slips & Payment Reminders E2E Verification', () => {
+  test.beforeEach(async ({ page }) => {
+    // Statements open from the first customer row: needs the roster the
+    // old built-in seed provided (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
+  });
+
   test('customer detail statement modal opens, switches ranges, exports CSV, and closes cleanly', async ({ page }) => {
     await page.goto('/#customers');
 

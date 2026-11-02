@@ -5,6 +5,7 @@
 // specs read the rendered rows and check self-consistent properties (sort
 // order, block presence, detail dialog) rather than fixed amounts.
 import { test, expect } from '@playwright/test';
+import { installSyntheticRoster } from './seed-roster.mjs';
 
 async function openStatement(page) {
   await page.goto('/#customers');
@@ -28,6 +29,9 @@ async function statementRows(page) {
 
 test.describe('Customer Ledger Statement Enhancements (round 2)', () => {
   test.beforeEach(async ({ page }) => {
+    // openStatement opens the first customer's ledger: needs the roster
+    // the old built-in seed provided (PR #478 emptied the shipped roster).
+    await installSyntheticRoster(page);
     await openStatement(page);
   });
 

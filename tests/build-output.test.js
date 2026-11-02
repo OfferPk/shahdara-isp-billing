@@ -112,11 +112,16 @@ test('built service worker precaches exactly the published files under a content
   }
 });
 
-test('index.html shows a reload banner when an updated service worker takes control (#210)', async () => {
+test('index.html surfaces a reload prompt when an updated service worker takes control (#210)', async () => {
   const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
   const head = index.slice(0, index.indexOf('<body>'));
   assert.match(head, /addEventListener\('controllerchange'/);
-  assert.match(head, /swUpdateBanner/);
-  assert.match(head, /Naya version tayyar hai/);
-  assert.match(head, /location\.reload\(\)/);
+  assert.match(head, /__swUpdatePending/);
+  // M9: the prompt itself is the bilingual app toast owned by nav-pwa,
+  // fed by the head script's pending-update stash.
+  const navPwa = await readFile(path.join(ROOT, 'nav-pwa.js'), 'utf8');
+  const navLanguage = await readFile(path.join(ROOT, 'nav-language.js'), 'utf8');
+  assert.match(navPwa, /setupSwUpdatePrompt/);
+  assert.match(navLanguage, /Naya version tayyar hai/);
+  assert.match(navPwa, /location\.reload\(\)/);
 });

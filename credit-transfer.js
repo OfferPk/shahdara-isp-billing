@@ -53,10 +53,15 @@
  * matches the stamps rupee for rupee).
  *
  * Reversal guards: only an 'active' transfer held by two still-live
- * customers can reverse, and only while every stamp it wrote is
- * still on the bills exactly as recorded — if the ledger changed
- * underneath (bill removed, stamp altered, source payment voided and
- * its stamp orphaned), the reversal refuses instead of guessing.
+ * customers can reverse, and only while the stamps it wrote still
+ * line up on the bills — every source stamp item must still match
+ * its recorded transfer id, payment id and amount exactly, and every
+ * target bill's creditTransferInAmount must still cover the share
+ * recorded for it. If a bill was removed or a stamp altered so a
+ * check fails, the reversal refuses instead of guessing. The checks
+ * read bill stamps only: reversal never inspects payment records,
+ * so a source payment being voided does not by itself refuse a
+ * reversal whose stamps still line up.
  *
  * This module imports only the language engine; customers,
  * allocations and persistence are passed in by callers (app.js
@@ -437,11 +442,13 @@ export function executeCreditTransfer({ fromCustomer, toCustomer, allocations, t
  * it wrote and flipping its register status (the record itself is
  * kept forever, SISP-34 style). PURE — same input/output discipline
  * as executeCreditTransfer. Refuses when the transfer is not
- * active, either customer is archived, or any recorded stamp is no
- * longer on the bills exactly as written (bill removed, stamp
- * altered, or the source payment was voided so the derivation no
- * longer lines up) — in that case a human must reconcile by hand
- * rather than the app guessing.
+ * active, either customer is archived, or the stamps no longer line
+ * up on the bills (a source stamp item missing or no longer
+ * matching its recorded amount, a target bill removed, or a target
+ * bill's stamped credit no longer covering the recorded share) —
+ * in that case a human must reconcile by hand rather than the app
+ * guessing. Payment records are never inspected here, so a voided
+ * source payment alone does not refuse a reversal.
  */
 export function reverseCreditTransfer({ transfers = [], transferId, fromCustomer, toCustomer, date, note = '' } = {}) {
   const clean = sanitizeCreditTransfers(transfers);

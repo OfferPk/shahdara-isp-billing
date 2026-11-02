@@ -57,7 +57,12 @@ export function updateInventoryItem(state,itemId,fields,referenceDate=new Date()
     updatedDate:pktDate(referenceDate)};
   return {...state,inventoryItems:items.map(item=>item.id===itemId?next:item)};
 }
-function orderMovements(movements) { return [...movements].sort((a,b)=>a.date.localeCompare(b.date)||(a.createdAt??'').localeCompare(b.createdAt??'')||a.id.localeCompare(b.id)); }
+// Deterministic total order (M3): date, then createdAt, then the movement's
+// position in the recorded trail (insertion sequence). The final tie-break
+// must never be the random movement id: same-timestamp movements used to
+// order differently run to run, intermittently failing the stock-trail
+// check below with "Insufficient available stock".
+function orderMovements(movements) { return movements.map((movement,index)=>({movement,index})).sort((a,b)=>a.movement.date.localeCompare(b.movement.date)||(a.movement.createdAt??'').localeCompare(b.movement.createdAt??'')||a.index-b.index).map(entry=>entry.movement); }
 function applyToBalances(balances,movement) {
   const from=movement.fromState??null,to=movement.toState;
   if(from!==null) balances[from]=(balances[from]??0)-Number(movement.quantity);

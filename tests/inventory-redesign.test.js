@@ -201,3 +201,54 @@ test('behaviour: the item form save path (add -> movements -> edit) still drives
   assert.equal(row.minimumStock, 2, 'edit updates the minimum in place');
   assert.equal(inventoryItemStatus(row).level, 'in', 'with minimum 2 the same stock is back In stock');
 });
+
+// M3 determinism pins: orderMovements must resolve same-date + same-createdAt
+// movements in insertion order, never by random movement id. (The pre-M3
+// comparator fell back to `a.id.localeCompare(b.id)` — ids are random UUIDs —
+// which intermittently sorted an install before its receive and made the
+// save-path test above throw "Insufficient available stock on 2026-10-29"
+// whenever the two form saves landed in the same millisecond.)
+const M3_REF = new Date('2026-10-29T08:00:00.000Z');
+
+function m3StateWithItem() {
+  let state = createInitialState([]);
+  state = addInventoryItem(state, { name: 'M3 ONU', category: 'ONU', unit: 'piece', minimumStock: '0', unitCost: '4500', createdDate: '2026-10-29', notes: '' });
+  return { state, itemId: state.inventoryItems[0].id };
+}
+
+test('determinism: same-timestamp receive-then-install never throws and always drives the same figures', () => {
+  for (let i = 0; i < 50; i++) {
+    const { state: s0, itemId } = m3StateWithItem();
+    let state = addStockMovement(s0, { itemId, type: 'receive', quantity: '10', date: '2026-10-29', notes: '' }, M3_REF);
+    state = addStockMovement(state, { itemId, type: 'install', quantity: '7', date: '2026-10-29', customerId: '', notes: '' }, M3_REF);
+    const row = inventorySummary(state).items[0];
+    assert.equal(row.available, 3, `iteration ${i}: available`);
+    assert.equal(row.installed, 7, `iteration ${i}: installed`);
+  }
+});
+
+test('determinism: same-timestamp movements list in stable reverse-insertion order on every rebuild', () => {
+  for (let i = 0; i < 25; i++) {
+    const { state: s0, itemId } = m3StateWithItem();
+    let state = addStockMovement(s0, { itemId, type: 'receive', quantity: '10', date: '2026-10-29', notes: '' }, M3_REF);
+    state = addStockMovement(state, { itemId, type: 'install', quantity: '3', date: '2026-10-29', customerId: '', notes: '' }, M3_REF);
+    state = addStockMovement(state, { itemId, type: 'install', quantity: '2', date: '2026-10-29', customerId: '', notes: '' }, M3_REF);
+    const inserted = state.inventoryMovements.map(m => m.id);
+    const listed = inventorySummary(state).movements.map(m => m.id);
+    assert.deepEqual(listed, [...inserted].reverse(), `iteration ${i}: summary order is reverse insertion order`);
+  }
+});
+
+test('determinism: distinct createdAt still orders by timestamp, not by array position', () => {
+  const { state: base, itemId } = m3StateWithItem();
+  const mk = (id, createdAt, type, quantity, fromState, toState) => ({ id, itemId, date: '2026-10-29', type, quantity, fromState, toState, customerId: '', customerNumberSnapshot: null, customerNameSnapshot: '', notes: '', createdAt });
+  // Array order is deliberately scrambled: the later-created install sits first.
+  const state = { ...base, inventoryMovements: [
+    mk('m3-b', '2026-10-29T09:00:00.000Z', 'install', 7, 'available', 'installed'),
+    mk('m3-a', '2026-10-29T08:00:00.000Z', 'receive', 10, null, 'available'),
+  ] };
+  const row = inventorySummary(state).items[0];
+  assert.equal(row.available, 3, 'receive (earlier createdAt) applies before the install');
+  assert.equal(row.installed, 7);
+  assert.deepEqual(inventorySummary(state).movements.map(m => m.id), ['m3-b', 'm3-a'], 'ordered by createdAt, then listed reversed');
+});

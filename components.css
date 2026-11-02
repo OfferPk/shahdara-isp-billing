@@ -2346,6 +2346,8 @@ body.field-mode-open { overflow: hidden; }
 .bci-hint { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0; overflow-wrap: anywhere; }
 .bci-text { width: 100%; min-height: 140px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); padding: 10px 12px; font-size: 13px; resize: vertical; }
 .bci-input-actions { display: flex; gap: 8px; }
+.bci-enrich-toggle { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--ink); cursor: pointer; }
+.bci-enrich-toggle input { margin-top: 2px; }
 .bci-status { color: var(--ink); font-size: 13px; margin: 0; overflow-wrap: anywhere; }
 .bci-status[data-kind="error"] { color: var(--color-overdue); }
 .bci-primary { width: 100%; }

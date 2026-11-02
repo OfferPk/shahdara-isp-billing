@@ -134,7 +134,14 @@ export function buildBillingRegister(state, { period = BILLING_REGISTER_DEFAULT_
         paidAmount: centsToAmount(paidAmountCents),
         ticketChargesPaid: centsToAmount(ticketChargesPaidCents),
         balanceDue: centsToAmount(balanceDueCents),
-        status: rowStatus
+        status: rowStatus,
+        // SISP-194: 💎 Advance Adjusted — screen-only badge data. The
+        // engine signal is the bill summary's creditAppliedCents: the
+        // allocation engine applied pending advance credit to this
+        // bill (a cash-settled bill has exactly 0). Display-only: the
+        // register's figures, totals and CSV never read these fields.
+        advanceAdjusted: (summary?.creditAppliedCents ?? 0) > 0,
+        advanceApplied: centsToAmount(summary?.creditAppliedCents ?? 0)
       });
     }
   }

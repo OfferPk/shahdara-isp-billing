@@ -56,6 +56,10 @@ export const ROZNAMCHA_CATEGORIES = Object.freeze([
   'RJ45 / Patch Cord',
   'Fiber Splicing',
   'Lineman Allowance',
+  // SISP-195: cash security-deposit refunds handed back to a
+  // disconnected customer (bridge-owned outflows, id
+  // `deposit-refund-<customer id>` — see hardware-custody.js).
+  'Security Deposit Refund',
   'Other'
 ]);
 
@@ -477,6 +481,13 @@ export function deleteRoznamchaOutflow(days, date, outflowId) {
  *   they are drawer views of a recorded Saad payout, already mirrored
  *   into Expenses under saadPaymentId, so this sync skips them and a
  *   drawer payout is never deducted twice.
+ * - SISP-195 exception: outflows whose id starts with `deposit-refund-`
+ *   are owned by the deposit-refund bridge (hardware-custody.js
+ *   syncDepositRefundRoznamcha). A security deposit was the customer's
+ *   own money held against the connection — never ledger income — so
+ *   handing it back is not an expense: this sync skips those outflows
+ *   and the refund never reaches Expenses, P&L or the partner shares.
+ *   The outflow exists only to keep the drawer closing exact.
  * - Idempotent: running it on an already-synced ledger returns
  *   changed: false with the identical expenses array, so re-closing a
  *   day can never duplicate an entry.
@@ -543,6 +554,9 @@ export function syncRoznamchaExpenses(expenses, days, referenceDate = new Date()
       // `lineman-payout-<settlement id>`) are likewise mirrored into
       // Expenses by the lineman payout sync under linemanPayoutId.
       if (typeof outflow.id === 'string' && (outflow.id.startsWith('saad-') || outflow.id.startsWith('lineman-payout-'))) continue;
+      // SISP-195: deposit-refund outflows are a liability handed back,
+      // not an expense — never mirror them into Expenses at all.
+      if (typeof outflow.id === 'string' && outflow.id.startsWith('deposit-refund-')) continue;
       desired.set(outflow.id, { date: day.date, outflow });
     }
   }

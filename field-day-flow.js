@@ -31,6 +31,7 @@
 
 export const FIELD_DAY_FLOW_SORT_OPTIONS = Object.freeze([
   'priority',
+  'sequenced',
   'due-high',
   'manual',
   'custom',

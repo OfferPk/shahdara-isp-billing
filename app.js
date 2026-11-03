@@ -245,6 +245,7 @@ import { CAPACITY_FORECAST_DEFAULT_THRESHOLD, normalizeCapacityThreshold, buildC
 import { canonicalCoverageMohalla, normalizeCoverageEstimate, upsertCoverageEstimate, buildCoverageRegister, coverageRegisterSummaryText, coverageRegisterHtml, coverageRegisterCsv, coverageRegisterFilename } from './coverage-register.js';
 import { normalizeReferral, upsertReferral, deriveReferralStatuses, buildReferralReport, referralSummaryText, referralReportHtml, referralReportCsv, referralReportFilename } from './referral-tracking.js';
 import { EXPANSION_STEP_IDS, buildExpansionChecklist, findExpansionChecklist, tickExpansionStep, untickExpansionStep, upsertExpansionChecklist, expansionSummaryText, expansionChecklistHtml, expansionChecklistCsv, expansionChecklistFilename } from './expansion-checklist.js';
+import { buildCampaign, findCampaign, upsertCampaign, removeCampaign, buildCampaignSummary, campaignSummaryText, campaignHtml, campaignCsv, campaignFilename } from './campaign-planner.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -11797,6 +11798,110 @@ function renderExpansionChecklist() {
     });
   }
 }
+// Plan 30: seasonal collection campaign planner. A campaign record
+// only — an operator-set window, selected mohallas, and a target list
+// drawn from existing dues, plus the closing summary of collections
+// recorded inside the window against starting dues. It creates no
+// discount, waiver, or billing change of its own, and it never writes,
+// edits, or voids a payment record; collections are only attributed
+// to the campaign. Plans 11-12 keep individual reminders — nothing
+// here sends a reminder. Campaigns live in their own store.
+const CAMPAIGN_PLANNER_KEY = 'shahdara_campaign_planner_v1';
+let campaignPlannerBound = false;
+let campaignPlannerSelectedId = null;
+function loadCampaigns() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CAMPAIGN_PLANNER_KEY) ?? 'null');
+    return Array.isArray(parsed) ? parsed.map((row) => buildCampaign(row)).filter(Boolean) : [];
+  } catch { return []; }
+}
+function saveCampaigns(list) {
+  try { localStorage.setItem(CAMPAIGN_PLANNER_KEY, JSON.stringify(list)); } catch {}
+}
+function campaignPlannerLedgerRows() {
+  const allocations = calculatePaymentAllocations(state);
+  const dues = [];
+  const payments = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      const summary = allocations.forMonth(customer.id, bill.month);
+      const balanceDue = summary && summary.balanceDueCents > 0 ? summary.balanceDueCents / 100 : 0;
+      if (balanceDue > 0) {
+        dues.push({
+          customerId: customer.id,
+          customerName: customer.name || customer.customerName || '—',
+          mohalla: customer.mohalla || customer.area || '',
+          balanceDue: Math.round(balanceDue),
+        });
+      }
+      for (const payment of bill.payments ?? []) {
+        payments.push({
+          customerId: customer.id,
+          date: typeof payment.date === 'string' ? payment.date : null,
+          amount: payment.amount,
+          voided: payment.voided === true,
+        });
+      }
+    }
+  }
+  return { dues, payments };
+}
+function renderCampaignPlanner() {
+  const bodyEl = $('#campaignPlannerBody');
+  if (!bodyEl) return;
+  const campaigns = loadCampaigns();
+  const selected = findCampaign(campaigns, campaignPlannerSelectedId) ?? campaigns[0] ?? null;
+  if (selected) campaignPlannerSelectedId = selected.id;
+  const selectEl = $('#campaignPlannerSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = campaigns.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)} (${escapeHtml(c.startDate)} to ${escapeHtml(c.endDate)})</option>`).join('')
+      || '<option value="">No campaigns yet</option>';
+    if (selected) selectEl.value = selected.id;
+  }
+  const { dues, payments } = campaignPlannerLedgerRows();
+  const summary = selected ? buildCampaignSummary({ campaign: selected, dues, payments }) : null;
+  bodyEl.innerHTML = summary ? campaignHtml(summary) : '<p class="empty-state">No campaign yet — create one below with a name, a window, and comma-separated mohallas.</p>';
+  const summaryEl = $('#campaignPlannerSummary');
+  if (summaryEl) summaryEl.textContent = summary ? campaignSummaryText(summary) : 'No campaign selected.';
+  if (!campaignPlannerBound) {
+    campaignPlannerBound = true;
+    $('#campaignPlannerCreateBtn')?.addEventListener('click', () => {
+      const mohallas = ($('#campaignPlannerMohallas')?.value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      const before = loadCampaigns();
+      const next = upsertCampaign(before, {
+        id: `campaign-${Date.now()}`,
+        name: $('#campaignPlannerName')?.value ?? '',
+        startDate: $('#campaignPlannerStart')?.value ?? '',
+        endDate: $('#campaignPlannerEnd')?.value ?? '',
+        mohallas,
+        note: $('#campaignPlannerNote')?.value ?? '',
+      });
+      // An invalid campaign (blank name or bad window) is refused by
+      // the module, so the list is unchanged and nothing is stored.
+      saveCampaigns(next);
+      if (next.length > before.length) campaignPlannerSelectedId = next[next.length - 1].id;
+      renderCampaignPlanner();
+    });
+    $('#campaignPlannerSelect')?.addEventListener('change', (event) => {
+      campaignPlannerSelectedId = event.target.value || null;
+      renderCampaignPlanner();
+    });
+    $('#campaignPlannerExportBtn')?.addEventListener('click', () => {
+      const current = findCampaign(loadCampaigns(), campaignPlannerSelectedId) ?? loadCampaigns()[0];
+      if (!current) return;
+      const { dues: exportDues, payments: exportPayments } = campaignPlannerLedgerRows();
+      const exportSummary = buildCampaignSummary({ campaign: current, dues: exportDues, payments: exportPayments });
+      downloadCsvFile(campaignFilename(exportSummary), campaignCsv(exportSummary));
+    });
+    $('#campaignPlannerDeleteBtn')?.addEventListener('click', () => {
+      if (!campaignPlannerSelectedId) return;
+      saveCampaigns(removeCampaign(loadCampaigns(), campaignPlannerSelectedId));
+      campaignPlannerSelectedId = null;
+      renderCampaignPlanner();
+    });
+  }
+}
 function renderCoverageRegister() {
   const bodyEl = $('#coverageRegisterBody');
   if (!bodyEl) return;
@@ -11899,6 +12004,7 @@ function renderAnalytics() {
   renderCoverageRegister();
   renderReferralTracking();
   renderExpansionChecklist();
+  renderCampaignPlanner();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

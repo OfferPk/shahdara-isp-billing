@@ -256,6 +256,7 @@ import { normalizeBillExtensions, grantBillExtension, activeBillExtension, apply
 import { normalizeVendorSchedules, upsertVendorSchedule, removeVendorSchedule, normalizeVendorOccurrences, markVendorOccurrencePaid, cancelVendorOccurrence, buildVendorDueQueue, vendorMonthOutflow, vendorBillsSummaryText, vendorBillsHtml, vendorBillsCsv, vendorBillsFilename } from './vendor-bills.js';
 import { normalizeMonthBudget, normalizeMonthBudgets, upsertMonthBudget, removeMonthBudget, buildBudgetVersusActual, budgetVersusActualSummaryText, budgetVersusActualHtml, budgetVersusActualCsv, budgetVersusActualFilename } from './expense-month-budgets.js';
 import { normalizeVendorContract, normalizeVendorContracts, upsertVendorContract, removeVendorContract, updateContractRate, sharedVendorNames, buildRenewalList, renewalSummaryText, vendorContractsHtml, vendorContractsCsv, vendorContractsFilename } from './vendor-contracts.js';
+import { isValidCostMonth, parseCapitalCategories, buildCostPerCustomer, costPerCustomerSummaryText, costPerCustomerHtml, costPerCustomerCsv, costPerCustomerFilename } from './cost-per-customer.js';
 import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
@@ -13001,6 +13002,51 @@ function renderAnalytics() {
   renderVendorBills();
   renderExpenseMonthBudgets();
   renderVendorContracts();
+  renderCostPerCustomer();
+}
+// Plan 44: cost per customer and margin per package, read-only. The
+// view divides one month's recurring expenses across active
+// customers and shows each catalogue package's margin against that
+// cost. Categories the operator marks as one-off capital are shown
+// separately and never folded into the monthly figure; the view
+// states both lists in plain words. Nothing here stores an
+// allocation rule, changes a bill, or rewrites any record.
+let costPerCustomerBound = false;
+function renderCostPerCustomer() {
+  const bodyEl = $('#costPerCustomerBody');
+  if (!bodyEl) return;
+  const monthEl = $('#costPerCustomerMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const month = monthEl?.value ?? localDate().slice(0, 7);
+  const activeCustomers = (state.customers ?? []).filter((c) => !c.archived);
+  const view = buildCostPerCustomer({
+    month,
+    expenses: state.expenses ?? [],
+    capitalCategories: $('#costPerCustomerCapital')?.value ?? '',
+    activeCustomerCount: activeCustomers.length,
+    packages: BILL_PACKAGES.map((plan) => ({ name: plan.label, price: plan.price })),
+  });
+  bodyEl.innerHTML = costPerCustomerHtml(view);
+  const summaryEl = $('#costPerCustomerSummary');
+  if (summaryEl) summaryEl.textContent = activeCustomers.length === 0 && view.recurringByCategory.length === 0 && view.capitalByCategory.length === 0
+    ? 'The owner knows total collections and total expenses but not whether a low-price package actually covers its share of running costs. Pick a month: this read-only view divides that month\'s recurring expenses across active customers and shows each catalogue package\'s margin against that cost. Mark one-off capital categories (for example a new optical unit purchase) and they stay out of the monthly figure, listed separately. It stores no allocation rule and changes no bill.'
+    : costPerCustomerSummaryText(view);
+  if (!costPerCustomerBound) {
+    costPerCustomerBound = true;
+    $('#costPerCustomerMonth')?.addEventListener('change', renderCostPerCustomer);
+    $('#costPerCustomerCapital')?.addEventListener('change', renderCostPerCustomer);
+    $('#costPerCustomerExportBtn')?.addEventListener('click', () => {
+      const exportMonth = $('#costPerCustomerMonth')?.value ?? localDate().slice(0, 7);
+      const exportView = buildCostPerCustomer({
+        month: exportMonth,
+        expenses: state.expenses ?? [],
+        capitalCategories: $('#costPerCustomerCapital')?.value ?? '',
+        activeCustomerCount: (state.customers ?? []).filter((c) => !c.archived).length,
+        packages: BILL_PACKAGES.map((plan) => ({ name: plan.label, price: plan.price })),
+      });
+      downloadCsvFile(costPerCustomerFilename(exportMonth), costPerCustomerCsv(exportView));
+    });
+  }
 }
 let packageSortKey = null;
 let packageSortAsc = true;

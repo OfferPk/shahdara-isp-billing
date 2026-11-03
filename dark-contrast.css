@@ -184,3 +184,80 @@
 [data-theme="dark"] .receipt-month-row strong {
   color: var(--dk-ink) !important;
 }
+
+/* 7. Plan E — Dark-mode completion (customer, payment, Transactions,
+   receipt-preview screens). Audit finding: most of these screens were
+   already dark-covered (generic input/select rules in styles.css,
+   payments-list tx rules, payments-inbox easypaisa rules, the
+   statement/batch-slip rules in styles.css). The leaks below are the
+   ones the audit actually found, each with a light value that fails
+   the bar on a dark surface. Deliberately NOT changed: the receipt
+   sheet itself (.receipt-sheet) is a paper document — white paper
+   with dark text is high-contrast and readable in either theme, and
+   print must stay white — so no dark rule repaints it; and the
+   --color-paid / --color-success / --color-overdue tokens are NOT
+   redefined in tokens.css dark blocks, because those same tokens are
+   solid button backgrounds paired with white text (.advance-badge,
+   .ds-btn--success); redefining them would break those pairings.
+   The chips below are fixed with scoped dark overrides instead. */
+
+/* Shared status chips (components.css .ds-chip--*): paid and success
+   had only light bg/text pairs; overdue paired a light red text with
+   the dark pending bg; info paired a light blue text with the dark
+   brand-soft bg. All four now use the dark pairs the status rules
+   above already use (received green, offline red, bank blue). */
+[data-theme="dark"] :is(.ds-chip--paid, .ds-chip--success) {
+  background: #14382a !important;
+  color: #8fe0b6 !important;
+  border-color: #2c5c46 !important;
+}
+[data-theme="dark"] .ds-chip--overdue {
+  background: #402a24 !important;
+  color: #ffb4a8 !important;
+  border-color: #6e453c !important;
+}
+[data-theme="dark"] .ds-chip--info {
+  /* Token values, not new hex: --color-info-bg / --color-info-strong
+     resolve to #26344d / #d5e2ff in dark mode, keeping the #230
+     ratchet (dark-contrast.css <= 20 distinct hex) intact. */
+  background: var(--color-info-bg) !important;
+  color: var(--color-info-strong) !important;
+  border-color: var(--dk-line) !important;
+}
+/* Transactions method chips: cash/easypaisa had no explicit dark
+   rule (the generic .tx-method-chip rule covered them only by
+   specificity); pin the same received-green pair explicitly, so a
+   later chip-rule reorder cannot silently re-lighten them. */
+[data-theme="dark"] :is(.tx-method-cash, .tx-method-easypaisa) {
+  background: #14382a !important;
+  color: #8fe0b6 !important;
+}
+
+/* Transaction card (old list, outside .tx-details): its meta/context
+   lines kept the light #586e65 grey, which fails on a dark card.
+   (.tx-details meta/context were already covered in
+   payments-list.css.) */
+[data-theme="dark"] .transaction-card :is(.transaction-meta, .transaction-context) {
+  color: var(--dk-muted) !important;
+}
+
+/* Archived customers panel (customer screen): the summary kept the
+   light #536a61 grey and the item separators the light #eef2f0. */
+[data-theme="dark"] .archived-customers-panel {
+  border-color: var(--dk-line) !important;
+}
+[data-theme="dark"] .archived-customers-panel > summary {
+  color: var(--dk-muted) !important;
+}
+[data-theme="dark"] .archived-customer-item {
+  border-color: var(--dk-line) !important;
+}
+
+/* Receipt actions outside .tx-details (profile/payment detail):
+   they kept the light #f4faf6 background. (Inside .tx-details they
+   were already covered in payments-list.css.) */
+[data-theme="dark"] :is(.receipt-whatsapp-action, .receipt-phone-help) {
+  background: var(--dk-surface-2) !important;
+  color: var(--dk-ink) !important;
+  border-color: var(--dk-line) !important;
+}

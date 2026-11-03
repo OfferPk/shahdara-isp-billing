@@ -14,7 +14,7 @@ import { isVoidedPayment } from './payment-void-audit.js';
 import { t } from './nav-language.js';
 import { remainderWaadaOf } from './waada-queue.js';
 import { evaluateStarTimelyPayer, starReceiptThankYouNote } from './star-subscribers.js';
-import { buildReceiptFooterHtml } from './receipt-footer-studio.js';
+import { brandHeaderContentHtml, brandHeaderHtml, documentFooterHtml } from './document-branding.js';
 import { receiptCodeForReceipt, receiptVerificationCode, verificationStampText } from './receipt-verifier.js';
 import { renderCustomWaTemplate } from './whatsapp-templates.js';
 
@@ -601,13 +601,18 @@ export function generatePaymentReceiptHtml(receipt, {
 } = {}) {
   if (!receipt) return '';
 
-  // SISP-96: the owner-configured receipt footer (custom text, EasyPaisa /
-  // NayaPay numbers, helpline, shops list) from the ONE builder in
-  // receipt-footer-studio.js. The block carries its own leading newline
-  // and is '' when nothing is configured, so every layout below stays
-  // byte-identical to the pre-studio output.
-  const customFooterHtml = buildReceiptFooterHtml(receiptFooter);
-  const customFooterBlock = customFooterHtml ? `\n    ${customFooterHtml}` : '';
+  // Plan Q: one brand header/footer system. The header data (brand,
+  // canonical bilingual title, meta line) comes from
+  // document-branding.js, and the footer is that module's thank-you
+  // line + the SISP-96 studio footer block. Each layout keeps its own
+  // thank-you wording; only the structure is shared. The brand object
+  // below is passed to every header/footer builder in this function.
+  const brand = { businessName, businessPhone, areaName };
+  const headerFor = (documentNumberLabel, variant, extra = {}) => brandHeaderContentHtml(brand, {
+    document: 'payment-receipt', documentNumber: receipt.receiptNumber,
+    documentNumberLabel, variant, ...extra
+  });
+  const footerFor = (thankYou) => documentFooterHtml(receiptFooter, { thankYou });
 
   // SISP-26 bilingual receipt name header: "Urdu name (Roman name)" when an
   // Urdu rendering exists and differs from the Roman name, else Roman only.
@@ -638,12 +643,13 @@ export function generatePaymentReceiptHtml(receipt, {
   const balanceLabel = receipt.balanceDueCents === 0 ? 'PKR 0 (مکمل ادا شدہ / Paid)' : `${balanceStr} (بقایا جات / Due)`;
 
   if (format === 'thermal-58') {
+    // Plan Q: the shared thermal header — the canonical bilingual
+    // title replaces the old Urdu-only "(58mm)" title, and the number
+    // label is the same "Receipt #:" as thermal-80 (the width already
+    // lives in data-receipt-format and the article class).
     return `<article class="receipt-sheet thermal-receipt thermal-58" data-receipt-format="thermal-58">
   <header class="receipt-head">
-    <div class="receipt-brand">${escapeHtml(businessName)}</div>
-    <div class="receipt-subbrand">انٹرنیٹ ادائیگی رسید (58mm)</div>
-    <div class="receipt-meta-line">${escapeHtml(areaName)} · Tel: ${escapeHtml(businessPhone)}</div>
-    <div class="receipt-num">No: <strong>${escapeHtml(receipt.receiptNumber)}</strong></div>
+    ${headerFor('Receipt #:', 'thermal')}
     ${voidStampHtml}
   </header>
   <div class="receipt-divider">--------------------------------</div>
@@ -686,7 +692,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(RECEIPT_URDU_NOTE)}</div>
   ${starThankYouReceiptHtml(receipt)}
   <footer class="receipt-terms">
-    <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>${customFooterBlock}
+    ${footerFor('* شکریہ! Shahdara ISP *')}
   </footer>
 </article>`;
   }
@@ -694,10 +700,7 @@ export function generatePaymentReceiptHtml(receipt, {
   if (format === 'thermal-80' || format === 'thermal') {
     return `<article class="receipt-sheet thermal-receipt thermal-80" data-receipt-format="thermal-80">
   <header class="receipt-head">
-    <div class="receipt-brand">${escapeHtml(businessName)}</div>
-    <h1>Payment Receipt / رسید ادائیگی</h1>
-    <p>${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
-    <div class="receipt-receipt-no">Receipt #: <strong>${escapeHtml(receipt.receiptNumber)}</strong></div>
+    ${headerFor('Receipt #:', 'thermal')}
     ${voidStampHtml}
   </header>
   <div class="receipt-divider">================================</div>
@@ -744,7 +747,7 @@ export function generatePaymentReceiptHtml(receipt, {
   ${starThankYouReceiptHtml(receipt)}
   <footer class="receipt-terms">
     <p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n', '<br>')}</p>
-    <p class="receipt-footer-text">*** برائے مہربانی رسید سنبھال کر رکھیں۔ شکریہ! ***</p>${customFooterBlock}
+    ${footerFor('*** برائے مہربانی رسید سنبھال کر رکھیں۔ شکریہ! ***')}
   </footer>
 </article>`;
   }
@@ -817,12 +820,7 @@ export function generatePaymentReceiptHtml(receipt, {
 
   return `<article class="receipt-sheet a4-receipt" data-receipt-format="a4">
   <header class="receipt-head">
-    <div>
-      <span class="receipt-brand">${escapeHtml(businessName)}</span>
-      <h1>Payment Receipt / رسید بل ادائیگی</h1>
-      <p>Official Customer Record · ${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
-      <div class="receipt-num-badge">Permanent Receipt: <strong>${escapeHtml(receipt.receiptNumber)}</strong></div>
-    </div>
+    ${headerFor('Permanent Receipt:', 'a4', { metaPrefix: 'Official Customer Record' })}
     <span class="receipt-mark ${statusClass}">${escapeHtml(status)}</span>
   </header>
   ${voidStampHtml}
@@ -840,7 +838,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-signatures">
       <div class="receipt-sig-box"><span>دستخط وصول کنندہ / Collector</span></div>
       <div class="receipt-sig-box"><span>مہر و دستخط ادارہ / Shahdara ISP</span></div>
-    </div>${customFooterBlock}
+    </div>${footerFor()}
   </footer>
 </article>`;
 }
@@ -895,7 +893,8 @@ export function buildDownPaymentKistReceipt(customer, plan, payment) {
 export function buildDownPaymentKistReceiptHtml(receipt, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Islamabad'
+  areaName = 'Shahdara, Islamabad',
+  receiptFooter = null
 } = {}) {
   if (!receipt) return '';
   const formatAmount = (val) => {
@@ -905,13 +904,16 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
   };
   const rows = (Array.isArray(receipt.schedule) ? receipt.schedule : [])
     .map((row) => `<div class="receipt-field"><dt>Kist ${row.installmentNumber}/${row.totalMonths}:</dt><dd>${formatAmount(row.amount)} (${row.status === 'billed' ? 'billed' : 'remaining'})</dd></div>`).join('');
+  // Plan Q: shared A4 header (same title/meta data source as every
+  // other receipt) and shared footer (thank-you + studio footer, so a
+  // configured owner footer now also prints on this receipt).
+  const kistHeader = brandHeaderHtml({ businessName, businessPhone, areaName }, {
+    document: 'down-payment-kist', documentNumber: receipt.receiptNumber,
+    documentNumberLabel: 'Receipt #:', variant: 'a4'
+  });
+  const kistFooter = documentFooterHtml(receiptFooter, { thankYou: '* شکریہ! Shahdara ISP *' });
   return `<article class="receipt-sheet" data-receipt-format="down-payment-kist">
-  <header class="receipt-head">
-    <div class="receipt-brand">${escapeHtml(businessName)}</div>
-    <h1>Down Payment Receipt / پیشگی ادائیگی رسید</h1>
-    <p>${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
-    <div class="receipt-receipt-no">Receipt #: <strong>${escapeHtml(receipt.receiptNumber)}</strong></div>
-  </header>
+  ${kistHeader}
   <div class="receipt-divider">================================</div>
   <dl class="receipt-fields">
     <div class="receipt-field"><dt>Payment Date / تاریخ ادائیگی:</dt><dd>${escapeHtml(receipt.paymentDate)}</dd></div>
@@ -932,7 +934,7 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
   <div class="receipt-divider">--------------------------------</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
   <footer class="receipt-terms">
-    <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>
+    ${kistFooter}
   </footer>
 </article>`;
 }
@@ -979,7 +981,8 @@ export function buildDepositSettlementReceipt(customer) {
 export function generateDepositSettlementReceiptHtml(receipt, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Islamabad'
+  areaName = 'Shahdara, Islamabad',
+  receiptFooter = null
 } = {}) {
   if (!receipt) return '';
   const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName
@@ -997,12 +1000,10 @@ export function generateDepositSettlementReceiptHtml(receipt, {
   const statusClass = receipt.status === 'CLEARED' ? 'receipt-status-paid' : 'receipt-status-partial';
   return `<article class="receipt-sheet a4-receipt" data-receipt-format="deposit-settlement">
   <header class="receipt-head">
-    <div>
-      <span class="receipt-brand">${escapeHtml(businessName)}</span>
-      <h1>Final Disconnection Clearance Receipt / حتمی منقطعی کلیئرنس رسید</h1>
-      <p>${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
-      <div class="receipt-num-badge">Clearance Receipt: <strong>${escapeHtml(receipt.receiptNumber)}</strong></div>
-    </div>
+    ${brandHeaderContentHtml({ businessName, businessPhone, areaName }, {
+      document: 'deposit-settlement', documentNumber: receipt.receiptNumber,
+      documentNumberLabel: 'Clearance Receipt:', variant: 'a4'
+    })}
     <span class="receipt-mark ${statusClass}">${escapeHtml(receipt.status)}</span>
   </header>
   <dl class="receipt-fields">
@@ -1027,7 +1028,7 @@ export function generateDepositSettlementReceiptHtml(receipt, {
       <div class="receipt-sig-box"><span>دستخط وصول کنندہ / Collector</span></div>
       <div class="receipt-sig-box"><span>مہر و دستخط ادارہ / Shahdara ISP</span></div>
     </div>
-    <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>
+    ${documentFooterHtml(receiptFooter, { thankYou: '* شکریہ! Shahdara ISP *' })}
   </footer>
 </article>`;
 }
@@ -1075,7 +1076,8 @@ export function buildDepositOffsetReceipt(customer, offsetId) {
 export function generateDepositOffsetReceiptHtml(receipt, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Islamabad'
+  areaName = 'Shahdara, Islamabad',
+  receiptFooter = null
 } = {}) {
   if (!receipt) return '';
   const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName
@@ -1092,12 +1094,12 @@ export function generateDepositOffsetReceiptHtml(receipt, {
   const statusClass = receipt.reversed ? 'receipt-status-partial' : 'receipt-status-paid';
   return `<article class="receipt-sheet a4-receipt" data-receipt-format="deposit-offset">
   <header class="receipt-head">
-    <div>
-      <span class="receipt-brand">${escapeHtml(businessName)}</span>
-      <h1>Security Deposit Offset Receipt / سیکیورٹی ڈپازٹ تصفیہ رسید</h1>
-      <p>${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
-      <div class="receipt-num-badge">Offset Receipt: <strong>${escapeHtml(receipt.receiptNumber)}</strong> · Ref: ${escapeHtml(receipt.offsetId)}</div>
-    </div>
+    ${brandHeaderContentHtml({ businessName, businessPhone, areaName }, {
+      document: 'deposit-offset', documentNumber: receipt.receiptNumber,
+      documentNumberLabel: 'Offset Receipt:',
+      documentNumberSuffix: receipt.offsetId ? ` · Ref: ${receipt.offsetId}` : '',
+      variant: 'a4'
+    })}
     <span class="receipt-mark ${statusClass}">${escapeHtml(receipt.status)}</span>
   </header>
   <dl class="receipt-fields">
@@ -1117,7 +1119,7 @@ export function generateDepositOffsetReceiptHtml(receipt, {
   <div class="receipt-divider">================================</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(receipt.urduNote)}</div>
   <footer class="receipt-terms">
-    <p class="receipt-footer-text">* شکریہ! Shahdara ISP *</p>
+    ${documentFooterHtml(receiptFooter, { thankYou: '* شکریہ! Shahdara ISP *' })}
   </footer>
 </article>`;
 }

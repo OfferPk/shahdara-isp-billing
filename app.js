@@ -3107,7 +3107,8 @@ function printDownPaymentKistReceipt(customerForReceipt, plan, payment) {
     if (!area) return;
     area.innerHTML = buildDownPaymentKistReceiptHtml(receipt, {
       businessName: state.settings?.businessName || 'Shahdara ISP',
-      businessPhone: state.settings?.businessPhone || '0300-1234567'
+      businessPhone: state.settings?.businessPhone || '0300-1234567',
+      receiptFooter: getReceiptFooter()
     });
     area.hidden = false;
     document.body.classList.add('printing-receipt');
@@ -3131,7 +3132,8 @@ function printDepositSettlementReceipt(customerId) {
   if (!area) return;
   area.innerHTML = generateDepositSettlementReceiptHtml(receipt, {
     businessName: state.settings?.businessName || 'Shahdara ISP',
-    businessPhone: state.settings?.businessPhone || '0300-1234567'
+    businessPhone: state.settings?.businessPhone || '0300-1234567',
+    receiptFooter: getReceiptFooter()
   });
   area.hidden = false;
   document.body.classList.add('printing-receipt');
@@ -3154,7 +3156,8 @@ function printDepositOffsetReceipt(customerId, offsetId) {
   if (!area) return;
   area.innerHTML = generateDepositOffsetReceiptHtml(receipt, {
     businessName: state.settings?.businessName || 'Shahdara ISP',
-    businessPhone: state.settings?.businessPhone || '0300-1234567'
+    businessPhone: state.settings?.businessPhone || '0300-1234567',
+    receiptFooter: getReceiptFooter()
   });
   area.hidden = false;
   document.body.classList.add('printing-receipt');
@@ -3176,7 +3179,8 @@ function printClearanceNocSlip(customerId) {
   if (!area) return;
   area.innerHTML = generateClearanceNocSlipHtml(slip, {
     businessName: state.settings?.businessName || 'Shahdara ISP',
-    businessPhone: state.settings?.businessPhone || '0300-1234567'
+    businessPhone: state.settings?.businessPhone || '0300-1234567',
+    receiptFooter: getReceiptFooter()
   });
   area.hidden = false;
   document.body.classList.add('printing-receipt');
@@ -11740,6 +11744,9 @@ function renderStatementView() {
   }
   const statementBreakdowns = statementBillBreakdowns(visible);
   if (statementBreakdowns?.length) view.billBreakdowns = statementBreakdowns;
+  // Plan Q: the printed statement carries the owner's studio footer
+  // (shops / helpline / payment accounts) when one is configured.
+  view.receiptFooter = getReceiptFooter();
   preview.innerHTML = generateCustomerStatementHtml(currentStatementData, view);
 }
 

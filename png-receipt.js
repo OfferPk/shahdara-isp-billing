@@ -24,6 +24,7 @@ import { kistLineLabel } from './installment-plan.js';
 import { displayCustomerName } from './urdu-names.js';
 import { receiptHistoryHeading } from './receipt.js';
 import { buildReceiptFooterLines } from './receipt-footer-studio.js';
+import { brandTitleLine, DOCUMENT_TITLES, sanitizeBrand } from './document-branding.js';
 import { receiptCodeForReceipt } from './receipt-verifier.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
 
@@ -227,7 +228,10 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     footerLines,
     // SISP-91: saved receipt language + the slip's localized headings.
     lang,
-    title: L('Payment Receipt / رسید ادائیگی'),
+    // Plan Q: the title comes from the same DOCUMENT_TITLES entry as
+    // the HTML receipts (still localised by L() for the PNG's receipt
+    // language), and the brand identity from the one sanitizeBrand.
+    title: L(brandTitleLine(DOCUMENT_TITLES['payment-receipt'])),
     detailsTitle: L('Amount Details / رقم کی تفصیل'),
     subLabels: {
       customer: L('Customer / صارف'),
@@ -235,9 +239,11 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
       area: L('Area / Zone'),
       package: L('Package / پیکیج')
     },
-    businessName: text(options.businessName) || 'Shahdara ISP',
-    businessPhone: text(options.businessPhone) || '0300-1234567',
-    areaName: text(options.areaName) || 'Shahdara',
+    ...sanitizeBrand(options),
+    // NOTE: sanitizeBrand's area default is 'Shahdara, Islamabad'
+    // (the HTML receipts' default); the PNG previously defaulted to
+    // plain 'Shahdara'. The area name is stored on the model, not
+    // drawn — the drawn area line is the customer's own areaZone.
     receiptNumber: text(receipt.receiptNumber),
     // SISP-83: tamper-evident VER code, from the receipt snapshot when
     // present, else re-derived from the receipt's own fields.

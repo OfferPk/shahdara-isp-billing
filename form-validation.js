@@ -5,6 +5,7 @@
 import { buildPayrollSummary, paymentSenderLabel } from './core.js';
 import { EXPENSE_CATEGORIES, canonicalMohalla } from './phase3.js';
 import { t } from './nav-language.js';
+import { documentFooterHtml } from './document-branding.js';
 
 /**
  * Validates a Pakistani or international phone number.
@@ -1513,6 +1514,13 @@ export function generateCustomerStatementHtml(statement, view = {}) {
         </table>
       </section>` : '';
 
+  // Plan Q: the SISP-96 studio footer for the printed statement, built
+  // here (not inline) so the Plan H scan sees a pre-built safe string:
+  // documentFooterHtml escapes its thank-you line and the studio
+  // lines are escaped at construction in receipt-footer-studio.js.
+  // '' when nothing is configured, so bare statements are unchanged.
+  const statementFooterHtml = documentFooterHtml(view.receiptFooter);
+
   return `
     <article class="customer-account-statement" data-customer-id="${escapeHtml(customer.id)}">
       <header class="statement-header">
@@ -1602,6 +1610,7 @@ export function generateCustomerStatementHtml(statement, view = {}) {
             <span>Customer Signature</span>
           </div>
         </div>
+        ${statementFooterHtml}
       </footer>
     </article>
   `;

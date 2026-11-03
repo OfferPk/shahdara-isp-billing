@@ -252,6 +252,7 @@ import { normalizeOperatorMode, canPerformAction, viewAccess, requestModeSwitch,
 import { normalizePriceRevision, normalizePriceHistory, recordPriceRevision, priceHistoryForPackage, priceOnDate, priceHistorySummaryText, priceHistoryHtml, priceHistoryCsv, priceHistoryFilename } from './package-price-history.js';
 import { buildTransferPack, transferPackText, transferPackFilename, verifyTransferPack, decideTransferApply, transferPackSummaryText, transferPackHtml } from './transfer-pack.js';
 import { monthlyDueDates, splitArrearsIntoInstalments, normalizeRepaymentPlans, upsertRepaymentPlan, findRepaymentPlan, recordInstalmentPayment, closeRepaymentPlan, canCloseRepaymentPlan, repaymentPlanSummaryText, repaymentPlanHtml, repaymentPlanCsv, repaymentPlanFilename } from './repayment-plan.js';
+import { normalizeBillExtensions, grantBillExtension, activeBillExtension, applyExtensionsToBills, billExtensionSummaryText, billExtensionFilename, billExtensionHtml, billExtensionCsv } from './bill-extension.js';
 import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
@@ -3598,6 +3599,11 @@ function renderHistory(customer) {
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
     const hasPartial = statusValue === 'partial';
+    // Plan 38: an extended bill shows its original due date, its
+    // extended date, and the reason on the profile, next to the
+    // bill's own due date. The bill itself is never rewritten here.
+    const billExtension = bill ? activeBillExtension(loadBillExtensions(), { customerId: customer.id, billMonth: month, billId: bill.id }) : null;
+    const billExtensionMarkup = billExtension ? `<span class="month-summary-stat">Bill extension: original due ${escapeHtml(humanDate(billExtension.originalDueDate))} → extended to ${escapeHtml(humanDate(billExtension.extendedDueDate))} · reason: ${escapeHtml(billExtension.reason)}${billExtension.grantedBy ? ` · granted by ${escapeHtml(billExtension.grantedBy)}` : ''}</span>` : '';
     const lateFeeMarkup = bill?.lateFee ? `<span class="month-summary-wide">${t('prof_hist_late_fee')}: <strong class="late-fee-badge-applied">+${formatAmount(bill.lateFee)}</strong> <small>(${escapeHtml(bill.lateFeeReason || t('prof_hist_owner_surcharge'))})</small> <button type="button" class="waive-late-fee-btn" data-waive-late-fee data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_waive_title')}">${t('prof_hist_waive')}</button></span>` : '';
     const overdueEligible = bill && bill.dueDate && isBillOverdue(bill).isOverdue && (monthAllocation?.balanceDueCents ?? 0) > 0 && !bill.lateFee;
     const applyFeeBtnMarkup = overdueEligible ? `<span class="month-summary-wide"><button type="button" class="apply-late-fee-btn" data-apply-late-fee data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_apply_fee_title')}">${t('prof_hist_apply_fee', null, { amount: getLateFeeConfig().defaultAmount })}</button></span>` : '';
@@ -3615,7 +3621,7 @@ function renderHistory(customer) {
     const concessionSuggestMarkup = concessionSuggestion && !concessionSuggestion.alreadyApplied && concessionSuggestion.eligible ? `<span class="month-summary-wide"><span class="discount-badge-applied">${escapeHtml(t('prof_hist_concession_suggest', null, { hours: concessionSuggestion.downtimeHours, amount: concessionSuggestion.suggestedAmount }))}</span>${concessionBalance !== null && concessionBalance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-apply-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_concession_apply_title')}">${t('prof_hist_concession_apply', null, { amount: concessionSuggestion.suggestedAmount })}</button>${concessionRoundControls}` : ''}</span>` : '';
     const concessionNetMarkup = concessionNetDue !== null ? `<span class="month-summary-stat">${t('prof_hist_net_after_concession')}: <strong>${formatAmount(concessionNetDue)}</strong></span>` : '';
     const clarityMarkup = bill ? billClarityMarkup(customer, bill, allocations) : '';
-    const summaryMarkup = !bill ? `<p class="empty-month">${t('prof_hist_empty_month')}</p>` : `<div class="month-summary"><span class="month-summary-stat">${t('prof_hist_status')}: <strong>${status.label}</strong></span><span class="month-summary-stat">${t('prof_hist_due_date')}: <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : t('prof_hist_due_not_set')}</strong></span><span class="month-summary-stat">${t('prof_hist_receipts')}: <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">${t('prof_hist_carry_in')}: <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">${t('prof_hist_bill_amount')}: <strong>${escapeHtml(displayAmount)}</strong></span>${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">${t('prof_hist_balance_due')}: <strong>${escapeHtml(balanceDue)}</strong></span>${clarityMarkup}${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_generated')}:  <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_forwarded')}: <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">${t('prof_hist_credit_waiting')}: <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? `<span class="month-status status-pending month-summary-wide">${t('prof_hist_partial_badge')}</span>` : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
+    const summaryMarkup = !bill ? `<p class="empty-month">${t('prof_hist_empty_month')}</p>` : `<div class="month-summary"><span class="month-summary-stat">${t('prof_hist_status')}: <strong>${status.label}</strong></span><span class="month-summary-stat">${t('prof_hist_due_date')}: <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : t('prof_hist_due_not_set')}</strong></span>${billExtensionMarkup}<span class="month-summary-stat">${t('prof_hist_receipts')}: <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">${t('prof_hist_carry_in')}: <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">${t('prof_hist_bill_amount')}: <strong>${escapeHtml(displayAmount)}</strong></span>${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">${t('prof_hist_balance_due')}: <strong>${escapeHtml(balanceDue)}</strong></span>${clarityMarkup}${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_generated')}:  <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_forwarded')}: <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">${t('prof_hist_credit_waiting')}: <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? `<span class="month-status status-pending month-summary-wide">${t('prof_hist_partial_badge')}</span>` : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
     const amountRequired = bill ? '' : 'required';
     const amountLabel = bill ? t('prof_optional') : t('prof_hist_bill_required');
     const amountPlaceholder = bill ? t('prof_hist_bill_amount_ph_blank') : t('prof_hist_bill_amount_ph_enter');
@@ -10566,12 +10572,17 @@ function renderEscalationLadder() {
       });
     }
   }
-  const ladder = buildEscalationLadder({ today, thresholds, bills });
+  // Plan 38: the ladder pauses for a bill until its extended date
+  // passes. Paused bills are not on the ladder at all; bills past
+  // their extended date return with the extended date as due date.
+  const extensionResult = applyExtensionsToBills(bills, loadBillExtensions(), today);
+  const ladder = buildEscalationLadder({ today, thresholds, bills: extensionResult.bills });
   const sentLog = loadEscalationSentLog();
   lastEscalationLadder = ladder.valid ? { ladder, sentLog } : null;
   bodyEl.innerHTML = ladder.valid ? escalationHtml(ladder, sentLog) : '<p class="empty-state">Overdue escalation ladder unavailable — the ladder needs a valid today date.</p>';
   const summaryEl = $('#escalationLadderSummary');
-  if (summaryEl) summaryEl.textContent = escalationSummaryText(ladder);
+  if (summaryEl) summaryEl.textContent = escalationSummaryText(ladder)
+    + (extensionResult.counts.paused > 0 ? ` ${extensionResult.counts.paused} bill${extensionResult.counts.paused === 1 ? '' : 's'} paused by a bill extension until the extended date passes.` : '');
   const gentleInput = $('#escalationLadderGentleDays');
   if (gentleInput) gentleInput.value = ladder.thresholds.gentleDays;
   const firmInput = $('#escalationLadderFirmDays');
@@ -12456,6 +12467,89 @@ function renderRepaymentPlans() {
     });
   }
 }
+// Plan 38: one-time bill extension. A record only: extended due
+// date, reason, and who granted it, for one bill at a time. It
+// changes no amount, creates no Waada promise, and never alters
+// any other bill. The reminder ladder pauses for an extended bill
+// until the extended date passes (see renderEscalationLadder).
+const BILL_EXTENSION_KEY = 'shahdara_bill_extensions_v1';
+let billExtensionBound = false;
+function loadBillExtensions() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BILL_EXTENSION_KEY) ?? 'null');
+    return normalizeBillExtensions(parsed);
+  } catch { return []; }
+}
+function saveBillExtensions(list) {
+  try { localStorage.setItem(BILL_EXTENSION_KEY, JSON.stringify(normalizeBillExtensions(list))); } catch {}
+}
+function refreshBillExtensionMonths() {
+  const customerEl = $('#billExtensionCustomer');
+  const monthEl = $('#billExtensionMonth');
+  if (!customerEl || !monthEl) return;
+  const customer = (state.customers ?? []).find((c) => c.id === customerEl.value);
+  const months = (customer?.bills ?? []).map((b) => b.month).filter(Boolean);
+  monthEl.innerHTML = months.length > 0
+    ? months.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('')
+    : '<option value="">No bills yet</option>';
+  const originalEl = $('#billExtensionOriginal');
+  if (originalEl) {
+    const bill = (customer?.bills ?? []).find((b) => b.month === monthEl.value);
+    originalEl.value = bill?.dueDate ?? '';
+  }
+}
+function renderBillExtensions() {
+  const bodyEl = $('#billExtensionBody');
+  if (!bodyEl) return;
+  const today = localDate();
+  const extensions = loadBillExtensions();
+  const active = (state.customers ?? []).filter((c) => !c.archived);
+  const names = {};
+  for (const c of active) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = billExtensionHtml(extensions, { names, today });
+  const summaryEl = $('#billExtensionSummary');
+  if (summaryEl) summaryEl.textContent = extensions.length === 0
+    ? 'A customer who asks for a few extra days gets a written grace, not an informal yes: record the extended date, the reason, and who granted it, for one bill at a time.'
+    : billExtensionSummaryText(extensions, today);
+  const customerEl = $('#billExtensionCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = active.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  refreshBillExtensionMonths();
+  if (!billExtensionBound) {
+    billExtensionBound = true;
+    $('#billExtensionCustomer')?.addEventListener('change', refreshBillExtensionMonths);
+    $('#billExtensionMonth')?.addEventListener('change', refreshBillExtensionMonths);
+    $('#billExtensionGrantBtn')?.addEventListener('click', () => {
+      const customerId = $('#billExtensionCustomer')?.value ?? '';
+      const billMonth = $('#billExtensionMonth')?.value ?? '';
+      const originalDueDate = $('#billExtensionOriginal')?.value ?? '';
+      const extendedDueDate = $('#billExtensionExtended')?.value ?? '';
+      const reason = $('#billExtensionReason')?.value ?? '';
+      const grantedBy = $('#billExtensionGrantedBy')?.value ?? '';
+      const secondNote = $('#billExtensionSecondNote')?.value ?? '';
+      const result = grantBillExtension(loadBillExtensions(), {
+        customerId, billMonth, originalDueDate, extendedDueDate, reason, grantedBy,
+      }, { secondExtensionNote: secondNote });
+      if (!result.granted) {
+        toast(result.refusal === 'second-extension-needs-note'
+          ? 'This bill already has an extension — a second grant needs an operator note explaining why.'
+          : 'An extension needs a customer, a bill, an original due date, a later extended date, and a reason.');
+        return;
+      }
+      saveBillExtensions(result.extensions);
+      toast('Bill extension recorded. It changes no amount and creates no Waada promise; the reminder ladder pauses for this bill until the extended date passes.');
+      renderBillExtensions();
+      renderEscalationLadder();
+    });
+    $('#billExtensionExportBtn')?.addEventListener('click', () => {
+      const namesNow = {};
+      for (const c of (state.customers ?? []).filter((x) => !x.archived)) namesNow[c.id] = c.name || c.customerName || c.id;
+      downloadCsvFile(billExtensionFilename(localDate()), billExtensionCsv(loadBillExtensions(), { names: namesNow }));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -12540,6 +12634,7 @@ function renderAnalytics() {
   renderPriceHistory();
   renderTransferPack();
   renderRepaymentPlans();
+  renderBillExtensions();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

@@ -73,6 +73,7 @@ import {
   calculateTransactionSummary,
   sortCustomerRoster,
   filterCustomersByArea,
+  NO_AREA_FILTER_VALUE,
   getUniqueCustomerAreas,
   groupAreasWithCounts,
   sortMonthlyReportRows,
@@ -2732,10 +2733,19 @@ function renderCustomers() {
   // Sync unique areas into dropdown
   const areaSelect = $('#customerFilterArea');
   if (areaSelect) {
-    const areaOptions = groupAreasWithCounts(state.customers.filter(c => !c.archived), c => (c.mohalla || c.area || '').trim(), raw => canonicalMohalla(raw)?.key ?? raw.toLowerCase(), raw => canonicalMohalla(raw)?.label ?? raw);
+    const activeCustomers = state.customers.filter(c => !c.archived);
+    const areaOptions = groupAreasWithCounts(activeCustomers, c => (c.mohalla || c.area || '').trim(), raw => canonicalMohalla(raw)?.key ?? raw.toLowerCase(), raw => canonicalMohalla(raw)?.label ?? raw);
+    // Plan L: a counted "No area set" option, built only when at least
+    // one ACTIVE customer has no mohalla/area — so it always lists
+    // exactly those customers and is never a dead end. The count is
+    // the active count, matching the named-area counts above (which
+    // are also built from active customers only).
+    const noAreaCount = activeCustomers.filter(c => !(c.mohalla || c.area || '').trim()).length;
+    const noAreaOption = noAreaCount > 0 ? [{ value: NO_AREA_FILTER_VALUE, label: `${t('cust_area_filter_no_area')} (${noAreaCount})` }] : [];
+    const allAreaOptions = [...areaOptions, ...noAreaOption];
     const currentVal = customerAreaFilter;
-    areaSelect.innerHTML = `<option value="all">${t('cust_all_areas')}</option>` + areaOptions.map(option => `<option value="${escapeHtml(option.value)}"${option.value === currentVal ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
-    if (!areaOptions.some(option => option.value === currentVal) && currentVal !== 'all') {
+    areaSelect.innerHTML = `<option value="all">${t('cust_all_areas')}</option>` + allAreaOptions.map(option => `<option value="${escapeHtml(option.value)}"${option.value === currentVal ? ' selected' : ''}>${escapeHtml(option.label)}</option>`).join('');
+    if (!allAreaOptions.some(option => option.value === currentVal) && currentVal !== 'all') {
       customerAreaFilter = 'all';
       areaSelect.value = 'all';
     } else {
@@ -7237,7 +7247,7 @@ $('#exportCustomerRosterCsvBtn')?.addEventListener('click', () => {
   const areaFiltered = filterCustomersByArea(activeCustomers, customerAreaFilter);
   // Read the live roster query at click time (#235: `customerQuery` only exists inside renderCustomers).
   const query = customerListQuery().trim();
-  const searchFiltered = query ? searchCustomers(state, query).filter(c => !c.archived && (customerAreaFilter === 'all' || (c.mohalla || c.area || '') === customerAreaFilter)) : areaFiltered;
+  const searchFiltered = query ? searchCustomers(state, query).filter(c => !c.archived && (customerAreaFilter === 'all' || (customerAreaFilter === NO_AREA_FILTER_VALUE ? !(c.mohalla || c.area || '').trim() : (c.mohalla || c.area || '') === customerAreaFilter))) : areaFiltered;
   const statusFiltered = filterCustomersByStatus(state, {
     serviceStatus: selectedServiceFilter,
     billingStatus: selectedBillingFilter,

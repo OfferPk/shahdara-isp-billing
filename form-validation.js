@@ -289,9 +289,22 @@ export function sortCustomerRoster(customers, { sortBy = 'number-asc', billingMo
  * @param {string} [selectedArea='all']
  * @returns {Array<Object>}
  */
+/**
+ * Plan L: sentinel value for the Customers area filter's "No area set"
+ * option. It is not a mohalla name and can never collide with one, so
+ * it must be handled before the canonical-mohalla lookup below (which
+ * would otherwise resolve it to nothing and return an empty list).
+ * The dropdown builds this option only when at least one active
+ * customer has no area set, so selecting it is never a dead end.
+ */
+export const NO_AREA_FILTER_VALUE = '__no_area__';
+
 export function filterCustomersByArea(customers, selectedArea = 'all') {
   const list = Array.isArray(customers) ? customers : [];
   if (!selectedArea || selectedArea === 'all') return list;
+  if (selectedArea === NO_AREA_FILTER_VALUE) {
+    return list.filter(c => !(c.mohalla || c.area || '').trim());
+  }
   const target = canonicalMohalla(selectedArea)?.key;
   if (target === undefined) return [];
   return list.filter(c => canonicalMohalla(c.mohalla || c.area || '')?.key === target);

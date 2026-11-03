@@ -176,7 +176,7 @@ import { buildLifecycleJourney, lifecycleJourneyHtml } from './lifecycle-journey
 import { businessSetupChecklist, isFreshBusiness, firstRunBannerHtml } from './first-run.js';
 import { buildWalletReconView, walletReconViewHtml } from './wallet-recon-view.js';
 import { archivedRosterPage, buildRetentionView, retentionViewHtml, retentionYearCsv } from './roster-scale.js';
-import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
+import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal, resolveShopCollector } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
 import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada, getWaadaTodayString, isValidWaadaDate } from './waada-queue.js';
@@ -227,6 +227,8 @@ import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, load
 import { buildOwnerDigest, dailyDigestRange, weeklyDigestRange, digestHtml, digestCsv, digestFilename } from './owner-digest.js';
 import { buildReceivablesAgeing, ageingHtml, ageingCsv, ageingFilename } from './receivables-ageing.js';
 import { ALERT_TYPES, DEFAULT_ALERT_THRESHOLDS, normalizeAlertThresholds, buildAlertsInbox, alertsInboxSummaryText, alertsInboxHtml } from './alerts-inbox.js';
+import { buildCollectorPerformance, collectorPerformanceHtml, collectorPerformanceCsv, collectorPerformanceFilename } from './collector-performance.js';
+import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
 import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
@@ -10118,6 +10120,56 @@ function renderAlertsInbox() {
     });
   }
 }
+// Plan 9 (Plan 1-100): collector performance panel — read-only.
+// Today's route stops are the plan, today's recorded route
+// outcomes are the visits, the promise register supplies
+// promises, and today's payment ledger supplies cash (voided
+// payments skipped by the module). Route visits and promises
+// carry no collector name in storage yet, so they appear under
+// "Unassigned" until a collector is recorded on the visit;
+// shop-recorded payments show their shop. No payment,
+// commission, or Waada record is changed here.
+let lastCollectorPerformance = null;
+let collectorPerformanceExportBound = false;
+function renderCollectorPerformance() {
+  const bodyEl = $('#collectorPerformanceBody');
+  if (!bodyEl) return;
+  const today = getWaadaTodayString();
+  const routes = calculateFieldCollectionRoutes(state, { dateStr: today, storage: localStorage });
+  const outcomes = getFieldRouteOutcomes(localStorage, today);
+  const plannedVisits = (routes.stops || []).map((stop) => ({ customerId: stop.id }));
+  const visits = Object.entries(outcomes || {}).map(([customerId, record]) => ({ customerId, outcome: record?.outcome }));
+  let promises = [];
+  try {
+    const raw = localStorage.getItem('shahdara_collection_promises_v1');
+    const list = raw ? JSON.parse(raw) : [];
+    promises = (Array.isArray(list) ? list : []).map((entry) => ({
+      customerId: entry.customerId,
+      promisedDate: entry.promisedDate,
+      status: entry.status,
+      fulfilledAt: entry.fulfilledAt,
+      fulfilledPaymentId: entry.fulfilledPaymentId,
+    }));
+  } catch {}
+  const payments = paymentEntries(state)
+    .filter(({ payment }) => payment.date === today)
+    .map(({ payment }) => ({
+      collector: resolveShopCollector(payment.method, payment.paidBy),
+      amount: payment.amount,
+      voided: payment.voided === true,
+    }));
+  const view = buildCollectorPerformance({ today, plannedVisits, visits, payments, promises });
+  lastCollectorPerformance = view.valid ? { view } : null;
+  bodyEl.innerHTML = view.valid ? collectorPerformanceHtml(view) : '<p class="empty-state">Collector performance unavailable — the view needs a valid today date.</p>';
+  if (!collectorPerformanceExportBound) {
+    collectorPerformanceExportBound = true;
+    const exportBtn = $('#collectorPerformanceExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => {
+      if (!lastCollectorPerformance) return;
+      downloadCsvFile(collectorPerformanceFilename(lastCollectorPerformance.view), collectorPerformanceCsv(lastCollectorPerformance.view));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10176,6 +10228,7 @@ function renderAnalytics() {
   renderOwnerDigest();
   renderReceivablesAgeing();
   renderAlertsInbox();
+  renderCollectorPerformance();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

@@ -262,6 +262,7 @@ import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycl
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { buildPackageChangePreview, packageChangePreviewHtml, packageChangePreviewStoredText, findPackageChangePreview, recordPackageChangePreview, removePackageChangePreview, previewMatchesChange, attachPreviewNoteToChange } from './package-change-preview.js';
+import { recordQualityEntry, entriesForCustomer, qualityLogSummaryText, qualityLogHtml } from './quality-log.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -4132,6 +4133,22 @@ function savePackageChangePreviews(list) {
   try { localStorage.setItem(PACKAGE_CHANGE_PREVIEWS_KEY, JSON.stringify(list)); } catch {}
 }
 
+// Plan 47 (Plan 1-100) — Per-customer speed and service-quality log.
+// It lives in its own localStorage store, apart from every bill,
+// payment, ticket, and lifecycle record, so logging a measurement
+// changes no charge and no status. A ticket link on an entry is
+// one-way only: it never writes into the ticket.
+const QUALITY_LOG_KEY = 'shahdara_quality_log_v1';
+function loadQualityLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(QUALITY_LOG_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveQualityLog(list) {
+  try { localStorage.setItem(QUALITY_LOG_KEY, JSON.stringify(list)); } catch {}
+}
+
 // Plan 19 (Plan 1-100) — Welcome pack send log. It lives in its own
 // localStorage store, apart from every bill, payment, Waada, and
 // lifecycle record, so sending a welcome draft changes no record.
@@ -4497,7 +4514,17 @@ function renderCustomerProfileView(customer) {
   }) : null;
   const packageChangeKept = findPackageChangePreview(loadPackageChangePreviews(), customer.id);
   const packageChangeSectionHtml = `<section class="profile-custody-section" aria-label="Package change preview"><h4>Package change preview</h4><p>Before agreeing a faster or cheaper package, show the customer what the next bill will actually be — current package, proposed package, monthly price difference, effective date, and the estimated next bill (full month, or pro-rata by the change date). This preview applies nothing; the change itself is still made through the profile Edit form, and a ready preview shown here is kept as a note on that change.</p><p id="packageChangePreviewKept">${escapeHtml(packageChangePreviewStoredText(packageChangeKept))}</p><div><label>Proposed package <select id="packageChangePreviewPackage">${BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('')}</select></label> <label>Effective date <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Next bill month <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label>Estimate <select id="packageChangePreviewMode"><option value="auto">By effective date (start = full month, inside = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">Show preview</button></div><div id="packageChangePreviewResult">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount) : '<p class="empty-state">No catalogue package to preview.</p>'}</div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  // Plan 47 (Plan 1-100) — Speed and service-quality log. The package
+  // speed alongside each entry comes from the catalogue match on the
+  // customer's package label/id, else the number inside the label;
+  // when neither resolves, the comparison column says "No package
+  // speed" rather than guessing one. This is a record only: logging
+  // never touches a bill, payment, or ticket.
+  const qualityPackagePlan = BILL_PACKAGES.find((plan) => plan.label === customer.packageSpeed) || BILL_PACKAGES.find((plan) => plan.id === customer.packageSpeed) || null;
+  const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
+  const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
+  const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p>When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><div><label>Date <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4545,6 +4572,33 @@ function renderCustomerProfileView(customer) {
       const keptEl = $('#customerProfileView').querySelector('#packageChangePreviewKept');
       if (keptEl) keptEl.textContent = packageChangePreviewStoredText(findPackageChangePreview(loadPackageChangePreviews(), customer.id));
     }
+  });
+  $('#customerProfileView').querySelector('#qualityLogAddBtn')?.addEventListener('click', () => {
+    const view = $('#customerProfileView');
+    const otherLocation = view.querySelector('#qualityLogOtherLocation')?.value || '';
+    const current = loadQualityLog();
+    const next = recordQualityEntry(current, {
+      id: `quality-${Date.now()}`,
+      customerId: customer.id,
+      date: view.querySelector('#qualityLogDate')?.value || '',
+      downloadMbps: view.querySelector('#qualityLogDownload')?.value || '',
+      uploadMbps: view.querySelector('#qualityLogUpload')?.value || '',
+      location: otherLocation.trim() ? otherLocation : (view.querySelector('#qualityLogLocation')?.value || ''),
+      note: view.querySelector('#qualityLogNote')?.value || '',
+      linkedTicketId: view.querySelector('#qualityLogTicket')?.value || '',
+    });
+    const messageEl = view.querySelector('#qualityLogMessage');
+    if (next === current) {
+      if (messageEl) messageEl.textContent = 'Could not record: check the date, both speeds, and the location.';
+      return;
+    }
+    saveQualityLog(next);
+    const entries = entriesForCustomer(next, customer.id);
+    const summaryEl = view.querySelector('#qualityLogSummary');
+    if (summaryEl) summaryEl.textContent = qualityLogSummaryText(entries, qualityPackageSpeed);
+    const listEl = view.querySelector('#qualityLogList');
+    if (listEl) listEl.innerHTML = qualityLogHtml(entries, qualityPackageSpeed);
+    if (messageEl) messageEl.textContent = 'Measurement recorded.';
   });
   $('#customerProfileView').querySelector('#welcomePackSendBtn')?.addEventListener('click', (event) => {
     const sendBtn = event.currentTarget;

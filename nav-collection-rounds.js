@@ -931,7 +931,15 @@ export function setupFieldRouteSheet({
   onQuickProfile,
   onToast,
   clipboard,
-  storage
+  storage,
+  // Plan S: optional hooks, so the route sheet stays import-free.
+  // onRouteData(routeData) runs after every recalculation; the app
+  // uses it to render the shared day-flow strip from the same figures.
+  // onOpenHandover() replaces the old close-then-open handover jump,
+  // so the collector's route view is not closed (and its place lost)
+  // on the way to cash handover. Without it, the old behaviour stays.
+  onRouteData,
+  onOpenHandover
 } = {}) {
   if (typeof document === 'undefined') {
     return {
@@ -996,6 +1004,13 @@ export function setupFieldRouteSheet({
       storage
     });
     lastRouteData = routeData;
+
+    // Plan S: hand the freshly calculated route figures to the app so
+    // the day-flow strip (promised + handover expected) renders from
+    // exactly these numbers, never from a second calculation.
+    if (typeof onRouteData === 'function') {
+      onRouteData(routeData);
+    }
 
     // Populate sector dropdown if not already populated
     if (sectorFilter && sectorFilter.options && sectorFilter.options.length <= 1 && routeData.allSectors.length > 1) {
@@ -1323,6 +1338,15 @@ export function setupFieldRouteSheet({
   if (handoverFromRouteBtn && !handoverFromRouteBtn.dataset?.wiredRoute) {
     handoverFromRouteBtn.dataset.wiredRoute = 'true';
     handoverFromRouteBtn.addEventListener('click', () => {
+      // Plan S: when the app wires onOpenHandover, the route modal
+      // stays open underneath the daily-closing modal, so the
+      // collector returns to the same route view (same sector, tab
+      // and search) instead of starting the route over. The fallback
+      // keeps the previous close-then-open behaviour.
+      if (typeof onOpenHandover === 'function') {
+        onOpenHandover();
+        return;
+      }
       close();
       const dcModal = document.getElementById('dailyClosingModal');
       if (dcModal && typeof dcModal.showModal === 'function') {
@@ -1440,6 +1464,22 @@ export function setupFieldRouteSheet({
     getRouteData: () => lastRouteData || updateUi(),
     setFilterTab: (tab) => {
       currentFilterTab = tab;
+      return updateUi();
+    },
+    // Plan S: the view the collector is standing on, and a way to
+    // put it back after a handover round-trip. The app sanitises
+    // these through preserve/restoreFieldDayView before applying.
+    getViewState: () => ({
+      sector: sectorFilter ? sectorFilter.value : 'All',
+      sortBy: sortFilter ? sortFilter.value : 'priority',
+      query: searchInput ? searchInput.value : '',
+      filterTab: currentFilterTab
+    }),
+    restoreViewState: (view = {}) => {
+      if (sectorFilter && view.sector != null) sectorFilter.value = view.sector;
+      if (sortFilter && view.sortBy != null) sortFilter.value = view.sortBy;
+      if (searchInput && view.query != null) searchInput.value = view.query;
+      if (view.filterTab != null) currentFilterTab = view.filterTab;
       return updateUi();
     }
   };

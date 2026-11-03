@@ -18,9 +18,10 @@
 //      unit gate, and leave build/e2e to CI.
 //
 // The unit gate runs exactly `node --test tests/*.test.js` and parses
-// the runner's own summary lines (`ℹ pass N`, `ℹ fail N`,
-// `ℹ tests N`), so the counts it prints are the runner's counts, not
-// a second count of its own. classifyFailures() only LABELS failures:
+// the runner's own summary lines — spec (`ℹ pass N`) on Node 22+
+// and TAP (`# pass N`) on Node 20 — so the counts it prints are
+// the runner's counts, not a second count of its own.
+// classifyFailures() only LABELS failures:
 // a failure in one of the known build-dependent test files (the four
 // files that run the real esbuild build) is reported as a known
 // build gap, but the gate still exits 1. Labelling never waives a
@@ -52,16 +53,43 @@ export function isKnownBuildGap(file) {
 }
 
 // Parse a `node --test` summary into { tests, pass, fail }.
-// Lines look like `ℹ tests 5290`, `ℹ pass 5285`, `ℹ fail 5`.
-// A missing line means the runner never printed a summary (for
-// example it crashed before finishing); that is reported as nulls,
-// never as zeros, so a crash cannot masquerade as a pass.
+// Two reporter formats are read, because CI and local machines do
+// not run the same Node: CI runs Node 20 (setup-node node-version:
+// 20), whose default reporter is TAP (`# tests 80`, `# pass 80`,
+// `# fail 0`), while Node 22+ defaults to the spec reporter
+// (`ℹ tests 5290`, `ℹ pass 5285`, `ℹ fail 5`). Plan D root cause
+// (2026-11-03): the CI test job on main @ 24f84504 failed with
+// "UNIT ? pass / ? fail / ? tests" and NO failing test — npm ci
+// had succeeded and no test had failed. The gate only matched the
+// spec format, so on Node 20 it read nulls and reported failure.
+// Reading both formats is not waiving anything: the counts are
+// still the runner's own counts, and a missing summary in BOTH
+// formats is still reported as nulls, never as zeros, so a crash
+// cannot masquerade as a pass.
 export function parseTestSummary(output) {
-  const find = (label) => {
-    const match = String(output).match(new RegExp(`^ℹ ${label} (\\d+)`, 'm'));
+  const text = String(output);
+  const find = (pattern) => {
+    const match = text.match(pattern);
     return match ? Number(match[1]) : null;
   };
-  return { tests: find('tests'), pass: find('pass'), fail: find('fail') };
+  const spec = {
+    tests: find(/^ℹ tests (\d+)/m),
+    pass: find(/^ℹ pass (\d+)/m),
+    fail: find(/^ℹ fail (\d+)/m),
+  };
+  const tap = {
+    tests: find(/^# tests (\d+)/m),
+    pass: find(/^# pass (\d+)/m),
+    fail: find(/^# fail (\d+)/m),
+  };
+  // Per field, spec first, then TAP, then null: a spec summary
+  // missing one line still reports the lines it did print (the
+  // Plan I contract), and a TAP-only run still reports all three.
+  return {
+    tests: spec.tests ?? tap.tests,
+    pass: spec.pass ?? tap.pass,
+    fail: spec.fail ?? tap.fail,
+  };
 }
 
 // Label failing test files. Returns { knownBuildGap: [...], other: [...] }
@@ -75,16 +103,23 @@ export function classifyFailures(failingFiles) {
   return { knownBuildGap, other };
 }
 
-// Failing test files, from the runner's failure report. The default
-// reporter prints, after the summary, a `✖ failing tests:` section
-// with one `test at tests/<file>.test.js:<line>:<col>` line per
-// failing test. Anything that does not match that shape is ignored,
-// so an unparsable report yields an empty list rather than invented
-// file names. Files are deduplicated in first-seen order.
+// Failing test files, from the runner's failure report. The spec
+// reporter (Node 22+) prints, after the summary, a `✖ failing
+// tests:` section with one `test at tests/<file>.test.js:<line>:<col>`
+// line per failing test. The TAP reporter (Node 20 default) puts the
+// same file in the failing test's YAML block as
+// `location: '<abs-path>/tests/<file>.test.js:<line>:<col>'`.
+// Only `location:` lines are matched for TAP, so stack traces
+// (which also name files) cannot invent failing files. Anything
+// that does not match either shape is ignored, so an unparsable
+// report yields an empty list rather than invented file names.
+// Files are deduplicated in first-seen order.
 export function failingTestFiles(output) {
   const files = [];
   for (const line of String(output).split('\n')) {
-    const match = line.match(/test at (tests\/\S+\.test\.js):\d+:\d+/);
+    const spec = line.match(/test at (tests\/\S+\.test\.js):\d+:\d+/);
+    const tap = line.match(/location: '[^']*(tests\/\S+\.test\.js):\d+:\d+'/);
+    const match = spec || tap;
     if (match && !files.includes(match[1])) files.push(match[1]);
   }
   return files;

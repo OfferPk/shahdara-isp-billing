@@ -76,6 +76,23 @@ as SKIPPED with the reason above, and leave both to CI. Do not
 run a subset and call it the suite, and do not loosen any build
 budget to make a bare checkout pass.
 
+## The gate reads two reporter formats (Plan D fix)
+
+CI runs Node 20, whose default test reporter is TAP (`# tests
+80`, `# pass 80`, `# fail 0`); Node 22+ defaults to the spec
+reporter (`ℹ tests 80`, `ℹ pass 80`, `ℹ fail 0`). The gate
+parses both, and extracts failing files from spec `test at
+tests/<file>.test.js:<line>:<col>` lines and from TAP
+`location: '<path>/tests/<file>.test.js:<line>:<col>` lines.
+Root cause, 2026-11-03: the CI test job on main @ 24f84504
+failed with "UNIT ? pass / ? fail / ? tests" and no failing
+test at all. `npm ci` had succeeded in that job, and no test
+had failed — the gate only matched the spec format, so on
+Node 20 it read nulls and reported failure. That was a gate
+bug, not a test failure, and it is fixed by reading both
+formats. A summary missing in both formats is still nulls,
+never zeros.
+
 ## Known build-gap failures (reporting only)
 
 Four unit tests run the real esbuild build, so they fail in a bare

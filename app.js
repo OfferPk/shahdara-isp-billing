@@ -263,6 +263,7 @@ import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRec
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { buildPackageChangePreview, packageChangePreviewHtml, packageChangePreviewStoredText, findPackageChangePreview, recordPackageChangePreview, removePackageChangePreview, previewMatchesChange, attachPreviewNoteToChange } from './package-change-preview.js';
 import { recordQualityEntry, entriesForCustomer, qualityLogSummaryText, qualityLogHtml } from './quality-log.js';
+import { normalizeMaintenanceWindow, upsertMaintenanceWindow, removeMaintenanceWindow, findMaintenanceWindow, setMaintenanceWindowStatus, affectedMaintenanceCustomers, buildMaintenanceAnnouncement, maintenanceWhatsAppUrl, maintenanceSummaryText, maintenanceWindowsHtml, maintenanceWindowsCsv, maintenanceCalendarFilename } from './maintenance-calendar.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13151,6 +13152,7 @@ function renderAnalytics() {
   renderVendorContracts();
   renderCostPerCustomer();
   renderPettyCash();
+  renderMaintenanceCalendar();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -13290,6 +13292,111 @@ function renderPettyCash() {
     $('#pettyCashExportBtn')?.addEventListener('click', () => {
       const dataNow = loadPettyCash();
       downloadCsvFile(pettyCashFilename(), pettyCashCsv(buildAdvanceSummaries(dataNow.advances, dataNow.spends)));
+    });
+  }
+}
+// Plan 48 (Plan 1-100) — planned maintenance calendar by mohalla.
+// A calendar only: scheduled windows with affected mohallas or
+// segments from the connection register, a status machine, and a
+// completion announcement draft through the existing WhatsApp route.
+// Creating or completing a window never changes a bill, a payment,
+// a ticket, or a customer status; unplanned faults stay in the
+// outage grouping, and announcements generally stay with Plan 14.
+const MAINTENANCE_WINDOWS_KEY = 'shahdara_maintenance_windows_v1';
+let maintenanceCalendarBound = false;
+function loadMaintenanceWindows() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MAINTENANCE_WINDOWS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((w) => normalizeMaintenanceWindow(w)) : [];
+  } catch { return []; }
+}
+function saveMaintenanceWindows(list) {
+  try { localStorage.setItem(MAINTENANCE_WINDOWS_KEY, JSON.stringify(list.filter((w) => normalizeMaintenanceWindow(w)))); } catch {}
+}
+function renderMaintenanceCalendar() {
+  const bodyEl = $('#maintenanceBody');
+  if (!bodyEl) return;
+  const windows = loadMaintenanceWindows();
+  const customers = state.customers ?? [];
+  const connections = loadOltOnuRegister();
+  const affectedById = {};
+  for (const window of windows) affectedById[window.id] = affectedMaintenanceCustomers(window, { customers, connections });
+  bodyEl.innerHTML = maintenanceWindowsHtml(windows, affectedById);
+  const summaryEl = $('#maintenanceSummary');
+  if (summaryEl) summaryEl.textContent = windows.length === 0
+    ? 'Planned work — a splitter swap, a cable re-route, an upstream window — announced in advance, so a planned Tuesday night is never reported as a mystery outage on Wednesday. Schedule a window with its affected mohallas or segments, and completing it prepares an announcement draft for those mohallas. This calendar changes no bill, payment, ticket, or customer status, and unplanned faults stay in the outage grouping.'
+    : maintenanceSummaryText(windows);
+  if (!maintenanceCalendarBound) {
+    maintenanceCalendarBound = true;
+    $('#maintenanceAddBtn')?.addEventListener('click', () => {
+      const row = {
+        id: `mw-${Date.now()}`,
+        date: $('#maintenanceDate')?.value ?? '',
+        startTime: $('#maintenanceStart')?.value ?? '',
+        endTime: $('#maintenanceEnd')?.value ?? '',
+        description: $('#maintenanceDescription')?.value ?? '',
+        mohallas: ($('#maintenanceMohallas')?.value ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+        segments: ($('#maintenanceSegments')?.value ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+      };
+      if (!normalizeMaintenanceWindow(row)) {
+        toast('A maintenance window needs a real date, a start time before its end time, a work description, and at least one affected mohalla or segment.');
+        return;
+      }
+      saveMaintenanceWindows(upsertMaintenanceWindow(loadMaintenanceWindows(), row));
+      renderMaintenanceCalendar();
+    });
+    $('#maintenanceExportBtn')?.addEventListener('click', () => {
+      const current = loadMaintenanceWindows();
+      const affected = {};
+      for (const window of current) affected[window.id] = affectedMaintenanceCustomers(window, { customers: state.customers ?? [], connections: loadOltOnuRegister() });
+      downloadCsvFile(maintenanceCalendarFilename(localDate()), maintenanceWindowsCsv(current, affected));
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const startBtn = event.target.closest('[data-maintenance-start]');
+      const completeBtn = event.target.closest('[data-maintenance-complete]');
+      const postponeBtn = event.target.closest('[data-maintenance-postpone]');
+      const rescheduleBtn = event.target.closest('[data-maintenance-reschedule]');
+      const removeBtn = event.target.closest('[data-maintenance-remove]');
+      const announceBtn = event.target.closest('[data-maintenance-announce]');
+      if (announceBtn) {
+        const window = findMaintenanceWindow(loadMaintenanceWindows(), announceBtn.dataset.maintenanceAnnounce);
+        const draft = window?.announcementDraft || (window ? buildMaintenanceAnnouncement(window, {})?.text : null);
+        if (!draft) { toast('No announcement draft is ready for this window yet.'); return; }
+        window.open(maintenanceWhatsAppUrl(draft), '_blank', 'noopener,noreferrer');
+        return;
+      }
+      if (startBtn) {
+        saveMaintenanceWindows(setMaintenanceWindowStatus(loadMaintenanceWindows(), startBtn.dataset.maintenanceStart, 'in_progress'));
+        renderMaintenanceCalendar();
+        return;
+      }
+      if (completeBtn) {
+        const current = loadMaintenanceWindows();
+        const next = setMaintenanceWindowStatus(current, completeBtn.dataset.maintenanceComplete, 'completed', {
+          date: $('#maintenanceFinalDate')?.value ?? '',
+          startTime: $('#maintenanceFinalStart')?.value ?? '',
+          endTime: $('#maintenanceFinalEnd')?.value ?? '',
+        });
+        if (next === current) { toast('Completing needs valid final times (or leave them blank to keep the scheduled times).'); return; }
+        saveMaintenanceWindows(next);
+        toast('Window completed and kept in history with its final times; its announcement draft is ready.');
+        renderMaintenanceCalendar();
+        return;
+      }
+      if (postponeBtn) {
+        saveMaintenanceWindows(setMaintenanceWindowStatus(loadMaintenanceWindows(), postponeBtn.dataset.maintenancePostpone, 'postponed'));
+        renderMaintenanceCalendar();
+        return;
+      }
+      if (rescheduleBtn) {
+        saveMaintenanceWindows(setMaintenanceWindowStatus(loadMaintenanceWindows(), rescheduleBtn.dataset.maintenanceReschedule, 'scheduled'));
+        renderMaintenanceCalendar();
+        return;
+      }
+      if (removeBtn) {
+        saveMaintenanceWindows(removeMaintenanceWindow(loadMaintenanceWindows(), removeBtn.dataset.maintenanceRemove));
+        renderMaintenanceCalendar();
+      }
     });
   }
 }

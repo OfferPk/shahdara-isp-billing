@@ -59,6 +59,7 @@ import {
 import { bilingualCustomerName } from './urdu-names.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 import { t } from './nav-language.js';
+import { documentFooterHtml } from './document-branding.js';
 
 const nocCents = (value) => {
   const amount = Number(value);
@@ -231,7 +232,8 @@ const biLabel = (key, params = {}) => `${t(key, 'en', params)} / ${t(key, 'ur', 
 // CSS applies. Paper styling is deliberate, not an app UI surface.
 export function generateClearanceNocSlipHtml(slip, {
   businessName = 'Shahdara ISP',
-  businessPhone = '0300-1234567'
+  businessPhone = '0300-1234567',
+  receiptFooter = null
 } = {}) {
   if (!slip) return '';
   const formatAmount = (val) => {
@@ -243,6 +245,12 @@ export function generateClearanceNocSlipHtml(slip, {
   const hardwareRows = slip.noIspHardware
     ? `<div class="receipt-field"><dt>${escapeHtml(biLabel('noc_hardware_heading'))}:</dt><dd>${escapeHtml(biLabel('noc_no_hardware'))}</dd></div>`
     : slip.returnedItems.map((item) => `<div class="receipt-field"><dt>${escapeHtml(item.label)}:</dt><dd>✅ ${escapeHtml(biLabel('noc_returned_on', { date: item.recoveredAt }))}</dd></div>`).join('');
+  // Plan Q: the SISP-96 studio footer now also prints on the NOC slip
+  // ('' when nothing is configured, so unconfigured slips are
+  // byte-identical). The slip keeps its own "* business *" line.
+  // documentFooterHtml already carries its own leading newline before
+  // the studio block, so it is spliced in bare — no extra prefix here.
+  const nocFooter = documentFooterHtml(receiptFooter);
   return `<article class="receipt-sheet a4-receipt" data-receipt-format="clearance-noc">
   <header class="receipt-head">
     <div>
@@ -281,7 +289,7 @@ export function generateClearanceNocSlipHtml(slip, {
       <div class="receipt-sig-box"><span>${escapeHtml(biLabel('noc_sign_business', { business: businessName }))}</span></div>
       <div class="receipt-sig-box"><span>${escapeHtml(biLabel('noc_sign_customer'))}</span></div>
     </div>
-    <p class="receipt-footer-text">* ${escapeHtml(businessName)} *</p>
+    <p class="receipt-footer-text">* ${escapeHtml(businessName)} *</p>${nocFooter}
   </footer>
 </article>`;
 }

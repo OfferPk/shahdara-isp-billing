@@ -289,7 +289,11 @@ test('generatePaymentReceiptHtml produces 58mm mini mobile thermal slip layout',
 
   assert.ok(html.includes('class="receipt-sheet thermal-receipt thermal-58"'));
   assert.ok(html.includes('data-receipt-format="thermal-58"'));
-  assert.ok(html.includes('(58mm)'));
+  // Plan Q: the width suffix retired from the title — the canonical
+  // bilingual title is shared with thermal-80, and the width lives in
+  // data-receipt-format / the article class above.
+  assert.ok(html.includes('Payment Receipt / رسید ادائیگی'));
+  assert.ok(!html.includes('(58mm)'));
   assert.ok(html.includes(receipt.receiptNumber));
   assert.ok(html.includes('PKR 1,500'));
   assert.ok(html.includes('PAID'));

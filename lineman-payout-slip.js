@@ -94,6 +94,7 @@ import {
   sanitizeSaadVisits
 } from './saad-visits.js';
 import { t } from './nav-language.js';
+import { brandMetaLine } from './document-branding.js';
 
 export const LINEMAN_PAYOUTS_KEY = 'sisp_lineman_payouts_v1';
 
@@ -664,7 +665,7 @@ export function buildLinemanPayoutSlipHtml(settlement, {
 <article class="slip">
   <header>
     <div class="brand">${escapeHtml(businessName)}</div>
-    <div>${escapeHtml(areaName)} · Tel: ${escapeHtml(businessPhone)}</div>
+    <div>${escapeHtml(brandMetaLine({ businessName, businessPhone, areaName }))}</div>
     <h1>Lineman Monthly Settlement Slip / لائن مین ماہانہ حساب پرچی</h1>
   </header>
   <div class="meta">

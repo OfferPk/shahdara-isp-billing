@@ -745,22 +745,41 @@ export function buildBusinessHealthScore(state,referenceDate=new Date(),allocati
   const outstandingRatio=billCents>0?outstandingCents/billCents*100:null;
   const cashProfitMargin=receiptCents>0?cashProfitCents/receiptCents*100:null;
   const expenseRatio=receiptCents>0?expenseCents/receiptCents*100:null;
-  const customers=state.customers??[],allAddedDatesRecorded=customers.length>0&&customers.every(customer=>isCalendarDate(customer.addedOn));
+  const customers=state.customers??[];
+  // #361: growth/churn used to be all-or-nothing — one profile without a
+  // saved added-on date knocked both factors out, even when every other
+  // profile was dated. Use the dated subset instead, and say so in the
+  // basis: undated profiles are excluded from the dated denominator, never
+  // counted as zero and never counted as added. When every profile is
+  // dated, the saved-close opening base is kept exactly as before, so
+  // existing behaviour for fully dated ledgers does not change.
+  const datedCustomers=customers.filter(customer=>isCalendarDate(customer.addedOn));
+  const undatedProfileCount=customers.length-datedCustomers.length;
+  const allAddedDatesRecorded=customers.length>0&&undatedProfileCount===0;
+  const useDatedSubset=!allAddedDatesRecorded&&datedCustomers.length>0;
   const baselineMonth=shiftMonth(firstMonth,-1),baselineClose=(state.monthlyClosings??[]).find(row=>row.month===baselineMonth);
   const snapshotBase=baselineClose&&Number.isSafeInteger(baselineClose.totalCustomers)&&Number.isSafeInteger(baselineClose.archivedCustomerCount)?baselineClose.totalCustomers+baselineClose.archivedCustomerCount:null;
-  const datedBase=allAddedDatesRecorded?customers.filter(customer=>customer.addedOn<windowStart).length:null;
-  const openingCustomerBase=snapshotBase??datedBase;
-  const openingBasis=snapshotBase!==null?`Saved ${baselineMonth} close: ${baselineClose.totalCustomers} non-archived + ${baselineClose.archivedCustomerCount} archived profiles.`:datedBase!==null?`${datedBase} current saved profiles with a recorded added-on date before ${windowStart}.`:'No complete saved opening profile count; missing added-on dates are not treated as zero.';
-  const newCustomers=allAddedDatesRecorded?customers.filter(customer=>customer.addedOn>=windowStart&&customer.addedOn<=windowEnd).length:null;
+  const datedBase=datedCustomers.filter(customer=>customer.addedOn<windowStart).length;
+  const openingCustomerBase=allAddedDatesRecorded?(snapshotBase??datedBase):useDatedSubset?datedBase:null;
+  const openingBasis=allAddedDatesRecorded?(snapshotBase!==null?`Saved ${baselineMonth} close: ${baselineClose.totalCustomers} non-archived + ${baselineClose.archivedCustomerCount} archived profiles.`:`${datedBase} current saved profiles with a recorded added-on date before ${windowStart}.`):useDatedSubset?`${datedBase} dated profile(s) with a recorded added-on date before ${windowStart}; ${undatedProfileCount} undated profile(s) excluded from this factor, not counted as zero and not counted as added.`:'No dated saved opening profile count; profiles without a saved added-on date are not treated as zero.';
+  const newCustomers=allAddedDatesRecorded?customers.filter(customer=>customer.addedOn>=windowStart&&customer.addedOn<=windowEnd).length:useDatedSubset?datedCustomers.filter(customer=>customer.addedOn>=windowStart&&customer.addedOn<=windowEnd).length:null;
   const growthRate=newCustomers!==null&&openingCustomerBase>0?newCustomers/openingCustomerBase*100:null;
   const churnBase=openingCustomerBase!==null&&newCustomers!==null?openingCustomerBase+newCustomers:null;
   const churnIds=new Set();
-  for(const customer of customers){
+  // Numerator and denominator must cover the same population: dated
+  // profiles only when the dated subset is in use, all profiles when
+  // every profile is dated. Archived profiles stay in the ledger (delete
+  // archives rather than erasing), so a window with no dated
+  // cancellation/archive event among a known dated population is an
+  // observed 0% for that population — not a guessed zero for an
+  // unknown population. That is why churn was previously unavailable
+  // for every healthy ledger with no leavers; it no longer is.
+  for(const customer of allAddedDatesRecorded?customers:datedCustomers){
     const cancellation=validStoredDate(customer.cancellationDate),archive=customer.archived===true?validStoredDate(customer.archivedAt):null;
     if([cancellation,archive].some(date=>date&&date>=windowStart&&date<=windowEnd&&(!isCalendarDate(customer.addedOn)||date>=customer.addedOn)))churnIds.add(customer.id??customer.customerNumber);
   }
   const documentedChurnCount=churnIds.size;
-  const churnRate=churnBase>0&&documentedChurnCount>0?documentedChurnCount/churnBase*100:null;
+  const churnRate=churnBase>0?documentedChurnCount/churnBase*100:null;
   const moneyBasis=`${firstMonth}–${lastCompleteMonth} PKT: actual positive receipt rows by payment date; ${receipts.length} receipt(s).`;
   const billBasis=`${firstMonth}–${lastCompleteMonth} service-month priced bill snapshots; ${facts.reduce((sum,row)=>sum+row.pricedBillCount,0)} priced bill-month row(s); unpriced bills excluded.`;
   const outstandingSources=[...new Set(facts.map(row=>row.outstandingSource))].join(' ');
@@ -769,13 +788,19 @@ export function buildBusinessHealthScore(state,referenceDate=new Date(),allocati
     healthFactor('outstandingRatio','Outstanding-balance ratio',outstandingRatio,outstandingRatio===null?null:(1-outstandingRatio/50)*100,`${pkr(outstandingCents)} outstanding ÷ ${pkr(billCents)} saved priced bill amount. ${outstandingSources} Score: 0%→100; 50% or more→0, linearly between.`,billCents===0?'Not available: no priced bill amount is recorded for this three-month window.':'',"What unlocks this: priced bills from a completed month. Set each customer's monthly fee (Collect, then Set packages and monthly fee), generate the month's bills, and this ratio appears after month-end."),
     healthFactor('cashProfitMargin','Cash-profit margin',cashProfitMargin,cashProfitMargin===null?null:(cashProfitMargin+20)/50*100,`${pkr(receiptCents)} actual receipts − ${pkr(expenseCents)} dated expenses = ${pkr(cashProfitCents)} cash profit, divided by actual receipts. ${receipts.length} receipt(s), ${expenses.length} expense(s). This is cash profit, not accrual/accounting profit. Score: −20%→0; +30% or more→100, linearly between.`,receiptCents===0?'Not available: no positive actual receipts are recorded, so the margin denominator is zero.':'',"What unlocks this: record at least one payment in a completed month (Quick Collect). Receipts count by payment date, so this month's collections join after month-end."),
     healthFactor('expenseRatio','Recorded-expense ratio',expenseRatio,expenseRatio===null?null:expenseRatio<=20?100:(70-expenseRatio)/50*100,`${pkr(expenseCents)} dated recorded expenses ÷ ${pkr(receiptCents)} actual receipt-date collection; ${expenses.length} expense(s). Score: 20% or less→100; 70% or more→0, linearly between. This overlaps mathematically with cash-profit margin.`,receiptCents===0?'Not available: no positive actual receipts are recorded, so the ratio denominator is zero.':'',"What unlocks this: record at least one payment in a completed month (Quick Collect) — the ratio then compares that window's recorded expenses with its receipts."),
-    healthFactor('customerGrowth','Dated customer growth',growthRate,growthRate===null?null:50+growthRate/10*50,`${growthRate===null?'No complete dated-growth rate can be calculated.':`${newCustomers} new profile(s) with a saved added-on date ÷ ${openingCustomerBase} opening profiles = ${growthRate.toFixed(1)}%.`} ${openingBasis} Score: 0% growth→50; 10% or more→100, linearly between. Profile additions are not necessarily new network connections.`,!allAddedDatesRecorded?'Not available: one or more profiles have no valid saved added-on date, so dated additions may be incomplete.':openingCustomerBase===0?'Not available: the opening profile count is zero or unavailable.':'',"What unlocks this: profiles with a saved added-on date. Customers added in the app get one automatically; profiles without that date keep this factor off until every profile has one."),
-    healthFactor('documentedChurn','Documented cancellation / archive rate',churnRate,churnRate===null?null:(1-churnRate/10)*100,`${documentedChurnCount} distinct profile(s) with an explicit saved cancellation date or a still-present archive timestamp ÷ ${churnBase??'unavailable'} profiles present or added during the window = ${churnRate===null?'Not available':`${churnRate.toFixed(1)}%`}. ${openingBasis} Current Active/Offline labels are not used. Cleared archive timestamps after unarchive and undated events cannot be recovered, so this is documented churn only. Score: 0%→100; 10% or more→0, linearly between.`,!allAddedDatesRecorded?'Not available: the opening profile history is incomplete because some added-on dates are missing.':churnBase===0?'Not available: the recorded profile population is zero or unavailable.':documentedChurnCount===0?'Not available: no dated cancellation/archive event in this window establishes a recorded churn rate; absence is not assumed to mean zero churn.':'',"What unlocks this: a dated record when someone leaves — set a cancellation date on the profile or archive it. Undated departures are never guessed, so this stays off until a dated event exists in the window." )
+    healthFactor('customerGrowth','Dated customer growth',growthRate,growthRate===null?null:50+growthRate/10*50,`${growthRate===null?'No dated-growth rate can be calculated for this window.':`${newCustomers} new profile(s) with a saved added-on date ÷ ${openingCustomerBase} opening profiles = ${growthRate.toFixed(1)}%.`} ${openingBasis} Score: 0% growth→50; 10% or more→100, linearly between. Profile additions are not necessarily new network connections.`,datedCustomers.length===0?'Not available: no profile has a saved added-on date, so no dated growth population exists for this window.':openingCustomerBase===0?'Not available: the opening profile count is zero or unavailable.':'',"What unlocks this: profiles with a saved added-on date. Customers added in the app get one automatically; undated profiles are excluded from the dated subset (see the coverage line) rather than blocking the factor."),
+    healthFactor('documentedChurn','Documented cancellation / archive rate',churnRate,churnRate===null?null:(1-churnRate/10)*100,`${documentedChurnCount} distinct profile(s) with an explicit saved cancellation date or a still-present archive timestamp ÷ ${churnBase??'unavailable'} dated profiles present or added during the window = ${churnRate===null?'Not available':`${churnRate.toFixed(1)}%`}. ${openingBasis} Current Active/Offline labels are not used. Cleared archive timestamps after unarchive and undated events cannot be recovered, so this is documented churn only; a 0% rate means no dated event occurred among the dated population in this window, not that no one could ever leave. Score: 0%→100; 10% or more→0, linearly between.`,datedCustomers.length===0?'Not available: no profile has a saved added-on date, so no dated churn population exists for this window.':churnBase===0?'Not available: the dated profile population is zero or unavailable.':'',"What unlocks this: profiles with a saved added-on date plus a dated record when someone leaves — set a cancellation date on the profile or archive it. Undated departures are never guessed; with no dated population this factor stays off.")
   ];
   const available=factors.filter(row=>row.available),availableWeight=available.reduce((sum,row)=>sum+row.weight,0);
   const normalized=available.map(row=>{const effectiveWeight=row.weight/availableWeight*100,contribution=row.quality*effectiveWeight/100;return{...row,effectiveWeight:Number(effectiveWeight.toFixed(1)),contribution:Number(contribution.toFixed(1)),polarity:row.quality>=60?'positive':row.quality<=40?'negative':'neutral'};});
   const score=available.length?Number((normalized.reduce((sum,row)=>sum+row.contribution,0)).toFixed(1)):null;
-  return{score,category:score===null?'Insufficient recorded metrics':score>=80?'Strong recorded indicators':score>=60?'Mixed recorded indicators':'Needs attention',asOf:dateFor(referenceDate),window:{startMonth:firstMonth,endMonth:lastCompleteMonth,startDate:windowStart,endDate:windowEnd,months},availableFactorCount:available.length,totalFactorCount:factors.length,availableWeight,renormalized:available.length>0&&availableWeight!==100,openingCustomerBase,openingBasis,factors:normalized,unavailableFactors:factors.filter(row=>!row.available)};
+  // #361 coverage line: the counts that explain a 0-of-6 (or partial)
+  // result at a glance — priced bills and receipts in the window, and how
+  // many profiles are dated. The current month is deliberately excluded
+  // (it joins after it ends), so a ledger that only has current-month
+  // bills correctly reports zero window bills here instead of a mystery.
+  const coverage={totalProfiles:customers.length,datedProfiles:datedCustomers.length,undatedProfiles:undatedProfileCount,datedSubsetUsed:useDatedSubset,pricedBillCount:facts.reduce((sum,row)=>sum+row.pricedBillCount,0),receiptCount:receipts.length,expenseCount:expenses.length,windowMonths:months};
+  return{score,category:score===null?'Insufficient recorded metrics':score>=80?'Strong recorded indicators':score>=60?'Mixed recorded indicators':'Needs attention',asOf:dateFor(referenceDate),window:{startMonth:firstMonth,endMonth:lastCompleteMonth,startDate:windowStart,endDate:windowEnd,months},availableFactorCount:available.length,totalFactorCount:factors.length,availableWeight,renormalized:available.length>0&&availableWeight!==100,openingCustomerBase,openingBasis,coverage,factors:normalized,unavailableFactors:factors.filter(row=>!row.available)};
 }
 
 /** ISP insights strip for the Analytics screen (#361): collection rate this

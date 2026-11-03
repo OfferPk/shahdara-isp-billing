@@ -170,8 +170,13 @@ test('business health uses three completed PKT months, saved report metrics, wei
   assert.deepEqual(result.window.months,['2026-07','2026-08','2026-09']);
   assert.equal(result.window.startDate,'2026-07-01');
   assert.equal(result.window.endDate,'2026-09-30');
-  assert.equal(result.availableFactorCount,5);
-  assert.equal(result.renormalized,true);
+  // #361: a dated population with no dated leavers now scores documented
+  // churn at 0% instead of dropping the factor, so all six factors are
+  // available and no renormalization is needed.
+  assert.equal(result.availableFactorCount,6);
+  assert.equal(result.renormalized,false);
+  assert.equal(result.factors.find(row=>row.id==='documentedChurn').value,0);
+  assert.equal(result.factors.find(row=>row.id==='documentedChurn').quality,100);
   assert.equal(result.factors.find(row=>row.id==='collectionRate').value,90);
   assert.equal(result.factors.find(row=>row.id==='outstandingRatio').value,10);
   assert.ok(Math.abs(result.factors.find(row=>row.id==='cashProfitMargin').value-(2400/2700*100))<0.01);
@@ -250,14 +255,20 @@ test('dated profile growth and documented churn use explicit events, deduplicate
   assert.equal(statusChanged.score,result.score);
 });
 
-test('business health uses a saved close for the opening base and does not call missing event history zero churn',()=>{
+test('business health uses a saved close for the opening base and records zero documented churn for a dated population with no dated events',()=>{
   let state=makeState();
   state={...state,customers:state.customers.map(customer=>({...customer,addedOn:'2025-01-01'})),monthlyClosings:[{month:'2026-06',totalCustomers:5,archivedCustomerCount:1}]};
   const result=buildBusinessHealthScore(state,today);
   assert.equal(result.openingCustomerBase,6);
   assert.match(result.openingBasis,/Saved 2026-06 close/);
-  assert.equal(result.unavailableFactors.find(row=>row.id==='documentedChurn').value,null);
-  assert.match(result.unavailableFactors.find(row=>row.id==='documentedChurn').unavailableReason,/absence is not assumed to mean zero churn/);
+  // #361: with a known dated population, no dated cancellation/archive
+  // event in the window is an observed 0% for that population — it is
+  // no longer withheld as "unknown". Undated populations still stay off.
+  const churn=result.factors.find(row=>row.id==='documentedChurn');
+  assert.equal(churn.value,0);
+  assert.equal(churn.quality,100);
+  assert.equal(churn.polarity,'positive');
+  assert.match(churn.basis,/0 distinct profile/);
 });
 
 test('incomplete profile dates make growth and churn unavailable and available weights renormalize transparently',()=>{

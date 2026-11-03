@@ -37,7 +37,7 @@ import { setupReceiptVerifyModal } from './receipt-verifier.js';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { buildWelcomeSlipModel, buildWelcomeSlipPreviewHtml, buildWelcomeSlipPrintHtml, buildWelcomeSlipWhatsAppText } from './welcome-agreement-slip.js';
-import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
+import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
 import { customerHasMonthlyFee, executeQuickCollection, compressPaymentProofImage } from './nav-quick-collect.js';
 import { setupFieldMode, speakCustomerDue } from './field-mode.js?v=1.11.0';
 import { QUICK_UNDO_WINDOW_MS, createQuickUndoController, findCollectedPayment, quickUndoReceiptRef, reverseCollectedPayment } from './quick-undo-toast.js';

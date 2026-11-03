@@ -24,6 +24,8 @@ import {
   PAKISTAN_TIME_ZONE
 } from './core.js';
 
+export { applyLateFeeToBill, waiveLateFeeFromBill };
+
 /**
  * Calendar date (YYYY-MM-DD) of an instant in Pakistan time.
  * Due dates in this app are Pakistan local dates, so "today" must be the
@@ -576,7 +578,7 @@ export function generateLateFeeDiscountsCsv(state, options = {}) {
  */
 export function generateLateFeeAuditPrintHtml({ state, format = 'a4', config = null }) {
   const audit = findOverdueBillsWithLateFeeStatus(state, { config });
-  const isThermal = format === 'thermal';
+  const isThermal = format === 'thermal' || format === 'pos80';
   const now = pakistanDateKey();
 
   if (isThermal) {
@@ -897,7 +899,7 @@ export function setupLateFeeModal({ getState, updateState, toast }) {
   }
 
   if (batchApplyBtn) {
-    batchApplyBtn.addEventListener('click', () => {
+    batchApplyBtn.addEventListener('click', async () => {
       const selected = getSelectedKeys();
       if (!selected.length) {
         toast?.('Select at least one customer bill to apply late fee.');
@@ -905,7 +907,22 @@ export function setupLateFeeModal({ getState, updateState, toast }) {
       }
       const config = getLateFeeConfig();
       const amount = config.defaultAmount;
-      if (!window.confirm?.(`Apply PKR ${amount} late fee to ${selected.length} selected bills? This updates their outstanding balance.`)) {
+      const count = selected.length;
+      const promptTitle = 'Apply Late Fee to Selected Bills?';
+      const promptSubject = `PKR ${amount} surcharge · ${count} bill${count > 1 ? 's' : ''}`;
+      const promptMsg = `Apply PKR ${amount} late fee surcharge to ${count} selected overdue bill${count > 1 ? 's' : ''}? This updates their outstanding balance on this device.`;
+
+      const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+        ? await window.appConfirm({
+            tone: 'warning',
+            title: promptTitle,
+            subject: promptSubject,
+            message: promptMsg,
+            confirmLabel: 'Apply late fee'
+          })
+        : (typeof confirm === 'function' ? confirm(promptMsg) : true);
+
+      if (!ask) {
         return;
       }
       const updated = applyLateFeeToEligibleBills(getState(), selected, {
@@ -919,13 +936,28 @@ export function setupLateFeeModal({ getState, updateState, toast }) {
   }
 
   if (batchWaiveBtn) {
-    batchWaiveBtn.addEventListener('click', () => {
+    batchWaiveBtn.addEventListener('click', async () => {
       const selected = getSelectedKeys();
       if (!selected.length) {
         toast?.('Select at least one customer bill to waive late fee.');
         return;
       }
-      if (!window.confirm?.(`Waive / remove late fee from ${selected.length} selected bills?`)) {
+      const count = selected.length;
+      const promptTitle = 'Waive Late Fee from Selected Bills?';
+      const promptSubject = `Waive surcharge · ${count} bill${count > 1 ? 's' : ''}`;
+      const promptMsg = `Waive / remove late fee surcharge from ${count} selected bill${count > 1 ? 's' : ''}?`;
+
+      const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+        ? await window.appConfirm({
+            tone: 'warning',
+            title: promptTitle,
+            subject: promptSubject,
+            message: promptMsg,
+            confirmLabel: 'Waive late fees'
+          })
+        : (typeof confirm === 'function' ? confirm(promptMsg) : true);
+
+      if (!ask) {
         return;
       }
       const updated = waiveLateFeeFromBills(getState(), selected, {
@@ -938,12 +970,28 @@ export function setupLateFeeModal({ getState, updateState, toast }) {
   }
 
   if (tableBody) {
-    tableBody.addEventListener('click', (e) => {
+    tableBody.addEventListener('click', async (e) => {
       const applyBtn = e.target.closest('.apply-late-fee-row-btn');
       if (applyBtn) {
         const custId = applyBtn.dataset.custId;
         const month = applyBtn.dataset.month;
         const config = getLateFeeConfig();
+        const row = currentAudit?.rows?.find(r => r.customerId === custId && r.month === month);
+        const name = row?.customerName || 'Customer';
+        const promptMsg = `Apply PKR ${config.defaultAmount} late fee to ${name} for ${month}?`;
+
+        const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+          ? await window.appConfirm({
+              tone: 'warning',
+              title: `Apply late fee to ${month} bill?`,
+              subject: `${name} · PKR ${config.defaultAmount} · Bill: ${month}`,
+              message: `Add PKR ${config.defaultAmount} late fee surcharge to this overdue bill.`,
+              confirmLabel: 'Apply fee'
+            })
+          : (typeof confirm === 'function' ? confirm(promptMsg) : true);
+
+        if (!ask) return;
+
         const updated = applyLateFeeToBill(getState(), custId, month, {
           amount: config.defaultAmount,
           reason: config.reason
@@ -958,6 +1006,22 @@ export function setupLateFeeModal({ getState, updateState, toast }) {
       if (waiveBtn) {
         const custId = waiveBtn.dataset.custId;
         const month = waiveBtn.dataset.month;
+        const row = currentAudit?.rows?.find(r => r.customerId === custId && r.month === month);
+        const name = row?.customerName || 'Customer';
+        const promptMsg = `Waive late fee for ${name} on ${month} bill?`;
+
+        const ask = typeof window !== 'undefined' && typeof window.appConfirm === 'function'
+          ? await window.appConfirm({
+              tone: 'warning',
+              title: `Waive late fee from ${month} bill?`,
+              subject: `${name} · Bill: ${month}`,
+              message: `Remove late fee surcharge from this bill and restore base balance.`,
+              confirmLabel: 'Waive fee'
+            })
+          : (typeof confirm === 'function' ? confirm(promptMsg) : true);
+
+        if (!ask) return;
+
         const updated = waiveLateFeeFromBill(getState(), custId, month, {
           reason: 'Late fee waived by owner'
         });

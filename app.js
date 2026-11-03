@@ -261,6 +261,7 @@ import { normalizeAdvance, normalizeAdvances, normalizeSpends, upsertAdvance, re
 import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
+import { buildPackageChangePreview, packageChangePreviewHtml, packageChangePreviewStoredText, findPackageChangePreview, recordPackageChangePreview, removePackageChangePreview, previewMatchesChange, attachPreviewNoteToChange } from './package-change-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -4114,6 +4115,23 @@ function saveFirstBillPreviews(list) {
   try { localStorage.setItem(FIRST_BILL_PREVIEWS_KEY, JSON.stringify(list)); } catch {}
 }
 
+// Plan 46 (Plan 1-100) — Package change previews kept as notes. They
+// live in their own localStorage store, apart from every bill,
+// payment and lifecycle record, so keeping a preview changes no
+// money and no status. When the operator later applies that change
+// through the profile Edit form, the kept preview's note is added
+// to the new package-history entry and the kept preview is consumed.
+const PACKAGE_CHANGE_PREVIEWS_KEY = 'shahdara_package_change_previews_v1';
+function loadPackageChangePreviews() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PACKAGE_CHANGE_PREVIEWS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function savePackageChangePreviews(list) {
+  try { localStorage.setItem(PACKAGE_CHANGE_PREVIEWS_KEY, JSON.stringify(list)); } catch {}
+}
+
 // Plan 19 (Plan 1-100) — Welcome pack send log. It lives in its own
 // localStorage store, apart from every bill, payment, Waada, and
 // lifecycle record, so sending a welcome draft changes no record.
@@ -4453,7 +4471,33 @@ function renderCustomerProfileView(customer) {
   const statementDraftSendsForMonth = (month) => findStatementSends(loadStatementDraftSentLog(), customer.id, month);
   const statementDraftSendLabel = statementDraftPref && statementDraftPref.doNotMessage ? 'Do not message' : (statementDraftSendsForMonth(statementDraftMonth).length > 0 ? 'Re-send statement' : 'Send monthly statement');
   const statementDraftSectionHtml = `<section class="profile-custody-section" aria-label="Monthly statement"><h4>Monthly statement</h4><p>One clear page each month — opening balance, this month's charges, payments received, and closing balance — so the customer never has to ask "what do I actually owe and for what?" again. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, Waada, or lifecycle record.</p><div><label>Statement month <input id="statementDraftMonth" type="month" value="${escapeHtml(statementDraftMonth)}"></label> <button type="button" class="secondary-button" id="statementDraftShowBtn">Show statement</button></div><div id="statementDraftResult">${statementDraftCurrent ? statementDraftHtml(statementDraftCurrent.statement, { draftText: statementDraftCurrent.draft.text, sends: statementDraftSendsForMonth(statementDraftMonth) }) : '<p class="empty-state">Monthly statement unavailable.</p>'}</div><button type="button" class="secondary-button" id="statementDraftSendBtn" ${statementDraftSendDisabled ? 'disabled' : ''}>${escapeHtml(statementDraftSendLabel)}</button></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  // Plan 46 (Plan 1-100) — Package change preview on the profile.
+  // The preview is built from this profile's own package and monthly
+  // amount, and the proposed package's catalogue price; both prices
+  // then resolve through the Plan 34 price history (revisions are
+  // keyed by catalogue id, the customer's package by its label, so
+  // each side passes its own key). This preview applies nothing:
+  // the change itself still happens only through the profile Edit
+  // form, and a ready preview shown here is kept so its note can
+  // ride on that change's package-history entry.
+  const packageChangeSelectedPlan = BILL_PACKAGES.find((plan) => plan.label === customer.packageSpeed)
+    || BILL_PACKAGES.find((plan) => plan.id === customer.packageSpeed)
+    || BILL_PACKAGES[0];
+  const packageChangeInitial = packageChangeSelectedPlan ? buildPackageChangePreview({
+    customerId: customer.id,
+    customerName: customer.name || customer.customerName,
+    currentPackage: customer.packageSpeed,
+    currentPrice: customer.monthlySellingAmount,
+    proposedPackage: packageChangeSelectedPlan.label,
+    proposedPackageKey: packageChangeSelectedPlan.id,
+    proposedPrice: packageChangeSelectedPlan.price,
+    priceHistory: loadPriceHistory(),
+    billMonth: localDate().slice(0, 7),
+    effectiveDate: localDate(),
+  }) : null;
+  const packageChangeKept = findPackageChangePreview(loadPackageChangePreviews(), customer.id);
+  const packageChangeSectionHtml = `<section class="profile-custody-section" aria-label="Package change preview"><h4>Package change preview</h4><p>Before agreeing a faster or cheaper package, show the customer what the next bill will actually be — current package, proposed package, monthly price difference, effective date, and the estimated next bill (full month, or pro-rata by the change date). This preview applies nothing; the change itself is still made through the profile Edit form, and a ready preview shown here is kept as a note on that change.</p><p id="packageChangePreviewKept">${escapeHtml(packageChangePreviewStoredText(packageChangeKept))}</p><div><label>Proposed package <select id="packageChangePreviewPackage">${BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${packageChangeSelectedPlan && plan.id === packageChangeSelectedPlan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('')}</select></label> <label>Effective date <input id="packageChangePreviewDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Next bill month <input id="packageChangePreviewMonth" type="month" value="${escapeHtml(localDate().slice(0, 7))}"></label> <label>Estimate <select id="packageChangePreviewMode"><option value="auto">By effective date (start = full month, inside = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="packageChangePreviewShowBtn">Show preview</button></div><div id="packageChangePreviewResult">${packageChangeInitial ? packageChangePreviewHtml(packageChangeInitial, formatAmount) : '<p class="empty-state">No catalogue package to preview.</p>'}</div></section>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4473,6 +4517,33 @@ function renderCustomerProfileView(customer) {
       saveFirstBillPreviews(recordFirstBillPreviewShown(loadFirstBillPreviews(), customer.id, localDate()));
       const shownEl = $('#customerProfileView').querySelector('#firstBillPreviewShown');
       if (shownEl) shownEl.textContent = firstBillPreviewShownText(findFirstBillPreviewShown(loadFirstBillPreviews(), customer.id));
+    }
+  });
+  // Plan 46: show the package change preview for this customer.
+  // Only a READY preview is kept — an incomplete attempt (no price,
+  // bad effective date or bill month) is never kept as a note.
+  $('#customerProfileView').querySelector('#packageChangePreviewShowBtn')?.addEventListener('click', () => {
+    const plan = BILL_PACKAGES.find((item) => item.id === $('#customerProfileView').querySelector('#packageChangePreviewPackage')?.value);
+    if (!plan) return;
+    const preview = buildPackageChangePreview({
+      customerId: customer.id,
+      customerName: customer.name || customer.customerName,
+      currentPackage: customer.packageSpeed,
+      currentPrice: customer.monthlySellingAmount,
+      proposedPackage: plan.label,
+      proposedPackageKey: plan.id,
+      proposedPrice: plan.price,
+      priceHistory: loadPriceHistory(),
+      billMonth: $('#customerProfileView').querySelector('#packageChangePreviewMonth')?.value || '',
+      effectiveDate: $('#customerProfileView').querySelector('#packageChangePreviewDate')?.value || '',
+      mode: $('#customerProfileView').querySelector('#packageChangePreviewMode')?.value || 'auto',
+    });
+    const resultEl = $('#customerProfileView').querySelector('#packageChangePreviewResult');
+    if (resultEl) resultEl.innerHTML = packageChangePreviewHtml(preview, formatAmount);
+    if (preview.status === 'ready') {
+      savePackageChangePreviews(recordPackageChangePreview(loadPackageChangePreviews(), preview));
+      const keptEl = $('#customerProfileView').querySelector('#packageChangePreviewKept');
+      if (keptEl) keptEl.textContent = packageChangePreviewStoredText(findPackageChangePreview(loadPackageChangePreviews(), customer.id));
     }
   });
   $('#customerProfileView').querySelector('#welcomePackSendBtn')?.addEventListener('click', (event) => {
@@ -5390,7 +5461,7 @@ function renderDetail() {
       const sign = (change.proRataAdjustment || 0) > 0 ? '+' : '';
       proRataPart = ` · <strong style="color:var(--brand-teal, #0e5b4d);">${t('prof_pkghist_prorata', null, { amount: Number(change.proRatedBillAmount).toLocaleString() })}</strong> ${t('prof_pkghist_prorata_adj', null, { adj: `${sign}PKR ${Number(change.proRataAdjustment || 0).toLocaleString()}` })}`;
     }
-    return `<li><strong>${escapeHtml(change.date || t('prof_pkghist_date_norec'))}</strong> ${escapeHtml(t('prof_pkghist_row', null, { old: change.oldPackage || t('prof_not_set'), new: change.newPackage || t('prof_not_set'), oldRate: formatAmount(change.oldMonthlyRate), newRate: formatAmount(change.newMonthlyRate), delta: change.monthlyRecurringPriceDelta === null ? t('prof_pkghist_not_calc') : formatAmount(change.monthlyRecurringPriceDelta) }))}${proRataPart}${change.staffName ? ` · ${escapeHtml(change.staffName)}` : ''}</li>`;
+    return `<li><strong>${escapeHtml(change.date || t('prof_pkghist_date_norec'))}</strong> ${escapeHtml(t('prof_pkghist_row', null, { old: change.oldPackage || t('prof_not_set'), new: change.newPackage || t('prof_not_set'), oldRate: formatAmount(change.oldMonthlyRate), newRate: formatAmount(change.newMonthlyRate), delta: change.monthlyRecurringPriceDelta === null ? t('prof_pkghist_not_calc') : formatAmount(change.monthlyRecurringPriceDelta) }))}${proRataPart}${change.staffName ? ` · ${escapeHtml(change.staffName)}` : ''}${change.packageChangePreviewNote ? ` · ${escapeHtml(change.packageChangePreviewNote)}` : ''}</li>`;
   }).join('');
   $('#packageHistoryEmpty').hidden = packageHistory.length > 0;
   renderProfileMarginPreview();
@@ -8364,6 +8435,27 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     if (rxChanged) {
       const savedIdx = state.customers.findIndex(c => c.id === selectedCustomerId);
       if (savedIdx >= 0) state.customers[savedIdx] = appendSignalReading(savedCustomer, { dbm: savedCustomer.lastRxDbm, source: 'manual' });
+    }
+    // Plan 46: if a ready package change preview was kept for this
+    // customer and it describes the change just saved, keep its note
+    // on the new package-history entry and consume the kept preview.
+    // This mutates no bill, payment, or lifecycle field — only the
+    // note on the history entry the save flow just created.
+    const keptPackageChangePreview = findPackageChangePreview(loadPackageChangePreviews(), selectedCustomerId);
+    const savedCustomerForPreview = state.customers.find(c => c.id === selectedCustomerId);
+    if (keptPackageChangePreview && savedCustomerForPreview
+      && Array.isArray(savedCustomerForPreview.packageHistory)
+      && savedCustomerForPreview.packageHistory.length > 0) {
+      const lastChange = savedCustomerForPreview.packageHistory[savedCustomerForPreview.packageHistory.length - 1];
+      if (previewMatchesChange(keptPackageChangePreview, lastChange)) {
+        const savedIdx = state.customers.findIndex(c => c.id === selectedCustomerId);
+        if (savedIdx >= 0) {
+          const history = [...savedCustomerForPreview.packageHistory];
+          history[history.length - 1] = attachPreviewNoteToChange(lastChange, keptPackageChangePreview);
+          state.customers[savedIdx] = { ...savedCustomerForPreview, packageHistory: history };
+        }
+        savePackageChangePreviews(removePackageChangePreview(loadPackageChangePreviews(), selectedCustomerId));
+      }
     }
     profileEditMode = false;
     save(); renderDetail();

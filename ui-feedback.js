@@ -52,6 +52,52 @@ export function stripLeadingIcon(message = '') {
   return String(message).replace(/^\s*(?:✓|✔️?|✅|☑️?|⚠️?|❌|✗|✖️?|ℹ️?|❗|‼️?)\uFE0F?\s*/u, '');
 }
 
+/* ------------------------- Plan G: failed writes ------------------------ */
+
+// Plan G — every failed write says what failed, what was NOT saved, and
+// what to do next. Pure: callers render the result through the toast
+// system; this function never touches the DOM, so tests pin the words.
+export function describeWriteFailure({ operation = 'Save', error = null, online = true } = {}) {
+  const op = String(operation || 'Save');
+  const errName = String(error?.name || '');
+  const errMsg = String(error?.message || error || '');
+  if (/quota/i.test(errName) || /quota/i.test(errMsg)) {
+    return {
+      title: 'Storage full',
+      message: `${op} was not saved — device storage is full.`,
+      nextStep: 'Free up space on the device, then try again. Nothing was recorded for this entry.',
+      retryable: true
+    };
+  }
+  if (/security/i.test(errName) || /blocked|denied|not allowed/i.test(errMsg)) {
+    return {
+      title: 'Storage blocked',
+      message: `${op} was not saved — device storage is blocked.`,
+      nextStep: 'Allow site storage or leave private mode, then try again. Nothing was recorded for this entry.',
+      retryable: true
+    };
+  }
+  if (online === false) {
+    return {
+      title: 'You are offline',
+      message: `${op} was not sent — you are offline.`,
+      nextStep: 'Reconnect and try again. The entry is still in the form and nothing was recorded yet.',
+      retryable: true
+    };
+  }
+  return {
+    title: 'Could not save',
+    message: `${op} failed and was not saved.`,
+    nextStep: 'Check the entry and try again. If it keeps failing, keep the details and try a smaller change.',
+    retryable: true
+  };
+}
+
+export function writeFailureMessage(input = {}) {
+  const d = describeWriteFailure(input);
+  return `${d.title}: ${d.message} ${d.nextStep}`;
+}
+
 export function defaultDuration(type, hasAction) {
   const base = type === 'error' || type === 'warning' ? 6000 : 4000;
   return hasAction ? Math.max(base, 7000) : base;

@@ -607,6 +607,40 @@ export function markSwUpdatePromptDismissed(storage, version) {
   writeSwUpdateRecord(storage, SW_UPDATE_DISMISSED_KEY, version);
 }
 
+/** Clears the shown record so a deferred prompt can be offered again. */
+export function clearSwUpdatePromptShown(storage) {
+  if (!storage || typeof storage.removeItem !== 'function') return;
+  try { storage.removeItem(SW_UPDATE_SHOWN_KEY); } catch { /* session-only prompt */ }
+}
+
+/**
+ * Plan G — pure mid-entry rule: an update is never offered while the
+ * operator is in the middle of an entry. An open dialog (any modal
+ * sheet, e.g. Quick Collect) or a form the app has marked dirty/busy
+ * defers the prompt; it does not dismiss it.
+ */
+export function isSwUpdatePromptBusy({ hasOpenDialog = false, hasUnsavedChanges = false } = {}) {
+  return Boolean(hasOpenDialog || hasUnsavedChanges);
+}
+
+/**
+ * Default busy check against a real window: an open <dialog>, or any
+ * element the app marked dirty (.is-dirty, e.g. the profile save state)
+ * or busy ([aria-busy="true"]). No document (tests, bare windows) is
+ * never busy, so existing behaviour is unchanged there.
+ */
+export function defaultSwUpdateBusyCheck(win) {
+  try {
+    const doc = win?.document;
+    if (!doc || typeof doc.querySelector !== 'function') return false;
+    if (doc.querySelector('dialog[open]')) return true;
+    if (doc.querySelector('.is-dirty, [aria-busy="true"]')) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Asks a waiting worker to activate now. sw.js handles both the string
  * and the {type} form of SKIP_WAITING; the object form is used here.
@@ -655,13 +689,18 @@ export function setupSwUpdatePrompt({
   win = (typeof window !== 'undefined' ? window : null),
   storage = (typeof localStorage !== 'undefined' ? localStorage : null),
   onToast = (msg) => console.log(msg),
-  reloadFallbackMs = SW_UPDATE_RELOAD_FALLBACK_MS
+  reloadFallbackMs = SW_UPDATE_RELOAD_FALLBACK_MS,
+  isBusy = null
 } = {}) {
   const reloadGuard = createSwUpdateReloadGuard();
   let registrationRef = null;
   let pendingVersion = '';
+  let deferredVersion = '';
   let activationRequested = false;
   let fallbackTimer = null;
+  // Plan G: a caller may pass its own busy check; otherwise the default
+  // document check above applies. A boolean is accepted for tests.
+  const isBusyFn = typeof isBusy === 'function' ? isBusy : () => defaultSwUpdateBusyCheck(win);
 
   const serviceWorker = () => {
     try {
@@ -683,8 +722,15 @@ export function setupSwUpdatePrompt({
     return did;
   }
 
-  /** Refresh action: activate the waiting worker, reload exactly once. */
+  /** Refresh action: activate the waiting worker, reload exactly once.
+   *  Plan G: never reload mid-entry. If the operator is busy when they
+   *  tap Refresh, do nothing destructive and clear the shown record so
+   *  the offer can come back once the entry is finished. */
   function refresh() {
+    if (isBusyFn()) {
+      clearSwUpdatePromptShown(storage);
+      return false;
+    }
     if (requestSwUpdateActivation(liveWaitingWorker())) {
       activationRequested = true;
       if (fallbackTimer) clearTimeout(fallbackTimer);
@@ -713,6 +759,14 @@ export function setupSwUpdatePrompt({
     const hasController = detail ? detail.hasController !== false : Boolean(svc.controller);
     if (!updateReady || !version || !hasController) return false;
     if (!shouldShowSwUpdatePrompt({ waitingVersion: version, storage })) return false;
+    // Plan G: defer, do not dismiss and do not mark shown, while the
+    // operator is mid-entry. The offer returns via reconsider() / a
+    // dialog-close event / the next update signal, once free.
+    if (isBusyFn()) {
+      deferredVersion = version;
+      return false;
+    }
+    deferredVersion = '';
     pendingVersion = version;
     markSwUpdatePromptShown(storage, version);
     const message = t('sw_update_ready', null, {});
@@ -734,6 +788,16 @@ export function setupSwUpdatePrompt({
     });
   }
 
+  // Plan G: when a deferred prompt is waiting and a dialog closes, the
+  // operator may be free again — offer the update then, not mid-entry.
+  try {
+    if (win?.document && typeof win.document.addEventListener === 'function') {
+      win.document.addEventListener('close', (evt) => {
+        if (deferredVersion && evt?.target?.tagName === 'DIALOG') consider(win?.__swUpdatePending || null);
+      }, true);
+    }
+  } catch { /* document listeners are best-effort */ }
+
   const svc = serviceWorker();
   if (svc && typeof svc.addEventListener === 'function') {
     svc.addEventListener('controllerchange', () => { if (activationRequested) reloadOnce(); });
@@ -754,8 +818,10 @@ export function setupSwUpdatePrompt({
     consider,
     refresh,
     dismiss,
+    reconsider: () => consider(win?.__swUpdatePending || null),
     checkNow: () => consider(win?.__swUpdatePending || null),
     get pendingVersion() { return pendingVersion; },
+    get deferredVersion() { return deferredVersion; },
     get reloaded() { return reloadGuard.reloaded; }
   };
 }

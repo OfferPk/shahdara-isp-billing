@@ -27,7 +27,13 @@ export const FIELD_ROUTE_OUTCOMES = Object.freeze({
   PARTIAL: 'partial',
   PROMISED: 'promised',
   NOT_HOME: 'not_home',
-  REFUSED: 'refused'
+  REFUSED: 'refused',
+  // Plan 2 (Plan 1-100): the two visit outcomes the route sheet
+  // could not record before — a dispute is a visit note only, it
+  // does not create or resolve a dispute case (see
+  // visit-outcomes.js).
+  DISPUTE: 'dispute',
+  NO_ANSWER: 'no_answer'
 });
 
 /**
@@ -238,11 +244,15 @@ export function getFieldRouteOutcomes(storage, dateStr) {
 }
 
 /**
- * Saves a structured visit outcome (paid, partial, promised, not_home, refused) for a customer stop.
+ * Saves a structured visit outcome (paid, partial, promised, not_home, refused, dispute, no_answer) for a customer stop.
+ * Plan 2 (Plan 1-100) added dispute and no_answer to the catalogue;
+ * both are non-payment outcomes, so they mark the stop uncollected
+ * like not_home and refused, and neither creates a payment, a Waada
+ * promise, or a dispute case.
  * Automatically synchronizes with stop collection status and collection promises.
  *
  * @param {string} customerId
- * @param {string|object} outcomeData - 'paid'|'partial'|'promised'|'not_home'|'refused' or object
+ * @param {string|object} outcomeData - 'paid'|'partial'|'promised'|'not_home'|'refused'|'dispute'|'no_answer' or object
  * @param {Storage|object} [storage]
  * @param {string} [dateStr]
  * @param {object} [options]
@@ -256,7 +266,7 @@ export function saveFieldRouteOutcome(customerId, outcomeData, storage, dateStr,
   let rawOutcome = typeof outcomeData === 'string' ? outcomeData : (outcomeData?.outcome || 'pending');
   rawOutcome = String(rawOutcome).trim().toLowerCase();
 
-  const validOutcomes = ['pending', 'paid', 'partial', 'promised', 'not_home', 'refused'];
+  const validOutcomes = ['pending', 'paid', 'partial', 'promised', 'not_home', 'refused', 'dispute', 'no_answer'];
   const outcome = validOutcomes.includes(rawOutcome) ? rawOutcome : 'pending';
 
   const noteVal = typeof outcomeData === 'object'
@@ -270,6 +280,10 @@ export function saveFieldRouteOutcome(customerId, outcomeData, storage, dateStr,
     promiseAmount: typeof outcomeData === 'object' && outcomeData?.promiseAmount ? Math.max(0, Number(outcomeData.promiseAmount)) : null,
     note: noteVal,
     visitNote: noteVal,
+    // Plan 2 (Plan 1-100): the follow-up date for this visit, used
+    // by visit-outcomes.js buildNextActionQueue. Stored as recorded;
+    // the queue derives a date when none is given.
+    nextActionDate: typeof outcomeData === 'object' && outcomeData?.nextActionDate ? String(outcomeData.nextActionDate) : null,
     amount: typeof outcomeData === 'object' && outcomeData?.amount ? Number(outcomeData.amount) : null,
     timestamp: nowIso
   };

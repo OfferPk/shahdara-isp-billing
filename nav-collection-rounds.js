@@ -17,6 +17,7 @@ export const FIELD_ROUTE_NOTES_KEY = 'shahdara_field_route_notes';
 export const FIELD_ROUTE_OUTCOMES_KEY = 'shahdara_field_route_outcomes';
 export const FIELD_ROUTE_ORDER_KEY = 'shahdara_field_route_order';
 import { sequenceRouteStops } from './route-sequencing.js';
+import { buildDayTargetProgress, getDayTarget, setDayTarget, clearDayTarget } from './day-target.js';
 
 export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
@@ -805,6 +806,31 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
 }
 
 /**
+ * Plan 3 (Plan 1-100): builds the day-target view for one route
+ * calculation. The stored operator target for the route date is
+ * read (or none, when unset) and the route figures are carried
+ * verbatim into buildDayTargetProgress, so the day view matches
+ * the route list on the same fixture. The route sheet's updateUi
+ * calls this on every recalculation, so progress updates as
+ * payments are recorded — the view is never a stale snapshot.
+ * Cash receipts are not available inside the route sheet, so the
+ * progress basis here is the route collected figure; callers with
+ * handover receipts can pass them to buildDayTargetProgress
+ * directly as `cashCollected`.
+ * @param {object} routeData calculateFieldCollectionRoutes output
+ * @param {Storage|object} [storage]
+ */
+export function buildRouteDayTarget(routeData, storage) {
+  const date = routeData?.date || getTodayDateString();
+  const stored = getDayTarget(storage, date);
+  return buildDayTargetProgress({
+    routeData,
+    targetAmount: stored.amount,
+    date,
+  });
+}
+
+/**
  * Generates formatted text manifest for clipboard copy and WhatsApp dispatch to field technician.
  * @param {object} routeData
  * @param {object} [options]
@@ -1057,6 +1083,28 @@ export function setupFieldRouteSheet({
     if (progressBarFill) {
       progressBarFill.style.width = `${routeData.completionRate}%`;
     }
+
+    // Plan 3 (Plan 1-100): day-target view, rebuilt from the same
+    // routeData on every recalculation, so target, collected,
+    // remaining and visit counts always match the route list and
+    // update as payments are recorded. Elements are optional (the
+    // panel is guarded the same way as the other metrics), so an
+    // older modal without the panel keeps working unchanged.
+    const dayTarget = buildRouteDayTarget(routeData, storage);
+    const dayTargetAmountEl = document.getElementById('dayTargetAmount');
+    const dayTargetCollectedEl = document.getElementById('dayTargetCollected');
+    const dayTargetRemainingEl = document.getElementById('dayTargetRemaining');
+    const dayTargetVisitsEl = document.getElementById('dayTargetVisits');
+    const dayTargetTextEl = document.getElementById('dayTargetText');
+    const dayTargetBarFillEl = document.getElementById('dayTargetBarFill');
+    if (dayTargetAmountEl) dayTargetAmountEl.textContent = `Rs. ${dayTarget.targetAmount.toLocaleString()}`;
+    if (dayTargetCollectedEl) dayTargetCollectedEl.textContent = `Rs. ${dayTarget.collectedAmount.toLocaleString()}`;
+    if (dayTargetRemainingEl) dayTargetRemainingEl.textContent = `Rs. ${dayTarget.remainingToTarget.toLocaleString()}`;
+    if (dayTargetVisitsEl) dayTargetVisitsEl.textContent = `${dayTarget.visitsDone}/${dayTarget.visitsPlanned} done, ${dayTarget.visitsRemaining} remaining`;
+    if (dayTargetTextEl) dayTargetTextEl.textContent = dayTarget.targetSet
+      ? `Day target set · ${dayTarget.statusLabel}`
+      : `No day target set — route total dues shown · ${dayTarget.statusLabel}`;
+    if (dayTargetBarFillEl) dayTargetBarFillEl.style.width = `${dayTarget.amountProgressPct}%`;
 
     if (stopsList) {
       stopsList.innerHTML = '';
@@ -1387,6 +1435,34 @@ export function setupFieldRouteSheet({
       triggerHaptic('medium');
       updateUi();
       if (typeof onToast === 'function') onToast("Today's route collection progress reset.");
+    });
+  }
+
+  // Plan 3 (Plan 1-100): operator-set day target. Setting a target
+  // changes no collection, commission or handover figure — it only
+  // changes the number the day view measures progress against.
+  // Clearing it returns the view to the route total dues.
+  const dayTargetInput = document.getElementById('dayTargetInput');
+  const dayTargetSetBtn = document.getElementById('dayTargetSetBtn');
+  const dayTargetClearBtn = document.getElementById('dayTargetClearBtn');
+  if (dayTargetSetBtn && !dayTargetSetBtn.dataset?.wiredRoute) {
+    if (dayTargetSetBtn.dataset) dayTargetSetBtn.dataset.wiredRoute = 'true';
+    dayTargetSetBtn.addEventListener('click', () => {
+      const amount = dayTargetInput ? Number(dayTargetInput.value) : NaN;
+      setDayTarget(storage, lastRouteData?.date || getTodayDateString(), amount);
+      triggerHaptic('medium');
+      updateUi();
+      if (typeof onToast === 'function') onToast('Day target saved.');
+    });
+  }
+  if (dayTargetClearBtn && !dayTargetClearBtn.dataset?.wiredRoute) {
+    if (dayTargetClearBtn.dataset) dayTargetClearBtn.dataset.wiredRoute = 'true';
+    dayTargetClearBtn.addEventListener('click', () => {
+      clearDayTarget(storage, lastRouteData?.date || getTodayDateString());
+      if (dayTargetInput) dayTargetInput.value = '';
+      triggerHaptic('medium');
+      updateUi();
+      if (typeof onToast === 'function') onToast('Day target cleared.');
     });
   }
 

@@ -117,6 +117,144 @@ export function announceToScreenReader(message, {
 }
 
 /**
+ * Selector for the elements a keyboard user can reach inside a dialog.
+ * Shared by trapModalFocus and getFocusableElements so the trap contract
+ * and its tests can never drift apart.
+ */
+export const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled]):not([hidden])',
+  'input:not([disabled]):not([hidden]):not([type="hidden"])',
+  'select:not([disabled]):not([hidden])',
+  'textarea:not([disabled]):not([hidden])',
+  '[tabindex]:not([tabindex="-1"]):not([disabled])'
+].join(', ');
+
+/**
+ * Returns the keyboard-focusable elements inside a container, in DOM
+ * order, excluding hidden and disabled elements. Pure and synchronous,
+ * so the dialog contract can be tested without a browser.
+ *
+ * @param {HTMLElement} container - Dialog or form container
+ * @returns {HTMLElement[]} Focusable elements, in DOM order
+ */
+export function getFocusableElements(container) {
+  if (!container || typeof container.querySelectorAll !== 'function') return [];
+  return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR))
+    .filter(el => {
+      if (el.hidden || (el.closest && el.closest('[hidden]'))) return false;
+      if (el.style?.display === 'none' || el.style?.visibility === 'hidden') return false;
+      return true;
+    });
+}
+
+/**
+ * Turns an id, name or camelCase token into a readable label, e.g.
+ * "voidPaymentReasonInput" -> "Void payment reason input". Used only
+ * as a last-resort accessible name when a control carries no label,
+ * placeholder or title of its own.
+ *
+ * @param {string} token - id or name to humanise
+ * @returns {string} Human-readable label, or '' when there is nothing to use
+ */
+export function humaniseControlToken(token) {
+  const raw = String(token ?? '').trim();
+  if (!raw) return '';
+  return raw
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, ch => ch.toUpperCase());
+}
+
+/**
+ * Returns true when a form control already has an accessible name:
+ * an aria-label, an aria-labelledby, a <label for="id">, or a wrapping
+ * <label>. Static <label> elements are always preferred; this only
+ * decides whether the runtime safety net needs to act.
+ *
+ * @param {HTMLElement} control - Input, select or textarea
+ * @param {HTMLElement} container - Dialog or form holding the control
+ * @returns {boolean} True when the control is already labelled
+ */
+export function isLabelledControl(control, container) {
+  if (!control) return false;
+  if (control.getAttribute?.('aria-label') || control.getAttribute?.('aria-labelledby')) return true;
+  if (typeof control.closest === 'function' && control.closest('label')) return true;
+  const id = control.id || control.getAttribute?.('id');
+  if (id && container && typeof container.querySelectorAll === 'function') {
+    try {
+      for (const label of container.querySelectorAll('label')) {
+        if (label.htmlFor === id || label.getAttribute?.('for') === id) return true;
+      }
+    } catch {
+      // A container without real label elements simply has no <label for>.
+    }
+  }
+  return false;
+}
+
+/**
+ * Gives every unlabelled control inside a dialog a usable accessible
+ * name, and returns how many controls it labelled. Preference order:
+ * a real placeholder (not an "e.g." example), then title, then name,
+ * then id, humanised. Controls that already have a label, and hidden
+ * inputs, are left untouched. This is a safety net for content the app
+ * injects dynamically (profile payment forms, correction forms); the
+ * static markup in index.html carries real <label> elements wherever
+ * one exists, and this function never overwrites one.
+ *
+ * @param {HTMLElement} container - Dialog or form container
+ * @returns {number} How many controls were given an aria-label
+ */
+export function labelFormControls(container) {
+  if (!container || typeof container.querySelectorAll !== 'function') return 0;
+  let labelled = 0;
+  const controls = container.querySelectorAll('input, select, textarea');
+  for (const control of controls) {
+    const type = (control.type || control.getAttribute?.('type') || '').toLowerCase();
+    if (type === 'hidden' || control.hidden) continue;
+    if (isLabelledControl(control, container)) continue;
+    const placeholder = (control.getAttribute?.('placeholder') || control.placeholder || '').trim();
+    const title = (control.getAttribute?.('title') || control.title || '').trim();
+    const name = humaniseControlToken(control.name || control.getAttribute?.('name'));
+    const idLabel = humaniseControlToken(control.id || control.getAttribute?.('id'));
+    const label = (!placeholder.toLowerCase().startsWith('e.g.') && placeholder)
+      || title || name || idLabel;
+    if (!label) continue;
+    if (typeof control.setAttribute === 'function') {
+      control.setAttribute('aria-label', label);
+      labelled++;
+    }
+  }
+  return labelled;
+}
+
+/**
+ * Gives a dialog an accessible name when it has none, and returns true
+ * when it changed anything. Preference order: the dialog's first
+ * heading, then a humanised id. Dialogs that already carry aria-label
+ * or aria-labelledby are left untouched. No visual change.
+ *
+ * @param {HTMLElement} dialog - <dialog> element
+ * @returns {boolean} True when an aria-label was added
+ */
+export function ensureDialogAccessibleName(dialog) {
+  if (!dialog) return false;
+  if (dialog.getAttribute?.('aria-label') || dialog.getAttribute?.('aria-labelledby')) return false;
+  let headingText = '';
+  if (typeof dialog.querySelector === 'function') {
+    const heading = dialog.querySelector('h1, h2, h3');
+    headingText = (heading?.textContent || '').trim();
+  }
+  const name = headingText || humaniseControlToken(dialog.id || dialog.getAttribute?.('id'));
+  if (!name || typeof dialog.setAttribute !== 'function') return false;
+  dialog.setAttribute('aria-label', name);
+  return true;
+}
+
+/**
  * Traps keyboard focus inside a modal/dialog container.
  * Constrains Tab / Shift+Tab cycling to interactive elements inside the modal.
  * Saves previous focused element and restores it when released.
@@ -125,11 +263,13 @@ export function announceToScreenReader(message, {
  * @param {Object} [options={}]
  * @param {HTMLElement} [options.initialFocus=null] - Element to focus on open
  * @param {Function} [options.onEscape=null] - Callback when user presses Escape
+ * @param {number} [options.focusDelay=30] - ms before initial focus is set (0 in tests)
  * @returns {Function} releaseFocusTrap - Cleanup function to restore focus and remove listeners
  */
 export function trapModalFocus(modalEl, {
   initialFocus = null,
   onEscape = null,
+  focusDelay = 30,
   doc = (typeof document !== 'undefined' ? document : null)
 } = {}) {
   if (!modalEl) {
@@ -138,24 +278,8 @@ export function trapModalFocus(modalEl, {
 
   const previousActiveElement = doc?.activeElement || null;
 
-  const focusableSelector = [
-    'a[href]',
-    'button:not([disabled]):not([hidden])',
-    'input:not([disabled]):not([hidden]):not([type="hidden"])',
-    'select:not([disabled]):not([hidden])',
-    'textarea:not([disabled]):not([hidden])',
-    '[tabindex]:not([tabindex="-1"]):not([disabled])'
-  ].join(', ');
-
-  function getFocusableElements() {
-    if (typeof modalEl.querySelectorAll !== 'function') return [];
-    return Array.from(modalEl.querySelectorAll(focusableSelector))
-      .filter(el => {
-        if (el.hidden || (el.closest && el.closest('[hidden]'))) return false;
-        if (el.style?.display === 'none' || el.style?.visibility === 'hidden') return false;
-        return true;
-      });
-  }
+  // The exported getFocusableElements(container) is used directly below;
+  // there is deliberately no local wrapper shadowing it.
 
   function handleKeyDown(e) {
     if (e.key === 'Escape') {
@@ -168,7 +292,7 @@ export function trapModalFocus(modalEl, {
 
     if (e.key !== 'Tab') return;
 
-    const focusable = getFocusableElements();
+    const focusable = getFocusableElements(modalEl);
     if (focusable.length === 0) {
       e.preventDefault();
       return;
@@ -202,7 +326,7 @@ export function trapModalFocus(modalEl, {
     if (initialFocus && typeof initialFocus.focus === 'function') {
       initialFocus.focus();
     } else {
-      const focusable = getFocusableElements();
+      const focusable = getFocusableElements(modalEl);
       if (focusable.length > 0) {
         focusable[0].focus();
       } else if (modalEl.focus) {
@@ -210,7 +334,7 @@ export function trapModalFocus(modalEl, {
         modalEl.focus();
       }
     }
-  }, 30);
+  }, focusDelay);
 
   return function releaseFocusTrap() {
     if (typeof modalEl.removeEventListener === 'function') {
@@ -756,6 +880,33 @@ export function initUniversalDialogController({
         });
       }
 
+      // 2b. Plan C: give the dialog a name and its controls labels at
+      // wire time, so static dialogs are covered even before they open.
+      ensureDialogAccessibleName(dialog);
+      labelFormControls(dialog);
+
+      // 2c. Plan C: Escape for dialogs visible without showModal
+      // (the `dialog.hidden = false` fallback in app.js, used by the
+      // void and advance-payment openers). A showModal dialog already
+      // has a focus trap with an Escape handler, so this handler steps
+      // aside whenever a trap is installed, and never closes an
+      // alertdialog / confirm-modal.
+      dialog.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (dialog._releaseFocusTrap) return;
+        const isAlert = dialog.getAttribute?.('role') === 'alertdialog'
+          || (dialog.classList && typeof dialog.classList.contains === 'function' && dialog.classList.contains('confirm-modal'));
+        if (isAlert) return;
+        const visible = dialog.open || dialog.hasAttribute?.('open') || dialog.hidden === false;
+        if (!visible) return;
+        try {
+          if (typeof dialog.close === 'function' && dialog.open) dialog.close();
+          else dialog.hidden = true;
+        } catch {
+          dialog.hidden = true;
+        }
+      });
+
       // 3. Close event - release trap and return focus
       dialog.addEventListener('close', () => {
         if (dialog._releaseFocusTrap) {
@@ -856,6 +1007,12 @@ export function initUniversalDialogController({
         } else {
           this.setAttribute('open', '');
         }
+
+        // Plan C: re-run the naming/labelling safety net on open, so
+        // content injected just before opening (summaries, dynamic
+        // rows, correction forms) is covered too.
+        ensureDialogAccessibleName(this);
+        labelFormControls(this);
 
         // Focus trap & Escape handling
         this._releaseFocusTrap = trapModalFocus(this, {

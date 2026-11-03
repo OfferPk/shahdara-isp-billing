@@ -7789,7 +7789,7 @@
 
   <footer class="app-footer"><span>Offline-ready · No account · No server storage</span><span id="appVersionLabel">Version 1.11.0</span><div class="footer-actions"><button id="exportAllButton" class="footer-export" type="button">Download all payment details (.txt)</button><div class="backup-footer-tools"><button id="backupControlsToggle" class="backup-controls-toggle" type="button" aria-label="Show backup and restore controls" aria-controls="backupControls" aria-expanded="false" title="Show backup and restore controls"><svg viewBox="0 0 24 24" width="20" height="20" focusable="false" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg><span class="sr-only">Show backup and restore controls</span></button><div id="backupControls" class="backup-controls-panel" hidden><section class="backup-manager" aria-label="Automatic local backup"><div class="backup-manager-heading"><strong>Automatic local backup</strong><span>Saved only on this device</span></div><label for="backupFrequencySelect">Automatic frequency<select id="backupFrequencySelect"><option value="weekly">Weekly</option><option value="daily">Daily</option></select></label><button id="backupNowButton" class="primary-button" type="button">Backup Now</button><dl class="backup-summary"><div><dt>Last successful backup</dt><dd id="backupLastSuccess">Checking…</dd></div><div><dt>Backup size</dt><dd id="backupLastSize">Not available</dd></div><div><dt>Status</dt><dd id="backupStatus" role="status" aria-live="polite">Checking local backup storage…</dd></div><div><dt>Storage Protection</dt><dd id="backupStoragePersistence">Checking…</dd></div><div><dt>Storage Quota Used</dt><dd id="backupStorageQuota">Checking…</dd></div></dl><button id="shareBackupHealthButton" class="primary-button" type="button" title="Send or save JSON backup to WhatsApp or Google Drive">📤 <span data-i18n="bkup_share_wa_drive_btn">Share Backup to WhatsApp / Drive</span></button><p class="backup-local-note">Automatic checks run when the app opens or resumes; they cannot run while it is closed. App-private backups may be removed if app/browser data is cleared or the app is uninstalled. Download a JSON copy for safekeeping elsewhere.</p><label for="savedLocalBackupSelect">Saved local backups<select id="savedLocalBackupSelect"><option value="">Choose a saved backup</option></select></label><button id="restoreLocalBackupButton" class="secondary-button" type="button" disabled>Review &amp; Restore Backup</button><p id="saveFallbackNotice" hidden><span id="saveFallbackNoticeText"></span> <button id="saveFallbackDownloadBtn" class="secondary-button" type="button">Download emergency copy</button></p><button id="showStorageRecoveryButton" class="secondary-button" type="button" hidden>Recovery options</button><p>Safety snapshots — saved automatically before a customer delete, a payment void, or a backup restore. The newest 5 are kept.</p><ul id="safetySnapshotList" class="backup-conflict-list" aria-label="Safety snapshots"></ul><div class="khata-doctor-tools"><strong>Khata Doctor — ledger integrity check</strong><button class="help-info-btn" type="button" data-help="khata_doctor" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button><p class="backup-local-note">Offline reconciliation: every customer's pending balance is recomputed from bills + kist − valid payments (voided excluded) − concessions, and settlement references, kist plan counters, the void log and bill amounts are cross-checked. Running the check never changes your data. Auto-Repair saves a safety snapshot first, then fixes only what it can prove.</p><button id="runKhataDoctorButton" class="secondary-button" type="button">🩺 Run Khata Doctor</button><div id="khataDoctorResults" aria-live="polite"></div><button id="repairKhataDoctorButton" class="primary-button" type="button" hidden>Auto-Repair (snapshot first)</button></div></section><div class="backup-actions"><button id="shareJsonBackupButton" class="secondary-button" type="button" title="Send or save JSON backup to WhatsApp, Google Drive, or local files">📲 Share Backup (WhatsApp/Drive)</button><button id="downloadJsonBackupButton" class="secondary-button" type="button">Download JSON backup</button><button id="openExportEncryptedBackupBtn" class="secondary-button" type="button" title="Encrypt backup with a passphrase using AES-256-GCM before saving to Google Drive, WhatsApp, or computer">🔐 Encrypted Backup (Passphrase)</button><button id="requestStoragePersistenceBtn" class="secondary-button" type="button" title="Request permanent storage protection from browser eviction">🛡️ Protect Storage</button><button id="restoreJsonBackupButton" class="secondary-button" type="button">Review JSON backup file</button><input id="jsonBackupFileInput" type="file" accept="application/json,.json" hidden><button id="deltaMergeButton" class="secondary-button" type="button" title="Union-merge a checksum-verified backup from another device by record ID — adds only what this device is missing, never deletes or overwrites">🔀 <span data-i18n="dmerge_button">Delta Merge (another device)</span></button><input id="deltaMergeFileInput" type="file" accept="application/json,.json" hidden><button id="copySyncCodeButton" class="secondary-button" type="button" title="Copy the checksum-verified backup text to paste on another device">📋 Copy sync code</button><label class="sync-code-paste" for="pasteSyncCodeText">Paste sync code<textarea id="pasteSyncCodeText" class="form-input" rows="3" placeholder="Paste a sync code copied from another device…"></textarea></label><button id="importSyncCodeButton" class="secondary-button" type="button">Review pasted sync code</button><button id="downloadCustomerCsvTemplateBtn" class="secondary-button" type="button" title="Download sample CSV customer template">Download CSV Template</button><button id="importCustomerCsvBtn" class="secondary-button" type="button" title="Import customers from CSV file">Import Customers (CSV)</button><input id="customerCsvFileInput" type="file" accept=".csv,text/csv" hidden><button id="verifyStorageIntegrityBtn" class="secondary-button" type="button" title="Audit all local storage keys and offline database resilience">Storage Health Audit</button><button id="openDataIntegrityBtn" class="secondary-button" type="button" title="Scan for orphan receipts, duplicate IDs, missing customer numbers, and fix database inconsistencies">Data Integrity &amp; Fixes</button><button id="openBillingCorrectnessBtn" class="secondary-button" type="button" title="Audit ledger correctness, payment allocations, unpriced bills, and accounting compliance">Billing &amp; Ledger Audit</button></div></div></div></div></footer>
 
-  <dialog id="jsonBackupDialog" class="modal backup-modal">
+  <dialog id="jsonBackupDialog" class="modal backup-modal" aria-label="Review JSON backup">
     <section>
       <div class="modal-heading"><div><p class="eyebrow">LOCAL RESTORE PREVIEW</p><h2>Review JSON backup</h2></div><button class="close-button" type="button" data-close-backup-dialog aria-label="Close">↩</button></div>
       <div id="encryptedRestoreSection" class="encrypted-restore-box" hidden>
@@ -7827,7 +7827,7 @@
     </section>
   </dialog>
 
-  <dialog id="deltaMergeDialog" class="modal backup-modal">
+  <dialog id="deltaMergeDialog" class="modal backup-modal" aria-label="Delta merge from another device">
     <section>
       <div class="modal-heading"><div><p class="eyebrow" data-i18n="dmerge_eyebrow">MULTI-DEVICE DELTA MERGE</p><h2 data-i18n="dmerge_title">Delta merge from another device</h2></div><button id="deltaMergeCloseButton" class="close-button" type="button" aria-label="Close">↩</button></div>
       <p id="deltaMergeSummary" class="backup-preview-summary" role="status" aria-live="polite"></p>
@@ -7841,7 +7841,7 @@
     </section>
   </dialog>
 
-  <dialog id="storageRecoveryDialog" class="modal backup-modal">
+  <dialog id="storageRecoveryDialog" class="modal backup-modal" aria-label="Saved data could not be read">
     <section>
       <div class="modal-heading"><div><p class="eyebrow">SAVED DATA RECOVERY</p><h2>Saved data could not be read</h2></div><button id="storageRecoveryCloseBtn" class="close-button" type="button" aria-label="Close">↩</button></div>
       <p id="storageRecoveryReason">Nothing was overwritten. Choose a snapshot below, review a JSON backup file, or start fresh.</p>
@@ -7851,7 +7851,7 @@
     </section>
   </dialog>
 
-  <dialog id="encryptedBackupDialog" class="modal backup-modal">
+  <dialog id="encryptedBackupDialog" class="modal backup-modal" aria-label="Export Encrypted Backup">
     <section>
       <div class="modal-heading">
         <div>
@@ -7892,7 +7892,7 @@
     </section>
   </dialog>
 
-  <dialog id="csvImportDialog" class="modal backup-modal">
+  <dialog id="csvImportDialog" class="modal backup-modal" aria-label="Review CSV Customer Import">
     <section>
       <div class="modal-heading">
         <div>
@@ -7935,7 +7935,7 @@
     </section>
   </dialog>
 
-  <dialog id="manualBaqayaDialog" class="modal">
+  <dialog id="manualBaqayaDialog" class="modal" aria-label="Add manual baqaya">
     <form id="manualBaqayaForm" method="dialog">
       <div class="modal-heading"><div><p class="eyebrow" data-i18n="baqaya_title">Manual Baqaya (Loan)</p><h2 id="manualBaqayaDialogTitle" data-i18n="baqaya_dialog_add_title">Add manual baqaya</h2></div><button class="close-button" type="button" data-close-dialog aria-label="Close">↩</button></div>
       <input id="manualBaqayaEntryId" type="hidden">
@@ -7948,7 +7948,7 @@
       <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog data-i18n="adv_cancel">Cancel</button><button id="manualBaqayaSaveButton" class="primary-button" type="submit" data-i18n="baqaya_save">Save Baqaya</button></div>
     </form>
   </dialog>
-  <dialog id="additionalPendingDialog" class="modal">
+  <dialog id="additionalPendingDialog" class="modal" aria-label="Additional Pending">
     <form id="additionalPendingForm" method="dialog">
       <div class="modal-heading"><div><p class="eyebrow" data-i18n="baqaya_title">Manual Baqaya (Loan)</p><h2 id="additionalPendingDialogTitle" data-i18n="addpend_dialog_title">Additional Pending</h2><button class="help-info-btn" type="button" data-help="additional_pending" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button></div><button class="close-button" type="button" data-close-dialog aria-label="Close">↩</button></div>
       <p class="additional-pending-row"><span data-i18n="addpend_bill_label">Bill outstanding (already in bills)</span><strong id="additionalPendingBillDue">PKR 0</strong></p>
@@ -7961,7 +7961,7 @@
       <div class="modal-actions"><button class="secondary-button" type="button" data-close-dialog data-i18n="adv_cancel">Cancel</button><button id="additionalPendingSaveButton" class="primary-button" type="submit" data-i18n="addpend_save">Save</button></div>
     </form>
   </dialog>
-  <dialog id="addCustomerDialog" class="modal">
+  <dialog id="addCustomerDialog" class="modal" aria-label="Add a customer">
     <form id="addCustomerForm" method="dialog">
       <div class="modal-heading"><div><p class="eyebrow">NEW CUSTOMER</p><h2>Add a customer</h2></div><button class="close-button" type="button" data-close-dialog aria-label="Close">↩</button></div>
       <div id="newCustomerDraftNotice" class="draft-restore-notice" role="status" hidden><span>Unsaved customer draft restored from this device.</span><button id="discardNewCustomerDraftBtn" class="draft-discard-btn" type="button">Discard</button></div>
@@ -20029,7 +20029,7 @@
 
             <details id="quickCollectOverrideDetails" class="qc-override-details">
               <summary class="qc-override-summary">No Transaction ID? Enter override reason</summary>
-              <input id="quickCollectOverrideReasonInput"
+              <input aria-label="Override reason (no Transaction ID)" id="quickCollectOverrideReasonInput"
                      type="text"
                      maxlength="100"
                      placeholder="e.g. Verified via collector screenshot offline / کالیکٹر نے تصدیق کی"
@@ -20191,7 +20191,7 @@
   </dialog>
 
   <!-- Billing Correctness & Ledger Reconciliation QA Suite Dialog -->
-  <dialog id="billingCorrectnessModal" class="billing-modal billing-correctness-modal">
+  <dialog id="billingCorrectnessModal" class="billing-modal billing-correctness-modal" aria-label="Billing Correctness and Ledger Reconciliation QA Suite">
     <div class="billing-modal-content">
       <header class="billing-modal-header">
         <div class="billing-modal-title-group">
@@ -20307,7 +20307,7 @@
   </dialog>
 
   <!-- Database Data Integrity & Safe Repair QA Suite Dialog -->
-  <dialog id="dataIntegrityModal" class="billing-modal data-integrity-modal">
+  <dialog id="dataIntegrityModal" class="billing-modal data-integrity-modal" aria-label="Database Data Integrity and Safe Repair Suite">
     <div class="billing-modal-content">
       <header class="billing-modal-header">
         <div class="billing-modal-title-group">
@@ -20421,7 +20421,7 @@
   </dialog>
 
   <!-- Monthly Collection vs Target Performance Dialog -->
-  <dialog id="collectionTargetModal" class="billing-modal collection-target-modal">
+  <dialog id="collectionTargetModal" class="billing-modal collection-target-modal" aria-label="Monthly Collection vs Target Performance">
     <div class="billing-modal-content">
       <header class="billing-modal-header">
         <div class="billing-modal-title-group">

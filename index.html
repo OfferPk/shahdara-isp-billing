@@ -9100,6 +9100,42 @@
       <!-- Plan S: day-flow strip — promised + handover expected + steps, rendered from the same route figures -->
       <div id="fieldDayFlowStrip"></div>
 
+      <!-- Plan 3 (Plan 1-100): field day target and progress tracker — operator-set target, collected, remaining to target, and visit counts, rebuilt from the same route figures on every recalculation -->
+      <div class="day-target-panel" role="region" aria-label="Field day target and progress">
+        <div class="route-metrics-bar">
+          <div class="route-metric-pill">
+            <span class="route-metric-label">Day Target</span>
+            <strong id="dayTargetAmount" class="route-metric-value">Rs. 0</strong>
+          </div>
+          <div class="route-metric-pill">
+            <span class="route-metric-label">Collected</span>
+            <strong id="dayTargetCollected" class="route-metric-value" style="color: #047857;">Rs. 0</strong>
+          </div>
+          <div class="route-metric-pill">
+            <span class="route-metric-label">Remaining to Target</span>
+            <strong id="dayTargetRemaining" class="route-metric-value" style="color: #b91c1c;">Rs. 0</strong>
+          </div>
+          <div class="route-metric-pill">
+            <span class="route-metric-label">Visits</span>
+            <strong id="dayTargetVisits" class="route-metric-value">0/0 done, 0 remaining</strong>
+          </div>
+        </div>
+        <div class="route-progress-container">
+          <div class="route-progress-header">
+            <span id="dayTargetText" class="route-progress-label">No day target set — route total dues shown</span>
+          </div>
+          <div class="route-progress-track">
+            <div id="dayTargetBarFill" class="route-progress-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+        <div class="route-filter-group">
+          <label for="dayTargetInput">Set day target (Rs.)</label>
+          <input id="dayTargetInput" class="route-input" type="number" min="1" step="1" placeholder="e.g. 50000">
+          <button id="dayTargetSetBtn" class="action-btn-sm" type="button">Set target</button>
+          <button id="dayTargetClearBtn" class="action-btn-sm" type="button">Clear target</button>
+        </div>
+      </div>
+
       <!-- Filter Controls Toolbar -->
       <div class="route-controls-toolbar">
         <div class="route-filter-group">

@@ -1,6 +1,7 @@
 import { canonicalMohalla, DEFAULT_MOHALLAS } from './phase3.js';
 import { fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
 import { identitySearchMatches } from './core.js';
+import { customerMatchesAreaFilter } from './area-operations.js';
 
 /**
  * Owner feature (2026-10-29): field-scoped search for the Customers list and
@@ -69,15 +70,11 @@ export function customerMatchesSearchField(customer, field, query) {
         || normalizedText(customer.customerNumber) === normalizedText(noHash);
     }
     case 'area': {
-      const customerMohalla = canonicalMohalla(customer.mohalla || customer.area || '');
-      if (!customerMohalla) return false;
-      const queryMohalla = canonicalMohalla(rawQuery);
-      if (queryMohalla && customerMohalla.key === queryMohalla.key) return true;
-      // Partial typing ("barr") still finds the mohalla by its readable
-      // label / canonical spelling even before it resolves canonically.
-      const needle = normalizedText(rawQuery);
-      return normalizedText(customerMohalla.label).includes(needle)
-        || normalizedText(customerMohalla.stored).includes(needle);
+      // Plan T: the Area search rule now lives in area-operations.js,
+      // shared with the Customers dropdown and Top Defaulters — the
+      // semantics here are unchanged (canonical match, plus the partial
+      // label/stored fallback for typed queries).
+      return customerMatchesAreaFilter(customer, rawQuery);
     }
     case 'identity': {
       // Plan L: the existing SISP-74 identity logic, reused verbatim —

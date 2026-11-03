@@ -169,7 +169,8 @@ import { setupAreaCollectionsModal } from './dashboard-area-collections.js';
 import { setupPackageRevenueModal } from './dashboard-package-revenue.js';
 import { setupPnlModal } from './dashboard-pnl.js';
 import { setupMomGrowthModal } from './dashboard-mom-growth.js';
-import { setupDailyClosingModal } from './dashboard-daily-closing.js';
+import { setupDailyClosingModal, calculateCollectorCashExpected, getDailyCashHandovers } from './dashboard-daily-closing.js';
+import { buildFieldDayFlow, preserveFieldDayView, restoreFieldDayView, fieldDayFlowStripHtml } from './field-day-flow.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
@@ -8671,8 +8672,58 @@ let fieldDiagnosticsModalController = setupFieldDiagnosticsModal({
 });
 
 // Setup Technician Field Collection Route Sheet & Mobile Dispatcher
+// Plan S: the route view saved before a handover round-trip, so the
+// collector returns to the same sector, tab and search afterwards.
+let savedFieldDayView = null;
+
 export let fieldRouteSheetController = setupFieldRouteSheet({
   getState: () => state,
+  // Plan S: render the shared day-flow strip (promised + handover
+  // expected + steps) from exactly the figures this recalculation
+  // produced, plus the handover builder's own figures. Additive
+  // only — a failure here must never break the route sheet itself.
+  onRouteData: (routeData) => {
+    try {
+      const handover = calculateCollectorCashExpected(state, routeData?.date || undefined, 'all');
+      const recorded = getDailyCashHandovers(typeof localStorage !== 'undefined' ? localStorage : null, routeData?.date).length > 0;
+      const flow = buildFieldDayFlow({ routeData, handover, handoverRecorded: recorded });
+      const promisedEl = $('#routeMetricPromised');
+      if (promisedEl) promisedEl.textContent = `Rs. ${Math.round(flow.promised.amount).toLocaleString()} (${flow.promised.stops})`;
+      const stripEl = $('#fieldDayFlowStrip');
+      if (stripEl) stripEl.innerHTML = fieldDayFlowStripHtml(flow);
+    } catch {
+      // Strip is presentation only; the route list already rendered.
+    }
+  },
+  // Plan S: open cash handover WITHOUT closing the route modal, so
+  // the collector keeps their place; when handover closes, restore
+  // the saved view (sector / tab / search) on the route sheet.
+  onOpenHandover: () => {
+    try {
+      savedFieldDayView = preserveFieldDayView(fieldRouteSheetController?.getViewState?.() || {});
+    } catch {
+      savedFieldDayView = null;
+    }
+    const dcModal = $('#dailyClosingModal');
+    if (dcModal && savedFieldDayView) {
+      dcModal.addEventListener('close', () => {
+        if (!savedFieldDayView) return;
+        try {
+          const restored = restoreFieldDayView(savedFieldDayView, fieldRouteSheetController?.getRouteData?.()?.allSectors || []);
+          fieldRouteSheetController?.restoreViewState?.(restored);
+        } catch {
+          // Route DOM state already persisted under the stacked modal.
+        }
+      }, { once: true });
+    }
+    if (dailyClosingModalController?.open) {
+      dailyClosingModalController.open();
+    } else if (dcModal?.showModal) {
+      dcModal.showModal();
+      const sec = $('#dailyClosingHandoverSection');
+      if (sec?.scrollIntoView) setTimeout(() => sec.scrollIntoView({ behavior: 'smooth' }), 100);
+    }
+  },
   onNavigateCustomer: (customerId) => {
     switchView('customers');
     selectCustomer(customerId);

@@ -230,6 +230,7 @@ import { ALERT_TYPES, DEFAULT_ALERT_THRESHOLDS, normalizeAlertThresholds, buildA
 import { buildCollectorPerformance, collectorPerformanceHtml, collectorPerformanceCsv, collectorPerformanceFilename } from './collector-performance.js';
 import { buildCashflowSnapshot, cashflowSnapshotHtml, cashflowSnapshotCsv, cashflowSnapshotFilename } from './cashflow-snapshot.js';
 import { DEFAULT_PRE_DUE_WINDOW_DAYS, normalizePreDueWindowDays, buildPreDueReminderQueue, buildPreDueReminderDraft, logReminderSent, preDueReminderSummaryText, preDueReminderFilename, preDueReminderHtml, preDueReminderCsv } from './pre-due-reminders.js';
+import { DEFAULT_ESCALATION_THRESHOLDS, normalizeEscalationThresholds, buildEscalationLadder, buildEscalationDraft, logEscalationSent, escalationSummaryText, escalationFilename, escalationHtml, escalationCsv } from './escalation-ladder.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -10301,6 +10302,103 @@ function renderPreDueReminders() {
     });
   }
 }
+// Plan 12 (Plan 1-100) — Overdue escalation ladder panel. Overdue
+// bills only (Plan 11 is the forward pre-due window); drafts only,
+// plus a send log that lives apart from payment, Waada, and
+// lifecycle records. Sending opens the existing WhatsApp route with
+// the step draft prefilled and logs (step, time, channel) — it
+// sends nothing automatically and changes no balance, promise, or
+// service state.
+const ESCALATION_THRESHOLDS_KEY = 'escalationLadderThresholds';
+const ESCALATION_SENT_LOG_KEY = 'shahdara_escalation_sent_log_v1';
+let escalationLadderBound = false;
+let lastEscalationLadder = null;
+function loadEscalationThresholds() {
+  try {
+    const raw = localStorage.getItem(ESCALATION_THRESHOLDS_KEY);
+    return raw === null ? { ...DEFAULT_ESCALATION_THRESHOLDS } : normalizeEscalationThresholds(JSON.parse(raw));
+  } catch { return { ...DEFAULT_ESCALATION_THRESHOLDS }; }
+}
+function loadEscalationSentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ESCALATION_SENT_LOG_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveEscalationSentLog(log) {
+  try { localStorage.setItem(ESCALATION_SENT_LOG_KEY, JSON.stringify(log)); } catch {}
+}
+function renderEscalationLadder() {
+  const bodyEl = $('#escalationLadderBody');
+  if (!bodyEl) return;
+  const today = getWaadaTodayString();
+  const thresholds = loadEscalationThresholds();
+  const allocations = calculatePaymentAllocations(state);
+  const bills = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      const summary = allocations.forMonth(customer.id, bill.month);
+      const balanceDue = summary && summary.balanceDueCents > 0 ? summary.balanceDueCents / 100 : 0;
+      if (!(balanceDue > 0)) continue;
+      bills.push({
+        customerId: customer.id,
+        customerName: customer.name || customer.customerName || '—',
+        mohalla: customer.mohalla || customer.area || '',
+        billMonth: bill.month,
+        dueDate: typeof bill.dueDate === 'string' ? bill.dueDate : null,
+        balanceDue: Math.round(balanceDue),
+      });
+    }
+  }
+  const ladder = buildEscalationLadder({ today, thresholds, bills });
+  const sentLog = loadEscalationSentLog();
+  lastEscalationLadder = ladder.valid ? { ladder, sentLog } : null;
+  bodyEl.innerHTML = ladder.valid ? escalationHtml(ladder, sentLog) : '<p class="empty-state">Overdue escalation ladder unavailable — the ladder needs a valid today date.</p>';
+  const summaryEl = $('#escalationLadderSummary');
+  if (summaryEl) summaryEl.textContent = escalationSummaryText(ladder);
+  const gentleInput = $('#escalationLadderGentleDays');
+  if (gentleInput) gentleInput.value = ladder.thresholds.gentleDays;
+  const firmInput = $('#escalationLadderFirmDays');
+  if (firmInput) firmInput.value = ladder.thresholds.firmDays;
+  const finalInput = $('#escalationLadderFinalDays');
+  if (finalInput) finalInput.value = ladder.thresholds.finalDays;
+  if (!escalationLadderBound) {
+    escalationLadderBound = true;
+    bodyEl.addEventListener('click', (event) => {
+      const sendBtn = event.target.closest ? event.target.closest('.escalation-send-btn') : null;
+      if (!sendBtn || !sendBtn.dataset.customerId) return;
+      const customer = (state.customers ?? []).find((c) => c.id === sendBtn.dataset.customerId);
+      const row = lastEscalationLadder?.ladder.rows.find((r) => r.customerId === sendBtn.dataset.customerId);
+      if (!customer || !row) return;
+      const wa = formatWhatsAppUrl(whatsappPhoneFor(customer), buildEscalationDraft(row).text);
+      if (!wa.validPhone || !wa.url) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'No WhatsApp number';
+        return;
+      }
+      window.open(wa.url, '_blank', 'noopener,noreferrer');
+      saveEscalationSentLog(logEscalationSent(loadEscalationSentLog(), { customerId: row.customerId, step: row.step, sentAt: new Date().toISOString(), channel: 'whatsapp' }));
+      renderEscalationLadder();
+    });
+    const saveBtn = $('#escalationLadderSaveThresholdsBtn');
+    if (saveBtn) saveBtn.addEventListener('click', () => {
+      try {
+        localStorage.setItem(ESCALATION_THRESHOLDS_KEY, JSON.stringify(normalizeEscalationThresholds({
+          gentleDays: Number($('#escalationLadderGentleDays')?.value),
+          firmDays: Number($('#escalationLadderFirmDays')?.value),
+          finalDays: Number($('#escalationLadderFinalDays')?.value),
+        })));
+      } catch {}
+      renderEscalationLadder();
+    });
+    const exportBtn = $('#escalationLadderExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => {
+      if (!lastEscalationLadder) return;
+      downloadCsvFile(escalationFilename(lastEscalationLadder.ladder), escalationCsv(lastEscalationLadder.ladder, lastEscalationLadder.sentLog));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10362,6 +10460,7 @@ function renderAnalytics() {
   renderCollectorPerformance();
   renderCashflowSnapshot();
   renderPreDueReminders();
+  renderEscalationLadder();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

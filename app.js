@@ -229,10 +229,11 @@ import { buildReceivablesAgeing, ageingHtml, ageingCsv, ageingFilename } from '.
 import { ALERT_TYPES, DEFAULT_ALERT_THRESHOLDS, normalizeAlertThresholds, buildAlertsInbox, alertsInboxSummaryText, alertsInboxHtml } from './alerts-inbox.js';
 import { buildCollectorPerformance, collectorPerformanceHtml, collectorPerformanceCsv, collectorPerformanceFilename } from './collector-performance.js';
 import { buildCashflowSnapshot, cashflowSnapshotHtml, cashflowSnapshotCsv, cashflowSnapshotFilename } from './cashflow-snapshot.js';
-import { DEFAULT_PRE_DUE_WINDOW_DAYS, normalizePreDueWindowDays, buildPreDueReminderQueue, buildPreDueReminderDraft, logReminderSent, preDueReminderSummaryText, preDueReminderFilename, preDueReminderHtml, preDueReminderCsv } from './pre-due-reminders.js';
-import { DEFAULT_ESCALATION_THRESHOLDS, normalizeEscalationThresholds, buildEscalationLadder, buildEscalationDraft, logEscalationSent, escalationSummaryText, escalationFilename, escalationHtml, escalationCsv } from './escalation-ladder.js';
+import { DEFAULT_PRE_DUE_WINDOW_DAYS, PRE_DUE_DRAFT_VARIANTS, normalizePreDueWindowDays, buildPreDueReminderQueue, buildPreDueReminderDraft, logReminderSent, preDueReminderSummaryText, preDueReminderFilename, preDueReminderHtml, preDueReminderCsv } from './pre-due-reminders.js';
+import { DEFAULT_ESCALATION_THRESHOLDS, ESCALATION_DRAFT_VARIANTS, normalizeEscalationThresholds, buildEscalationLadder, buildEscalationDraft, logEscalationSent, escalationSummaryText, escalationFilename, escalationHtml, escalationCsv } from './escalation-ladder.js';
 import { buildPaymentConfirmationList, logConfirmationSent, paymentConfirmationSummaryText, paymentConfirmationFilename, paymentConfirmationHtml, paymentConfirmationCsv } from './payment-confirmation.js';
 import { BROADCAST_TEMPLATE_KINDS, BROADCAST_DRAFT_VARIANTS, buildBroadcastMohallaOptions, normalizeBroadcastTemplates, buildBroadcastDraft, broadcastWhatsAppUrl, logBroadcastSent, broadcastSummaryText, broadcastFilename, broadcastHtml, broadcastCsv } from './mohalla-broadcast.js';
+import { CONTACT_PREFERENCE_LANGUAGES, normalizeContactPreferences, findContactPreference, upsertContactPreference, removeContactPreference, contactPreferencesSummaryText, contactPreferenceHtml, contactPreferenceCsv } from './contact-preferences.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -10282,7 +10283,14 @@ function renderPreDueReminders() {
       const customer = (state.customers ?? []).find((c) => c.id === sendBtn.dataset.customerId);
       const row = lastPreDueQueue?.queue.rows.find((r) => r.customerId === sendBtn.dataset.customerId);
       if (!customer || !row) return;
-      const wa = formatWhatsAppUrl(whatsappPhoneFor(customer), buildPreDueReminderDraft(row).text);
+      const pref = findContactPreference(loadContactPreferences(), row.customerId);
+      if (pref && pref.doNotMessage) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Do not message';
+        return;
+      }
+      const draftVariant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? PRE_DUE_DRAFT_VARIANTS.URDU : PRE_DUE_DRAFT_VARIANTS.ROMAN;
+      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), buildPreDueReminderDraft(row, draftVariant).text);
       if (!wa.validPhone || !wa.url) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'No WhatsApp number';
@@ -10373,7 +10381,14 @@ function renderEscalationLadder() {
       const customer = (state.customers ?? []).find((c) => c.id === sendBtn.dataset.customerId);
       const row = lastEscalationLadder?.ladder.rows.find((r) => r.customerId === sendBtn.dataset.customerId);
       if (!customer || !row) return;
-      const wa = formatWhatsAppUrl(whatsappPhoneFor(customer), buildEscalationDraft(row).text);
+      const pref = findContactPreference(loadContactPreferences(), row.customerId);
+      if (pref && pref.doNotMessage) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Do not message';
+        return;
+      }
+      const draftVariant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? ESCALATION_DRAFT_VARIANTS.URDU : ESCALATION_DRAFT_VARIANTS.ROMAN;
+      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), buildEscalationDraft(row, draftVariant).text);
       if (!wa.validPhone || !wa.url) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'No WhatsApp number';
@@ -10461,7 +10476,14 @@ function renderPaymentConfirmation() {
       const row = lastPaymentConfirmation?.list.rows.find((r) => r.paymentId === sendBtn.dataset.paymentId);
       const customer = (state.customers ?? []).find((c) => c.id === row?.customerId);
       if (!customer || !row) return;
-      const wa = formatWhatsAppUrl(whatsappPhoneFor(customer), row.draft);
+      const pref = findContactPreference(loadContactPreferences(), row.customerId);
+      if (pref && pref.doNotMessage) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Do not message';
+        return;
+      }
+      const draftText = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU && row.draftUrdu ? row.draftUrdu : row.draft;
+      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), draftText);
       if (!wa.validPhone || !wa.url) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'No WhatsApp number';
@@ -10592,6 +10614,79 @@ function renderMohallaBroadcast() {
     });
   }
 }
+// Plan 15 (Plan 1-100) — Customer contact preferences panel. One
+// saved choice per customer: preferred WhatsApp number, preferred
+// message language (Urdu script or Roman Urdu), and a do-not-message
+// flag with a reason. Preferences live in their own localStorage
+// store, apart from every payment, Waada and balance record, and
+// they affect ONLY Plans 11–14 drafts: the three per-customer send
+// buttons above resolve the preferred number and language and
+// refuse a do-not-message send, and the broadcast audience helper
+// lists opted-out customers as skipped. Changing a preference here
+// changes no billing, collection or lifecycle figure.
+const CONTACT_PREFERENCES_KEY = 'shahdara_contact_preferences_v1';
+let contactPreferencesBound = false;
+function loadContactPreferences() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CONTACT_PREFERENCES_KEY) || '[]');
+    return normalizeContactPreferences(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveContactPreferences(list) {
+  try { localStorage.setItem(CONTACT_PREFERENCES_KEY, JSON.stringify(normalizeContactPreferences(list))); } catch {}
+}
+function renderContactPreferences() {
+  const bodyEl = $('#contactPreferencesBody');
+  if (!bodyEl) return;
+  const prefs = loadContactPreferences();
+  const selectEl = $('#contactPreferencesCustomer');
+  if (selectEl && document.activeElement !== selectEl) {
+    const active = (state.customers ?? []).filter((c) => !c.archived);
+    selectEl.innerHTML = active.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  bodyEl.innerHTML = contactPreferenceHtml(prefs);
+  const summaryEl = $('#contactPreferencesSummary');
+  if (summaryEl) summaryEl.textContent = contactPreferencesSummaryText(prefs);
+  if (!contactPreferencesBound) {
+    contactPreferencesBound = true;
+    $('#contactPreferencesSaveBtn')?.addEventListener('click', () => {
+      const customerId = $('#contactPreferencesCustomer')?.value;
+      if (!customerId) return;
+      const customer = (state.customers ?? []).find((c) => c.id === customerId);
+      const next = upsertContactPreference(loadContactPreferences(), {
+        customerId,
+        customerName: customer?.name || customer?.customerName || '',
+        whatsappNumber: $('#contactPreferencesNumber')?.value ?? '',
+        language: $('#contactPreferencesLanguage')?.value ?? '',
+        doNotMessage: $('#contactPreferencesDoNotMessage')?.checked ?? false,
+        doNotMessageReason: $('#contactPreferencesReason')?.value ?? '',
+      });
+      saveContactPreferences(next);
+      renderContactPreferences();
+    });
+    $('#contactPreferencesRemoveBtn')?.addEventListener('click', () => {
+      const customerId = $('#contactPreferencesCustomer')?.value;
+      if (!customerId) return;
+      saveContactPreferences(removeContactPreference(loadContactPreferences(), customerId));
+      renderContactPreferences();
+    });
+    $('#contactPreferencesCustomer')?.addEventListener('change', () => {
+      const pref = findContactPreference(loadContactPreferences(), $('#contactPreferencesCustomer')?.value);
+      const numberEl = $('#contactPreferencesNumber');
+      const languageEl = $('#contactPreferencesLanguage');
+      const flagEl = $('#contactPreferencesDoNotMessage');
+      const reasonEl = $('#contactPreferencesReason');
+      if (numberEl) numberEl.value = pref?.whatsappNumber ?? '';
+      if (languageEl) languageEl.value = pref?.language ?? '';
+      if (flagEl) flagEl.checked = pref?.doNotMessage ?? false;
+      if (reasonEl) reasonEl.value = pref?.doNotMessageReason ?? '';
+    });
+    $('#contactPreferencesExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile('contact-preferences.csv', contactPreferenceCsv(loadContactPreferences()));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10656,6 +10751,7 @@ function renderAnalytics() {
   renderEscalationLadder();
   renderPaymentConfirmation();
   renderMohallaBroadcast();
+  renderContactPreferences();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

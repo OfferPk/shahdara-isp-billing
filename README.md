@@ -16,6 +16,18 @@ Open the [live GitHub Pages site](https://offerpk.github.io/shahdara-isp-billing
 - **Owner-ordered tools**: Saad visit log with hours and salary/commission payment records; Installation Tracker with request-to-install delay days; Pending Works condition-linked reminders (thresholds counted live from non-archived customers); Edit + Delete on Saad visits, payments and installation requests; Home Budget (personal expenses, separate from the business ledger); Loan ledger; Top-customer lists; Mohalla dedup to 15 canonical mohallas; profile stats section with an Edit-customer action and a dark-mode container fix; mobile card layouts for wide tables; lazy loading of telecom modules (SISP-9) and a backup health badge with checksum sync (SISP-10).
 - **Build facts**: 19 bundled files, 210 source runtime files, offline cache v37 base with a build-appended content hash; full automated suite 2346/2346 on main head `178aa70` (2026-10-28). Data-safety guarantees unchanged: no customer names ship with the app (empty starter list), local-only storage, JSON backup warning, no APK without an Android SDK, no cloud sync, WhatsApp drafts need internet.
 
+## Release assurance (Plan Z) — one version, one gate
+
+The shipped version (1.11.0) is defined once — in `package.json` and in
+`release-assurance.js` (`APP_VERSION`) — and every `?v=` pin in the
+runtime files must equal it, enforced by test. A release is not READY
+until the pre-release gate passes: version consistency, unit gate,
+build gate, e2e status honestly recorded (not-run blocks READY, never
+counts as a pass), a changelog entry, a backup-compatibility note, and
+Plans A–Y complete. See `docs/release-assurance.md`. Plan Z changes no
+product behaviour and bumps no version; it guards the version already
+shipping.
+
 ## Operator handbook (Plan W) — in-app help, searchable
 
 The app ships its operator manual with the product: every ℹ️ button opens a short guide in the app's language, and the 📖 handbook button in the header opens a searchable index of every guide. Primary flows covered: add a customer, record a payment, void a payment, correct a payment, Waada promises, kist plans and early payoff, and backup/restore. Help text follows the shipped behaviour — voiding never deletes, corrections are appended to history, a kist payoff is a payment or a waived reason, never a silent close, and restores merge only.

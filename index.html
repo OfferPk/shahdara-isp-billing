@@ -10,7 +10,7 @@
   <script>if('serviceWorker' in navigator){const swHadController=!!navigator.serviceWorker.controller;const noteSwUpdate=(registration)=>{const worker=registration&&(registration.waiting||registration.installing||registration.active);const detail={scriptURL:worker?worker.scriptURL:'',hasController:!!navigator.serviceWorker.controller,at:Date.now()};window.__swUpdatePending=detail;window.__swUpdateRegistration=registration||null;try{window.dispatchEvent(new CustomEvent('sw-update-pending',{detail}));}catch(e){}};navigator.serviceWorker.register('./sw.js?v=1.11.0',{updateViaCache:'none'}).then(registration=>{window.__swUpdateRegistration=registration;registration.update().catch(()=>{});if(registration.waiting)noteSwUpdate(registration);registration.addEventListener('updatefound',()=>{const newWorker=registration.installing;if(!newWorker)return;newWorker.addEventListener('statechange',()=>{if(newWorker.state==='installed'&&navigator.serviceWorker.controller)noteSwUpdate(registration);});});}).catch(()=>{});navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!swHadController)return;const pending=window.__swUpdatePending;if(pending)try{window.dispatchEvent(new CustomEvent('sw-update-pending',{detail:pending}));}catch(e){}});}</script>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./tokens.css?v=1.0.0">
+  <link rel="stylesheet" href="./tokens.css?v=1.11.0">
   <link rel="stylesheet" href="./styles.css?v=1.11.0">
   <link rel="stylesheet" href="./dashboard.css?v=1.11.0">
   <link rel="stylesheet" href="./nav.css?v=1.11.0">
@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="./payments-list.css?v=1.11.0">
   <link rel="stylesheet" href="./profile-ui.css?v=1.11.0">
   <link rel="stylesheet" href="./payments-inbox.css?v=1.11.0">
-  <link rel="stylesheet" href="./components.css?v=1.0.0">
+  <link rel="stylesheet" href="./components.css?v=1.11.0">
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to billing workspace</a>

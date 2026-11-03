@@ -83,7 +83,7 @@ import {
 import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } from './receipt-footer-studio.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
-import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.0.0';
+import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
 import {
   isReceiptShared,
   markReceiptShared,

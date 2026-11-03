@@ -264,6 +264,7 @@ import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewS
 import { buildPackageChangePreview, packageChangePreviewHtml, packageChangePreviewStoredText, findPackageChangePreview, recordPackageChangePreview, removePackageChangePreview, previewMatchesChange, attachPreviewNoteToChange } from './package-change-preview.js';
 import { recordQualityEntry, entriesForCustomer, qualityLogSummaryText, qualityLogHtml } from './quality-log.js';
 import { normalizeMaintenanceWindow, upsertMaintenanceWindow, removeMaintenanceWindow, findMaintenanceWindow, setMaintenanceWindowStatus, affectedMaintenanceCustomers, buildMaintenanceAnnouncement, maintenanceWhatsAppUrl, maintenanceSummaryText, maintenanceWindowsHtml, maintenanceWindowsCsv, maintenanceCalendarFilename } from './maintenance-calendar.js';
+import { normalizeSatisfactionNoteList, findSatisfactionNote, upsertSatisfactionNote, removeSatisfactionNote, satisfactionEligibleTicketIds, buildMonthlySatisfaction, satisfactionSummaryText, satisfactionHtml, satisfactionCsv, satisfactionFilename } from './satisfaction.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13153,6 +13154,7 @@ function renderAnalytics() {
   renderCostPerCustomer();
   renderPettyCash();
   renderMaintenanceCalendar();
+  renderSatisfactionView();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -13397,6 +13399,75 @@ function renderMaintenanceCalendar() {
         saveMaintenanceWindows(removeMaintenanceWindow(loadMaintenanceWindows(), removeBtn.dataset.maintenanceRemove));
         renderMaintenanceCalendar();
       }
+    });
+  }
+}
+// Plan 49 (Plan 1-100) — post-resolution satisfaction note and monthly
+// satisfaction view. A record only: the operator records the rating
+// from a customer's reply after a ticket is resolved, and the monthly
+// view counts ratings by mohalla and category. Recording a rating
+// never reopens or alters a ticket — the ticket list is only read,
+// and the note lives in its own store.
+const SATISFACTION_NOTES_KEY = 'shahdara_satisfaction_notes_v1';
+let satisfactionViewBound = false;
+function loadSatisfactionNotes() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SATISFACTION_NOTES_KEY) || '[]');
+    return normalizeSatisfactionNoteList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveSatisfactionNotes(list) {
+  try { localStorage.setItem(SATISFACTION_NOTES_KEY, JSON.stringify(normalizeSatisfactionNoteList(list))); } catch {}
+}
+function renderSatisfactionView() {
+  const bodyEl = $('#satisfactionBody');
+  if (!bodyEl) return;
+  const monthEl = $('#satisfactionMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const month = monthEl?.value ?? localDate().slice(0, 7);
+  const tickets = ticketLogJoinedRows();
+  const notes = loadSatisfactionNotes();
+  const view = buildMonthlySatisfaction(notes, tickets, month);
+  bodyEl.innerHTML = view ? satisfactionHtml(view) : '<p style="font-size: 12px;">Pick a valid month to see its satisfaction view.</p>';
+  const summaryEl = $('#satisfactionSummary');
+  if (summaryEl) summaryEl.textContent = view ? satisfactionSummaryText(view) : 'A resolved ticket with no reply shows as "no response", never as a guessed rating.';
+  const selectEl = $('#satisfactionTicket');
+  if (selectEl) {
+    const eligible = tickets.filter((t) => satisfactionEligibleTicketIds([t]).length > 0);
+    const current = selectEl.value;
+    selectEl.innerHTML = eligible.map((t) => `<option value="${t.id}">${t.customerName || t.customerId} — ${t.category} — ${t.id}</option>`).join('')
+      || '<option value="">No resolved tickets yet</option>';
+    if (current) selectEl.value = current;
+  }
+  if (!satisfactionViewBound) {
+    satisfactionViewBound = true;
+    $('#satisfactionRecordBtn')?.addEventListener('click', () => {
+      const ticketId = $('#satisfactionTicket')?.value ?? '';
+      const rating = $('#satisfactionRating')?.value ?? '';
+      const note = $('#satisfactionNote')?.value ?? '';
+      const ticketsNow = ticketLogJoinedRows();
+      const before = loadSatisfactionNotes();
+      const next = upsertSatisfactionNote(before, {
+        ticketId, rating, note, recordedDate: localDate(),
+      }, satisfactionEligibleTicketIds(ticketsNow));
+      if (next.length === before.length && !findSatisfactionNote(next, ticketId)) {
+        toast('A rating needs a resolved ticket and one of: satisfied, neutral, unhappy.');
+        return;
+      }
+      saveSatisfactionNotes(next);
+      renderSatisfactionView();
+    });
+    $('#satisfactionRemoveBtn')?.addEventListener('click', () => {
+      const ticketId = $('#satisfactionTicket')?.value ?? '';
+      saveSatisfactionNotes(removeSatisfactionNote(loadSatisfactionNotes(), ticketId));
+      renderSatisfactionView();
+    });
+    $('#satisfactionMonth')?.addEventListener('change', () => renderSatisfactionView());
+    $('#satisfactionExportBtn')?.addEventListener('click', () => {
+      const monthNow = $('#satisfactionMonth')?.value ?? localDate().slice(0, 7);
+      const viewNow = buildMonthlySatisfaction(loadSatisfactionNotes(), ticketLogJoinedRows(), monthNow);
+      if (!viewNow) { toast('Pick a valid month to export.'); return; }
+      downloadCsvFile(satisfactionFilename(monthNow), satisfactionCsv(viewNow));
     });
   }
 }

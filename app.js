@@ -247,6 +247,7 @@ import { normalizeReferral, upsertReferral, deriveReferralStatuses, buildReferra
 import { EXPANSION_STEP_IDS, buildExpansionChecklist, findExpansionChecklist, tickExpansionStep, untickExpansionStep, upsertExpansionChecklist, expansionSummaryText, expansionChecklistHtml, expansionChecklistCsv, expansionChecklistFilename } from './expansion-checklist.js';
 import { buildCampaign, findCampaign, upsertCampaign, removeCampaign, buildCampaignSummary, campaignSummaryText, campaignHtml, campaignCsv, campaignFilename } from './campaign-planner.js';
 import { AUDIT_ACTIONS, appendAuditEntry, normalizeAuditLog, filterAuditEntries, auditSummary, auditSummaryText, auditHtml, auditCsv, auditFilename } from './audit-log.js';
+import { buildExportPack, exportPackSummaryText, exportPackHtml, exportPackCsv, exportPackJson, exportPackFilename } from './export-pack.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -12005,6 +12006,37 @@ function renderAuditLog() {
     });
   }
 }
+// Plan 32: accountant and portability data export pack. A data export
+// only: it builds the pack from the records already on this device
+// and downloads it — it never writes, edits, or voids any record,
+// never changes a money total, and offers no re-import. It is not a
+// backup (Plan J) and not a presentation pack (Plan R): the pack is
+// the raw rows plus their totals, counts, and date range.
+let exportPackBound = false;
+function buildCurrentExportPack() {
+  return buildExportPack({ customers: state.customers ?? [], expenses: state.expenses ?? [], exportDate: localDate() });
+}
+function renderExportPack() {
+  const bodyEl = $('#exportPackBody');
+  if (!bodyEl) return;
+  const pack = buildCurrentExportPack();
+  bodyEl.innerHTML = exportPackHtml(pack);
+  const summaryEl = $('#exportPackSummary');
+  if (summaryEl) summaryEl.textContent = exportPackSummaryText(pack);
+  if (!exportPackBound) {
+    exportPackBound = true;
+    $('#exportPackJsonBtn')?.addEventListener('click', () => {
+      const current = buildCurrentExportPack();
+      downloadJson(exportPackFilename('json', current.exportDate), exportPackJson(current));
+    });
+    for (const section of ['customers', 'bills', 'payments', 'waadas', 'expenses', 'manifest']) {
+      $(`#exportPack${section[0].toUpperCase()}${section.slice(1)}Btn`)?.addEventListener('click', () => {
+        const current = buildCurrentExportPack();
+        downloadCsvFile(exportPackFilename(section, current.exportDate), exportPackCsv(current, section));
+      });
+    }
+  }
+}
 function renderCoverageRegister() {
   const bodyEl = $('#coverageRegisterBody');
   if (!bodyEl) return;
@@ -12109,6 +12141,7 @@ function renderAnalytics() {
   renderExpansionChecklist();
   renderCampaignPlanner();
   renderAuditLog();
+  renderExportPack();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

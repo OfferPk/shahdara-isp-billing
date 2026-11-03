@@ -234,7 +234,8 @@ import { DEFAULT_ESCALATION_THRESHOLDS, ESCALATION_DRAFT_VARIANTS, normalizeEsca
 import { buildPaymentConfirmationList, logConfirmationSent, paymentConfirmationSummaryText, paymentConfirmationFilename, paymentConfirmationHtml, paymentConfirmationCsv } from './payment-confirmation.js';
 import { BROADCAST_TEMPLATE_KINDS, BROADCAST_DRAFT_VARIANTS, buildBroadcastMohallaOptions, normalizeBroadcastTemplates, buildBroadcastDraft, broadcastWhatsAppUrl, logBroadcastSent, broadcastSummaryText, broadcastFilename, broadcastHtml, broadcastCsv } from './mohalla-broadcast.js';
 import { CONTACT_PREFERENCE_LANGUAGES, normalizeContactPreferences, findContactPreference, upsertContactPreference, removeContactPreference, contactPreferencesSummaryText, contactPreferenceHtml, contactPreferenceCsv } from './contact-preferences.js';
-import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickOnboardingStep, findOnboardingTicks, upsertOnboardingChecklist, buildOnboardingEntry, onboardingSummaryText, onboardingChecklistHtml, onboardingPendingHtml, onboardingChecklistCsv } from './onboarding-checklist.js';
+import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickOnboardingStep, findOnboardingTicks, upsertOnboardingChecklist, buildOnboardingEntry, pendingOnboardingList, onboardingSummaryText, onboardingChecklistHtml, onboardingPendingHtml, onboardingChecklistCsv } from './onboarding-checklist.js';
+import { buildPendingInstallationQueue, findPromisedInstallDate, upsertPromisedInstallDate, removePromisedInstallDate, pendingInstallationSummaryText, pendingInstallationHtml, pendingInstallationCsv, pendingInstallationFilename } from './pending-installations.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -10831,6 +10832,7 @@ function renderOnboardingChecklists() {
         : untickOnboardingStep(checklist, $('#onboardingChecklistsStep')?.value);
       saveOnboardingChecklists(upsertOnboardingChecklist(loadOnboardingChecklists(), customerId, next.steps));
       renderOnboardingChecklists();
+      renderPendingInstallations();
     };
     $('#onboardingChecklistsTickBtn')?.addEventListener('click', () => applyTick(true));
     $('#onboardingChecklistsUntickBtn')?.addEventListener('click', () => applyTick(false));
@@ -10839,6 +10841,81 @@ function renderOnboardingChecklists() {
       const rows = (state.customers ?? []).filter((c) => !c.archived)
         .map((c) => buildOnboardingEntry(c, findOnboardingTicks(storedNow, c.id)));
       downloadCsvFile('onboarding-checklists.csv', onboardingChecklistCsv(rows));
+    });
+  }
+}
+// Plan 20 (Plan 1-100) — Pending installations queue. This is the
+// pending-list VIEW of Plan 16's onboarding checklist, not a second
+// list: membership comes from pendingOnboardingList, re-sorted by
+// enquiry date, minus customers whose activation step is ticked.
+// A promised install date is an annotation only, kept in its own
+// localStorage store apart from every bill, payment, lifecycle and
+// visit record; setting or clearing it changes no money and no
+// status. Marking a customer activated ticks the activation step on
+// their Plan 16 checklist (through the same store Plan 16 writes),
+// which is what removes them from this queue. Waiting time is shown
+// only and never changes a bill.
+const PENDING_INSTALL_PROMISED_KEY = 'shahdara_pending_install_promised_v1';
+let pendingInstallationsBound = false;
+function loadPendingInstallPromised() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PENDING_INSTALL_PROMISED_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function savePendingInstallPromised(list) {
+  try { localStorage.setItem(PENDING_INSTALL_PROMISED_KEY, JSON.stringify(list)); } catch {}
+}
+function currentPendingInstallationQueue() {
+  const stored = loadOnboardingChecklists();
+  const promised = loadPendingInstallPromised();
+  const pending = pendingOnboardingList((state.customers ?? []).filter((c) => !c.archived)
+    .map((c) => buildOnboardingEntry(c, findOnboardingTicks(stored, c.id))));
+  const withPromised = pending.map((entry) => ({
+    ...entry,
+    promisedInstallDate: findPromisedInstallDate(promised, entry.customerId),
+  }));
+  return buildPendingInstallationQueue(withPromised, { today: localDate() });
+}
+function renderPendingInstallations() {
+  const bodyEl = $('#pendingInstallationsBody');
+  if (!bodyEl) return;
+  const queue = currentPendingInstallationQueue();
+  bodyEl.innerHTML = pendingInstallationHtml(queue);
+  const summaryEl = $('#pendingInstallationsSummary');
+  if (summaryEl) summaryEl.textContent = pendingInstallationSummaryText(queue);
+  const selectEl = $('#pendingInstallationsCustomer');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = queue.map((row) => `<option value="${escapeHtml(row.customerId)}">${escapeHtml(row.customerName)}</option>`).join('')
+      || '<option value="">No pending installations</option>';
+  }
+  if (!pendingInstallationsBound) {
+    pendingInstallationsBound = true;
+    $('#pendingInstallationsExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(pendingInstallationFilename(), pendingInstallationCsv(currentPendingInstallationQueue()));
+    });
+    $('#pendingInstallationsSavePromisedBtn')?.addEventListener('click', () => {
+      const customerId = $('#pendingInstallationsCustomer')?.value;
+      if (!customerId) return;
+      savePendingInstallPromised(upsertPromisedInstallDate(loadPendingInstallPromised(), customerId, $('#pendingInstallationsPromisedDate')?.value ?? ''));
+      renderPendingInstallations();
+    });
+    $('#pendingInstallationsClearPromisedBtn')?.addEventListener('click', () => {
+      const customerId = $('#pendingInstallationsCustomer')?.value;
+      if (!customerId) return;
+      savePendingInstallPromised(removePromisedInstallDate(loadPendingInstallPromised(), customerId));
+      renderPendingInstallations();
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const btn = event.target?.closest?.('.pending-install-activate-btn');
+      if (!btn) return;
+      const customerId = btn.dataset.pendingInstallCustomerId;
+      if (!customerId) return;
+      const checklist = buildOnboardingChecklist(customerId, findOnboardingTicks(loadOnboardingChecklists(), customerId));
+      const next = tickOnboardingStep(checklist, 'activation', { date: localDate(), by: '' });
+      saveOnboardingChecklists(upsertOnboardingChecklist(loadOnboardingChecklists(), customerId, next.steps));
+      renderOnboardingChecklists();
+      renderPendingInstallations();
     });
   }
 }
@@ -11033,6 +11110,7 @@ function renderAnalytics() {
   renderMohallaBroadcast();
   renderContactPreferences();
   renderOnboardingChecklists();
+  renderPendingInstallations();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

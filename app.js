@@ -242,6 +242,7 @@ import { buildDispatchQueue, reorderDispatchQueue, dispatchQueueSummary, dispatc
 import { normalizeRepeatFaultSettings, buildRepeatFaultFlags, repeatFaultSummary, repeatFaultSummaryText, repeatFaultHtml, repeatFaultCsv, repeatFaultFilename } from './repeat-fault-flag.js';
 import { RESOLUTION_CONFIRMATION_VARIANTS, RESOLUTION_DEFAULT_WINDOW_DAYS, normalizeReopenWindowDays, normalizeResolutionList, recordResolution, normalizeFollowUpLinkList, recordFollowUpLink, reopenResolvedTicket, createFollowUpTicketInput, buildConfirmationRows, buildConfirmationDraft, confirmationSummary, confirmationSummaryText, confirmationHtml, confirmationCsv, confirmationFilename } from './resolution-confirmation.js';
 import { CAPACITY_FORECAST_DEFAULT_THRESHOLD, normalizeCapacityThreshold, buildCapacityForecast, capacityForecastSummaryText, capacityForecastHtml, capacityForecastCsv, capacityForecastFilename } from './capacity-forecast.js';
+import { canonicalCoverageMohalla, normalizeCoverageEstimate, upsertCoverageEstimate, buildCoverageRegister, coverageRegisterSummaryText, coverageRegisterHtml, coverageRegisterCsv, coverageRegisterFilename } from './coverage-register.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -11631,6 +11632,49 @@ function renderCapacityForecast() {
     });
   }
 }
+// Plan 27: a planning register only — per mohalla, premises passed
+// (operator-entered, with date and basis) against active customers,
+// with the take-up rate derived from those two figures. Estimates live
+// in their own store; editing one keeps the old figure in history with
+// its date, and nothing here touches a bill, payment or area-dues
+// record. A mohalla with no estimate shows as not surveyed, never zero.
+const COVERAGE_REGISTER_KEY = 'shahdara_coverage_estimates_v1';
+let coverageRegisterBound = false;
+function loadCoverageEstimates() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(COVERAGE_REGISTER_KEY) ?? 'null');
+    return Array.isArray(parsed) ? parsed.filter((row) => normalizeCoverageEstimate(row)) : [];
+  } catch { return []; }
+}
+function saveCoverageEstimates(list) {
+  try { localStorage.setItem(COVERAGE_REGISTER_KEY, JSON.stringify(list)); } catch {}
+}
+function renderCoverageRegister() {
+  const bodyEl = $('#coverageRegisterBody');
+  if (!bodyEl) return;
+  const active = (state.customers ?? []).filter((c) => !c.archived);
+  const register = buildCoverageRegister({ customers: active, estimates: loadCoverageEstimates() });
+  bodyEl.innerHTML = coverageRegisterHtml(register);
+  const summaryEl = $('#coverageRegisterSummary');
+  if (summaryEl) summaryEl.textContent = coverageRegisterSummaryText(register);
+  if (!coverageRegisterBound) {
+    coverageRegisterBound = true;
+    $('#coverageRegisterExportBtn')?.addEventListener('click', () => {
+      const current = buildCoverageRegister({ customers: (state.customers ?? []).filter((c) => !c.archived), estimates: loadCoverageEstimates() });
+      downloadCsvFile(coverageRegisterFilename(), coverageRegisterCsv(current));
+    });
+    $('#coverageRegisterSaveBtn')?.addEventListener('click', () => {
+      const mohalla = $('#coverageRegisterMohalla')?.value ?? '';
+      const premises = Number($('#coverageRegisterPremises')?.value);
+      const date = $('#coverageRegisterDate')?.value ?? '';
+      const basis = $('#coverageRegisterBasis')?.value ?? '';
+      if (!canonicalCoverageMohalla(mohalla)) return;
+      const next = upsertCoverageEstimate(loadCoverageEstimates(), { mohalla, premises, date, basis });
+      saveCoverageEstimates(next);
+      renderCoverageRegister();
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -11704,6 +11748,7 @@ function renderAnalytics() {
   renderRepeatFaultFlags();
   renderResolutionConfirmation();
   renderCapacityForecast();
+  renderCoverageRegister();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

@@ -236,6 +236,7 @@ import { BROADCAST_TEMPLATE_KINDS, BROADCAST_DRAFT_VARIANTS, buildBroadcastMohal
 import { CONTACT_PREFERENCE_LANGUAGES, normalizeContactPreferences, findContactPreference, upsertContactPreference, removeContactPreference, contactPreferencesSummaryText, contactPreferenceHtml, contactPreferenceCsv } from './contact-preferences.js';
 import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickOnboardingStep, findOnboardingTicks, upsertOnboardingChecklist, buildOnboardingEntry, pendingOnboardingList, onboardingSummaryText, onboardingChecklistHtml, onboardingPendingHtml, onboardingChecklistCsv } from './onboarding-checklist.js';
 import { buildPendingInstallationQueue, findPromisedInstallDate, upsertPromisedInstallDate, removePromisedInstallDate, pendingInstallationSummaryText, pendingInstallationHtml, pendingInstallationCsv, pendingInstallationFilename } from './pending-installations.js';
+import { normalizeTicketList, createTicket, updateTicketStatus, filterTicketList, sortTicketList, ticketSummary, ticketSummaryText, ticketHtml, ticketCsv, ticketFilename } from './ticket-log.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -10919,6 +10920,121 @@ function renderPendingInstallations() {
     });
   }
 }
+// Plan 21 (Plan 1-100) — Fault and complaint ticket log. Tickets live
+// in their own localStorage store, apart from every bill, payment,
+// lifecycle, connection-register and field-visit record, so adding,
+// assigning or closing a ticket changes no money and no status.
+// This is the intake log only: it does not read or write the SISP
+// complaint register or field tickets, and relocation stays a
+// category here — Plan 50's change queue is not built.
+const TICKET_LOG_KEY = 'shahdara_ticket_log_v1';
+let ticketLogBound = false;
+function loadTicketLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(TICKET_LOG_KEY) || '[]');
+    return normalizeTicketList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveTicketLog(list) {
+  try { localStorage.setItem(TICKET_LOG_KEY, JSON.stringify(normalizeTicketList(list))); } catch {}
+}
+function ticketLogCustomers() {
+  return (state.customers ?? []).filter((c) => !c.archived);
+}
+function ticketLogJoinedRows() {
+  const customers = new Map(ticketLogCustomers().map((c) => [String(c.id), c]));
+  return loadTicketLog().map((ticket) => {
+    const customer = customers.get(String(ticket.customerId));
+    const mohalla = customer ? (customer.mohalla || customer.area || '') : ticket.mohalla;
+    const canon = customer ? canonicalMohalla(mohalla) : null;
+    return {
+      ...ticket,
+      customerName: customer ? (customer.name || ticket.customerName) : ticket.customerName,
+      mohalla,
+      mohallaKey: canon ? canon.key : ticket.mohallaKey,
+    };
+  });
+}
+function currentTicketLogRows() {
+  const status = $('#ticketLogStatusFilter')?.value ?? '';
+  const category = $('#ticketLogCategoryFilter')?.value ?? '';
+  const mohallaRaw = $('#ticketLogMohallaFilter')?.value ?? '';
+  const mohallaKey = mohallaRaw === '__unassigned__' ? '' : mohallaRaw;
+  const mohalla = mohallaRaw === '__unassigned__' ? 'Unassigned' : '';
+  const openOnly = $('#ticketLogOpenOnly')?.checked ?? true;
+  return sortTicketList(filterTicketList(ticketLogJoinedRows(), { status, category, mohalla, mohallaKey, openOnly }));
+}
+function renderTicketLog() {
+  const bodyEl = $('#ticketLogBody');
+  if (!bodyEl) return;
+  const rows = currentTicketLogRows();
+  bodyEl.innerHTML = rows.map((row) => {
+    const actions = row.status === 'closed' || row.status === 'resolved'
+      ? `<button type="button" class="secondary-button btn-sm ticket-log-action-btn" data-ticket-action="reopen" data-ticket-id="${escapeHtml(row.id)}">Reopen</button>`
+      : `<button type="button" class="secondary-button btn-sm ticket-log-action-btn" data-ticket-action="assigned" data-ticket-id="${escapeHtml(row.id)}">Assign</button><button type="button" class="secondary-button btn-sm ticket-log-action-btn" data-ticket-action="in_progress" data-ticket-id="${escapeHtml(row.id)}">Start</button><button type="button" class="secondary-button btn-sm ticket-log-action-btn" data-ticket-action="resolved" data-ticket-id="${escapeHtml(row.id)}">Resolve</button><button type="button" class="secondary-button btn-sm ticket-log-action-btn" data-ticket-action="closed" data-ticket-id="${escapeHtml(row.id)}">Close</button>`;
+    return `<div>${ticketHtml([row], { today: localDate() })}<div>${actions}</div></div>`;
+  }).join('') || '<p class="empty-state">No tickets match these filters.</p>';
+  const summaryEl = $('#ticketLogSummary');
+  if (summaryEl) summaryEl.textContent = ticketSummaryText(ticketSummary(ticketLogJoinedRows()));
+  const selectEl = $('#ticketLogCustomer');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = ticketLogCustomers().map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.id)}</option>`).join('')
+      || '<option value="">No customers</option>';
+  }
+  const mohallaEl = $('#ticketLogMohallaFilter');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const seen = new Map();
+    for (const c of ticketLogCustomers()) {
+      const canon = canonicalMohalla(c.mohalla || c.area || '');
+      if (canon) seen.set(canon.key, canon.label);
+    }
+    const keep = mohallaEl.value;
+    mohallaEl.innerHTML = '<option value="">All mohallas</option><option value="__unassigned__">Unassigned</option>'
+      + [...seen.entries()].map(([key, label]) => `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join('');
+    mohallaEl.value = keep;
+  }
+  if (!ticketLogBound) {
+    ticketLogBound = true;
+    $('#ticketLogAddBtn')?.addEventListener('click', () => {
+      const customerId = $('#ticketLogCustomer')?.value;
+      if (!customerId) return;
+      const customer = ticketLogCustomers().find((c) => String(c.id) === String(customerId));
+      const stored = loadTicketLog();
+      const id = `T21-${Date.now()}-${stored.length + 1}`;
+      const created = createTicket({
+        id,
+        customerId,
+        customerName: customer ? (customer.name || '') : '',
+        mohalla: customer ? (customer.mohalla || customer.area || '') : '',
+        category: $('#ticketLogCategory')?.value ?? '',
+        priority: $('#ticketLogPriority')?.value ?? 'medium',
+        status: 'open',
+        reportedDate: $('#ticketLogDate')?.value ?? localDate(),
+        assignee: $('#ticketLogAssignee')?.value ?? '',
+        note: $('#ticketLogNote')?.value ?? '',
+      });
+      if (!created) return;
+      saveTicketLog([...stored, created]);
+      const noteEl = $('#ticketLogNote');
+      if (noteEl) noteEl.value = '';
+      renderTicketLog();
+    });
+    $('#ticketLogExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(ticketFilename(), ticketCsv(currentTicketLogRows(), { today: localDate() }));
+    });
+    for (const id of ['ticketLogStatusFilter', 'ticketLogCategoryFilter', 'ticketLogMohallaFilter', 'ticketLogOpenOnly']) {
+      $(`#${id}`)?.addEventListener('change', () => renderTicketLog());
+    }
+    bodyEl.addEventListener('click', (event) => {
+      const btn = event.target?.closest?.('.ticket-log-action-btn');
+      if (!btn) return;
+      const stored = loadTicketLog();
+      const next = updateTicketStatus(stored, btn.dataset.ticketId, btn.dataset.ticketAction === 'reopen' ? 'open' : btn.dataset.ticketAction);
+      saveTicketLog(next);
+      renderTicketLog();
+    });
+  }
+}
 // Plan 17 (Plan 1-100) — Port and device assignment register. Records
 // live in their own localStorage store, apart from every billing,
 // payment, PPPoE and identity record, so saving or swapping a device
@@ -11111,6 +11227,7 @@ function renderAnalytics() {
   renderContactPreferences();
   renderOnboardingChecklists();
   renderPendingInstallations();
+  renderTicketLog();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

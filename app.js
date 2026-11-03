@@ -246,6 +246,7 @@ import { canonicalCoverageMohalla, normalizeCoverageEstimate, upsertCoverageEsti
 import { normalizeReferral, upsertReferral, deriveReferralStatuses, buildReferralReport, referralSummaryText, referralReportHtml, referralReportCsv, referralReportFilename } from './referral-tracking.js';
 import { EXPANSION_STEP_IDS, buildExpansionChecklist, findExpansionChecklist, tickExpansionStep, untickExpansionStep, upsertExpansionChecklist, expansionSummaryText, expansionChecklistHtml, expansionChecklistCsv, expansionChecklistFilename } from './expansion-checklist.js';
 import { buildCampaign, findCampaign, upsertCampaign, removeCampaign, buildCampaignSummary, campaignSummaryText, campaignHtml, campaignCsv, campaignFilename } from './campaign-planner.js';
+import { AUDIT_ACTIONS, appendAuditEntry, normalizeAuditLog, filterAuditEntries, auditSummary, auditSummaryText, auditHtml, auditCsv, auditFilename } from './audit-log.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -3717,7 +3718,10 @@ function renderHistory(customer) {
         mode: wrap?.querySelector('[data-round50-mode]')?.value || 'nearest'
       });
       state = applyConcessionToBill(state, custId, month, { amount: effective.suggestedAmount, reason: suggestion.reason, rounding: effective.rounding });
-      save(); renderDetail(); toast(`Outage concession of PKR ${effective.suggestedAmount} applied to bill ${month}.`);
+      save(); renderDetail();
+      // Plan 31: the concession is logged; the bill record keeps the detail.
+      recordAudit('concession_applied', { recordRef: `${custId}/${month}`, customerId: custId, detail: `Outage concession of PKR ${effective.suggestedAmount} applied to bill ${month}.` });
+      toast(`Outage concession of PKR ${effective.suggestedAmount} applied to bill ${month}.`);
     } catch (err) { toast(err.message); }
   }));
   // SISP-131: keep the apply button's amount + the rounded-from hint in
@@ -4443,6 +4447,8 @@ function renderCustomerProfileView(customer) {
     const setProfileWaada = (date) => {
       try {
         applyProfileWaada(setCustomerWaada(customer, { promiseDate: date, promiseAmount: customer.promiseAmount ?? null, promiseNote: customer.promiseNote ?? '' }), `Waada set: ${date}.`);
+        // Plan 31: the Waada set is logged; the promise itself lives on the customer.
+        recordAudit('waada_set', { recordRef: customer.id, customerId: customer.id, customerName: customer.name || '', detail: `Waada set: ${date}.` });
       } catch (err) { toast(err?.message || 'Could not set promise.'); }
     };
     waadaSection.querySelectorAll('[data-profile-waada-chip]').forEach(btn => {
@@ -6898,6 +6904,8 @@ async function onPaymentSubmit(event) {
     renderDetail();
     const paidCustomer = state.customers.find(c => c.id === customerId);
     const added = paidCustomer?.bills.find(b => b.month === form.dataset.month)?.payments.find(p => !beforeIds.has(p.id));
+    // Plan 31: the profile payment just recorded goes into the audit log.
+    if (added) recordAudit('payment_recorded', { recordRef: `${customerId}/${form.dataset.month}/${added.id}`, customerId, customerName: paidCustomer?.name || '', detail: `${formatAmount(added.amount)} · ${added.method || ''}`.trim() });
     const actions = added ? [
       { label:'Undo', onAction: () => { try { state = deletePayment(state, customerId, form.dataset.month, added.id); save(); if (selectedCustomerId === customerId) renderDetail(); toast('Payment undone. Ledger restored.', { type:'info', title:'Undone' }); } catch (err) { toast(err.message); } } },
       { label:'Receipt', onAction: () => printPaymentReceipt(customerId, form.dataset.month, added.id) }
@@ -6937,6 +6945,9 @@ async function onCorrectionSubmit(event) {
     state = correctPayment(state, form.dataset.customerId, form.dataset.month, form.dataset.paymentId, { date:data.get('date'), amount:data.get('amount'), method:data.get('method'), paidBy:data.get('paidBy'), discount:data.get('discount') || 0, discountReason:data.get('discountReason') || '', transactionId: txnId || undefined, senderTitle: (data.get('senderTitle') || '').trim(), senderDigits: (data.get('senderDigits') || '').trim() });
     save();
     if (selectedCustomerId === form.dataset.customerId) renderDetail();
+    // Plan 31: the correction is logged; its detail stays in Plan K's
+    // correctionHistory on the payment itself.
+    recordAudit('payment_corrected', { recordRef: `${form.dataset.customerId}/${form.dataset.month}/${form.dataset.paymentId}`, customerId: form.dataset.customerId });
     toast('Payment correction saved on this device.');
   } catch (error) { toast(error.message); }
 }
@@ -7043,6 +7054,9 @@ function setupVoidPaymentDialog() {
         toast('Void log could not be saved — nothing was changed. Check storage and try again.', { type: 'error' });
         return;
       }
+      // Plan 31: the void is logged once its void record is safely
+      // stored; the void detail itself stays in the void log.
+      recordAudit('payment_voided', { recordRef: `${target.customerId}/${target.month}/${target.paymentId}`, customerId: target.customerId, detail: reason });
       // SISP-43: a voided payment's ticket-charge settlements reopen —
       // the cash behind those charges no longer exists. A tickets write
       // failure rolls the whole void back, like the log guard above.
@@ -8310,6 +8324,8 @@ async function restoreCustomer(customerId) {
   try {
     state = unarchiveCustomer(state, customerId, new Date());
     save();
+    // Plan 31: unarchiving is logged.
+    recordAudit('customer_unarchived', { recordRef: customerId, customerId, customerName: state.customers.find(c => c.id === customerId)?.name || '' });
     // SISP-64 reconnection guard: if this customer still carries an
     // active bad-debt write-off, offer the one-shot restore of the
     // written-off balance into active arrears. Declining keeps the
@@ -8338,6 +8354,8 @@ async function restoreCustomer(customerId) {
 function archiveSelectedCustomer(customer, disconnectDetails = null) {
   try {
     state = archiveCustomer(state, customer.id, new Date(), disconnectDetails); save(); renderDetail();
+    // Plan 31: archiving is logged; the disconnect detail stays on the record.
+    recordAudit('customer_archived', { recordRef: customer.id, customerId: customer.id, customerName: customer.name || '' });
     toast('Customer archived. Existing history remains available.', { type:'success', title:`#${customer.customerNumber} ${customer.name} archived`, actionLabel:'Undo', onAction: () => restoreCustomer(customer.id) });
     // SISP-19: archiving IS disconnection — surface the recovery list
     // immediately when ISP-owned hardware is now pending.
@@ -9363,6 +9381,8 @@ window.quickCollectModalController = setupQuickCollectModal({
   onCollected: (info) => {
     offerCollectedUndo(info);
     qrScannerModalController?.noteCollectionSaved?.();
+    // Plan 31: a Quick Collect payment is logged like a profile payment.
+    if (info?.paymentId) recordAudit('payment_recorded', { recordRef: `${info.customerId}/${info.month}/${info.paymentId}`, customerId: info.customerId, customerName: info.customerName || '', detail: info.amount != null ? `Quick collect · PKR ${Number(info.amount).toLocaleString()}` : 'Quick collect' });
   },
   onSelectCustomer: (customerId) => {
     selectedCustomerId = customerId;
@@ -11902,6 +11922,89 @@ function renderCampaignPlanner() {
     });
   }
 }
+// Plan 31: operator action audit log. Append-only by construction —
+// the module has no edit or delete helper and this panel exposes no
+// edit or delete control, so a logged action cannot be edited or
+// deleted from the app. A void or correction entry points at its
+// detailed record (payment id + month): the detail itself still lives
+// in Plan K's correctionHistory / the void log, and this entry says
+// when the action happened and which record it touched. The log never
+// changes a money total; it only records that an action happened.
+const AUDIT_LOG_KEY = 'shahdara_operator_audit_log_v1';
+let auditLogBound = false;
+let auditLogFilterAction = '';
+let auditLogFilterDate = '';
+let auditLogSeq = 0;
+function loadAuditLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(AUDIT_LOG_KEY) ?? 'null');
+    return Array.isArray(parsed) ? normalizeAuditLog(parsed) : [];
+  } catch { return []; }
+}
+function saveAuditLog(list) {
+  try { localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(list)); } catch {}
+}
+function recordAudit(action, fields = {}) {
+  // A logging failure must never lose the action itself, so it is
+  // contained: the underlying save still happened before this call
+  // in every hook site, and the audit write is best-effort.
+  try {
+    auditLogSeq += 1;
+    const entry = appendAuditEntry(loadAuditLog(), {
+      id: `audit-${Date.now()}-${auditLogSeq}`,
+      timestamp: new Date().toISOString(),
+      action,
+      ...fields,
+    });
+    saveAuditLog(entry);
+  } catch {}
+}
+function recordGroupCollectionAudit(result, month) {
+  // One payment_recorded entry per member actually paid by a group
+  // collection (paid or partial with cash allocated). Skipped and
+  // unpaid members paid nothing, so they get no entry. The group
+  // path carries no payment id in its outcomes, so the record
+  // reference is customer + month, which is the record it touched.
+  for (const outcome of result?.outcomes ?? []) {
+    if ((outcome.outcome === 'paid' || outcome.outcome === 'partial') && outcome.amountCents > 0 && outcome.customerId) {
+      recordAudit('payment_recorded', {
+        recordRef: `${outcome.customerId}/${month}`,
+        customerId: outcome.customerId,
+        customerName: outcome.name || '',
+        detail: `Group collection · PKR ${(outcome.amountCents / 100).toLocaleString()}`,
+      });
+    }
+  }
+}
+function renderAuditLog() {
+  const bodyEl = $('#auditLogBody');
+  if (!bodyEl) return;
+  const entries = filterAuditEntries(loadAuditLog(), { action: auditLogFilterAction, date: auditLogFilterDate });
+  bodyEl.innerHTML = auditHtml(entries);
+  const summaryEl = $('#auditLogSummary');
+  if (summaryEl) summaryEl.textContent = auditSummaryText(auditSummary(loadAuditLog()));
+  const actionEl = $('#auditLogActionFilter');
+  if (actionEl && document.activeElement !== actionEl && !actionEl.dataset.auditPopulated) {
+    actionEl.dataset.auditPopulated = '1';
+    actionEl.innerHTML = `<option value="">All actions</option>${AUDIT_ACTIONS.map((a) => `<option value="${escapeHtml(a.value)}">${escapeHtml(a.label)}</option>`).join('')}`;
+  }
+  if (actionEl) actionEl.value = auditLogFilterAction;
+  if (!auditLogBound) {
+    auditLogBound = true;
+    $('#auditLogActionFilter')?.addEventListener('change', (event) => {
+      auditLogFilterAction = event.target.value || '';
+      renderAuditLog();
+    });
+    $('#auditLogDateFilter')?.addEventListener('change', (event) => {
+      auditLogFilterDate = event.target.value || '';
+      renderAuditLog();
+    });
+    $('#auditLogExportBtn')?.addEventListener('click', () => {
+      const current = filterAuditEntries(loadAuditLog(), { action: auditLogFilterAction, date: auditLogFilterDate });
+      downloadCsvFile(auditFilename(), auditCsv(current));
+    });
+  }
+}
 function renderCoverageRegister() {
   const bodyEl = $('#coverageRegisterBody');
   if (!bodyEl) return;
@@ -12005,6 +12108,7 @@ function renderAnalytics() {
   renderReferralTracking();
   renderExpansionChecklist();
   renderCampaignPlanner();
+  renderAuditLog();
   renderOltOnuRegister();
 }
 let packageSortKey = null;
@@ -16347,6 +16451,9 @@ if (typeof document !== 'undefined') {
       if (result.collected) {
         state = result.nextState;
         save();
+        // Plan 31: each member actually paid by this group collection
+        // gets its own payment_recorded audit entry.
+        recordGroupCollectionAudit(result, month);
         renderDetail();
         renderTransactions();
         renderMonthlyReport();
@@ -16366,6 +16473,9 @@ if (typeof document !== 'undefined') {
       if (result.collected) {
         state = result.nextState;
         save();
+        // Plan 31: each member actually paid by this group collection
+        // gets its own payment_recorded audit entry.
+        recordGroupCollectionAudit(result, month);
         renderDetail();
         renderTransactions();
         renderMonthlyReport();
@@ -16385,6 +16495,9 @@ if (typeof document !== 'undefined') {
       if (result.collected) {
         state = result.nextState;
         save();
+        // Plan 31: each member actually paid by this group collection
+        // gets its own payment_recorded audit entry.
+        recordGroupCollectionAudit(result, month);
         renderDetail();
         renderTransactions();
         renderMonthlyReport();
@@ -16402,6 +16515,9 @@ if (typeof document !== 'undefined') {
             const idx = state.customers.findIndex((c) => c.id === updated.id);
             if (idx >= 0) state.customers[idx] = updated;
             save();
+            // Plan 31: a Waada set from the group dialog is logged like
+            // a profile Waada set.
+            recordAudit('waada_set', { recordRef: updated.id, customerId: updated.id, customerName: updated.name || '', detail: `Waada set: ${updated.promiseDate || 'date not recorded'}.` });
             renderDetail();
           },
           onToast: (msg, opts) => toast(msg, opts)

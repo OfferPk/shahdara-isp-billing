@@ -237,6 +237,7 @@ import { CONTACT_PREFERENCE_LANGUAGES, normalizeContactPreferences, findContactP
 import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickOnboardingStep, findOnboardingTicks, upsertOnboardingChecklist, buildOnboardingEntry, pendingOnboardingList, onboardingSummaryText, onboardingChecklistHtml, onboardingPendingHtml, onboardingChecklistCsv } from './onboarding-checklist.js';
 import { buildPendingInstallationQueue, findPromisedInstallDate, upsertPromisedInstallDate, removePromisedInstallDate, pendingInstallationSummaryText, pendingInstallationHtml, pendingInstallationCsv, pendingInstallationFilename } from './pending-installations.js';
 import { normalizeTicketList, createTicket, updateTicketStatus, filterTicketList, sortTicketList, ticketSummary, ticketSummaryText, ticketHtml, ticketCsv, ticketFilename } from './ticket-log.js';
+import { normalizeOutageList, createOutage, openOutageList, outageForTicket, linkTicketToOutage, unlinkTicketFromOutage, updateOutageStatus, resolveOutage, ticketsForOutage, pendingResolutionTickets, buildOutageStatusDraft, outageSummary, outageSummaryText, outageHtml, outageCsv, outageFilename } from './outage-grouping.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -11035,6 +11036,119 @@ function renderTicketLog() {
     });
   }
 }
+// Plan 22 (Plan 1-100) — Outage grouping: one parent fault for many
+// customers. Outage records live in their own localStorage store, apart
+// from every ticket, billing, payment and lifecycle record, so creating
+// an outage, linking a ticket, or resolving a parent changes no ticket
+// history and no money. Resolving a parent never resolves its linked
+// tickets: the panel lists the still-open ones so the operator resolves
+// them one by one through the Plan 21 ticket log. A status draft is
+// prepared per linked customer and sent only when the operator taps
+// Send, through the existing WhatsApp draft route — no bulk auto-send.
+const OUTAGE_GROUPING_KEY = 'shahdara_outage_grouping_v1';
+let outageGroupingBound = false;
+function loadOutageGrouping() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(OUTAGE_GROUPING_KEY) || '[]');
+    return normalizeOutageList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveOutageGrouping(list) {
+  try { localStorage.setItem(OUTAGE_GROUPING_KEY, JSON.stringify(normalizeOutageList(list))); } catch {}
+}
+function outageLinkableTickets(outages) {
+  const joined = ticketLogJoinedRows();
+  const openRows = filterTicketList(joined, { openOnly: true });
+  return openRows.filter((ticket) => !outageForTicket(outages, ticket.id));
+}
+function renderOutageGrouping() {
+  const bodyEl = $('#outageGroupingBody');
+  if (!bodyEl) return;
+  const outages = loadOutageGrouping();
+  const joined = ticketLogJoinedRows();
+  const linkable = outageLinkableTickets(outages);
+  bodyEl.innerHTML = outages.map((outage) => {
+    const linked = ticketsForOutage(outage, joined);
+    const pending = pendingResolutionTickets(outage, joined);
+    const draft = buildOutageStatusDraft(outage);
+    const statusActions = outage.status === 'resolved'
+      ? '<span>Resolved — linked tickets below stay as their own history.</span>'
+      : `<button type="button" class="secondary-button btn-sm outage-group-action-btn" data-outage-action="start" data-outage-id="${escapeHtml(outage.id)}">Start work</button><button type="button" class="secondary-button btn-sm outage-group-action-btn" data-outage-action="resolve" data-outage-id="${escapeHtml(outage.id)}">Resolve parent</button>`;
+    const linkForm = outage.status === 'resolved' ? '' : `<label style="font-size: 12px;">Link an open ticket <select class="outage-group-link-select" data-outage-id="${escapeHtml(outage.id)}">${linkable.map((ticket) => `<option value="${escapeHtml(ticket.id)}">${escapeHtml(ticket.customerName || ticket.customerId)} · ${escapeHtml(ticket.category)}</option>`).join('') || '<option value="">No linkable open tickets</option>'}</select></label><button type="button" class="secondary-button btn-sm outage-group-action-btn" data-outage-action="link" data-outage-id="${escapeHtml(outage.id)}">Link ticket</button>`;
+    const sendRows = linked.map((ticket) => {
+      const customer = ticketLogCustomers().find((c) => String(c.id) === String(ticket.customerId));
+      const pref = customer ? findContactPreference(loadContactPreferences(), customer.id) : null;
+      const blocked = pref && pref.doNotMessage;
+      return `<div>${escapeHtml(ticket.customerName || ticket.customerId)} · ${escapeHtml(ticket.status)} <button type="button" class="secondary-button btn-sm outage-group-action-btn" data-outage-action="send" data-outage-id="${escapeHtml(outage.id)}" data-ticket-id="${escapeHtml(ticket.id)}"${blocked ? ' disabled' : ''}>${blocked ? 'Do not message' : 'Send status draft'}</button> <button type="button" class="secondary-button btn-sm outage-group-action-btn" data-outage-action="unlink" data-outage-id="${escapeHtml(outage.id)}" data-ticket-id="${escapeHtml(ticket.id)}">Unlink</button></div>`;
+    }).join('') || '<p class="empty-state">No tickets linked yet.</p>';
+    return `<div style="margin-bottom: 12px;">${outageHtml([outage])}<div>${statusActions}</div><div style="margin: 6px 0;">${linkForm}</div><div><strong>Linked tickets${pending.length ? ` — ${pending.length} still open, resolve one by one in the ticket log` : ''}:</strong></div><div>${sendRows}</div><details><summary>Status draft for linked customers</summary><pre style="white-space: pre-wrap;">${escapeHtml(draft.text)}</pre></details></div>`;
+  }).join('') || '<p class="empty-state">No outages recorded.</p>';
+  const summaryEl = $('#outageGroupingSummary');
+  if (summaryEl) summaryEl.textContent = outageSummaryText(outageSummary(outages));
+  if (!outageGroupingBound) {
+    outageGroupingBound = true;
+    $('#outageGroupingAddBtn')?.addEventListener('click', () => {
+      const area = $('#outageGroupingArea')?.value ?? '';
+      const created = createOutage({
+        id: `O22-${Date.now()}-${loadOutageGrouping().length + 1}`,
+        area,
+        segment: $('#outageGroupingSegment')?.value ?? '',
+        startTime: $('#outageGroupingStart')?.value ?? '',
+        causeNote: $('#outageGroupingCause')?.value ?? '',
+        status: 'open',
+        ticketIds: [],
+      });
+      if (!created) return;
+      saveOutageGrouping([...loadOutageGrouping(), created]);
+      renderOutageGrouping();
+    });
+    $('#outageGroupingExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(outageFilename(), outageCsv(loadOutageGrouping()));
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const btn = event.target?.closest?.('.outage-group-action-btn');
+      if (!btn) return;
+      const action = btn.dataset.outageAction;
+      const outageId = btn.dataset.outageId;
+      const ticketId = btn.dataset.ticketId;
+      let outages = loadOutageGrouping();
+      if (action === 'link') {
+        const selectEl = bodyEl.querySelector(`.outage-group-link-select[data-outage-id="${CSS.escape(outageId)}"]`);
+        const chosen = selectEl?.value;
+        if (!chosen) return;
+        outages = linkTicketToOutage(outages, outageId, chosen);
+      } else if (action === 'unlink') {
+        outages = unlinkTicketFromOutage(outages, outageId, ticketId);
+      } else if (action === 'start') {
+        outages = updateOutageStatus(outages, outageId, 'in_progress');
+      } else if (action === 'resolve') {
+        const result = resolveOutage(outages, outageId, ticketLogJoinedRows());
+        outages = result.outages;
+        const noteEl = $('#outageGroupingNote');
+        if (noteEl) {
+          noteEl.textContent = result.pendingTickets.length
+            ? `Parent resolved. ${result.pendingTickets.length} linked ticket${result.pendingTickets.length === 1 ? '' : 's'} still open — resolve them one by one in the ticket log; nothing was resolved silently.`
+            : 'Parent resolved. No linked tickets are still open.';
+        }
+      } else if (action === 'send') {
+        const ticket = ticketLogJoinedRows().find((row) => String(row.id) === String(ticketId));
+        const outage = outages.find((o) => o.id === outageId);
+        if (!ticket || !outage) return;
+        const customer = ticketLogCustomers().find((c) => String(c.id) === String(ticket.customerId));
+        const pref = customer ? findContactPreference(loadContactPreferences(), customer.id) : null;
+        if (pref && pref.doNotMessage) return;
+        const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : (customer ? whatsappPhoneFor(customer) : ''), buildOutageStatusDraft(outage, { customerName: ticket.customerName }).text);
+        if (!wa.validPhone || !wa.url) return;
+        window.open(wa.url, '_blank', 'noopener,noreferrer');
+        return;
+      } else {
+        return;
+      }
+      saveOutageGrouping(outages);
+      renderOutageGrouping();
+    });
+  }
+}
 // Plan 17 (Plan 1-100) — Port and device assignment register. Records
 // live in their own localStorage store, apart from every billing,
 // payment, PPPoE and identity record, so saving or swapping a device
@@ -11228,6 +11342,7 @@ function renderAnalytics() {
   renderOnboardingChecklists();
   renderPendingInstallations();
   renderTicketLog();
+  renderOutageGrouping();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

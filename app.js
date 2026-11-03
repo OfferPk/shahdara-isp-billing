@@ -232,6 +232,7 @@ import { buildCashflowSnapshot, cashflowSnapshotHtml, cashflowSnapshotCsv, cashf
 import { DEFAULT_PRE_DUE_WINDOW_DAYS, normalizePreDueWindowDays, buildPreDueReminderQueue, buildPreDueReminderDraft, logReminderSent, preDueReminderSummaryText, preDueReminderFilename, preDueReminderHtml, preDueReminderCsv } from './pre-due-reminders.js';
 import { DEFAULT_ESCALATION_THRESHOLDS, normalizeEscalationThresholds, buildEscalationLadder, buildEscalationDraft, logEscalationSent, escalationSummaryText, escalationFilename, escalationHtml, escalationCsv } from './escalation-ladder.js';
 import { buildPaymentConfirmationList, logConfirmationSent, paymentConfirmationSummaryText, paymentConfirmationFilename, paymentConfirmationHtml, paymentConfirmationCsv } from './payment-confirmation.js';
+import { BROADCAST_TEMPLATE_KINDS, BROADCAST_DRAFT_VARIANTS, buildBroadcastMohallaOptions, normalizeBroadcastTemplates, buildBroadcastDraft, broadcastWhatsAppUrl, logBroadcastSent, broadcastSummaryText, broadcastFilename, broadcastHtml, broadcastCsv } from './mohalla-broadcast.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -10477,6 +10478,120 @@ function renderPaymentConfirmation() {
     });
   }
 }
+const BROADCAST_TEMPLATES_KEY = 'shahdara_broadcast_templates_v1';
+const BROADCAST_SENT_LOG_KEY = 'shahdara_broadcast_sent_log_v1';
+const BROADCAST_SELECTION_KEY = 'shahdara_broadcast_selection_v1';
+let mohallaBroadcastBound = false;
+let lastMohallaBroadcast = null;
+function loadBroadcastTemplates() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BROADCAST_TEMPLATES_KEY) || '{}');
+    return normalizeBroadcastTemplates(parsed && typeof parsed === 'object' ? parsed : {});
+  } catch { return normalizeBroadcastTemplates({}); }
+}
+function saveBroadcastTemplates(templates) {
+  try { localStorage.setItem(BROADCAST_TEMPLATES_KEY, JSON.stringify(templates)); } catch {}
+}
+function loadBroadcastSentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BROADCAST_SENT_LOG_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveBroadcastSentLog(log) {
+  try { localStorage.setItem(BROADCAST_SENT_LOG_KEY, JSON.stringify(log)); } catch {}
+}
+function loadBroadcastSelection() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BROADCAST_SELECTION_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((k) => typeof k === 'string') : [];
+  } catch { return []; }
+}
+function saveBroadcastSelection(keys) {
+  try { localStorage.setItem(BROADCAST_SELECTION_KEY, JSON.stringify(keys)); } catch {}
+}
+function renderMohallaBroadcast() {
+  const bodyEl = $('#mohallaBroadcastBody');
+  if (!bodyEl) return;
+  const templates = loadBroadcastTemplates();
+  const kindEl = $('#mohallaBroadcastKind');
+  const variantEl = $('#mohallaBroadcastVariant');
+  const kind = kindEl?.value && Object.values(BROADCAST_TEMPLATE_KINDS).includes(kindEl.value) ? kindEl.value : BROADCAST_TEMPLATE_KINDS.MAINTENANCE;
+  const variant = variantEl?.value === BROADCAST_DRAFT_VARIANTS.URDU ? BROADCAST_DRAFT_VARIANTS.URDU : BROADCAST_DRAFT_VARIANTS.ROMAN;
+  const romanEl = $('#mohallaBroadcastTemplateRoman');
+  const urduEl = $('#mohallaBroadcastTemplateUrdu');
+  if (romanEl && document.activeElement !== romanEl) romanEl.value = templates[kind].roman;
+  if (urduEl && document.activeElement !== urduEl) urduEl.value = templates[kind].urdu;
+  const options = buildBroadcastMohallaOptions({ customers: state.customers ?? [] });
+  const savedSelection = loadBroadcastSelection();
+  const mohallasEl = $('#mohallaBroadcastMohallas');
+  if (mohallasEl) {
+    mohallasEl.innerHTML = options.map((opt) => `<label style="font-size: 12px;"><input type="checkbox" class="mohalla-broadcast-checkbox" value="${opt.key}"${savedSelection.includes(opt.key) ? ' checked' : ''}> ${opt.label}</label>`).join('');
+  }
+  const readSelection = () => [...document.querySelectorAll('.mohalla-broadcast-checkbox:checked')].map((box) => box.value);
+  const prepareDraft = () => {
+    const selection = readSelection();
+    saveBroadcastSelection(selection);
+    const draft = buildBroadcastDraft({
+      kind, variant, templates: loadBroadcastTemplates(),
+      detail: $('#mohallaBroadcastDetail')?.value ?? '',
+      selection: selection.map((key) => options.find((opt) => opt.key === key)?.label ?? key),
+      customers: state.customers ?? [],
+    });
+    lastMohallaBroadcast = draft ? { draft, sentLog: loadBroadcastSentLog() } : null;
+    const summaryEl = $('#mohallaBroadcastSummary');
+    if (summaryEl) summaryEl.textContent = draft ? broadcastSummaryText(draft) : 'No mohalla selected — no draft prepared.';
+    bodyEl.innerHTML = draft ? broadcastHtml(draft, loadBroadcastSentLog()) : '<p class="empty-state">Pick at least one mohalla and press Prepare draft.</p>';
+  };
+  if (lastMohallaBroadcast) {
+    bodyEl.innerHTML = broadcastHtml(lastMohallaBroadcast.draft, loadBroadcastSentLog());
+    const summaryEl = $('#mohallaBroadcastSummary');
+    if (summaryEl) summaryEl.textContent = broadcastSummaryText(lastMohallaBroadcast.draft);
+  } else if (!bodyEl.innerHTML) {
+    bodyEl.innerHTML = '<p class="empty-state">Pick at least one mohalla and press Prepare draft.</p>';
+  }
+  if (!mohallaBroadcastBound) {
+    mohallaBroadcastBound = true;
+    $('#mohallaBroadcastPrepareBtn')?.addEventListener('click', prepareDraft);
+    mohallasEl?.addEventListener('change', () => saveBroadcastSelection(readSelection()));
+    $('#mohallaBroadcastKind')?.addEventListener('change', () => {
+      const t = loadBroadcastTemplates();
+      const k = $('#mohallaBroadcastKind').value;
+      if ($('#mohallaBroadcastTemplateRoman')) $('#mohallaBroadcastTemplateRoman').value = t[k].roman;
+      if ($('#mohallaBroadcastTemplateUrdu')) $('#mohallaBroadcastTemplateUrdu').value = t[k].urdu;
+    });
+    $('#mohallaBroadcastSaveTemplateBtn')?.addEventListener('click', () => {
+      const k = $('#mohallaBroadcastKind')?.value ?? BROADCAST_TEMPLATE_KINDS.MAINTENANCE;
+      const current = loadBroadcastTemplates();
+      current[k] = {
+        roman: $('#mohallaBroadcastTemplateRoman')?.value ?? '',
+        urdu: $('#mohallaBroadcastTemplateUrdu')?.value ?? '',
+      };
+      saveBroadcastTemplates(normalizeBroadcastTemplates(current));
+      renderMohallaBroadcast();
+    });
+    $('#mohallaBroadcastSelectAllBtn')?.addEventListener('click', () => {
+      document.querySelectorAll('.mohalla-broadcast-checkbox').forEach((box) => { box.checked = true; });
+    });
+    $('#mohallaBroadcastClearBtn')?.addEventListener('click', () => {
+      document.querySelectorAll('.mohalla-broadcast-checkbox').forEach((box) => { box.checked = false; });
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const sendBtn = event.target.closest ? event.target.closest('.mohalla-broadcast-send-btn') : null;
+      if (!sendBtn || !sendBtn.dataset.mohallaKey || !lastMohallaBroadcast) return;
+      const key = sendBtn.dataset.mohallaKey;
+      const mohalla = lastMohallaBroadcast.draft.mohallas.find((m) => m.key === key);
+      if (!mohalla) return;
+      window.open(broadcastWhatsAppUrl(lastMohallaBroadcast.draft.text), '_blank', 'noopener,noreferrer');
+      saveBroadcastSentLog(logBroadcastSent(loadBroadcastSentLog(), { mohallas: [mohalla.label], sentAt: new Date().toISOString(), channel: 'whatsapp', kind: lastMohallaBroadcast.draft.kind }));
+      bodyEl.innerHTML = broadcastHtml(lastMohallaBroadcast.draft, loadBroadcastSentLog());
+    });
+    $('#mohallaBroadcastExportBtn')?.addEventListener('click', () => {
+      if (!lastMohallaBroadcast) return;
+      downloadCsvFile(broadcastFilename(new Date().toISOString().slice(0, 10)), broadcastCsv(lastMohallaBroadcast.draft, loadBroadcastSentLog()));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10540,6 +10655,7 @@ function renderAnalytics() {
   renderPreDueReminders();
   renderEscalationLadder();
   renderPaymentConfirmation();
+  renderMohallaBroadcast();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

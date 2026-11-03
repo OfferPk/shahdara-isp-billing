@@ -243,6 +243,7 @@ import { normalizeRepeatFaultSettings, buildRepeatFaultFlags, repeatFaultSummary
 import { RESOLUTION_CONFIRMATION_VARIANTS, RESOLUTION_DEFAULT_WINDOW_DAYS, normalizeReopenWindowDays, normalizeResolutionList, recordResolution, normalizeFollowUpLinkList, recordFollowUpLink, reopenResolvedTicket, createFollowUpTicketInput, buildConfirmationRows, buildConfirmationDraft, confirmationSummary, confirmationSummaryText, confirmationHtml, confirmationCsv, confirmationFilename } from './resolution-confirmation.js';
 import { CAPACITY_FORECAST_DEFAULT_THRESHOLD, normalizeCapacityThreshold, buildCapacityForecast, capacityForecastSummaryText, capacityForecastHtml, capacityForecastCsv, capacityForecastFilename } from './capacity-forecast.js';
 import { canonicalCoverageMohalla, normalizeCoverageEstimate, upsertCoverageEstimate, buildCoverageRegister, coverageRegisterSummaryText, coverageRegisterHtml, coverageRegisterCsv, coverageRegisterFilename } from './coverage-register.js';
+import { normalizeReferral, upsertReferral, deriveReferralStatuses, buildReferralReport, referralSummaryText, referralReportHtml, referralReportCsv, referralReportFilename } from './referral-tracking.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -10840,6 +10841,7 @@ function renderOnboardingChecklists() {
       saveOnboardingChecklists(upsertOnboardingChecklist(loadOnboardingChecklists(), customerId, next.steps));
       renderOnboardingChecklists();
       renderPendingInstallations();
+      renderReferralTracking();
     };
     $('#onboardingChecklistsTickBtn')?.addEventListener('click', () => applyTick(true));
     $('#onboardingChecklistsUntickBtn')?.addEventListener('click', () => applyTick(false));
@@ -10923,6 +10925,7 @@ function renderPendingInstallations() {
       saveOnboardingChecklists(upsertOnboardingChecklist(loadOnboardingChecklists(), customerId, next.steps));
       renderOnboardingChecklists();
       renderPendingInstallations();
+      renderReferralTracking();
     });
   }
 }
@@ -11649,6 +11652,77 @@ function loadCoverageEstimates() {
 function saveCoverageEstimates(list) {
   try { localStorage.setItem(COVERAGE_REGISTER_KEY, JSON.stringify(list)); } catch {}
 }
+// Plan 28: referral record panel. The activation gate is read from the
+// Plan 16 onboarding checklists: a referred customer counts as
+// activated only when that checklist's activation step is ticked.
+// Nothing here grants a credit or touches a bill, payment, concession,
+// or Waada record, and the SISP-40 credit engine is never read here.
+const REFERRAL_TRACKING_KEY = 'shahdara_referral_tracking_v1';
+let referralTrackingBound = false;
+function loadReferralTracking() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REFERRAL_TRACKING_KEY) ?? 'null');
+    return Array.isArray(parsed) ? parsed.filter((row) => normalizeReferral(row)) : [];
+  } catch { return []; }
+}
+function saveReferralTracking(list) {
+  try { localStorage.setItem(REFERRAL_TRACKING_KEY, JSON.stringify(list)); } catch {}
+}
+function renderReferralTracking() {
+  const bodyEl = $('#referralTrackingBody');
+  if (!bodyEl) return;
+  const active = (state.customers ?? []).filter((c) => !c.archived);
+  const names = {};
+  for (const c of active) names[c.id] = c.name || c.customerName || c.id;
+  const stored = loadOnboardingChecklists();
+  const activatedIds = active.filter((c) => {
+    const checklist = buildOnboardingChecklist(c.id, findOnboardingTicks(stored, c.id));
+    return checklist.steps.some((s) => s.stepId === 'activation' && s.completed);
+  }).map((c) => c.id);
+  const derived = deriveReferralStatuses(loadReferralTracking(), activatedIds);
+  const report = buildReferralReport(derived, { names });
+  bodyEl.innerHTML = referralReportHtml(report);
+  const summaryEl = $('#referralTrackingSummary');
+  if (summaryEl) summaryEl.textContent = referralSummaryText(derived);
+  const referredEl = $('#referralTrackingReferred');
+  if (referredEl && document.activeElement !== referredEl) {
+    referredEl.innerHTML = active.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const referrerEl = $('#referralTrackingReferrer');
+  if (referrerEl && document.activeElement !== referrerEl) {
+    referrerEl.innerHTML = active.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  if (!referralTrackingBound) {
+    referralTrackingBound = true;
+    $('#referralTrackingExportBtn')?.addEventListener('click', () => {
+      const current = buildReferralReport(deriveReferralStatuses(loadReferralTracking(), activatedIds), { names });
+      downloadCsvFile(referralReportFilename(), referralReportCsv(current));
+    });
+    $('#referralTrackingSaveBtn')?.addEventListener('click', () => {
+      const next = upsertReferral(loadReferralTracking(), {
+        referredCustomerId: $('#referralTrackingReferred')?.value ?? '',
+        referrerCustomerId: $('#referralTrackingReferrer')?.value ?? '',
+        date: $('#referralTrackingDate')?.value ?? '',
+        note: $('#referralTrackingNote')?.value ?? '',
+        status: $('#referralTrackingStatus')?.value ?? 'pending',
+      });
+      saveReferralTracking(next);
+      renderReferralTracking();
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-referral-not-eligible]');
+      if (!button) return;
+      const next = upsertReferral(loadReferralTracking(), {
+        ...findReferral(loadReferralTracking(), button.dataset.referralNotEligible),
+        status: 'not_eligible',
+      });
+      saveReferralTracking(next);
+      renderReferralTracking();
+    });
+  }
+}
 function renderCoverageRegister() {
   const bodyEl = $('#coverageRegisterBody');
   if (!bodyEl) return;
@@ -11749,6 +11823,7 @@ function renderAnalytics() {
   renderResolutionConfirmation();
   renderCapacityForecast();
   renderCoverageRegister();
+  renderReferralTracking();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

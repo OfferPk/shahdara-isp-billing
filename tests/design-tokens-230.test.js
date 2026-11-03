@@ -80,9 +80,12 @@ test('#230 legacy hex ratchet: counts may only shrink', () => {
   // Baseline recorded when tokens.css landed (2026-10-21). Lower a number
   // when you migrate a file; never raise one.
   const BASELINE = {
-    'bulk-collect.css': 49, 'customer-import.css': 42, 'dark-contrast.css': 20,
-    'dashboard.css': 102, 'nav.css': 171, 'payments-inbox.css': 40,
-    'payments-list.css': 40, 'profile-ui.css': 1, 'screen-router.css': 53,
+    // Plan A lowered the touched files (bulk 49->37, import 42->29,
+    // dashboard 102->87, inbox 40->25, payments-list 40->12); the
+    // ratchet still only ever moves down.
+    'bulk-collect.css': 37, 'customer-import.css': 29, 'dark-contrast.css': 20,
+    'dashboard.css': 87, 'nav.css': 171, 'payments-inbox.css': 25,
+    'payments-list.css': 12, 'profile-ui.css': 1, 'screen-router.css': 53,
     'styles.css': 621, 'ui-feedback.css': 57, 'urdu-font.css': 1
   };
   for (const [file, max] of Object.entries(BASELINE)) {

@@ -15,6 +15,9 @@
   /* Type */
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   --font-urdu: "Noto Nastaliq Urdu", "Noto Naskh Arabic", serif;
+  /* Plan A: --text-2xs (10px) was the one scale step the screens used
+     without a token; the other sizes below already existed. */
+  --text-2xs: 10px;
   --text-xs: 12px;
   --text-sm: 14px;
   --text-md: 16px;
@@ -32,6 +35,9 @@
   --space-6: 24px;
 
   /* Radius */
+  /* Plan A: --radius-xs (8px) was used across dashboard/payment screens
+     without a token. */
+  --radius-xs: 8px;
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 18px;
@@ -58,6 +64,36 @@
   --color-overdue: #b33c33;
   --color-info: #0270a8;
   --color-whatsapp: #0e7a3d;
+  /* Plan A additions: status/brand scales the customer, payment,
+     dashboard, import, and bulk-collect screens already rendered with,
+     now named once here instead of repeated as hex. */
+  --color-danger: #b42318;
+  --color-danger-strong: #a8190e;
+  --color-danger-bg: #fdecea;
+  --color-danger-light: #fca5a5;
+  --color-success: #059669;
+  --color-success-bg: #d1fae5;
+  --color-warning: #92400e;
+  --color-warning-bg: #fef3c7;
+  --color-info-strong: #2563eb;
+  --color-info-bg: #dbeafe;
+  --color-info-soft: #e0f2fe;
+  --color-info-dark: #0369a1;
+  --color-emerald: #10b981;
+  --color-emerald-light: #34d399;
+  --color-emerald-dark: #047857;
+  --color-dark-surface: #24463b;
+  --color-muted-soft: #5d7a6f;
+  --color-ink-soft: #36564b;
+  /* Slate neutral scale, used by the payments inbox. */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-300: #cbd5e1;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #64748b;
+  --color-slate-600: #475569;
+  --color-slate-700: #334155;
+  --color-slate-900: #0f172a;
 
   /* Neutrals (green-tinted greys the app is built on) */
   --color-neutral-0: #ffffff;
@@ -106,6 +142,23 @@
   --dk-muted: #b7cbc2;
   --dk-subtle: #a3b9af;
   --dk-accent: #86dcbb;
+
+  /* Plan A: dark values for the tokens added above. Where a dark
+     section already used a value, that value is reused verbatim. */
+  --color-danger: #ffb4a8;
+  --color-danger-bg: #3a1513;
+  --color-warning: #f6cf7a;
+  --color-warning-bg: #3a2c10;
+  --color-info-bg: #26344d;
+  --color-info-strong: #d5e2ff;
+  --color-slate-50: #0f172a;
+  --color-slate-100: #1e293b;
+  --color-slate-300: #475569;
+  --color-slate-400: #64748b;
+  --color-slate-500: #94a3b8;
+  --color-slate-600: #cbd5e1;
+  --color-slate-700: #e2e8f0;
+  --color-slate-900: #f8fafc;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -132,5 +185,21 @@
     --dk-muted: #b7cbc2;
     --dk-subtle: #a3b9af;
     --dk-accent: #86dcbb;
+
+    /* Plan A: dark values for the tokens added above. */
+    --color-danger: #ffb4a8;
+    --color-danger-bg: #3a1513;
+    --color-warning: #f6cf7a;
+    --color-warning-bg: #3a2c10;
+    --color-info-bg: #26344d;
+    --color-info-strong: #d5e2ff;
+    --color-slate-50: #0f172a;
+    --color-slate-100: #1e293b;
+    --color-slate-300: #475569;
+    --color-slate-400: #64748b;
+    --color-slate-500: #94a3b8;
+    --color-slate-600: #cbd5e1;
+    --color-slate-700: #e2e8f0;
+    --color-slate-900: #f8fafc;
   }
 }

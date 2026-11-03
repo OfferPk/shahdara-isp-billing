@@ -66,6 +66,7 @@ import {
   classifyDefaulterFromMonths,
   defaulterSegmentChipHtml
 } from './defaulter-risk-segment.js';
+import { areaFilterKey, customerAreaKey } from './area-operations.js';
 
 export function escapeHtml(str) {
   if (str === null || str === undefined) return '';
@@ -284,8 +285,14 @@ export function calculateTopDefaulters(state, {
   }
 
   if (area && area !== 'all') {
-    const areaLower = area.toLowerCase().trim();
-    filtered = filtered.filter(item => item.area && item.area.toLowerCase().trim() === areaLower);
+    // Plan T (intentional behaviour change): the area filter now uses
+    // the shared canonical-mohalla rule from area-operations.js, so a
+    // defaulter whose mohalla is "BANII" is found by the "Bani" filter
+    // even when the saved area field says something else — the same
+    // rule the Customers list already used. Zone-merging rules and all
+    // figures are untouched; only which rows the filter keeps changes.
+    const targetKey = areaFilterKey(area);
+    filtered = filtered.filter(item => targetKey !== null && customerAreaKey(item) === targetKey);
   }
 
   if (riskLevel && riskLevel !== 'all') {

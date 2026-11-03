@@ -34,7 +34,7 @@
 /* #302 (1024 px): the profile pane beside the customer list is only ~300 px wide, so the name ("NA/ZE/ER") and the
    eyebrow wrapped letter by letter next to the status chips. Stack the status chips under the name there. */
 @media (min-width: 621px) and (max-width: 1180px) {
-  .detail-title-row { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .detail-title-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); }
   .profile-status-stack { max-width: none; flex-flow: row wrap; align-items: flex-start; justify-content: flex-start; }
   .detail-title-row h2 { font-size: clamp(22px, 2.6vw, 30px); overflow-wrap: break-word; }
 }

@@ -340,18 +340,52 @@ export function suggestSuspenseMatches(entry, customers, pendingBalanceOf, limit
   return ranked.slice(0, cap).map(({ rank, numberKey, ...suggestion }) => suggestion);
 }
 
+/**
+ * Plan O — days since a suspense entry landed: entry date vs today in
+ * UTC calendar days. Returns null for an invalid entry date, and 0 for
+ * an entry dated in the future (it cannot be "old" yet).
+ */
+export function suspenseAgeDays(entry, todayStr) {
+  if (!entry || !isValidDateKey(entry.date)) return null;
+  const today = typeof todayStr === 'string' && isValidDateKey(todayStr) ? todayStr : pakistanToday();
+  const entryMs = Date.parse(`${entry.date}T00:00:00Z`);
+  const todayMs = Date.parse(`${today}T00:00:00Z`);
+  if (Number.isNaN(entryMs) || Number.isNaN(todayMs)) return null;
+  return Math.max(0, Math.round((todayMs - entryMs) / 86400000));
+}
+
+/**
+ * Plan O — unclaimed entries annotated with ageDays, oldest first:
+ * ageDays descending, then entry date ascending, then suspenseId
+ * ascending, so old unidentified money is surfaced before new money.
+ * Claimed entries are audit history and are not in this list.
+ */
+export function ageSuspenseEntries(entries, todayStr) {
+  const aged = sanitizeSuspensePayments(entries)
+    .filter((e) => !e.claimed)
+    .map((e) => ({ ...e, ageDays: suspenseAgeDays(e, todayStr) }));
+  aged.sort((a, b) =>
+    (b.ageDays ?? 0) - (a.ageDays ?? 0)
+    || String(a.date).localeCompare(String(b.date))
+    || String(a.suspenseId).localeCompare(String(b.suspenseId)));
+  return aged;
+}
+
 /** Register totals for the dashboard card + modal header. */
-export function suspenseSummary(entries) {
+export function suspenseSummary(entries, todayStr) {
   const clean = sanitizeSuspensePayments(entries);
   const unclaimed = clean.filter((e) => !e.claimed);
   const claimed = clean.filter((e) => e.claimed);
   const sum = (list) => Math.round(list.reduce((s, e) => s + e.amount, 0) * 100) / 100;
+  const aged = ageSuspenseEntries(entries, todayStr);
   return {
     totalCount: clean.length,
     unclaimedCount: unclaimed.length,
     unclaimedAmount: sum(unclaimed),
     claimedCount: claimed.length,
-    claimedAmount: sum(claimed)
+    claimedAmount: sum(claimed),
+    oldestUnclaimedAgeDays: aged.length > 0 ? aged[0].ageDays : null,
+    oldestUnclaimedId: aged.length > 0 ? aged[0].suspenseId : null
   };
 }
 
@@ -545,6 +579,14 @@ export function setupSuspensePaymentsModal(getState, {
       : null;
     const entries = loadSuspensePayments();
     const summary = suspenseSummary(entries);
+    // Plan O: unclaimed entries render oldest-first with their age, so
+    // old unidentified money is worked before new money; claimed
+    // entries (audit history) follow in newest-first order.
+    const ageById = new Map(ageSuspenseEntries(entries).map((e) => [e.suspenseId, e.ageDays]));
+    const orderedEntries = [
+      ...ageSuspenseEntries(entries),
+      ...[...entries].filter((e) => e.claimed).reverse()
+    ];
     const customerOptions = customers
       .filter((c) => !c.archived)
       .sort((a, b) => (a.customerNumber ?? 0) - (b.customerNumber ?? 0))
@@ -554,7 +596,7 @@ export function setupSuspensePaymentsModal(getState, {
     if (listEl) {
       listEl.innerHTML = entries.length === 0
         ? '<p class="suspense-empty">No suspense entries yet. Log an unidentified wallet transfer above — it stays here, safe, until its owner is found.</p>'
-        : [...entries].reverse().map((entry) => {
+        : orderedEntries.map((entry) => {
           const senderLine = [entry.senderName, entry.senderMobile].filter(Boolean).join(' · ') || 'Sender unknown';
           const tidLine = entry.tid ? `TID: ${entry.tid}` : 'No TID noted';
           if (entry.claimed) {
@@ -576,10 +618,12 @@ export function setupSuspensePaymentsModal(getState, {
           const suggestBar = suggestions.length > 0
             ? `<div class="suspense-suggest-bar"><span class="suspense-suggest-label">✨ ${escapeHtml(t('suspense_suggest_label'))}</span>${suggestions.map((s) => `<button type="button" class="secondary-button suspense-suggest-chip" data-suspense-suggest="${escapeHtml(entry.suspenseId)}" data-suspense-suggest-customer="${escapeHtml(s.customerId)}">${escapeHtml(t('suspense_suggest_claim'))}: ${escapeHtml(s.name)} (#${escapeHtml(String(s.customerNumber ?? ''))})</button>`).join('')}</div>`
             : '';
+          const ageDays = ageById.get(entry.suspenseId);
+          const ageLine = ageDays === undefined ? '' : ` · ${ageDays} day${ageDays === 1 ? '' : 's'} old`;
           return `
           <article class="suspense-card">
             <p><span>${escapeHtml(entry.suspenseId)} · ${escapeHtml(entry.wallet)}</span><strong>${escapeHtml(formatSuspensePKR(entry.amount))}</strong></p>
-            <p><span>${escapeHtml(senderLine)}</span><span>${escapeHtml(entry.date)} · ${escapeHtml(tidLine)}</span></p>
+            <p><span>${escapeHtml(senderLine)}</span><span>${escapeHtml(entry.date)}${escapeHtml(ageLine)} · ${escapeHtml(tidLine)}</span></p>
             ${warn}
             ${suggestBar}
             <div class="suspense-claim-bar">
@@ -598,7 +642,7 @@ export function setupSuspensePaymentsModal(getState, {
     if (countNote) {
       countNote.textContent = summary.totalCount === 0
         ? 'Register is empty.'
-        : `${summary.unclaimedCount} unclaimed (${formatSuspensePKR(summary.unclaimedAmount)}) · ${summary.claimedCount} claimed (${formatSuspensePKR(summary.claimedAmount)}). Claimed entries stay here for audit — they are never deleted.`;
+        : `${summary.unclaimedCount} unclaimed (${formatSuspensePKR(summary.unclaimedAmount)}) · ${summary.claimedCount} claimed (${formatSuspensePKR(summary.claimedAmount)})${summary.oldestUnclaimedAgeDays !== null ? ` · oldest unclaimed: ${summary.oldestUnclaimedId} (${summary.oldestUnclaimedAgeDays} days)` : ''}. Claimed entries stay here for audit — they are never deleted.`;
     }
     const dateInput = $('suspenseDate');
     if (dateInput && !dateInput.value) dateInput.value = pakistanToday();

@@ -230,7 +230,9 @@ test('sanitize: malformed rows dropped, ids filled from SUS-101, summary + uncla
   assert.equal(clean[1].suspenseId, 'SUS-102');
   assert.equal(nextSuspenseId(clean), 'SUS-103');
   const summary = suspenseSummary(clean);
-  assert.deepEqual(summary, { totalCount: 2, unclaimedCount: 1, unclaimedAmount: 3000, claimedCount: 1, claimedAmount: 250 });
+  // Plan O: the summary gains the oldest unclaimed entry's age + id
+  // (the unclaimed fixture is dated `today`, so its age is 0 here).
+  assert.deepEqual(summary, { totalCount: 2, unclaimedCount: 1, unclaimedAmount: 3000, claimedCount: 1, claimedAmount: 250, oldestUnclaimedAgeDays: 0, oldestUnclaimedId: 'SUS-101' });
   assert.equal(unclaimedSuspense(clean).length, 1);
   assert.equal(formatSuspensePKR(3000), 'Rs. 3,000');
   assert.equal(formatSuspensePKR(1500.5), 'Rs. 1,500.50');

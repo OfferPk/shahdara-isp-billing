@@ -405,6 +405,144 @@ export function collectGroupPartial(state, group, { amountReceived, date, method
 }
 
 /**
+ * Plan O — pro-rata split of a group collection across payable members.
+ * members: [{ customerId, customerNumber, name, dueCents }] in group
+ * order (archived / zero-due members must already be filtered out by
+ * the caller — buildGroupDue does that via the payable set). receivedCents
+ * is the cash in cents.
+ *
+ * Rule (plan: "proportional split, cents rounded, remainder to first
+ * member"): each share is floor(received × due / totalDue); the
+ * leftover cents then go to the earliest members first, one cent at a
+ * time, skipping any member already at their full due — so the first
+ * member takes the remainder unless they are already fully covered,
+ * and no member is ever allocated more than they owe. Cash above the
+ * total due is never allocated here (the caller reports it as
+ * unallocated); each line returns { customerId, customerNumber, name,
+ * dueCents, amountCents, remainingCents, outcome } with outcome
+ * 'paid' | 'partial' | 'unpaid'. Pure — allocates nothing, claims
+ * nothing; collectGroupProRata runs the executor over these lines.
+ */
+export function allocateGroupProRata(members, receivedCents) {
+  const payable = (Array.isArray(members) ? members : [])
+    .filter((m) => m && Number(m.dueCents) > 0)
+    .map((m) => ({
+      customerId: m.customerId,
+      customerNumber: m.customerNumber,
+      name: m.name,
+      dueCents: Math.round(Number(m.dueCents))
+    }));
+  const received = Math.max(0, Math.round(Number(receivedCents) || 0));
+  const totalDue = payable.reduce((sum, m) => sum + m.dueCents, 0);
+  if (payable.length === 0 || totalDue <= 0 || received <= 0) {
+    return payable.map((m) => ({ ...m, amountCents: 0, remainingCents: m.dueCents, outcome: 'unpaid' }));
+  }
+  const allocatable = Math.min(received, totalDue);
+  const shares = payable.map((m) => Math.floor((allocatable * m.dueCents) / totalDue));
+  let leftover = allocatable - shares.reduce((sum, s) => sum + s, 0);
+  let cursor = 0;
+  while (leftover > 0 && payable.some((m, i) => shares[i] < m.dueCents)) {
+    const i = cursor % payable.length;
+    if (shares[i] < payable[i].dueCents) {
+      shares[i] += 1;
+      leftover -= 1;
+    }
+    cursor += 1;
+  }
+  return payable.map((m, i) => {
+    const amountCents = shares[i];
+    const remainingCents = m.dueCents - amountCents;
+    return {
+      ...m,
+      amountCents,
+      remainingCents,
+      outcome: remainingCents <= 0 ? 'paid' : amountCents > 0 ? 'partial' : 'unpaid'
+    };
+  });
+}
+
+/**
+ * Plan O — group collection split pro-rata instead of in group order.
+ * Same executor, same all-or-nothing rule, same receipt/waada plumbing
+ * as collectGroupPartial; only the split differs. `amountReceived` is
+ * in PKR. Skips mirror collectGroupPartial (archived / no-bill /
+ * already-paid consume no cash and are reported, never as failures).
+ * Cash above the group total is never executed — it comes back as
+ * unallocatedCents. Returns the collectGroupPartial shape plus
+ * allocationMode: 'pro-rata', so the receipt and Waada chips (which
+ * read outcomes, not the mode) work for both splits unchanged.
+ */
+export function collectGroupProRata(state, group, { amountReceived, date, method, paidBy, month, allocations, execute } = {}) {
+  if (!group) throw new Error('Group is required.');
+  if (!month) throw new Error('Billing month is required.');
+  if (typeof execute !== 'function') throw new Error('A payment executor is required.');
+  const receivedCents = centsOf(amountReceived);
+  if (!(receivedCents > 0)) throw new Error('Enter the cash received (more than Rs. 0) for a pro-rata group collection.');
+  const due = buildGroupDue(group, state?.customers ?? [], month, allocations);
+  const payable = due.members.filter((m) => !m.archived && m.dueCents > 0);
+  const split = allocateGroupProRata(payable, receivedCents);
+  const splitById = new Map(split.map((s) => [String(s.customerId), s]));
+  const outcomes = [];
+  let next = state;
+  let allocatedCents = 0;
+  let paidCount = 0;
+  let partialCount = 0;
+  for (const member of due.members) {
+    if (member.archived) {
+      outcomes.push({ ...member, amountCents: 0, remainingCents: member.dueCents, outcome: 'skipped-archived' });
+      continue;
+    }
+    if (member.status === 'no-bill') {
+      outcomes.push({ ...member, amountCents: 0, remainingCents: 0, outcome: 'skipped-no-bill' });
+      continue;
+    }
+    if (member.dueCents <= 0) {
+      outcomes.push({ ...member, amountCents: 0, remainingCents: 0, outcome: 'skipped-paid' });
+      continue;
+    }
+    const line = splitById.get(String(member.customerId));
+    if (!line || line.amountCents <= 0) {
+      outcomes.push({ ...member, amountCents: 0, remainingCents: member.dueCents, outcome: 'unpaid' });
+      continue;
+    }
+    try {
+      const result = execute(next, {
+        customerId: member.customerId,
+        month,
+        amount: line.amountCents / 100,
+        date,
+        method,
+        paidBy
+      });
+      next = result.nextState;
+    } catch (error) {
+      throw new Error(`${member.name}: ${error.message} — nothing was saved.`);
+    }
+    allocatedCents += line.amountCents;
+    if (line.outcome === 'paid') paidCount++;
+    else partialCount++;
+    outcomes.push({ ...member, amountCents: line.amountCents, remainingCents: line.remainingCents, outcome: line.outcome });
+  }
+  const remainingCents = outcomes.reduce(
+    (sum, o) => sum + (o.outcome === 'partial' || o.outcome === 'unpaid' ? o.remainingCents : 0), 0);
+  return {
+    nextState: next,
+    groupTitle: due.groupTitle,
+    billingGroupId: due.billingGroupId,
+    month,
+    outcomes,
+    totalCents: allocatedCents,
+    receivedCents,
+    unallocatedCents: receivedCents - allocatedCents,
+    remainingCents,
+    paidCount,
+    partialCount,
+    collected: allocatedCents > 0,
+    allocationMode: 'pro-rata'
+  };
+}
+
+/**
  * SISP-88: members who still owe after a group collection — the ones the
  * modal offers a 1-tap Waada Tareekh chip for, in waterfall order.
  */
@@ -534,7 +672,7 @@ function pakistanToday() {
  * member who still owes after a partial collection.
  */
 export function setupGroupBillingModal(getState, {
-  onGroupsChanged, onToast, onConfirm, onCollectGroup, onCollectGroupPartial, onGroupWaada, getAllocations, currentMonth
+  onGroupsChanged, onToast, onConfirm, onCollectGroup, onCollectGroupPartial, onCollectGroupProRata, onGroupWaada, getAllocations, currentMonth
 } = {}) {
   const dialog = typeof document !== 'undefined' ? document.getElementById('groupBillingModal') : null;
   if (!dialog) return null;
@@ -763,11 +901,17 @@ export function setupGroupBillingModal(getState, {
             const stateNow = typeof getState === 'function' ? getState() : null;
             const dueNow = buildGroupDue(group, getCustomers(), getMonth(), getAlloc(stateNow));
             if (Math.round(amountReceived * 100) < dueNow.totalCents) {
-              if (typeof onCollectGroupPartial !== 'function') {
+              // Plan O: the collect-settings split mode chooses the
+              // split — "In order" (default, the SISP-88 waterfall) or
+              // "Pro-rata" (each member's share of the cash). Both run
+              // the same executor, receipt and Waada-chip plumbing.
+              const splitMode = $('groupBillingCollectMode')?.value || 'in-order';
+              const collectPartial = splitMode === 'pro-rata' ? onCollectGroupProRata : onCollectGroupPartial;
+              if (typeof collectPartial !== 'function') {
                 if (typeof onToast === 'function') onToast('Partial group collection is not wired yet.');
                 return;
               }
-              const result = await onCollectGroupPartial(group, {
+              const result = await collectPartial(group, {
                 date: collectDate,
                 method: collectMethod,
                 amountReceived
@@ -782,7 +926,7 @@ export function setupGroupBillingModal(getState, {
               renderWaadaChips(result);
               render();
               if (typeof onGroupsChanged === 'function') onGroupsChanged();
-              if (typeof onToast === 'function') onToast(`Group partial: ${formatGroupPKR(result.totalCents)} collected · ${formatGroupPKR(result.remainingCents)} still due.`);
+              if (typeof onToast === 'function') onToast(`Group ${result.allocationMode === 'pro-rata' ? 'pro-rata' : 'partial'}: ${formatGroupPKR(result.totalCents)} collected · ${formatGroupPKR(result.remainingCents)} still due.`);
               return;
             }
           }

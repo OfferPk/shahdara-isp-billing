@@ -214,7 +214,7 @@ import { renderRelocationTimeline, setupRelocationModal } from './relocation-log
 import { buildCheatSheet, cheatSheetText, normalizePoleFields, poleDirectorySummary, setupPoleLandmarkModal } from './pole-landmark-book.js';import { buildCustomerMikrotikSnippet, resolvePackageSpeedMbps, buildSpeedBoostRestoreSnippet, buildSpeedBoostSnippet, buildExpiredHoldResumeScript } from './mikrotik-generator.js';
 import { buildExpiredVacationHoldQueue } from './pause-billing.js';
 import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonChargesForPayment } from './speed-addon.js';
-import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
+import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, collectGroupProRata, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspensePendingBalanceCents, suspenseSummary } from './suspense-payments.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
@@ -14081,6 +14081,25 @@ if (typeof document !== 'undefined') {
     onCollectGroupPartial: (group, { date, method, amountReceived }) => {
       const month = monthsForHistory(new Date())[0];
       const result = collectGroupPartial(state, group, {
+        date, method, amountReceived, month,
+        allocations: calculatePaymentAllocations(state),
+        execute: executeQuickCollection
+      });
+      if (result.collected) {
+        state = result.nextState;
+        save();
+        renderDetail();
+        renderTransactions();
+        renderMonthlyReport();
+      }
+      return { ...result, receipt: buildGroupReceipt({ ...result, date, method }) };
+    },
+    // Plan O: pro-rata group collection — the same quick-collection
+    // path and persistence as the partial waterfall, only the split
+    // differs (each member's share of the cash, by their due).
+    onCollectGroupProRata: (group, { date, method, amountReceived }) => {
+      const month = monthsForHistory(new Date())[0];
+      const result = collectGroupProRata(state, group, {
         date, method, amountReceived, month,
         allocations: calculatePaymentAllocations(state),
         execute: executeQuickCollection

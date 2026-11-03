@@ -351,11 +351,50 @@ export function waadaBadgeLabel(customer, todayStr = getWaadaTodayString()) {
 }
 
 /**
+ * Plan O — overdue-age bands for broken promises, derived from
+ * promiseDate vs today (no new stored fields). The plan lists the bands
+ * as 1–3, 4–7, 8–15, 15+ days; day 15 cannot belong to two bands, so the
+ * bands are read as 1–3, 4–7, 8–14, 15+ — every overdue day lands in
+ * exactly one band, and the 15+ band still starts at day 15 as written.
+ */
+export const WAADA_AGE_BANDS = Object.freeze([
+  Object.freeze({ id: '1-3', min: 1, max: 3, label: '1–3 days overdue' }),
+  Object.freeze({ id: '4-7', min: 4, max: 7, label: '4–7 days overdue' }),
+  Object.freeze({ id: '8-14', min: 8, max: 14, label: '8–14 days overdue' }),
+  Object.freeze({ id: '15+', min: 15, max: Infinity, label: '15+ days overdue' })
+]);
+
+/**
+ * Whole days a promise is overdue: today minus promiseDate in UTC
+ * calendar days. Returns null for an invalid promiseDate, and 0 for a
+ * promise that is due today or still in the future (not overdue).
+ */
+export function waadaOverdueDays(promiseDate, todayStr = getWaadaTodayString()) {
+  const promise = parseWaadaParts(typeof promiseDate === 'string' ? promiseDate.trim() : '');
+  const today = parseWaadaParts(typeof todayStr === 'string' ? todayStr.trim() : '');
+  if (!promise || !today) return null;
+  const promiseMs = Date.UTC(promise.year, promise.month - 1, promise.day);
+  const todayMs = Date.UTC(today.year, today.month - 1, today.day);
+  return Math.max(0, Math.round((todayMs - promiseMs) / 86400000));
+}
+
+/** Age-band id for a promise ('1-3' | '4-7' | '8-14' | '15+'), or null when not overdue. */
+export function waadaAgeBand(promiseDate, todayStr = getWaadaTodayString()) {
+  const days = waadaOverdueDays(promiseDate, todayStr);
+  if (days === null || days < 1) return null;
+  return (WAADA_AGE_BANDS.find((band) => days >= band.min && days <= band.max) || WAADA_AGE_BANDS[WAADA_AGE_BANDS.length - 1]).id;
+}
+
+/**
  * Splits queue entries into the 3 tiers. entries: [{ customer, outstanding }].
  * Customers with no outstanding balance are excluded (they are not queued).
  * Sort: broken by promiseDate ascending (most overdue first), then
  * outstanding descending; active by outstanding descending; promised by
  * promiseDate ascending, then outstanding descending.
+ * Plan O: broken items also carry overdueDays + ageBand, and the return
+ * gains brokenByAgeBand (the same broken items grouped by band, in band
+ * order) plus brokenAgeBandCounts — the follow-up queue is grouped by
+ * age band without changing the existing tier buckets.
  */
 export function tierWaadaQueue(entries, todayStr = getWaadaTodayString()) {
   const broken = [];
@@ -375,7 +414,11 @@ export function tierWaadaQueue(entries, todayStr = getWaadaTodayString()) {
       promiseAmount: customer.promiseAmount ?? null,
       promiseNote: customer.promiseNote ?? ''
     };
-    if (tier === WAADA_TIERS.BROKEN) broken.push(item);
+    if (tier === WAADA_TIERS.BROKEN) {
+      item.overdueDays = waadaOverdueDays(customer.promiseDate, todayStr);
+      item.ageBand = waadaAgeBand(customer.promiseDate, todayStr);
+      broken.push(item);
+    }
     else if (tier === WAADA_TIERS.PROMISED) promised.push(item);
     else active.push(item);
   }
@@ -384,7 +427,36 @@ export function tierWaadaQueue(entries, todayStr = getWaadaTodayString()) {
   active.sort((a, b) => b.outstanding - a.outstanding);
   promised.sort((a, b) =>
     String(a.promiseDate).localeCompare(String(b.promiseDate)) || b.outstanding - a.outstanding);
-  return { broken, active, promised };
+  const brokenByAgeBand = {};
+  for (const band of WAADA_AGE_BANDS) brokenByAgeBand[band.id] = [];
+  for (const item of broken) {
+    if (item.ageBand && brokenByAgeBand[item.ageBand]) brokenByAgeBand[item.ageBand].push(item);
+  }
+  const brokenAgeBandCounts = {};
+  for (const band of WAADA_AGE_BANDS) brokenAgeBandCounts[band.id] = brokenByAgeBand[band.id].length;
+  return { broken, active, promised, brokenByAgeBand, brokenAgeBandCounts };
+}
+
+/**
+ * Plan O: the broken-promise follow-up list grouped by age band.
+ * Returns [{ id, label, count, totalOutstanding, items }] in band
+ * order — the same items tierWaadaQueue puts in `broken`, grouped so a
+ * collector works the oldest band first. Bands with no items are kept
+ * (count 0) so the UI can show every band, not just the populated ones.
+ */
+export function groupBrokenWaadaByAgeBand(entries, todayStr = getWaadaTodayString()) {
+  const { broken, brokenByAgeBand } = tierWaadaQueue(entries, todayStr);
+  void broken;
+  return WAADA_AGE_BANDS.map((band) => {
+    const items = brokenByAgeBand[band.id];
+    return {
+      id: band.id,
+      label: band.label,
+      count: items.length,
+      totalOutstanding: Math.round(items.reduce((sum, item) => sum + item.outstanding, 0) * 100) / 100,
+      items
+    };
+  });
 }
 
 /**

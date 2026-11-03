@@ -251,6 +251,7 @@ import { buildExportPack, exportPackSummaryText, exportPackHtml, exportPackCsv, 
 import { normalizeOperatorMode, canPerformAction, viewAccess, requestModeSwitch, applyModeSwitch, operatorModeSummaryText, operatorModeHtml, operatorModeToggleLabel } from './operator-modes.js';
 import { normalizePriceRevision, normalizePriceHistory, recordPriceRevision, priceHistoryForPackage, priceOnDate, priceHistorySummaryText, priceHistoryHtml, priceHistoryCsv, priceHistoryFilename } from './package-price-history.js';
 import { buildTransferPack, transferPackText, transferPackFilename, verifyTransferPack, decideTransferApply, transferPackSummaryText, transferPackHtml } from './transfer-pack.js';
+import { monthlyDueDates, splitArrearsIntoInstalments, normalizeRepaymentPlans, upsertRepaymentPlan, findRepaymentPlan, recordInstalmentPayment, closeRepaymentPlan, canCloseRepaymentPlan, repaymentPlanSummaryText, repaymentPlanHtml, repaymentPlanCsv, repaymentPlanFilename } from './repayment-plan.js';
 import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
@@ -12356,6 +12357,105 @@ function renderTransferPack() {
     });
   }
 }
+// Plan 37: arrears repayment plan. A schedule and tracker only: the
+// arrears balance at agreement time split into dated instalments, each
+// paid, due, or missed, while the current month's bill stays due on its
+// own date. Recording a payment against an instalment marks only that
+// instalment paid — it never writes, edits, or voids a bill, a payment
+// ledger entry, or a Waada promise (Plan O keeps those). The missed
+// instalments below the plans are a Waada-style follow-up queue: a
+// working list only, it creates no Waada record. A plan closes early
+// only by full payment or an operator-recorded reason.
+const REPAYMENT_PLAN_KEY = 'shahdara_repayment_plans_v1';
+let repaymentPlanBound = false;
+function loadRepaymentPlans() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REPAYMENT_PLAN_KEY) ?? 'null');
+    return normalizeRepaymentPlans(parsed);
+  } catch { return []; }
+}
+function saveRepaymentPlans(list) {
+  try { localStorage.setItem(REPAYMENT_PLAN_KEY, JSON.stringify(normalizeRepaymentPlans(list))); } catch {}
+}
+function renderRepaymentPlans() {
+  const bodyEl = $('#repaymentPlanBody');
+  if (!bodyEl) return;
+  const today = localDate();
+  const plans = loadRepaymentPlans();
+  const active = (state.customers ?? []).filter((c) => !c.archived);
+  const names = {};
+  for (const c of active) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = repaymentPlanHtml(plans, { names, today });
+  const summaryEl = $('#repaymentPlanSummary');
+  if (summaryEl) {
+    const open = plans.filter((p) => p.status === 'open');
+    summaryEl.textContent = plans.length === 0
+      ? 'Agree a catch-up schedule with a customer who cannot pay several months at once: the arrears balance is split into dated instalments, and the current month’s bill stays due on its own date.'
+      : `${plans.length} plan(s), ${open.length} open. ${open.map((p) => repaymentPlanSummaryText(p, today)).join(' ')}`;
+  }
+  const customerEl = $('#repaymentPlanCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = active.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  if (!repaymentPlanBound) {
+    repaymentPlanBound = true;
+    $('#repaymentPlanCreateBtn')?.addEventListener('click', () => {
+      const customerId = $('#repaymentPlanCustomer')?.value ?? '';
+      const balance = $('#repaymentPlanBalance')?.value ?? '';
+      const agreedAt = $('#repaymentPlanAgreed')?.value ?? '';
+      const count = Number($('#repaymentPlanCount')?.value ?? '');
+      const firstDue = $('#repaymentPlanFirstDue')?.value ?? '';
+      const dates = monthlyDueDates(firstDue, count);
+      const instalments = dates ? splitArrearsIntoInstalments(balance, dates) : null;
+      if (!customerId || !instalments) {
+        toast('A repayment plan needs a customer, a positive arrears balance, a real first due date, and at least one instalment.');
+        return;
+      }
+      const plan = {
+        id: `rp-${customerId}-${Date.now()}`,
+        customerId,
+        arrearsBalance: balance,
+        agreedAt,
+        instalments,
+        status: 'open',
+        closeReason: '',
+      };
+      saveRepaymentPlans(upsertRepaymentPlan(loadRepaymentPlans(), plan));
+      renderRepaymentPlans();
+    });
+    $('#repaymentPlanExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(repaymentPlanFilename(), repaymentPlanCsv(loadRepaymentPlans(), { names, today }));
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const payButton = event.target.closest('[data-repayment-pay]');
+      if (payButton) {
+        const [planId, sequenceText] = String(payButton.dataset.repaymentPay).split(':');
+        const current = findRepaymentPlan(loadRepaymentPlans(), planId);
+        if (!current) return;
+        const sequence = Number(sequenceText);
+        const target = current.instalments.find((entry) => entry.sequence === sequence);
+        if (!target) return;
+        const { plan, applied, excess } = recordInstalmentPayment(current, sequence, target.amount - target.paidAmount);
+        saveRepaymentPlans(upsertRepaymentPlan(loadRepaymentPlans(), plan));
+        toast(excess > 0 ? `Instalment marked paid (${applied}); ${excess} left over, not spread to other instalments.` : 'Instalment marked paid. This changes no bill or payment record.');
+        renderRepaymentPlans();
+        return;
+      }
+      const closeButton = event.target.closest('[data-repayment-close]');
+      if (!closeButton) return;
+      const current = findRepaymentPlan(loadRepaymentPlans(), closeButton.dataset.repaymentClose);
+      if (!current) return;
+      const reason = $('#repaymentPlanCloseReason')?.value ?? '';
+      if (!canCloseRepaymentPlan(current, reason)) {
+        toast('A plan closes early only by full payment or an operator-recorded reason — type a reason first.');
+        return;
+      }
+      saveRepaymentPlans(upsertRepaymentPlan(loadRepaymentPlans(), closeRepaymentPlan(current, reason)));
+      renderRepaymentPlans();
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -12439,6 +12539,7 @@ function renderAnalytics() {
   renderOltOnuRegister();
   renderPriceHistory();
   renderTransferPack();
+  renderRepaymentPlans();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

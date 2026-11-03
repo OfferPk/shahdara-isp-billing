@@ -56,6 +56,7 @@ import {
 import { saveBranchGuard, ensureBranchGuard, createBranchGuardStamp, recordBranchGuardExport, recordBranchGuardApply } from './branch-guard.js?v=1.11.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.11.0';
 import { BACKUP_HEALTH_KEY, assessBackupHealth, backupPreActionPrompt, countAllPayments, countPaymentsAfterDate, recordBackupHealthExport, shareBackupOffDevice } from './backup-health.js?v=1.11.0';
+import { verifyBackup, describeRestoreChanges } from './backup-verification.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast, buildPonCapacityReport, renderPonCapacityRows } from './dashboard.js?v=1.11.0';
@@ -5182,6 +5183,7 @@ function renderBackupManager({ settings, status, backups }) {
   }
   if ([...(backups ?? [])].some(backup => backup.id === selectedId)) select.value = selectedId;
   $('#restoreLocalBackupButton').disabled = !select.value;
+  $('#verifyLocalBackupButton').disabled = !select.value;
   $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
   renderSafetySnapshotList(backups ?? []);
   const recoveryBtn = $('#showStorageRecoveryButton');
@@ -5200,6 +5202,7 @@ async function refreshBackupManager() {
     $('#backupStatus').textContent = `Unavailable: ${error.message || 'app-private backup storage could not be opened'}`;
     $('#backupNowButton').disabled = persistenceBlocked || !storageAvailable || backupOperationBusy;
     $('#restoreLocalBackupButton').disabled = true;
+    $('#verifyLocalBackupButton').disabled = true;
     const recoveryBtn = $('#showStorageRecoveryButton');
     if (recoveryBtn) recoveryBtn.hidden = !persistenceBlocked;
     updateDataSafetyUi(null);
@@ -5440,6 +5443,19 @@ function renderBackupPreview(preview, sourceText = '') {
   const { counts, conflicts } = preview;
   const summary = [`Backup created: ${preview.exportedAt || 'date not recorded'}.`, `${counts.addedCustomers} new profiles`, `${counts.mergedCustomers} matching profiles checked`, `${counts.addedBills} new bills`, `${counts.addedPayments} new actual receipts`, `${counts.addedIncidents} new complaints/outages`, `${counts.filledProfileFields} blank profile fields filled`, `${conflicts.length} conflict${conflicts.length === 1 ? '' : 's'} preserved.`].join(' ');
   $('#jsonBackupPreviewSummary').textContent = `${summary} Phase 3 records: ${counts.addedInventoryItems ?? 0} inventory items, ${counts.addedInventoryMovements ?? 0} movements, ${counts.addedExpenses ?? 0} expenses, ${counts.addedSaadAttendanceDays ?? 0} Saad attendance dates, ${counts.addedUmairWorkdays ?? 0} Umair work dates.${counts.digitalPaymentsSettingsRestored ? ' Digital payment settings (Raast/Till/bank/QR) will also be restored.' : ''}${counts.receiptFooterRestored ? ' Receipt footer settings will also be restored.' : ''}${counts.shopSettlementsRestored ? ' Shop settlement records will also be restored.' : ''}${counts.voidPaymentsRestored ? ' Voided payment records will also be restored.' : ''}${counts.homeBudgetRestored ? ' Home budget records will also be restored.' : ''}${counts.waTemplatesRestored ? ' WhatsApp templates will also be restored.' : ''}`;
+  // Plan J — what-changes report, computed from the preview's own
+  // merged state: what applying would add, and — explicitly —
+  // whether anything already on this device would be removed.
+  // A failure here never hides the preview itself.
+  try {
+    if (preview.state) {
+      const changes = describeRestoreChanges(state, preview.state);
+      const el = $('#jsonBackupPreviewSummary');
+      el.textContent += changes.nothingRemoved
+        ? ` What will change: ${changes.addedCustomers.length} new profiles, ${changes.addedBills} new bills, ${changes.addedPayments} new receipts will be added; no customer, bill or payment already on this device will be removed.`
+        : ` What will change: ${changes.addedCustomers.length} new profiles, ${changes.addedBills} new bills, ${changes.addedPayments} new receipts will be added; ${changes.removedCustomers.length} customers, ${changes.removedBills} bills and ${changes.removedPayments} payments on this device would be removed — review before applying.`;
+    }
+  } catch { /* The preview summary above is the fallback. */ }
   // SISP-10: surface checksum verification in the preview. 'mismatch' can
   // never be applied (preview.canApply is false); 'unverified' means a
   // legacy backup without a checksum field.
@@ -5675,6 +5691,36 @@ $('#backupNowButton').addEventListener('click', async () => {
 });
 $('#savedLocalBackupSelect').addEventListener('change', event => {
   $('#restoreLocalBackupButton').disabled = !event.currentTarget.value;
+  $('#verifyLocalBackupButton').disabled = !event.currentTarget.value;
+});
+// Plan J — Verify a saved local backup WITHOUT restoring it: the
+// operator picks a backup, this reads its stored text, runs the
+// pure verifyBackup report, and shows counts, months and the
+// integrity verdict in the backup manager. No local data changes,
+// and the restore dialog is never opened by this button.
+$('#verifyLocalBackupButton').addEventListener('click', async () => {
+  const id = $('#savedLocalBackupSelect').value;
+  const resultEl = $('#localBackupVerificationResult');
+  if (!id) { toast('Choose a saved backup first.'); return; }
+  try {
+    const backup = await localBackupStore.getBackup(id);
+    const report = verifyBackup(backup.backupText, state);
+    if (!report.verified) {
+      if (resultEl) resultEl.textContent = `⛔ Verification failed: ${report.reason} No local data was changed.`;
+      toast(`${report.reason} No local data was changed.`);
+      return;
+    }
+    const monthRange = report.months.length
+      ? report.months.length === 1 ? report.months[0] : `${report.months[0]} to ${report.months[report.months.length - 1]}`
+      : 'no bill months';
+    const integrity = report.checksumStatus === 'verified'
+      ? '✓ Checksum verified'
+      : '⚠️ No checksum found — older backup, integrity could not be verified';
+    if (resultEl) resultEl.textContent = `Verified: ${report.customers} customers · ${report.bills} bills · ${report.payments} payments · months ${monthRange} · ${report.wouldAdd.payments.count} new receipts vs this device · ${integrity}. Nothing was restored.`;
+  } catch (error) {
+    if (resultEl) resultEl.textContent = `Verification failed: ${error.message} No local data was changed.`;
+    toast(`${error.message} No local data was changed.`);
+  }
 });
 $('#restoreLocalBackupButton').addEventListener('click', async () => {
   const id = $('#savedLocalBackupSelect').value;

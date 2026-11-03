@@ -7525,7 +7525,7 @@
     </section>
     <section id="analyticsView" class="phase3-view" aria-labelledby="analyticsHeading" hidden>
       <div class="phase3-pane">
-        <div class="phase3-heading"><div><p class="eyebrow">LOCAL PKT ANALYTICS</p><h2 id="analyticsHeading">Network &amp; revenue analytics</h2><p id="analyticsPeriodNote" class="phase3-note">Last six Pakistan local calendar months; current month is partial.</p></div><p class="local-only-badge">Calculated on this device</p></div>
+        <div class="phase3-heading"><div><p class="eyebrow">LOCAL PKT ANALYTICS</p><h2 id="analyticsHeading">Network &amp; revenue analytics</h2><p id="analyticsPeriodNote" class="phase3-note">Last six Pakistan local calendar months; current month is partial.</p></div><p class="local-only-badge">Calculated on this device</p><button id="ownerReportPackBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">📦 Owner Report Pack</button></div>
         <section id="businessHealthScore" class="business-health-panel" aria-labelledby="businessHealthHeading"></section>
         <section id="ispInsights" class="isp-insights-panel" aria-label="ISP insights: collection, overdue trend and customer movement"></section>
         <div class="phase3-metric-grid">
@@ -22443,6 +22443,30 @@
         <div class="owner-month-report-actions">
           <button id="ownerMonthReportPrintBtn" class="secondary-button" type="button" data-i18n="omr_print_btn">📄 Print A4</button>
           <button id="ownerMonthReportCloseBtn2" class="primary-button" type="button" data-i18n="omr_close">Close</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="ownerReportPackModal" class="billing-modal owner-month-report-modal" aria-labelledby="ownerReportPackTitle">
+    <div class="modal-card">
+      <header class="modal-header">
+        <h2 id="ownerReportPackTitle">📦 Owner Report Pack</h2>
+        <button id="ownerReportPackCloseBtn" class="modal-close" type="button" aria-label="Close dialog">↩</button>
+      </header>
+      <div class="modal-body">
+        <p class="owner-month-report-help">One dated monthly pack for the owner: collections, area performance, business health and collection trend — assembled from the existing reports, with one header and one print/CSV export. This pack only assembles reports; it never changes any record.</p>
+        <div class="owner-month-report-controls">
+          <label class="owner-month-report-field" for="ownerReportPackMonth"><span>Month</span>
+            <input id="ownerReportPackMonth" class="form-input" type="month" aria-label="Report month">
+          </label>
+        </div>
+        <p id="ownerReportPackSummary" class="owner-month-report-summary" role="status" aria-live="polite"></p>
+        <div id="ownerReportPackBody" class="owner-month-report-body"></div>
+        <div class="owner-month-report-actions">
+          <button id="ownerReportPackPrintBtn" class="secondary-button" type="button">📄 Print A4</button>
+          <button id="ownerReportPackCsvBtn" class="secondary-button" type="button">📥 Download CSV</button>
+          <button id="ownerReportPackCloseBtn2" class="primary-button" type="button">Close</button>
         </div>
       </div>
     </div>

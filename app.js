@@ -175,6 +175,7 @@ import { buildAreaOperationsView, areaOperationsViewHtml } from './area-operatio
 import { buildLifecycleJourney, lifecycleJourneyHtml } from './lifecycle-journey.js';
 import { businessSetupChecklist, isFreshBusiness, firstRunBannerHtml } from './first-run.js';
 import { buildWalletReconView, walletReconViewHtml } from './wallet-recon-view.js';
+import { archivedRosterPage, buildRetentionView, retentionViewHtml, retentionYearCsv } from './roster-scale.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
@@ -2658,6 +2659,10 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;
+// Plan Y: the archived panel pages independently of the active roster,
+// with the same page size. It never moves the active page, and the
+// active page never moves it; both clamp through their page helpers.
+let archivedCurrentPage = 1;
 let customerSortBy = 'number-asc';
 let customerAreaFilter = 'all';
 let customerSearchField = 'name';
@@ -2926,7 +2931,34 @@ function renderCustomers() {
     if (tableBtn) { tableBtn.classList.remove('is-active'); tableBtn.setAttribute('aria-pressed', 'false'); }
   }
 
-  $('#archivedCustomerList').innerHTML = archived.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
+  // Plan Y: the archived panel gets the same page size and prev/next
+  // controls as the active roster, paged independently. Only the paged
+  // rows render, so the page no longer grows with the archive; the
+  // count badge above still shows the filtered archived total.
+  const archivedPaged = archivedRosterPage(archived, archivedCurrentPage, customerPageSize);
+  archivedCurrentPage = archivedPaged.page;
+  $('#archivedCustomerList').innerHTML = archivedPaged.items.map(customer => customerCardMarkup(customer, true, healthAllocations)).join('');
+  const archivedPagNav = $('#archivedPagination');
+  if (archivedPagNav) {
+    archivedPagNav.hidden = archived.length === 0;
+    const archivedPageInfo = $('#archivedPageInfo');
+    if (archivedPageInfo) archivedPageInfo.textContent = t('cust_page_info', null, { page: archivedPaged.page, totalPages: archivedPaged.totalPages, total: archived.length });
+    const archivedPrevBtn = $('#archivedPrevPage');
+    if (archivedPrevBtn) archivedPrevBtn.disabled = archivedPaged.page <= 1;
+    const archivedNextBtn = $('#archivedNextPage');
+    if (archivedNextBtn) archivedNextBtn.disabled = archivedPaged.page >= archivedPaged.totalPages;
+  }
+  // Plan Y: retention view over the whole ledger (not the filtered
+  // roster — data age is a property of the ledger). Read-only: it
+  // describes years and offers a CSV export per year; it deletes and
+  // archives nothing.
+  const retentionContainer = $('#archivedRetentionView');
+  if (retentionContainer) {
+    retentionContainer.innerHTML = retentionViewHtml(buildRetentionView(state.customers));
+    retentionContainer.querySelectorAll('[data-retention-export-year]').forEach(button => button.addEventListener('click', () => {
+      downloadCsvFile(`retention-${button.dataset.retentionExportYear}.csv`, retentionYearCsv(state.customers, button.dataset.retentionExportYear));
+    }));
+  }
   $('#customerCount').textContent = selectedServiceFilter === 'all' && selectedBillingFilter === 'all' && customerAreaFilter === 'all' && active.length === activeTotal ? activeTotal : `${active.length}/${activeTotal}`;
   $('#archivedCustomerCount').textContent = archived.length === archivedTotal ? archivedTotal : `${archived.length}/${archivedTotal}`;
   $('#welcomeCount').textContent = state.customers.filter(customer => !customer.archived).length;
@@ -7460,7 +7492,25 @@ $('#customerNextPage')?.addEventListener('click', () => {
 $('#customerPageSize')?.addEventListener('change', event => {
   customerPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value);
   customerCurrentPage = 1;
+  archivedCurrentPage = 1;
   renderCustomers();
+});
+// Plan Y: archived pagination is independent — these buttons move only
+// the archived page. Unarchive buttons on the paged rows keep working
+// because renderCustomers attaches them to whatever page is shown.
+$('#archivedPrevPage')?.addEventListener('click', () => {
+  if (archivedCurrentPage > 1) {
+    archivedCurrentPage--;
+    renderCustomers();
+    const panel = $('#archivedCustomersPanel');
+    if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+$('#archivedNextPage')?.addEventListener('click', () => {
+  archivedCurrentPage++;
+  renderCustomers();
+  const panel = $('#archivedCustomersPanel');
+  if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 document.querySelectorAll('[data-sort-cust]').forEach(th => {
   th.addEventListener('keydown', event => {

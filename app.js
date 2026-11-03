@@ -239,6 +239,7 @@ import { buildPendingInstallationQueue, findPromisedInstallDate, upsertPromisedI
 import { normalizeTicketList, createTicket, updateTicketStatus, filterTicketList, sortTicketList, ticketSummary, ticketSummaryText, ticketHtml, ticketCsv, ticketFilename } from './ticket-log.js';
 import { normalizeOutageList, createOutage, openOutageList, outageForTicket, linkTicketToOutage, unlinkTicketFromOutage, updateOutageStatus, resolveOutage, ticketsForOutage, pendingResolutionTickets, buildOutageStatusDraft, outageSummary, outageSummaryText, outageHtml, outageCsv, outageFilename } from './outage-grouping.js';
 import { buildDispatchQueue, reorderDispatchQueue, dispatchQueueSummary, dispatchQueueSummaryText, dispatchQueueHtml, dispatchQueueCsv, dispatchQueueFilename } from './dispatch-queue.js';
+import { normalizeRepeatFaultSettings, buildRepeatFaultFlags, repeatFaultSummary, repeatFaultSummaryText, repeatFaultHtml, repeatFaultCsv, repeatFaultFilename } from './repeat-fault-flag.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -11268,6 +11269,53 @@ function renderDispatchQueue() {
     });
   }
 }
+// Plan 24 (Plan 1-100) — Repeat-fault flag for chronic problems. The
+// flag is computed from the Plan 21 ticket log on every render and
+// is never stored on a ticket, a customer, or any other record, so
+// flagging changes no billing, no priority rule, and no customer
+// status. Only the operator's threshold/window settings live in
+// their own localStorage store; an invalid pair falls back to the
+// module defaults (3 tickets in 60 days) as a whole.
+const REPEAT_FAULT_SETTINGS_KEY = 'shahdara_repeat_fault_settings_v1';
+let repeatFaultBound = false;
+function loadRepeatFaultSettings() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(REPEAT_FAULT_SETTINGS_KEY) || '{}');
+    return normalizeRepeatFaultSettings(parsed && typeof parsed === 'object' ? parsed : {});
+  } catch { return normalizeRepeatFaultSettings({}); }
+}
+function saveRepeatFaultSettings(settings) {
+  try { localStorage.setItem(REPEAT_FAULT_SETTINGS_KEY, JSON.stringify(normalizeRepeatFaultSettings(settings))); } catch {}
+}
+function currentRepeatFaultFlags() {
+  return buildRepeatFaultFlags(ticketLogJoinedRows(), { ...loadRepeatFaultSettings(), today: localDate() });
+}
+function renderRepeatFaultFlags() {
+  const bodyEl = $('#repeatFaultBody');
+  if (!bodyEl) return;
+  const flags = currentRepeatFaultFlags();
+  bodyEl.innerHTML = repeatFaultHtml(flags);
+  const summaryEl = $('#repeatFaultSummary');
+  if (summaryEl) summaryEl.textContent = repeatFaultSummaryText(repeatFaultSummary(flags));
+  const settings = loadRepeatFaultSettings();
+  const thresholdEl = $('#repeatFaultThreshold');
+  if (thresholdEl && document.activeElement !== thresholdEl) thresholdEl.value = String(settings.threshold);
+  const windowEl = $('#repeatFaultWindow');
+  if (windowEl && document.activeElement !== windowEl) windowEl.value = String(settings.windowDays);
+  if (!repeatFaultBound) {
+    repeatFaultBound = true;
+    $('#repeatFaultExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(repeatFaultFilename(), repeatFaultCsv(currentRepeatFaultFlags()));
+    });
+    $('#repeatFaultSaveBtn')?.addEventListener('click', () => {
+      saveRepeatFaultSettings({
+        threshold: Number($('#repeatFaultThreshold')?.value),
+        windowDays: Number($('#repeatFaultWindow')?.value),
+      });
+      renderRepeatFaultFlags();
+    });
+  }
+}
 // Plan 17 (Plan 1-100) — Port and device assignment register. Records
 // live in their own localStorage store, apart from every billing,
 // payment, PPPoE and identity record, so saving or swapping a device
@@ -11463,6 +11511,7 @@ function renderAnalytics() {
   renderTicketLog();
   renderOutageGrouping();
   renderDispatchQueue();
+  renderRepeatFaultFlags();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

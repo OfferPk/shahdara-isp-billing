@@ -23,6 +23,13 @@
  *   only renders the button; it never wires its own listener.
  * - This module reads and writes NO ledger data. It imports only
  *   nav-language.js (no cycle risk: nav-language imports nothing here).
+ *
+ * Plan W — Operator handbook: the registry now covers every primary
+ * flow (add, collect, void, correct, Waada, kist payoff, backup /
+ * restore), and the same dialog doubles as a searchable index:
+ * searchHelpTopics filters by title/body text, openHandbookIndex
+ * lists every topic with a live search box, and each index row is a
+ * data-help button that opens its single-page guide.
  */
 
 import { t } from './nav-language.js';
@@ -31,6 +38,10 @@ export const HELP_DIALOG_ID = 'helpGuideDialog';
 export const HELP_TITLE_ID = 'helpGuideTitle';
 export const HELP_BODY_ID = 'helpGuideBody';
 export const HELP_CLOSE_ID = 'helpGuideCloseBtn';
+// Plan W — the searchable handbook index inside the same dialog.
+export const HELP_INDEX_ID = 'helpGuideIndex';
+export const HELP_SEARCH_ID = 'helpGuideSearch';
+export const HELP_INDEX_LIST_ID = 'helpGuideIndexList';
 
 /**
  * The topic registry. Keys are the values used in data-help="…"
@@ -68,6 +79,16 @@ export const HELP_TOPICS = Object.freeze({
   revenue_leak: { titleKey: 'help_revenue_leak_title', bodyKey: 'help_revenue_leak_body' },
   loyalty: { titleKey: 'help_loyalty_title', bodyKey: 'help_loyalty_body' },
   additional_pending: { titleKey: 'help_additional_pending_title', bodyKey: 'help_additional_pending_body' },
+  // Plan W — Operator handbook: the primary flows. Waada and the general
+  // kist plan already had topics; these six close the remaining gaps so
+  // every primary flow (add, collect, void, correct, kist payoff,
+  // backup/restore) has a findable page on its own screen.
+  add_customer: { titleKey: 'help_add_customer_title', bodyKey: 'help_add_customer_body' },
+  collect_payment: { titleKey: 'help_collect_payment_title', bodyKey: 'help_collect_payment_body' },
+  void_payment: { titleKey: 'help_void_payment_title', bodyKey: 'help_void_payment_body' },
+  correct_payment: { titleKey: 'help_correct_payment_title', bodyKey: 'help_correct_payment_body' },
+  kist_payoff: { titleKey: 'help_kist_payoff_title', bodyKey: 'help_kist_payoff_body' },
+  backup_restore: { titleKey: 'help_backup_restore_title', bodyKey: 'help_backup_restore_body' },
 });
 
 /** All registered topic keys, in registry order. */
@@ -95,6 +116,106 @@ export function helpTopicContent(topicKey, lang = null) {
   return { title: t(topic.titleKey, lang), body: t(topic.bodyKey, lang) };
 }
 
+/**
+ * Plan W — searchable handbook. Every token of the query must appear in
+ * the topic's title or body (case-insensitive); an empty query lists
+ * every topic in registry order. Pure over the dictionary strings, so
+ * it is testable without a DOM.
+ */
+export function searchHelpTopics(query, lang = null) {
+  const tokens = String(query ?? '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  return HELP_TOPIC_KEYS.map((key) => ({ key, ...helpTopicContent(key, lang) })).filter(
+    ({ title, body }) => {
+      if (!tokens.length) return true;
+      const haystack = `${title} ${body}`.toLowerCase();
+      return tokens.every((token) => haystack.includes(token));
+    },
+  );
+}
+
+function escapeHelpHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Plan W — handbook index list markup for search results. Titles are
+ * escaped; each row is a data-help button, so the existing delegated
+ * click handler opens its topic (which restores the single-page view).
+ */
+export function handbookIndexListHtml(results) {
+  if (!results.length) return `<p class="help-guide-empty">${escapeHelpHtml(t('help_handbook_empty'))}</p>`;
+  return results
+    .map(
+      ({ key, title }) =>
+        `<button class="help-index-row" type="button" data-help="${escapeHelpHtml(key)}">${escapeHelpHtml(title)}</button>`,
+    )
+    .join('');
+}
+
+function showHelpBodyView(root) {
+  const bodyEl = root.getElementById(HELP_BODY_ID);
+  const indexEl = root.getElementById(HELP_INDEX_ID);
+  if (bodyEl && typeof bodyEl.removeAttribute === 'function') bodyEl.removeAttribute('hidden');
+  else if (bodyEl) bodyEl.hidden = false;
+  if (indexEl) indexEl.hidden = true;
+}
+
+function showHelpIndexView(root) {
+  const bodyEl = root.getElementById(HELP_BODY_ID);
+  const indexEl = root.getElementById(HELP_INDEX_ID);
+  if (bodyEl) bodyEl.hidden = true;
+  if (indexEl && typeof indexEl.removeAttribute === 'function') indexEl.removeAttribute('hidden');
+  else if (indexEl) indexEl.hidden = false;
+}
+
+/** Plan W — render the index list for a query; -1 when the dialog is absent. */
+export function renderHandbookIndex(doc, query = '') {
+  const root = resolveDocument(doc);
+  if (!root || typeof root.getElementById !== 'function') return -1;
+  const listEl = root.getElementById(HELP_INDEX_LIST_ID);
+  if (!listEl) return -1;
+  const results = searchHelpTopics(query);
+  listEl.innerHTML = handbookIndexListHtml(results);
+  return results.length;
+}
+
+function showHelpDialog(root) {
+  const dialog = root.getElementById(HELP_DIALOG_ID);
+  if (!dialog) return false;
+  if (typeof dialog.showModal === 'function') {
+    if (!dialog.open) dialog.showModal();
+  } else {
+    dialog.hidden = false;
+  }
+  return true;
+}
+
+/**
+ * Plan W — open the handbook index: the dialog title, a search box and
+ * the full topic list (filtered live by the search box). Returns false
+ * when the dialog is absent.
+ */
+export function openHandbookIndex(doc = null) {
+  const root = resolveDocument(doc);
+  if (!root || typeof root.getElementById !== 'function') return false;
+  const dialog = root.getElementById(HELP_DIALOG_ID);
+  if (!dialog) return false;
+  const titleEl = root.getElementById(HELP_TITLE_ID);
+  if (titleEl) titleEl.textContent = t('help_handbook_title');
+  showHelpIndexView(root);
+  renderHandbookIndex(root, '');
+  const searchEl = root.getElementById(HELP_SEARCH_ID);
+  if (searchEl) searchEl.value = '';
+  return showHelpDialog(root);
+}
+
 function resolveDocument(doc) {
   if (doc) return doc;
   return typeof document !== 'undefined' ? document : null;
@@ -115,12 +236,9 @@ export function openHelpTopic(topicKey, doc = null) {
   const bodyEl = root.getElementById(HELP_BODY_ID);
   if (titleEl) titleEl.textContent = content.title;
   if (bodyEl) bodyEl.textContent = content.body;
-  if (typeof dialog.showModal === 'function') {
-    if (!dialog.open) dialog.showModal();
-  } else {
-    dialog.hidden = false;
-  }
-  return true;
+  // Plan W: a topic opened from the index restores the single-page view.
+  showHelpBodyView(root);
+  return showHelpDialog(root);
 }
 
 /** Close the shared guide popup (no-op when it is not open). */
@@ -131,6 +249,9 @@ export function closeHelpGuide(doc = null) {
   if (!dialog) return false;
   if (typeof dialog.close === 'function') dialog.close();
   else dialog.hidden = true;
+  // Plan W: closing resets the dialog to the single-page view, so the
+  // next open never lands on a stale search list.
+  showHelpBodyView(root);
   return true;
 }
 
@@ -147,6 +268,17 @@ export function initHelpGuides(doc = null) {
   if (!root || helpGuidesWired) return false;
   if (typeof root.addEventListener !== 'function') return false;
   helpGuidesWired = true;
+  // Plan W: the header handbook button opens the searchable index, and
+  // typing in the index search box re-renders the list live.
+  const handbookBtn = typeof root.getElementById === 'function' ? root.getElementById('handbookButton') : null;
+  if (handbookBtn && typeof handbookBtn.addEventListener === 'function') {
+    handbookBtn.addEventListener('click', () => openHandbookIndex(root));
+  }
+  root.addEventListener('input', (event) => {
+    const target = event && event.target;
+    if (!target || target.id !== HELP_SEARCH_ID) return;
+    renderHandbookIndex(root, target.value || '');
+  });
   root.addEventListener('click', (event) => {
     const target = event && event.target;
     if (!target || typeof target.closest !== 'function') return;

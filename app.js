@@ -237,6 +237,7 @@ import { CONTACT_PREFERENCE_LANGUAGES, normalizeContactPreferences, findContactP
 import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickOnboardingStep, findOnboardingTicks, upsertOnboardingChecklist, buildOnboardingEntry, onboardingSummaryText, onboardingChecklistHtml, onboardingPendingHtml, onboardingChecklistCsv } from './onboarding-checklist.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
+import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -4069,6 +4070,20 @@ function loadFirstBillPreviews() {
 function saveFirstBillPreviews(list) {
   try { localStorage.setItem(FIRST_BILL_PREVIEWS_KEY, JSON.stringify(list)); } catch {}
 }
+
+// Plan 19 (Plan 1-100) — Welcome pack send log. It lives in its own
+// localStorage store, apart from every bill, payment, Waada, and
+// lifecycle record, so sending a welcome draft changes no record.
+const WELCOME_PACK_SENT_LOG_KEY = 'shahdara_welcome_pack_sent_log_v1';
+function loadWelcomePackSentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WELCOME_PACK_SENT_LOG_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveWelcomePackSentLog(log) {
+  try { localStorage.setItem(WELCOME_PACK_SENT_LOG_KEY, JSON.stringify(log)); } catch {}
+}
 function renderCustomerProfileView(customer) {
   const phone = String(customer.phone ?? '').trim();
   const cnic = String(customer.cnic ?? '').trim();
@@ -4317,7 +4332,27 @@ function renderCustomerProfileView(customer) {
   const firstBillPreviewDefaultDate = customer.connectionDate || localDate();
   const firstBillPreviewInitial = previewFromCustomer(customer, { startDate: firstBillPreviewDefaultDate });
   const firstBillPreviewSectionHtml = `<section class="profile-custody-section" aria-label="First-bill preview"><h4>First-bill preview</h4><p>Show the new customer this first bill before activation — installation fee, first-period charge and deposit — so nothing arrives as a surprise. This preview creates no bill; the first bill is only raised by the normal billing flow.</p>${(customer.bills ?? []).length > 0 ? `<p>This customer already has bills — this preview is for before the first bill, so use it for the next new connection instead.</p>` : ''}<p id="firstBillPreviewShown">${escapeHtml(firstBillPreviewShownText(firstBillPreviewShownEntry))}</p><div><label>Start date <input id="firstBillPreviewStartDate" type="date" value="${escapeHtml(firstBillPreviewDefaultDate)}"></label> <label>First period <select id="firstBillPreviewMode"><option value="auto">By start date (1st = full month, later = pro-rata)</option><option value="full">Full month</option><option value="prorata">Pro-rata</option></select></label> <button type="button" class="secondary-button" id="firstBillPreviewShowBtn">Show preview</button></div><div id="firstBillPreviewResult">${firstBillPreviewHtml(firstBillPreviewInitial, formatAmount)}</div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  // Plan 19 (Plan 1-100) — Welcome pack draft on the profile. The
+  // draft is built from this profile's own package, monthly amount,
+  // and latest bill due date; with no bill yet, the billing cycle's
+  // `${month}-05` rule supplies the due-day (5th of every month)
+  // instead of a specific date that does not exist yet. Variant and
+  // recipient follow Plan 15 contact preferences; a do-not-message
+  // customer never gets a send button that works. Sending opens the
+  // existing WhatsApp route and logs (time, channel) only — it
+  // changes no bill, payment, Waada, or lifecycle record.
+  const welcomePackPref = findContactPreference(loadContactPreferences(), customer.id);
+  let welcomePackSupport = '';
+  try { welcomePackSupport = getDigitalPaymentsSettings()?.ownerPhone || ''; } catch {}
+  if (!welcomePackSupport) { try { welcomePackSupport = localStorage.getItem('shahdara_owner_whatsapp_phone') || ''; } catch {} }
+  const welcomePack = welcomePackFromCustomer(customer, { dueDay: 5, paymentMethods: PAYMENT_METHODS, supportContact: welcomePackSupport });
+  const welcomePackVariant = welcomePackPref && welcomePackPref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? WELCOME_PACK_VARIANTS.URDU : WELCOME_PACK_VARIANTS.ROMAN;
+  const welcomePackDraft = buildWelcomePackDraft(welcomePack, welcomePackVariant);
+  const welcomePackSends = findWelcomePackSends(loadWelcomePackSentLog(), customer.id);
+  const welcomePackSendDisabled = Boolean(welcomePackPref && welcomePackPref.doNotMessage) || welcomePack.status !== 'ready';
+  const welcomePackSendLabel = welcomePackPref && welcomePackPref.doNotMessage ? 'Do not message' : welcomePack.status !== 'ready' ? 'Complete the profile first' : (welcomePackSends.length > 0 ? 'Re-send welcome pack' : 'Send welcome pack');
+  const welcomePackSectionHtml = `<section class="profile-custody-section" aria-label="Welcome pack"><h4>Welcome pack</h4><p>Send this once at activation, so a new customer knows the package, monthly amount, due date, payment methods, and support contact from day one — and can re-send it from here any time after. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, Waada, or lifecycle record.</p>${welcomePackHtml(welcomePack, { draftText: welcomePackDraft.text, sends: welcomePackSends })}<button type="button" class="secondary-button" id="welcomePackSendBtn" ${welcomePackSendDisabled ? 'disabled' : ''}>${escapeHtml(welcomePackSendLabel)}</button></section>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${welcomePackSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4338,6 +4373,33 @@ function renderCustomerProfileView(customer) {
       const shownEl = $('#customerProfileView').querySelector('#firstBillPreviewShown');
       if (shownEl) shownEl.textContent = firstBillPreviewShownText(findFirstBillPreviewShown(loadFirstBillPreviews(), customer.id));
     }
+  });
+  $('#customerProfileView').querySelector('#welcomePackSendBtn')?.addEventListener('click', (event) => {
+    const sendBtn = event.currentTarget;
+    const pref = findContactPreference(loadContactPreferences(), customer.id);
+    if (pref && pref.doNotMessage) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Do not message';
+      return;
+    }
+    const pack = welcomePackFromCustomer(customer, { dueDay: 5, paymentMethods: PAYMENT_METHODS, supportContact: welcomePackSupport });
+    if (pack.status !== 'ready') {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Complete the profile first';
+      return;
+    }
+    const variant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? WELCOME_PACK_VARIANTS.URDU : WELCOME_PACK_VARIANTS.ROMAN;
+    const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), buildWelcomePackDraft(pack, variant).text);
+    if (!wa.validPhone || !wa.url) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'No WhatsApp number';
+      return;
+    }
+    window.open(wa.url, '_blank', 'noopener,noreferrer');
+    saveWelcomePackSentLog(logWelcomePackSent(loadWelcomePackSentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant }));
+    const sentEl = $('#customerProfileView').querySelector('#welcomePackSent');
+    if (sentEl) sentEl.textContent = welcomePackSentText(findWelcomePackSends(loadWelcomePackSentLog(), customer.id));
+    sendBtn.textContent = 'Re-send welcome pack';
   });
   $('#customerProfileView').querySelector('#profileWelcomeSlipButton')?.addEventListener('click', () => openWelcomeSlip(customer));
   // SISP-65: [🔊 Speak Due] on the profile heading — speaks the

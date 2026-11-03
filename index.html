@@ -23649,6 +23649,20 @@
         <div id="walletLedgerDuplicates" class="wallet-ledger-duplicates"></div>
         <h3>Digital payments</h3>
         <div id="walletLedgerPaymentList" class="wallet-ledger-payment-list"></div>
+        <h3>Reconciliation view</h3>
+        <p class="wallet-ledger-intro">One list of what still needs action: matched, unmatched, disputed, inbox and suspense entries, each with the action it needs. Figures come from the ledger above — nothing here changes a record.</p>
+        <label for="walletLedgerReconFilter">Show</label>
+        <select id="walletLedgerReconFilter" class="form-input" aria-label="Filter reconciliation view by bucket">
+          <option value="All">All buckets</option>
+          <option value="matched">Matched — verified in statement</option>
+          <option value="unmatched">Unmatched — pending screenshot verification</option>
+          <option value="disputed">Disputed — duplicate transaction ID</option>
+          <option value="inbox-review">Inbox — needs review</option>
+          <option value="inbox-unrecorded">Inbox — unrecorded</option>
+          <option value="suspense-recorded">Suspense — already recorded</option>
+          <option value="suspense-unclaimed">Suspense — unclaimed</option>
+        </select>
+        <div id="walletLedgerReconView" class="wallet-ledger-recon-view"></div>
         <button id="walletLedgerCopyBtn" class="secondary-button" type="button">📋 Copy wallet summary</button>
       </div>
     </div>

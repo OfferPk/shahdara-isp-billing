@@ -173,6 +173,7 @@ import { setupDailyClosingModal, calculateCollectorCashExpected, getDailyCashHan
 import { buildFieldDayFlow, preserveFieldDayView, restoreFieldDayView, fieldDayFlowStripHtml } from './field-day-flow.js';
 import { buildAreaOperationsView, areaOperationsViewHtml } from './area-operations.js';
 import { buildLifecycleJourney, lifecycleJourneyHtml } from './lifecycle-journey.js';
+import { buildWalletReconView, walletReconViewHtml } from './wallet-recon-view.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
@@ -14634,9 +14635,30 @@ if (typeof document !== 'undefined') {
     let month = pakistanMonthNow();
     let methodFilter = 'All';
     let verificationFilter = 'All';
+    let reconBucketFilter = 'All';
 
     function render() {
       const report = buildWalletReconciliation(state.customers, month, loadShopSettlements());
+      // Plan V: one reconciliation view — display only. Inbox items are
+      // read from the inbox module's own storage key (read-only here;
+      // the inbox module itself is a separate script and is not imported,
+      // so its DOM setup never runs twice).
+      const reconEl = $('walletLedgerReconView');
+      if (reconEl) {
+        let inboxItems = [];
+        try {
+          const parsed = JSON.parse(localStorage.getItem('easypaisaInbox.items') || '[]');
+          inboxItems = Array.isArray(parsed) ? parsed : [];
+        } catch { inboxItems = []; }
+        const reconView = buildWalletReconView({
+          report,
+          customers: state.customers,
+          inboxItems,
+          suspenseEntries: loadSuspensePayments(),
+          settings: getDigitalPaymentsSettings()
+        });
+        reconEl.innerHTML = walletReconViewHtml(reconView, { bucketFilter: reconBucketFilter });
+      }
       const summaryEl = $('walletLedgerSummaryLine');
       if (summaryEl) {
         summaryEl.textContent = report.digitalCount === 0
@@ -14675,6 +14697,8 @@ if (typeof document !== 'undefined') {
     if (methodSelect) methodSelect.addEventListener('change', () => { methodFilter = methodSelect.value; render(); });
     const verificationSelect = $('walletLedgerVerificationFilter');
     if (verificationSelect) verificationSelect.addEventListener('change', () => { verificationFilter = verificationSelect.value; render(); });
+    const reconSelect = $('walletLedgerReconFilter');
+    if (reconSelect) reconSelect.addEventListener('change', () => { reconBucketFilter = reconSelect.value; render(); });
     const closeBtn = $('walletLedgerCloseBtn');
     if (closeBtn) closeBtn.addEventListener('click', () => dialog.close());
     const openBtn = document.getElementById('openWalletLedgerModalBtn');

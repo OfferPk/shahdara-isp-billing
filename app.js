@@ -235,6 +235,7 @@ import { buildPaymentConfirmationList, logConfirmationSent, paymentConfirmationS
 import { BROADCAST_TEMPLATE_KINDS, BROADCAST_DRAFT_VARIANTS, buildBroadcastMohallaOptions, normalizeBroadcastTemplates, buildBroadcastDraft, broadcastWhatsAppUrl, logBroadcastSent, broadcastSummaryText, broadcastFilename, broadcastHtml, broadcastCsv } from './mohalla-broadcast.js';
 import { CONTACT_PREFERENCE_LANGUAGES, normalizeContactPreferences, findContactPreference, upsertContactPreference, removeContactPreference, contactPreferencesSummaryText, contactPreferenceHtml, contactPreferenceCsv } from './contact-preferences.js';
 import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickOnboardingStep, findOnboardingTicks, upsertOnboardingChecklist, buildOnboardingEntry, onboardingSummaryText, onboardingChecklistHtml, onboardingPendingHtml, onboardingChecklistCsv } from './onboarding-checklist.js';
+import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -10745,6 +10746,131 @@ function renderOnboardingChecklists() {
     });
   }
 }
+// Plan 17 (Plan 1-100) — Port and device assignment register. Records
+// live in their own localStorage store, apart from every billing,
+// payment, PPPoE and identity record, so saving or swapping a device
+// changes no money, no credential and no search index. This is a
+// manual register only: nothing here polls live hardware.
+const CONNECTION_REGISTER_KEY = 'shahdara_connection_register_v1';
+const CONNECTION_PORT_TOTALS_KEY = 'shahdara_connection_port_totals_v1';
+let oltOnuRegisterBound = false;
+function loadOltOnuRegister() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CONNECTION_REGISTER_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveOltOnuRegister(list) {
+  try { localStorage.setItem(CONNECTION_REGISTER_KEY, JSON.stringify(list)); } catch {}
+}
+function loadOltOnuPortTotals() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CONNECTION_PORT_TOTALS_KEY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch { return {}; }
+}
+function saveOltOnuPortTotals(obj) {
+  try { localStorage.setItem(CONNECTION_PORT_TOTALS_KEY, JSON.stringify(obj)); } catch {}
+}
+function parseOltOnuPortTotals(text) {
+  const totals = {};
+  for (const part of String(text ?? '').split(/[,;]/)) {
+    const [oltId, total] = part.split(':').map((s) => (s ?? '').trim());
+    const n = Number(total);
+    if (oltId && Number.isInteger(n) && n > 0) totals[oltId] = n;
+  }
+  return totals;
+}
+function renderOltOnuRegister() {
+  const bodyEl = $('#oltOnuRegisterBody');
+  if (!bodyEl) return;
+  const active = (state.customers ?? []).filter((c) => !c.archived);
+  const reg = buildConnectionRegister(loadOltOnuRegister(), active.map((c) => c.id));
+  const portRegister = buildPortRegister(reg.records, loadOltOnuPortTotals());
+  bodyEl.innerHTML = connectionRegisterHtml(portRegister, reg.records);
+  const summaryEl = $('#oltOnuRegisterSummary');
+  if (summaryEl) summaryEl.textContent = connectionSummaryText(reg.records, portRegister);
+  const selectEl = $('#oltOnuRegisterCustomer');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = active.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.customerName || c.name || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const totalsEl = $('#oltOnuRegisterTotals');
+  if (totalsEl && document.activeElement !== totalsEl) {
+    totalsEl.value = Object.entries(loadOltOnuPortTotals()).map(([oltId, total]) => `${oltId}:${total}`).join(', ');
+  }
+  if (!oltOnuRegisterBound) {
+    oltOnuRegisterBound = true;
+    const selectedCustomer = () => active.find((c) => c.id === $('#oltOnuRegisterCustomer')?.value);
+    const persist = (upserted, excluded) => {
+      saveOltOnuRegister([...upserted, ...excluded]);
+      renderOltOnuRegister();
+    };
+    const warnEl = () => $('#oltOnuRegisterWarning');
+    $('#oltOnuRegisterSaveBtn')?.addEventListener('click', () => {
+      const customer = selectedCustomer();
+      if (!customer) return;
+      const stored = loadOltOnuRegister();
+      const current = buildConnectionRegister(stored, active.map((c) => c.id));
+      const existing = current.records.find((r) => r.customerId === customer.id);
+      const record = normalizeConnectionRecord({
+        customerId: customer.id,
+        customerName: customer.customerName || customer.name || '',
+        oltId: $('#oltOnuRegisterOlt')?.value ?? '',
+        ponPort: $('#oltOnuRegisterPonPort')?.value ?? '',
+        splitter: $('#oltOnuRegisterSplitter')?.value ?? '',
+        onuSerial: $('#oltOnuRegisterOnu')?.value ?? '',
+        installDate: $('#oltOnuRegisterInstallDate')?.value ?? '',
+        onuHistory: existing?.onuHistory ?? [],
+      });
+      if (!record) return;
+      const { records, clash } = upsertConnectionRecord(current.records, record);
+      if (warnEl()) {
+        warnEl().textContent = clash
+          ? `⚠️ Port ${clash.ponPort} is already held by ${clash.customerName || clash.customerId} — this record was saved with the warning; check before assigning that port again.`
+          : '';
+      }
+      persist(records, current.excluded);
+    });
+    $('#oltOnuRegisterSwapBtn')?.addEventListener('click', () => {
+      const customer = selectedCustomer();
+      if (!customer) return;
+      const current = buildConnectionRegister(loadOltOnuRegister(), active.map((c) => c.id));
+      const existing = current.records.find((r) => r.customerId === customer.id);
+      if (!existing) {
+        if (warnEl()) warnEl().textContent = 'Save a connection record for this customer first, then swap its ONU.';
+        return;
+      }
+      const next = swapOnu(existing, $('#oltOnuRegisterSwapSerial')?.value ?? '', {
+        replacedAt: $('#oltOnuRegisterSwapDate')?.value ?? '',
+        note: $('#oltOnuRegisterSwapNote')?.value ?? '',
+      });
+      if (!next) return;
+      const { records } = upsertConnectionRecord(current.records, next);
+      if (warnEl()) warnEl().textContent = '';
+      persist(records, current.excluded);
+    });
+    $('#oltOnuRegisterRemoveBtn')?.addEventListener('click', () => {
+      const customer = selectedCustomer();
+      if (!customer) return;
+      const stored = loadOltOnuRegister();
+      saveOltOnuRegister(stored.filter((raw) => {
+        const id = typeof raw?.customerId === 'string' ? raw.customerId.trim() : (typeof raw?.id === 'string' ? raw.id.trim() : '');
+        return id !== customer.id;
+      }));
+      if (warnEl()) warnEl().textContent = '';
+      renderOltOnuRegister();
+    });
+    $('#oltOnuRegisterSaveTotalsBtn')?.addEventListener('click', () => {
+      saveOltOnuPortTotals(parseOltOnuPortTotals($('#oltOnuRegisterTotals')?.value ?? ''));
+      renderOltOnuRegister();
+    });
+    $('#oltOnuRegisterExportBtn')?.addEventListener('click', () => {
+      const current = buildConnectionRegister(loadOltOnuRegister(), active.map((c) => c.id));
+      downloadCsvFile('connection-register.csv', connectionRegisterCsv(current.records));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10811,6 +10937,7 @@ function renderAnalytics() {
   renderMohallaBroadcast();
   renderContactPreferences();
   renderOnboardingChecklists();
+  renderOltOnuRegister();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

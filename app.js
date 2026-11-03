@@ -250,6 +250,7 @@ import { AUDIT_ACTIONS, appendAuditEntry, normalizeAuditLog, filterAuditEntries,
 import { buildExportPack, exportPackSummaryText, exportPackHtml, exportPackCsv, exportPackJson, exportPackFilename } from './export-pack.js';
 import { normalizeOperatorMode, canPerformAction, viewAccess, requestModeSwitch, applyModeSwitch, operatorModeSummaryText, operatorModeHtml, operatorModeToggleLabel } from './operator-modes.js';
 import { normalizePriceRevision, normalizePriceHistory, recordPriceRevision, priceHistoryForPackage, priceOnDate, priceHistorySummaryText, priceHistoryHtml, priceHistoryCsv, priceHistoryFilename } from './package-price-history.js';
+import { buildTransferPack, transferPackText, transferPackFilename, verifyTransferPack, decideTransferApply, transferPackSummaryText, transferPackHtml } from './transfer-pack.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -12260,6 +12261,59 @@ function renderPriceHistory() {
     });
   }
 }
+// Plan 35: field-device data transfer pack. The pack is a Plan J backup
+// document with a transfer header — no second format. Downloading a
+// pack is owner-only (same guard as a backup download) and applying
+// one is owner-only (same guard as a backup restore). Apply follows
+// the pure decision exactly: onto an empty device, or a no-change
+// re-apply of an identical ledger; a device holding its own different
+// ledger gets a plain refusal and nothing is written. This apply does
+// not touch the branch-guard record; it is for a fresh device.
+let transferPackBound = false;
+function renderTransferPack() {
+  const bodyEl = $('#transferPackBody');
+  if (!bodyEl) return;
+  const summaryEl = $('#transferPackSummary');
+  if (summaryEl) summaryEl.textContent = 'Download this device’s ledger as a transfer pack, paste a pack on the receiving device, verify it, then apply it. Verification is the gate: a tampered, truncated or count-mismatched pack is refused with a plain reason.';
+  if (!transferPackBound) {
+    transferPackBound = true;
+    $('#transferPackDownloadBtn')?.addEventListener('click', () => {
+      if (collectorBlocked('backup-download')) return;
+      const pack = buildTransferPack(state.customers ?? [], { exportedAt: localDateTime() });
+      downloadJson(transferPackFilename(pack.exportedAt), transferPackText(pack));
+      toast('Transfer pack downloaded. Move this file to the receiving device.');
+    });
+    $('#transferPackVerifyBtn')?.addEventListener('click', () => {
+      const text = $('#transferPackPaste')?.value ?? '';
+      const result = verifyTransferPack(text);
+      bodyEl.innerHTML = transferPackHtml(result);
+      if (summaryEl) summaryEl.textContent = transferPackSummaryText(result);
+    });
+    $('#transferPackApplyBtn')?.addEventListener('click', () => {
+      if (collectorBlocked('backup-restore')) return;
+      const text = $('#transferPackPaste')?.value ?? '';
+      const decision = decideTransferApply(text, state.customers ?? []);
+      if (!decision.allowed) {
+        bodyEl.innerHTML = `<p>${escapeHtml(decision.reason)}</p>`;
+        if (summaryEl) summaryEl.textContent = decision.reason;
+        toast(decision.reason);
+        return;
+      }
+      if (decision.action === 'already-applied') {
+        if (summaryEl) summaryEl.textContent = decision.reason;
+        toast(decision.reason);
+        return;
+      }
+      const nextState = { ...state, customers: decision.customers };
+      persistState(nextState, localStorage);
+      state = nextState;
+      renderStorageWarning(); renderDashboard(); renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); renderDetail();
+      bodyEl.innerHTML = transferPackHtml(verifyTransferPack(text));
+      if (summaryEl) summaryEl.textContent = `Transfer applied: ${decision.counts.customers} customers, ${decision.counts.bills} bills, ${decision.counts.payments} payments now on this device. Spot-check the counts against the sending device.`;
+      toast('Transfer pack applied on this device.');
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -12342,6 +12396,7 @@ function renderAnalytics() {
   renderOperatorModes();
   renderOltOnuRegister();
   renderPriceHistory();
+  renderTransferPack();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

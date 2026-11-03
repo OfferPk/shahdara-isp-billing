@@ -530,6 +530,82 @@ export function setupPaymentFormPolish(doc = document, win = window) {
 
 /* ------------------------- customer section (#293) ------------------------- */
 
+/* ------------------------- Plan B: shell empty states ------------------------- */
+
+// Plan B — one designed empty state per primary list, shared by the shell
+// instead of each screen inventing its own blank page. The specs are data
+// only: the app's own empty messages (e.g. the customer search "no match"
+// note, the transactions "no recorded payments match" note) always win —
+// shouldShowShellEmptyState() suppresses the shell state whenever the app
+// already explains the empty list, so the two messages never double up.
+// Transactions already has its own designed empty element in index.html,
+// so its spec is the contract for that element, not a second rendering.
+export const SHELL_EMPTY_STATES = {
+  customerList: { title: 'No customers yet', message: 'Add your first customer to start billing.', actionLabel: '+ Add Customer', actionTarget: '#addCustomerButton' },
+  archivedCustomerList: { title: 'No archived customers', message: 'Archived profiles appear here when you archive a customer.', actionLabel: null, actionTarget: null },
+  transactionsList: { title: 'No payments yet', message: 'Recorded payments appear here, newest first.', actionLabel: '+ Add Payment', actionTarget: '#quickAddPaymentButton' }
+};
+
+export function shellEmptyStateFor(listId) {
+  return SHELL_EMPTY_STATES[listId] || null;
+}
+
+// Pure Plan B rule: a shell empty state shows only for a visible list
+// with no items, and only when the app is not already showing its own
+// empty explanation for that list.
+export function shouldShowShellEmptyState({ itemCount = 0, listVisible = true, appEmptyNoteVisible = false } = {}) {
+  return Boolean(listVisible) && itemCount === 0 && !appEmptyNoteVisible;
+}
+
+// Build the designed empty state element with textContent only, so no
+// interpolated value can ever become markup. The action, when present,
+// clicks the screen's existing button — it adds no new behaviour.
+export function createShellEmptyState(doc, spec) {
+  const el = doc.createElement('div');
+  el.className = 'shell-empty-state';
+  el.setAttribute('role', 'status');
+  const title = doc.createElement('p');
+  title.className = 'shell-empty-title';
+  title.textContent = spec.title;
+  const message = doc.createElement('p');
+  message.className = 'shell-empty-message';
+  message.textContent = spec.message;
+  el.appendChild(title);
+  el.appendChild(message);
+  if (spec.actionLabel && spec.actionTarget) {
+    const button = doc.createElement('button');
+    button.type = 'button';
+    button.className = 'shell-empty-action primary-button';
+    button.textContent = spec.actionLabel;
+    button.addEventListener('click', () => { doc.querySelector(spec.actionTarget)?.click(); });
+    el.appendChild(button);
+  }
+  return el;
+}
+
+// Keep exactly one shell empty state as a sibling of the list: insert it
+// right after the list when it should show, remove it when it should not.
+// It lives outside the list element on purpose — renderers that replace a
+// list's contents (renderCustomers, renderTransactions) never wipe it,
+// and it never deletes or replaces any app content.
+export function syncShellEmptyState(doc, listEl, spec, shouldShow) {
+  if (!listEl || !listEl.parentNode) return null;
+  const container = listEl.parentNode;
+  let existing = null;
+  for (const child of container.children || []) {
+    if (child.classList && child.classList.contains('shell-empty-state')) { existing = child; break; }
+  }
+  if (!shouldShow) {
+    if (existing && typeof existing.remove === 'function') existing.remove();
+    return null;
+  }
+  if (existing) return existing;
+  const el = createShellEmptyState(doc, spec);
+  if (typeof container.insertBefore === 'function') container.insertBefore(el, listEl.nextSibling || null);
+  else container.appendChild(el);
+  return el;
+}
+
 const DENSITY_KEY = 'shahdara_customer_density';
 export function setupCustomerSection(doc = document, win = window) {
   const list = doc.getElementById('customerList');
@@ -596,8 +672,32 @@ export function setupCustomerSection(doc = document, win = window) {
       if (el.dataset.short !== short) { el.dataset.short = short; el.title = full; }
     });
   };
-  new win.MutationObserver(markUnset).observe(list, { childList: true, subtree: true });
-  markUnset();
+  // Plan B — designed empty states for the roster lists. The observer
+  // re-syncs on every roster render, so the state follows the list instead
+  // of going stale; the archived list gets its own observer because the
+  // roster render fills it separately from the active list.
+  const syncRosterEmptyStates = () => {
+    const noSearch = doc.getElementById('noSearchResults');
+    const appNoteVisible = Boolean(noSearch && !noSearch.hidden);
+    syncShellEmptyState(doc, list, shellEmptyStateFor('customerList'), shouldShowShellEmptyState({
+      itemCount: list.querySelectorAll('[data-customer-id]').length,
+      listVisible: !list.hidden,
+      appEmptyNoteVisible: appNoteVisible
+    }));
+    const archived = doc.getElementById('archivedCustomerList');
+    if (archived) syncShellEmptyState(doc, archived, shellEmptyStateFor('archivedCustomerList'), shouldShowShellEmptyState({
+      itemCount: archived.querySelectorAll('[data-customer-id]').length,
+      listVisible: !archived.hidden,
+      appEmptyNoteVisible: false
+    }));
+  };
+  const refreshRoster = () => { markUnset(); syncRosterEmptyStates(); };
+  if (typeof win.MutationObserver === 'function') {
+    new win.MutationObserver(refreshRoster).observe(list, { childList: true, subtree: true });
+    const archivedEl = doc.getElementById('archivedCustomerList');
+    if (archivedEl) new win.MutationObserver(refreshRoster).observe(archivedEl, { childList: true, subtree: true });
+  }
+  refreshRoster();
   apply();
   return { apply };
 }

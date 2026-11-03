@@ -240,6 +240,7 @@ import { normalizeTicketList, createTicket, updateTicketStatus, filterTicketList
 import { normalizeOutageList, createOutage, openOutageList, outageForTicket, linkTicketToOutage, unlinkTicketFromOutage, updateOutageStatus, resolveOutage, ticketsForOutage, pendingResolutionTickets, buildOutageStatusDraft, outageSummary, outageSummaryText, outageHtml, outageCsv, outageFilename } from './outage-grouping.js';
 import { buildDispatchQueue, reorderDispatchQueue, dispatchQueueSummary, dispatchQueueSummaryText, dispatchQueueHtml, dispatchQueueCsv, dispatchQueueFilename } from './dispatch-queue.js';
 import { normalizeRepeatFaultSettings, buildRepeatFaultFlags, repeatFaultSummary, repeatFaultSummaryText, repeatFaultHtml, repeatFaultCsv, repeatFaultFilename } from './repeat-fault-flag.js';
+import { RESOLUTION_CONFIRMATION_VARIANTS, RESOLUTION_DEFAULT_WINDOW_DAYS, normalizeReopenWindowDays, normalizeResolutionList, recordResolution, normalizeFollowUpLinkList, recordFollowUpLink, reopenResolvedTicket, createFollowUpTicketInput, buildConfirmationRows, buildConfirmationDraft, confirmationSummary, confirmationSummaryText, confirmationHtml, confirmationCsv, confirmationFilename } from './resolution-confirmation.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -11316,6 +11317,155 @@ function renderRepeatFaultFlags() {
     });
   }
 }
+// Plan 25 (Plan 1-100) — Post-resolution confirmation draft and reopen
+// window. Resolution dates and follow-up links live in their own
+// localStorage stores, apart from every bill, payment, lifecycle,
+// connection and visit record. A reopen inside the window changes
+// only the matched ticket's status through the Plan 21 ticket log;
+// past the window the old ticket is left exactly as it is and a new
+// ticket is created, linked to the old one. The draft is prepared
+// for the operator to send through the existing WhatsApp route —
+// nothing is sent automatically, and a do-not-message customer
+// never gets a send button that works.
+const RESOLUTION_RECORDS_KEY = 'shahdara_resolution_records_v1';
+const RESOLUTION_FOLLOWUP_LINKS_KEY = 'shahdara_resolution_followup_links_v1';
+const RESOLUTION_WINDOW_KEY = 'shahdara_resolution_window_v1';
+let resolutionConfirmationBound = false;
+function loadResolutionRecords() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RESOLUTION_RECORDS_KEY) || '[]');
+    return normalizeResolutionList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveResolutionRecords(list) {
+  try { localStorage.setItem(RESOLUTION_RECORDS_KEY, JSON.stringify(normalizeResolutionList(list))); } catch {}
+}
+function loadFollowUpLinks() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RESOLUTION_FOLLOWUP_LINKS_KEY) || '[]');
+    return normalizeFollowUpLinkList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveFollowUpLinks(list) {
+  try { localStorage.setItem(RESOLUTION_FOLLOWUP_LINKS_KEY, JSON.stringify(normalizeFollowUpLinkList(list))); } catch {}
+}
+function loadReopenWindowDays() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RESOLUTION_WINDOW_KEY) || '{}');
+    return normalizeReopenWindowDays(parsed && typeof parsed === 'object' ? parsed.windowDays : undefined);
+  } catch { return RESOLUTION_DEFAULT_WINDOW_DAYS; }
+}
+function saveReopenWindowDays(days) {
+  try { localStorage.setItem(RESOLUTION_WINDOW_KEY, JSON.stringify({ windowDays: normalizeReopenWindowDays(days) })); } catch {}
+}
+// First-seen resolution dates: Plan 21 ticket rows carry no resolved
+// date, so the first render that sees a ticket resolved records
+// today as its resolution date. That date is never moved afterwards,
+// so the window is anchored at the first resolution, not reset by
+// re-rendering. A ticket resolved before this panel existed is
+// dated from its first sighting here, and the panel says so.
+function syncedResolutionRecords() {
+  let records = loadResolutionRecords();
+  const today = localDate();
+  let changed = false;
+  for (const ticket of ticketLogJoinedRows()) {
+    if (ticket.status !== 'resolved') continue;
+    const before = records.length;
+    records = recordResolution(records, ticket.id, today);
+    if (records.length !== before) changed = true;
+  }
+  if (changed) saveResolutionRecords(records);
+  return records;
+}
+function currentConfirmationRows() {
+  const records = syncedResolutionRecords();
+  const windowDays = loadReopenWindowDays();
+  return buildConfirmationRows(ticketLogJoinedRows(), records, localDate(), windowDays, { variant: RESOLUTION_CONFIRMATION_VARIANTS.ROMAN });
+}
+function renderResolutionConfirmation() {
+  const bodyEl = $('#resolutionConfirmationBody');
+  if (!bodyEl) return;
+  const rows = currentConfirmationRows();
+  const windowDays = loadReopenWindowDays();
+  bodyEl.innerHTML = rows.map((row) => {
+    const ticket = row.ticket;
+    const customer = ticketLogCustomers().find((c) => String(c.id) === String(ticket.customerId));
+    const pref = customer ? findContactPreference(loadContactPreferences(), customer.id) : null;
+    const blocked = !!(pref && pref.doNotMessage);
+    const variant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU
+      ? RESOLUTION_CONFIRMATION_VARIANTS.URDU
+      : RESOLUTION_CONFIRMATION_VARIANTS.ROMAN;
+    const draft = buildConfirmationDraft(ticket, syncedResolutionRecords(), variant, { windowDays });
+    const phone = customer ? (pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer)) : '';
+    const wa = draft ? formatWhatsAppUrl(phone || '', draft.text) : null;
+    const sendBtn = blocked
+      ? '<button type="button" class="secondary-button btn-sm" disabled>Do not message</button>'
+      : (!wa || !wa.validPhone || !wa.url)
+        ? '<button type="button" class="secondary-button btn-sm" disabled>No WhatsApp number</button>'
+        : `<button type="button" class="secondary-button btn-sm resolution-confirmation-action-btn" data-confirmation-action="send" data-ticket-id="${escapeHtml(ticket.id)}">Send confirmation draft</button>`;
+    let reopenBtn = '';
+    if (row.decision.eligible === true) {
+      reopenBtn = `<button type="button" class="secondary-button btn-sm resolution-confirmation-action-btn" data-confirmation-action="reopen" data-ticket-id="${escapeHtml(ticket.id)}">Reopen ticket</button>`;
+    } else if (row.decision.reason === 'window_passed') {
+      reopenBtn = `<button type="button" class="secondary-button btn-sm resolution-confirmation-action-btn" data-confirmation-action="followup" data-ticket-id="${escapeHtml(ticket.id)}">New linked ticket</button>`;
+    } else {
+      reopenBtn = '<span>Window unknown — resolution date was not recorded for this ticket.</span>';
+    }
+    return `<div style="margin-bottom: 12px;">${confirmationHtml([row])}<div style="display: flex; gap: 8px; flex-wrap: wrap; margin: 6px 0;">${sendBtn}${reopenBtn}</div>${draft ? `<details><summary>Confirmation draft (${variant === 'urdu' ? 'Urdu script' : 'Roman Urdu'})</summary><pre style="white-space: pre-wrap;">${escapeHtml(draft.text)}</pre></details>` : ''}</div>`;
+  }).join('') || '<p class="empty-state">No resolved tickets yet.</p>';
+  const summaryEl = $('#resolutionConfirmationSummary');
+  if (summaryEl) summaryEl.textContent = confirmationSummaryText(confirmationSummary(rows));
+  const windowEl = $('#resolutionConfirmationWindow');
+  if (windowEl && document.activeElement !== windowEl) windowEl.value = String(windowDays);
+  if (!resolutionConfirmationBound) {
+    resolutionConfirmationBound = true;
+    $('#resolutionConfirmationExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(confirmationFilename(), confirmationCsv(currentConfirmationRows()));
+    });
+    $('#resolutionConfirmationSaveBtn')?.addEventListener('click', () => {
+      saveReopenWindowDays(Number($('#resolutionConfirmationWindow')?.value));
+      renderResolutionConfirmation();
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const btn = event.target?.closest?.('.resolution-confirmation-action-btn');
+      if (!btn) return;
+      const action = btn.dataset.confirmationAction;
+      const ticketId = btn.dataset.ticketId;
+      const joined = ticketLogJoinedRows();
+      const ticket = joined.find((t) => String(t.id) === String(ticketId));
+      if (!ticket) return;
+      if (action === 'reopen') {
+        const next = reopenResolvedTicket(loadTicketLog(), ticketId, localDate(), loadReopenWindowDays(), syncedResolutionRecords());
+        saveTicketLog(next);
+        renderTicketLog();
+        renderResolutionConfirmation();
+      } else if (action === 'followup') {
+        const stored = loadTicketLog();
+        const input = createFollowUpTicketInput(ticket, { id: `T25-${Date.now()}-${stored.length + 1}`, reportedDate: localDate() });
+        if (!input) return;
+        const created = createTicket(input);
+        if (!created) return;
+        saveTicketLog([...stored, created]);
+        saveFollowUpLinks(recordFollowUpLink(loadFollowUpLinks(), ticketId, created.id));
+        renderTicketLog();
+        renderResolutionConfirmation();
+      } else if (action === 'send') {
+        const customer = ticketLogCustomers().find((c) => String(c.id) === String(ticket.customerId));
+        if (!customer) return;
+        const pref = findContactPreference(loadContactPreferences(), customer.id);
+        if (pref && pref.doNotMessage) return;
+        const variant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU
+          ? RESOLUTION_CONFIRMATION_VARIANTS.URDU
+          : RESOLUTION_CONFIRMATION_VARIANTS.ROMAN;
+        const draft = buildConfirmationDraft(ticket, syncedResolutionRecords(), variant, { windowDays: loadReopenWindowDays() });
+        if (!draft) return;
+        const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), draft.text);
+        if (!wa.validPhone || !wa.url) return;
+        window.open(wa.url, '_blank', 'noopener,noreferrer');
+      }
+    });
+  }
+}
 // Plan 17 (Plan 1-100) — Port and device assignment register. Records
 // live in their own localStorage store, apart from every billing,
 // payment, PPPoE and identity record, so saving or swapping a device
@@ -11512,6 +11662,7 @@ function renderAnalytics() {
   renderOutageGrouping();
   renderDispatchQueue();
   renderRepeatFaultFlags();
+  renderResolutionConfirmation();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

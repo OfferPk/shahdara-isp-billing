@@ -249,6 +249,7 @@ import { buildCampaign, findCampaign, upsertCampaign, removeCampaign, buildCampa
 import { AUDIT_ACTIONS, appendAuditEntry, normalizeAuditLog, filterAuditEntries, auditSummary, auditSummaryText, auditHtml, auditCsv, auditFilename } from './audit-log.js';
 import { buildExportPack, exportPackSummaryText, exportPackHtml, exportPackCsv, exportPackJson, exportPackFilename } from './export-pack.js';
 import { normalizeOperatorMode, canPerformAction, viewAccess, requestModeSwitch, applyModeSwitch, operatorModeSummaryText, operatorModeHtml, operatorModeToggleLabel } from './operator-modes.js';
+import { normalizePriceRevision, normalizePriceHistory, recordPriceRevision, priceHistoryForPackage, priceOnDate, priceHistorySummaryText, priceHistoryHtml, priceHistoryCsv, priceHistoryFilename } from './package-price-history.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -12180,6 +12181,85 @@ function renderCoverageRegister() {
     });
   }
 }
+// Plan 34: package price revision history (effective-dated prices).
+// Revisions live in their own localStorage store, apart from every
+// bill, payment, and customer record. Recording a revision never
+// rewrites a past bill — it only explains which price a bill raised
+// on a given date should show. Plan U's per-customer package timeline
+// is presentation of package changes; this is the per-package tariff
+// rule underneath it, and neither is rewritten here.
+const PRICE_HISTORY_KEY = 'shahdara_package_price_history_v1';
+let priceHistoryBound = false;
+function loadPriceHistory() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PRICE_HISTORY_KEY) ?? 'null');
+    return normalizePriceHistory(parsed);
+  } catch { return []; }
+}
+function savePriceHistory(list) {
+  try { localStorage.setItem(PRICE_HISTORY_KEY, JSON.stringify(normalizePriceHistory(list))); } catch {}
+}
+function priceHistoryPackageOptions(selectedKey = '') {
+  return BILL_PACKAGES.map((plan) => `<option value="${escapeHtml(plan.id)}" ${plan.id === selectedKey ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month (catalogue)</option>`).join('');
+}
+function renderPriceHistory() {
+  const bodyEl = $('#priceHistoryBody');
+  if (!bodyEl) return;
+  const history = loadPriceHistory();
+  bodyEl.innerHTML = priceHistoryHtml(history);
+  const summaryEl = $('#priceHistorySummary');
+  if (summaryEl) summaryEl.textContent = priceHistorySummaryText(history);
+  const saveSelect = $('#priceHistoryPackage');
+  if (saveSelect && !saveSelect.dataset.populated) {
+    saveSelect.innerHTML = priceHistoryPackageOptions();
+    saveSelect.dataset.populated = '1';
+  }
+  const lookupSelect = $('#priceHistoryLookupPackage');
+  if (lookupSelect && !lookupSelect.dataset.populated) {
+    lookupSelect.innerHTML = priceHistoryPackageOptions();
+    lookupSelect.dataset.populated = '1';
+  }
+  if (!priceHistoryBound) {
+    priceHistoryBound = true;
+    $('#priceHistorySaveBtn')?.addEventListener('click', () => {
+      const plan = BILL_PACKAGES.find((item) => item.id === $('#priceHistoryPackage')?.value);
+      const revision = normalizePriceRevision({
+        packageKey: plan?.id ?? '',
+        packageLabel: plan?.label ?? '',
+        amount: $('#priceHistoryAmount')?.value ?? '',
+        effectiveDate: $('#priceHistoryDate')?.value ?? '',
+        note: $('#priceHistoryNote')?.value ?? '',
+      });
+      if (!revision) {
+        toast('A price revision needs a package, a positive amount, and a real effective date.');
+        return;
+      }
+      savePriceHistory(recordPriceRevision(loadPriceHistory(), revision));
+      renderPriceHistory();
+    });
+    $('#priceHistoryLookupBtn')?.addEventListener('click', () => {
+      const plan = BILL_PACKAGES.find((item) => item.id === $('#priceHistoryLookupPackage')?.value);
+      const date = $('#priceHistoryLookupDate')?.value ?? '';
+      const resultEl = $('#priceHistoryLookupResult');
+      if (!resultEl) return;
+      if (!plan || !date) {
+        resultEl.textContent = 'Pick a package and a bill date to look up its price.';
+        return;
+      }
+      const price = priceOnDate(loadPriceHistory(), plan.id, date, plan.price);
+      const revisions = priceHistoryForPackage(loadPriceHistory(), plan.id).filter((item) => item.effectiveDate <= date);
+      const source = revisions.length > 0
+        ? `per revision effective ${revisions[revisions.length - 1].effectiveDate}`
+        : 'catalogue price — no revision effective yet';
+      resultEl.textContent = price === null
+        ? 'No price recorded for that package and date.'
+        : `Price for a bill raised on ${date}: ${formatAmount(price)} (${source}). Past bills are never rewritten by this lookup.`;
+    });
+    $('#priceHistoryExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(priceHistoryFilename(), priceHistoryCsv(loadPriceHistory()));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -12261,6 +12341,7 @@ function renderAnalytics() {
   renderExportPack();
   renderOperatorModes();
   renderOltOnuRegister();
+  renderPriceHistory();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

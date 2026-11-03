@@ -255,6 +255,7 @@ import { monthlyDueDates, splitArrearsIntoInstalments, normalizeRepaymentPlans, 
 import { normalizeBillExtensions, grantBillExtension, activeBillExtension, applyExtensionsToBills, billExtensionSummaryText, billExtensionFilename, billExtensionHtml, billExtensionCsv } from './bill-extension.js';
 import { normalizeVendorSchedules, upsertVendorSchedule, removeVendorSchedule, normalizeVendorOccurrences, markVendorOccurrencePaid, cancelVendorOccurrence, buildVendorDueQueue, vendorMonthOutflow, vendorBillsSummaryText, vendorBillsHtml, vendorBillsCsv, vendorBillsFilename } from './vendor-bills.js';
 import { normalizeMonthBudget, normalizeMonthBudgets, upsertMonthBudget, removeMonthBudget, buildBudgetVersusActual, budgetVersusActualSummaryText, budgetVersusActualHtml, budgetVersusActualCsv, budgetVersusActualFilename } from './expense-month-budgets.js';
+import { normalizeVendorContract, normalizeVendorContracts, upsertVendorContract, removeVendorContract, updateContractRate, sharedVendorNames, buildRenewalList, renewalSummaryText, vendorContractsHtml, vendorContractsCsv, vendorContractsFilename } from './vendor-contracts.js';
 import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
@@ -12837,6 +12838,81 @@ function renderExpenseMonthBudgets() {
     });
   }
 }
+// Plan 43: vendor and contract register with renewal dates. A register
+// only — it changes no bill, payment, or expense record by itself, and
+// it never alters any expense total. Vendor names are shared with the
+// Plan 41 recurring-bill schedules (one vendor identity, not two).
+const VENDOR_CONTRACTS_KEY = 'shahdara_vendor_contracts_v1';
+let vendorContractsBound = false;
+function loadVendorContracts() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VENDOR_CONTRACTS_KEY) || '[]');
+    return normalizeVendorContracts(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveVendorContracts(list) {
+  try { localStorage.setItem(VENDOR_CONTRACTS_KEY, JSON.stringify(normalizeVendorContracts(list))); } catch {}
+}
+function renderVendorContracts() {
+  const bodyEl = $('#vendorContractsBody');
+  if (!bodyEl) return;
+  const today = localDate();
+  const contracts = loadVendorContracts();
+  const windowEl = $('#vendorContractsWindow');
+  const windowDays = windowEl?.value ?? '30';
+  const renewals = buildRenewalList(contracts, { today, windowDays });
+  bodyEl.innerHTML = vendorContractsHtml(contracts, renewals);
+  const summaryEl = $('#vendorContractsSummary');
+  if (summaryEl) summaryEl.textContent = contracts.length === 0
+    ? 'Upstream, rent, and maintenance agreements live as paper or memory, so a price rise or a renewal deadline arrives with no warning. Write each contract down — vendor, service, dates, agreed rate, notice period, renewal note — and this panel lists the contracts ending inside your renewal window, in date order. Editing a rate keeps the previous rate and its dates in history. The register changes no bill, payment, or expense record by itself.'
+    : `${renewalSummaryText(contracts, renewals, windowDays)} Vendors on file (shared with recurring bills): ${sharedVendorNames(contracts, loadVendorSchedules()).join(', ') || 'none yet'}.`;
+  const selectEl = $('#vendorContractsSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = contracts.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.vendor)} — ${escapeHtml(c.service || 'service not recorded')}</option>`).join('')
+      || '<option value="">No vendor contracts yet</option>';
+  }
+  if (!vendorContractsBound) {
+    vendorContractsBound = true;
+    $('#vendorContractsWindow')?.addEventListener('change', renderVendorContracts);
+    $('#vendorContractsSaveBtn')?.addEventListener('click', () => {
+      const row = {
+        id: `vc-${Date.now()}`,
+        vendor: $('#vendorContractsVendor')?.value ?? '',
+        service: $('#vendorContractsService')?.value ?? '',
+        startDate: $('#vendorContractsStart')?.value ?? '',
+        endDate: $('#vendorContractsEnd')?.value ?? '',
+        rate: $('#vendorContractsRate')?.value === '' ? null : $('#vendorContractsRate')?.value ?? null,
+        rateEffectiveDate: $('#vendorContractsStart')?.value ?? '',
+        noticeDays: $('#vendorContractsNotice')?.value === '' ? null : $('#vendorContractsNotice')?.value ?? null,
+        renewalNote: $('#vendorContractsNote')?.value ?? '',
+      };
+      if (!normalizeVendorContract(row)) {
+        toast('A contract needs a vendor name, real dates with the end on or after the start, and a rate above zero when one is given.');
+        return;
+      }
+      saveVendorContracts(upsertVendorContract(loadVendorContracts(), row));
+      renderVendorContracts();
+    });
+    $('#vendorContractsRateBtn')?.addEventListener('click', () => {
+      const id = $('#vendorContractsSelect')?.value ?? '';
+      const next = updateContractRate(loadVendorContracts(), id, $('#vendorContractsNewRate')?.value ?? '', $('#vendorContractsRateDate')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(loadVendorContracts())) {
+        toast('That rate change was not saved: pick a contract, a rate above zero, and a real effective date different from the current rate.');
+        return;
+      }
+      saveVendorContracts(next);
+      renderVendorContracts();
+    });
+    $('#vendorContractsRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#vendorContractsSelect')?.value ?? '';
+      saveVendorContracts(removeVendorContract(loadVendorContracts(), id));
+      renderVendorContracts();
+    });
+    $('#vendorContractsExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(vendorContractsFilename(), vendorContractsCsv(loadVendorContracts()));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -12924,6 +13000,7 @@ function renderAnalytics() {
   renderBillExtensions();
   renderVendorBills();
   renderExpenseMonthBudgets();
+  renderVendorContracts();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

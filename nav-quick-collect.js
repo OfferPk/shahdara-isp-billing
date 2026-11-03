@@ -89,6 +89,11 @@ import {
   markReceiptShared,
   renderReceiptSharedBadgeHtml
 } from './nav-quick-profile.js';
+// Plan 5 (Plan 1-100): every field receipt created here starts with a
+// delivery entry in status 'generated'; dispatch still goes through
+// markReceiptShared, and receipt-delivery.js bridges that record to
+// a 'sent' entry, so delivery tracking never touches receipt money.
+import { createReceiptDelivery } from './receipt-delivery.js';
 import {
   executeSplitTenderCollection,
   formatSplitTenderWhatsAppText,
@@ -976,6 +981,9 @@ export function executeQuickCollection(state, {
     isSettled: newTotalDues <= 0 && ticketChargesPendingAfter <= 0 && addonChargesPendingAfter <= 0 && manualBaqayaPendingAfter <= 0,
 
     packageAutoSet: autoPackage,
+    // Plan 5 (Plan 1-100): delivery tracking only — the receipt's
+    // money fields above are untouched by this entry.
+    delivery: createReceiptDelivery({ receiptRef: receiptNumber, paymentId, channel: 'whatsapp' }),
     collectedAt: new Date().toISOString()
   };
 

@@ -16,6 +16,8 @@ export const FIELD_ROUTE_PROGRESS_KEY = 'shahdara_field_route_progress';
 export const FIELD_ROUTE_NOTES_KEY = 'shahdara_field_route_notes';
 export const FIELD_ROUTE_OUTCOMES_KEY = 'shahdara_field_route_outcomes';
 export const FIELD_ROUTE_ORDER_KEY = 'shahdara_field_route_order';
+import { sequenceRouteStops } from './route-sequencing.js';
+
 export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 
@@ -427,7 +429,7 @@ export function moveRouteStop(customerId, direction, sector = 'All', fallbackOrd
  * @param {string} [options.sector='All'] - Sector filter ('All' or specific area/mohalla)
  * @param {string} [options.area='All'] - Optional direct area filter
  * @param {string} [options.mohalla] - Optional direct mohalla filter
- * @param {string} [options.sortBy='priority'] - 'priority' | 'due-high' | 'area' | 'name' | 'offline-first'
+ * @param {string} [options.sortBy='priority'] - 'priority' | 'due-high' | 'area' | 'name' | 'offline-first' | 'sequenced' (Plan 1: mohalla groups, Waada-broken first — see route-sequencing.js)
  * @param {string} [options.query=''] - Text search query
  * @param {string} [options.filterTab='all'] - 'all' | 'pending' | 'collected'
  * @param {string} [options.dateStr] - Target date string
@@ -636,7 +638,12 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     return true;
   });
 
-  filteredStops.sort((a, b) => {
+  // Plan 1: sequenced order is computed by the pure route-sequencing
+  // module (mohalla groups, Waada-broken first), not by this switch —
+  // it replaces, never edits, the stops the builder just computed.
+  if (sortBy === 'sequenced') {
+    filteredStops = sequenceRouteStops(filteredStops, { todayStr: dateStr }).stops;
+  } else filteredStops.sort((a, b) => {
     if (sortBy === 'manual' || (sortBy === 'custom' && customOrderMap.size > 0)) {
       const idxA = customOrderMap.has(a.id) ? customOrderMap.get(a.id) : 999999;
       const idxB = customOrderMap.has(b.id) ? customOrderMap.get(b.id) : 999999;

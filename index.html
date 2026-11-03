@@ -258,6 +258,10 @@
         <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units" data-i18n="dash_units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button" data-i18n="dash_add_payment">+ Add payment</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance" data-i18n-aria-label="dash_guidance_aria">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip" data-i18n="dash_guidance">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
       </div>
       <div id="overheadsDueBanner" class="overheads-due-banner" role="alert" hidden></div>
+      <!-- Plan X: first-run banner host. Filled by app.js only for a fresh
+           business (zero customers, WhatsApp identity and receipt branding
+           both unconfigured); hidden otherwise. Carries no customer data. -->
+      <section id="firstRunBanner" class="first-run-banner-host" hidden aria-label="First-run business setup"></section>
       <div class="home-kpi-strip" id="homeKpiStrip" role="region" aria-label="Key performance indicators" data-i18n-aria-label="dash_kpi_region_aria">
         <div class="home-kpi-card kpi-card-today ds-stat ds-stat--paid" id="kpiCardToday">
           <span class="ds-stat__icon" aria-hidden="true">💰</span>

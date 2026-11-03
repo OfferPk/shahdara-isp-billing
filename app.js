@@ -173,6 +173,7 @@ import { setupDailyClosingModal, calculateCollectorCashExpected, getDailyCashHan
 import { buildFieldDayFlow, preserveFieldDayView, restoreFieldDayView, fieldDayFlowStripHtml } from './field-day-flow.js';
 import { buildAreaOperationsView, areaOperationsViewHtml } from './area-operations.js';
 import { buildLifecycleJourney, lifecycleJourneyHtml } from './lifecycle-journey.js';
+import { businessSetupChecklist, isFreshBusiness, firstRunBannerHtml } from './first-run.js';
 import { buildWalletReconView, walletReconViewHtml } from './wallet-recon-view.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
@@ -9416,8 +9417,44 @@ setupPwaShortcuts({
   onPwaStatus: () => {
     window.pwaStatusController?.open?.();
   },
+  // Plan X: the manifest Payments Inbox shortcut (#/easypaisa) lands on
+  // the Payments Inbox screen through the drawer route, not just a hash
+  // that the legacy hash handler ignores.
+  onPaymentsInbox: () => {
+    const drawerBtn = document.querySelector('[data-nav-target="easypaisa"]');
+    if (drawerBtn) drawerBtn.click();
+    else if (typeof window !== 'undefined' && window.location) window.location.hash = '#/easypaisa';
+  },
   toast: (msg) => toast(msg)
 });
+
+// Plan X: first-run banner on Home, only for a genuinely fresh business.
+// Completion is derived from the existing settings every load — no new
+// storage key, no ledger change. The banner's actions reuse the existing
+// settings dialogs and the existing Add Customer button, in one guided
+// pass: business setup, then receipt branding, then first customer.
+try {
+  const firstRunBanner = $('#firstRunBanner');
+  if (firstRunBanner && Array.isArray(state.customers)) {
+    const digitalSettings = getDigitalPaymentsSettings();
+    const receiptFooter = getReceiptFooter();
+    let ownerWhatsappPhone = '';
+    try { ownerWhatsappPhone = localStorage.getItem('shahdara_owner_whatsapp_phone') || ''; } catch { /* ignore */ }
+    const checklist = businessSetupChecklist({ digitalSettings, receiptFooter, ownerWhatsappPhone });
+    if (isFreshBusiness({ customerCount: state.customers.length, digitalSettings, receiptFooter, ownerWhatsappPhone })) {
+      firstRunBanner.hidden = false;
+      firstRunBanner.innerHTML = firstRunBannerHtml({ businessName: digitalSettings.ownerAccountTitle, checklist });
+      firstRunBanner.querySelectorAll('[data-first-run]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const action = btn.getAttribute('data-first-run');
+          if (action === 'digital-settings') window.digitalPaymentsSettingsController?.open?.();
+          else if (action === 'receipt-footer') window.receiptFooterStudioController?.open?.();
+          else if (action === 'add-customer') ($('#addCustomerButton') || $('#quickActionAddCustomer'))?.click();
+        });
+      });
+    }
+  }
+} catch { /* first-run banner is presentation only; never break startup */ }
 
 // Setup Floating Mobile Speed Dial / Quick Action Dock
 

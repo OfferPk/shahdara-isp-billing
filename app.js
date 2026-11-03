@@ -5,7 +5,7 @@ import {
   listTransactions, buildMonthlyReport, effectiveBillStatus, calculatePaymentAllocations, buildPayrollSummary, addIncident, updateIncident,
   deleteIncident, countCustomerIncidentsLast30Days, exportAllPayments, exportCustomerHistory, formatPKR, createJsonBackup, previewJsonBackupMerge, PAKISTAN_TIME_ZONE, autoClosePreviousMonth, buildMonthlyClosingSnapshot,
   summarizeCustomerReceipts, summarizeCustomerTenure, applyLateFeeToBill, waiveLateFeeFromBill, recordCustomerRelocation, applyConcessionToBill, removeConcessionFromBill,
-  calculateMethodCollectionTotals, findDuplicatePaymentReference, findIdentityConflicts, paymentSenderLabel,
+  calculateMethodCollectionTotals, findDuplicatePaymentReference, findIdentityConflicts, findPhoneConflicts, paymentSenderLabel,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
   autoPackageFromPayment,
   addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining, setManualBaqayaOutstanding,
@@ -7438,6 +7438,27 @@ function saveNewCustomer(allowDuplicateName = false) {
   }
   try {
     const matches = findPossibleDuplicateCustomers(state.customers, details);
+    // Plan M: a phone that matches another ACTIVE customer only after
+    // country-code normalisation (03… vs +92… vs 0092…) never reached
+    // the digits-as-typed review above, so it is folded in here as a
+    // review entry naming the holder. The review's "Continue anyway"
+    // is the warn-only escape hatch — a shared/family phone is never
+    // blocked, and archived holders never appear (findPhoneConflicts
+    // skips them). A holder already listed with an exact phone reason
+    // keeps its single entry.
+    if (details.phone) {
+      for (const conflict of findPhoneConflicts(state.customers, details.phone)) {
+        const holder = state.customers.find(customer => customer.id === conflict.customerId);
+        if (!holder) continue;
+        const reason = { field: 'phone', type: 'exact', label: 'Phone number matches another customer after normalising the country code (03… / +92… are the same number).' };
+        const existing = matches.find(match => match.customer.id === conflict.customerId);
+        if (existing) {
+          if (!existing.reasons.some(r => r.field === 'phone' && r.type === 'exact')) existing.reasons.push(reason);
+        } else {
+          matches.push({ customer: holder, reasons: [reason] });
+        }
+      }
+    }
     if (matches.length && !allowDuplicateName) {
       renderDuplicateReview(matches);
       return;
@@ -7604,6 +7625,22 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       const reasonLabel = dup.reasons.find(r => (r.field === 'cnic' || r.field === 'phone') && r.type === 'exact')?.label || 'matches another customer';
       const confirmed = await appConfirm({ tone:'warning', title:'Possible duplicate customer', subject:`#${dup.customer.customerNumber} ${dup.customer.name}`, message:`This ${reasonLabel} matches that existing customer. Save anyway?`, confirmLabel:'Save anyway' });
       if (!confirmed) return;
+    }
+    // Plan M: warn before saving when the phone (after country-code
+    // normalisation) already belongs to another active customer — the
+    // digits-as-typed check above misses 03… vs +92… spellings of the
+    // same number. Holders the exact check already named are not asked
+    // about twice. Warn-only: shared/family phones save on "Save anyway",
+    // archived holders never warn, blank phones never warn, and an
+    // unchanged phone (previous === current) never warns.
+    if (phoneVal) {
+      const phoneConflicts = findPhoneConflicts(state.customers, phoneVal, { excludeCustomerId: current.id, previous: current })
+        .filter(conflict => !exactDuplicates.some(dup => dup.customer.id === conflict.customerId));
+      if (phoneConflicts.length) {
+        const conflict = phoneConflicts[0];
+        const confirmed = await appConfirm({ tone:'warning', title:'Possible duplicate phone number', subject:`#${conflict.customerNumber} ${conflict.customerName}`, message:'This phone number matches that existing customer after normalising the country code. Save anyway?', confirmLabel:'Save anyway' });
+        if (!confirmed) return;
+      }
     }
   }
 

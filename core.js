@@ -685,6 +685,83 @@ function assertNoBlockingIdentityConflicts(customers, candidate, options = {}) {
   throw new Error(`${conflict.label} "${conflict.value}" is already assigned to ${conflict.customerName} (#${conflict.customerNumber}). PPPoE usernames and static IPs must be unique among active customers — change the ${conflict.label} before saving.`);
 }
 
+// ---------------------------------------------------------------------------
+// Plan M — Customer data quality: duplicate-phone warning (warn-only).
+//
+// The single add/edit flows had no phone check at all in core, and the
+// app-level duplicate review only compared digits as typed — so '0300
+// 1234567' and '+92 300 1234567' sailed past as two different numbers.
+// A phone is warn-only, never a block: family/shared phones are
+// legitimate, and the import duplicate-phone rule is untouched (import
+// still never imports a duplicate-phone row). Core never throws here;
+// the save flows ask the operator with an explicit "Save anyway".
+//
+// A customer never conflicts with itself, archived holders never warn
+// (their numbers are free again), blank phones never warn, and — on
+// update — a value the record already had is not a new assignment, so
+// pre-existing duplicates never freeze unrelated edits. No existing
+// record is changed by this plan: the helpers only read and describe.
+// ---------------------------------------------------------------------------
+
+/**
+ * Canonical phone key for duplicate comparison: the 10 national digits
+ * of a Pakistani mobile, or '' when the value is blank or does not
+ * collapse to one. '0300 1234567', '+92 300 1234567', '0092 300 1234567'
+ * and '3001234567' are the same number; formatting, separators and
+ * Arabic-Indic digits never create a second identity. A shape that does
+ * not collapse to a 10-digit number starting with '3' returns '' so the
+ * warn path never fires on a number it cannot confidently equate — a
+ * missed warning is safer than a false one.
+ */
+export function normalizePhoneKey(value) {
+  const folded = String(value ?? '').normalize('NFKC').replace(/[٠-٩۰-۹]/g, digit => {
+    const code = digit.codePointAt(0);
+    return String(code - (code >= 0x06f0 ? 0x06f0 : 0x0660));
+  });
+  const digits = folded.replace(/\D/g, '');
+  if (!digits) return '';
+  let national = '';
+  if (digits.startsWith('0092') && digits.length === 14) national = digits.slice(4);
+  else if (digits.startsWith('92') && digits.length === 12) national = digits.slice(2);
+  else if (digits.length === 11 && digits.startsWith('03')) national = digits.slice(1);
+  else if (digits.length === 10 && digits.startsWith('3')) national = digits;
+  return national.length === 10 && national.startsWith('3') ? national : '';
+}
+
+/**
+ * Every active holder of a candidate phone: one entry per holder, each
+ * naming the holder (#number, name). `excludeCustomerId` is the record
+ * being saved (it never conflicts with itself); `previous` is the
+ * record's stored values before this save (or its previous phone value
+ * directly) — an unchanged phone skips the check. Only the holder's
+ * primary phone counts (plus the legacy `customerPhone` alias); WhatsApp
+ * and alternate numbers are separate contact channels and are not
+ * treated as the customer's phone here.
+ */
+export function findPhoneConflicts(customers, candidatePhone, { excludeCustomerId = null, previous = null } = {}) {
+  const wanted = normalizePhoneKey(candidatePhone);
+  if (!wanted) return [];
+  const previousValue = previous && typeof previous === 'object' ? previous.phone : previous;
+  if (previousValue !== null && previousValue !== undefined && normalizePhoneKey(previousValue) === wanted) return [];
+  const conflicts = [];
+  for (const other of Array.isArray(customers) ? customers : []) {
+    if (!other || other.archived) continue;
+    if (excludeCustomerId !== null && excludeCustomerId !== undefined && other.id === excludeCustomerId) continue;
+    if (normalizePhoneKey(other.phone || other.customerPhone) !== wanted) continue;
+    conflicts.push({
+      field: 'phone',
+      label: 'Phone number',
+      severity: 'warn',
+      value: String(candidatePhone).trim(),
+      normalizedKey: wanted,
+      customerId: other.id,
+      customerNumber: other.customerNumber ?? null,
+      customerName: other.name ?? ''
+    });
+  }
+  return conflicts;
+}
+
 /**
  * Search side of SISP-74: does the query match the customer's PPPoE
  * username, static IP, MAC address or router serial? Substring matching

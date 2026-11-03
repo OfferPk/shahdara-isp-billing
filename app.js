@@ -238,6 +238,7 @@ import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickO
 import { buildPendingInstallationQueue, findPromisedInstallDate, upsertPromisedInstallDate, removePromisedInstallDate, pendingInstallationSummaryText, pendingInstallationHtml, pendingInstallationCsv, pendingInstallationFilename } from './pending-installations.js';
 import { normalizeTicketList, createTicket, updateTicketStatus, filterTicketList, sortTicketList, ticketSummary, ticketSummaryText, ticketHtml, ticketCsv, ticketFilename } from './ticket-log.js';
 import { normalizeOutageList, createOutage, openOutageList, outageForTicket, linkTicketToOutage, unlinkTicketFromOutage, updateOutageStatus, resolveOutage, ticketsForOutage, pendingResolutionTickets, buildOutageStatusDraft, outageSummary, outageSummaryText, outageHtml, outageCsv, outageFilename } from './outage-grouping.js';
+import { buildDispatchQueue, reorderDispatchQueue, dispatchQueueSummary, dispatchQueueSummaryText, dispatchQueueHtml, dispatchQueueCsv, dispatchQueueFilename } from './dispatch-queue.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -11149,6 +11150,124 @@ function renderOutageGrouping() {
     });
   }
 }
+// Plan 23 (Plan 1-100) — Fault visit dispatch queue. This is an
+// ordering VIEW of the Plan 21 ticket log, not a second ticket
+// system: the queue lists exactly the open, assigned tickets in
+// priority-then-age-then-mohalla order, each job showing its Plan 17
+// connection record and a parts-or-tools note. Parts notes and the
+// manual display order live in their own localStorage stores, apart
+// from every ticket, bill, payment, lifecycle and visit record, so
+// reordering the queue changes no ticket status and no payment, and
+// completing a visit from here changes only that ticket's status
+// (through the Plan 21 ticket store), never the ledger. It is not
+// the SISP-67 zone dispatch board, which groups mixed open items by
+// zone with no priority or age order.
+const DISPATCH_QUEUE_NOTES_KEY = 'shahdara_dispatch_queue_notes_v1';
+const DISPATCH_QUEUE_ORDER_KEY = 'shahdara_dispatch_queue_order_v1';
+let dispatchQueueBound = false;
+function loadDispatchQueueNotes() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DISPATCH_QUEUE_NOTES_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((n) => n && typeof n === 'object') : [];
+  } catch { return []; }
+}
+function saveDispatchQueueNotes(list) {
+  try { localStorage.setItem(DISPATCH_QUEUE_NOTES_KEY, JSON.stringify(list)); } catch {}
+}
+function loadDispatchQueueOrder() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DISPATCH_QUEUE_ORDER_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.map((id) => String(id)) : [];
+  } catch { return []; }
+}
+function saveDispatchQueueOrder(list) {
+  try { localStorage.setItem(DISPATCH_QUEUE_ORDER_KEY, JSON.stringify(list)); } catch {}
+}
+function currentDispatchQueue() {
+  const mohallaRaw = $('#dispatchQueueMohallaFilter')?.value ?? '';
+  const mohallaKey = mohallaRaw === '__unassigned__' ? '' : mohallaRaw;
+  const mohalla = mohallaRaw === '__unassigned__' ? 'Unassigned' : '';
+  const assignee = $('#dispatchQueueAssigneeFilter')?.value ?? '';
+  const built = buildDispatchQueue(ticketLogJoinedRows(), {
+    connections: loadOltOnuRegister(),
+    partsNotes: loadDispatchQueueNotes(),
+    mohalla, mohallaKey, assignee,
+    today: localDate(),
+  });
+  const order = loadDispatchQueueOrder();
+  if (!order.length) return built;
+  const byId = new Map(built.map((job) => [String(job.id), job]));
+  const ordered = order.map((id) => byId.get(id)).filter(Boolean);
+  const seen = new Set(ordered.map((job) => String(job.id)));
+  return [...ordered, ...built.filter((job) => !seen.has(String(job.id)))];
+}
+function renderDispatchQueue() {
+  const bodyEl = $('#dispatchQueueBody');
+  if (!bodyEl) return;
+  const queue = currentDispatchQueue();
+  bodyEl.innerHTML = queue.map((job, index) => {
+    const up = index === 0 ? '' : `<button type="button" class="secondary-button btn-sm dispatch-queue-action-btn" data-dispatch-action="up" data-ticket-id="${escapeHtml(job.id)}">Move up</button>`;
+    const down = index === queue.length - 1 ? '' : `<button type="button" class="secondary-button btn-sm dispatch-queue-action-btn" data-dispatch-action="down" data-ticket-id="${escapeHtml(job.id)}">Move down</button>`;
+    return `<div>${dispatchQueueHtml([job], { today: localDate(), startAt: index })}<div>${up}${down}<button type="button" class="secondary-button btn-sm dispatch-queue-action-btn" data-dispatch-action="complete" data-ticket-id="${escapeHtml(job.id)}">Complete visit</button></div></div>`;
+  }).join('') || '<p class="empty-state">No jobs in the dispatch queue.</p>';
+  const summaryEl = $('#dispatchQueueSummary');
+  if (summaryEl) summaryEl.textContent = dispatchQueueSummaryText(dispatchQueueSummary(queue));
+  const selectEl = $('#dispatchQueueNoteJob');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = queue.map((job) => `<option value="${escapeHtml(job.id)}">${escapeHtml(job.customerName || job.customerId)} · ${escapeHtml(job.category)}</option>`).join('')
+      || '<option value="">No jobs</option>';
+  }
+  const mohallaEl = $('#dispatchQueueMohallaFilter');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const seen = new Map();
+    for (const c of ticketLogCustomers()) {
+      const canon = canonicalMohalla(c.mohalla || c.area || '');
+      if (canon) seen.set(canon.key, canon.label);
+    }
+    const keep = mohallaEl.value;
+    mohallaEl.innerHTML = '<option value="">All mohallas</option><option value="__unassigned__">Unassigned</option>'
+      + [...seen.entries()].map(([key, label]) => `<option value="${escapeHtml(key)}">${escapeHtml(label)}</option>`).join('');
+    mohallaEl.value = keep;
+  }
+  if (!dispatchQueueBound) {
+    dispatchQueueBound = true;
+    $('#dispatchQueueExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(dispatchQueueFilename(), dispatchQueueCsv(currentDispatchQueue(), { today: localDate() }));
+    });
+    $('#dispatchQueueSaveNoteBtn')?.addEventListener('click', () => {
+      const ticketId = $('#dispatchQueueNoteJob')?.value;
+      const note = $('#dispatchQueueNoteText')?.value ?? '';
+      if (!ticketId || !note.trim()) return;
+      const notes = loadDispatchQueueNotes().filter((n) => String(n.ticketId) !== String(ticketId));
+      saveDispatchQueueNotes([...notes, { ticketId, note: note.trim() }]);
+      const noteEl = $('#dispatchQueueNoteText');
+      if (noteEl) noteEl.value = '';
+      renderDispatchQueue();
+    });
+    for (const id of ['dispatchQueueMohallaFilter', 'dispatchQueueAssigneeFilter']) {
+      $(`#${id}`)?.addEventListener('change', () => renderDispatchQueue());
+      $(`#${id}`)?.addEventListener('input', () => renderDispatchQueue());
+    }
+    bodyEl.addEventListener('click', (event) => {
+      const btn = event.target?.closest?.('.dispatch-queue-action-btn');
+      if (!btn) return;
+      const action = btn.dataset.dispatchAction;
+      const ticketId = btn.dataset.ticketId;
+      const queue = currentDispatchQueue();
+      if (action === 'up' || action === 'down') {
+        const index = queue.findIndex((job) => String(job.id) === String(ticketId));
+        if (index < 0) return;
+        const reordered = reorderDispatchQueue(queue, index, action === 'up' ? index - 1 : index + 1);
+        saveDispatchQueueOrder(reordered.map((job) => job.id));
+        renderDispatchQueue();
+      } else if (action === 'complete') {
+        saveTicketLog(completeVisitFromQueue(loadTicketLog(), ticketId, 'resolved'));
+        renderTicketLog();
+        renderDispatchQueue();
+      }
+    });
+  }
+}
 // Plan 17 (Plan 1-100) — Port and device assignment register. Records
 // live in their own localStorage store, apart from every billing,
 // payment, PPPoE and identity record, so saving or swapping a device
@@ -11343,6 +11462,7 @@ function renderAnalytics() {
   renderPendingInstallations();
   renderTicketLog();
   renderOutageGrouping();
+  renderDispatchQueue();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

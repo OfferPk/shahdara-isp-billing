@@ -253,6 +253,7 @@ import { normalizePriceRevision, normalizePriceHistory, recordPriceRevision, pri
 import { buildTransferPack, transferPackText, transferPackFilename, verifyTransferPack, decideTransferApply, transferPackSummaryText, transferPackHtml } from './transfer-pack.js';
 import { monthlyDueDates, splitArrearsIntoInstalments, normalizeRepaymentPlans, upsertRepaymentPlan, findRepaymentPlan, recordInstalmentPayment, closeRepaymentPlan, canCloseRepaymentPlan, repaymentPlanSummaryText, repaymentPlanHtml, repaymentPlanCsv, repaymentPlanFilename } from './repayment-plan.js';
 import { normalizeBillExtensions, grantBillExtension, activeBillExtension, applyExtensionsToBills, billExtensionSummaryText, billExtensionFilename, billExtensionHtml, billExtensionCsv } from './bill-extension.js';
+import { normalizeVendorSchedules, upsertVendorSchedule, removeVendorSchedule, normalizeVendorOccurrences, markVendorOccurrencePaid, cancelVendorOccurrence, buildVendorDueQueue, vendorMonthOutflow, vendorBillsSummaryText, vendorBillsHtml, vendorBillsCsv, vendorBillsFilename } from './vendor-bills.js';
 import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
@@ -12682,6 +12683,105 @@ function renderBillExtensions() {
     });
   }
 }
+// Plan 41: recurring vendor bill schedule and due queue. A record
+// and reminder only: it never pays a bill, moves money, or changes
+// any customer record, and it never writes into the ledger. A paid
+// vendor bill here is a note that the operator paid it elsewhere.
+// The schedule record is the one vendor record Plan 43's
+// vendor/contract register is meant to share.
+const VENDOR_SCHEDULES_KEY = 'shahdara_vendor_schedules_v1';
+const VENDOR_OCCURRENCES_KEY = 'shahdara_vendor_occurrences_v1';
+let vendorBillsBound = false;
+function loadVendorSchedules() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VENDOR_SCHEDULES_KEY) || '[]');
+    return normalizeVendorSchedules(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveVendorSchedules(list) {
+  try { localStorage.setItem(VENDOR_SCHEDULES_KEY, JSON.stringify(normalizeVendorSchedules(list))); } catch {}
+}
+function loadVendorOccurrences() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VENDOR_OCCURRENCES_KEY) || '[]');
+    return normalizeVendorOccurrences(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveVendorOccurrences(list) {
+  try { localStorage.setItem(VENDOR_OCCURRENCES_KEY, JSON.stringify(normalizeVendorOccurrences(list))); } catch {}
+}
+function renderVendorBills() {
+  const bodyEl = $('#vendorBillsBody');
+  if (!bodyEl) return;
+  const today = localDate();
+  const month = today.slice(0, 7);
+  const schedules = loadVendorSchedules();
+  const occurrences = loadVendorOccurrences();
+  const queue = buildVendorDueQueue(schedules, occurrences, { today });
+  const outflow = vendorMonthOutflow(schedules, occurrences, month);
+  bodyEl.innerHTML = vendorBillsHtml(queue, outflow);
+  const summaryEl = $('#vendorBillsSummary');
+  if (summaryEl) summaryEl.textContent = schedules.length === 0
+    ? 'The ISP\'s own recurring bills — upstream bandwidth, shop rent, electricity, network upkeep — get a schedule and a due queue, so a missed upstream payment never threatens all 11 mohallas at once.'
+    : vendorBillsSummaryText(queue, outflow);
+  const vendorEl = $('#vendorBillsVendor');
+  if (vendorEl && document.activeElement !== vendorEl) {
+    vendorEl.innerHTML = schedules.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.vendor)} — ${escapeHtml(s.billType)}</option>`).join('')
+      || '<option value="">No vendor schedules yet</option>';
+  }
+  if (!vendorBillsBound) {
+    vendorBillsBound = true;
+    $('#vendorBillsAddBtn')?.addEventListener('click', () => {
+      const vendor = $('#vendorBillsVendorName')?.value ?? '';
+      const billType = $('#vendorBillsType')?.value ?? '';
+      const expectedAmount = $('#vendorBillsAmount')?.value ?? '';
+      const dueDay = $('#vendorBillsDueDay')?.value ?? '';
+      const note = $('#vendorBillsNote')?.value ?? '';
+      const next = upsertVendorSchedule(loadVendorSchedules(), {
+        id: `vb-${Date.now()}`, vendor, billType,
+        expectedAmount: expectedAmount === '' ? null : expectedAmount,
+        dueDay, note, active: true,
+      });
+      if (next.length === loadVendorSchedules().length) {
+        toast('A vendor schedule needs a vendor, a bill type, and a due day of month (1–31).');
+        return;
+      }
+      saveVendorSchedules(next);
+      renderVendorBills();
+    });
+    $('#vendorBillsExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(vendorBillsFilename(today.slice(0, 7)), vendorBillsCsv(buildVendorDueQueue(loadVendorSchedules(), loadVendorOccurrences(), { today }), vendorMonthOutflow(loadVendorSchedules(), loadVendorOccurrences(), today.slice(0, 7))));
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const payButton = event.target.closest('[data-vendor-pay]');
+      if (payButton) {
+        const [scheduleId, billMonth] = String(payButton.dataset.vendorPay).split(':');
+        const paidAmount = $('#vendorBillsPaidAmount')?.value ?? '';
+        const paidDate = $('#vendorBillsPaidDate')?.value ?? '';
+        const result = markVendorOccurrencePaid(loadVendorSchedules(), loadVendorOccurrences(), scheduleId, billMonth, { paidDate, paidAmount, today });
+        if (!result.applied) {
+          toast('That vendor bill could not be marked paid — check the paid amount and date.');
+          return;
+        }
+        saveVendorOccurrences(result.occurrences);
+        toast('Vendor bill marked paid. This records the payment only; it moves no money and changes no customer record.');
+        renderVendorBills();
+        return;
+      }
+      const cancelButton = event.target.closest('[data-vendor-cancel]');
+      if (!cancelButton) return;
+      const [scheduleId, billMonth] = String(cancelButton.dataset.vendorCancel).split(':');
+      const reason = $('#vendorBillsCancelReason')?.value ?? '';
+      const result = cancelVendorOccurrence(loadVendorSchedules(), loadVendorOccurrences(), scheduleId, billMonth, reason);
+      if (!result.applied) {
+        toast('Cancelling a vendor bill needs an operator reason, and a paid bill cannot be cancelled.');
+        return;
+      }
+      saveVendorOccurrences(result.occurrences);
+      renderVendorBills();
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -12767,6 +12867,7 @@ function renderAnalytics() {
   renderTransferPack();
   renderRepaymentPlans();
   renderBillExtensions();
+  renderVendorBills();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

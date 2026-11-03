@@ -123,6 +123,11 @@ const GOLDEN_CORRECTED = {
   methodCorrections: [
     { fromMethod: 'Cash', toMethod: 'Easypaisa', correctedAt: '2026-10-07T00:00:00.000Z' },
     { fromMethod: 'Easypaisa', toMethod: 'JazzCash', correctedAt: '2026-10-10T00:00:00.000Z' }
+  ],
+  // Plan K: the amount+date correction also appends a correctionHistory
+  // entry (previous values + correctedAt), carried like methodCorrections.
+  correctionHistory: [
+    { previousAmount: 2000, previousDate: '2026-10-06', newAmount: 2600, newDate: '2026-10-09', correctedAt: '2026-10-10T00:00:00.000Z' }
   ]
 };
 
@@ -200,13 +205,22 @@ test('mega-payment: methodCorrections keeps prior history and appends exactly on
     'exactly one new entry, stamped from the correction reference date');
 });
 
-test('mega-payment: a second, date-only correction adds no audit entry and keeps every stamp', () => {
+test('mega-payment: a second, date-only correction adds no channel audit entry, but appends its own correctionHistory entry', () => {
   const once = correctPayment(megaState(), CUSTOMER_ID, MONTH, 'p-mega', CORRECTION, REF);
   const twice = correctPayment(once, CUSTOMER_ID, MONTH, 'p-mega',
     { date: '2026-10-10', amount: 2600, method: 'JazzCash', transactionId: 'TID-MEGA-001' }, REF);
   const corrected = getPayment(twice, CUSTOMER_ID, MONTH, 'p-mega');
-  assert.deepEqual(corrected, { ...GOLDEN_CORRECTED, date: '2026-10-10' });
-  assert.equal(corrected.methodCorrections.length, 2, 'no channel change, no new entry — history is carried, not reset');
+  // Plan K: the date change is itself audited — the first entry is
+  // carried and a second, chained entry is appended.
+  assert.deepEqual(corrected, {
+    ...GOLDEN_CORRECTED,
+    date: '2026-10-10',
+    correctionHistory: [
+      { previousAmount: 2000, previousDate: '2026-10-06', newAmount: 2600, newDate: '2026-10-09', correctedAt: '2026-10-10T00:00:00.000Z' },
+      { previousAmount: 2600, previousDate: '2026-10-09', newAmount: 2600, newDate: '2026-10-10', correctedAt: '2026-10-10T00:00:00.000Z' }
+    ]
+  });
+  assert.equal(corrected.methodCorrections.length, 2, 'no channel change, no new channel entry — history is carried, not reset');
 });
 
 test('dues: the engine balance equals the hand-computed dues before and after the correction, to the cent', () => {
@@ -294,6 +308,15 @@ test('settled receipt (SISP-156): the channel is locked, and a non-channel corre
   const next = correctPayment(state, 'cust-settled', MONTH, 'p-settled',
     { date: '2026-10-08', amount: 1600, method: 'Cash at Hassan Balla shop' }, REF);
   const corrected = getPayment(next, 'cust-settled', MONTH, 'p-settled');
-  assert.deepEqual(corrected, { ...settledPayment, amount: 1600, date: '2026-10-08' });
-  assert.equal(corrected.methodCorrections, undefined, 'no channel change and no prior history: no audit field is minted');
+  // Plan K: the amount+date change mints a correctionHistory entry even
+  // though the channel never moved (so no methodCorrections field).
+  assert.deepEqual(corrected, {
+    ...settledPayment,
+    amount: 1600,
+    date: '2026-10-08',
+    correctionHistory: [
+      { previousAmount: 1500, previousDate: '2026-10-06', newAmount: 1600, newDate: '2026-10-08', correctedAt: '2026-10-10T00:00:00.000Z' }
+    ]
+  });
+  assert.equal(corrected.methodCorrections, undefined, 'no channel change and no prior history: no channel audit field is minted');
 });

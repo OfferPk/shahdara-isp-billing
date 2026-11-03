@@ -254,6 +254,13 @@ export function buildPaymentReceipt(customer, bill, payment) {
     else if (balanceDueCents === 0) status = 'PAID';
     else if (carryInCents + receivedThroughCents > 0) status = 'PARTIAL';
   }
+  // Plan K: a voided payment's receipt is VOID, full stop. Before this
+  // the voided row contributed 0 to the balance math (correct for
+  // totals), but the status was still driven by sibling payments — a
+  // reprint could show PAID (or CREDIT RECEIVED) for a payment that
+  // was voided. The balance math above is untouched: only the status
+  // is overridden, so totals never drift from the ledger.
+  if (isVoidedPayment(payment)) status = 'VOID';
 
   const transactionId = text(payment.transactionId);
   // SISP-63: sender proof metadata display label ("Hamza (…3310)") —
@@ -621,7 +628,12 @@ export function generatePaymentReceiptHtml(receipt, {
   // code; for a hand-built receipt object the code is re-derived from
   // its own fields, so every printed layout is stamped.
   const verStamp = verificationStampText(receipt.verificationCode || receiptCodeForReceipt(receipt));
-  const statusClass = status === 'PAID' ? 'receipt-status-paid' : status === 'PARTIAL' ? 'receipt-status-partial' : '';
+  const statusClass = status === 'PAID' ? 'receipt-status-paid' : status === 'PARTIAL' ? 'receipt-status-partial' : status === 'VOID' ? 'receipt-status-void' : '';
+  // Plan K: the VOID stamp, printed in every layout's header (plus the
+  // Status row and, on A4, the circular mark) so a voided reprint can
+  // never be mistaken for a live receipt. '' on every other receipt,
+  // so non-void layouts stay byte-identical.
+  const voidStampHtml = status === 'VOID' ? '<div class="receipt-void-stamp">VOID — This payment was voided and counts as no payment</div>' : '';
   const balanceStr = receipt.balanceDueCents === null ? 'PKR 0' : formatAmount(receipt.balanceDueCents / 100);
   const balanceLabel = receipt.balanceDueCents === 0 ? 'PKR 0 (مکمل ادا شدہ / Paid)' : `${balanceStr} (بقایا جات / Due)`;
 
@@ -632,6 +644,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-subbrand">انٹرنیٹ ادائیگی رسید (58mm)</div>
     <div class="receipt-meta-line">${escapeHtml(areaName)} · Tel: ${escapeHtml(businessPhone)}</div>
     <div class="receipt-num">No: <strong>${escapeHtml(receipt.receiptNumber)}</strong></div>
+    ${voidStampHtml}
   </header>
   <div class="receipt-divider">--------------------------------</div>
   <dl class="receipt-fields">
@@ -685,6 +698,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <h1>Payment Receipt / رسید ادائیگی</h1>
     <p>${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
     <div class="receipt-receipt-no">Receipt #: <strong>${escapeHtml(receipt.receiptNumber)}</strong></div>
+    ${voidStampHtml}
   </header>
   <div class="receipt-divider">================================</div>
   <dl class="receipt-fields">
@@ -811,6 +825,7 @@ export function generatePaymentReceiptHtml(receipt, {
     </div>
     <span class="receipt-mark ${statusClass}">${escapeHtml(status)}</span>
   </header>
+  ${voidStampHtml}
   <dl class="receipt-fields">
     ${fields.map(([label, val, cls]) => `<div class="receipt-field"><dt>${escapeHtml(label)}</dt><dd class="${cls || ''}">${val ? escapeHtml(val) : '&nbsp;'}</dd></div>`).join('')}
   </dl>${paymentHistorySectionHtml(receipt, formatAmount)}

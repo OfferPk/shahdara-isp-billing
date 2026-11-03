@@ -41,6 +41,7 @@ const BOX_BG = '#f4f7f5';
 const HAIRLINE = '#d8dee0';
 const SEAL_GREEN = '#1a7a3c';
 const SEAL_AMBER = '#b7791f';
+const SEAL_RED = '#a11d1d';
 const FONT_LATIN = 'system-ui, sans-serif';
 const FONT_URDU = `'Noto Nastaliq Urdu', 'Noto Naskh Arabic', system-ui, sans-serif`;
 
@@ -75,8 +76,15 @@ export function localizePngLabel(label, lang) {
  * Seal decision (spec: green PAID stamp when the balance is cleared,
  * amber PARTIAL PAID when a balance remains). A receipt whose balance is
  * unknown (balanceDueCents null) NEVER claims PAID — it stamps PARTIAL.
+ * Plan K: a VOID receipt never claims PAID either — it stamps VOID in
+ * red, whatever the balance math says (a voided payment settles
+ * nothing, but sibling payments may have cleared the bill, so balance
+ * alone must never decide this seal).
  */
 export function decideSeal(receipt) {
+  if (receipt?.status === 'VOID') {
+    return { kind: 'VOID', label: 'VOID', urdu: '', sub: 'Shahdara ISP', color: SEAL_RED };
+  }
   const cleared = receipt?.balanceDueCents === 0;
   return cleared
     ? { kind: 'PAID', label: 'PAID', urdu: 'وصول پایا', sub: 'Shahdara ISP', color: SEAL_GREEN }

@@ -2383,6 +2383,39 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
       ]
     };
   }
+  // Plan K: amount/date corrections leave the same kind of audit trail
+  // the channel change already had — previously only the channel was
+  // audited, so an amount/date correction overwrote in place with no
+  // previous-values record. The entry rides the payment (so it travels
+  // in backups like every other stamp), is appended (never rewritten)
+  // and is carried across later corrections, including corrections
+  // that change nothing auditable here (discount, note, channel — the
+  // channel has its own methodCorrections trail). A correction that
+  // changes neither amount nor date adds no entry. Voided payments
+  // never reach this point: the guard above refuses to correct them,
+  // so a void can never gain — or lose — a correction entry.
+  const priorCorrectionHistory = Array.isArray(existingPayment.correctionHistory) ? existingPayment.correctionHistory : [];
+  const amountChanged = Number(payment.amount) !== Number(existingPayment.amount);
+  const dateChanged = payment.date !== existingPayment.date;
+  if (amountChanged || dateChanged || priorCorrectionHistory.length > 0) {
+    const correctedAt = (() => {
+      const parsed = new Date(referenceDate);
+      return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
+    })();
+    payment = {
+      ...payment,
+      correctionHistory: [
+        ...priorCorrectionHistory.map(entry => (entry && typeof entry === 'object' ? { ...entry } : entry)),
+        ...((amountChanged || dateChanged) ? [{
+          previousAmount: existingPayment.amount,
+          previousDate: existingPayment.date,
+          newAmount: payment.amount,
+          newDate: payment.date,
+          correctedAt
+        }] : [])
+      ]
+    };
+  }
   assertDiscountWithinRemainingPayable(state, customerId, month, payment.discount, paymentId, { prepayCoverage: prepayTermsOf(payment) !== null });
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills: c.bills.map(b => b.month !== month ? b : { ...b, payments: b.payments.map(p => p.id === paymentId ? payment : p) }) }) };
 }

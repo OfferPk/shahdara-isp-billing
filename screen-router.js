@@ -30,10 +30,10 @@ export const SCREENS = {
   reports: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Report', subtitle: 'Bills, collections and dues for the month', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
   bills: { view: 'billingReportsView', title: 'Monthly Bills', subtitle: 'Generated bills, due dates and customer billing status', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
   recovery: { view: 'billingReportsView', title: 'Dues Recovery', subtitle: 'Smart recovery triage and WhatsApp reminders', anchor: '#duesRecoveryPanel', action: { label: 'Remind Pending', click: '#bulkReminderDispatchBtn' } },
-  alerts: { view: 'billingReportsView', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel' },
+  alerts: { view: 'billingReportsView', title: 'Smart Alerts', subtitle: 'Local rule-based warnings on bills, collections and expenses', anchor: '#smartAlertsPanel', action: { label: 'View Alerts', focus: '#smartAlertsPanel' } },
   assistant: { view: 'ownerCommandCenter', title: 'Owner Assistant', subtitle: 'Ask about saved bills, collections, and customer balances', action: { label: 'Ask Question', focus: '#ownerCommandInput' } },
   backup: { view: 'backupControls', title: 'Backup & Restore', subtitle: 'Automatic local backups, JSON snapshots and storage health', action: { label: 'Backup Now', click: '#backupNowButton' } },
-  analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', title: 'Area Analytics', subtitle: 'Areas, zones and packages' },
+  analytics: { view: 'analyticsView', tab: 'showAnalyticsButton', title: 'Area Analytics', subtitle: 'Areas, zones and packages', action: { label: 'Export Area CSV', click: '#exportAreaIntelCsvBtn' } },
   inventory: { view: 'inventoryView', tab: 'showInventoryButton', title: 'Inventory', subtitle: 'Stock items and movements', action: { label: '+ Add Item', focus: '#inventoryItemForm' } },
   expenses: { view: 'expensesView', tab: 'showExpensesButton', title: 'Expenses', subtitle: 'Business expenses and payroll', action: { label: '+ Add Expense', focus: '#expenseForm' } },
   homeBudget: { view: 'homeBudgetView', tab: 'showHomeBudgetButton', title: 'Home Budget', subtitle: 'Personal household expenses, kept apart from business money', action: { label: '+ Add Home Expense', focus: '#homeBudgetDate' } },
@@ -71,6 +71,66 @@ export function parseRoute(hash = '') {
 }
 
 export const routeHash = screen => `#/${screen}`;
+
+/**
+ * Plan B — the one header pattern, as a pure contract. Every router screen
+ * gets exactly: a back control (Home), a title, a subtitle, and a context
+ * action (a click target or a focus target that already exists on the
+ * screen). Returns null for Home and for anything that is not a router
+ * screen, so a header can never be rendered for a screen with no spec.
+ * The Bills screen follows the app language, exactly as apply() always did.
+ */
+export function headerSpecForScreen(screen) {
+  if (screen === HOME || !SCREENS[screen]) return null;
+  const spec = SCREENS[screen];
+  const title = screen === 'bills' ? t('bill_screen_title') : spec.title;
+  const subtitle = screen === 'bills' ? t('bill_screen_subtitle') : spec.subtitle;
+  const actionLabel = screen === 'bills' ? t('bill_screen_action') : (spec.action?.label ?? null);
+  return {
+    screen,
+    title,
+    subtitle,
+    hasBack: true,
+    actionLabel,
+    actionKind: !spec.action ? null : (spec.action.click ? 'click' : 'focus'),
+    actionTarget: spec.action?.click || spec.action?.focus || null
+  };
+}
+
+/** Plan B — a shell loading state must never outlive this watchdog. */
+export const SHELL_LOADING_TIMEOUT_MS = 3000;
+
+/**
+ * Plan B — the shell loading state machine. start() shows loading and arms
+ * a watchdog; finish() hides it and disarms the watchdog; if the watchdog
+ * fires while still loading, onStuck() runs once and the state resets to
+ * idle, so a missed finish can never freeze the shell. `timer` is injected
+ * only so tests can use short timeouts; production uses setTimeout.
+ */
+export function createShellLoadingState({ timeoutMs = SHELL_LOADING_TIMEOUT_MS, onStuck = () => {} } = {}) {
+  let loading = false;
+  let timer = null;
+  let stuckFired = false;
+  const clearTimer = () => { if (timer !== null) { clearTimeout(timer); timer = null; } };
+  return {
+    get loading() { return loading; },
+    start() {
+      loading = true;
+      stuckFired = false;
+      clearTimer();
+      timer = setTimeout(() => {
+        if (!loading) return;
+        loading = false;
+        timer = null;
+        if (!stuckFired) { stuckFired = true; onStuck(); }
+      }, timeoutMs);
+    },
+    finish() {
+      loading = false;
+      clearTimer();
+    }
+  };
+}
 
 export const COLLECT_HASH = '#/collect';
 /**
@@ -160,11 +220,38 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
   header.innerHTML = `
     <button type="button" class="sr-back-button" data-sr-home aria-label="Back to Home"><span aria-hidden="true">←</span><span>Home</span></button>
     <div class="sr-title-block"><h1 id="srScreenTitle" class="sr-screen-title" tabindex="-1"></h1><p id="srScreenSubtitle" class="sr-screen-subtitle"></p></div>
-    <button type="button" id="srPrimaryAction" class="sr-primary-action" hidden></button>`;
+    <div class="sr-header-actions" role="group" aria-label="Screen actions"><button type="button" id="srPrimaryAction" class="sr-primary-action" hidden></button></div>`;
   main.insertBefore(header, main.firstChild);
   const titleEl = header.querySelector('#srScreenTitle');
   const subtitleEl = header.querySelector('#srScreenSubtitle');
   const actionBtn = header.querySelector('#srPrimaryAction');
+
+  // Plan B — the shell loading bar lives in index.html as the first child
+  // of <main> (created here only if that markup is ever missing), and the
+  // loading state below guarantees it can never stay on: apply() finishes
+  // it on the next animation frame, and the watchdog finishes it anyway.
+  let loadingBar = doc.getElementById('shellLoadingBar');
+  if (!loadingBar) {
+    loadingBar = doc.createElement('div');
+    loadingBar.id = 'shellLoadingBar';
+    loadingBar.className = 'sr-loading-bar';
+    loadingBar.setAttribute('aria-hidden', 'true');
+    main.insertBefore(loadingBar, header.nextSibling);
+  }
+  const setShellLoading = on => {
+    if (on) {
+      body.dataset.shellLoading = '1';
+      header.setAttribute('aria-busy', 'true');
+      loadingBar.classList.add('is-loading');
+    } else {
+      delete body.dataset.shellLoading;
+      header.removeAttribute('aria-busy');
+      loadingBar.classList.remove('is-loading');
+    }
+  };
+  const shellLoading = createShellLoadingState({ onStuck: () => setShellLoading(false) });
+  const beginShellLoading = () => { shellLoading.start(); setShellLoading(true); };
+  const endShellLoading = () => { shellLoading.finish(); setShellLoading(false); };
 
   actionBtn.addEventListener('click', () => {
     const action = SCREENS[current]?.action;
@@ -250,6 +337,10 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
   // navigation exactly one main view is un-hidden, the desktop view tabs and
   // the mobile bottom nav highlight the screen actually shown, and the
   // footer backup panel (the Backup screen's content) is closed again.
+  // Plan B — every view-backed screen is tracked here, including Home
+  // Budget and WhatsApp Templates, which previously fell out of view sync:
+  // switching to them left syncViewState unable to hide them again, so a
+  // later switch could leave two screens visible at once.
   const APP_VIEWS = [
     ['customersView', 'showCustomersButton'],
     ['transactionsView', 'showTransactionsButton'],
@@ -257,7 +348,9 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     ['analyticsView', 'showAnalyticsButton'],
     ['inventoryView', 'showInventoryButton'],
     ['expensesView', 'showExpensesButton'],
-    ['loanView', 'showLoansButton']
+    ['loanView', 'showLoansButton'],
+    ['homeBudgetView', 'showHomeBudgetButton'],
+    ['waTemplatesView', 'showWaTemplatesButton']
   ];
   const SCREEN_VIEW = {
     customers: 'customersView',
@@ -269,7 +362,9 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     analytics: 'analyticsView',
     inventory: 'inventoryView',
     expenses: 'expensesView',
-    loans: 'loanView'
+    loans: 'loanView',
+    homeBudget: 'homeBudgetView',
+    waTemplates: 'waTemplatesView'
   };
   function syncViewState(screen) {
     const activeView = SCREEN_VIEW[screen] || null;
@@ -335,6 +430,13 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
       updateNavActive('field-tools');
       return;
     }
+    // Plan B — every screen switch shows the shell loading state, and it
+    // is always cleared: on the next animation frame after apply, or by
+    // the watchdog in createShellLoadingState if that frame never comes.
+    beginShellLoading();
+    const finishLoading = () => endShellLoading();
+    if (typeof win.requestAnimationFrame === 'function') win.requestAnimationFrame(finishLoading);
+    else finishLoading();
     const isHome = screen === HOME;
     if (!isHome) {
       ensureViewVisible(screen);
@@ -344,6 +446,7 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     syncViewState(screen);
     current = screen;
     body.dataset.screen = screen;
+    header.dataset.screen = screen;
     // #287: Bills / Monthly Report / Dues Recovery / Smart Alerts share one view
     // element, but each screen shows only its own sections (CSS keys off this
     // attribute; nothing is removed from the DOM).
@@ -364,13 +467,16 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
       doc.getElementById('easypaisaView')?.setAttribute('hidden', '');
     }
     if (!isHome) {
-      const spec = SCREENS[screen];
+      // Plan B — the header is rendered from the one contract, never from
+      // a second copy of the titles: headerSpecForScreen already applies
+      // the Bills language override, so there is no separate Bills block.
+      const spec = headerSpecForScreen(screen);
       if (spec) {
         titleEl.textContent = spec.title;
         subtitleEl.textContent = spec.subtitle || '';
-        if (spec.action) {
+        if (spec.actionLabel) {
           actionBtn.hidden = false;
-          actionBtn.textContent = spec.action.label;
+          actionBtn.textContent = spec.actionLabel;
           actionBtn.dataset.screenAction = screen;
         } else {
           actionBtn.hidden = true;
@@ -379,13 +485,6 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
       }
     } else {
       doc.title = 'Shahdara ISP Billing';
-    }
-    // Urdu phase 4: the Bills screen header follows the app language.
-    if (screen === 'bills' && !isHome) {
-      titleEl.textContent = t('bill_screen_title');
-      subtitleEl.textContent = t('bill_screen_subtitle');
-      if (!actionBtn.hidden) actionBtn.textContent = t('bill_screen_action');
-      doc.title = `${t('bill_screen_title')} · Shahdara ISP Billing`;
     }
     if (!scroll) return;
     win.requestAnimationFrame(() => {
@@ -459,10 +558,12 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
   // Urdu phase 4: re-apply the Bills screen header when the language changes.
   win.addEventListener('shahdara:language-change', () => {
     if (current !== 'bills') return;
-    titleEl.textContent = t('bill_screen_title');
-    subtitleEl.textContent = t('bill_screen_subtitle');
-    if (!actionBtn.hidden) actionBtn.textContent = t('bill_screen_action');
-    doc.title = `${t('bill_screen_title')} · Shahdara ISP Billing`;
+    const spec = headerSpecForScreen('bills');
+    if (!spec) return;
+    titleEl.textContent = spec.title;
+    subtitleEl.textContent = spec.subtitle;
+    if (!actionBtn.hidden && spec.actionLabel) actionBtn.textContent = spec.actionLabel;
+    doc.title = `${spec.title} · Shahdara ISP Billing`;
   });
 
   return {

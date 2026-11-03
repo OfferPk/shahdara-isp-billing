@@ -46,6 +46,45 @@
 .sr-primary-action:hover { filter: brightness(1.08); }
 .sr-primary-action[hidden] { display: none !important; }
 
+/* Plan B — one header pattern: the context action lives in its own
+   actions group so back / title / actions keep one layout on every
+   screen, and the shell loading bar (also in index.html) can never
+   freeze: it only shows while .is-loading is set, and the router's
+   watchdog always clears that class. Token-only: no new hex values. */
+.sr-header-actions { display: flex; align-items: center; gap: 8px; }
+.sr-loading-bar {
+  height: 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-slate-100);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.sr-loading-bar.is-loading {
+  opacity: 1;
+  background-image: linear-gradient(90deg, transparent, var(--color-brand-500), transparent);
+  background-size: 200% 100%;
+  animation: sr-loading-slide 1s linear infinite;
+}
+@keyframes sr-loading-slide {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Plan B — designed empty state for roster lists (see ui-feedback.js).
+   It sits beside the list, never inside it, so list renders never wipe
+   it and it never replaces app content. */
+.shell-empty-state {
+  text-align: center;
+  padding: var(--space-5) var(--space-4);
+  margin: var(--space-3) 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.shell-empty-title { margin: 0; font-weight: 800; font-size: 16px; color: var(--ink); }
+.shell-empty-message { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.shell-empty-state .shell-empty-action { margin-top: var(--space-3); }
+
 /* Collapse (never delete) Home-only content while a feature screen is open.
    height/overflow instead of display:none so modal <dialog>s nested inside still open. */
 body.sr-screen-mode .data-loss-warning,
@@ -108,7 +147,8 @@ body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expen
   }
   .sr-back-button { grid-area: back; padding: 0 12px; }
   .sr-title-block { grid-area: title; }
-  .sr-primary-action { grid-area: action; width: 100%; }
+  .sr-header-actions { grid-area: action; }
+  .sr-primary-action { width: 100%; }
   .sr-screen-title { font-size: 20px; }
   /* On phones the header scrolls away so it never covers content. */
   .sr-screen-header { position: static; }

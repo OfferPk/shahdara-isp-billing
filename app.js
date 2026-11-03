@@ -257,6 +257,7 @@ import { normalizeVendorSchedules, upsertVendorSchedule, removeVendorSchedule, n
 import { normalizeMonthBudget, normalizeMonthBudgets, upsertMonthBudget, removeMonthBudget, buildBudgetVersusActual, budgetVersusActualSummaryText, budgetVersusActualHtml, budgetVersusActualCsv, budgetVersusActualFilename } from './expense-month-budgets.js';
 import { normalizeVendorContract, normalizeVendorContracts, upsertVendorContract, removeVendorContract, updateContractRate, sharedVendorNames, buildRenewalList, renewalSummaryText, vendorContractsHtml, vendorContractsCsv, vendorContractsFilename } from './vendor-contracts.js';
 import { isValidCostMonth, parseCapitalCategories, buildCostPerCustomer, costPerCustomerSummaryText, costPerCustomerHtml, costPerCustomerCsv, costPerCustomerFilename } from './cost-per-customer.js';
+import { normalizeAdvance, normalizeAdvances, normalizeSpends, upsertAdvance, recordSpend, buildAdvanceSummaries, closeAdvance, pettyCashSummaryText, pettyCashHtml, pettyCashCsv, pettyCashFilename } from './petty-cash.js';
 import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
@@ -13003,6 +13004,7 @@ function renderAnalytics() {
   renderExpenseMonthBudgets();
   renderVendorContracts();
   renderCostPerCustomer();
+  renderPettyCash();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -13045,6 +13047,103 @@ function renderCostPerCustomer() {
         packages: BILL_PACKAGES.map((plan) => ({ name: plan.label, price: plan.price })),
       });
       downloadCsvFile(costPerCustomerFilename(exportMonth), costPerCustomerCsv(exportView));
+    });
+  }
+}
+// Plan 45: petty cash and field advance log. A log only — one advance
+// per record, spends against open advances, and a close that accounts
+// for every rupee (returned cash or a recorded reason). It is separate
+// from customer collections, from the Plan 4 handover count, and from
+// the daily drawer; it never changes a payment or a bill.
+const PETTY_CASH_KEY = 'shahdara_petty_cash_v1';
+let pettyCashBound = false;
+function loadPettyCash() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PETTY_CASH_KEY) || '{"advances":[],"spends":[]}');
+    return {
+      advances: normalizeAdvances(Array.isArray(parsed?.advances) ? parsed.advances : []),
+      spends: normalizeSpends(Array.isArray(parsed?.spends) ? parsed.spends : []),
+    };
+  } catch { return { advances: [], spends: [] }; }
+}
+function savePettyCash(data) {
+  try {
+    localStorage.setItem(PETTY_CASH_KEY, JSON.stringify({
+      advances: normalizeAdvances(data.advances ?? []),
+      spends: normalizeSpends(data.spends ?? []),
+    }));
+  } catch {}
+}
+function renderPettyCash() {
+  const bodyEl = $('#pettyCashBody');
+  if (!bodyEl) return;
+  const data = loadPettyCash();
+  const summaries = buildAdvanceSummaries(data.advances, data.spends);
+  bodyEl.innerHTML = pettyCashHtml(summaries);
+  const summaryEl = $('#pettyCashSummary');
+  if (summaryEl) summaryEl.textContent = summaries.length === 0
+    ? 'Small field spending — cable, connectors, transport, a quick repair — is paid out of the collector\'s pocket or the day\'s cash with no record, so it surfaces later as an unexplained gap in the handover. Give an advance, record each spend against it, and close it only when every rupee is accounted for: cash returned or a reason recorded. This log is separate from collections and from the handover count, and it never changes a payment or a bill.'
+    : pettyCashSummaryText(summaries);
+  const selectEls = [$('#pettyCashSpendAdvance'), $('#pettyCashCloseAdvance')];
+  for (const selectEl of selectEls) {
+    if (selectEl && document.activeElement !== selectEl) {
+      const open = summaries.filter((s) => s.status === 'open');
+      selectEl.innerHTML = open.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.holder)} — ${escapeHtml(s.dateGiven)} — Rs. ${s.amountGiven} (left Rs. ${s.remaining})</option>`).join('')
+        || '<option value="">No open advance yet</option>';
+    }
+  }
+  if (!pettyCashBound) {
+    pettyCashBound = true;
+    $('#pettyCashAddBtn')?.addEventListener('click', () => {
+      const row = {
+        id: `pc-${Date.now()}`,
+        holder: $('#pettyCashHolder')?.value ?? '',
+        amountGiven: $('#pettyCashAmount')?.value === '' ? null : $('#pettyCashAmount')?.value ?? null,
+        dateGiven: $('#pettyCashDate')?.value ?? '',
+        note: $('#pettyCashNote')?.value ?? '',
+      };
+      if (!normalizeAdvance(row)) {
+        toast('An advance needs a holder, an amount above zero, and a real date.');
+        return;
+      }
+      const dataNow = loadPettyCash();
+      savePettyCash({ ...dataNow, advances: upsertAdvance(dataNow.advances, row) });
+      renderPettyCash();
+    });
+    $('#pettyCashSpendBtn')?.addEventListener('click', () => {
+      const dataNow = loadPettyCash();
+      const result = recordSpend(dataNow.advances, dataNow.spends, {
+        id: `ps-${Date.now()}`,
+        advanceId: $('#pettyCashSpendAdvance')?.value ?? '',
+        date: $('#pettyCashSpendDate')?.value ?? '',
+        purpose: $('#pettyCashSpendPurpose')?.value ?? '',
+        mohalla: $('#pettyCashSpendMohalla')?.value ?? '',
+        amount: $('#pettyCashSpendAmount')?.value === '' ? null : $('#pettyCashSpendAmount')?.value ?? null,
+      });
+      if (!result.accepted) {
+        toast('A spend needs an open advance, a real date, a purpose, and an amount above zero.');
+        return;
+      }
+      savePettyCash(result);
+      renderPettyCash();
+    });
+    $('#pettyCashCloseBtn')?.addEventListener('click', () => {
+      const dataNow = loadPettyCash();
+      const result = closeAdvance(dataNow.advances, dataNow.spends, $('#pettyCashCloseAdvance')?.value ?? '', {
+        returnedAmount: $('#pettyCashCloseReturned')?.value === '' ? null : $('#pettyCashCloseReturned')?.value ?? null,
+        reason: $('#pettyCashCloseReason')?.value ?? '',
+        closedDate: localDate(),
+      });
+      if (!result.closed) {
+        toast(result.reason || 'This advance could not be closed.');
+        return;
+      }
+      savePettyCash({ ...dataNow, advances: result.advances });
+      renderPettyCash();
+    });
+    $('#pettyCashExportBtn')?.addEventListener('click', () => {
+      const dataNow = loadPettyCash();
+      downloadCsvFile(pettyCashFilename(), pettyCashCsv(buildAdvanceSummaries(dataNow.advances, dataNow.spends)));
     });
   }
 }

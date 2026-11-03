@@ -145,13 +145,22 @@ test('calculateTopDefaulters - filters by area, search, riskLevel, and limit', (
   const state = createSampleBillingState();
   const refDate = new Date('2026-04-01T12:00:00Z');
 
-  // Filter by Area: Baradari
+  // Plan T (intentional change): the area filter now uses the shared
+  // canonical-mohalla rule (mohalla || area), the same rule the
+  // Customers list uses. Abdul Rehman's mohalla is 'Gulshan Colony'
+  // and his saved area is 'Baradari', so the 'Gulshan Colony' filter
+  // finds him and the 'Baradari' filter no longer does.
   const areaFilter = calculateTopDefaulters(state, {
-    area: 'Baradari',
+    area: 'Gulshan Colony',
     referenceDate: refDate
   });
   assert.equal(areaFilter.accounts.length, 1);
   assert.equal(areaFilter.accounts[0].name, 'Abdul Rehman');
+  const oldAreaFilter = calculateTopDefaulters(state, {
+    area: 'Baradari',
+    referenceDate: refDate
+  });
+  assert.equal(oldAreaFilter.accounts.length, 0);
 
   // Filter by Search: 'Tariq'
   const searchFilter = calculateTopDefaulters(state, {

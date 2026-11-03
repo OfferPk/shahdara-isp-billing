@@ -1,15 +1,22 @@
 import { canonicalMohalla, DEFAULT_MOHALLAS } from './phase3.js';
 import { fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
+import { identitySearchMatches } from './core.js';
 
 /**
  * Owner feature (2026-10-29): field-scoped search for the Customers list and
  * the Mohalla dashboard headcounts.
  *
  * The customers list search box gains a field selector — Name / Mobile /
- * User ID / Area — and the typed query is matched against ONLY the chosen
- * field. All area matching and counting goes through canonicalMohalla
- * (phase3.js, PR #428) so spelling variants such as "Bani" and "BANII"
- * resolve to the same mohalla everywhere.
+ * User ID / Area / Identity — and the typed query is matched against ONLY
+ * the chosen field. All area matching and counting goes through
+ * canonicalMohalla (phase3.js, PR #428) so spelling variants such as
+ * "Bani" and "BANII" resolve to the same mohalla everywhere.
+ *
+ * Plan L: the Identity field reuses core.js identitySearchMatches
+ * (SISP-74) unchanged — PPPoE username, static IP, MAC address and
+ * router serial, including the separator-insensitive MAC path. No
+ * search logic is changed in this plan; the field only exposes the
+ * existing global-search identity logic as a field-scoped choice.
  */
 
 export const CUSTOMER_SEARCH_FIELDS = Object.freeze([
@@ -17,6 +24,7 @@ export const CUSTOMER_SEARCH_FIELDS = Object.freeze([
   { id: 'mobile', label: 'Mobile' },
   { id: 'userid', label: 'User ID' },
   { id: 'area', label: 'Area' },
+  { id: 'identity', label: 'Identity' },
 ]);
 
 /** Unknown or blank field ids fall back to the historical default: name. */
@@ -70,6 +78,16 @@ export function customerMatchesSearchField(customer, field, query) {
       const needle = normalizedText(rawQuery);
       return normalizedText(customerMohalla.label).includes(needle)
         || normalizedText(customerMohalla.stored).includes(needle);
+    }
+    case 'identity': {
+      // Plan L: the existing SISP-74 identity logic, reused verbatim —
+      // PPPoE username, static IP, MAC address, router serial, with
+      // separator-insensitive MAC matching ("aabbcc" finds a MAC stored
+      // as "AA:BB:CC:DD:EE:FF"). Nothing else on the record matches
+      // here, and archived customers are not excluded by this helper:
+      // callers filter archived/active exactly as they do for the
+      // other fields.
+      return identitySearchMatches(customer, rawQuery);
     }
     case 'name':
     default: {

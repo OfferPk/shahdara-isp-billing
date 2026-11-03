@@ -43,9 +43,11 @@ function searchState() {
   return state;
 }
 
-test('field catalogue is exactly Name / Mobile / User ID / Area, unknown fields fall back to name', () => {
-  assert.deepEqual(CUSTOMER_SEARCH_FIELDS.map((field) => field.id), ['name', 'mobile', 'userid', 'area']);
-  assert.deepEqual(CUSTOMER_SEARCH_FIELDS.map((field) => field.label), ['Name', 'Mobile', 'User ID', 'Area']);
+test('field catalogue is exactly Name / Mobile / User ID / Area / Identity, unknown fields fall back to name', () => {
+  // Plan L adds Identity (the last entry); the four older fields are
+  // unchanged in id, label and order.
+  assert.deepEqual(CUSTOMER_SEARCH_FIELDS.map((field) => field.id), ['name', 'mobile', 'userid', 'area', 'identity']);
+  assert.deepEqual(CUSTOMER_SEARCH_FIELDS.map((field) => field.label), ['Name', 'Mobile', 'User ID', 'Area', 'Identity']);
   assert.equal(normalizeCustomerSearchField('mobile'), 'mobile');
   assert.equal(normalizeCustomerSearchField(' AREA '), 'area');
   assert.equal(normalizeCustomerSearchField('bogus'), 'name');
@@ -303,7 +305,7 @@ test('SISP-175 wiring: controller seam, card markup hooks, i18n keys and token s
 test('wiring: search field select, mohalla dashboard section and app.js hooks exist', () => {
   const index = readRepoFile('index.html');
   assert.ok(index.includes('id="customerSearchField"'), 'field select is in the customers search control');
-  for (const value of ['name', 'mobile', 'userid', 'area']) {
+  for (const value of ['name', 'mobile', 'userid', 'area', 'identity']) {
     assert.ok(index.includes(`<option value="${value}"`), `field select offers ${value}`);
   }
   assert.ok(index.includes('id="mohallaDashboardCards"'), 'dashboard has the mohalla cards grid');
@@ -313,7 +315,7 @@ test('wiring: search field select, mohalla dashboard section and app.js hooks ex
   assert.ok(app.includes('filterCustomersBySearchField'), 'roster render applies the field filter');
   assert.ok(app.includes('buildMohallaUserCounts'), 'dashboard render builds mohalla counts');
   const language = readRepoFile('nav-language.js');
-  for (const key of ['cust_search_field_name', 'cust_search_field_mobile', 'cust_search_field_userid', 'cust_search_field_area', 'dash_mohalla_title', 'dash_mohalla_users']) {
+  for (const key of ['cust_search_field_name', 'cust_search_field_mobile', 'cust_search_field_userid', 'cust_search_field_area', 'cust_search_field_identity', 'dash_mohalla_title', 'dash_mohalla_users']) {
     assert.ok(language.includes(`${key}:`), `nav-language.js carries ${key}`);
   }
 });

@@ -241,6 +241,7 @@ import { normalizeOutageList, createOutage, openOutageList, outageForTicket, lin
 import { buildDispatchQueue, reorderDispatchQueue, dispatchQueueSummary, dispatchQueueSummaryText, dispatchQueueHtml, dispatchQueueCsv, dispatchQueueFilename } from './dispatch-queue.js';
 import { normalizeRepeatFaultSettings, buildRepeatFaultFlags, repeatFaultSummary, repeatFaultSummaryText, repeatFaultHtml, repeatFaultCsv, repeatFaultFilename } from './repeat-fault-flag.js';
 import { RESOLUTION_CONFIRMATION_VARIANTS, RESOLUTION_DEFAULT_WINDOW_DAYS, normalizeReopenWindowDays, normalizeResolutionList, recordResolution, normalizeFollowUpLinkList, recordFollowUpLink, reopenResolvedTicket, createFollowUpTicketInput, buildConfirmationRows, buildConfirmationDraft, confirmationSummary, confirmationSummaryText, confirmationHtml, confirmationCsv, confirmationFilename } from './resolution-confirmation.js';
+import { CAPACITY_FORECAST_DEFAULT_THRESHOLD, normalizeCapacityThreshold, buildCapacityForecast, capacityForecastSummaryText, capacityForecastHtml, capacityForecastCsv, capacityForecastFilename } from './capacity-forecast.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -11591,6 +11592,45 @@ function renderOltOnuRegister() {
     });
   }
 }
+// Plan 26: a read-only capacity view built from the manual connection
+// register only. The threshold lives in its own store; changing it
+// signals different units and never touches a customer, port or
+// billing record, and nothing here polls live hardware or orders
+// anything. Totals come from the register panel's own totals store.
+const CAPACITY_FORECAST_THRESHOLD_KEY = 'shahdara_capacity_threshold_v1';
+let capacityForecastBound = false;
+function loadCapacityThreshold() {
+  try {
+    return normalizeCapacityThreshold(JSON.parse(localStorage.getItem(CAPACITY_FORECAST_THRESHOLD_KEY) ?? 'null'));
+  } catch { return CAPACITY_FORECAST_DEFAULT_THRESHOLD; }
+}
+function saveCapacityThreshold(value) {
+  try { localStorage.setItem(CAPACITY_FORECAST_THRESHOLD_KEY, JSON.stringify(normalizeCapacityThreshold(value))); } catch {}
+}
+function renderCapacityForecast() {
+  const bodyEl = $('#capacityForecastBody');
+  if (!bodyEl) return;
+  const active = (state.customers ?? []).filter((c) => !c.archived);
+  const reg = buildConnectionRegister(loadOltOnuRegister(), active.map((c) => c.id));
+  const forecast = buildCapacityForecast(reg.records, loadOltOnuPortTotals(), { threshold: loadCapacityThreshold() });
+  bodyEl.innerHTML = capacityForecastHtml(forecast);
+  const summaryEl = $('#capacityForecastSummary');
+  if (summaryEl) summaryEl.textContent = capacityForecastSummaryText(forecast);
+  const thresholdEl = $('#capacityForecastThreshold');
+  if (thresholdEl && document.activeElement !== thresholdEl) thresholdEl.value = String(forecast.threshold);
+  if (!capacityForecastBound) {
+    capacityForecastBound = true;
+    $('#capacityForecastExportBtn')?.addEventListener('click', () => {
+      const current = buildConnectionRegister(loadOltOnuRegister(), (state.customers ?? []).filter((c) => !c.archived).map((c) => c.id));
+      const currentForecast = buildCapacityForecast(current.records, loadOltOnuPortTotals(), { threshold: loadCapacityThreshold() });
+      downloadCsvFile(capacityForecastFilename(), capacityForecastCsv(currentForecast));
+    });
+    $('#capacityForecastSaveBtn')?.addEventListener('click', () => {
+      saveCapacityThreshold(Number($('#capacityForecastThreshold')?.value));
+      renderCapacityForecast();
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -11663,6 +11703,7 @@ function renderAnalytics() {
   renderDispatchQueue();
   renderRepeatFaultFlags();
   renderResolutionConfirmation();
+  renderCapacityForecast();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

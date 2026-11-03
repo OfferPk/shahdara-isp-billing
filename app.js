@@ -258,6 +258,7 @@ import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRec
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
+import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -4409,6 +4410,13 @@ function renderCustomerProfileView(customer) {
   // each bill's own due date, so it follows the customer's own date.
   const billingCycleChoice = findBillingCycleChoice(loadBillingCycleChoices(), customer.id);
   const billingCycleSectionHtml = `<section class="profile-custody-section" aria-label="Billing cycle"><h4>Billing cycle</h4><p>Match the due date to the household's payday — a customer paid on the 15th should not always be late on a 5th due date. The next bill raised gets the new due date; every earlier bill keeps its old one.</p>${billingCycleChoiceHtml(billingCycleChoice)}<div><label>Due day of month <input id="billingCycleDueDay" type="number" min="1" max="31" value="${escapeHtml(String(billingCycleChoice ? billingCycleChoice.dueDay : DEFAULT_BILL_DUE_DAY))}"></label> <button type="button" class="secondary-button" id="billingCycleSaveBtn">Save billing cycle</button></div></section>`;
+  // Plan 40: the profile shows the customer's preferred payment
+  // channel and lets the operator change it. Saving here changes
+  // no payment, Waada, balance or bill — it only decides which
+  // instruction line that customer's own drafts (Plans 11, 12, 13,
+  // 39) carry when they are sent. No wallet number is recorded.
+  const paymentChannelRecord = findPaymentChannelRecord(loadPaymentChannels(), customer.id);
+  const paymentChannelSectionHtml = `<section class="profile-custody-section" aria-label="Preferred payment channel"><h4>Preferred payment channel</h4><p>Cash customers should be told to pay the collector, and wallet customers should be told the wallet route — not the other way round. Set the channel once and every reminder, escalation, confirmation and statement draft sent to this customer carries the matching instructions.</p>${paymentChannelHtml(paymentChannelRecord)}<div><label>Preferred channel <select id="paymentChannelSelect"><option value="">Not set (neutral instructions)</option><option value="${PAYMENT_CHANNELS.CASH}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.CASH ? 'selected' : ''}>Cash via collector</option><option value="${PAYMENT_CHANNELS.WALLET}" ${paymentChannelRecord && paymentChannelRecord.channel === PAYMENT_CHANNELS.WALLET ? 'selected' : ''}>Easypaisa/wallet</option></select></label> <button type="button" class="secondary-button" id="paymentChannelSaveBtn">Save payment channel</button>${paymentChannelRecord ? ' <button type="button" class="secondary-button" id="paymentChannelRemoveBtn">Remove channel</button>' : ''}</div></section>`;
   // Plan 39 (Plan 1-100) — Monthly statement draft on the profile.
   // One statement per customer per month, composed from this profile's
   // own bills and payments (opening, this month's charges, payments
@@ -4440,7 +4448,7 @@ function renderCustomerProfileView(customer) {
   const statementDraftSendsForMonth = (month) => findStatementSends(loadStatementDraftSentLog(), customer.id, month);
   const statementDraftSendLabel = statementDraftPref && statementDraftPref.doNotMessage ? 'Do not message' : (statementDraftSendsForMonth(statementDraftMonth).length > 0 ? 'Re-send statement' : 'Send monthly statement');
   const statementDraftSectionHtml = `<section class="profile-custody-section" aria-label="Monthly statement"><h4>Monthly statement</h4><p>One clear page each month — opening balance, this month's charges, payments received, and closing balance — so the customer never has to ask "what do I actually owe and for what?" again. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, Waada, or lifecycle record.</p><div><label>Statement month <input id="statementDraftMonth" type="month" value="${escapeHtml(statementDraftMonth)}"></label> <button type="button" class="secondary-button" id="statementDraftShowBtn">Show statement</button></div><div id="statementDraftResult">${statementDraftCurrent ? statementDraftHtml(statementDraftCurrent.statement, { draftText: statementDraftCurrent.draft.text, sends: statementDraftSendsForMonth(statementDraftMonth) }) : '<p class="empty-state">Monthly statement unavailable.</p>'}</div><button type="button" class="secondary-button" id="statementDraftSendBtn" ${statementDraftSendDisabled ? 'disabled' : ''}>${escapeHtml(statementDraftSendLabel)}</button></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${statementDraftSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4519,7 +4527,8 @@ function renderCustomerProfileView(customer) {
       sendBtn.disabled = true;
       return;
     }
-    const wa = formatWhatsAppUrl(statementDraftPref && statementDraftPref.whatsappNumber ? statementDraftPref.whatsappNumber : whatsappPhoneFor(customer), built.draft.text);
+    const channelVariant = built.variant === STATEMENT_DRAFT_VARIANTS.URDU ? PAYMENT_CHANNEL_VARIANTS.URDU : PAYMENT_CHANNEL_VARIANTS.ROMAN;
+    const wa = formatWhatsAppUrl(statementDraftPref && statementDraftPref.whatsappNumber ? statementDraftPref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(built.draft.text, findPaymentChannel(loadPaymentChannels(), customer.id), channelVariant));
     if (!wa.validPhone || !wa.url) {
       sendBtn.disabled = true;
       sendBtn.textContent = 'No WhatsApp number';
@@ -4540,6 +4549,23 @@ function renderCustomerProfileView(customer) {
     }
     saveBillingCycleChoices(upsertBillingCycleChoice(loadBillingCycleChoices(), choice));
     toast(`Billing cycle saved: due on the ${choice.dueDay}th of each month. Past bills keep their old due dates.`);
+    renderDetail();
+  });
+  $('#customerProfileView').querySelector('#paymentChannelSaveBtn')?.addEventListener('click', () => {
+    const channelValue = $('#customerProfileView').querySelector('#paymentChannelSelect')?.value || '';
+    if (!channelValue) {
+      savePaymentChannels(removePaymentChannel(loadPaymentChannels(), customer.id));
+      toast('Payment channel cleared: drafts will carry the neutral instructions.');
+      renderDetail();
+      return;
+    }
+    savePaymentChannels(upsertPaymentChannel(loadPaymentChannels(), { customerId: customer.id, customerName: customer.name || customer.customerName, channel: channelValue }));
+    toast('Payment channel saved: this customer\'s drafts will carry the matching payment instructions.');
+    renderDetail();
+  });
+  $('#customerProfileView').querySelector('#paymentChannelRemoveBtn')?.addEventListener('click', () => {
+    savePaymentChannels(removePaymentChannel(loadPaymentChannels(), customer.id));
+    toast('Payment channel removed: drafts will carry the neutral instructions.');
     renderDetail();
   });
   $('#customerProfileView').querySelector('#profileWelcomeSlipButton')?.addEventListener('click', () => openWelcomeSlip(customer));
@@ -10589,7 +10615,8 @@ function renderPreDueReminders() {
         return;
       }
       const draftVariant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? PRE_DUE_DRAFT_VARIANTS.URDU : PRE_DUE_DRAFT_VARIANTS.ROMAN;
-      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), buildPreDueReminderDraft(row, draftVariant).text);
+      const channelVariant = draftVariant === PRE_DUE_DRAFT_VARIANTS.URDU ? PAYMENT_CHANNEL_VARIANTS.URDU : PAYMENT_CHANNEL_VARIANTS.ROMAN;
+      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(buildPreDueReminderDraft(row, draftVariant).text, findPaymentChannel(loadPaymentChannels(), row.customerId), channelVariant));
       if (!wa.validPhone || !wa.url) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'No WhatsApp number';
@@ -10692,7 +10719,8 @@ function renderEscalationLadder() {
         return;
       }
       const draftVariant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? ESCALATION_DRAFT_VARIANTS.URDU : ESCALATION_DRAFT_VARIANTS.ROMAN;
-      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), buildEscalationDraft(row, draftVariant).text);
+      const channelVariant = draftVariant === ESCALATION_DRAFT_VARIANTS.URDU ? PAYMENT_CHANNEL_VARIANTS.URDU : PAYMENT_CHANNEL_VARIANTS.ROMAN;
+      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(buildEscalationDraft(row, draftVariant).text, findPaymentChannel(loadPaymentChannels(), row.customerId), channelVariant));
       if (!wa.validPhone || !wa.url) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'No WhatsApp number';
@@ -10787,7 +10815,8 @@ function renderPaymentConfirmation() {
         return;
       }
       const draftText = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU && row.draftUrdu ? row.draftUrdu : row.draft;
-      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), draftText);
+      const channelVariant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? PAYMENT_CHANNEL_VARIANTS.URDU : PAYMENT_CHANNEL_VARIANTS.ROMAN;
+      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(draftText, findPaymentChannel(loadPaymentChannels(), row.customerId), channelVariant));
       if (!wa.validPhone || !wa.url) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'No WhatsApp number';
@@ -11019,6 +11048,21 @@ function loadBillingCycleChoices() {
 }
 function saveBillingCycleChoices(list) {
   try { localStorage.setItem(BILLING_CYCLE_CHOICES_KEY, JSON.stringify(normalizeBillingCycleChoices(list))); } catch {}
+}
+// Plan 40: one preferred-payment-channel record per customer, in its
+// own store apart from every bill, payment, Waada and balance record.
+// Saving here changes no money figure — it only decides which
+// instruction line a customer's own drafts (Plans 11, 12, 13, 39)
+// carry. No wallet number or credential is ever recorded here.
+const PAYMENT_CHANNELS_KEY = 'shahdara_payment_channels_v1';
+function loadPaymentChannels() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PAYMENT_CHANNELS_KEY) || '[]');
+    return normalizePaymentChannelRecords(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function savePaymentChannels(list) {
+  try { localStorage.setItem(PAYMENT_CHANNELS_KEY, JSON.stringify(normalizePaymentChannelRecords(list))); } catch {}
 }
 function renderOnboardingChecklists() {
   const bodyEl = $('#onboardingChecklistsBody');

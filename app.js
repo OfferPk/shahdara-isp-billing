@@ -257,6 +257,7 @@ import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycl
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
+import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -4120,6 +4121,20 @@ function loadWelcomePackSentLog() {
 function saveWelcomePackSentLog(log) {
   try { localStorage.setItem(WELCOME_PACK_SENT_LOG_KEY, JSON.stringify(log)); } catch {}
 }
+
+// Plan 39 (Plan 1-100) — Monthly statement send log. It lives in its
+// own localStorage store, apart from every bill, payment, Waada, and
+// lifecycle record, so sending a statement draft changes no record.
+const STATEMENT_DRAFT_SENT_LOG_KEY = 'shahdara_statement_draft_sent_log_v1';
+function loadStatementDraftSentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STATEMENT_DRAFT_SENT_LOG_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveStatementDraftSentLog(log) {
+  try { localStorage.setItem(STATEMENT_DRAFT_SENT_LOG_KEY, JSON.stringify(log)); } catch {}
+}
 function renderCustomerProfileView(customer) {
   const phone = String(customer.phone ?? '').trim();
   const cnic = String(customer.cnic ?? '').trim();
@@ -4394,7 +4409,38 @@ function renderCustomerProfileView(customer) {
   // each bill's own due date, so it follows the customer's own date.
   const billingCycleChoice = findBillingCycleChoice(loadBillingCycleChoices(), customer.id);
   const billingCycleSectionHtml = `<section class="profile-custody-section" aria-label="Billing cycle"><h4>Billing cycle</h4><p>Match the due date to the household's payday — a customer paid on the 15th should not always be late on a 5th due date. The next bill raised gets the new due date; every earlier bill keeps its old one.</p>${billingCycleChoiceHtml(billingCycleChoice)}<div><label>Due day of month <input id="billingCycleDueDay" type="number" min="1" max="31" value="${escapeHtml(String(billingCycleChoice ? billingCycleChoice.dueDay : DEFAULT_BILL_DUE_DAY))}"></label> <button type="button" class="secondary-button" id="billingCycleSaveBtn">Save billing cycle</button></div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  // Plan 39 (Plan 1-100) — Monthly statement draft on the profile.
+  // One statement per customer per month, composed from this profile's
+  // own bills and payments (opening, this month's charges, payments
+  // received, closing — the same figures Plan P displays for the
+  // month), offered once for that month and re-sendable from here.
+  // Variant and recipient follow Plan 15 contact preferences; a
+  // do-not-message customer never gets a send button that works.
+  // Sending opens the existing WhatsApp route and logs (customer,
+  // month, time, channel) only — it changes no bill, payment, Waada,
+  // or lifecycle record.
+  const statementDraftPref = findContactPreference(loadContactPreferences(), customer.id);
+  const statementDraftPayments = (customer.bills ?? []).flatMap((billRow) =>
+    (billRow.payments ?? []).map((payment) => ({ ...payment, customerId: customer.id })));
+  const statementDraftForMonth = (month) => {
+    const statement = buildMonthlyStatement({
+      customerId: customer.id,
+      customerName: customer.name || customer.customerName,
+      month,
+      bills: customer.bills ?? [],
+      payments: statementDraftPayments,
+    });
+    if (!statement) return null;
+    const variant = statementDraftPref && statementDraftPref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? STATEMENT_DRAFT_VARIANTS.URDU : STATEMENT_DRAFT_VARIANTS.ROMAN;
+    return { statement, draft: buildStatementDraftText(statement, variant), variant };
+  };
+  let statementDraftMonth = localDate().slice(0, 7);
+  let statementDraftCurrent = statementDraftForMonth(statementDraftMonth);
+  const statementDraftSendDisabled = Boolean(statementDraftPref && statementDraftPref.doNotMessage) || !statementDraftCurrent;
+  const statementDraftSendsForMonth = (month) => findStatementSends(loadStatementDraftSentLog(), customer.id, month);
+  const statementDraftSendLabel = statementDraftPref && statementDraftPref.doNotMessage ? 'Do not message' : (statementDraftSendsForMonth(statementDraftMonth).length > 0 ? 'Re-send statement' : 'Send monthly statement');
+  const statementDraftSectionHtml = `<section class="profile-custody-section" aria-label="Monthly statement"><h4>Monthly statement</h4><p>One clear page each month — opening balance, this month's charges, payments received, and closing balance — so the customer never has to ask "what do I actually owe and for what?" again. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, Waada, or lifecycle record.</p><div><label>Statement month <input id="statementDraftMonth" type="month" value="${escapeHtml(statementDraftMonth)}"></label> <button type="button" class="secondary-button" id="statementDraftShowBtn">Show statement</button></div><div id="statementDraftResult">${statementDraftCurrent ? statementDraftHtml(statementDraftCurrent.statement, { draftText: statementDraftCurrent.draft.text, sends: statementDraftSendsForMonth(statementDraftMonth) }) : '<p class="empty-state">Monthly statement unavailable.</p>'}</div><button type="button" class="secondary-button" id="statementDraftSendBtn" ${statementDraftSendDisabled ? 'disabled' : ''}>${escapeHtml(statementDraftSendLabel)}</button></section>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${statementDraftSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4442,6 +4488,48 @@ function renderCustomerProfileView(customer) {
     const sentEl = $('#customerProfileView').querySelector('#welcomePackSent');
     if (sentEl) sentEl.textContent = welcomePackSentText(findWelcomePackSends(loadWelcomePackSentLog(), customer.id));
     sendBtn.textContent = 'Re-send welcome pack';
+  });
+  $('#customerProfileView').querySelector('#statementDraftShowBtn')?.addEventListener('click', () => {
+    const month = $('#customerProfileView').querySelector('#statementDraftMonth')?.value || '';
+    const built = statementDraftForMonth(month);
+    const resultEl = $('#customerProfileView').querySelector('#statementDraftResult');
+    const sendBtnEl = $('#customerProfileView').querySelector('#statementDraftSendBtn');
+    if (!built) {
+      if (resultEl) resultEl.innerHTML = '<p class="empty-state">Monthly statement unavailable.</p>';
+      if (sendBtnEl) sendBtnEl.disabled = true;
+      return;
+    }
+    statementDraftMonth = month;
+    statementDraftCurrent = built;
+    if (resultEl) resultEl.innerHTML = statementDraftHtml(built.statement, { draftText: built.draft.text, sends: statementDraftSendsForMonth(month) });
+    if (sendBtnEl) {
+      sendBtnEl.disabled = Boolean(statementDraftPref && statementDraftPref.doNotMessage);
+      sendBtnEl.textContent = statementDraftSendsForMonth(month).length > 0 ? 'Re-send statement' : 'Send monthly statement';
+    }
+  });
+  $('#customerProfileView').querySelector('#statementDraftSendBtn')?.addEventListener('click', (event) => {
+    const sendBtn = event.currentTarget;
+    if (statementDraftPref && statementDraftPref.doNotMessage) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Do not message';
+      return;
+    }
+    const built = statementDraftCurrent;
+    if (!built) {
+      sendBtn.disabled = true;
+      return;
+    }
+    const wa = formatWhatsAppUrl(statementDraftPref && statementDraftPref.whatsappNumber ? statementDraftPref.whatsappNumber : whatsappPhoneFor(customer), built.draft.text);
+    if (!wa.validPhone || !wa.url) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'No WhatsApp number';
+      return;
+    }
+    window.open(wa.url, '_blank', 'noopener,noreferrer');
+    saveStatementDraftSentLog(logStatementSent(loadStatementDraftSentLog(), { customerId: customer.id, month: statementDraftMonth, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
+    const sentEl = $('#customerProfileView').querySelector('#statementDraftSent');
+    if (sentEl) sentEl.textContent = statementSentText(statementDraftSendsForMonth(statementDraftMonth));
+    sendBtn.textContent = 'Re-send statement';
   });
   $('#customerProfileView').querySelector('#billingCycleSaveBtn')?.addEventListener('click', () => {
     const dueDayValue = $('#customerProfileView').querySelector('#billingCycleDueDay')?.value || '';

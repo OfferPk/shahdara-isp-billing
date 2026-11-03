@@ -226,6 +226,7 @@ import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupRecei
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspensePendingBalanceCents, suspenseSummary, suspenseAgeDays } from './suspense-payments.js';
 import { buildOwnerDigest, dailyDigestRange, weeklyDigestRange, digestHtml, digestCsv, digestFilename } from './owner-digest.js';
 import { buildReceivablesAgeing, ageingHtml, ageingCsv, ageingFilename } from './receivables-ageing.js';
+import { ALERT_TYPES, DEFAULT_ALERT_THRESHOLDS, normalizeAlertThresholds, buildAlertsInbox, alertsInboxSummaryText, alertsInboxHtml } from './alerts-inbox.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
 import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
@@ -10026,6 +10027,97 @@ function renderReceivablesAgeing() {
     });
   }
 }
+// Plan 8 (Plan 1-100) — Owner alerts inbox.
+// Render-only: thresholds and cleared ids live in localStorage (UI
+// state only). Clearing an alert never touches the underlying record,
+// and restoring cleared alerts brings them back unchanged.
+const ALERTS_INBOX_THRESHOLDS_KEY = 'alertsInboxThresholds';
+const ALERTS_INBOX_CLEARED_KEY = 'alertsInboxCleared';
+let alertsInboxBound = false;
+function loadAlertsInboxThresholds() {
+  try {
+    const raw = localStorage.getItem(ALERTS_INBOX_THRESHOLDS_KEY);
+    return raw ? normalizeAlertThresholds(JSON.parse(raw)) : { ...DEFAULT_ALERT_THRESHOLDS };
+  } catch { return { ...DEFAULT_ALERT_THRESHOLDS }; }
+}
+function loadAlertsInboxCleared() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ALERTS_INBOX_CLEARED_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch { return []; }
+}
+function saveAlertsInboxCleared(ids) {
+  try { localStorage.setItem(ALERTS_INBOX_CLEARED_KEY, JSON.stringify(ids)); } catch {}
+}
+function saveAlertsInboxThresholds(thresholds) {
+  try { localStorage.setItem(ALERTS_INBOX_THRESHOLDS_KEY, JSON.stringify(thresholds)); } catch {}
+}
+function renderAlertsInbox() {
+  const bodyEl = $('#alertsInboxBody');
+  if (!bodyEl) return;
+  const today = getWaadaTodayString();
+  const thresholds = loadAlertsInboxThresholds();
+  const allocations = calculatePaymentAllocations(state);
+  const waadaItems = [];
+  const outstandingItems = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    const outstanding = totalOutstandingFigures(customer, allocations).total;
+    if (!(outstanding > 0)) continue;
+    outstandingItems.push({ customerId: customer.id, customerName: customer.name || customer.customerName || '—', amount: Math.round(outstanding) });
+    const promiseDate = typeof customer.promiseDate === 'string' ? customer.promiseDate.trim() : '';
+    if (promiseDate && isValidWaadaDate(promiseDate) && promiseDate < today) {
+      waadaItems.push({ customerId: customer.id, customerName: customer.name || customer.customerName || '—', promiseDate, amount: Number(customer.promiseAmount) > 0 ? Math.round(Number(customer.promiseAmount)) : Math.round(outstanding) });
+    }
+  }
+  const suspenseItems = loadSuspensePayments().filter((entry) => !entry.claimed).map((entry) => ({ suspenseId: entry.suspenseId, amount: entry.amount, ageDays: suspenseAgeDays(entry, today) }));
+  const view = buildAlertsInbox({ today, thresholds, waadaItems, suspenseItems, outstandingItems, clearedIds: loadAlertsInboxCleared() });
+  bodyEl.innerHTML = view.valid ? alertsInboxHtml(view) : '<p class="empty-state">Alerts unavailable — the inbox needs a valid today date.</p>';
+  const summaryEl = $('#alertsInboxSummary');
+  if (summaryEl) summaryEl.textContent = alertsInboxSummaryText(view);
+  const waadaInput = $('#alertsInboxWaadaDays');
+  if (waadaInput) waadaInput.value = view.thresholds.waadaOverdueDays;
+  const suspenseInput = $('#alertsInboxSuspenseDays');
+  if (suspenseInput) suspenseInput.value = view.thresholds.suspenseUnclaimedDays;
+  const outstandingInput = $('#alertsInboxLargeAmount');
+  if (outstandingInput) outstandingInput.value = view.thresholds.largeOutstandingAmount;
+  const restoreBtn = $('#alertsInboxRestoreBtn');
+  if (restoreBtn) restoreBtn.hidden = !(view.valid && view.summary.clearedCount > 0);
+  if (!alertsInboxBound) {
+    alertsInboxBound = true;
+    bodyEl.addEventListener('click', (event) => {
+      const clearBtn = event.target.closest ? event.target.closest('.alerts-inbox-clear-btn') : null;
+      if (clearBtn && clearBtn.dataset.alertId) {
+        const ids = loadAlertsInboxCleared();
+        if (!ids.includes(clearBtn.dataset.alertId)) ids.push(clearBtn.dataset.alertId);
+        saveAlertsInboxCleared(ids);
+        renderAlertsInbox();
+        return;
+      }
+      const actionBtn = event.target.closest ? event.target.closest('.alerts-inbox-action-btn') : null;
+      if (actionBtn) {
+        if (actionBtn.dataset.alertAction === ALERT_TYPES.SUSPENSE_UNCLAIMED) {
+          if (typeof suspensePaymentsModalController !== 'undefined' && suspensePaymentsModalController) suspensePaymentsModalController.open();
+        } else {
+          switchView('customers');
+        }
+      }
+    });
+    const saveBtn = $('#alertsInboxSaveThresholdsBtn');
+    if (saveBtn) saveBtn.addEventListener('click', () => {
+      saveAlertsInboxThresholds({
+        waadaOverdueDays: Number($('#alertsInboxWaadaDays')?.value),
+        suspenseUnclaimedDays: Number($('#alertsInboxSuspenseDays')?.value),
+        largeOutstandingAmount: Number($('#alertsInboxLargeAmount')?.value),
+      });
+      renderAlertsInbox();
+    });
+    if (restoreBtn) restoreBtn.addEventListener('click', () => {
+      saveAlertsInboxCleared([]);
+      renderAlertsInbox();
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10083,6 +10175,7 @@ function renderAnalytics() {
   $('#analyticsEmptyNotice').textContent=data.growthCumulativeIsPartial?`${data.knownUndatedConnections} customer profiles have no connection date; cumulative growth is therefore date-known only and is not a total historical customer count.`:'Historical summaries include only recorded local bills, receipts, dates, statuses, and incidents.';
   renderOwnerDigest();
   renderReceivablesAgeing();
+  renderAlertsInbox();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

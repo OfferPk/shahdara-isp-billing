@@ -1,5 +1,6 @@
 import { PAYMENT_METHODS, calculatePaymentAllocations, derivedBillStatus, formatPKR, listTransactions, nextCycleDueDateFromBillMonth, searchCustomers, whatsappPhoneFor } from './core.js';
 import { arrearsBreakdownTextLines, fifoRemainingForBill, fifoTextLines } from './billing-cycle.js';
+import { billClarityBreakdown } from './billing-clarity.js';
 import { sanitizePauseFields, vacationHoldState } from './pause-billing.js';
 import { sanitizeSeasonalFields, seasonalStateForMonth } from './seasonal-downgrade.js';
 import { sanitizeShieldFields, isShielded } from './suspension-shield.js';
@@ -84,7 +85,12 @@ export function currentBillPresentation(customer, month, allocations) {
     // bill month, derived from saved payments. Null when the bill is
     // unpriced. The profile renderer shows the strip only when the split
     // is meaningful (arrears or kist present).
-    fifo: fifoRemainingForBill(customer, bill)
+    fifo: fifoRemainingForBill(customer, bill),
+    // Plan P: labelled bill breakdown (arrears / advance consumed /
+    // concession / deposit offset) for this bill month. Presentation
+    // only — derived from the same allocations, never a new total.
+    // Null when the bill is unpriced, exactly like the FIFO split.
+    clarity: bill ? billClarityBreakdown(customer, bill, allocations) : null
   };
 }
 

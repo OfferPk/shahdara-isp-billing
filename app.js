@@ -179,6 +179,7 @@ import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
 import { applyFifoPaymentEventToState, applicablePriceForMonth, buildArrearsBreakdown, loadBillingCycles, pakistanMonthKey, setupBillingCycleModal } from './billing-cycle.js';
+import { billClarityBreakdown, customerBillClarityBreakdowns } from './billing-clarity.js';
 import { sanitizeSubContributors } from './shared-router-contributors.js?v=1.11.0';
 import { setupMonthEndWizard } from './month-end-wizard.js';
 import { calculateInstallationCost } from './installation-cost.js?v=1.11.0';
@@ -3400,6 +3401,15 @@ function setupBluetoothPrinterUi() {
 }
 if (typeof document !== 'undefined') setupBluetoothPrinterUi();
 
+// Plan P: labelled bill breakdown strip for the profile month summary.
+// Presentation only — every figure comes from billClarityBreakdown, which
+// derives from the same allocations the summary already shows.
+function billClarityMarkup(customer, bill, allocations) {
+  const clarity = billClarityBreakdown(customer, bill, allocations);
+  if (!clarity) return '';
+  const parts = clarity.lines.map(line => `<span class="month-summary-stat">${escapeHtml(line.label)}: <strong>${line.role === 'deduction' ? '−' : ''}${formatAmount(line.amount)}</strong></span>`).join('');
+  return `<span class="month-summary-wide">${parts}</span>`;
+}
 function billAmountAuditMarkup(bill) {
   const changes = bill?.amountHistory ?? [];
   if (!changes.length) return '';
@@ -3473,7 +3483,8 @@ function renderHistory(customer) {
     const concessionRoundControls = concessionBalance !== null && concessionBalance > 0 ? ` <label class="round50-toggle-label"><input type="checkbox" data-round50-toggle> ${escapeHtml(t('round50_toggle'))}</label> <select data-round50-mode aria-label="${escapeHtml(t('round50_toggle'))}"><option value="nearest">${escapeHtml(t('round50_mode_nearest'))}</option><option value="down">${escapeHtml(t('round50_mode_down'))}</option><option value="exact">${escapeHtml(t('round50_mode_exact'))}</option></select> <small data-round50-hint hidden></small>` : '';
     const concessionSuggestMarkup = concessionSuggestion && !concessionSuggestion.alreadyApplied && concessionSuggestion.eligible ? `<span class="month-summary-wide"><span class="discount-badge-applied">${escapeHtml(t('prof_hist_concession_suggest', null, { hours: concessionSuggestion.downtimeHours, amount: concessionSuggestion.suggestedAmount }))}</span>${concessionBalance !== null && concessionBalance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-apply-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_concession_apply_title')}">${t('prof_hist_concession_apply', null, { amount: concessionSuggestion.suggestedAmount })}</button>${concessionRoundControls}` : ''}</span>` : '';
     const concessionNetMarkup = concessionNetDue !== null ? `<span class="month-summary-stat">${t('prof_hist_net_after_concession')}: <strong>${formatAmount(concessionNetDue)}</strong></span>` : '';
-    const summaryMarkup = !bill ? `<p class="empty-month">${t('prof_hist_empty_month')}</p>` : `<div class="month-summary"><span class="month-summary-stat">${t('prof_hist_status')}: <strong>${status.label}</strong></span><span class="month-summary-stat">${t('prof_hist_due_date')}: <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : t('prof_hist_due_not_set')}</strong></span><span class="month-summary-stat">${t('prof_hist_receipts')}: <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">${t('prof_hist_carry_in')}: <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">${t('prof_hist_bill_amount')}: <strong>${escapeHtml(displayAmount)}</strong></span>${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">${t('prof_hist_balance_due')}: <strong>${escapeHtml(balanceDue)}</strong></span>${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_generated')}:  <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_forwarded')}: <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">${t('prof_hist_credit_waiting')}: <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? `<span class="month-status status-pending month-summary-wide">${t('prof_hist_partial_badge')}</span>` : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
+    const clarityMarkup = bill ? billClarityMarkup(customer, bill, allocations) : '';
+    const summaryMarkup = !bill ? `<p class="empty-month">${t('prof_hist_empty_month')}</p>` : `<div class="month-summary"><span class="month-summary-stat">${t('prof_hist_status')}: <strong>${status.label}</strong></span><span class="month-summary-stat">${t('prof_hist_due_date')}: <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : t('prof_hist_due_not_set')}</strong></span><span class="month-summary-stat">${t('prof_hist_receipts')}: <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">${t('prof_hist_carry_in')}: <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">${t('prof_hist_bill_amount')}: <strong>${escapeHtml(displayAmount)}</strong></span>${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">${t('prof_hist_balance_due')}: <strong>${escapeHtml(balanceDue)}</strong></span>${clarityMarkup}${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_generated')}:  <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_forwarded')}: <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">${t('prof_hist_credit_waiting')}: <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? `<span class="month-status status-pending month-summary-wide">${t('prof_hist_partial_badge')}</span>` : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
     const amountRequired = bill ? '' : 'required';
     const amountLabel = bill ? t('prof_optional') : t('prof_hist_bill_required');
     const amountPlaceholder = bill ? t('prof_hist_bill_amount_ph_blank') : t('prof_hist_bill_amount_ph_enter');
@@ -11690,6 +11701,18 @@ function statementTodayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Plan P: live-customer bill breakdowns for the statement, limited to
+// the months visible in the view when the view is filtered, so the
+// printed statement carries exactly the breakdown the profile shows.
+function statementBillBreakdowns(visibleEvents) {
+  const cust = state.customers.find(c => c.id === selectedCustomerId);
+  if (!cust) return undefined;
+  const all = customerBillClarityBreakdowns(cust);
+  if (!visibleEvents) return all;
+  const months = new Set(visibleEvents.map(ev => ev.month));
+  return all.filter(b => months.has(b.month));
+}
+
 function renderStatementView() {
   if (!currentStatementData) return;
   const preview = $('#statementPreviewContainer');
@@ -11715,6 +11738,8 @@ function renderStatementView() {
     const filteredCredits = visible.reduce((sum, ev) => sum + (ev.credit || 0), 0);
     view.filterNote = `Showing ${visible.length} of ${currentStatementData.events.length} entries · Filtered charges PKR ${filteredCharges.toLocaleString()} · Filtered credits PKR ${filteredCredits.toLocaleString()} · CSV / WhatsApp exports cover only the visible entries.`;
   }
+  const statementBreakdowns = statementBillBreakdowns(visible);
+  if (statementBreakdowns?.length) view.billBreakdowns = statementBreakdowns;
   preview.innerHTML = generateCustomerStatementHtml(currentStatementData, view);
 }
 
@@ -12020,6 +12045,8 @@ if (shareStatementWhatsAppBtn) {
       return;
     }
     const exportView = statementFiltersActive() ? { events: lastStatementVisibleEvents } : {};
+    const exportBreakdowns = statementBillBreakdowns(statementFiltersActive() ? lastStatementVisibleEvents : undefined);
+    if (exportBreakdowns?.length) exportView.billBreakdowns = exportBreakdowns;
     const text = formatCustomerStatementWhatsApp(currentStatementData, exportView);
     const phone = whatsappPhoneFor(currentStatementData.customer);
     const phoneRes = formatWhatsAppUrl(phone, text);

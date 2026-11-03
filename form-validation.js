@@ -1487,6 +1487,32 @@ export function generateCustomerStatementHtml(statement, view = {}) {
         ${view.trendSvg || `<p class="muted">${escapeHtml(view.trendNote || 'No entries to chart.')}</p>`}
       </section>` : '';
 
+  // Plan P: the same labelled bill breakdown the profile shows, per bill
+  // month (package / arrears / concession / deposit offset / advance
+  // consumed, with the balance). Presentation only — the summary strip
+  // and the ledger totals above are untouched, and this section renders
+  // only when the caller supplies breakdowns (the app passes them from
+  // the live customer; a bare statement object renders exactly as before).
+  const breakdownHtml = Array.isArray(view.billBreakdowns) && view.billBreakdowns.length > 0 ? `
+      <section class="statement-bill-breakdown">
+        <h3 class="statement-block-title">Bill breakdown (arrears / advance / concession / deposit)</h3>
+        <table class="statement-mini-table">
+          <thead><tr><th>Billing Month</th><th class="num-col">Package</th><th class="num-col">Arrears</th><th class="num-col">Concession</th><th class="num-col">Deposit Offset</th><th class="num-col">Advance Consumed</th><th class="num-col">Balance Due</th></tr></thead>
+          <tbody>
+            ${view.billBreakdowns.map(row => `
+            <tr>
+              <td>${escapeHtml(row.month || '—')}</td>
+              <td class="col-num">PKR ${Number(row.packageAmount || 0).toLocaleString()}</td>
+              <td class="col-num">PKR ${Number(row.previousArrears || 0).toLocaleString()}</td>
+              <td class="col-num">PKR ${Number(row.concessionAmount || 0).toLocaleString()}</td>
+              <td class="col-num">PKR ${Number(row.depositOffsetAmount || 0).toLocaleString()}</td>
+              <td class="col-num">PKR ${Number(row.advanceConsumed || 0).toLocaleString()}</td>
+              <td class="col-num balance-num ${Number(row.netBalance || 0) > 0 ? 'is-due' : 'is-settled'}">PKR ${Number(row.netBalance || 0).toLocaleString()}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </section>` : '';
+
   return `
     <article class="customer-account-statement" data-customer-id="${escapeHtml(customer.id)}">
       <header class="statement-header">
@@ -1529,7 +1555,7 @@ export function generateCustomerStatementHtml(statement, view = {}) {
           <strong class="summary-card-val">PKR ${currentBalance.toLocaleString()}</strong>
         </div>
       </div>
-      ${monthSubtotalsHtml}${agingHtml}${trendHtml}
+      ${monthSubtotalsHtml}${agingHtml}${trendHtml}${breakdownHtml}
 
       <div class="statement-table-wrap">
         ${view.filterNote ? `<div class="statement-filter-note" role="status">${escapeHtml(view.filterNote)}</div>` : ''}
@@ -1653,6 +1679,17 @@ export function formatCustomerStatementWhatsApp(statement, view = {}) {
       const typeIcon = ev.type === 'bill' ? '🧾' : ev.type === 'payment' ? '💵' : '⚙️';
       const amtStr = ev.charge > 0 ? `+PKR ${Number(ev.charge).toLocaleString()}` : `-PKR ${Number(ev.credit).toLocaleString()}`;
       lines.push(`${typeIcon} ${ev.date} · ${ev.description}: ${amtStr} (Bal: PKR ${Number(ev.runningBalance).toLocaleString()})`);
+    }
+  }
+
+  // Plan P: the same labelled breakdown, when the caller supplies it
+  // (the app passes live-customer breakdowns; without them the summary
+  // renders exactly as before).
+  if (Array.isArray(view.billBreakdowns) && view.billBreakdowns.length > 0) {
+    lines.push(`--------------------------------`);
+    lines.push(`🧾 *BILL BREAKDOWN / بل کی تفصیل:*`);
+    for (const row of view.billBreakdowns) {
+      lines.push(`• ${row.month}: Package PKR ${Number(row.packageAmount || 0).toLocaleString()} · Arrears PKR ${Number(row.previousArrears || 0).toLocaleString()} · Concession PKR ${Number(row.concessionAmount || 0).toLocaleString()} · Deposit Offset PKR ${Number(row.depositOffsetAmount || 0).toLocaleString()} · Advance Consumed PKR ${Number(row.advanceConsumed || 0).toLocaleString()} · Balance PKR ${Number(row.netBalance || 0).toLocaleString()}`);
     }
   }
 

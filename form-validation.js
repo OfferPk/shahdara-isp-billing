@@ -4,6 +4,7 @@
  */
 import { buildPayrollSummary, paymentSenderLabel } from './core.js';
 import { EXPENSE_CATEGORIES, canonicalMohalla } from './phase3.js';
+import { areaFilterKey, customerInArea } from './area-operations.js';
 import { t } from './nav-language.js';
 import { documentFooterHtml } from './document-branding.js';
 
@@ -306,9 +307,11 @@ export function filterCustomersByArea(customers, selectedArea = 'all') {
   if (selectedArea === NO_AREA_FILTER_VALUE) {
     return list.filter(c => !(c.mohalla || c.area || '').trim());
   }
-  const target = canonicalMohalla(selectedArea)?.key;
-  if (target === undefined) return [];
-  return list.filter(c => canonicalMohalla(c.mohalla || c.area || '')?.key === target);
+  // Plan T: the canonical-key rule now lives in area-operations.js and
+  // is shared with the Area search field and Top Defaulters.
+  const target = areaFilterKey(selectedArea);
+  if (target === null) return [];
+  return list.filter(c => customerInArea(c, target));
 }
 
 /**

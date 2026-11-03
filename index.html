@@ -9072,6 +9072,10 @@
           <strong id="routeMetricPending" class="route-metric-value" style="color: #b91c1c;">Rs. 0</strong>
         </div>
         <div class="route-metric-pill">
+          <span class="route-metric-label">Promised</span>
+          <strong id="routeMetricPromised" class="route-metric-value" style="color: #b45309;">Rs. 0</strong>
+        </div>
+        <div class="route-metric-pill">
           <span class="route-metric-label">Stops Remaining</span>
           <strong id="routeMetricStops" class="route-metric-value">0 / 0</strong>
         </div>
@@ -9087,6 +9091,9 @@
           <div id="routeProgressBarFill" class="route-progress-fill" style="width: 0%;"></div>
         </div>
       </div>
+
+      <!-- Plan S: day-flow strip — promised + handover expected + steps, rendered from the same route figures -->
+      <div id="fieldDayFlowStrip"></div>
 
       <!-- Filter Controls Toolbar -->
       <div class="route-controls-toolbar">

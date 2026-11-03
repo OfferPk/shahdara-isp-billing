@@ -19,6 +19,9 @@ import {
   formatPKR
 } from './core.js';
 import { t } from './nav-language.js';
+// Plan 4 (Plan 1-100): denomination count is an audit note only —
+// it never recomputes a handover total, variance, or status.
+import { buildDenominationCount, denominationCountSummaryText } from './denomination-count.js';
 
 export const DAILY_CASH_HANDOVERS_KEY = 'shahdara_daily_cash_handovers_v1';
 
@@ -1230,6 +1233,7 @@ export function calculateCollectorCashExpected(state = {}, dateStr, collectorNam
  * @param {number} params.countedCash - Counted physical cash turned in
  * @param {string} [params.handedOverTo='Owner'] - Receiver (Owner/Manager)
  * @param {string} [params.notes=''] - Notes / remarks
+ * @param {object} [params.denominationCount] - Plan 4: optional denomination breakdown (id -> count, or rows), stored as an audit note; never changes any total, variance, or status.
  * @param {string} [params.supervisorSignature=''] - Signature / Initials
  * @param {string} [params.correctionReason=''] - Required if updating an existing record!
  * @param {boolean} [params.isCorrection=false] - Explicit flag for corrections
@@ -1244,6 +1248,12 @@ export function recordCashHandover(params = {}, storage = (typeof localStorage !
   const counted = Math.max(0, Math.round(Number(params.countedCash || 0) * 100) / 100);
   const expected = Math.max(0, Math.round(Number(params.expectedCash || 0) * 100) / 100);
   const variance = Math.round((counted - expected) * 100) / 100;
+  // Plan 4: an optional denomination breakdown, stored as an audit
+  // note. It is never allowed to rewrite counted, expected,
+  // variance, or status above — those are computed exactly as before.
+  const denominationCount = params.denominationCount != null
+    ? buildDenominationCount(params.denominationCount)
+    : null;
 
   let status = 'balanced';
   if (variance < 0) status = 'shortage';
@@ -1297,6 +1307,9 @@ export function recordCashHandover(params = {}, storage = (typeof localStorage !
       lastModifiedAt: nowIso,
       corrections: [...(existing.corrections || []), correctionEntry]
     };
+    // Plan 4: a supplied count replaces the stored audit note; an
+    // omitted count keeps the note already on the record.
+    if (denominationCount) updated.denominationCount = denominationCount;
 
     allHandovers[existingIdx] = updated;
     if (store && typeof store.setItem === 'function') {
@@ -1322,6 +1335,8 @@ export function recordCashHandover(params = {}, storage = (typeof localStorage !
     handedOverAt: nowIso,
     corrections: []
   };
+  // Plan 4: audit note only, present only when a count was supplied.
+  if (denominationCount) newRecord.denominationCount = denominationCount;
 
   allHandovers.push(newRecord);
   if (store && typeof store.setItem === 'function') {
@@ -1352,6 +1367,14 @@ export function generateHandoverSlipText(handover) {
     `• Variance:      ${handover.variance >= 0 ? '+' : ''}PKR ${Number(handover.variance || 0).toLocaleString()} [${(handover.status || 'balanced').toUpperCase()}]`,
     handover.notes ? `• Notes: ${handover.notes}` : null
   ].filter(Boolean);
+
+  // Plan 4: the denomination audit note, when the record carries one.
+  // The sheet's own total is shown; the handover's counted/variance
+  // lines above are never recomputed from it.
+  if (handover.denominationCount) {
+    lines.push(``, `[ DENOMINATION COUNT ]`);
+    lines.push(...denominationCountSummaryText(handover.denominationCount).split('\n'));
+  }
 
   if (Array.isArray(handover.corrections) && handover.corrections.length > 0) {
     lines.push(``, `[ AUDITED CORRECTION HISTORY ]`);

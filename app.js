@@ -234,6 +234,7 @@ import { DEFAULT_ESCALATION_THRESHOLDS, ESCALATION_DRAFT_VARIANTS, normalizeEsca
 import { buildPaymentConfirmationList, logConfirmationSent, paymentConfirmationSummaryText, paymentConfirmationFilename, paymentConfirmationHtml, paymentConfirmationCsv } from './payment-confirmation.js';
 import { BROADCAST_TEMPLATE_KINDS, BROADCAST_DRAFT_VARIANTS, buildBroadcastMohallaOptions, normalizeBroadcastTemplates, buildBroadcastDraft, broadcastWhatsAppUrl, logBroadcastSent, broadcastSummaryText, broadcastFilename, broadcastHtml, broadcastCsv } from './mohalla-broadcast.js';
 import { CONTACT_PREFERENCE_LANGUAGES, normalizeContactPreferences, findContactPreference, upsertContactPreference, removeContactPreference, contactPreferencesSummaryText, contactPreferenceHtml, contactPreferenceCsv } from './contact-preferences.js';
+import { ONBOARDING_STEPS, buildOnboardingChecklist, tickOnboardingStep, untickOnboardingStep, findOnboardingTicks, upsertOnboardingChecklist, buildOnboardingEntry, onboardingSummaryText, onboardingChecklistHtml, onboardingPendingHtml, onboardingChecklistCsv } from './onboarding-checklist.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -4296,7 +4297,7 @@ function renderCustomerProfileView(customer) {
   const occupancyPres = occupancyPresentation(customer);
   const occupancyHtml = !occupancyPres.visible ? '' : `${occupancyPres.residenceLabel || occupancyPres.guarantorName || occupancyPres.guarantorPhone ? `<p>${occupancyPres.residenceLabel ? `${escapeHtml(occupancyPres.residenceLabel)} ` : ''}${occupancyPres.guarantorName || occupancyPres.guarantorPhone ? escapeHtml(t('occ_guarantor_line', null, { name: occupancyPres.guarantorName || t('prof_not_recorded'), phone: occupancyPres.guarantorPhone || t('prof_not_recorded') })) : ''}</p>` : ''}${occupancyPres.risk ? `<p class="occupancy-risk-warning" role="alert">${escapeHtml(occupancyPres.riskLabel)}</p>` : ''}`;
   const custodySectionHtml = `<section class="profile-custody-section" aria-label="${t('prof_custody_aria')}"><h4>${t('prof_custody_heading')}</h4><p>${escapeHtml(t('prof_custody_router', null, { label: profileCustodyOwnershipLabel(custodyFields.routerOwnership) }))}${escapeHtml(t('prof_custody_media', null, { label: profileCustodyOwnershipLabel(custodyFields.mediaConverterOwnership) }))}</p><p>${escapeHtml(t('prof_custody_serial', null, { value: custodyFields.serialNumber || t('prof_not_recorded') }))}${escapeHtml(t('prof_custody_deposit', null, { amount: formatAmount(custodyFields.securityDeposit) }))}${escapeHtml(t('prof_custody_fiber', null, { value: customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters }) }))}</p>${occupancyHtml}${!isDisconnected(customer) ? (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_none')}</p>` : `<p class="profile-custody-note">${t('prof_custody_note_installed')}</p>`) : (custodyChecklist.length === 0 ? `<p class="profile-custody-note">${t('prof_custody_note_disconnected')}</p>` : `<div class="profile-custody-checklist" role="group" aria-label="${t('prof_custody_checklist_aria')}"><p><strong>${t('prof_custody_checklist_head')}</strong> ${t('prof_custody_checklist_sub')}</p><ul>${custodyChecklist.map(item => `<li>${escapeHtml(item.label)} — ${escapeHtml(profileCustodyOwnershipLabel(item.ownership))}${item.recovered ? ` <span class="custody-recovered">${escapeHtml(t('prof_custody_recovered', null, { date: item.recoveredAt }))}</span>` : ` <span class="custody-pending">${escapeHtml(t('prof_custody_pending'))}</span> <button type="button" class="secondary-button" data-profile-custody-recover="${escapeHtml(item.key)}">${t('prof_custody_recover')}</button>`}</li>`).join('')}</ul>${custodyPending.length > 0 ? `<button type="button" class="primary-button" id="profileCustodyRecoverAllBtn">${t('prof_custody_recover_all')}</button>` : ''}</div>`)}</section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -10687,6 +10688,63 @@ function renderContactPreferences() {
     });
   }
 }
+// Plan 16 (Plan 1-100) — New-connection onboarding checklist. Ticks live
+// in their own localStorage store, apart from every payment, bill and
+// lifecycle record, so ticking a step changes no money and no status.
+// An incomplete checklist blocks nothing; it is only visible here (the
+// pending list) and on the customer profile.
+const ONBOARDING_CHECKLISTS_KEY = 'shahdara_onboarding_checklists_v1';
+let onboardingChecklistsBound = false;
+function loadOnboardingChecklists() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ONBOARDING_CHECKLISTS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveOnboardingChecklists(list) {
+  try { localStorage.setItem(ONBOARDING_CHECKLISTS_KEY, JSON.stringify(list)); } catch {}
+}
+function renderOnboardingChecklists() {
+  const bodyEl = $('#onboardingChecklistsBody');
+  if (!bodyEl) return;
+  const stored = loadOnboardingChecklists();
+  const entries = (state.customers ?? []).filter((c) => !c.archived)
+    .map((c) => buildOnboardingEntry(c, findOnboardingTicks(stored, c.id)));
+  bodyEl.innerHTML = onboardingPendingHtml(entries);
+  const summaryEl = $('#onboardingChecklistsSummary');
+  if (summaryEl) summaryEl.textContent = onboardingSummaryText(entries.map((e) => e.checklist));
+  const selectEl = $('#onboardingChecklistsCustomer');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = entries.map((e) => `<option value="${escapeHtml(e.customerId)}">${escapeHtml(e.customerName)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const stepEl = $('#onboardingChecklistsStep');
+  if (stepEl && !stepEl.dataset.filled) {
+    stepEl.dataset.filled = '1';
+    stepEl.innerHTML = ONBOARDING_STEPS.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.label)}</option>`).join('');
+  }
+  if (!onboardingChecklistsBound) {
+    onboardingChecklistsBound = true;
+    const applyTick = (tick) => {
+      const customerId = $('#onboardingChecklistsCustomer')?.value;
+      if (!customerId) return;
+      const checklist = buildOnboardingChecklist(customerId, findOnboardingTicks(loadOnboardingChecklists(), customerId));
+      const next = tick
+        ? tickOnboardingStep(checklist, $('#onboardingChecklistsStep')?.value, { date: $('#onboardingChecklistsDate')?.value ?? '', by: $('#onboardingChecklistsBy')?.value ?? '' })
+        : untickOnboardingStep(checklist, $('#onboardingChecklistsStep')?.value);
+      saveOnboardingChecklists(upsertOnboardingChecklist(loadOnboardingChecklists(), customerId, next.steps));
+      renderOnboardingChecklists();
+    };
+    $('#onboardingChecklistsTickBtn')?.addEventListener('click', () => applyTick(true));
+    $('#onboardingChecklistsUntickBtn')?.addEventListener('click', () => applyTick(false));
+    $('#onboardingChecklistsExportBtn')?.addEventListener('click', () => {
+      const storedNow = loadOnboardingChecklists();
+      const rows = (state.customers ?? []).filter((c) => !c.archived)
+        .map((c) => buildOnboardingEntry(c, findOnboardingTicks(storedNow, c.id)));
+      downloadCsvFile('onboarding-checklists.csv', onboardingChecklistCsv(rows));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10752,6 +10810,7 @@ function renderAnalytics() {
   renderPaymentConfirmation();
   renderMohallaBroadcast();
   renderContactPreferences();
+  renderOnboardingChecklists();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

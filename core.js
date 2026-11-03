@@ -2033,6 +2033,12 @@ export function findDuplicatePaymentReference(state, transactionId, excludePayme
     for (const bill of (customer.bills ?? [])) {
       for (const payment of (bill.payments ?? [])) {
         if (excludePaymentId && payment.id === excludePaymentId) continue;
+        // CP-01: a voided payment is history, not live money — its TID
+        // must not block re-recording the real transfer. This mirrors
+        // wallet-reconciliation.js findPaymentsByTid (which already
+        // skips voided payments), the allocation engine, and the
+        // 5-minute double-tap guard, all of which ignore voided rows.
+        if (payment?.voided === true) continue;
         const pRef = normalizeTid(payment.transactionId ?? payment.reference ?? '');
         if (pRef && pRef === cleanRef) {
           return {

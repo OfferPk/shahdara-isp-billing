@@ -248,6 +248,7 @@ import { EXPANSION_STEP_IDS, buildExpansionChecklist, findExpansionChecklist, ti
 import { buildCampaign, findCampaign, upsertCampaign, removeCampaign, buildCampaignSummary, campaignSummaryText, campaignHtml, campaignCsv, campaignFilename } from './campaign-planner.js';
 import { AUDIT_ACTIONS, appendAuditEntry, normalizeAuditLog, filterAuditEntries, auditSummary, auditSummaryText, auditHtml, auditCsv, auditFilename } from './audit-log.js';
 import { buildExportPack, exportPackSummaryText, exportPackHtml, exportPackCsv, exportPackJson, exportPackFilename } from './export-pack.js';
+import { normalizeOperatorMode, canPerformAction, viewAccess, requestModeSwitch, applyModeSwitch, operatorModeSummaryText, operatorModeHtml, operatorModeToggleLabel } from './operator-modes.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -3050,6 +3051,14 @@ function renderGlobalSearch() {
 function switchView(view, { pushHistory = true } = {}) {
   const views = { customers:['customersView','showCustomersButton'], transactions:['transactionsView','showTransactionsButton'], reports:['billingReportsView','showReportsButton'], analytics:['analyticsView','showAnalyticsButton'], inventory:['inventoryView','showInventoryButton'], expenses:['expensesView','showExpensesButton'], homeBudget:['homeBudgetView','showHomeBudgetButton'], loans:['loanView','showLoansButton'], waTemplates:['waTemplatesView','showWaTemplatesButton'] };
   if (!views[view]) view = 'customers';
+  // Plan 33: in collector mode an owner-only view is unreachable, not
+  // merely hidden — the navigation itself refuses it. The header mode
+  // button stays visible so the mode can still be switched back.
+  if (viewAccess(currentOperatorMode(), view) === 'blocked') {
+    toast('Collector mode: this screen is for the owner.');
+    syncOperatorModeNav();
+    return;
+  }
   for (const [name, [sectionId, buttonId]] of Object.entries(views)) {
     const active = name === view;
     $(`#${sectionId}`).hidden = !active;
@@ -3075,6 +3084,7 @@ function switchView(view, { pushHistory = true } = {}) {
       try { history.pushState({ view }, '', targetHash); } catch {}
     }
   }
+  syncOperatorModeNav();
 }
 if (typeof window !== 'undefined') {
   window.switchView = switchView;
@@ -5864,6 +5874,8 @@ $('#branchGuardOverrideCheckbox')?.addEventListener('change', event => {
   renderBackupPreview(previewJsonBackupMerge(state, pendingBackupSourceText, options), pendingBackupSourceText);
 });
 $('#downloadJsonBackupButton').addEventListener('click', () => {
+  // Plan 33: downloading a backup is owner-only.
+  if (collectorBlocked('backup-download')) return;
   if (persistenceBlocked) { toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.'); return; }
   const fileStamp = localDateTime().replace(/[^0-9T]/g, '-');
   downloadJson(`shahdara-isp-billing-backup-${fileStamp}.json`, createJsonBackup(state, new Date(), backupExtras()));
@@ -5873,6 +5885,8 @@ $('#downloadJsonBackupButton').addEventListener('click', () => {
 });
 
 async function handleShareBackupAction() {
+  // Plan 33: sharing a backup is owner-only.
+  if (collectorBlocked('backup-share')) return;
   if (persistenceBlocked) {
     toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.');
     return;
@@ -6137,6 +6151,8 @@ function promptEncryptedRestore(text, inspection) {
 }
 
 $('#unlockEncryptedRestoreBtn')?.addEventListener('click', async () => {
+  // Plan 33: restoring a backup is owner-only.
+  if (collectorBlocked('backup-restore')) return;
   const input = $('#encryptedRestorePassphrase');
   const pass = input.value;
   const errEl = $('#encryptedRestoreError');
@@ -6205,6 +6221,8 @@ $('#jsonBackupDialog')?.addEventListener('cancel', () => {
 
 // Encrypted Backup Export dialog wiring
 function openEncryptedBackupDialog() {
+  // Plan 33: opening the backup export dialog is owner-only.
+  if (collectorBlocked('backup-download')) return;
   if (persistenceBlocked) {
     toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.');
     return;
@@ -6233,6 +6251,9 @@ $('#encryptedBackupDialog')?.addEventListener('click', (e) => {
 });
 
 async function getValidatedEncryptedBackupPayload() {
+  // Plan 33: downloading or sharing an encrypted backup is owner-only;
+  // returning null aborts both callers exactly as a failed validation does.
+  if (collectorBlocked('backup-download')) return null;
   const pass = $('#encryptedBackupPassphrase').value;
   const confirm = $('#encryptedBackupPassphraseConfirm').value;
   const hint = $('#encryptedBackupHint').value;
@@ -6999,6 +7020,8 @@ async function requireOwnerPin(action) {
 // fails, the previous ledger is written back so a void never half-applies.
 let pendingVoidTarget = null;
 function openVoidPaymentDialog(customerId, month, paymentId) {
+  // Plan 33: voiding is owner-only; collector mode refuses it outright.
+  if (collectorBlocked('payment-void')) return;
   // SISP-80: voiding is restricted while the Owner PIN lock is active.
   requireOwnerPin('payment-void').then(ok => { if (ok) openVoidPaymentDialogUnlocked(customerId, month, paymentId); });
 }
@@ -7453,6 +7476,11 @@ $('#globalCustomerSearch').addEventListener('input', () => { renderGlobalSearch(
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });
 $('#clearGlobalSearch').addEventListener('click', () => { $('#globalCustomerSearch').value = ''; renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); $('#globalCustomerSearch').focus(); });
 $('#showCustomersButton').addEventListener('click', () => switchView('customers'));
+// Plan 33: the header mode button stays reachable in both modes, so the
+// mode can be switched back even while owner screens are blocked.
+$('#operatorModeToggleBtn')?.addEventListener('click', () => {
+  requestOperatorModeSwitch(currentOperatorMode() === 'owner' ? 'collector' : 'owner');
+});
 function openPaymentEntry(month = selectedBillingMonth) {
   const customer = selectedCustomer();
   if (!customer) {
@@ -8353,6 +8381,8 @@ async function restoreCustomer(customerId) {
   } catch (error) { toast(error.message); }
 }
 function archiveSelectedCustomer(customer, disconnectDetails = null) {
+  // Plan 33: archiving is owner-only, from every path that calls this.
+  if (collectorBlocked('customer-archive')) return;
   try {
     state = archiveCustomer(state, customer.id, new Date(), disconnectDetails); save(); renderDetail();
     // Plan 31: archiving is logged; the disconnect detail stays on the record.
@@ -8469,6 +8499,9 @@ $('#saveCustomerNameBtn')?.addEventListener('click', () => {
 $('#deleteCustomerButton').addEventListener('click', async () => {
   const customer = selectedCustomer();
   if (!customer) return;
+  // Plan 33: deleting is owner-only (the archive alternative inside is
+  // guarded separately by archiveSelectedCustomer).
+  if (collectorBlocked('customer-delete')) return;
   const choice = await appConfirm({ tone:'danger', title:'Delete this customer?', subject:`#${customer.customerNumber} ${customer.name}`, message:'All bills, receipts, unused prepaid credit, contact/package data and complaint history are removed from this device. You can undo for a few seconds; after that, restore the safety snapshot saved just before deleting (in the backup controls), or a JSON backup. Archive keeps the history instead.', confirmLabel:'Delete customer', altLabel: customer.archived ? '' : 'Archive instead' });
   if (choice === 'alt') { archiveSelectedCustomer(customer); return; }
   if (choice !== 'confirm' || selectedCustomer()?.id !== customer.id) return;
@@ -9518,6 +9551,16 @@ window.digitalPaymentsSettingsController = initDigitalPaymentsSettingsModal({
     toast('✓ Digital payment receiving settings saved.');
   }
 });
+// Plan 33: settings are owner-only — guard the controller's open entry
+// point itself, so every trigger (more menu, first-run banner, receipt
+// footer flows) is refused in collector mode, not just one button.
+if (window.digitalPaymentsSettingsController && typeof window.digitalPaymentsSettingsController.open === 'function') {
+  const openDigitalSettings = window.digitalPaymentsSettingsController.open.bind(window.digitalPaymentsSettingsController);
+  window.digitalPaymentsSettingsController.open = (...args) => {
+    if (collectorBlocked('settings')) return;
+    return openDigitalSettings(...args);
+  };
+}
 
 // Setup Receipt Footer Studio Modal (SISP-96)
 window.receiptFooterStudioController = initReceiptFooterStudioModal({
@@ -9638,7 +9681,7 @@ try {
       firstRunBanner.querySelectorAll('[data-first-run]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const action = btn.getAttribute('data-first-run');
-          if (action === 'digital-settings') window.digitalPaymentsSettingsController?.open?.();
+          if (action === 'digital-settings') { if (!collectorBlocked('settings')) window.digitalPaymentsSettingsController?.open?.(); }
           else if (action === 'receipt-footer') window.receiptFooterStudioController?.open?.();
           else if (action === 'add-customer') ($('#addCustomerButton') || $('#quickActionAddCustomer'))?.click();
         });
@@ -12037,6 +12080,80 @@ function renderExportPack() {
     }
   }
 }
+// Plan 33: owner and collector operator modes. The mode lives in its
+// own localStorage store, apart from every billing, payment and
+// lifecycle record, and switching it never writes any of those records
+// — the only write besides the mode itself is the Plan 31 audit entry.
+const OPERATOR_MODE_KEY = 'shahdara_operator_mode_v1';
+function loadOperatorMode() {
+  try {
+    return normalizeOperatorMode(localStorage.getItem(OPERATOR_MODE_KEY));
+  } catch { return 'owner'; }
+}
+function saveOperatorMode(mode) {
+  try { localStorage.setItem(OPERATOR_MODE_KEY, normalizeOperatorMode(mode)); } catch {}
+}
+function currentOperatorMode() {
+  return loadOperatorMode();
+}
+/** True when the action is blocked in the current mode (with a toast). Guards call this first. */
+function collectorBlocked(action) {
+  if (!canPerformAction(currentOperatorMode(), action)) {
+    toast('Collector mode: this action is for the owner.');
+    return true;
+  }
+  return false;
+}
+/** Hide owner-only nav buttons in collector mode; the header mode button stays visible so the mode can be switched back. */
+function syncOperatorModeNav() {
+  const collector = currentOperatorMode() === 'collector';
+  for (const buttonId of ['showReportsButton', 'showAnalyticsButton', 'showInventoryButton', 'showExpensesButton', 'showHomeBudgetButton', 'showLoansButton', 'showWaTemplatesButton']) {
+    const button = document.getElementById(buttonId);
+    if (button) button.hidden = collector;
+  }
+  const toggle = document.getElementById('operatorModeToggleBtn');
+  if (toggle) toggle.textContent = operatorModeToggleLabel(currentOperatorMode());
+}
+function renderOperatorModes() {
+  const bodyEl = $('#operatorModesBody');
+  if (!bodyEl) return;
+  const mode = currentOperatorMode();
+  bodyEl.innerHTML = operatorModeHtml(mode);
+  const summaryEl = $('#operatorModesSummary');
+  if (summaryEl) summaryEl.textContent = operatorModeSummaryText(mode);
+  syncOperatorModeNav();
+  bodyEl.querySelectorAll('[data-operator-mode-target]').forEach((button) => {
+    button.addEventListener('click', () => { requestOperatorModeSwitch(button.getAttribute('data-operator-mode-target')); });
+  });
+}
+/** Switch modes, with the owner's confirmation step for collector → owner, and log the switch in the Plan 31 audit log. */
+async function requestOperatorModeSwitch(target) {
+  const request = requestModeSwitch(currentOperatorMode(), target);
+  if (!request.changed) { renderOperatorModes(); return; }
+  let confirmed = !request.needsOwnerStep;
+  if (request.needsOwnerStep) {
+    const choice = await appConfirm({ tone: 'warning', title: 'Switch back to owner mode?', message: 'Only the owner should switch back: owner mode shows every screen, including backup, restore, settings and destructive actions.', confirmLabel: 'Switch to owner mode' });
+    confirmed = choice === 'confirm';
+  }
+  const next = applyModeSwitch(currentOperatorMode(), target, { ownerConfirmed: confirmed });
+  if (next === request.from) { renderOperatorModes(); return; }
+  saveOperatorMode(next);
+  recordAudit('mode_switched', {
+    recordRef: 'operator-mode',
+    detail: `Switched from ${request.from} to ${next} mode`,
+  });
+  syncOperatorModeNav();
+  if (next === 'collector' && viewAccess('collector', currentViewName()) === 'blocked') switchView('customers');
+  renderOperatorModes();
+  toast(`Operator mode: ${next === 'owner' ? 'Owner' : 'Collector'}.`);
+}
+/** Best-effort current view name for the collector guard (falls back to customers). */
+function currentViewName() {
+  for (const [name, buttonId] of [['customers', 'showCustomersButton'], ['transactions', 'showTransactionsButton'], ['reports', 'showReportsButton'], ['analytics', 'showAnalyticsButton'], ['inventory', 'showInventoryButton'], ['expenses', 'showExpensesButton'], ['homeBudget', 'showHomeBudgetButton'], ['loans', 'showLoansButton'], ['waTemplates', 'showWaTemplatesButton']]) {
+    if (document.getElementById(buttonId)?.getAttribute('aria-current') === 'page') return name;
+  }
+  return 'customers';
+}
 function renderCoverageRegister() {
   const bodyEl = $('#coverageRegisterBody');
   if (!bodyEl) return;
@@ -12142,6 +12259,7 @@ function renderAnalytics() {
   renderCampaignPlanner();
   renderAuditLog();
   renderExportPack();
+  renderOperatorModes();
   renderOltOnuRegister();
 }
 let packageSortKey = null;
@@ -13100,6 +13218,8 @@ $('#homeBudgetResetFiltersBtn')?.addEventListener('click', resetHomeBudgetFilter
   $('#expenseTable').querySelectorAll('[data-delete-expense]').forEach(button=>button.addEventListener('click',async()=>{
     const row=allRows.find(item=>item.id===button.dataset.deleteExpense);
     if(!row)return;
+    // Plan 33: expense deletion is owner-only.
+    if(collectorBlocked('expense-delete'))return;
     // SISP-80: expense deletion is restricted while the Owner PIN lock is active.
     if(!await requireOwnerPin('expense-delete'))return;
     const areaNote=row.area?` [${row.area}]`:'';
@@ -13571,7 +13691,7 @@ $('#dismissExpensePayrollNoticeBtn')?.addEventListener('click', () => {
 });
 
 $('#payrollMonth').addEventListener('change',event=>{if(!monthsForHistory().includes(event.currentTarget.value))return;selectedPayrollMonth=event.currentTarget.value;renderExpenses();});
-[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement'],['overheads','#expenseTabOverheads']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',async()=>{const pinAction=key==='settlement'?'partner-settlement':(key==='nasir'||key==='aqib')?'partner-shares':null;if(pinAction&&!await requireOwnerPin(pinAction))return;expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key!=='ledger')renderPartnerShare(key);});});
+[['ledger','#expenseTabLedger'],['nasir','#expenseTabNasir'],['aqib','#expenseTabAqib'],['settlement','#expenseTabSettlement'],['overheads','#expenseTabOverheads']].forEach(([key,sel])=>{$(sel)?.addEventListener('click',async()=>{const pinAction=key==='settlement'?'partner-settlement':(key==='nasir'||key==='aqib')?'partner-shares':null;if(pinAction&&collectorBlocked(pinAction))return;if(pinAction&&!await requireOwnerPin(pinAction))return;expenseActiveTab=key;syncExpenseTabs();if(key==='settlement')renderPartnerSettlement();else if(key==='overheads')renderOverheads();else if(key!=='ledger')renderPartnerShare(key);});});
 $('#nasirShareMonth')?.addEventListener('change',event=>{nasirShareMonth=event.currentTarget.value;renderPartnerShare('nasir');});
 $('#aqibShareMonth')?.addEventListener('change',event=>{aqibShareMonth=event.currentTarget.value;renderPartnerShare('aqib');});
 $('#partnerSettlementMonth')?.addEventListener('change',event=>{partnerSettlementMonth=event.currentTarget.value;renderPartnerSettlement();});

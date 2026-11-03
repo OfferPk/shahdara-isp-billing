@@ -244,6 +244,7 @@ import { RESOLUTION_CONFIRMATION_VARIANTS, RESOLUTION_DEFAULT_WINDOW_DAYS, norma
 import { CAPACITY_FORECAST_DEFAULT_THRESHOLD, normalizeCapacityThreshold, buildCapacityForecast, capacityForecastSummaryText, capacityForecastHtml, capacityForecastCsv, capacityForecastFilename } from './capacity-forecast.js';
 import { canonicalCoverageMohalla, normalizeCoverageEstimate, upsertCoverageEstimate, buildCoverageRegister, coverageRegisterSummaryText, coverageRegisterHtml, coverageRegisterCsv, coverageRegisterFilename } from './coverage-register.js';
 import { normalizeReferral, upsertReferral, deriveReferralStatuses, buildReferralReport, referralSummaryText, referralReportHtml, referralReportCsv, referralReportFilename } from './referral-tracking.js';
+import { EXPANSION_STEP_IDS, buildExpansionChecklist, findExpansionChecklist, tickExpansionStep, untickExpansionStep, upsertExpansionChecklist, expansionSummaryText, expansionChecklistHtml, expansionChecklistCsv, expansionChecklistFilename } from './expansion-checklist.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -11723,6 +11724,79 @@ function renderReferralTracking() {
     });
   }
 }
+// Plan 29: expansion readiness panel. A checklist ONLY, modelled on
+// Plan 16's onboarding pattern but for areas, not customers: the same
+// ordered steps for every area, a go/no-go note, and a derived ready
+// state that is never true while a required step is unticked. Ticking
+// never creates a customer, a bill, or a port assignment, and nothing
+// here touches billing, the connection register, or any customer
+// record. Estimates live in their own store.
+const EXPANSION_CHECKLIST_KEY = 'shahdara_expansion_checklists_v1';
+let expansionChecklistBound = false;
+function loadExpansionChecklists() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(EXPANSION_CHECKLIST_KEY) ?? 'null');
+    return Array.isArray(parsed) ? parsed.filter((row) => findExpansionChecklist([row], row.area ?? row.name)) : [];
+  } catch { return []; }
+}
+function saveExpansionChecklists(list) {
+  try { localStorage.setItem(EXPANSION_CHECKLIST_KEY, JSON.stringify(list)); } catch {}
+}
+function renderExpansionChecklist() {
+  const bodyEl = $('#expansionChecklistBody');
+  if (!bodyEl) return;
+  const stored = loadExpansionChecklists();
+  bodyEl.innerHTML = expansionChecklistHtml(stored);
+  const summaryEl = $('#expansionChecklistSummary');
+  if (summaryEl) summaryEl.textContent = expansionSummaryText(stored);
+  const stepEl = $('#expansionChecklistStep');
+  if (stepEl && document.activeElement !== stepEl) {
+    stepEl.innerHTML = EXPANSION_STEP_IDS.map((id) => {
+      const labels = { survey: 'Survey done', splitter: 'Splitter capacity confirmed', route: 'Cable route planned', prices: 'Package prices set', announcement: 'Launch announcement drafted' };
+      return `<option value="${escapeHtml(id)}">${escapeHtml(labels[id])}</option>`;
+    }).join('');
+  }
+  if (!expansionChecklistBound) {
+    expansionChecklistBound = true;
+    $('#expansionChecklistExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(expansionChecklistFilename(), expansionChecklistCsv(loadExpansionChecklists()));
+    });
+    const applyTick = (completed) => {
+      const area = $('#expansionChecklistArea')?.value ?? '';
+      const stepId = $('#expansionChecklistStep')?.value ?? '';
+      const existing = findExpansionChecklist(loadExpansionChecklists(), area);
+      const base = existing ?? buildExpansionChecklist(area, [], null);
+      if (!base) return;
+      const next = completed
+        ? tickExpansionStep(base, stepId, { date: $('#expansionChecklistDate')?.value ?? '', by: $('#expansionChecklistBy')?.value ?? '' })
+        : untickExpansionStep(base, stepId);
+      saveExpansionChecklists(upsertExpansionChecklist(loadExpansionChecklists(), next.area, next.steps, next.goNoGoNote));
+      renderExpansionChecklist();
+    };
+    $('#expansionChecklistTickBtn')?.addEventListener('click', () => applyTick(true));
+    $('#expansionChecklistUntickBtn')?.addEventListener('click', () => applyTick(false));
+    $('#expansionChecklistNoteBtn')?.addEventListener('click', () => {
+      const area = $('#expansionChecklistArea')?.value ?? '';
+      const existing = findExpansionChecklist(loadExpansionChecklists(), area);
+      const base = existing ?? buildExpansionChecklist(area, [], null);
+      if (!base) return;
+      saveExpansionChecklists(upsertExpansionChecklist(loadExpansionChecklists(), base.area, base.steps, $('#expansionChecklistNote')?.value ?? ''));
+      renderExpansionChecklist();
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const tickBtn = event.target.closest('[data-expansion-tick]');
+      const untickBtn = event.target.closest('[data-expansion-untick]');
+      const target = tickBtn ?? untickBtn;
+      if (!target) return;
+      const [area, stepId] = (tickBtn ? tickBtn.dataset.expansionTick : untickBtn.dataset.expansionUntick).split('|');
+      const existing = findExpansionChecklist(loadExpansionChecklists(), area);
+      if (!existing) return;
+      const next = tickBtn ? tickExpansionStep(existing, stepId, {}) : untickExpansionStep(existing, stepId);
+      saveExpansionChecklists(upsertExpansionChecklist(loadExpansionChecklists(), next.area, next.steps, next.goNoGoNote));
+      renderExpansionChecklist();
+    });
+  }
+}
 function renderCoverageRegister() {
   const bodyEl = $('#coverageRegisterBody');
   if (!bodyEl) return;
@@ -11824,6 +11898,7 @@ function renderAnalytics() {
   renderCapacityForecast();
   renderCoverageRegister();
   renderReferralTracking();
+  renderExpansionChecklist();
   renderOltOnuRegister();
 }
 let packageSortKey = null;

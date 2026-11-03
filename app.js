@@ -251,6 +251,7 @@ import { buildExportPack, exportPackSummaryText, exportPackHtml, exportPackCsv, 
 import { normalizeOperatorMode, canPerformAction, viewAccess, requestModeSwitch, applyModeSwitch, operatorModeSummaryText, operatorModeHtml, operatorModeToggleLabel } from './operator-modes.js';
 import { normalizePriceRevision, normalizePriceHistory, recordPriceRevision, priceHistoryForPackage, priceOnDate, priceHistorySummaryText, priceHistoryHtml, priceHistoryCsv, priceHistoryFilename } from './package-price-history.js';
 import { buildTransferPack, transferPackText, transferPackFilename, verifyTransferPack, decideTransferApply, transferPackSummaryText, transferPackHtml } from './transfer-pack.js';
+import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
@@ -768,7 +769,7 @@ try {
     customers:INITIAL_NAMES.map((name, index) => ({ id:`seed-${String(index + 1).padStart(3, '0')}`, customerNumber:index + 1, name, mohalla:'', zone:'', address:'', phone:'', ispProvider:'', serviceStatus:'not-set', serviceStatusHistory:[], packageSpeed:'', monthlyPurchaseCost:null, monthlySellingAmount:null, monthlyPriceSchedule:[], billingStartMonth:null, connectionDate:null, expiryDate:null, cancellationDate:null, packageHistory:[], relocationLog:[], archived:false, archivedAt:null, bills:[], incidents:[] })), inventoryItems:[], inventoryMovements:[], expenses:[],saadAttendanceDays:[],umairWorkdays:[]
   };
 }
-state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
+state = generateMonthlyBillsThroughCurrentMonth(state, new Date(), loadBillingCycleChoices());
 if (!persistenceBlocked) state = autoClosePreviousMonth(state, new Date());
 // Owner default roster (2026-10-29): ALEX's written customer list is
 // imported once by default (settings marker + idempotent planner in
@@ -1112,7 +1113,7 @@ function searchQuery() { return $('#globalCustomerSearch').value; }
 function customerListQuery() { return $('#customerListSearch').value.trim() || searchQuery(); }
 function save() {
   void requestPersistenceOnFirstWrite();
-  state = generateMonthlyBillsThroughCurrentMonth(state, new Date());
+  state = generateMonthlyBillsThroughCurrentMonth(state, new Date(), loadBillingCycleChoices());
   if (!persistenceBlocked) state = autoClosePreviousMonth(state, new Date());
   if (persistenceBlocked) {
     toast('Saved data could not be read. No changes were written; use a valid JSON backup to recover it.');
@@ -1166,7 +1167,7 @@ function save() {
   return storageAvailable;
 }
 function checkMonthlyBilling() {
-  const updated = generateMonthlyBillsThroughCurrentMonth(state, new Date());
+  const updated = generateMonthlyBillsThroughCurrentMonth(state, new Date(), loadBillingCycleChoices());
   if (updated !== state) { state = updated; save(); }
 }
 // SISP-174: 1-tap receipt actions for one Dashboard Recent Payments
@@ -4380,7 +4381,13 @@ function renderCustomerProfileView(customer) {
   const welcomePackSendDisabled = Boolean(welcomePackPref && welcomePackPref.doNotMessage) || welcomePack.status !== 'ready';
   const welcomePackSendLabel = welcomePackPref && welcomePackPref.doNotMessage ? 'Do not message' : welcomePack.status !== 'ready' ? 'Complete the profile first' : (welcomePackSends.length > 0 ? 'Re-send welcome pack' : 'Send welcome pack');
   const welcomePackSectionHtml = `<section class="profile-custody-section" aria-label="Welcome pack"><h4>Welcome pack</h4><p>Send this once at activation, so a new customer knows the package, monthly amount, due date, payment methods, and support contact from day one — and can re-send it from here any time after. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, Waada, or lifecycle record.</p>${welcomePackHtml(welcomePack, { draftText: welcomePackDraft.text, sends: welcomePackSends })}<button type="button" class="secondary-button" id="welcomePackSendBtn" ${welcomePackSendDisabled ? 'disabled' : ''}>${escapeHtml(welcomePackSendLabel)}</button></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${welcomePackSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  // Plan 36: the profile shows the current billing cycle and the date it
+  // changed. Saving here changes only bills raised afterwards — past
+  // bills keep their old due dates, and the pre-due reminder queue reads
+  // each bill's own due date, so it follows the customer's own date.
+  const billingCycleChoice = findBillingCycleChoice(loadBillingCycleChoices(), customer.id);
+  const billingCycleSectionHtml = `<section class="profile-custody-section" aria-label="Billing cycle"><h4>Billing cycle</h4><p>Match the due date to the household's payday — a customer paid on the 15th should not always be late on a 5th due date. The next bill raised gets the new due date; every earlier bill keeps its old one.</p>${billingCycleChoiceHtml(billingCycleChoice)}<div><label>Due day of month <input id="billingCycleDueDay" type="number" min="1" max="31" value="${escapeHtml(String(billingCycleChoice ? billingCycleChoice.dueDay : DEFAULT_BILL_DUE_DAY))}"></label> <button type="button" class="secondary-button" id="billingCycleSaveBtn">Save billing cycle</button></div></section>`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4428,6 +4435,17 @@ function renderCustomerProfileView(customer) {
     const sentEl = $('#customerProfileView').querySelector('#welcomePackSent');
     if (sentEl) sentEl.textContent = welcomePackSentText(findWelcomePackSends(loadWelcomePackSentLog(), customer.id));
     sendBtn.textContent = 'Re-send welcome pack';
+  });
+  $('#customerProfileView').querySelector('#billingCycleSaveBtn')?.addEventListener('click', () => {
+    const dueDayValue = $('#customerProfileView').querySelector('#billingCycleDueDay')?.value || '';
+    const choice = normalizeBillingCycleChoice({ customerId: customer.id, dueDay: dueDayValue, changedAt: localDate() });
+    if (!choice) {
+      toast('Enter a due day between 1 and 31.');
+      return;
+    }
+    saveBillingCycleChoices(upsertBillingCycleChoice(loadBillingCycleChoices(), choice));
+    toast(`Billing cycle saved: due on the ${choice.dueDay}th of each month. Past bills keep their old due dates.`);
+    renderDetail();
   });
   $('#customerProfileView').querySelector('#profileWelcomeSlipButton')?.addEventListener('click', () => openWelcomeSlip(customer));
   // SISP-65: [🔊 Speak Due] on the profile heading — speaks the
@@ -6344,7 +6362,7 @@ $('#applyJsonBackupButton').addEventListener('click', async () => {
   if (!pendingBackupPreview?.canApply) return;
   await snapshotBeforeDestructiveAction();
   try {
-    const restored = generateMonthlyBillsThroughCurrentMonth(pendingBackupPreview.state, new Date());
+    const restored = generateMonthlyBillsThroughCurrentMonth(pendingBackupPreview.state, new Date(), loadBillingCycleChoices());
     persistState(restored, localStorage);
     state = restored; storageAvailable = true; persistenceBlocked = false; readFailureMessage = '';
     // SISP-195: converge the deposit-refund bridge with the restored
@@ -6652,7 +6670,7 @@ $('#applyDeltaMergeButton')?.addEventListener('click', async () => {
       if (select.value === 'incoming') resolutions[select.dataset.conflictKey] = 'incoming';
     });
     const { sections, applied } = applyDeltaMergeSections({ currentSections: currentDeltaSections(), plan: pending.sectionPlan, resolutions });
-    const restored = generateMonthlyBillsThroughCurrentMonth(pending.statePreview.state, new Date());
+    const restored = generateMonthlyBillsThroughCurrentMonth(pending.statePreview.state, new Date(), loadBillingCycleChoices());
     persistState(restored, localStorage);
     state = restored; storageAvailable = true; persistenceBlocked = false; readFailureMessage = '';
     for (const familyKey of Object.keys(pending.sectionPlan.families)) {
@@ -6782,7 +6800,7 @@ $('#applyCsvImportButton')?.addEventListener('click', () => {
   try {
     const enrichExisting = $('#csvEnrichExistingCheckbox')?.checked ?? true;
     const result = applyCustomerCsvImport(state, pendingCsvImportPreview, { enrichExisting });
-    const newState = generateMonthlyBillsThroughCurrentMonth(result.state, new Date());
+    const newState = generateMonthlyBillsThroughCurrentMonth(result.state, new Date(), loadBillingCycleChoices());
     persistState(newState, localStorage);
     state = newState;
     storageAvailable = true;
@@ -6815,10 +6833,21 @@ function onBillSubmit(event) {
   const form = event.currentTarget; const data = new FormData(form);
   try {
     const packageChanged = form.dataset.packageSelectionChanged === 'true';
+    // Plan 36: a manually raised bill with no due date typed picks up
+    // the customer's cycle due date; an existing bill keeps whatever
+    // due date the operator entered for it (never rewritten here).
+    let billDueDateValue = data.get('dueDate') || null;
+    if (!billDueDateValue) {
+      const existingBillForMonth = (state.customers.find(c => c.id === selectedCustomerId)?.bills ?? []).some(b => b.month === form.dataset.month);
+      if (!existingBillForMonth) {
+        const cycleChoice = findBillingCycleChoice(loadBillingCycleChoices(), selectedCustomerId);
+        if (cycleChoice) billDueDateValue = dueDateForBillMonth(cycleChoice, form.dataset.month);
+      }
+    }
     state = saveBillMonth(state, selectedCustomerId, {
       month:form.dataset.month,
       dueAmount:data.get('dueAmount') || null,
-      dueDate:data.get('dueDate') || null,
+      dueDate:billDueDateValue,
       status:'pending',
       packageId:packageChanged ? data.get('packageId') : '',
       clearPackageSnapshot:packageChanged && form.dataset.clearPackageSnapshot === 'true'
@@ -10877,6 +10906,19 @@ function loadOnboardingChecklists() {
 }
 function saveOnboardingChecklists(list) {
   try { localStorage.setItem(ONBOARDING_CHECKLISTS_KEY, JSON.stringify(list)); } catch {}
+}
+// Plan 36: one billing-cycle record per customer, in its own store apart
+// from every bill, payment and Waada record. Past bills are never touched
+// by saving here — only bills raised afterwards pick up the new due day.
+const BILLING_CYCLE_CHOICES_KEY = 'shahdara_billing_cycle_choices_v1';
+function loadBillingCycleChoices() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BILLING_CYCLE_CHOICES_KEY) || '[]');
+    return normalizeBillingCycleChoices(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveBillingCycleChoices(list) {
+  try { localStorage.setItem(BILLING_CYCLE_CHOICES_KEY, JSON.stringify(normalizeBillingCycleChoices(list))); } catch {}
 }
 function renderOnboardingChecklists() {
   const bodyEl = $('#onboardingChecklistsBody');

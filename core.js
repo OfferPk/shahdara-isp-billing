@@ -13,6 +13,7 @@ import { sanitizeInventory } from './inventory-book.js';
 import { sanitizeConverterSideMovements } from './wdm-converter-matcher.js';
 import { sanitizeLoanEntries } from './loan-ledger.js';
 import { sanitizeSaadPayments, sanitizeSaadVisits } from './saad-visits.js';
+import { dueDateForBill, findBillingCycleChoice } from './billing-cycle-choice.js';
 import { sanitizeLinemanPayouts } from './lineman-payout-slip.js';
 import { sanitizeInstallRequests } from './install-tracker.js';
 import { sanitizePendingWorks } from './pending-works.js';
@@ -389,7 +390,11 @@ export function nextCycleDueDateFromBillMonth(month) {
  * the customer's saved price-effective month. Runs locally when the app opens,
  * resumes, or is active across a month boundary; it never infers earlier months.
  */
-export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = new Date()) {
+export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = new Date(), cycleChoices = []) {
+  // Plan 36: a bill raised here carries its customer's cycle due date
+  // when the bill month is the change month or later; earlier months
+  // and customers with no cycle record keep the shared 5th default.
+  // Callers that pass no choices get exactly the old behaviour.
   const months = monthsForHistory(referenceDate).reverse();
   let changed = false;
   const customers = state.customers.map(customer => {
@@ -430,7 +435,7 @@ export function generateMonthlyBillsThroughCurrentMonth(state, referenceDate = n
         if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount)) || Number(amount) <= 0) continue;
         snapshot = Number(amount);
       }
-      generated.push({ id:makeId(), month, dueAmount:snapshot, dueDate:`${month}-05`, status:'pending', payments:[], generated:true, priceSnapshot:snapshot, createdAt:localDateTimeValue(referenceDate), amountHistory:[] });
+      generated.push({ id:makeId(), month, dueAmount:snapshot, dueDate:dueDateForBill({ choice: findBillingCycleChoice(cycleChoices, customer.id), month, existingDueDate: null }), status:'pending', payments:[], generated:true, priceSnapshot:snapshot, createdAt:localDateTimeValue(referenceDate), amountHistory:[] });
       existingMonths.add(month);
     }
     if (!generated.length && !skippedMonths) return customer;
@@ -2221,7 +2226,10 @@ function assertDiscountWithinRemainingPayable(state, customerId, month, discount
 
 export function addPayment(state, customerId, month, fields, referenceDate = new Date(), options = {}) {
   checkMonth(month, referenceDate);
-  state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate);
+  // Plan 36: a caller may pass its cycle records (options.cycleChoices)
+  // so bills raised by this choke point honour them too; without them
+  // the shared 5th default applies exactly as before.
+  state = generateMonthlyBillsThroughCurrentMonth(state, referenceDate, Array.isArray(options?.cycleChoices) ? options.cycleChoices : []);
   // SISP-146: every payment recorded through this choke point (Quick
   // Collect, Field Mode, profile forms, advance/prepay, suspense claim,
   // inbox — all of them land here) is stamped with the instant it was

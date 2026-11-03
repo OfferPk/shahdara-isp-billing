@@ -1760,7 +1760,7 @@ export function setupQuickCollectModal({
               ${settings.ownerTillId ? `<div><small>📱 Till ID:</small> <strong class="qc-copyable-code">${escapeHtml(settings.ownerTillId)}</strong></div>` : ''}
               ${(settings.ownerBankName && settings.ownerAccountNumber) ? `<div><small>🏦 ${escapeHtml(settings.ownerBankName)}:</small> <strong>${escapeHtml(settings.ownerAccountNumber)}</strong></div>` : ''}
             </div>
-            ${settings.ownerQrDataUrl ? `<div class="qc-owner-qr-thumb-wrap"><img src="${settings.ownerQrDataUrl}" alt="Owner Payment QR" class="qc-owner-qr-thumb"></div>` : ''}
+            ${settings.ownerQrDataUrl ? `<div class="qc-owner-qr-thumb-wrap"><img src="${escapeHtml(settings.ownerQrDataUrl)}" alt="Owner Payment QR" class="qc-owner-qr-thumb"></div>` : ''}
           </div>
         `;
       } else {

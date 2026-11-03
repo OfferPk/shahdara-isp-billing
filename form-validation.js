@@ -825,7 +825,7 @@ export function generateBatchReceiptHtml(customers, month, state, { filter = 'al
     if (filter === 'paid' && !isPaid) continue;
 
     slips.push(`
-      <article class="batch-receipt-slip" data-customer-id="${customer.id}">
+      <article class="batch-receipt-slip" data-customer-id="${escapeHtml(customer.id)}">
         <header class="batch-slip-header">
           <div class="batch-slip-brand">
             <strong>SHAHDARA FIBER NET</strong>
@@ -836,23 +836,23 @@ export function generateBatchReceiptHtml(customers, month, state, { filter = 'al
         <div class="batch-slip-grid">
           <div class="batch-slip-field">
             <span class="batch-field-label">Customer ID / Name:</span>
-            <strong>#${customer.customerNumber || customer.id} · ${customer.name || 'Unnamed'}</strong>
+            <strong>#${escapeHtml(customer.customerNumber || customer.id)} · ${escapeHtml(customer.name || 'Unnamed')}</strong>
           </div>
           <div class="batch-slip-field">
             <span class="batch-field-label">Billing Month:</span>
-            <strong>${month}</strong>
+            <strong>${escapeHtml(month)}</strong>
           </div>
           <div class="batch-slip-field">
             <span class="batch-field-label">Area / Mohalla:</span>
-            <span>${customer.area || customer.mohalla || 'General'}</span>
+            <span>${escapeHtml(customer.area || customer.mohalla || 'General')}</span>
           </div>
           <div class="batch-slip-field">
             <span class="batch-field-label">Phone:</span>
-            <span>${customer.phone || 'N/A'}</span>
+            <span>${escapeHtml(customer.phone || 'N/A')}</span>
           </div>
           <div class="batch-slip-field">
             <span class="batch-field-label">Package Plan:</span>
-            <span>${customer.package || customer.servicePlan || 'Standard'}</span>
+            <span>${escapeHtml(customer.package || customer.servicePlan || 'Standard')}</span>
           </div>
           <div class="batch-slip-field">
             <span class="batch-field-label">Total Due (PKR):</span>
@@ -876,7 +876,7 @@ export function generateBatchReceiptHtml(customers, month, state, { filter = 'al
           <div class="batch-slip-note">Payment is due by 5th of each month. Inquiries: Shahdara ISP Support</div>
           <div class="batch-slip-stub">
             <span class="batch-stub-cut">✂ Office Tear-off Stub</span>
-            <span>#${customer.customerNumber || customer.id} · ${customer.name} · PKR ${balance.toLocaleString()} due for ${month}</span>
+            <span>#${escapeHtml(customer.customerNumber || customer.id)} · ${escapeHtml(customer.name)} · PKR ${balance.toLocaleString()} due for ${escapeHtml(month)}</span>
           </div>
         </footer>
       </article>
@@ -884,7 +884,7 @@ export function generateBatchReceiptHtml(customers, month, state, { filter = 'al
   }
 
   if (slips.length === 0) {
-    return `<div class="batch-empty-state">No customer slips matched the '${filter}' filter for month ${month}.</div>`;
+    return `<div class="batch-empty-state">No customer slips matched the '${escapeHtml(filter)}' filter for month ${escapeHtml(month)}.</div>`;
   }
 
   return slips.join('\n');
@@ -1422,9 +1422,9 @@ export function generateCustomerStatementHtml(statement, view = {}) {
     const overdueBadge = overdueDays > 0 ? ` <span class="statement-overdue-badge">⏰ ${overdueDays}d overdue</span>` : '';
     return `
     <tr data-statement-row="${idx}" class="statement-row" tabindex="0" title="View entry detail">
-      <td class="col-date">${ev.date}</td>
-      <td class="col-desc"><strong>${ev.description}</strong>${overdueBadge}</td>
-      <td class="col-month">${ev.month || '—'}</td>
+      <td class="col-date">${escapeHtml(ev.date)}</td>
+      <td class="col-desc"><strong>${escapeHtml(ev.description)}</strong>${overdueBadge}</td>
+      <td class="col-month">${escapeHtml(ev.month || '—')}</td>
       <td class="col-num charge-num">${ev.charge > 0 ? `PKR ${ev.charge.toLocaleString()}` : '—'}</td>
       <td class="col-num credit-num">${ev.credit > 0 ? `PKR ${ev.credit.toLocaleString()}` : '—'}</td>
       <td class="col-num balance-num ${ev.runningBalance > 0 ? 'is-due' : 'is-settled'}">PKR ${ev.runningBalance.toLocaleString()}</td>
@@ -1440,7 +1440,7 @@ export function generateCustomerStatementHtml(statement, view = {}) {
           <tbody>
             ${view.monthSubtotals.map(row => `
             <tr>
-              <td>${row.month || '—'}</td>
+              <td>${escapeHtml(row.month || '—')}</td>
               <td class="col-num">PKR ${row.billed.toLocaleString()}</td>
               <td class="col-num">PKR ${row.paid.toLocaleString()}</td>
               <td class="col-num balance-num ${row.balance > 0 ? 'is-due' : 'is-settled'}">PKR ${row.balance.toLocaleString()}</td>
@@ -1458,21 +1458,24 @@ export function generateCustomerStatementHtml(statement, view = {}) {
           <tbody>
             ${view.aging.buckets.map(bucket => `
             <tr>
-              <td>${bucket.label}</td>
+              <td>${escapeHtml(bucket.label)}</td>
               <td class="col-num balance-num ${bucket.amount > 0 ? 'is-due' : ''}">PKR ${bucket.amount.toLocaleString()}</td>
             </tr>`).join('')}
           </tbody>
         </table>` : '<p class="muted">Account settled — no outstanding balance to age.</p>'}
       </section>` : '';
 
+  // Plan H: view.trendSvg is internal chart markup generated by the app,
+  // never operator/customer text, so it is inserted as-is; view.trendNote
+  // (plain text) is escaped below.
   const trendHtml = (view.trendSvg !== undefined || view.trendNote !== undefined) ? `
       <section class="statement-trend">
         <h3 class="statement-block-title">Balance trend (visible entries)</h3>
-        ${view.trendSvg || `<p class="muted">${view.trendNote || 'No entries to chart.'}</p>`}
+        ${view.trendSvg || `<p class="muted">${escapeHtml(view.trendNote || 'No entries to chart.')}</p>`}
       </section>` : '';
 
   return `
-    <article class="customer-account-statement" data-customer-id="${customer.id}">
+    <article class="customer-account-statement" data-customer-id="${escapeHtml(customer.id)}">
       <header class="statement-header">
         <div class="statement-brand">
           <div class="statement-brand-title">SHAHDARA FIBER NET</div>
@@ -1482,19 +1485,19 @@ export function generateCustomerStatementHtml(statement, view = {}) {
         <div class="statement-meta-badge">
           <div>Statement Date: <strong>${today}</strong></div>
           <div>Period Scope: <strong>${rangeLabel}</strong></div>
-          <div>Status: <strong>${customer.serviceStatus.toUpperCase()}</strong></div>
+          <div>Status: <strong>${escapeHtml(customer.serviceStatus.toUpperCase())}</strong></div>
         </div>
       </header>
 
       <section class="statement-info-box">
         <div class="statement-info-col">
-          <div><span class="info-label">Customer ID / No:</span> <strong>#${customer.customerNumber || customer.id}</strong></div>
-          <div><span class="info-label">Subscriber Name:</span> <strong>${customer.name}</strong></div>
-          <div><span class="info-label">Phone Contact:</span> <span>${customer.phone}</span></div>
+          <div><span class="info-label">Customer ID / No:</span> <strong>#${escapeHtml(customer.customerNumber || customer.id)}</strong></div>
+          <div><span class="info-label">Subscriber Name:</span> <strong>${escapeHtml(customer.name)}</strong></div>
+          <div><span class="info-label">Phone Contact:</span> <span>${escapeHtml(customer.phone)}</span></div>
         </div>
         <div class="statement-info-col">
-          <div><span class="info-label">Coverage Area:</span> <span>${customer.area}</span></div>
-          <div><span class="info-label">Package Plan:</span> <span>${customer.package}</span></div>
+          <div><span class="info-label">Coverage Area:</span> <span>${escapeHtml(customer.area)}</span></div>
+          <div><span class="info-label">Package Plan:</span> <span>${escapeHtml(customer.package)}</span></div>
           <div><span class="info-label">Opening Balance:</span> <span>PKR ${openingBalance.toLocaleString()}</span></div>
         </div>
       </section>
@@ -1516,7 +1519,7 @@ export function generateCustomerStatementHtml(statement, view = {}) {
       ${monthSubtotalsHtml}${agingHtml}${trendHtml}
 
       <div class="statement-table-wrap">
-        ${view.filterNote ? `<div class="statement-filter-note" role="status">${view.filterNote}</div>` : ''}
+        ${view.filterNote ? `<div class="statement-filter-note" role="status">${escapeHtml(view.filterNote)}</div>` : ''}
         <table class="statement-table">
           <thead>
             <tr>
@@ -10243,37 +10246,37 @@ export function generateOpticalCertificateHtml(cert, options = {}) {
         <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 8px;">
           <h2 style="margin: 0; font-size: 14px;">SHAHDARA FTTH</h2>
           <p style="margin: 2px 0; font-size: 10px;">Optical QA Acceptance Slip</p>
-          <p style="margin: 2px 0; font-size: 9px;">Cert: ${cert.id}</p>
-          <p style="margin: 2px 0; font-size: 9px;">${cert.createdAt.slice(0, 10)} PKT</p>
+          <p style="margin: 2px 0; font-size: 9px;">Cert: ${escapeHtml(cert.id)}</p>
+          <p style="margin: 2px 0; font-size: 9px;">${escapeHtml(cert.createdAt.slice(0, 10))} PKT</p>
         </div>
 
         <div style="margin-bottom: 6px;">
-          <strong>Sub:</strong> ${cert.customer.name} (#${cert.customer.customerNumber || cert.customer.id})<br>
-          <strong>Area:</strong> ${cert.customer.area}<br>
-          <strong>ONT S/N:</strong> ${t.ontSerial}<br>
-          <strong>Port:</strong> ${t.oltPort}
+          <strong>Sub:</strong> ${escapeHtml(cert.customer.name)} (#${escapeHtml(cert.customer.customerNumber || cert.customer.id)})<br>
+          <strong>Area:</strong> ${escapeHtml(cert.customer.area)}<br>
+          <strong>ONT S/N:</strong> ${escapeHtml(t.ontSerial)}<br>
+          <strong>Port:</strong> ${escapeHtml(t.oltPort)}
         </div>
 
         <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 6px 0; margin-bottom: 6px;">
           <table style="width: 100%; font-size: 10px;">
-            <tr><td>Rx Power:</td><td style="text-align: right; font-weight: bold;">${t.rxPowerDbm} dBm</td></tr>
-            <tr><td>OLT Tx Power:</td><td style="text-align: right;">+${t.txPowerDbm} dBm</td></tr>
-            <tr><td>Drop Length:</td><td style="text-align: right;">${t.distanceMeters} m</td></tr>
-            <tr><td>Split Ratio:</td><td style="text-align: right;">${t.splitRatio}</td></tr>
-            <tr><td>Actual Loss:</td><td style="text-align: right;">${t.actualLoss} dB</td></tr>
-            <tr><td>Loss Budget:</td><td style="text-align: right;">${t.theoreticalLoss} dB</td></tr>
+            <tr><td>Rx Power:</td><td style="text-align: right; font-weight: bold;">${escapeHtml(t.rxPowerDbm)} dBm</td></tr>
+            <tr><td>OLT Tx Power:</td><td style="text-align: right;">+${escapeHtml(t.txPowerDbm)} dBm</td></tr>
+            <tr><td>Drop Length:</td><td style="text-align: right;">${escapeHtml(t.distanceMeters)} m</td></tr>
+            <tr><td>Split Ratio:</td><td style="text-align: right;">${escapeHtml(t.splitRatio)}</td></tr>
+            <tr><td>Actual Loss:</td><td style="text-align: right;">${escapeHtml(t.actualLoss)} dB</td></tr>
+            <tr><td>Loss Budget:</td><td style="text-align: right;">${escapeHtml(t.theoreticalLoss)} dB</td></tr>
           </table>
         </div>
 
         <div style="text-align: center; margin-bottom: 8px;">
           <div style="display: inline-block; padding: 3px 8px; border: 1px solid ${statusColor}; color: ${statusColor}; font-weight: bold; border-radius: 4px;">
-            ${t.statusLabel}
+            ${escapeHtml(t.statusLabel)}
           </div>
-          <p style="margin: 4px 0 0; font-size: 9px;">Headroom: ${t.headroomDb} dB</p>
+          <p style="margin: 4px 0 0; font-size: 9px;">Headroom: ${escapeHtml(t.headroomDb)} dB</p>
         </div>
 
         <div style="border-top: 1px dashed #000; padding-top: 6px; font-size: 9px;">
-          Inspector: ${cert.inspector}<br>
+          Inspector: ${escapeHtml(cert.inspector)}<br>
           Signature: __________________
         </div>
       </div>
@@ -10289,28 +10292,28 @@ export function generateOpticalCertificateHtml(cert, options = {}) {
           <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">Outside Plant Engineering &amp; Optical Power Meter QA Acceptance Certificate</p>
         </div>
         <div style="text-align: right;">
-          <span style="display: inline-block; padding: 4px 10px; background: #f0fdfa; border: 1px solid #0f766e; color: #0f766e; font-weight: 700; border-radius: 4px; font-size: 13px;">${cert.id}</span>
-          <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">Date: ${cert.createdAt.slice(0, 10)} PKT</p>
+          <span style="display: inline-block; padding: 4px 10px; background: #f0fdfa; border: 1px solid #0f766e; color: #0f766e; font-weight: 700; border-radius: 4px; font-size: 13px;">${escapeHtml(cert.id)}</span>
+          <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">Date: ${escapeHtml(cert.createdAt.slice(0, 10))} PKT</p>
         </div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px;">
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">
           <h3 style="margin: 0 0 8px; font-size: 13px; color: #0f766e; text-transform: uppercase;">1. Subscriber Installation Profile</h3>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>Subscriber Name:</strong> ${cert.customer.name}</p>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>Account Number:</strong> #${cert.customer.customerNumber || cert.customer.id}</p>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>Area / Mohalla:</strong> ${cert.customer.area}</p>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>Service Plan:</strong> ${cert.customer.package}</p>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>Phone Contact:</strong> ${cert.customer.phone || 'Not recorded'}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Subscriber Name:</strong> ${escapeHtml(cert.customer.name)}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Account Number:</strong> #${escapeHtml(cert.customer.customerNumber || cert.customer.id)}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Area / Mohalla:</strong> ${escapeHtml(cert.customer.area)}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Service Plan:</strong> ${escapeHtml(cert.customer.package)}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Phone Contact:</strong> ${escapeHtml(cert.customer.phone || 'Not recorded')}</p>
         </div>
 
         <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">
           <h3 style="margin: 0 0 8px; font-size: 13px; color: #0f766e; text-transform: uppercase;">2. Optical Hardware &amp; Splice Node</h3>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>ONT Equipment Serial:</strong> ${t.ontSerial}</p>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>OLT Feeder / PON Port:</strong> ${t.oltPort}</p>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>OPM Meter Serial:</strong> ${t.powerMeterSerial}</p>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>Connector End-Face:</strong> ${t.connectorCondition}</p>
-          <p style="margin: 3px 0; font-size: 12px;"><strong>Drop Cable Length:</strong> ${t.distanceMeters} meters</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>ONT Equipment Serial:</strong> ${escapeHtml(t.ontSerial)}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>OLT Feeder / PON Port:</strong> ${escapeHtml(t.oltPort)}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>OPM Meter Serial:</strong> ${escapeHtml(t.powerMeterSerial)}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Connector End-Face:</strong> ${escapeHtml(t.connectorCondition)}</p>
+          <p style="margin: 3px 0; font-size: 12px;"><strong>Drop Cable Length:</strong> ${escapeHtml(t.distanceMeters)} meters</p>
         </div>
       </div>
 
@@ -10329,26 +10332,26 @@ export function generateOpticalCertificateHtml(cert, options = {}) {
             <tr>
               <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">Received Optical Power (Rx)</td>
               <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">-15.0 to -22.5 dBm</td>
-              <td style="padding: 6px 10px; text-align: center; font-weight: bold; border: 1px solid #cbd5e1; color: ${statusColor};">${t.rxPowerDbm} dBm</td>
-              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${t.headroomDb} dB above sensitivity floor</td>
+              <td style="padding: 6px 10px; text-align: center; font-weight: bold; border: 1px solid #cbd5e1; color: ${statusColor};">${escapeHtml(t.rxPowerDbm)} dBm</td>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${escapeHtml(t.headroomDb)} dB above sensitivity floor</td>
             </tr>
             <tr>
               <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">OLT Transmit Power (Tx)</td>
               <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">+1.5 to +5.0 dBm</td>
-              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">+${t.txPowerDbm} dBm</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">+${escapeHtml(t.txPowerDbm)} dBm</td>
               <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">Nominal Class B+ transmitter</td>
             </tr>
             <tr>
-              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">Splitter Insertion Loss (${t.splitRatio})</td>
-              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">${t.splitterLoss} dB</td>
-              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">${t.splitterLoss} dB</td>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">Splitter Insertion Loss (${escapeHtml(t.splitRatio)})</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">${escapeHtml(t.splitterLoss)} dB</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">${escapeHtml(t.splitterLoss)} dB</td>
               <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">PLC fused planar splitter</td>
             </tr>
             <tr>
               <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">Total Link Loss Budget</td>
-              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">${t.theoreticalLoss} dB</td>
-              <td style="padding: 6px 10px; text-align: center; font-weight: bold; border: 1px solid #cbd5e1;">${t.actualLoss} dB</td>
-              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${t.excessLoss >= 0 ? '+' : ''}${t.excessLoss} dB delta from theoretical</td>
+              <td style="padding: 6px 10px; text-align: center; border: 1px solid #cbd5e1;">${escapeHtml(t.theoreticalLoss)} dB</td>
+              <td style="padding: 6px 10px; text-align: center; font-weight: bold; border: 1px solid #cbd5e1;">${escapeHtml(t.actualLoss)} dB</td>
+              <td style="padding: 6px 10px; border: 1px solid #cbd5e1;">${t.excessLoss >= 0 ? '+' : ''}${escapeHtml(t.excessLoss)} dB delta from theoretical</td>
             </tr>
           </tbody>
         </table>
@@ -10356,18 +10359,18 @@ export function generateOpticalCertificateHtml(cert, options = {}) {
 
       <div style="background: #f1f5f9; border-left: 4px solid ${statusColor}; padding: 12px; border-radius: 4px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <strong style="font-size: 14px; color: ${statusColor};">COMMISSIONING VERDICT: ${t.statusLabel.toUpperCase()}</strong>
-          <span style="font-size: 11px; background: #fff; padding: 2px 8px; border-radius: 3px; border: 1px solid #cbd5e1;">Wavelength: ${t.wavelengthNm}nm</span>
+          <strong style="font-size: 14px; color: ${statusColor};">COMMISSIONING VERDICT: ${escapeHtml(t.statusLabel.toUpperCase())}</strong>
+          <span style="font-size: 11px; background: #fff; padding: 2px 8px; border-radius: 3px; border: 1px solid #cbd5e1;">Wavelength: ${escapeHtml(t.wavelengthNm)}nm</span>
         </div>
-        <p style="margin: 6px 0 0; font-size: 12px; color: #475569;">${t.advice}</p>
-        <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;"><strong>Field Notes:</strong> ${cert.notes}</p>
+        <p style="margin: 6px 0 0; font-size: 12px; color: #475569;">${escapeHtml(t.advice)}</p>
+        <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;"><strong>Field Notes:</strong> ${escapeHtml(cert.notes)}</p>
       </div>
 
       <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 36px; padding-top: 14px; border-top: 1px solid #e2e8f0;">
         <div style="text-align: center; width: 200px;">
           <div style="border-bottom: 1px solid #000; height: 32px; margin-bottom: 4px;"></div>
           <span style="font-size: 11px; font-weight: bold;">Field Technician / Lineman</span><br>
-          <span style="font-size: 10px; color: #64748b;">${cert.inspector}</span>
+          <span style="font-size: 10px; color: #64748b;">${escapeHtml(cert.inspector)}</span>
         </div>
         <div style="text-align: center; width: 200px;">
           <div style="border-bottom: 1px solid #000; height: 32px; margin-bottom: 4px;"></div>
@@ -12549,6 +12552,8 @@ export function formatEthernetCertWhatsApp(cert = {}) {
  * Generates printable HTML for formal A4 certificate or 80mm thermal field slip.
  */
 export function generateEthernetCertHtml(cert = {}, options = {}) {
+  // Plan H: style colours must be a hex colour, never raw cert text.
+  const safeVerdictColor = /^#[0-9a-fA-F]{6}$/.test(cert.verdictColor || '') ? cert.verdictColor : '#10b981';
   const format = options.format || 'a4';
   const isThermal = format === 'thermal' || format === 'slip';
   const t = cert.transmission || {};
@@ -12560,23 +12565,23 @@ export function generateEthernetCertHtml(cert = {}, options = {}) {
         <div style="text-align: center; border-bottom: 1px dashed #000; padding-bottom: 6px; margin-bottom: 6px;">
           <h3 style="margin: 0; font-size: 14px; font-weight: bold;">SHAHDARA FIBER NET</h3>
           <p style="margin: 2px 0; font-size: 10px;">PREMISES LAN CABLE QA SLIP</p>
-          <p style="margin: 0; font-weight: bold;">#${cert.id || ''}</p>
+          <p style="margin: 0; font-weight: bold;">#${escapeHtml(cert.id || '')}</p>
         </div>
         <div style="margin-bottom: 6px;">
-          <div><strong>Customer:</strong> ${cert.customerName || ''}</div>
-          <div><strong>Area:</strong> ${cert.customerArea || ''}</div>
-          <div><strong>Date:</strong> ${cert.inspectionDate || ''}</div>
-          <div><strong>Tech:</strong> ${cert.technicianName || ''}</div>
+          <div><strong>Customer:</strong> ${escapeHtml(cert.customerName || '')}</div>
+          <div><strong>Area:</strong> ${escapeHtml(cert.customerArea || '')}</div>
+          <div><strong>Date:</strong> ${escapeHtml(cert.inspectionDate || '')}</div>
+          <div><strong>Tech:</strong> ${escapeHtml(cert.technicianName || '')}</div>
         </div>
         <div style="border-top: 1px dashed #000; border-bottom: 1px dashed #000; padding: 4px 0; margin-bottom: 6px;">
-          <div><strong>Cable:</strong> ${cert.cableGrade || 'CAT6'} (${cert.lengthMeters || 25}m)</div>
-          <div><strong>Standard:</strong> ${cert.wiringStandard || 'T568B'}</div>
+          <div><strong>Cable:</strong> ${escapeHtml(cert.cableGrade || 'CAT6')} (${escapeHtml(cert.lengthMeters || 25)}m)</div>
+          <div><strong>Standard:</strong> ${escapeHtml(cert.wiringStandard || 'T568B')}</div>
           <div><strong>Wire Map:</strong> ${w.wireMapGrade || 'PASS'}</div>
           <div><strong>Link Speed:</strong> ${t.speedMbps || 1000} Mbps</div>
           <div><strong>Loss:</strong> ${t.insertionLossDb || 0} dB</div>
         </div>
         <div style="text-align: center; font-weight: bold; font-size: 12px; margin-bottom: 6px;">
-          VERDICT: ${cert.verdictLabel || 'PASS'}
+          VERDICT: ${escapeHtml(cert.verdictLabel || 'PASS')}
         </div>
         <div style="text-align: center; font-size: 9px; border-top: 1px dashed #000; padding-top: 6px;">
           Thank you for choosing Shahdara Fiber Net
@@ -12594,7 +12599,7 @@ export function generateEthernetCertHtml(cert = {}, options = {}) {
           <h2 style="margin: 4px 0 0; font-size: 15px; font-weight: normal; color: #475569;">Gigabit Ethernet Cabling & Wire Map QA Certificate</h2>
         </div>
         <div style="text-align: right;">
-          <span style="display: inline-block; padding: 6px 12px; border-radius: 4px; background: #0284c7; color: #fff; font-weight: bold; font-size: 13px;">${cert.id || ''}</span>
+          <span style="display: inline-block; padding: 6px 12px; border-radius: 4px; background: #0284c7; color: #fff; font-weight: bold; font-size: 13px;">${escapeHtml(cert.id || '')}</span>
           <p style="margin: 4px 0 0; font-size: 11px; color: #64748b;">ANSI/TIA-568-C.2 Verified</p>
         </div>
       </div>
@@ -12602,13 +12607,13 @@ export function generateEthernetCertHtml(cert = {}, options = {}) {
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: #f8fafc; padding: 12px; border-radius: 6px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
         <div>
           <p style="margin: 0 0 4px; font-size: 11px; color: #64748b; font-weight: bold;">SUBSCRIBER INFORMATION</p>
-          <p style="margin: 0; font-size: 14px; font-weight: 600;">${cert.customerName || ''}</p>
-          <p style="margin: 2px 0; font-size: 12px; color: #334155;">📞 ${cert.customerPhone || 'N/A'} · 📍 ${cert.customerArea || 'Shahdara'}</p>
+          <p style="margin: 0; font-size: 14px; font-weight: 600;">${escapeHtml(cert.customerName || '')}</p>
+          <p style="margin: 2px 0; font-size: 12px; color: #334155;">📞 ${escapeHtml(cert.customerPhone || 'N/A')} · 📍 ${escapeHtml(cert.customerArea || 'Shahdara')}</p>
         </div>
         <div>
           <p style="margin: 0 0 4px; font-size: 11px; color: #64748b; font-weight: bold;">INSPECTION AUDIT DETAILS</p>
-          <p style="margin: 0; font-size: 12px;"><strong>Technician:</strong> ${cert.technicianName || ''}</p>
-          <p style="margin: 2px 0; font-size: 12px;"><strong>Date:</strong> ${cert.inspectionDate || ''}</p>
+          <p style="margin: 0; font-size: 12px;"><strong>Technician:</strong> ${escapeHtml(cert.technicianName || '')}</p>
+          <p style="margin: 2px 0; font-size: 12px;"><strong>Date:</strong> ${escapeHtml(cert.inspectionDate || '')}</p>
         </div>
       </div>
 
@@ -12624,13 +12629,13 @@ export function generateEthernetCertHtml(cert = {}, options = {}) {
         <tbody>
           <tr>
             <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">Cable Specification</td>
-            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${cert.cableName || 'Cat6'}</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${escapeHtml(cert.cableName || 'Cat6')}</td>
             <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">TIA Cat5e / Cat6</td>
             <td style="padding: 6px 8px; border: 1px solid #e2e8f0; color: #10b981; font-weight: bold;">PASS</td>
           </tr>
           <tr>
             <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">Physical Cable Length (TDR)</td>
-            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${cert.lengthMeters || 25} meters</td>
+            <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">${escapeHtml(cert.lengthMeters || 25)} meters</td>
             <td style="padding: 6px 8px; border: 1px solid #e2e8f0;">&le; 100.0 meters</td>
             <td style="padding: 6px 8px; border: 1px solid #e2e8f0; color: ${t.isLengthExceeded ? '#ef4444' : '#10b981'}; font-weight: bold;">${t.isLengthExceeded ? 'FAIL' : 'PASS'}</td>
           </tr>
@@ -12661,8 +12666,8 @@ export function generateEthernetCertHtml(cert = {}, options = {}) {
         </tbody>
       </table>
 
-      <div style="background: ${cert.verdictColor || '#10b981'}15; border: 1px solid ${cert.verdictColor || '#10b981'}; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 16px;">
-        <h3 style="margin: 0; font-size: 15px; color: ${cert.verdictColor || '#10b981'}; text-transform: uppercase;">FINAL QA VERDICT: ${cert.verdictLabel || 'PASS'}</h3>
+      <div style="background: ${safeVerdictColor}15; border: 1px solid ${safeVerdictColor}; padding: 12px; border-radius: 6px; text-align: center; margin-bottom: 16px;">
+        <h3 style="margin: 0; font-size: 15px; color: ${safeVerdictColor}; text-transform: uppercase;">FINAL QA VERDICT: ${escapeHtml(cert.verdictLabel || 'PASS')}</h3>
         <p style="margin: 4px 0 0; font-size: 12px; color: #334155;">${w.faultDescription || ''}</p>
       </div>
 

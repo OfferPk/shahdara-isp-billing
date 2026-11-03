@@ -228,6 +228,7 @@ import { buildOwnerDigest, dailyDigestRange, weeklyDigestRange, digestHtml, dige
 import { buildReceivablesAgeing, ageingHtml, ageingCsv, ageingFilename } from './receivables-ageing.js';
 import { ALERT_TYPES, DEFAULT_ALERT_THRESHOLDS, normalizeAlertThresholds, buildAlertsInbox, alertsInboxSummaryText, alertsInboxHtml } from './alerts-inbox.js';
 import { buildCollectorPerformance, collectorPerformanceHtml, collectorPerformanceCsv, collectorPerformanceFilename } from './collector-performance.js';
+import { buildCashflowSnapshot, cashflowSnapshotHtml, cashflowSnapshotCsv, cashflowSnapshotFilename } from './cashflow-snapshot.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -10170,6 +10171,48 @@ function renderCollectorPerformance() {
     });
   }
 }
+// Plan 10 (Plan 1-100) — Month cash-flow snapshot.
+// Render-only: collected comes from the payment-entries builder
+// (receipt-date cash, voided receipts already skipped by that
+// builder, as the owner digest uses it) and expenses from the dated
+// expense records (as the P&L screen sums them for the same month).
+// It changes no total and no expense rule; the projection is a
+// run-rate estimate stated in plain words by the pure module.
+let lastCashflowSnapshot = null;
+let cashflowSnapshotExportBound = false;
+function renderCashflowSnapshot() {
+  const bodyEl = $('#cashflowSnapshotBody');
+  if (!bodyEl) return;
+  const today = getWaadaTodayString();
+  const month = typeof today === 'string' && today.length >= 7 ? today.slice(0, 7) : '';
+  const entries = paymentEntries(state).filter(({ payment }) => typeof payment.date === 'string' && payment.date.slice(0, 7) === month);
+  const monthExpenses = (state.expenses ?? []).filter((row) => typeof row.date === 'string' && row.date.slice(0, 7) === month);
+  const snapshot = buildCashflowSnapshot({
+    month,
+    asOfDate: today,
+    collected: {
+      amount: entries.reduce((sum, { payment }) => sum + Number(payment.amount || 0), 0),
+      count: entries.length,
+      sourceScreen: 'Analytics cash collection',
+    },
+    expenses: {
+      amount: monthExpenses.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+      count: monthExpenses.length,
+      items: monthExpenses.map((row) => ({ amount: row.amount, category: row.category })),
+      sourceScreen: 'Expenses register',
+    },
+  });
+  lastCashflowSnapshot = snapshot.valid ? snapshot : null;
+  bodyEl.innerHTML = snapshot.valid ? cashflowSnapshotHtml(snapshot) : '<p class="empty-state">Cash-flow snapshot unavailable — the view needs a valid month and today date.</p>';
+  if (!cashflowSnapshotExportBound) {
+    cashflowSnapshotExportBound = true;
+    const exportBtn = $('#cashflowSnapshotExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => {
+      if (!lastCashflowSnapshot) return;
+      downloadCsvFile(cashflowSnapshotFilename(lastCashflowSnapshot), cashflowSnapshotCsv(lastCashflowSnapshot));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10229,6 +10272,7 @@ function renderAnalytics() {
   renderReceivablesAgeing();
   renderAlertsInbox();
   renderCollectorPerformance();
+  renderCashflowSnapshot();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

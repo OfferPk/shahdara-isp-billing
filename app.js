@@ -254,6 +254,7 @@ import { buildTransferPack, transferPackText, transferPackFilename, verifyTransf
 import { monthlyDueDates, splitArrearsIntoInstalments, normalizeRepaymentPlans, upsertRepaymentPlan, findRepaymentPlan, recordInstalmentPayment, closeRepaymentPlan, canCloseRepaymentPlan, repaymentPlanSummaryText, repaymentPlanHtml, repaymentPlanCsv, repaymentPlanFilename } from './repayment-plan.js';
 import { normalizeBillExtensions, grantBillExtension, activeBillExtension, applyExtensionsToBills, billExtensionSummaryText, billExtensionFilename, billExtensionHtml, billExtensionCsv } from './bill-extension.js';
 import { normalizeVendorSchedules, upsertVendorSchedule, removeVendorSchedule, normalizeVendorOccurrences, markVendorOccurrencePaid, cancelVendorOccurrence, buildVendorDueQueue, vendorMonthOutflow, vendorBillsSummaryText, vendorBillsHtml, vendorBillsCsv, vendorBillsFilename } from './vendor-bills.js';
+import { normalizeMonthBudget, normalizeMonthBudgets, upsertMonthBudget, removeMonthBudget, buildBudgetVersusActual, budgetVersusActualSummaryText, budgetVersusActualHtml, budgetVersusActualCsv, budgetVersusActualFilename } from './expense-month-budgets.js';
 import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
 import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
@@ -12782,6 +12783,60 @@ function renderVendorBills() {
     });
   }
 }
+// Plan 42 (Plan 1-100) — monthly expense category budgets.
+// Own store only; the SISP-134 caps store is a separate system
+// (one cap per category, reused every month) and is never read or
+// written here. Budgets here are targets, never caps: saving one
+// changes only this view, never a payment or a past expense.
+const EXPENSE_MONTH_BUDGETS_KEY = 'shahdara_expense_month_budgets_v1';
+let expenseMonthBudgetsBound = false;
+function loadExpenseMonthBudgets() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(EXPENSE_MONTH_BUDGETS_KEY) || '[]');
+    return normalizeMonthBudgets(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveExpenseMonthBudgets(list) {
+  try { localStorage.setItem(EXPENSE_MONTH_BUDGETS_KEY, JSON.stringify(normalizeMonthBudgets(list))); } catch {}
+}
+function renderExpenseMonthBudgets() {
+  const bodyEl = $('#expenseBudgetsBody');
+  if (!bodyEl) return;
+  const monthEl = $('#expenseBudgetsMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const month = monthEl?.value ?? localDate().slice(0, 7);
+  const view = buildBudgetVersusActual(loadExpenseMonthBudgets(), state.expenses ?? [], month);
+  bodyEl.innerHTML = budgetVersusActualHtml(view);
+  const summaryEl = $('#expenseBudgetsSummary');
+  if (summaryEl) summaryEl.textContent = loadExpenseMonthBudgets().length === 0 && view.rows.length === 0
+    ? 'Expenses are recorded but never compared against a plan, so overspend only shows up when the month\'s cash is already gone. Set one budget per category per month — bandwidth, rent, salaries, fuel, equipment, repairs — and this view compares it against that month\'s recorded expenses. A budget is a target, never a cap: it blocks no payment and rewrites no past expense.'
+    : budgetVersusActualSummaryText(view);
+  if (!expenseMonthBudgetsBound) {
+    expenseMonthBudgetsBound = true;
+    $('#expenseBudgetsMonth')?.addEventListener('change', renderExpenseMonthBudgets);
+    $('#expenseBudgetsSaveBtn')?.addEventListener('click', () => {
+      const category = $('#expenseBudgetsCategory')?.value ?? '';
+      const budgetMonth = $('#expenseBudgetsMonth')?.value ?? '';
+      const amount = $('#expenseBudgetsAmount')?.value ?? '';
+      if (!normalizeMonthBudget({ category, month: budgetMonth, amount: amount === '' ? null : amount })) {
+        toast('A budget needs a category, a valid month, and an amount of 0 or more.');
+        return;
+      }
+      saveExpenseMonthBudgets(upsertMonthBudget(loadExpenseMonthBudgets(), { category, month: budgetMonth, amount: amount === '' ? null : amount }));
+      renderExpenseMonthBudgets();
+    });
+    $('#expenseBudgetsRemoveBtn')?.addEventListener('click', () => {
+      const category = $('#expenseBudgetsCategory')?.value ?? '';
+      const budgetMonth = $('#expenseBudgetsMonth')?.value ?? '';
+      saveExpenseMonthBudgets(removeMonthBudget(loadExpenseMonthBudgets(), category, budgetMonth));
+      renderExpenseMonthBudgets();
+    });
+    $('#expenseBudgetsExportBtn')?.addEventListener('click', () => {
+      const exportMonth = $('#expenseBudgetsMonth')?.value ?? localDate().slice(0, 7);
+      downloadCsvFile(budgetVersusActualFilename(exportMonth), budgetVersusActualCsv(buildBudgetVersusActual(loadExpenseMonthBudgets(), state.expenses ?? [], exportMonth)));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -12868,6 +12923,7 @@ function renderAnalytics() {
   renderRepaymentPlans();
   renderBillExtensions();
   renderVendorBills();
+  renderExpenseMonthBudgets();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

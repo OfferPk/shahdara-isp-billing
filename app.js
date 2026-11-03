@@ -225,6 +225,7 @@ import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupRecei
 
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspensePendingBalanceCents, suspenseSummary, suspenseAgeDays } from './suspense-payments.js';
 import { buildOwnerDigest, dailyDigestRange, weeklyDigestRange, digestHtml, digestCsv, digestFilename } from './owner-digest.js';
+import { buildReceivablesAgeing, ageingHtml, ageingCsv, ageingFilename } from './receivables-ageing.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
 import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
@@ -9979,6 +9980,52 @@ function renderOwnerDigest(period) {
     });
   }
 }
+// Plan 7 (Plan 1-100) — Receivables ageing by bill age.
+// Render-only: bill-level outstanding figures come from the same
+// allocation engine the billing register uses (balanceDueCents per
+// bill month), grouped by the pure receivables-ageing module. It
+// reads no Waada field, changes no bill/total/Waada record, and
+// covers bill outstanding only — manual baqaya is not a bill, so
+// it is not included here (the panel copy says so).
+let lastReceivablesAgeing = null;
+let receivablesAgeingExportBound = false;
+function renderReceivablesAgeing() {
+  const bodyEl = $('#receivablesAgeingBody');
+  if (!bodyEl) return;
+  const today = getWaadaTodayString();
+  const asOfMonth = typeof today === 'string' && today.length >= 7 ? today.slice(0, 7) : '';
+  const allocations = calculatePaymentAllocations(state);
+  const entries = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    const canon = canonicalMohalla(customer.mohalla || customer.area || '');
+    for (const bill of customer.bills ?? []) {
+      const summary = allocations.forMonth(customer.id, bill.month);
+      const balanceDue = summary && summary.balanceDueCents > 0 ? summary.balanceDueCents / 100 : 0;
+      if (!(balanceDue > 0)) continue;
+      entries.push({
+        customerId: customer.id,
+        customerName: customer.name || customer.customerName || '—',
+        mohallaKey: canon ? canon.key : undefined,
+        mohallaLabel: canon ? canon.label : undefined,
+        mohalla: customer.mohalla || customer.area || '',
+        billMonth: bill.month,
+        amount: Math.round(balanceDue),
+      });
+    }
+  }
+  const view = buildReceivablesAgeing(entries, asOfMonth);
+  lastReceivablesAgeing = view.valid ? { view, entries } : null;
+  bodyEl.innerHTML = view.valid ? ageingHtml(view) : '';
+  if (!receivablesAgeingExportBound) {
+    receivablesAgeingExportBound = true;
+    const exportBtn = $('#receivablesAgeingExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => {
+      if (!lastReceivablesAgeing) return;
+      downloadCsvFile(ageingFilename(lastReceivablesAgeing.view), ageingCsv(lastReceivablesAgeing.view, lastReceivablesAgeing.entries));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10035,6 +10082,7 @@ function renderAnalytics() {
   $('#networkIssuesList').innerHTML=data.incidentCount?data.networkIssues.map(row=>`<li><span>${phase3Cell(monthName(row.month))}</span><strong>${row.count} recorded incident${row.count===1?'':'s'}</strong></li>`).join(''):`<li class="empty-state">No complaint or outage records have been entered.</li>`;
   $('#analyticsEmptyNotice').textContent=data.growthCumulativeIsPartial?`${data.knownUndatedConnections} customer profiles have no connection date; cumulative growth is therefore date-known only and is not a total historical customer count.`:'Historical summaries include only recorded local bills, receipts, dates, statuses, and incidents.';
   renderOwnerDigest();
+  renderReceivablesAgeing();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

@@ -229,6 +229,7 @@ import { buildReceivablesAgeing, ageingHtml, ageingCsv, ageingFilename } from '.
 import { ALERT_TYPES, DEFAULT_ALERT_THRESHOLDS, normalizeAlertThresholds, buildAlertsInbox, alertsInboxSummaryText, alertsInboxHtml } from './alerts-inbox.js';
 import { buildCollectorPerformance, collectorPerformanceHtml, collectorPerformanceCsv, collectorPerformanceFilename } from './collector-performance.js';
 import { buildCashflowSnapshot, cashflowSnapshotHtml, cashflowSnapshotCsv, cashflowSnapshotFilename } from './cashflow-snapshot.js';
+import { DEFAULT_PRE_DUE_WINDOW_DAYS, normalizePreDueWindowDays, buildPreDueReminderQueue, buildPreDueReminderDraft, logReminderSent, preDueReminderSummaryText, preDueReminderFilename, preDueReminderHtml, preDueReminderCsv } from './pre-due-reminders.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -10213,6 +10214,93 @@ function renderCashflowSnapshot() {
     });
   }
 }
+// Plan 11 (Plan 1-100) — Pre-due reminder queue.
+// Read-only window list in Analytics: bills due within the next
+// operator-set window (default 3 days), each with a bilingual draft.
+// Sending opens the existing WhatsApp route with the draft prefilled
+// and logs (time, channel) to a separate localStorage log; it changes
+// no payment, Waada, or disconnection record. Bills with no stored
+// due date are excluded, never given an invented one.
+const PRE_DUE_WINDOW_KEY = 'preDueReminderWindowDays';
+const PRE_DUE_SENT_LOG_KEY = 'shahdara_pre_due_sent_log_v1';
+let preDueRemindersBound = false;
+let lastPreDueQueue = null;
+function loadPreDueWindowDays() {
+  try {
+    const raw = localStorage.getItem(PRE_DUE_WINDOW_KEY);
+    return raw === null ? DEFAULT_PRE_DUE_WINDOW_DAYS : normalizePreDueWindowDays(Number(raw));
+  } catch { return DEFAULT_PRE_DUE_WINDOW_DAYS; }
+}
+function loadPreDueSentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PRE_DUE_SENT_LOG_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function savePreDueSentLog(log) {
+  try { localStorage.setItem(PRE_DUE_SENT_LOG_KEY, JSON.stringify(log)); } catch {}
+}
+function renderPreDueReminders() {
+  const bodyEl = $('#preDueRemindersBody');
+  if (!bodyEl) return;
+  const today = getWaadaTodayString();
+  const windowDays = loadPreDueWindowDays();
+  const allocations = calculatePaymentAllocations(state);
+  const bills = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      const summary = allocations.forMonth(customer.id, bill.month);
+      const balanceDue = summary && summary.balanceDueCents > 0 ? summary.balanceDueCents / 100 : 0;
+      if (!(balanceDue > 0)) continue;
+      bills.push({
+        customerId: customer.id,
+        customerName: customer.name || customer.customerName || '—',
+        mohalla: customer.mohalla || customer.area || '',
+        billMonth: bill.month,
+        dueDate: typeof bill.dueDate === 'string' ? bill.dueDate : null,
+        balanceDue: Math.round(balanceDue),
+      });
+    }
+  }
+  const queue = buildPreDueReminderQueue({ today, windowDays, bills });
+  const sentLog = loadPreDueSentLog();
+  lastPreDueQueue = queue.valid ? { queue, sentLog } : null;
+  bodyEl.innerHTML = queue.valid ? preDueReminderHtml(queue, sentLog) : '<p class="empty-state">Pre-due reminder queue unavailable — the queue needs a valid today date.</p>';
+  const summaryEl = $('#preDueRemindersSummary');
+  if (summaryEl) summaryEl.textContent = preDueReminderSummaryText(queue);
+  const windowInput = $('#preDueRemindersWindowDays');
+  if (windowInput) windowInput.value = queue.windowDays;
+  if (!preDueRemindersBound) {
+    preDueRemindersBound = true;
+    bodyEl.addEventListener('click', (event) => {
+      const sendBtn = event.target.closest ? event.target.closest('.pre-due-send-btn') : null;
+      if (!sendBtn || !sendBtn.dataset.customerId) return;
+      const customer = (state.customers ?? []).find((c) => c.id === sendBtn.dataset.customerId);
+      const row = lastPreDueQueue?.queue.rows.find((r) => r.customerId === sendBtn.dataset.customerId);
+      if (!customer || !row) return;
+      const wa = formatWhatsAppUrl(whatsappPhoneFor(customer), buildPreDueReminderDraft(row).text);
+      if (!wa.validPhone || !wa.url) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'No WhatsApp number';
+        return;
+      }
+      window.open(wa.url, '_blank', 'noopener,noreferrer');
+      savePreDueSentLog(logReminderSent(loadPreDueSentLog(), { customerId: row.customerId, sentAt: new Date().toISOString(), channel: 'whatsapp' }));
+      renderPreDueReminders();
+    });
+    const saveBtn = $('#preDueRemindersSaveWindowBtn');
+    if (saveBtn) saveBtn.addEventListener('click', () => {
+      try { localStorage.setItem(PRE_DUE_WINDOW_KEY, String(normalizePreDueWindowDays(Number($('#preDueRemindersWindowDays')?.value)))); } catch {}
+      renderPreDueReminders();
+    });
+    const exportBtn = $('#preDueRemindersExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => {
+      if (!lastPreDueQueue) return;
+      downloadCsvFile(preDueReminderFilename(lastPreDueQueue.queue), preDueReminderCsv(lastPreDueQueue.queue, lastPreDueQueue.sentLog));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10273,6 +10361,7 @@ function renderAnalytics() {
   renderAlertsInbox();
   renderCollectorPerformance();
   renderCashflowSnapshot();
+  renderPreDueReminders();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

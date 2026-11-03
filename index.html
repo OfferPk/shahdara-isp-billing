@@ -23127,7 +23127,7 @@
         <button id="groupBillingCloseBtn" class="modal-close" type="button" aria-label="Close">↩</button>
       </header>
       <div class="modal-body">
-        <p class="group-billing-intro">Ek landlord ya family ki kayi connections ko ek group me link karein — har connection ka apna record, bill aur history waisa ka waisa rehta hai. Group ka total un sab ka is mahine ka baqaya jama kar ke banta hai, aur "Collect Group Total" se sab ka bill ek tap me paid hota hai, ek combined receipt ke saath. Cash kam mile to "Amount received" likh dein — cash group order me pehle wale members par pehle lagega, aur jo baqi reh jayein un ke liye Waada Tareekh chip mil jayegi.</p>
+        <p class="group-billing-intro">Ek landlord ya family ki kayi connections ko ek group me link karein — har connection ka apna record, bill aur history waisa ka waisa rehta hai. Group ka total un sab ka is mahine ka baqaya jama kar ke banta hai, aur "Collect Group Total" se sab ka bill ek tap me paid hota hai, ek combined receipt ke saath. Cash kam mile to "Amount received" likh dein — "Split" me "In order" chunein to cash group order me pehle wale members par pehle lagega, "Pro-rata" chunein to cash har member ke due ke hisab se bant jayega — aur jo baqi reh jayein un ke liye Waada Tareekh chip mil jayegi.</p>
         <p id="groupBillingCountNote" class="group-billing-count-note"></p>
         <form id="groupBillingForm" class="group-billing-form">
           <input id="groupBillingEditId" type="hidden" value="">
@@ -23148,6 +23148,11 @@
           <input id="groupBillingCollectDate" class="form-input" type="date" aria-label="Collection date">
           <label for="groupBillingCollectAmount">Amount received (Rs.)</label>
           <input id="groupBillingCollectAmount" class="form-input" type="number" min="0" step="any" aria-label="Amount received for a partial group collection" placeholder="Khali = pura total (full)">
+          <label for="groupBillingCollectMode">Split (cash kam mile to)</label>
+          <select id="groupBillingCollectMode" class="form-input" aria-label="Group partial split mode">
+            <option value="in-order">In order (pehle wale members pehle)</option>
+            <option value="pro-rata">Pro-rata (har member ke due ke hisab se)</option>
+          </select>
           <label for="groupBillingCollectMethod">Method</label>
           <select id="groupBillingCollectMethod" class="form-input" aria-label="Collection method">
             <option value="Cash">Cash</option>

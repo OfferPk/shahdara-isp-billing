@@ -137,6 +137,14 @@ export function sanitizeInstallmentPlan(value) {
     ? money(Number(payoffAmountRaw))
     : null;
   const payoffDate = validDate(value.payoffDate) ? value.payoffDate : null;
+  // Plan N: how a settled-early plan was closed — a recorded payment or
+  // an explicit waiver with a stored reason. Absent on old plans (null);
+  // an invalid method, an empty reason or a non-string payment id is
+  // dropped, never trusted from storage.
+  const payoffMethod = value.payoffMethod === 'payment' || value.payoffMethod === 'waiver' ? value.payoffMethod : null;
+  const payoffReasonRaw = typeof value.payoffReason === 'string' ? value.payoffReason.trim() : '';
+  const payoffReason = payoffReasonRaw ? payoffReasonRaw.slice(0, 200) : null;
+  const payoffPaymentId = typeof value.payoffPaymentId === 'string' && value.payoffPaymentId ? value.payoffPaymentId : null;
   return {
     id: value.id,
     itemTitle: value.itemTitle.trim().slice(0, 100),
@@ -148,6 +156,9 @@ export function sanitizeInstallmentPlan(value) {
     monthsPaid,
     payoffAmount,
     payoffDate,
+    payoffMethod,
+    payoffReason,
+    payoffPaymentId,
     startDate: validDate(value.startDate) ? value.startDate : null,
     // Status is derived, never trusted from storage: a plan is completed
     // exactly when every installment has been billed.
@@ -293,6 +304,22 @@ export function earlyPayoffAmount(plan) {
 }
 
 /**
+ * Plan N: validate one payoff path choice before anything is settled.
+ * Returns an error string, or null when the choice is usable. A payoff
+ * is either a recorded payment or an explicit waiver with a stored
+ * reason — never a silent close. A waiver with a blank reason and any
+ * other method are both errors; the caller must not settle on an error.
+ */
+export function validatePayoffChoice(choice) {
+  const method = choice?.method;
+  if (method !== 'payment' && method !== 'waiver') return 'Choose how the remaining kist is closed: record a payoff payment, or waive it with a reason.';
+  if (method === 'waiver' && !(typeof choice?.reason === 'string' && choice.reason.trim())) {
+    return 'A waived payoff needs a reason on record.';
+  }
+  return null;
+}
+
+/**
  * Settle one active plan early. Returns a new sanitized plan list: the
  * matching plan gets monthsBilled = monthsPaid = totalMonths (so sanitize
  * derives status "completed") plus payoffAmount/payoffDate audit fields.
@@ -300,10 +327,19 @@ export function earlyPayoffAmount(plan) {
  * unchanged (sanitized). This alone guarantees the next SISP-2 cycle
  * bills Rs 0 for the plan: dueKistLines skips completed plans and plans
  * with monthsBilled >= totalMonths.
+ *
+ * Plan N: when `method` is given it is recorded (payment, optionally
+ * with the payment id the operator just recorded, or waiver with its
+ * required reason). An invalid method, or a waiver without a reason,
+ * leaves the list unchanged — the plan is never silently closed.
+ * Omitting `method` preserves the pre-Plan-N behaviour (settles with no
+ * method on record) so existing callers and their tests keep working;
+ * the profile UI always passes a method.
  */
-export function settlePlanEarly(plans, planId, { date = null } = {}) {
+export function settlePlanEarly(plans, planId, { date = null, method = null, reason = null, paymentId = null } = {}) {
   const sanitized = sanitizeInstallmentPlans(plans);
   if (typeof planId !== 'string' || !planId) return sanitized;
+  if (method !== null && validatePayoffChoice({ method, reason }) !== null) return sanitized;
   return sanitized.map((plan) => {
     if (plan.id !== planId || plan.status !== 'active') return plan;
     return sanitizeInstallmentPlan({
@@ -311,7 +347,10 @@ export function settlePlanEarly(plans, planId, { date = null } = {}) {
       monthsBilled: plan.totalMonths,
       monthsPaid: plan.totalMonths,
       payoffAmount: earlyPayoffAmount(plan),
-      payoffDate: validDate(date) ? date : null
+      payoffDate: validDate(date) ? date : null,
+      payoffMethod: method,
+      payoffReason: method === 'waiver' ? reason : null,
+      payoffPaymentId: method === 'payment' ? paymentId : null
     });
   });
 }

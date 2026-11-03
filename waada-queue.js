@@ -263,6 +263,56 @@ export function remainderWaadaPreviousOf(payment) {
 }
 
 /**
+ * Plan N: stamp a profile-form partial payment exactly as Quick Collect
+ * does (SISP-126). Returns a NEW customer object — the payment inside
+ * the given month's bill carries remainderWaada { promiseDate,
+ * promiseAmount, previousWaada? } and the customer's live promise is set
+ * through setCustomerWaada with REMAINDER_WAADA_NOTE — or null when
+ * nothing may be stamped (invalid date, non-positive remainder, unknown
+ * customer/month/payment). The input customer is never mutated, and a
+ * payment that is not stamped leaves the customer's promise untouched.
+ * Callers must only call this after the payment itself is recorded, and
+ * only when a remainder is genuinely still due, so a waada can never
+ * exist without its payment.
+ */
+export function stampRemainderWaada(customer, month, paymentId, { promiseDate, promiseAmount } = {}) {
+  if (!customer || typeof customer !== 'object') return null;
+  if (!isValidWaadaDate(promiseDate)) return null;
+  const amount = Number(promiseAmount);
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const bills = Array.isArray(customer.bills) ? customer.bills : [];
+  const bill = bills.find((row) => row?.month === month);
+  const payment = bill?.payments?.find((row) => row?.id === paymentId);
+  if (!payment) return null;
+  const previousWaada = (typeof customer.promiseDate === 'string' && customer.promiseDate.trim() !== '')
+    ? {
+      promiseDate: customer.promiseDate,
+      promiseAmount: customer.promiseAmount ?? null,
+      promiseNote: customer.promiseNote ?? ''
+    }
+    : null;
+  const stamp = {
+    promiseDate: promiseDate.trim(),
+    promiseAmount: Math.round(amount * 100) / 100,
+    ...(previousWaada ? { previousWaada } : {})
+  };
+  const waadaed = setCustomerWaada(customer, {
+    promiseDate: promiseDate.trim(),
+    promiseAmount: Math.round(amount * 100) / 100,
+    promiseNote: REMAINDER_WAADA_NOTE
+  });
+  return {
+    ...waadaed,
+    bills: bills.map((row) => row.month !== month ? row : {
+      ...row,
+      payments: (row.payments ?? []).map((rowPayment) => rowPayment.id === paymentId
+        ? { ...rowPayment, remainderWaada: stamp }
+        : rowPayment)
+    })
+  };
+}
+
+/**
  * Tier of one customer in a collection queue. outstanding must be the
  * customer's total unpaid balance (PKR). Returns 'broken' | 'promised' |
  * 'active', or null when the customer has no outstanding balance (not queued).

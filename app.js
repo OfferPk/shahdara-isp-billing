@@ -31,7 +31,7 @@ import { initHelpGuides, helpButtonMarkup } from './help-guide.js?v=1.11.0';
 
 
 import { REFERRAL_CREDITS_KEY, loadReferralCredits, saveReferralCredits, reconcileReferralCredits, queuedReferralTotalFor } from './referral-credits.js?v=1.11.0';
-import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly } from './installment-plan.js?v=1.11.0';
+import { buildKistProgress, billKistTotal, createInstallmentPlan, settlePlanEarly, validatePayoffChoice } from './installment-plan.js?v=1.11.0';
 import { PACKAGE_TERMS_NOTE, RECEIPT_URDU_NOTE, buildPaymentReceipt, generatePaymentReceiptHtml, generateReceiptNumber, buildDownPaymentKistReceipt, buildDownPaymentKistReceiptHtml, buildDepositSettlementReceipt, generateDepositSettlementReceiptHtml, buildReceiptPaymentReceivedMessage, buildReceiptBillNoticeMessage, buildDepositOffsetReceipt, generateDepositOffsetReceiptHtml } from './receipt.js?v=1.11.0';
 import { setupReceiptVerifyModal } from './receipt-verifier.js';
 import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.0';
@@ -173,7 +173,7 @@ import { setupDailyClosingModal } from './dashboard-daily-closing.js';
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
-import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel } from './waada-queue.js';
+import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
@@ -3480,7 +3480,7 @@ function renderHistory(customer) {
     const savedPackage = validateBillPackageSnapshot(bill?.packageSnapshot);
     const packageSelector = billPackageSelectorMarkup(bill, month);
     const archivedWithoutBill = customer.archived && !bill;
-    const formsMarkup = archivedWithoutBill ? `<p class="notice">${t('prof_hist_archived_notice')}</p>` : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? t('prof_hist_bill_update') : t('prof_hist_bill_record')}</h4><div class="form-grid">${packageSelector}<div class="form-cell"><label class="field-label full" for="due-${month}">${t('prof_hist_bill_amount_label')} <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}></div><div class="form-cell"><label class="field-label full" for="due-date-${month}">${t('prof_hist_due_date_label')}</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"></div><p class="field-help full">${t('prof_hist_due_help')}</p><button class="primary-button" type="submit">${bill ? t('prof_hist_bill_save') : t('prof_hist_bill_record_btn')}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>${t('prof_hist_pay_title')}</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">${t('prof_hist_pay_guidance')}</p><div class="form-grid"><div class="form-cell"><label class="field-label full" for="amount-${month}">${t('prof_hist_pay_amount_label')}</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_amount_ph')}" required></div><div class="form-cell"><label class="field-label full" for="method-${month}">${t('prof_hist_pay_method_label')}</label><select id="method-${month}" class="full" name="method" required><option value="">${t('prof_hist_pay_method_choose')}</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select></div><div class="form-cell">${paidByFieldMarkup(`paid-by-${month}`)}</div><div class="form-cell"><label class="field-label full" for="date-${month}">${t('prof_hist_pay_date_label')}</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required></div><div class="form-cell"><label class="field-label full" for="txnid-${month}">${t('prof_hist_pay_txn_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="${t('prof_hist_pay_txn_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-name-${month}">${t('spay_sender_name_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-name-${month}" class="full" name="senderTitle" type="text" maxlength="100" placeholder="${t('spay_sender_name_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-digits-${month}">${t('spay_sender_digits_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-digits-${month}" class="full" name="senderDigits" type="text" inputmode="numeric" maxlength="19" placeholder="${t('spay_sender_digits_ph')}"></div><div class="form-cell"><label class="field-label full" for="proof-${month}">${t('proof_attach_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="proof-${month}" class="full" name="proofScreenshot" type="file" accept="image/*"></div><div class="form-cell"><label class="field-label full" for="discount-${month}">${t('prof_hist_pay_discount_label')} <span class="optional-label">${t('prof_hist_discount_opt')}</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_discount_ph')}"></div><label class="field-label full" for="discount-reason-${month}">${t('prof_hist_pay_discount_reason')} <span class="optional-label">${t('prof_optional')}</span></label><input id="discount-reason-${month}" class="full" name="discountReason" type="text" maxlength="100" placeholder="${t('prof_hist_pay_discount_reason_ph')}">${billKistTotal(bill) > 0 ? `<label class="field-label full"><input type="checkbox" name="fifoPrioritizeKist"> ${t('prof_hist_fifo_first')} <span class="optional-label">${t('prof_hist_fifo_first_note')}</span></label>` : ''}<button class="primary-button" type="submit">${t('prof_hist_pay_submit')}</button></div></form></div>`;
+    const formsMarkup = archivedWithoutBill ? `<p class="notice">${t('prof_hist_archived_notice')}</p>` : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? t('prof_hist_bill_update') : t('prof_hist_bill_record')}</h4><div class="form-grid">${packageSelector}<div class="form-cell"><label class="field-label full" for="due-${month}">${t('prof_hist_bill_amount_label')} <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}></div><div class="form-cell"><label class="field-label full" for="due-date-${month}">${t('prof_hist_due_date_label')}</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"></div><p class="field-help full">${t('prof_hist_due_help')}</p><button class="primary-button" type="submit">${bill ? t('prof_hist_bill_save') : t('prof_hist_bill_record_btn')}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>${t('prof_hist_pay_title')}</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">${t('prof_hist_pay_guidance')}</p><div class="form-grid"><div class="form-cell"><label class="field-label full" for="amount-${month}">${t('prof_hist_pay_amount_label')}</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_amount_ph')}" required></div><div class="form-cell"><label class="field-label full" for="method-${month}">${t('prof_hist_pay_method_label')}</label><select id="method-${month}" class="full" name="method" required><option value="">${t('prof_hist_pay_method_choose')}</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select></div><div class="form-cell">${paidByFieldMarkup(`paid-by-${month}`)}</div><div class="form-cell"><label class="field-label full" for="date-${month}">${t('prof_hist_pay_date_label')}</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required></div><div class="form-cell"><label class="field-label full" for="txnid-${month}">${t('prof_hist_pay_txn_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="${t('prof_hist_pay_txn_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-name-${month}">${t('spay_sender_name_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-name-${month}" class="full" name="senderTitle" type="text" maxlength="100" placeholder="${t('spay_sender_name_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-digits-${month}">${t('spay_sender_digits_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-digits-${month}" class="full" name="senderDigits" type="text" inputmode="numeric" maxlength="19" placeholder="${t('spay_sender_digits_ph')}"></div><div class="form-cell"><label class="field-label full" for="proof-${month}">${t('proof_attach_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="proof-${month}" class="full" name="proofScreenshot" type="file" accept="image/*"></div><div class="form-cell"><label class="field-label full" for="discount-${month}">${t('prof_hist_pay_discount_label')} <span class="optional-label">${t('prof_hist_discount_opt')}</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_discount_ph')}"></div><label class="field-label full" for="discount-reason-${month}">${t('prof_hist_pay_discount_reason')} <span class="optional-label">${t('prof_optional')}</span></label><input id="discount-reason-${month}" class="full" name="discountReason" type="text" maxlength="100" placeholder="${t('prof_hist_pay_discount_reason_ph')}">${billKistTotal(bill) > 0 ? `<label class="field-label full"><input type="checkbox" name="fifoPrioritizeKist"> ${t('prof_hist_fifo_first')} <span class="optional-label">${t('prof_hist_fifo_first_note')}</span></label>` : ''}<div class="profile-remwaada-row full" id="profile-remwaada-${month}" hidden></div><button class="primary-button" type="submit">${t('prof_hist_pay_submit')}</button></div></form></div>`;
     return `<details class="month-card" data-month-card="${month}" ${isOpen ? 'open' : ''}><summary><span class="month-label">${escapeHtml(displayMonthName(month))}</span><span class="history-count">${bill ? ((bill.payments?.length ?? 0) === 1 ? t('prof_hist_payments_1', null, { count: bill.payments?.length ?? 0 }) : t('prof_hist_payments_n', null, { count: bill.payments?.length ?? 0 })) : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="${t('prof_hist_payments_for', null, { month: displayMonthName(month) })}">${payments}</ul></div></details>`;
   }).join('');
   historyContainer.querySelectorAll('form[data-kind="bill"]').forEach(form => form.addEventListener('submit', onBillSubmit));
@@ -3491,7 +3491,54 @@ function renderHistory(customer) {
     if (plan) { amount.value = String(plan.price); amount.readOnly = true; select.form.dataset.clearPackageSnapshot = 'false'; }
     else { amount.readOnly = false; select.form.dataset.clearPackageSnapshot = 'true'; }
   }));
-  historyContainer.querySelectorAll('form[data-kind="payment"]').forEach(form => form.addEventListener('submit', onPaymentSubmit));
+  historyContainer.querySelectorAll('form[data-kind="payment"]').forEach(form => {
+    form.addEventListener('submit', onPaymentSubmit);
+    // Plan N: profile remainder-Waada chips, same pattern as Quick
+    // Collect. While the typed amount leaves part of this month's bill
+    // unpaid, offer the four chip dates (or Skip); the chosen date rides
+    // form.dataset into onPaymentSubmit, which stamps it exactly as
+    // Quick Collect does. Skip, a full payment, or an unpriced bill
+    // leaves the customer's promise untouched.
+    const remRow = form.querySelector('.profile-remwaada-row');
+    const amountInput = form.querySelector('[name="amount"]');
+    const dateInput = form.querySelector('[name="date"]');
+    if (remRow && amountInput) {
+      const renderRemRow = () => {
+        try {
+          const allocations = calculatePaymentAllocations(state);
+          const summary = allocations.forMonth(selectedCustomerId, form.dataset.month);
+          const balance = summary && summary.balanceDueCents != null ? summary.balanceDueCents / 100 : null;
+          const partial = balance != null ? computeRemainderWaada(balance, Number(amountInput.value)) : null;
+          if (!partial) { remRow.hidden = true; remRow.innerHTML = ''; form.dataset.profileRemwaadaDate = ''; form.dataset.profileRemwaadaSkipped = ''; return; }
+          const baseDate = dateInput?.value && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.value) ? dateInput.value : localDate();
+          const dates = remainderWaadaChipDates(baseDate);
+          if (!dates) { remRow.hidden = true; remRow.innerHTML = ''; return; }
+          const picked = form.dataset.profileRemwaadaDate || '';
+          const skipped = form.dataset.profileRemwaadaSkipped === '1';
+          if (picked && ![dates.plus3, dates.plus7, dates.tenth, dates.fifteenth].includes(picked)) { form.dataset.profileRemwaadaDate = ''; form.dataset.profileRemwaadaSkipped = ''; }
+          const chipBtn = (key, label, date) => `<button type="button" class="qc-remwaada-chip${form.dataset.profileRemwaadaDate === date ? ' is-active' : ''}" data-remwaada-chip="${key}" aria-pressed="${form.dataset.profileRemwaadaDate === date}">${escapeHtml(label)}${date ? ` · ${escapeHtml(date.slice(5))}` : ''}</button>`;
+          remRow.innerHTML = `<p class="qc-remwaada-label">🤝 Remainder ${escapeHtml(formatAmount(partial.remainder))} — promise it for:</p><div class="qc-remwaada-chips" role="group">${chipBtn('plus3', '+3 days', dates.plus3)}${chipBtn('plus7', '+7 days', dates.plus7)}${chipBtn('tenth', '10th', dates.tenth)}${chipBtn('fifteenth', '15th', dates.fifteenth)}<button type="button" class="qc-remwaada-chip${skipped ? ' is-active' : ''}" data-remwaada-chip="skip" aria-pressed="${skipped}">Skip</button></div>`;
+          remRow.hidden = false;
+        } catch { remRow.hidden = true; remRow.innerHTML = ''; }
+      };
+      remRow.addEventListener('click', (event) => {
+        const chip = event.target.closest?.('[data-remwaada-chip]');
+        if (!chip) return;
+        const key = chip.getAttribute('data-remwaada-chip');
+        if (key === 'skip') { form.dataset.profileRemwaadaDate = ''; form.dataset.profileRemwaadaSkipped = '1'; renderRemRow(); return; }
+        const baseDate = dateInput?.value && /^\d{4}-\d{2}-\d{2}$/.test(dateInput.value) ? dateInput.value : localDate();
+        const dates = remainderWaadaChipDates(baseDate);
+        const picked = dates?.[key];
+        if (!picked) return;
+        form.dataset.profileRemwaadaDate = picked;
+        form.dataset.profileRemwaadaSkipped = '';
+        renderRemRow();
+      });
+      amountInput.addEventListener('input', renderRemRow);
+      dateInput?.addEventListener('change', renderRemRow);
+      renderRemRow();
+    }
+  });
   historyContainer.querySelectorAll('[data-edit-payment]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.editPayment, 'history')));
   historyContainer.querySelectorAll('[data-delete-payment]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.deletePayment)));
   historyContainer.querySelectorAll('[data-void-payment]').forEach(button => button.addEventListener('click', () => openVoidPaymentDialog(button.dataset.customerId, button.dataset.month, button.dataset.voidPayment)));
@@ -4460,19 +4507,50 @@ function renderCustomerProfileView(customer) {
         applyProfileKist({ ...customer, installmentPlans: plans }, 'Installment plan removed (nothing had been billed yet).');
       });
     });
-    // SISP-29: 1-click early payoff. Confirm shows the exact remaining
-    // balance; on confirm the plan is settled (monthsBilled = monthsPaid =
-    // totalMonths, status completed) so no future cycle bills it again.
+    // Plan N: the old 1-click early payoff is removed. Settling offers
+    // exactly two paths — "Record payoff payment" (a payment is created
+    // via addPayment on the current month first, and the plan settles
+    // only if that payment records; its id is stored on the plan) or
+    // "Waive remaining" (no payment, but a reason is required and stored
+    // on the plan). A failed payment or a blank waiver reason settles
+    // nothing, so a plan can never be silently closed.
     kistSection.querySelectorAll('[data-profile-kist-payoff]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const planId = btn.getAttribute('data-profile-kist-payoff');
         const plan = (customer.installmentPlans ?? []).find((row) => row.id === planId);
         const presentation = kistSettlementPresentation(plan);
         if (!presentation.canPayoff) return;
-        const confirmed = await appConfirm({ tone:'warning', title:'Settle remaining kist early?', subject:`${plan.itemTitle} · ${formatAmount(presentation.payoffAmount)} remaining`, message:'This closes the plan now. Future monthly cycles will not bill this plan again.', confirmLabel:'Settle now' });
-        if (!confirmed) return;
-        const plans = settlePlanEarly(customer.installmentPlans, planId, { date: pakistanToday() });
-        applyProfileKist({ ...customer, installmentPlans: plans }, `Kist settled early: ${plan.itemTitle} — remaining ${formatAmount(presentation.payoffAmount)} closed. No future cycle will bill it.`);
+        const choice = await appConfirm({ tone:'warning', title:'Settle remaining kist early?', subject:`${plan.itemTitle} · ${formatAmount(presentation.payoffAmount)} remaining`, message:'This closes the plan now. Future monthly cycles will not bill this plan again. Record the remaining amount as a payment, or waive it with a reason on record.', confirmLabel:'Record payoff payment', altLabel:'Waive remaining', cancelLabel:'Cancel' });
+        if (!choice) return;
+        if (choice === 'alt') {
+          const waived = await appConfirm({ tone:'warning', title:'Waive remaining kist?', subject:`${plan.itemTitle} · ${formatAmount(presentation.payoffAmount)} waived`, message:'No payment will be recorded. The reason below is stored on the plan.', confirmLabel:'Waive with this reason', cancelLabel:'Cancel', input:{ label:'Waiver reason (required)', placeholder:'e.g. Owner concession, device returned', maxLength:200 } });
+          if (!waived) return;
+          const reason = (document.getElementById('appConfirmInput')?.value || '').trim();
+          if (validatePayoffChoice({ method:'waiver', reason }) !== null) { toast('A waived payoff needs a reason on record.', { type:'error', title:'Not settled' }); return; }
+          const plans = settlePlanEarly(customer.installmentPlans, planId, { date: pakistanToday(), method:'waiver', reason });
+          applyProfileKist({ ...customer, installmentPlans: plans }, `Kist settled early (waived): ${plan.itemTitle} — ${formatAmount(presentation.payoffAmount)} waived (${reason}). No future cycle will bill it.`);
+          return;
+        }
+        // Payment path: amount first, settle second. A zero remainder
+        // cannot be recorded as a payment, so it cannot take this path.
+        if (!(presentation.payoffAmount > 0)) { toast('Nothing left to pay on this plan — waive the remainder with a reason instead.', { type:'error', title:'Not settled' }); return; }
+        const methodAsk = await appConfirm({ tone:'warning', title:'Record payoff payment', subject:`${plan.itemTitle} · ${formatAmount(presentation.payoffAmount)}`, message:`Payment method — type one of: ${PAYMENT_METHODS.join(', ')}. The payment is recorded on this month's bill first; the plan settles only after it records.`, confirmLabel:'Record payment', cancelLabel:'Cancel', input:{ label:'Payment method', placeholder:'Cash', maxLength:64 } });
+        if (!methodAsk) return;
+        const method = (document.getElementById('appConfirmInput')?.value || '').trim();
+        if (!PAYMENT_METHODS.includes(method)) { toast(`Unknown payment method: ${method || '(blank)'}. The plan was not settled.`, { type:'error', title:'Not settled' }); return; }
+        try {
+          const month = pakistanMonthNow();
+          const idx = state.customers.findIndex((row) => row.id === customer.id);
+          if (idx < 0) throw new Error('Customer not found.');
+          const beforeIds = new Set(((state.customers[idx]?.bills ?? []).find((row) => row.month === month)?.payments ?? []).map((row) => row.id));
+          state = addPayment(state, customer.id, month, { date: pakistanToday(), amount: presentation.payoffAmount, method });
+          save();
+          const paidCustomer = state.customers.find((row) => row.id === customer.id);
+          const added = paidCustomer?.bills.find((row) => row.month === month)?.payments.find((row) => !beforeIds.has(row.id));
+          if (!added) throw new Error('Payoff payment did not record.');
+          const plans = settlePlanEarly(paidCustomer.installmentPlans, planId, { date: pakistanToday(), method:'payment', paymentId: added.id });
+          applyProfileKist({ ...paidCustomer, installmentPlans: plans }, `Kist settled early: ${plan.itemTitle} — ${formatAmount(presentation.payoffAmount)} paid (${method}). No future cycle will bill it.`);
+        } catch (err) { toast(err?.message || 'Payoff payment could not be recorded. The plan was not settled.', { type:'error', title:'Not settled' }); }
       });
     });
   }
@@ -6574,6 +6652,28 @@ async function onPaymentSubmit(event) {
       state = followed.nextState;
       autoPackageNote = followed.autoPackage;
     }
+    // Plan N: profile remainder Waada — stamped here, in the same save
+    // as the payment, exactly as Quick Collect stamps it (payment stamp
+    // + live promise via the SISP-3 setter, amount = the customer's
+    // total outstanding after this payment). Only when the operator
+    // picked a chip date and a remainder is genuinely still due; Skip,
+    // no chip, or a fully-settled customer leaves the promise as it was.
+    // A stamp failure must never lose the payment, so it is contained.
+    try {
+      const pickedDate = form.dataset.profileRemwaadaDate || '';
+      if (pickedDate && fifoAdded) {
+        const afterCustomer = state.customers.find(c => c.id === customerId);
+        const allocationsAfter = calculatePaymentAllocations(state);
+        const outstandingCents = (afterCustomer?.bills ?? []).reduce((sum, b) => {
+          const summary = allocationsAfter.forMonth(customerId, b.month);
+          return (summary && summary.balanceDueCents != null) ? sum + summary.balanceDueCents : sum;
+        }, 0);
+        if (outstandingCents > 0) {
+          const stamped = stampRemainderWaada(afterCustomer, form.dataset.month, fifoAdded.id, { promiseDate: pickedDate, promiseAmount: outstandingCents / 100 });
+          if (stamped) state = { ...state, customers: state.customers.map(c => c.id === customerId ? stamped : c) };
+        }
+      }
+    } catch { /* payment still saves below */ }
     save();
     renderDetail();
     const paidCustomer = state.customers.find(c => c.id === customerId);

@@ -729,19 +729,28 @@ export function badDebtPresentation(customer, entries, unpaidArrears = 0) {
 // payoff amount/date. app.js renders the button/label from this object.
 export function kistSettlementPresentation(plan) {
   const sane = sanitizeInstallmentPlan(plan);
-  if (!sane) return { canPayoff: false, payoffAmount: 0, payoffLabel: '', settledEarly: false, settledLabel: '' };
+  if (!sane) return { canPayoff: false, payoffAmount: 0, payoffLabel: '', settledEarly: false, settledLabel: '', settledMethod: null, settledReason: null };
   const settledEarly = sane.payoffAmount !== null || sane.payoffDate !== null;
   const payoffAmount = earlyPayoffAmount(sane);
+  // Plan N: a waived settlement says so, with its stored reason, so a
+  // closed plan never looks like a paid one. Payment and legacy (no
+  // method) settlements keep the existing settled label.
+  const settledLabel = !settledEarly ? ''
+    : sane.payoffMethod === 'waiver'
+      ? (sane.payoffDate
+        ? t('prof_kist_settled_waived', null, { amount: formatPKR(sane.payoffAmount ?? 0), date: sane.payoffDate, reason: sane.payoffReason ?? '' })
+        : t('prof_kist_settled_waived_nodate', null, { amount: formatPKR(sane.payoffAmount ?? 0), reason: sane.payoffReason ?? '' }))
+      : (sane.payoffDate
+        ? t('prof_kist_settled', null, { amount: formatPKR(sane.payoffAmount ?? 0), date: sane.payoffDate })
+        : t('prof_kist_settled_nodate', null, { amount: formatPKR(sane.payoffAmount ?? 0) }));
   return {
     canPayoff: sane.status === 'active',
     payoffAmount,
     payoffLabel: sane.status === 'active' ? t('prof_kist_payoff', null, { amount: formatPKR(payoffAmount) }) : '',
     settledEarly,
-    settledLabel: settledEarly
-      ? (sane.payoffDate
-        ? t('prof_kist_settled', null, { amount: formatPKR(sane.payoffAmount ?? 0), date: sane.payoffDate })
-        : t('prof_kist_settled_nodate', null, { amount: formatPKR(sane.payoffAmount ?? 0) }))
-      : ''
+    settledLabel,
+    settledMethod: settledEarly ? sane.payoffMethod : null,
+    settledReason: settledEarly ? sane.payoffReason : null
   };
 }
 

@@ -17,7 +17,7 @@ import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
-  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, buildAreaIntelligence, buildZoneBandwidthYield, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla, DEFAULT_MOHALLAS
+  addUmairWorkday, removeUmairWorkday, inventorySummary, addExpense, updateExpense, deleteExpense, buildPhase3Analytics, paymentEntries, buildAreaIntelligence, buildZoneBandwidthYield, buildPackageRevenue, areaLabel, buildPartnerShareReport, groupAreaIntelligenceCards, buildAreaSummaryCards, canonicalMohalla, DEFAULT_MOHALLAS
 } from './phase3.js?v=1.11.0';
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
@@ -179,7 +179,7 @@ import { archivedRosterPage, buildRetentionView, retentionViewHtml, retentionYea
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
-import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada } from './waada-queue.js';
+import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada, getWaadaTodayString, isValidWaadaDate } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
@@ -223,7 +223,8 @@ import { buildExpiredVacationHoldQueue } from './pause-billing.js';
 import { addSpeedBoost, addonChargesPending, speedBoostsOf, unsettleAddonChargesForPayment } from './speed-addon.js';
 import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupReceipt, collectGroupFull, collectGroupPartial, collectGroupProRata, loadBillingGroups, saveBillingGroups, setupGroupBillingModal } from './group-billing.js';
 
-import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspensePendingBalanceCents, suspenseSummary } from './suspense-payments.js';
+import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspensePendingBalanceCents, suspenseSummary, suspenseAgeDays } from './suspense-payments.js';
+import { buildOwnerDigest, dailyDigestRange, weeklyDigestRange, digestHtml, digestCsv, digestFilename } from './owner-digest.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
 import { findRecentDuplicate, askDuplicatePayment } from './duplicate-payment-guard.js';
@@ -9896,6 +9897,88 @@ function renderAreaIntelligence() {
     basis.textContent='Select a valid date range to calculate the local area and package summaries.';
   }
 }
+// Plan 6 (Plan 1-100) — Owner daily/weekly collection digest.
+// Render-only: every figure below comes from a source the app already
+// computes (phase3 cash collection / outstanding, the Waada-queue
+// tier rule via promiseDate, the suspense register summary). The
+// digest builder itself computes nothing new; it only assembles and
+// labels those figures, so the panel can never drift from its home
+// screens on the same render. Buttons are bound once (dataset flag),
+// because renderAnalytics runs on every Analytics visit.
+let ownerDigestPeriod = 'daily';
+let lastOwnerDigest = null;
+let ownerDigestButtonsBound = false;
+function renderOwnerDigest(period) {
+  const bodyEl = $('#ownerDigestBody');
+  if (!bodyEl) return;
+  if (period) ownerDigestPeriod = period;
+  const today = getWaadaTodayString();
+  const range = ownerDigestPeriod === 'weekly' ? weeklyDigestRange(today) : dailyDigestRange(today);
+  if (!range.valid) { bodyEl.innerHTML = ''; lastOwnerDigest = null; return; }
+  const entries = paymentEntries(state).filter(({ payment }) => payment.date >= range.startDate && payment.date <= range.endDate);
+  const allocations = calculatePaymentAllocations(state);
+  let duesCustomers = 0;
+  const waadaItems = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    const outstanding = totalOutstandingFigures(customer, allocations).total;
+    if (!(outstanding > 0)) continue;
+    duesCustomers += 1;
+    const promiseDate = typeof customer.promiseDate === 'string' ? customer.promiseDate.trim() : '';
+    if (promiseDate && isValidWaadaDate(promiseDate) && promiseDate < today) {
+      waadaItems.push({
+        customerName: customer.name || customer.customerName || '—',
+        promiseDate,
+        amount: Number(customer.promiseAmount) > 0 ? Math.round(Number(customer.promiseAmount)) : Math.round(outstanding),
+      });
+    }
+  }
+  const suspenseEntries = loadSuspensePayments().filter((entry) => !entry.claimed);
+  const suspense = suspenseSummary(loadSuspensePayments());
+  const digest = buildOwnerDigest({
+    period: ownerDigestPeriod,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    collections: {
+      amount: entries.reduce((sum, { payment }) => sum + Number(payment.amount || 0), 0),
+      count: entries.length,
+      sourceScreen: 'Analytics cash collection',
+    },
+    dues: {
+      amount: latestAnalyticsData && latestAnalyticsData.totalBills ? latestAnalyticsData.currentOutstanding : 0,
+      customerCount: duesCustomers,
+      sourceScreen: 'Analytics outstanding',
+    },
+    waadaBroken: {
+      count: waadaItems.length,
+      amount: waadaItems.reduce((sum, item) => sum + item.amount, 0),
+      items: waadaItems,
+      sourceScreen: 'Waada queue',
+    },
+    suspenseUnclaimed: {
+      count: suspense.unclaimedCount,
+      amount: suspense.unclaimedAmount,
+      items: suspenseEntries.map((entry) => ({ suspenseId: entry.suspenseId, amount: entry.amount, ageDays: suspenseAgeDays(entry, today) })),
+      sourceScreen: 'Suspense register',
+    },
+  });
+  lastOwnerDigest = digest;
+  bodyEl.innerHTML = digestHtml(digest);
+  const dailyBtn = $('#ownerDigestDailyBtn');
+  const weeklyBtn = $('#ownerDigestWeeklyBtn');
+  if (dailyBtn) dailyBtn.setAttribute('aria-pressed', ownerDigestPeriod === 'daily' ? 'true' : 'false');
+  if (weeklyBtn) weeklyBtn.setAttribute('aria-pressed', ownerDigestPeriod === 'weekly' ? 'true' : 'false');
+  if (!ownerDigestButtonsBound) {
+    ownerDigestButtonsBound = true;
+    if (dailyBtn) dailyBtn.addEventListener('click', () => renderOwnerDigest('daily'));
+    if (weeklyBtn) weeklyBtn.addEventListener('click', () => renderOwnerDigest('weekly'));
+    const exportBtn = $('#ownerDigestExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => {
+      if (!lastOwnerDigest || !lastOwnerDigest.valid) return;
+      downloadCsvFile(digestFilename(lastOwnerDigest), digestCsv(lastOwnerDigest));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -9951,6 +10034,7 @@ function renderAnalytics() {
   $('#packageSummaryEmpty').hidden=configuredPackages;
   $('#networkIssuesList').innerHTML=data.incidentCount?data.networkIssues.map(row=>`<li><span>${phase3Cell(monthName(row.month))}</span><strong>${row.count} recorded incident${row.count===1?'':'s'}</strong></li>`).join(''):`<li class="empty-state">No complaint or outage records have been entered.</li>`;
   $('#analyticsEmptyNotice').textContent=data.growthCumulativeIsPartial?`${data.knownUndatedConnections} customer profiles have no connection date; cumulative growth is therefore date-known only and is not a total historical customer count.`:'Historical summaries include only recorded local bills, receipts, dates, statuses, and incidents.';
+  renderOwnerDigest();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

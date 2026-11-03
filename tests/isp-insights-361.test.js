@@ -72,6 +72,18 @@ test('361 health: every unavailable factor carries a plain next step', () => {
   }
 });
 
+
+test('361 health: unavailable factors provide a direct screen route and action label', () => {
+  let state = createInitialState(['Ali']);
+  state = { ...state, customers: state.customers.map(c => ({ ...c, addedOn: '2026-01-01' })) };
+  const result = buildBusinessHealthScore(state, today);
+  assert.ok(result.unavailableFactors.length >= 4);
+  for (const factor of result.unavailableFactors) {
+    assert.ok(factor.actionRoute && factor.actionRoute.startsWith('#/'), `${factor.id} must provide a hash route`);
+    assert.ok(factor.actionLabel && factor.actionLabel.length > 0, `${factor.id} must provide an action label`);
+  }
+});
+
 test('361 insights: pure function — state is not mutated', () => {
   const state = insightsFixture();
   const before = JSON.stringify(state);

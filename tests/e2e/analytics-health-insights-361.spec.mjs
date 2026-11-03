@@ -84,6 +84,10 @@ test.describe('Issue 361: Analytics health score + ISP insights from saved data'
     const steps = panel.locator('.business-health-next-step');
     expect(await steps.count()).toBeGreaterThanOrEqual(4);
     await expect(steps.first()).toContainText('What unlocks this:');
+    const actionBtns = panel.locator('.business-health-action-btn');
+    expect(await actionBtns.count()).toBeGreaterThanOrEqual(4);
+    const firstHref = await actionBtns.first().getAttribute('href');
+    expect(firstHref).toMatch(/^#\//);
     const insights = page.locator('#ispInsights');
     await expect(insights).toBeVisible();
     await expect(insights).toContainText('Not available');

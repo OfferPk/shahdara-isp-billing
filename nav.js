@@ -2159,7 +2159,6 @@ export function setupOfflineSyncBanner({
   } catch (_) {}
 
   let syncTimeout = null;
-  let autoDismissTimer = null;
 
   function updateBannerState() {
     if (!banner) return;
@@ -2180,12 +2179,9 @@ export function setupOfflineSyncBanner({
       }
       if (retryBtn) retryBtn.hidden = true;
 
-      if (autoDismissTimer) clearTimeout(autoDismissTimer);
-      autoDismissTimer = setTimeout(() => {
-        if (banner && banner.classList.contains('is-offline')) {
-          banner.hidden = true;
-        }
-      }, 6000);
+      // Plan G: while still offline, the banner stays until the queue
+      // is confirmed or the operator dismisses it by hand. An earlier
+      // 6-second auto-hide silently dropped the pending-queue state.
     } else {
       if (queueCount > 0) {
         banner.hidden = false;
@@ -2687,11 +2683,25 @@ export function setupOfflineQueueModal({
           time.className = 'queue-item-time';
           const timeStr = item.timestamp ? new Date(item.timestamp).toLocaleTimeString() : 'Recent';
           const errorDetail = item.lastError ? ` · Error: ${item.lastError}` : '';
-          time.textContent = `${timeStr}${errorDetail}`;
+          // Plan G: a retrying item says when it will try again, so the
+          // operator is never left guessing whether it is stuck.
+          const retryDetail = (status === 'retrying' && item.nextRetryAt)
+            ? ` · Next retry: ${new Date(item.nextRetryAt).toLocaleTimeString()}`
+            : '';
+          time.textContent = `${timeStr}${errorDetail}${retryDetail}`;
 
           infoDiv.appendChild(title);
           infoDiv.appendChild(statusTag);
           infoDiv.appendChild(time);
+          // Plan G: a dead-letter item says plainly what happened and
+          // what to do next — it is not synced yet, and discarding is
+          // only safe if the entry was recorded another way.
+          if (status === 'dead_letter') {
+            const guidance = document.createElement('div');
+            guidance.className = 'queue-item-guidance';
+            guidance.textContent = 'Max retries reached — not synced yet. Retry again, or discard only if this entry was recorded another way.';
+            infoDiv.appendChild(guidance);
+          }
           card.appendChild(infoDiv);
 
           const actionsDiv = document.createElement('div');
@@ -2710,7 +2720,9 @@ export function setupOfflineQueueModal({
               if (outcome.success) {
                 if (typeof onToast === 'function') onToast(`Synced: ${item.summary || item.action}`);
               } else {
-                if (typeof onToast === 'function') onToast(`Retry failed (${outcome.status}): ${outcome.error || 'Network error'}`);
+                // Plan G: a failed retry says what failed, that nothing
+                // was synced, and what to do next — never just a status.
+                if (typeof onToast === 'function') onToast(`Retry failed (${outcome.status}): ${outcome.error || 'Network error'}. Entry not synced yet — check connection and retry, or discard if recorded another way.`);
               }
               renderQueue();
               if (typeof onRetryItem === 'function') onRetryItem(outcome);

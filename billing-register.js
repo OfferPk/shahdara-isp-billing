@@ -30,6 +30,7 @@
 // current receivable has no bill-month to belong to; the Owner Khata
 // closing report carries them as its month-end pending line instead.
 import { calculatePaymentAllocations, derivedBillStatus, formatPKR, paymentTicketChargeCents } from './core.js';
+import { billClarityBreakdown } from './billing-clarity.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 //
 // SISP-185 adds a printable summary sheet (A4 + 80mm) of the SAME register
@@ -141,7 +142,11 @@ export function buildBillingRegister(state, { period = BILLING_REGISTER_DEFAULT_
         // bill (a cash-settled bill has exactly 0). Display-only: the
         // register's figures, totals and CSV never read these fields.
         advanceAdjusted: (summary?.creditAppliedCents ?? 0) > 0,
-        advanceApplied: centsToAmount(summary?.creditAppliedCents ?? 0)
+        advanceApplied: centsToAmount(summary?.creditAppliedCents ?? 0),
+        // Plan P: the same labelled breakdown the profile shows
+        // (arrears / advance consumed / concession / deposit offset),
+        // derived from the same allocations. Totals above are untouched.
+        clarity: billClarityBreakdown(customer, bill, allocations)
       });
     }
   }
@@ -248,6 +253,18 @@ function escapePrintHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+// Plan P: one compact line per register row for the A4 sheet, from the
+// row's own clarity breakdown (never a recomputation): the labelled
+// charges and deductions, so the printed sheet explains the bill the
+// same way the profile does. Thermal keeps its narrow columns.
+function claritySummaryText(clarity) {
+  if (!clarity || !Array.isArray(clarity.lines)) return '—';
+  const parts = clarity.lines
+    .filter((line) => line.role === 'charge' || line.role === 'deduction')
+    .map((line) => `${line.label}: ${line.role === 'deduction' ? '-' : ''}${formatPKR(line.amount)}`);
+  return parts.length ? parts.join('; ') : '—';
+}
+
 export function buildBillingRegisterPrintHtml(register, {
   format = BILLING_REGISTER_DEFAULT_PRINT_FORMAT,
   businessName = '',
@@ -305,7 +322,8 @@ export function buildBillingRegisterPrintHtml(register, {
       { label: t('bill_reg_col_paid', lang), className: 'amt', value: (row) => formatPKR(row.paidAmount), total: totals.totalPaid },
       { label: t('bill_reg_col_balance', lang), className: 'amt', value: (row) => formatPKR(row.balanceDue), total: balanceTotal },
       { label: t('bill_reg_col_ticket', lang), className: 'amt', value: (row) => formatPKR(row.ticketChargesPaid ?? 0), total: ticketTotal },
-      { label: t('bill_reg_col_status', lang), className: '', value: statusText }
+      { label: t('bill_reg_col_status', lang), className: '', value: statusText },
+      { label: t('bill_reg_col_breakdown', lang), className: '', value: (row) => claritySummaryText(row.clarity) }
     ];
 
   const headCells = columns.map((column) => `<th${column.className ? ` class="${column.className}"` : ''}>${escapePrintHtml(column.label)}</th>`).join('');

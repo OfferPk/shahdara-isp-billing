@@ -47,6 +47,9 @@ export const AUDIT_ACTIONS = Object.freeze([
   { value: 'customer_unarchived', label: 'Customer unarchived' },
   { value: 'waada_set', label: 'Waada set' },
   { value: 'concession_applied', label: 'Concession applied' },
+  // Plan 33 adds the eighth action: an operator-mode switch is an
+  // operator action worth auditing, recorded by the mode wiring.
+  { value: 'mode_switched', label: 'Operator mode switched' },
 ]);
 
 const ACTION_LABELS = new Map(AUDIT_ACTIONS.map((a) => [a.value, a.label]));

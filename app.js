@@ -43,6 +43,7 @@ import { setupFieldMode, speakCustomerDue } from './field-mode.js?v=1.11.0';
 import { QUICK_UNDO_WINDOW_MS, createQuickUndoController, findCollectedPayment, quickUndoReceiptRef, reverseCollectedPayment } from './quick-undo-toast.js';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.11.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.11.0';
+import { indexCustomers, resolveTransactionCustomer } from './list-rendering.js';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.11.0';
 import { setupOwnerCenter } from './owner-ui.js?v=1.11.0';
 import {
@@ -3620,13 +3621,19 @@ function renderTransactions() {
   const dayGroups = dateSorted ? groupByDay(transactions) : null;
   const todayKey = pktDateKey();
   let lastDay = null;
+  // Plan F: one customer index per render, not one roster scan per
+  // visible row. Grouping/summary above still scans the filtered
+  // list (day headers show full-day totals, so they must), but
+  // markup below is built for paged.items only.
+  const customerIndex = indexCustomers(state.customers);
   transactionList.innerHTML = paged.items.map(transaction => {
-    const customer = state.customers.find(item => item.id === transaction.customerId);
+    const { customer: resolvedCustomer, bill: resolvedBill, payment: resolvedPayment } = resolveTransactionCustomer(transaction, customerIndex);
+    const customer = resolvedCustomer;
     const statusText = reportStatusLabel(transaction.status);
     const serviceStatus = transaction.customerServiceStatus;
     const serviceLabel = ({ active:'Active', offline:'Offline' })[serviceStatus] ?? null;
-    const savedBill = customer?.bills?.find(bill => bill.month === transaction.month);
-    const savedPayment = savedBill?.payments?.find(payment => payment.id === transaction.paymentId);
+    const savedBill = resolvedBill;
+    const savedPayment = resolvedPayment;
     const receiptData = customer && savedBill && savedPayment ? buildPaymentReceipt(customer, savedBill, savedPayment) : null;
     const receiptBillStatus = receiptData?.status === 'PAID' ? 'paid' : receiptData?.status === 'PARTIAL' ? 'partial' : null;
     const pid = escapeHtml(transaction.paymentId);

@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test",
+    "test:gate": "node scripts/test-gate.mjs unit",
     "test:e2e": "node build.mjs && playwright test",
     "android:sync": "npm run build && cap sync android",
     "android:debug": "npm run android:sync && cd android && ./gradlew assembleDebug"

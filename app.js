@@ -231,6 +231,7 @@ import { buildCollectorPerformance, collectorPerformanceHtml, collectorPerforman
 import { buildCashflowSnapshot, cashflowSnapshotHtml, cashflowSnapshotCsv, cashflowSnapshotFilename } from './cashflow-snapshot.js';
 import { DEFAULT_PRE_DUE_WINDOW_DAYS, normalizePreDueWindowDays, buildPreDueReminderQueue, buildPreDueReminderDraft, logReminderSent, preDueReminderSummaryText, preDueReminderFilename, preDueReminderHtml, preDueReminderCsv } from './pre-due-reminders.js';
 import { DEFAULT_ESCALATION_THRESHOLDS, normalizeEscalationThresholds, buildEscalationLadder, buildEscalationDraft, logEscalationSent, escalationSummaryText, escalationFilename, escalationHtml, escalationCsv } from './escalation-ladder.js';
+import { buildPaymentConfirmationList, logConfirmationSent, paymentConfirmationSummaryText, paymentConfirmationFilename, paymentConfirmationHtml, paymentConfirmationCsv } from './payment-confirmation.js';
 import { calculateFieldCollectionRoutes, getFieldRouteOutcomes } from './nav-collection-rounds.js';
 import { setupInAppSelfTest } from './in-app-self-test.js';
 import { FEEDER_CABLES_KEY, loadFeederCables, saveFeederCables, setupDarkFiberModal } from './dark-fiber-finder.js';
@@ -10399,6 +10400,83 @@ function renderEscalationLadder() {
     });
   }
 }
+// Plan 13 (Plan 1-100) — Payment confirmation drafts panel. After a
+// payment is recorded, the operator can send the customer a short
+// bilingual confirmation (amount, date, remaining balance if any)
+// through the existing WhatsApp route. The panel lists today's
+// recorded payments only, so the remaining balance shown is the
+// bill's current balance after the payments recorded so far today.
+// Drafts only, plus a send log that lives apart from payment,
+// receipt-delivery (Plan 5), and Waada records: sending a
+// confirmation never marks a receipt sent and never clears or
+// changes a Waada. Voided payments correctly have no draft and are
+// counted in the summary, never listed.
+const PAYMENT_CONFIRMATION_SENT_LOG_KEY = 'shahdara_payment_confirmation_sent_log_v1';
+let paymentConfirmationBound = false;
+let lastPaymentConfirmation = null;
+function loadPaymentConfirmationSentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PAYMENT_CONFIRMATION_SENT_LOG_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function savePaymentConfirmationSentLog(log) {
+  try { localStorage.setItem(PAYMENT_CONFIRMATION_SENT_LOG_KEY, JSON.stringify(log)); } catch {}
+}
+function renderPaymentConfirmation() {
+  const bodyEl = $('#paymentConfirmationBody');
+  if (!bodyEl) return;
+  const today = getWaadaTodayString();
+  const allocations = calculatePaymentAllocations(state);
+  const payments = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      const summary = allocations.forMonth(customer.id, bill.month);
+      const balanceDue = summary && summary.balanceDueCents > 0 ? summary.balanceDueCents / 100 : 0;
+      for (const p of bill.payments ?? []) {
+        if (p.date !== today) continue;
+        payments.push({
+          ...p,
+          customerId: customer.id,
+          customerName: customer.name || customer.customerName || '—',
+          mohalla: customer.mohalla || customer.area || '',
+          remainingBalance: Math.round(balanceDue),
+        });
+      }
+    }
+  }
+  const list = buildPaymentConfirmationList({ payments });
+  const sentLog = loadPaymentConfirmationSentLog();
+  lastPaymentConfirmation = { list, sentLog, today };
+  bodyEl.innerHTML = paymentConfirmationHtml(list, sentLog);
+  const summaryEl = $('#paymentConfirmationSummary');
+  if (summaryEl) summaryEl.textContent = paymentConfirmationSummaryText(list);
+  if (!paymentConfirmationBound) {
+    paymentConfirmationBound = true;
+    bodyEl.addEventListener('click', (event) => {
+      const sendBtn = event.target.closest ? event.target.closest('.payment-confirmation-send-btn') : null;
+      if (!sendBtn || !sendBtn.dataset.paymentId) return;
+      const row = lastPaymentConfirmation?.list.rows.find((r) => r.paymentId === sendBtn.dataset.paymentId);
+      const customer = (state.customers ?? []).find((c) => c.id === row?.customerId);
+      if (!customer || !row) return;
+      const wa = formatWhatsAppUrl(whatsappPhoneFor(customer), row.draft);
+      if (!wa.validPhone || !wa.url) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'No WhatsApp number';
+        return;
+      }
+      window.open(wa.url, '_blank', 'noopener,noreferrer');
+      savePaymentConfirmationSentLog(logConfirmationSent(loadPaymentConfirmationSentLog(), { paymentId: row.paymentId, customerId: row.customerId, sentAt: new Date().toISOString(), channel: 'whatsapp' }));
+      renderPaymentConfirmation();
+    });
+    const exportBtn = $('#paymentConfirmationExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => {
+      if (!lastPaymentConfirmation) return;
+      downloadCsvFile(paymentConfirmationFilename(lastPaymentConfirmation.today), paymentConfirmationCsv(lastPaymentConfirmation.list, lastPaymentConfirmation.sentLog));
+    });
+  }
+}
 function renderAnalytics() {
   const data=buildPhase3Analytics(state,new Date());
   prepareAreaIntelFilters(data);
@@ -10461,6 +10539,7 @@ function renderAnalytics() {
   renderCashflowSnapshot();
   renderPreDueReminders();
   renderEscalationLadder();
+  renderPaymentConfirmation();
 }
 let packageSortKey = null;
 let packageSortAsc = true;

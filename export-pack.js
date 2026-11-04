@@ -238,12 +238,40 @@ function buildExpenseRows(expenses) {
   };
 }
 
-export function buildExportPack({ customers = [], expenses = [], exportDate = '' } = {}) {
+// Plan 70: flat month-snapshot rows for the pack. A snapshot row is
+// one frozen per-customer closing balance; rows with no month, no
+// close date, no customer, or no usable closing balance are dropped
+// and counted, never zero-filled. The pack's counts and totals are
+// untouched by snapshots — they stay exactly as Plan 32 defined
+// them — so existing pack tests keep passing.
+function buildSnapshotRows(snapshots) {
+  const rows = [];
+  let excluded = 0;
+  for (const snapshot of Array.isArray(snapshots) ? snapshots : []) {
+    if (!snapshot || typeof snapshot !== 'object') { excluded += 1; continue; }
+    const month = text(snapshot.month);
+    const closeDate = text(snapshot.closeDate);
+    if (!month || !closeDate) { excluded += 1; continue; }
+    for (const row of Array.isArray(snapshot.customers) ? snapshot.customers : []) {
+      if (!row || typeof row !== 'object') { excluded += 1; continue; }
+      const customerId = text(row.customerId);
+      const customerName = text(row.customerName);
+      const closing = finiteAmount(row.closing ?? row.closingBalance);
+      if (!customerId || !customerName || closing === null) { excluded += 1; continue; }
+      rows.push({ month, closeDate, customerId, customerName, mohalla: text(row.mohalla), closingBalance: closing });
+    }
+  }
+  rows.sort((a, b) => a.month.localeCompare(b.month) || a.customerName.localeCompare(b.customerName) || a.customerId.localeCompare(b.customerId));
+  return { rows, excluded };
+}
+
+export function buildExportPack({ customers = [], expenses = [], exportDate = '', snapshots = [] } = {}) {
   const customerPart = buildCustomerRows(customers);
   const billPart = buildBillRows(customers);
   const paymentPart = buildPaymentRows(customers);
   const waadaPart = buildWaadaRows(customers);
   const expensePart = buildExpenseRows(expenses);
+  const snapshotPart = buildSnapshotRows(snapshots);
 
   const dated = [];
   for (const row of paymentPart.rows) if (row.date) dated.push(row.date);
@@ -281,6 +309,9 @@ export function buildExportPack({ customers = [], expenses = [], exportDate = ''
     payments: paymentPart.rows,
     waadas: waadaPart.rows,
     expenses: expensePart.rows,
+    snapshots: snapshotPart.rows,
+    snapshotCount: snapshotPart.rows.length,
+    snapshotExcluded: snapshotPart.excluded,
   };
 }
 
@@ -337,6 +368,8 @@ export function exportPackCsv(pack, section) {
       return rowsToCsv('customerId,customerName,promiseDate,promiseAmount,promiseNote', pack.waadas, (r) => [r.customerId, r.customerName, r.promiseDate, r.promiseAmount, r.promiseNote]);
     case 'expenses':
       return rowsToCsv('expenseId,customerId,date,amount,category,notes', pack.expenses, (r) => [r.expenseId, r.customerId, r.date, r.amount, r.category, r.notes]);
+    case 'snapshots':
+      return rowsToCsv('month,closeDate,customerId,customerName,mohalla,closingBalance', pack.snapshots ?? [], (r) => [r.month, r.closeDate, r.customerId, r.customerName, r.mohalla, r.closingBalance]);
     case 'manifest':
       return rowsToCsv('key,value', [
         ['exportDate', pack.exportDate ?? ''],

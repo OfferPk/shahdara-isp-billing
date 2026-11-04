@@ -335,6 +335,7 @@ import { normalizeDepositSlipList, addDepositSlip, findDepositSlip, depositSlips
 import { normalizeReceiptReprintList, addReceiptReprint, reprintsForReceipt, originalReceiptView, reprintCopy, receiptReprintSummaryText, receiptReprintHtml, originalReceiptHtml, receiptReprintCsv, receiptReprintFilename } from './receipt-reprints.js';
 import { normalizeReceiptSeriesList, addReceiptSeries, findReceiptSeries, seriesForCollector, seriesForNumber, returnReceiptSeries, normalizeReissueList, reissueUnusedNumber, returnedSeriesBreakdown, receiptSeriesSummaryText, receiptSeriesHtml, reissueHtml, receiptSeriesCsv, reissueCsv, receiptSeriesFilename, reissueFilename } from './receipt-series.js';
 import { normalizeClearanceList, recordClearance, markCleared, markBounced, pendingClearances, clearedClearances, billClearanceStatus, billSettledByClearance, clearanceSummaryText, clearanceHtml, clearanceCsv, clearanceFilename } from './payment-clearance.js';
+import { normalizeBankCreditList, recordBankCredit, matchBankCredit, explainBankCredit, unmatchedBankCredits, matchedBankCredits, bankCreditSummaryText, bankCreditHtml, bankCreditCsv, bankCreditFilename } from './bank-credits.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13853,6 +13854,7 @@ function renderAnalytics() {
   renderReceiptReprints();
   renderReceiptSeries();
   renderPaymentClearance();
+  renderBankCredits();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21379,6 +21381,72 @@ function renderPaymentClearance() {
     });
     $('#clearanceExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(clearanceFilename(), clearanceCsv(loadPaymentClearance()));
+    });
+  }
+}
+const BANK_CREDIT_KEY = 'shahdara_bank_credits_v1';
+function loadBankCredits() {
+  try {
+    const raw = localStorage.getItem(BANK_CREDIT_KEY);
+    if (!raw) return [];
+    return normalizeBankCreditList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveBankCredits(list) {
+  try { localStorage.setItem(BANK_CREDIT_KEY, JSON.stringify(normalizeBankCreditList(list))); } catch { /* record only: a failed save leaves the previous bank credits in place */ }
+}
+let bankCreditsBound = false;
+function renderBankCredits() {
+  const bodyEl = $('#bankCreditBody');
+  if (!bodyEl) return;
+  const all = loadBankCredits();
+  bodyEl.innerHTML = all.map((item) => bankCreditHtml(item)).join('') || '<p>No bank credit recorded yet.</p>';
+  const summaryEl = $('#bankCreditSummary');
+  if (summaryEl) summaryEl.textContent = bankCreditSummaryText(all);
+  const queueEl = $('#bankCreditQueueBody');
+  if (queueEl) {
+    const queue = unmatchedBankCredits(all);
+    queueEl.innerHTML = queue.map((item) => bankCreditHtml(item)).join('') || '<p>Nothing waiting. Every bank credit is matched or explained.</p>';
+  }
+  if (!bankCreditsBound) {
+    bankCreditsBound = true;
+    $('#bankCreditSaveBtn')?.addEventListener('click', () => {
+      const before = loadBankCredits();
+      const candidates = ($('#bankCreditCandidates')?.value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      const next = recordBankCredit(before, {
+        id: `BC-${Date.now()}`,
+        date: $('#bankCreditDate')?.value ?? '',
+        amount: Number($('#bankCreditAmount')?.value ?? ''),
+        reference: $('#bankCreditReference')?.value ?? '',
+        candidates,
+      });
+      if (next.length === before.length) { toast('Bank credit not recorded: pick a real date, a positive amount, and check the reference as received.'); return; }
+      saveBankCredits(next);
+      toast('Bank credit queued as still unmatched. It settles nothing until it is matched.');
+      renderBankCredits();
+    });
+    $('#bankCreditMatchBtn')?.addEventListener('click', () => {
+      const before = loadBankCredits();
+      const creditId = ($('#bankCreditMatchId')?.value ?? '').trim();
+      const next = matchBankCredit(before, creditId, $('#bankCreditMatchPayment')?.value ?? '', $('#bankCreditMatchCustomer')?.value ?? '', $('#bankCreditMatchDate')?.value ?? '');
+      const target = next.find((item) => item.id === creditId);
+      if (!target || target.status !== 'matched') { toast('Not matched: pick a credit still unmatched, a payment id, a customer, and a real match date. One payment matches only one credit.'); return; }
+      saveBankCredits(next);
+      toast('Bank credit matched to one customer payment. No bill or total changed here — record the payment through the existing path.');
+      renderBankCredits();
+    });
+    $('#bankCreditExplainBtn')?.addEventListener('click', () => {
+      const before = loadBankCredits();
+      const creditId = ($('#bankCreditExplainId')?.value ?? '').trim();
+      const next = explainBankCredit(before, creditId, $('#bankCreditExplainText')?.value ?? '', $('#bankCreditExplainDate')?.value ?? '');
+      const target = next.find((item) => item.id === creditId);
+      if (!target || target.status !== 'explained') { toast('Not explained: pick a credit still unmatched, a reason, and a real date.'); return; }
+      saveBankCredits(next);
+      toast('Bank credit explained. It stays in history and leaves the queue.');
+      renderBankCredits();
+    });
+    $('#bankCreditExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(bankCreditFilename(), bankCreditCsv(loadBankCredits()));
     });
   }
 }

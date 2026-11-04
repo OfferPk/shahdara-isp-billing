@@ -129,7 +129,12 @@ button.app-confirm-btn:not([hidden]) { min-height: 48px !important; padding: 0 1
 [data-theme="dark"] .app-confirm .warning-button { background: #f2b23a !important; border-color: #f2b23a !important; color: #241500 !important; }
 
 /* ---------- Customer profile actions: Edit / Archive / Delete / Save ---------- */
-#editProfileButton.profile-edit-button:not([hidden]) { min-height: 48px !important; min-width: 48px; padding: 0 16px !important; font-size: 14px !important; border-radius: 12px !important; display: inline-flex; align-items: center; gap: 6px; }
+#editProfileButton.profile-edit-button:not([hidden]) { min-height: 48px !important; min-width: 48px; padding: 0 16px !important; font-size: 14px !important; font-weight: 700; border: 1px solid var(--green, #0e5b4d); border-radius: 12px !important; background: var(--green, #0e5b4d); color: #fff; box-shadow: 0 4px 12px rgba(14, 91, 77, 0.28); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+#editProfileButton.profile-edit-button:hover { background: var(--green-dark, #094338); border-color: var(--green-dark, #094338); }
+#editProfileButton.profile-edit-button:active { transform: translateY(1px); box-shadow: 0 2px 6px rgba(14, 91, 77, 0.28); }
+/* Profile header action row: keep each label on one line so QR / Speak Due
+   never break mid-label on narrow phones; the row itself wraps instead. */
+.profile-view-actions .secondary-button { white-space: nowrap; }
 .profile-edit-button::before { content: '✎'; font-size: 16px; }
 button.profile-action-btn:not([hidden]) { min-height: 48px !important; padding: 0 10px !important; white-space: nowrap; border-radius: 12px !important; font-size: 14px !important; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .profile-delete-btn { border: 1px solid #e3b4ae !important; background: #fff6f5 !important; color: #b3261e !important; text-decoration: none !important; }

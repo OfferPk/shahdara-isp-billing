@@ -276,6 +276,7 @@ import { EXIT_REASONS, EXIT_REASON_LABELS, normalizeExitRecord, normalizeExitRec
 import { SAVE_OFFERS, SAVE_OFFER_LABELS, SAVE_OUTCOMES, SAVE_OUTCOME_LABELS, SAVE_EXIT_REASONS, SAVE_EXIT_REASON_LABELS, normalizeSaveConversation, normalizeSaveConversationList, upsertSaveConversation, removeSaveConversation, filterSaveConversations, sortedSaveConversations, buildSaveSummary, saveSummaryText, saveHtml, saveCsv, saveFilename } from './save-conversations.js';
 import { buildMonthlyChurnSummary, churnSummaryText, churnHtml, churnCsv, churnFilename } from './churn-summary.js';
 import { DISPUTE_REASONS, DISPUTE_REASON_LABELS, DISPUTE_STATUSES, DISPUTE_STATUS_LABELS, normalizeDisputeCase, normalizeDisputeCaseList, upsertDisputeCase, removeDisputeCase, setDisputeStatus, openDisputeCases, buildDisputeSummary, disputeSummaryText, disputeHtml, disputeCsv, disputeFilename } from './dispute-cases.js';
+import { splitBillBalance, splitBillList, adjustLadderBills, disputeTotalsForCustomer, buildDisputedReminderDraft, DISPUTED_REMINDER_VARIANTS, disputedBalanceSummaryText, disputedBalanceHtml, disputedBalanceCsv, disputedBalanceFilename } from './disputed-balance.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -2680,10 +2681,23 @@ function profileReceiptSummaryMarkup(customer) {
   // shared figures helper, with the Bill + Additional breakdown as its
   // sub-line. With no baqaya it stays exactly the behaviour figure.
   const outstandingFigures = totalOutstandingFigures(customer, allocations);
+  // Plan 62: profile split — if this customer has a bill with an
+  // open dispute, the profile shows total, disputed, and undisputed
+  // separately next to the outstanding stat. Presentation only;
+  // the underlying bills, payments, and Waada records are untouched.
+  const profileDisputedBills = (customer.bills ?? []).map((bill) => {
+    const billSummary = allocations.forMonth(customer.id, bill.month);
+    const billBalance = billSummary && billSummary.balanceDueCents > 0 ? billSummary.balanceDueCents / 100 : 0;
+    return { customerId: customer.id, customerName: customer.name || customer.customerName || customer.id, billId: bill.id, billMonth: bill.month, total: billBalance };
+  });
+  const profileDisputed = splitBillList(profileDisputedBills, openDisputeCases(loadDisputeCases()));
+  const profileDisputedStat = profileDisputed.rows.length > 0
+    ? `<article class="profile-summary-stat"><span>Disputed balance</span><strong>${escapeHtml(formatAmount(profileDisputed.summary.undisputed))} undisputed still due</strong><small>${escapeHtml(`Of Rs. ${profileDisputed.summary.total} on disputed bills, Rs. ${profileDisputed.summary.disputed} is under an open dispute — only the undisputed part is chased.`)}</small></article>`
+    : '';
   const profileOutstandingStat = outstandingFigures.manualBaqayaCents > 0
     ? `<article class="profile-summary-stat"><span>${t('prof_receipts_outstanding')}</span><strong>${escapeHtml(formatAmount(outstandingFigures.total))}</strong><small>${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(outstandingFigures.billDues), additional: formatPKR(outstandingFigures.manualBaqaya) }))}</small></article>`
     : `<article class="profile-summary-stat"><span>${t('prof_receipts_outstanding')}</span><strong>${escapeHtml(formatAmount(behavior?.totalOutstanding ?? 0))}</strong><small>${t('prof_stat_credit_tracked')}</small></article>`;
-  const behaviorCards = behavior ? `${profileOutstandingStat}<article class="profile-summary-stat"><span>${t('prof_receipts_credit')}</span><strong>${pendingCreditCents ? escapeHtml(formatAmount(pendingCreditCents / 100)) : t('prof_none_recorded')}</strong><small>${t('prof_stat_prepaid')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_avg')}</span><strong>${behavior.averageMonthlyPayment===null?t('prof_stat_not_calc'):escapeHtml(formatAmount(behavior.averageMonthlyPayment))}</strong><small>${escapeHtml(profileAvgPaymentBasis(customer))}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_delay')}</span><strong>${behavior.averagePaymentDelayDays===null?t('prof_not_recorded'):t('prof_stat_delay_days', null, { days: behavior.averagePaymentDelayDays })}</strong><small>${t('prof_stat_delay_pairs', null, { count: behavior.delaySampleCount })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_range')}</span><strong>${behavior.highestPayment===null?t('prof_not_recorded'):`${escapeHtml(formatAmount(behavior.lowestPayment))}–${escapeHtml(formatAmount(behavior.highestPayment))}`}</strong><small>${t('prof_stat_range_sub')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_late')}</span><strong>${behavior.latePaymentCount} / ${behavior.partialPaymentCount}</strong><small>${t('prof_stat_late_sub', null, { count: behavior.totalPayments })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_consistency')}</span><strong>${behavior.paymentConsistency===null?t('prof_health_cat_insufficient'):`${behavior.paymentConsistency}%`}</strong><small>${t('prof_stat_consistency_sub', null, { settled: behavior.consistencySettledMonths, bill: behavior.consistencyBillMonths })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_last')}</span><strong>${lastPayment?escapeHtml(formatAmount(lastPayment.amount)):t('prof_not_recorded')}</strong><small>${lastPayment?escapeHtml(t('prof_stat_last_receipt', null, { date: humanDate(lastPayment.date) })): t('prof_stat_last_none')}</small></article>` : '';
+  const behaviorCards = behavior ? `${profileOutstandingStat}${profileDisputedStat}<article class="profile-summary-stat"><span>${t('prof_receipts_credit')}</span><strong>${pendingCreditCents ? escapeHtml(formatAmount(pendingCreditCents / 100)) : t('prof_none_recorded')}</strong><small>${t('prof_stat_prepaid')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_avg')}</span><strong>${behavior.averageMonthlyPayment===null?t('prof_stat_not_calc'):escapeHtml(formatAmount(behavior.averageMonthlyPayment))}</strong><small>${escapeHtml(profileAvgPaymentBasis(customer))}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_delay')}</span><strong>${behavior.averagePaymentDelayDays===null?t('prof_not_recorded'):t('prof_stat_delay_days', null, { days: behavior.averagePaymentDelayDays })}</strong><small>${t('prof_stat_delay_pairs', null, { count: behavior.delaySampleCount })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_range')}</span><strong>${behavior.highestPayment===null?t('prof_not_recorded'):`${escapeHtml(formatAmount(behavior.lowestPayment))}–${escapeHtml(formatAmount(behavior.highestPayment))}`}</strong><small>${t('prof_stat_range_sub')}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_late')}</span><strong>${behavior.latePaymentCount} / ${behavior.partialPaymentCount}</strong><small>${t('prof_stat_late_sub', null, { count: behavior.totalPayments })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_consistency')}</span><strong>${behavior.paymentConsistency===null?t('prof_health_cat_insufficient'):`${behavior.paymentConsistency}%`}</strong><small>${t('prof_stat_consistency_sub', null, { settled: behavior.consistencySettledMonths, bill: behavior.consistencyBillMonths })}</small></article><article class="profile-summary-stat"><span>${t('prof_receipts_last')}</span><strong>${lastPayment?escapeHtml(formatAmount(lastPayment.amount)):t('prof_not_recorded')}</strong><small>${lastPayment?escapeHtml(t('prof_stat_last_receipt', null, { date: humanDate(lastPayment.date) })): t('prof_stat_last_none')}</small></article>` : '';
   return `<section class="customer-receipt-summary" aria-label="${t('prof_receipts_aria')}"><div class="profile-summary-heading"><h3>${t('prof_receipts_heading')}</h3><button type="button" class="secondary-button profile-summary-edit-btn" data-edit-customer="${escapeHtml(customer.id)}">✏️ ${t('prof_receipts_edit')}</button></div><div class="profile-summary-grid"><article class="profile-summary-stat profile-summary-receipts"><span>${t('prof_receipts_total')}</span><strong>${receipts.receiptCount ? escapeHtml(formatAmount(receipts.total)) : t('prof_receipts_none')}</strong><small>${receipts.receiptCount ? (receipts.receiptCount === 1 ? t('prof_stat_total_small_1', null, { count: receipts.receiptCount }) : t('prof_stat_total_small_n', null, { count: receipts.receiptCount })) : t('prof_stat_receipts_none_note')}</small></article><article class="profile-summary-stat profile-summary-tenure"><span>${t('prof_receipts_tenure')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></article>${profileAgeMarkup(customer)}${behaviorCards}</div><section class="customer-health-summary" aria-label="${t('prof_health_aria')}"><strong>${escapeHtml(scoreText)}</strong><details><summary>${t('prof_health_basis')}</summary><ul>${scoreReasons || `<li>${t('prof_health_none')}</li>`}</ul></details></section><div class="receipt-month-history"><div class="receipt-month-heading"><strong>${t('prof_receipts_by_month')}</strong><span>${t('prof_receipts_by_month_sub')}</span></div>${receiptRows ? `<ul class="receipt-month-list" aria-label="${t('prof_receipts_by_month_aria')}">${receiptRows}</ul>` : `<p class="receipt-month-empty">${t('prof_receipts_by_month_empty')}</p>`}</div></section>`;
 }
 function customerCardMarkup(customer, archived = false, allocations = calculatePaymentAllocations(state)) {
@@ -10751,6 +10765,7 @@ function renderPreDueReminders() {
         customerId: customer.id,
         customerName: customer.name || customer.customerName || '—',
         mohalla: customer.mohalla || customer.area || '',
+        billId: bill.id,
         billMonth: bill.month,
         dueDate: typeof bill.dueDate === 'string' ? bill.dueDate : null,
         balanceDue: Math.round(balanceDue),
@@ -10846,6 +10861,7 @@ function renderEscalationLadder() {
         customerId: customer.id,
         customerName: customer.name || customer.customerName || '—',
         mohalla: customer.mohalla || customer.area || '',
+        billId: bill.id,
         billMonth: bill.month,
         dueDate: typeof bill.dueDate === 'string' ? bill.dueDate : null,
         balanceDue: Math.round(balanceDue),
@@ -10856,13 +10872,37 @@ function renderEscalationLadder() {
   // passes. Paused bills are not on the ladder at all; bills past
   // their extended date return with the extended date as due date.
   const extensionResult = applyExtensionsToBills(bills, loadBillExtensions(), today);
-  const ladder = buildEscalationLadder({ today, thresholds, bills: extensionResult.bills });
+  // Plan 62: the ladder chases only the undisputed portion while a
+  // Plan 61 case is open. The split runs on the post-extension
+  // list, so the Plan 38 pause rule is untouched, and it changes
+  // only the balance figure — never a due date, a bill, a payment,
+  // or a Waada record. A fully disputed bill drops to 0 and the
+  // ladder already excludes zero-balance bills.
+  const openCases = openDisputeCases(loadDisputeCases());
+  const disputeTotalsByCustomer = new Map();
+  for (const bill of extensionResult.bills) {
+    if (!disputeTotalsByCustomer.has(bill.customerId)) {
+      const totals = disputeTotalsForCustomer(extensionResult.bills, openCases, bill.customerId);
+      if (totals) disputeTotalsByCustomer.set(bill.customerId, totals);
+    }
+  }
+  const ladderAdjustment = adjustLadderBills(extensionResult.bills, openCases);
+  const ladder = buildEscalationLadder({ today, thresholds, bills: ladderAdjustment.bills });
+  if (ladder.valid) {
+    for (const row of ladder.rows) {
+      const totals = disputeTotalsByCustomer.get(row.customerId);
+      if (totals && totals.disputedCents > 0) {
+        row.disputeNote = `Dispute open: Rs. ${totals.disputed} of this customer's bills is disputed — this ladder chases only the undisputed Rs. ${totals.undisputed}.`;
+      }
+    }
+  }
   const sentLog = loadEscalationSentLog();
-  lastEscalationLadder = ladder.valid ? { ladder, sentLog } : null;
+  lastEscalationLadder = ladder.valid ? { ladder, sentLog, disputes: disputeTotalsByCustomer } : null;
   bodyEl.innerHTML = ladder.valid ? escalationHtml(ladder, sentLog) : '<p class="empty-state">Overdue escalation ladder unavailable — the ladder needs a valid today date.</p>';
   const summaryEl = $('#escalationLadderSummary');
   if (summaryEl) summaryEl.textContent = escalationSummaryText(ladder)
-    + (extensionResult.counts.paused > 0 ? ` ${extensionResult.counts.paused} bill${extensionResult.counts.paused === 1 ? '' : 's'} paused by a bill extension until the extended date passes.` : '');
+    + (extensionResult.counts.paused > 0 ? ` ${extensionResult.counts.paused} bill${extensionResult.counts.paused === 1 ? '' : 's'} paused by a bill extension until the extended date passes.` : '')
+    + (ladderAdjustment.adjustedCount > 0 ? ` ${ladderAdjustment.adjustedCount} bill${ladderAdjustment.adjustedCount === 1 ? '' : 's'} chase only their undisputed portion while a dispute is open (Rs. ${ladderAdjustment.totalDisputedCents / 100} disputed held aside).` : '');
   const gentleInput = $('#escalationLadderGentleDays');
   if (gentleInput) gentleInput.value = ladder.thresholds.gentleDays;
   const firmInput = $('#escalationLadderFirmDays');
@@ -10885,7 +10925,16 @@ function renderEscalationLadder() {
       }
       const draftVariant = pref && pref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? ESCALATION_DRAFT_VARIANTS.URDU : ESCALATION_DRAFT_VARIANTS.ROMAN;
       const channelVariant = draftVariant === ESCALATION_DRAFT_VARIANTS.URDU ? PAYMENT_CHANNEL_VARIANTS.URDU : PAYMENT_CHANNEL_VARIANTS.ROMAN;
-      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(buildEscalationDraft(row, draftVariant).text, findPaymentChannel(loadPaymentChannels(), row.customerId), channelVariant));
+      // Plan 62: while a dispute is open, the sent draft chases only
+      // the undisputed portion and says a dispute is open; otherwise
+      // it is the ordinary ladder draft. The disputed amount is
+      // never asked for, and no record changes.
+      const disputeTotals = lastEscalationLadder?.disputes?.get(row.customerId);
+      const disputedDraft = disputeTotals ? buildDisputedReminderDraft({
+        customerName: row.customerName, step: row.step, dueDate: row.dueDate, daysOverdue: row.daysOverdue, split: disputeTotals,
+      }, draftVariant === ESCALATION_DRAFT_VARIANTS.URDU ? DISPUTED_REMINDER_VARIANTS.URDU : DISPUTED_REMINDER_VARIANTS.ROMAN) : null;
+      const draftText = disputedDraft ? disputedDraft.text : buildEscalationDraft(row, draftVariant).text;
+      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(draftText, findPaymentChannel(loadPaymentChannels(), row.customerId), channelVariant));
       if (!wa.validPhone || !wa.url) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'No WhatsApp number';
@@ -13181,6 +13230,7 @@ function renderAnalytics() {
   renderWinbackQueue();
   renderChurnSummary();
   renderDisputeCases();
+  renderDisputedBalances();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -14752,6 +14802,48 @@ function renderDisputeCases() {
     });
     $('#disputeExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(disputeFilename(), disputeCsv(loadDisputeCases()));
+    });
+  }
+}
+// Plan 62: disputed amount shown separately, undisputed balance
+// still due. The bill view lists every bill with an open dispute
+// as total, disputed, and undisputed separately; closing a case
+// drops the bill from this list, restoring the ordinary
+// full-balance view. Presentation only — no bill, payment, or
+// Waada record is ever changed here.
+let disputedBalancesBound = false;
+let lastDisputedBalances = null;
+function renderDisputedBalances() {
+  const bodyEl = $('#disputedBalanceBody');
+  if (!bodyEl) return;
+  const allocations = calculatePaymentAllocations(state);
+  const bills = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      const summary = allocations.forMonth(customer.id, bill.month);
+      const balanceDue = summary && summary.balanceDueCents > 0 ? summary.balanceDueCents / 100 : 0;
+      if (!(balanceDue > 0)) continue;
+      bills.push({
+        customerId: customer.id,
+        customerName: customer.name || customer.customerName || '—',
+        mohalla: customer.mohalla || customer.area || '',
+        billId: bill.id,
+        billMonth: bill.month,
+        total: Math.round(balanceDue),
+      });
+    }
+  }
+  const result = splitBillList(bills, openDisputeCases(loadDisputeCases()));
+  lastDisputedBalances = result;
+  bodyEl.innerHTML = disputedBalanceHtml(result);
+  const summaryEl = $('#disputedBalanceSummary');
+  if (summaryEl) summaryEl.textContent = disputedBalanceSummaryText(result);
+  if (!disputedBalancesBound) {
+    disputedBalancesBound = true;
+    $('#disputedBalanceExportBtn')?.addEventListener('click', () => {
+      if (!lastDisputedBalances) return;
+      downloadCsvFile(disputedBalanceFilename(), disputedBalanceCsv(lastDisputedBalances));
     });
   }
 }

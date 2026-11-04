@@ -54,6 +54,11 @@ export const AUDIT_ACTIONS = Object.freeze([
   // every emergency-contact edit to be logged here, recorded by
   // the emergency-card wiring. No other Plan 31 behaviour changes.
   { value: 'emergency_contact_edited', label: 'Emergency contact edited' },
+  // Plan 67 adds the tenth action: Plan 67 acceptance requires
+  // a closed month to be reopened only by an owner-recorded
+  // reason in this log, recorded by the month-close wiring.
+  // No other Plan 31 behaviour changes.
+  { value: 'month_close_reopened', label: 'Month close reopened' },
 ]);
 
 const ACTION_LABELS = new Map(AUDIT_ACTIONS.map((a) => [a.value, a.label]));

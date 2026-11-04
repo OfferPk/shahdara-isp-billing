@@ -24,6 +24,7 @@ import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, u
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
+import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry } from './profile-field-save.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
 import { captureCurrentPosition, loadSplitterBoxPins, saveSplitterBoxPins, SPLITTER_BOX_GPS_STORAGE_KEY } from './gps-pin-helper.js';
@@ -8844,6 +8845,126 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     }
   } catch (error) { toast(error.message); }
 });
+// Profile polish: one inline Save button per editable profile field.
+// Each button saves ONLY its own field through updateCustomerProfile —
+// the same validation and persistence as the full "Save profile" — and
+// deliberately does NOT re-render the form, so half-typed edits in other
+// fields are never wiped by saving this one. The header name and the
+// customer list refresh; the full save still owns the extras a single
+// field cannot do (pro-rata voucher on a mid-cycle package change,
+// contributor rows, kept package-change preview notes).
+function profileFieldMainLabel(labelEl) {
+  const main = labelEl.querySelector('.field-label > span');
+  const text = (main?.textContent || labelEl.querySelector('.field-label')?.textContent || '').trim();
+  return text;
+}
+async function saveProfileField(control, button, labelText) {
+  const customer = selectedCustomer();
+  if (!customer) return;
+  const entry = profileFieldSaveEntry(control.id, control);
+  if (!entry) return;
+  const fieldLabel = labelText || 'Field';
+  try {
+    if (entry.key === 'phone' && typeof entry.value === 'string' && entry.value.trim()) {
+      const phoneVal = entry.value.trim();
+      const checkPhone = validatePakistanPhone(phoneVal);
+      if (!checkPhone.valid && !checkPhone.tip) { toast(checkPhone.message || 'Invalid Pakistani phone number.'); control.focus(); return; }
+      const matches = findPossibleDuplicateCustomers(state.customers, { customerId: customer.id, phone: phoneVal, cnic: '' });
+      const exactDuplicates = matches.filter(m => m.reasons.some(r => r.field === 'phone' && r.type === 'exact'));
+      if (exactDuplicates.length > 0) {
+        const confirmed = await appConfirm({ tone: 'warning', title: 'Possible duplicate customer', subject: `#${exactDuplicates[0].customer.customerNumber} ${exactDuplicates[0].customer.name}`, message: 'This phone number matches that existing customer. Save anyway?', confirmLabel: 'Save anyway' });
+        if (!confirmed) return;
+      }
+      const phoneConflicts = findPhoneConflicts(state.customers, phoneVal, { excludeCustomerId: customer.id, previous: customer })
+        .filter(conflict => !exactDuplicates.some(dup => dup.customer.id === conflict.customerId));
+      if (phoneConflicts.length) {
+        const confirmed = await appConfirm({ tone: 'warning', title: 'Possible duplicate phone number', subject: `#${phoneConflicts[0].customerNumber} ${phoneConflicts[0].customerName}`, message: 'This phone number matches that existing customer after normalising the country code. Save anyway?', confirmLabel: 'Save anyway' });
+        if (!confirmed) return;
+      }
+      entry.value = phoneVal;
+    }
+    if (entry.key === 'cnic' && typeof entry.value === 'string' && entry.value.trim()) {
+      const cnicVal = entry.value.trim();
+      const checkCnic = validateCustomerCnic(cnicVal);
+      if (!checkCnic.valid) { toast(checkCnic.message || 'Invalid CNIC (13 digits required).'); control.focus(); return; }
+      const matches = findPossibleDuplicateCustomers(state.customers, { customerId: customer.id, phone: '', cnic: checkCnic.formatted });
+      const exactDuplicates = matches.filter(m => m.reasons.some(r => r.field === 'cnic' && r.type === 'exact'));
+      if (exactDuplicates.length > 0) {
+        const confirmed = await appConfirm({ tone: 'warning', title: 'Possible duplicate customer', subject: `#${exactDuplicates[0].customer.customerNumber} ${exactDuplicates[0].customer.name}`, message: 'This CNIC matches that existing customer. Save anyway?', confirmLabel: 'Save anyway' });
+        if (!confirmed) return;
+      }
+      entry.value = checkCnic.formatted;
+    }
+    if (entry.key === 'splitterBoxId' || entry.key === 'splitterPort') {
+      const currentOptical = normalizeOpticalFields(customer);
+      const box = entry.key === 'splitterBoxId' ? String(entry.value).trim() : ($('#splitterBoxIdInput')?.value.trim() || currentOptical.splitterBoxId || '');
+      const portRaw = entry.key === 'splitterPort' ? entry.value : ($('#splitterPortInput')?.value ?? '');
+      const port = Number(portRaw);
+      if (box && Number.isInteger(port)
+        && (box !== currentOptical.splitterBoxId || port !== currentOptical.splitterPort)
+        && isPortDead(box, port, loadDeadPorts())) {
+        toast(t('pswap_err_dead', null, { box, port }));
+        control.focus();
+        return;
+      }
+    }
+    if (['pppoeUsername', 'staticIp', 'macAddress', 'serialNumber'].includes(entry.key)) {
+      const identityWarnings = findIdentityConflicts(state.customers, {
+        pppoeUsername: entry.key === 'pppoeUsername' ? entry.value : (customer.pppoeUsername ?? ''),
+        staticIp: entry.key === 'staticIp' ? entry.value : (customer.staticIp ?? ''),
+        macAddress: entry.key === 'macAddress' ? entry.value : (customer.macAddress ?? ''),
+        serialNumber: entry.key === 'serialNumber' ? entry.value : (customer.serialNumber ?? '')
+      }, { excludeCustomerId: customer.id, previous: customer }).filter(conflict => conflict.severity === 'warn');
+      if (identityWarnings.length) {
+        const conflict = identityWarnings[0];
+        const confirmed = await appConfirm({ tone: 'warning', title: t('idguard_warn_title'), subject: `#${conflict.customerNumber} ${conflict.customerName}`, message: t('idguard_warn_message', null, { label: conflict.label, value: conflict.value }), confirmLabel: t('idguard_save_anyway'), cancelLabel: t('idguard_cancel') });
+        if (!confirmed) return;
+      }
+    }
+    button.disabled = true;
+    button.textContent = 'Saving…';
+    state = updateCustomerProfile(state, customer.id, { [entry.key]: entry.value });
+    save();
+    renderCustomers();
+    const saved = state.customers.find(c => c.id === customer.id);
+    if (saved && (entry.key === 'name' || entry.key === 'nameUrdu')) {
+      const detailNameEl = $('#detailName');
+      if (detailNameEl) detailNameEl.textContent = displayCustomerName(saved, currentAppLanguage());
+    }
+    toast(`${fieldLabel} saved.`);
+    button.textContent = 'Saved ✓';
+    setTimeout(() => { if (document.body.contains(button)) button.textContent = 'Save'; }, 1500);
+  } catch (error) {
+    toast(error.message);
+    button.textContent = 'Save';
+  } finally {
+    button.disabled = false;
+  }
+}
+function bindProfileFieldSaveButtons() {
+  const form = $('#customerProfileForm');
+  if (!form) return;
+  form.querySelectorAll('.profile-field').forEach((label) => {
+    const control = label.querySelector('input, select, textarea');
+    if (!control || !PROFILE_FIELD_SAVE_MAP[control.id]) return;
+    if (label.querySelector('.profile-field-save')) return;
+    const row = document.createElement('div');
+    row.className = 'profile-field-row';
+    const labelSpan = label.querySelector('.field-label');
+    if (labelSpan) labelSpan.insertAdjacentElement('afterend', row);
+    else label.prepend(row);
+    row.appendChild(control);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'secondary-button profile-field-save';
+    button.textContent = 'Save';
+    const fieldLabel = profileFieldMainLabel(label);
+    button.setAttribute('aria-label', `Save ${fieldLabel || 'field'}`);
+    button.addEventListener('click', () => saveProfileField(control, button, fieldLabel));
+    row.appendChild(button);
+  });
+}
+bindProfileFieldSaveButtons();
 $('#cancelProfileEditButton').addEventListener('click', () => { profileEditMode = false; renderDetail(); });
 
 // SISP-158: shared-router contributor editor wiring. The editor host is

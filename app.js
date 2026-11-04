@@ -304,6 +304,7 @@ import { buildHoldHistory, historyForCustomer, normalizeGuardSettings, guardSett
 import { normalizeDuplicateWarningSettings, findNearDuplicates, checkNewPayment, warningHtml, warningCsv, warningFilename, normalizeAckList, upsertAck, removeAck, ackHtml } from './duplicate-warning.js';
 import { UNUSUAL_FLAG_REASONS, UNUSUAL_FLAG_REASON_LABELS, normalizeUnusualFlagSettings, buildUnusualFlags, flagsFiltered, buildFlagSummary, flagSummaryText, normalizeClearedList, clearFlag, removeCleared, flagsHtml, clearedHtml, flagsCsv, flagsFilename } from './unusual-payment-flags.js';
 import { PATTERN_DIMENSIONS, PATTERN_DEFAULTS, normalizePatternEvents, groupPatternCounts, normalizePatternSettings, buildReviewItems, filterReviewItems, buildPatternSummary, patternSummaryText, normalizeReviewList, markReviewed, removeReviewed, reviewHtml, reviewedHtml, patternCsv, patternFilename } from './pattern-watch.js';
+import { formatCashCents, normalizeCashLimitSettings, buildCashInHandStatus, cashInHandSummaryText, cashInHandPromptHtml, cashInHandReceiptsHtml, cashInHandCsv, cashInHandFilename } from './cash-in-hand.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -9575,6 +9576,20 @@ export let fieldRouteSheetController = setupFieldRouteSheet({
       if (promisedEl) promisedEl.textContent = `Rs. ${Math.round(flow.promised.amount).toLocaleString()} (${flow.promised.stops})`;
       const stripEl = $('#fieldDayFlowStrip');
       if (stripEl) stripEl.innerHTML = fieldDayFlowStripHtml(flow);
+      // Plan 90: plain handover prompt in Field Mode when the
+      // operator-set cash-in-hand limit is reached. Advisory only —
+      // it never blocks a payment or changes a total, and it clears
+      // once a handover is recorded for the day.
+      try {
+        const cashStatus = buildCashInHandStatus({
+          receipts: (handover.receipts || []).map((r) => ({ date: routeData?.date || undefined, amount: r.amount, isCash: true, collectorName: r.collectorName || r.shopName || r.paidBy || '', customerName: r.customerName || r.paidBy || '' })),
+          settings: loadCashInHandSettings(),
+          handoverRecorded: recorded,
+          date: routeData?.date || undefined,
+        });
+        const cashPrompt = cashInHandPromptHtml(cashStatus);
+        if (stripEl && cashPrompt) stripEl.innerHTML += cashPrompt;
+      } catch {}
     } catch {
       // Strip is presentation only; the route list already rendered.
     }
@@ -13534,6 +13549,7 @@ function renderAnalytics() {
   renderDuplicateWarning();
   renderUnusualPaymentFlags();
   renderPatternWatch();
+  renderCashInHand();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -18075,6 +18091,54 @@ function renderPatternWatch() {
       if (!restoreBtn?.dataset.patternKey) return;
       savePatternWatchReviewed(removeReviewed(loadPatternWatchReviewed(), restoreBtn.dataset.patternKey));
       renderPatternWatch();
+    });
+  }
+}
+const CASH_IN_HAND_SETTINGS_KEY = 'shahdara_cash_in_hand_settings_v1';
+function loadCashInHandSettings() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CASH_IN_HAND_SETTINGS_KEY) || '{}');
+    return normalizeCashLimitSettings(parsed && typeof parsed === 'object' ? parsed : {});
+  } catch { return normalizeCashLimitSettings({}); }
+}
+function saveCashInHandSettings(settings) {
+  try { localStorage.setItem(CASH_IN_HAND_SETTINGS_KEY, JSON.stringify(normalizeCashLimitSettings(settings))); } catch {}
+}
+function cashInHandSource() {
+  const today = getWaadaTodayString();
+  let expected = null;
+  try { expected = calculateCollectorCashExpected(state, today, 'all'); } catch { expected = null; }
+  const receipts = (expected?.receipts || []).map((r) => ({ date: today, amount: r.amount, isCash: true, collectorName: r.collectorName || r.shopName || r.paidBy || '', customerName: r.customerName || r.paidBy || '' }));
+  let recorded = false;
+  try { recorded = getDailyCashHandovers(typeof localStorage !== 'undefined' ? localStorage : null, today).length > 0; } catch {}
+  return { receipts, recorded, date: today };
+}
+let cashInHandBound = false;
+function renderCashInHand() {
+  const summaryEl = $('#cashInHandSummary');
+  if (!summaryEl) return;
+  const { receipts, recorded, date } = cashInHandSource();
+  const settings = loadCashInHandSettings();
+  const status = buildCashInHandStatus({ receipts, settings, handoverRecorded: recorded, date });
+  summaryEl.textContent = cashInHandSummaryText(status);
+  const promptEl = $('#cashInHandPromptBody');
+  if (promptEl) promptEl.innerHTML = cashInHandPromptHtml(status);
+  const receiptsEl = $('#cashInHandReceiptsBody');
+  if (receiptsEl) receiptsEl.innerHTML = cashInHandReceiptsHtml(status.receipts);
+  const limitEl = $('#cashInHandLimitRs');
+  if (limitEl && document.activeElement !== limitEl) limitEl.value = settings.limitCents === null ? '' : String(settings.limitCents / 100);
+  if (!cashInHandBound) {
+    cashInHandBound = true;
+    $('#cashInHandSaveBtn')?.addEventListener('click', () => {
+      const raw = ($('#cashInHandLimitRs')?.value ?? '').trim();
+      saveCashInHandSettings(raw === '' ? {} : { limitCents: Math.round(Number(raw) * 100) });
+      toast('Cash-in-hand limit saved. The prompt advises only; it never blocks a payment.');
+      renderCashInHand();
+    });
+    $('#cashInHandExportBtn')?.addEventListener('click', () => {
+      const source = cashInHandSource();
+      const current = buildCashInHandStatus({ receipts: source.receipts, settings: loadCashInHandSettings(), handoverRecorded: source.recorded, date: source.date });
+      downloadCsvFile(cashInHandFilename(), cashInHandCsv(current.receipts));
     });
   }
 }

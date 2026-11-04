@@ -358,6 +358,7 @@ import { normalizeEquipmentCycleList, upsertEquipmentCycleRecord, removeEquipmen
 import { normalizeJobChecklistTemplateList, jobChecklistTemplatesWithDefaults, upsertJobChecklistTemplate, removeJobChecklistTemplate, normalizeJobChecklistVisitList, upsertJobChecklistVisit, removeJobChecklistVisit, tickJobChecklistVisit, untickJobChecklistVisit, jobChecklistSummaryText, jobChecklistHtml, jobChecklistIncompleteHtml, jobChecklistTemplatesHtml, jobChecklistCsv, jobChecklistFilename } from './job-checklist.js';
 import { normalizeSpliceRepairList, upsertSpliceRepairRecord, removeSpliceRepairRecord, spliceRepairSummaryText, spliceRepairHtml, spliceRepairCsv, spliceRepairFilename } from './splice-repair.js';
 import { normalizePoleInspectionList, parsePoleInspectionItems, upsertPoleInspectionRound, removePoleInspectionRound, markPoleInspectionItemFixed, poleInspectionSummaryText, poleInspectionRoundsHtml, poleInspectionActionHtml, poleInspectionCsv, poleInspectionFilename } from './pole-inspection.js';
+import { normalizeBatteryRuntimeList, upsertBatteryRuntimeRecord, removeBatteryRuntimeRecord, batteryRuntimeSummaryText, batteryRuntimeHtml, batteryRuntimeCsv, batteryRuntimeFilename } from './battery-runtime.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13899,6 +13900,7 @@ function renderAnalytics() {
   renderJobChecklists();
   renderSpliceRepairs();
   renderPoleInspections();
+  renderBatteryRuntimes();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22762,6 +22764,49 @@ function renderPoleInspections() {
       downloadCsvFile(poleInspectionFilename(), poleInspectionCsv(loadPoleInspections()));
     });
     $('#poleFilterArea')?.addEventListener('input', () => { renderPoleInspections(); });
+  }
+}
+const BATTERY_RUNTIME_KEY = 'shahdara_battery_runtime_v1';
+function loadBatteryRuntimes() {
+  try { return normalizeBatteryRuntimeList(JSON.parse(localStorage.getItem(BATTERY_RUNTIME_KEY) || '[]')); } catch { return []; }
+}
+function saveBatteryRuntimes(list) {
+  try { localStorage.setItem(BATTERY_RUNTIME_KEY, JSON.stringify(normalizeBatteryRuntimeList(list))); } catch { /* records only: a failed save leaves the previous records in place */ }
+}
+let batteryRuntimeBound = false;
+function renderBatteryRuntimes() {
+  const bodyEl = $('#batteryBody');
+  if (!bodyEl) return;
+  const records = loadBatteryRuntimes();
+  bodyEl.innerHTML = batteryRuntimeHtml(records, $('#batteryFilter')?.value ?? '');
+  const summaryEl = $('#batterySummary');
+  if (summaryEl) summaryEl.textContent = batteryRuntimeSummaryText(records);
+  if (!batteryRuntimeBound) {
+    batteryRuntimeBound = true;
+    $('#batterySaveBtn')?.addEventListener('click', () => {
+      const before = loadBatteryRuntimes();
+      const next = upsertBatteryRuntimeRecord(before, {
+        id: `BAT-${Date.now()}`,
+        unit: $('#batteryUnit')?.value ?? '',
+        date: $('#batteryDate')?.value ?? '',
+        runtimeMinutes: $('#batteryRuntime')?.value ?? '',
+        note: $('#batteryNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Runtime record not recorded: give a unit, a real date, and a runtime above zero.'); return; }
+      saveBatteryRuntimes(next);
+      toast('Battery runtime recorded. A short runtime means replace after the test, not during an outage.');
+      renderBatteryRuntimes();
+    });
+    $('#batteryRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#batteryRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveBatteryRuntimes(removeBatteryRuntimeRecord(loadBatteryRuntimes(), id));
+      renderBatteryRuntimes();
+    });
+    $('#batteryExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(batteryRuntimeFilename(), batteryRuntimeCsv(loadBatteryRuntimes()));
+    });
+    $('#batteryFilter')?.addEventListener('input', () => { renderBatteryRuntimes(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

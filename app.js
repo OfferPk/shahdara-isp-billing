@@ -308,6 +308,7 @@ import { formatCashCents, normalizeCashLimitSettings, buildCashInHandStatus, cas
 import { receiptNumberFromReference, isReceiptDeliveryStatus, buildGapAudit, filterGaps, gapSummaryText, explainGap, removeExplanation, normalizeExplanations, gapAuditHtml, issuedReceiptsHtml, gapAuditCsv, gapAuditFilename } from './receipt-gap-audit.js';
 import { buildStatusBoard, filterBoardRows, boardSummaryText, boardHtml, boardCsv, boardFilename } from './status-board.js';
 import { normalizeOutageCreditList, upsertOutageCredit, removeOutageCredit, markCreditApplied, reopenCredit, filterOutageCredits, buildOutageCreditSummary, outageCreditSummaryText, outageCreditHtml, outageCreditCsv, outageCreditFilename } from './outage-credits.js';
+import { normalizePriceNoticeList, upsertPriceNotice, removePriceNotice, buildNoticeDrafts, buildNoticeText, priceNoticeSummaryText, priceNoticeHtml, priceNoticeDraftHtml, priceNoticeCsv, priceNoticeFilename, normalizePriceNoticeSendList, logPriceNoticeSent } from './price-notices.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13556,6 +13557,7 @@ function renderAnalytics() {
   renderReceiptGapAudit();
   renderStatusBoard();
   renderOutageCredits();
+  renderPriceNotices();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -18368,6 +18370,108 @@ function renderOutageCredits() {
       if (!recordId) { toast('Pick a record first.'); return; }
       saveOutageCredits(removeOutageCredit(loadOutageCredits(), recordId));
       renderOutageCredits();
+    });
+  }
+}
+const PRICE_NOTICES_KEY = 'shahdara_price_notices_v1';
+const PRICE_NOTICE_SENDS_KEY = 'shahdara_price_notice_sends_v1';
+function loadPriceNotices() {
+  try {
+    const raw = localStorage.getItem(PRICE_NOTICES_KEY);
+    if (!raw) return [];
+    return normalizePriceNoticeList(JSON.parse(raw));
+  } catch { return []; }
+}
+function savePriceNotices(list) {
+  try { localStorage.setItem(PRICE_NOTICES_KEY, JSON.stringify(normalizePriceNoticeList(list))); } catch { /* draft-only: a failed save leaves the previous notices in place */ }
+}
+function loadPriceNoticeSends() {
+  try {
+    const raw = localStorage.getItem(PRICE_NOTICE_SENDS_KEY);
+    if (!raw) return [];
+    return normalizePriceNoticeSendList(JSON.parse(raw));
+  } catch { return []; }
+}
+function savePriceNoticeSends(list) {
+  try { localStorage.setItem(PRICE_NOTICE_SENDS_KEY, JSON.stringify(normalizePriceNoticeSendList(list))); } catch { /* send log only: a failed save leaves the previous log in place */ }
+}
+let priceNoticesBound = false;
+function renderPriceNotices() {
+  const bodyEl = $('#priceNoticeBody');
+  if (!bodyEl) return;
+  const history = loadPriceHistory();
+  const baselines = BILL_PACKAGES.map((plan) => ({ packageKey: plan.id, amount: plan.price }));
+  const drafts = buildNoticeDrafts(history, baselines);
+  const notices = loadPriceNotices();
+  const draftEl = $('#priceNoticeDraftBody');
+  if (draftEl) draftEl.innerHTML = priceNoticeDraftHtml(drafts);
+  bodyEl.innerHTML = priceNoticeHtml(notices);
+  const summaryEl = $('#priceNoticeSummary');
+  if (summaryEl) summaryEl.textContent = `${priceNoticeSummaryText(notices)} · ${drafts.length} draft${drafts.length === 1 ? '' : 's'} offered from the recorded price history.`;
+  const textEl = $('#priceNoticeTextBody');
+  const pickedId = $('#priceNoticePick')?.value ?? '';
+  const picked = notices.find((item) => item.id === pickedId) || notices[0];
+  if (textEl) {
+    if (!picked) textEl.textContent = 'No notice picked yet — save one from a recorded price change first.';
+    else {
+      const variant = $('#priceNoticeVariant')?.value ?? 'roman';
+      textEl.textContent = buildNoticeText(picked, variant);
+    }
+  }
+  const pickEl = $('#priceNoticePick');
+  if (pickEl && document.activeElement !== pickEl) {
+    pickEl.innerHTML = notices.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.id)} — ${escapeHtml(item.packageLabel || item.packageKey)} (${escapeHtml(item.effectiveDate)})</option>`).join('')
+      || '<option value="">No notices yet</option>';
+    if (picked) pickEl.value = picked.id;
+  }
+  const revisionEl = $('#priceNoticeRevision');
+  if (revisionEl && document.activeElement !== revisionEl) {
+    revisionEl.innerHTML = drafts.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.packageLabel || item.packageKey)} — ${escapeHtml(item.effectiveDate)}</option>`).join('')
+      || '<option value="">No recorded price changes yet</option>';
+  }
+  const sendsEl = $('#priceNoticeSendsBody');
+  if (sendsEl) {
+    const sends = loadPriceNoticeSends();
+    sendsEl.innerHTML = sends.length === 0 ? '<p class="chart-caption">No sends logged yet.</p>'
+      : `<table class="data-table"><thead><tr><th>Notice</th><th>Date</th><th>Channel</th><th>Sent by</th></tr></thead><tbody>${sends.map((item) => `<tr><td>${escapeHtml(item.noticeId)}</td><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.channel)}</td><td>${escapeHtml(item.sentBy || '—')}</td></tr>`).join('')}</tbody></table>`;
+  }
+  if (!priceNoticesBound) {
+    priceNoticesBound = true;
+    $('#priceNoticePick')?.addEventListener('change', () => renderPriceNotices());
+    $('#priceNoticeVariant')?.addEventListener('change', () => renderPriceNotices());
+    $('#priceNoticeExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(priceNoticeFilename(localDate()), priceNoticeCsv(loadPriceNotices()));
+    });
+    $('#priceNoticeSaveBtn')?.addEventListener('click', () => {
+      const draftId = $('#priceNoticeRevision')?.value ?? '';
+      const draft = drafts.find((item) => item.id === draftId);
+      if (!draft) { toast('Pick a recorded price change first.'); return; }
+      const reason = ($('#priceNoticeReason')?.value ?? '').trim();
+      if (!reason) { toast('Write the one-line reason first — a notice without its reason is not saved.'); return; }
+      const id = `PN-${Date.now()}`;
+      const next = upsertPriceNotice(loadPriceNotices(), {
+        id, packageKey: draft.packageKey, packageLabel: draft.packageLabel,
+        oldCents: draft.oldCents, newCents: draft.newCents, effectiveDate: draft.effectiveDate, reason,
+      });
+      if (!next.some((item) => item.id === id)) { toast('That notice is half-formed and was not saved — the old price may be unrecorded.'); return; }
+      savePriceNotices(next);
+      toast('Price-change notice saved. Sending it still goes through the existing WhatsApp or announcement route; this panel only logs the send.');
+      renderPriceNotices();
+    });
+    $('#priceNoticeSendBtn')?.addEventListener('click', () => {
+      const noticeId = $('#priceNoticePick')?.value ?? '';
+      const channel = $('#priceNoticeChannel')?.value ?? '';
+      const date = localDate();
+      if (!noticeId || (channel !== 'whatsapp' && channel !== 'announcement')) { toast('Pick a notice and a channel first.'); return; }
+      savePriceNoticeSends(logPriceNoticeSent(loadPriceNoticeSends(), { noticeId, date, channel, sentBy: '' }));
+      toast('Send logged. The message itself goes out through the existing WhatsApp or announcement route — nothing is sent automatically from here.');
+      renderPriceNotices();
+    });
+    $('#priceNoticeRemoveBtn')?.addEventListener('click', () => {
+      const noticeId = $('#priceNoticePick')?.value ?? '';
+      if (!noticeId) { toast('Pick a notice first.'); return; }
+      savePriceNotices(removePriceNotice(loadPriceNotices(), noticeId));
+      renderPriceNotices();
     });
   }
 }

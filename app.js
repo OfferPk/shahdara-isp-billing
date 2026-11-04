@@ -372,6 +372,7 @@ import { normalizeSwapPairingList, upsertSwapPairing, removeSwapPairing, swapPai
 import { normalizeRecheckList, upsertRecheck, removeRecheck, recheckAllHtml, recheckTicketHtml, recheckFollowUpHtml, recheckSummaryText, recheckCsv, recheckFilename } from './recheck.js';
 import { normalizeSeasonalRiskList, upsertSeasonalRisk, removeSeasonalRisk, seasonalRiskAllHtml, seasonalRiskSeasonHtml, seasonalRiskSummaryText, seasonalRiskCsv, seasonalRiskFilename } from './seasonal-risk.js';
 import { normalizeHandoverList, upsertHandover, removeHandover, handoverAllHtml, handoverPersonHtml, handoverSummaryText, handoverCsv, handoverFilename } from './handover.js';
+import { normalizeComplaintAckList, upsertComplaintAck, removeComplaintAck, complaintAckAllHtml, complaintAckCustomerHtml, complaintAckSummaryText, complaintAckCsv, complaintAckFilename } from './complaint-ack.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13927,6 +13928,7 @@ function renderAnalytics() {
   renderRechecks();
   renderSeasonalRisks();
   renderHandovers();
+  renderComplaintAcks();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23496,6 +23498,52 @@ function renderHandovers() {
       downloadCsvFile(handoverFilename(), handoverCsv(loadHandovers()));
     });
     $('#handoverFilter')?.addEventListener('input', () => { renderHandovers(); });
+  }
+}
+const COMPLAINT_ACK_KEY = 'shahdara_complaint_acks_v1';
+function loadComplaintAcks() {
+  try { return normalizeComplaintAckList(JSON.parse(localStorage.getItem(COMPLAINT_ACK_KEY) || '[]')); } catch { return []; }
+}
+function saveComplaintAcks(list) {
+  try { localStorage.setItem(COMPLAINT_ACK_KEY, JSON.stringify(normalizeComplaintAckList(list))); } catch { /* acknowledgement note only: a failed save leaves the previous log in place */ }
+}
+let complaintAckBound = false;
+function renderComplaintAcks() {
+  const bodyEl = $('#ackBody');
+  if (!bodyEl) return;
+  const list = loadComplaintAcks();
+  bodyEl.innerHTML = complaintAckAllHtml(list);
+  const customerEl = $('#ackCustomerBody');
+  if (customerEl) {
+    const customer = $('#ackFilter')?.value ?? '';
+    customerEl.innerHTML = customer ? complaintAckCustomerHtml(list, customer) : '<p>Pick a customer to see their acknowledgements with the next-step note and draft.</p>';
+  }
+  const summaryEl = $('#ackSummary');
+  if (summaryEl) summaryEl.textContent = complaintAckSummaryText(list);
+  if (!complaintAckBound) {
+    complaintAckBound = true;
+    $('#ackSaveBtn')?.addEventListener('click', () => {
+      const before = loadComplaintAcks();
+      const next = upsertComplaintAck(before, {
+        id: `ACK-${Date.now()}`,
+        customerId: $('#ackCustomer')?.value ?? '',
+        dateReceived: $('#ackDate')?.value ?? '',
+        complaint: $('#ackComplaint')?.value ?? '',
+        nextStep: $('#ackNextStep')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Acknowledgement not recorded: give a customer, a real date, the complaint in the customer\'s own words, and a next-step note from the list.'); return; }
+      saveComplaintAcks(next); renderComplaintAcks();
+    });
+    $('#ackRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#ackRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveComplaintAcks(removeComplaintAck(loadComplaintAcks(), id));
+      renderComplaintAcks();
+    });
+    $('#ackExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(complaintAckFilename(), complaintAckCsv(loadComplaintAcks()));
+    });
+    $('#ackFilter')?.addEventListener('input', () => { renderComplaintAcks(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

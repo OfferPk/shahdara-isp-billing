@@ -350,6 +350,7 @@ import { normalizeGeneratorFuelList, upsertGeneratorFuel, removeGeneratorFuel, g
 import { normalizeSpareReorderList, upsertSpareReorder, removeSpareReorder, markSpareOrdered, spareReorderSummaryText, spareReorderHtml, spareReorderCsv, spareReorderFilename } from './spare-reorder.js';
 import { normalizeOnuSignalReadingList, upsertOnuSignalReading, removeOnuSignalReading, onuSignalTrendFlags, onuSignalSummaryText, onuSignalHtml, onuSignalCsv, onuSignalFilename } from './onu-signal-trend.js';
 import { normalizeFieldAttachmentList, upsertFieldAttachment, removeFieldAttachment, fieldAttachmentSummaryText, fieldAttachmentHtml, fieldAttachmentCsv, fieldAttachmentFilename } from './field-attachments.js';
+import { normalizeRouteProofList, upsertRouteProof, removeRouteProof, routeProofSummaryText, routeProofHtml, routeProofDayHtml, routeProofFollowupHtml, routeProofCsv, routeProofFilename } from './route-proof.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13883,6 +13884,7 @@ function renderAnalytics() {
   renderSpareReorder();
   renderOnuSignal();
   renderFieldAttachments();
+  renderRouteProofs();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22298,6 +22300,57 @@ function renderFieldAttachments() {
       downloadCsvFile(fieldAttachmentFilename(), fieldAttachmentCsv(loadFieldAttachments()));
     });
     $('#fieldAttachFilter')?.addEventListener('input', () => { renderFieldAttachments(); });
+  }
+}
+const ROUTE_PROOF_KEY = 'shahdara_route_proofs_v1';
+function loadRouteProofs() {
+  try { return normalizeRouteProofList(JSON.parse(localStorage.getItem(ROUTE_PROOF_KEY) || '[]')); } catch { return []; }
+}
+function saveRouteProofs(list) {
+  try { localStorage.setItem(ROUTE_PROOF_KEY, JSON.stringify(normalizeRouteProofList(list))); } catch { /* proof only: a failed save leaves the previous proofs in place */ }
+}
+let routeProofBound = false;
+function renderRouteProofs() {
+  const bodyEl = $('#routeProofBody');
+  if (!bodyEl) return;
+  const records = loadRouteProofs();
+  bodyEl.innerHTML = routeProofHtml(records, $('#routeProofFilter')?.value ?? '');
+  const summaryEl = $('#routeProofSummary');
+  if (summaryEl) summaryEl.textContent = routeProofSummaryText(records);
+  const followupEl = $('#routeProofFollowupBody');
+  if (followupEl) followupEl.innerHTML = routeProofFollowupHtml(records);
+  const dayEl = $('#routeProofDayBody');
+  if (dayEl) dayEl.innerHTML = routeProofDayHtml(records, $('#routeProofFilter')?.value ?? '', $('#routeProofDayDate')?.value ?? '');
+  if (!routeProofBound) {
+    routeProofBound = true;
+    $('#routeProofSaveBtn')?.addEventListener('click', () => {
+      const before = loadRouteProofs();
+      const id = `RP-${Date.now()}`;
+      const next = upsertRouteProof(before, {
+        id,
+        route: $('#routeProofRoute')?.value ?? '',
+        date: $('#routeProofDate')?.value ?? '',
+        collector: $('#routeProofCollector')?.value ?? '',
+        planned: ($('#routeProofPlanned')?.value ?? '').split('\n'),
+        visited: ($('#routeProofVisited')?.value ?? '').split('\n'),
+        skipped: ($('#routeProofSkipped')?.value ?? '').split('\n'),
+      });
+      if (next.length === before.length) { toast('Proof not recorded: give a route, a real date, and planned stops, and account for every planned stop exactly once as visited or skipped (with a reason). One proof per route day.'); return; }
+      saveRouteProofs(next);
+      toast('Route proof recorded. Skipped stops stay on the follow-up list.');
+      renderRouteProofs();
+    });
+    $('#routeProofRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#routeProofRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveRouteProofs(removeRouteProof(loadRouteProofs(), id));
+      renderRouteProofs();
+    });
+    $('#routeProofExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(routeProofFilename(), routeProofCsv(loadRouteProofs()));
+    });
+    $('#routeProofFilter')?.addEventListener('input', () => { renderRouteProofs(); });
+    $('#routeProofDayDate')?.addEventListener('change', () => { renderRouteProofs(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

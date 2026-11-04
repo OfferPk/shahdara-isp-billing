@@ -331,6 +331,7 @@ import { normalizeRefundList, upsertRefund, refundsForCustomer, refundSummaryTex
 import { normalizeFollowUp, normalizeFollowUpList, recordFollowUp, removeFollowUp, buildFollowUpQueue, escalationList, buildFollowUpSummary, followUpSummaryText, followUpHtml, followUpCsv, followUpFilename } from './dispute-followups.js';
 import { buildMethodReconciliation, reconciliationSummaryText, methodReconciliationHtml, methodReconciliationCsv, methodReconciliationFilename, normalizeMethodNoteList, addMethodNote, methodNoteHtml, methodNoteCsv, methodNoteFilename } from './method-reconciliation.js';
 import { normalizeCashReconList, addCashRecon, lockCashRecon, cashReconsForMonth, cashReconSummaryText, cashReconHtml, cashReconCsv, cashReconFilename } from './cash-reconciliation.js';
+import { normalizeDepositSlipList, addDepositSlip, findDepositSlip, depositSlipsForMonth, depositedTotalForMonth, verifyAgainstDepositedTotal, depositSlipSummaryText, depositSlipHtml, depositSlipCsv, depositSlipFilename } from './deposit-slips.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13845,6 +13846,7 @@ function renderAnalytics() {
   renderFollowUps();
   renderMethodReconciliation();
   renderCashReconciliation();
+  renderDepositSlips();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20945,6 +20947,18 @@ function loadCashRecons() {
 function saveCashRecons(list) {
   try { localStorage.setItem(CASH_RECON_KEY, JSON.stringify(normalizeCashReconList(list))); } catch { /* record only: a failed save leaves the previous records in place */ }
 }
+
+const DEPOSIT_SLIP_KEY = 'shahdara_deposit_slips_v1';
+function loadDepositSlips() {
+  try {
+    const raw = localStorage.getItem(DEPOSIT_SLIP_KEY);
+    if (!raw) return [];
+    return normalizeDepositSlipList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveDepositSlips(list) {
+  try { localStorage.setItem(DEPOSIT_SLIP_KEY, JSON.stringify(normalizeDepositSlipList(list))); } catch { /* record only: a failed save leaves the previous slips in place */ }
+}
 function methodReconDevicePayments(period) {
   const rows = [];
   for (const customer of state.customers ?? []) {
@@ -21071,6 +21085,54 @@ function renderCashReconciliation() {
     });
     $('#cashReconExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(cashReconFilename(), cashReconCsv(loadCashRecons()));
+    });
+  }
+}
+let depositSlipBound = false;
+function renderDepositSlips() {
+  const bodyEl = $('#depositSlipBody');
+  if (!bodyEl) return;
+  const monthEl = $('#depositSlipMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const period = monthEl?.value ?? '';
+  const slips = depositSlipsForMonth(loadDepositSlips(), period);
+  bodyEl.innerHTML = slips.map((slip) => depositSlipHtml(slip)).join('') || '<p>No bank deposit slip for this month yet.</p>';
+  const summaryEl = $('#depositSlipSummary');
+  if (summaryEl) summaryEl.textContent = depositSlipSummaryText(loadDepositSlips());
+  if (!depositSlipBound) {
+    depositSlipBound = true;
+    $('#depositSlipMonth')?.addEventListener('change', () => renderDepositSlips());
+    $('#depositSlipSaveBtn')?.addEventListener('click', () => {
+      const before = loadDepositSlips();
+      const dates = ($('#depositSlipDates')?.value ?? '').split(',').map((d) => d.trim()).filter(Boolean);
+      const next = addDepositSlip(before, {
+        id: `DS-${Date.now()}`,
+        date: $('#depositSlipDate')?.value ?? '',
+        amount: Number($('#depositSlipAmount')?.value ?? ''),
+        slipNumber: $('#depositSlipNumber')?.value ?? '',
+        collector: $('#depositSlipCollector')?.value ?? '',
+        coveredDates: dates,
+        bank: $('#depositSlipBank')?.value ?? '',
+        reuseExplanation: $('#depositSlipReuse')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Slip not saved: pick a real date, a positive amount, a slip number, a collector, and at least one covered day. A slip number already on record needs a reuse explanation.'); return; }
+      saveDepositSlips(next);
+      toast('Bank deposit slip recorded. No payment or handover figure was changed.');
+      renderDepositSlips();
+    });
+    $('#depositSlipCheckBtn')?.addEventListener('click', () => {
+      const month = $('#depositSlipMonth')?.value ?? '';
+      const depositedCents = Math.round(Number($('#depositSlipDeposited')?.value ?? '') * 100);
+      const result = verifyAgainstDepositedTotal(loadDepositSlips(), month, depositedCents);
+      const resultEl = $('#depositSlipCheckResult');
+      if (!resultEl) return;
+      if (!result) { resultEl.textContent = 'Pick a real month and a deposited total to check.'; return; }
+      resultEl.textContent = result.agrees
+        ? `Agrees: ${result.slipCount} slip(s) total Rs. ${(result.slipsTotalCents / 100).toFixed(2)}, matching the deposited total.`
+        : `Mismatch: ${result.slipCount} slip(s) total Rs. ${(result.slipsTotalCents / 100).toFixed(2)} against a deposited total of Rs. ${(result.depositedCents / 100).toFixed(2)} — difference Rs. ${(result.differenceCents / 100).toFixed(2)}. Nothing was changed.`;
+    });
+    $('#depositSlipExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(depositSlipFilename(), depositSlipCsv(loadDepositSlips()));
     });
   }
 }

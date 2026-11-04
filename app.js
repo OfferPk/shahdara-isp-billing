@@ -284,6 +284,7 @@ import { answerPucho, buildMorningQueue, puchoHtml, puchoCatalogueHtml, morningQ
 import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
 import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
 import { buildPrecloseSweep, precloseSweepSummaryText, precloseSweepHtml, precloseSweepCsv, precloseSweepFilename, validSweepMonth } from './preclose-sweep.js';
+import { validSnapshotMonth, normalizeSnapshotList, findSnapshot, takeSnapshot, removeSnapshot, snapshotSummaryText, snapshotHtml, snapshotCsv, snapshotFilename, compareSnapshots, compareSnapshotsSummaryText, compareSnapshotsHtml, compareSnapshotsCsv } from './month-snapshots.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -12468,7 +12469,7 @@ function renderAuditLog() {
 // the raw rows plus their totals, counts, and date range.
 let exportPackBound = false;
 function buildCurrentExportPack() {
-  return buildExportPack({ customers: state.customers ?? [], expenses: state.expenses ?? [], exportDate: localDate() });
+  return buildExportPack({ customers: state.customers ?? [], expenses: state.expenses ?? [], exportDate: localDate(), snapshots: loadMonthSnapshots() });
 }
 function renderExportPack() {
   const bodyEl = $('#exportPackBody');
@@ -12483,7 +12484,7 @@ function renderExportPack() {
       const current = buildCurrentExportPack();
       downloadJson(exportPackFilename('json', current.exportDate), exportPackJson(current));
     });
-    for (const section of ['customers', 'bills', 'payments', 'waadas', 'expenses', 'manifest']) {
+    for (const section of ['customers', 'bills', 'payments', 'waadas', 'expenses', 'snapshots', 'manifest']) {
       $(`#exportPack${section[0].toUpperCase()}${section.slice(1)}Btn`)?.addEventListener('click', () => {
         const current = buildCurrentExportPack();
         downloadCsvFile(exportPackFilename(section, current.exportDate), exportPackCsv(current, section));
@@ -13245,6 +13246,7 @@ function renderAnalytics() {
   renderMonthClose();
   renderRollForward();
   renderPrecloseSweep();
+  renderMonthSnapshots();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -15678,6 +15680,126 @@ function renderPrecloseSweep() {
     $('#precloseSweepOpenHandoverBtn')?.addEventListener('click', () => {
       if (dailyClosingModalController?.open) dailyClosingModalController.open();
       else toast('Daily closing is not available here.');
+    });
+  }
+}
+// Plan 70: frozen month-end balance snapshot, read-only. Taken only
+// when the Plan 67 checklist records the month as closed, from the
+// Plan 68 roll-forward closing balances plus the month's collections
+// and expense total. One snapshot per month, taken once, never
+// overwritten or edited in place: later payments, corrections, or
+// concessions appear in the next month's roll-forward, never by
+// rewriting a frozen month. Snapshots also ride with the Plan 32
+// export pack as a snapshots section. Opening, comparing, or
+// exporting a snapshot never changes any live record.
+const MONTH_SNAPSHOTS_KEY = 'shahdara_month_snapshots_v1';
+function loadMonthSnapshots() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MONTH_SNAPSHOTS_KEY) || '[]');
+    return normalizeSnapshotList(parsed);
+  } catch { return []; }
+}
+function saveMonthSnapshots(list) {
+  try { localStorage.setItem(MONTH_SNAPSHOTS_KEY, JSON.stringify(normalizeSnapshotList(list))); } catch {}
+}
+let monthSnapshotsBound = false;
+function renderMonthSnapshots() {
+  const bodyEl = $('#monthSnapshotBody');
+  if (!bodyEl) return;
+  const monthEl = $('#monthSnapshotMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const month = monthEl?.value ?? localDate().slice(0, 7);
+  const summaryEl = $('#monthSnapshotSummary');
+  const selectEl = $('#monthSnapshotSelect');
+  const earlierEl = $('#monthSnapshotEarlier');
+  const laterEl = $('#monthSnapshotLater');
+  const list = loadMonthSnapshots();
+  const options = list.map((snap) => `<option value="${escapeHtml(snap.month)}">${escapeHtml(snap.month)} — frozen ${escapeHtml(snap.closeDate)}</option>`).join('');
+  if (selectEl && document.activeElement !== selectEl) {
+    const current = selectEl.value ?? '';
+    selectEl.innerHTML = `<option value="">Pick a snapshot</option>${options}`;
+    if (list.some((snap) => snap.month === current)) selectEl.value = current;
+  }
+  if (earlierEl && document.activeElement !== earlierEl) {
+    const current = earlierEl.value ?? '';
+    earlierEl.innerHTML = `<option value="">Earlier month</option>${options}`;
+    if (list.some((snap) => snap.month === current)) earlierEl.value = current;
+  }
+  if (laterEl && document.activeElement !== laterEl) {
+    const current = laterEl.value ?? '';
+    laterEl.innerHTML = `<option value="">Later month</option>${options}`;
+    if (list.some((snap) => snap.month === current)) laterEl.value = current;
+  }
+  const picked = selectEl?.value ?? '';
+  const earlier = earlierEl?.value ?? '';
+  const later = laterEl?.value ?? '';
+  if (!validSnapshotMonth(month)) {
+    bodyEl.innerHTML = '<p style="font-size: 12px;">Pick a valid month to take or view a snapshot.</p>';
+    if (summaryEl) summaryEl.textContent = '';
+  } else if (earlier && later) {
+    const comparison = compareSnapshots(findSnapshot(list, earlier), findSnapshot(list, later));
+    bodyEl.innerHTML = comparison ? compareSnapshotsHtml(comparison) : '<p style="font-size: 12px;">Pick two stored snapshots to compare them.</p>';
+    if (summaryEl) summaryEl.textContent = comparison ? compareSnapshotsSummaryText(comparison) : '';
+  } else if (picked) {
+    const snap = findSnapshot(list, picked);
+    bodyEl.innerHTML = snap ? snapshotHtml(snap) : '<p style="font-size: 12px;">No snapshot stored for that month.</p>';
+    if (summaryEl) summaryEl.textContent = snap ? snapshotSummaryText(snap) : '';
+  } else {
+    const existing = findSnapshot(list, month);
+    bodyEl.innerHTML = existing
+      ? snapshotHtml(existing)
+      : '<p style="font-size: 12px;">No snapshot stored for this month yet. Close the month on the Plan 67 checklist first, then take its snapshot — it freezes once and is never rewritten.</p>';
+    if (summaryEl) summaryEl.textContent = existing ? snapshotSummaryText(existing) : '';
+  }
+  if (!monthSnapshotsBound) {
+    monthSnapshotsBound = true;
+    $('#monthSnapshotMonth')?.addEventListener('change', () => renderMonthSnapshots());
+    $('#monthSnapshotSelect')?.addEventListener('change', () => renderMonthSnapshots());
+    $('#monthSnapshotEarlier')?.addEventListener('change', () => renderMonthSnapshots());
+    $('#monthSnapshotLater')?.addEventListener('change', () => renderMonthSnapshots());
+    $('#monthSnapshotTakeBtn')?.addEventListener('click', () => {
+      const pickedMonth = $('#monthSnapshotMonth')?.value ?? localDate().slice(0, 7);
+      if (!validSnapshotMonth(pickedMonth)) { toast('Pick a valid month first.'); return; }
+      const closeRecord = findMonthClose(loadMonthClose(), pickedMonth);
+      if (!closeRecord || closeRecord.status !== 'closed') { toast('Close the month on the month-end checklist first — a snapshot is taken only for a closed month.'); return; }
+      const rows = rollForwardRowsForMonth(pickedMonth);
+      const unusable = rows.filter((row) => row.computedCents === null);
+      if (unusable.length) { toast(`Cannot freeze ${pickedMonth}: ${unusable.map((row) => row.customerName).join(', ')} have no usable closing balance. Fix the roll-forward first.`); return; }
+      const monthExpenses = (state.expenses ?? []).filter((row) => typeof row.date === 'string' && row.date.slice(0, 7) === pickedMonth);
+      const badExpense = monthExpenses.find((row) => typeof row.amount !== 'number' || !Number.isFinite(row.amount) || row.amount < 0);
+      if (badExpense) { toast(`Cannot freeze ${pickedMonth}: an expense row has no usable amount. Fix it first.`); return; }
+      const before = loadMonthSnapshots();
+      const after = takeSnapshot(before, {
+        month: pickedMonth,
+        closeDate: closeRecord.closedDate,
+        closedBy: closeRecord.closedBy,
+        customers: rows.map((row) => ({ customerId: row.customerId, customerName: row.customerName, mohalla: row.mohalla, closing: row.computedClosing })),
+        collections: rows.reduce((total, row) => total + (row.paymentsCents ?? 0), 0) / 100,
+        expenses: monthExpenses.reduce((total, row) => total + row.amount, 0),
+        monthClose: closeRecord,
+      });
+      if (after.length === before.length) { toast(`A snapshot for ${pickedMonth} already exists — frozen months are never re-frozen.`); return; }
+      saveMonthSnapshots(after);
+      toast(`Snapshot for ${pickedMonth} frozen at close.`);
+      renderMonthSnapshots();
+    });
+    $('#monthSnapshotExportBtn')?.addEventListener('click', () => {
+      const picked = $('#monthSnapshotSelect')?.value ?? $('#monthSnapshotMonth')?.value ?? '';
+      const snap = findSnapshot(loadMonthSnapshots(), picked);
+      if (!snap) { toast('Pick a stored snapshot first.'); return; }
+      downloadCsvFile(snapshotFilename(picked), snapshotCsv(snap));
+    });
+    $('#monthSnapshotCompareExportBtn')?.addEventListener('click', () => {
+      const comparison = compareSnapshots(findSnapshot(loadMonthSnapshots(), $('#monthSnapshotEarlier')?.value ?? ''), findSnapshot(loadMonthSnapshots(), $('#monthSnapshotLater')?.value ?? ''));
+      if (!comparison) { toast('Pick two stored snapshots first.'); return; }
+      downloadCsvFile(`month-snapshot-compare-${comparison.earlierMonth}-to-${comparison.laterMonth}.csv`, compareSnapshotsCsv(comparison));
+    });
+    $('#monthSnapshotRemoveBtn')?.addEventListener('click', () => {
+      const picked = $('#monthSnapshotSelect')?.value ?? $('#monthSnapshotMonth')?.value ?? '';
+      if (!findSnapshot(loadMonthSnapshots(), picked)) { toast('Pick a stored snapshot first.'); return; }
+      saveMonthSnapshots(removeSnapshot(loadMonthSnapshots(), picked));
+      toast(`Snapshot for ${picked} removed.`);
+      renderMonthSnapshots();
     });
   }
 }

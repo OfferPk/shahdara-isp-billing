@@ -7735,7 +7735,56 @@
 <div id="eaBody"></div>
 </section>
 
-
+<section class="chart-card" aria-labelledby="agHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="agHeading">Owner annual goals tracker</h3>
+<p class="chart-caption">Goals only: the year's intentions in plain words, with targets exactly as entered, a status, and dated progress notes. Past years stay as history. Recording or completing a goal never changes any bill, payment, customer, or route record.</p>
+<p id="agSummary"></p>
+</div>
+<div>
+<button id="agExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export annual goals CSV</button>
+</div>
+</div>
+<h4>Record an annual goal</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Year <input id="agYear" type="text" style="width: 90px;" placeholder="e.g. 2026">
+</label>
+<label style="font-size: 12px;">Goal <input id="agGoal" type="text" style="width: 200px;">
+</label>
+<label style="font-size: 12px;">Target <input id="agTarget" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Review note <input id="agReviewNote" type="text" style="width: 180px;">
+</label>
+<button id="agSaveBtn" class="secondary-button btn-sm" type="button">Record goal</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove goal id <input id="agRemoveId" type="text" style="width: 110px;">
+</label>
+<button id="agRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+<label style="font-size: 12px;">Goal id <input id="agStatusId" type="text" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Status <select id="agStatus"><option value="not-started">not-started</option><option value="in-progress">in-progress</option><option value="done">done</option></select>
+</label>
+<button id="agStatusBtn" class="secondary-button btn-sm" type="button">Set status</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Goal id <input id="agNoteId" type="text" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Note date <input id="agNoteDate" type="date" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">Progress note <input id="agNoteText" type="text" style="width: 200px;">
+</label>
+<button id="agNoteBtn" class="secondary-button btn-sm" type="button">Add dated note</button>
+</div>
+<h4>Annual goals</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by year <input id="agYearFilter" type="text" style="width: 90px;">
+</label>
+</div>
+<div id="agBody"></div>
+</section>
 
         <section id="ownerDigestPanel" class="chart-card" aria-labelledby="ownerDigestHeading"><div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><h3 id="ownerDigestHeading">Owner collection digest</h3><p>Read-only daily / weekly picture from existing figures — collections, dues, Waada broken, suspense unclaimed. It changes no record.</p></div><div><button id="ownerDigestDailyBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;" aria-pressed="true">Today</button><button id="ownerDigestWeeklyBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;" aria-pressed="false">This week</button><button id="ownerDigestExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">📥 Export digest CSV</button></div></div><div id="ownerDigestBody"></div></section>
         <section id="receivablesAgeingPanel" class="chart-card" aria-labelledby="receivablesAgeingHeading"><div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><h3 id="receivablesAgeingHeading">Receivables ageing by bill age</h3><p>Read-only: outstanding bills grouped by bill month age (Current, 1 month, 2 months, 3+ months), by customer and by mohalla. This is bill age — not Waada promise age and not days past the due date. It changes no bill, total, or Waada record.</p></div><div><button id="receivablesAgeingExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">📥 Export ageing CSV</button></div></div><div id="receivablesAgeingBody"></div></section>

@@ -273,6 +273,7 @@ import { EMERGENCY_ROLES, normalizeEmergencyCard, upsertEmergencyContact, remove
 import { normalizeSweep, upsertSweep, removeSweep, findSweep, markSegmentChecked, markCustomerConfirmed, markCustomerStillDown, completeSweep, sweepAffectedCustomers, sweepChecklist, sweepFollowUpList, followUpTicketDraft, sweepSummaryText, sweepsHtml, sweepsCsv, sweepFilename } from './restoration-sweep.js';
 import { normalizeAtRiskThresholds, buildAtRiskList, atRiskSummaryText, atRiskHtml, atRiskCsv, atRiskFilename } from './at-risk-signals.js';
 import { EXIT_REASONS, EXIT_REASON_LABELS, normalizeExitRecord, normalizeExitRecordList, upsertExitRecord, removeExitRecord, buildMonthlyExitView, exitSummaryText, exitHtml, exitCsv, exitFilename } from './exit-reasons.js';
+import { SAVE_OFFERS, SAVE_OFFER_LABELS, SAVE_OUTCOMES, SAVE_OUTCOME_LABELS, SAVE_EXIT_REASONS, SAVE_EXIT_REASON_LABELS, normalizeSaveConversation, normalizeSaveConversationList, upsertSaveConversation, removeSaveConversation, filterSaveConversations, sortedSaveConversations, buildSaveSummary, saveSummaryText, saveHtml, saveCsv, saveFilename } from './save-conversations.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13173,6 +13174,7 @@ function renderAnalytics() {
   renderRestorationSweep();
   renderAtRiskList();
   renderExitReasonsView();
+  renderSaveConversations();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -14321,6 +14323,95 @@ function renderExitReasonsView() {
     $('#exitReasonsExportBtn')?.addEventListener('click', () => {
       const current = buildMonthlyExitView(loadExitReasons(), departed, monthEl?.value ?? localDate().slice(0, 7));
       if (current) downloadCsvFile(exitFilename(current.month), exitCsv(current));
+    });
+  }
+}
+const SAVE_CONVERSATIONS_KEY = 'shahdara_save_conversations_v1';
+let saveConversationsBound = false;
+function loadSaveConversations() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SAVE_CONVERSATIONS_KEY) || '[]');
+    return normalizeSaveConversationList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveSaveConversations(list) {
+  try { localStorage.setItem(SAVE_CONVERSATIONS_KEY, JSON.stringify(normalizeSaveConversationList(list))); } catch {}
+}
+function renderSaveConversations() {
+  const bodyEl = $('#saveConversationsBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const all = loadSaveConversations();
+  const offerFilter = $('#saveConversationsOfferFilter')?.value ?? 'all';
+  const outcomeFilter = $('#saveConversationsOutcomeFilter')?.value ?? 'all';
+  const filtered = filterSaveConversations(all, { offer: offerFilter, outcome: outcomeFilter });
+  bodyEl.innerHTML = saveHtml(filtered);
+  const summaryEl = $('#saveConversationsSummary');
+  if (summaryEl) summaryEl.textContent = saveSummaryText(buildSaveSummary(all));
+  const customerEl = $('#saveConversationsCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const offerEl = $('#saveConversationsOffer');
+  if (offerEl && offerEl.options.length === 0) {
+    offerEl.innerHTML = SAVE_OFFERS.map((offer) => `<option value="${escapeHtml(offer)}">${escapeHtml(SAVE_OFFER_LABELS[offer])}</option>`).join('');
+  }
+  const outcomeEl = $('#saveConversationsOutcome');
+  if (outcomeEl && outcomeEl.options.length === 0) {
+    outcomeEl.innerHTML = SAVE_OUTCOMES.map((outcome) => `<option value="${escapeHtml(outcome)}">${escapeHtml(SAVE_OUTCOME_LABELS[outcome])}</option>`).join('');
+  }
+  const reasonEl = $('#saveConversationsReason');
+  if (reasonEl && reasonEl.options.length === 0) {
+    reasonEl.innerHTML = `<option value="">Not recorded</option>` + SAVE_EXIT_REASONS.map((reason) => `<option value="${escapeHtml(reason)}">${escapeHtml(SAVE_EXIT_REASON_LABELS[reason])}</option>`).join('');
+  }
+  const filterOfferEl = $('#saveConversationsOfferFilter');
+  if (filterOfferEl && filterOfferEl.options.length === 0) {
+    filterOfferEl.innerHTML = `<option value="all">All offers</option>` + SAVE_OFFERS.map((offer) => `<option value="${escapeHtml(offer)}">${escapeHtml(SAVE_OFFER_LABELS[offer])}</option>`).join('');
+  }
+  const filterOutcomeEl = $('#saveConversationsOutcomeFilter');
+  if (filterOutcomeEl && filterOutcomeEl.options.length === 0) {
+    filterOutcomeEl.innerHTML = `<option value="all">All outcomes</option>` + SAVE_OUTCOMES.map((outcome) => `<option value="${escapeHtml(outcome)}">${escapeHtml(SAVE_OUTCOME_LABELS[outcome])}</option>`).join('');
+  }
+  const selectEl = $('#saveConversationsSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = sortedSaveConversations(all).map((record) => `<option value="${escapeHtml(record.id)}">${escapeHtml(record.customerName || record.customerId)} — ${escapeHtml(SAVE_OFFER_LABELS[record.offer])} — ${escapeHtml(SAVE_OUTCOME_LABELS[record.outcome])}</option>`).join('')
+      || '<option value="">No conversations yet</option>';
+  }
+  if (!saveConversationsBound) {
+    saveConversationsBound = true;
+    $('#saveConversationsOfferFilter')?.addEventListener('change', () => renderSaveConversations());
+    $('#saveConversationsOutcomeFilter')?.addEventListener('change', () => renderSaveConversations());
+    $('#saveConversationsRecordBtn')?.addEventListener('click', () => {
+      const id = $('#saveConversationsCustomer')?.value ?? '';
+      if (!id) { toast('Pick a customer first.'); return; }
+      const selected = customers.find((c) => String(c.id) === String(id));
+      const record = normalizeSaveConversation({
+        id: `save-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        customerId: id,
+        customerName: selected ? (selected.name || '') : '',
+        conversationDate: $('#saveConversationsDate')?.value ?? '',
+        exitReason: $('#saveConversationsReason')?.value ?? '',
+        offer: $('#saveConversationsOffer')?.value ?? '',
+        outcome: $('#saveConversationsOutcome')?.value ?? '',
+        fulfilledChangeLink: $('#saveConversationsLink')?.value ?? '',
+        note: $('#saveConversationsNote')?.value ?? '',
+      });
+      if (!record) {
+        toast('A save conversation needs a valid offer, outcome, and real calendar date — and an accepted offer must link to the change that fulfilled it.');
+        return;
+      }
+      saveSaveConversations(upsertSaveConversation(loadSaveConversations(), record));
+      renderSaveConversations();
+    });
+    $('#saveConversationsRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#saveConversationsSelect')?.value ?? '';
+      if (!id) return;
+      saveSaveConversations(removeSaveConversation(loadSaveConversations(), id));
+      renderSaveConversations();
+    });
+    $('#saveConversationsExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(saveFilename(), saveCsv(loadSaveConversations()));
     });
   }
 }

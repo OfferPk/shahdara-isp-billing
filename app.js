@@ -347,6 +347,7 @@ import { normalizeFaultPartList, upsertFaultPart, removeFaultPart, partsForTicke
 import { normalizeSegmentFaultList, upsertSegmentFault, removeSegmentFault, segmentFaultCounts, segmentFaultSummaryText, segmentFaultHtml, segmentFaultCsv, segmentFaultFilename } from './segment-fault-history.js';
 import { normalizeOutageTypeList, upsertOutageType, removeOutageType, missingNoticeOutages, outageTypeSummaryText, outageTypeHtml, outageTypeCsv, outageTypeFilename } from './outage-type.js';
 import { normalizeGeneratorFuelList, upsertGeneratorFuel, removeGeneratorFuel, generatorFuelSummaryText, generatorFuelHtml, generatorFuelCsv, generatorFuelFilename } from './generator-fuel-log.js';
+import { normalizeSpareReorderList, upsertSpareReorder, removeSpareReorder, markSpareOrdered, spareReorderSummaryText, spareReorderHtml, spareReorderCsv, spareReorderFilename } from './spare-reorder.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13877,6 +13878,7 @@ function renderAnalytics() {
   renderSegmentFaults();
   renderOutageTypes();
   renderGeneratorFuel();
+  renderSpareReorder();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22115,6 +22117,65 @@ function renderGeneratorFuel() {
       downloadCsvFile(generatorFuelFilename(), generatorFuelCsv(loadGeneratorFuel()));
     });
     $('#generatorFuelFilter')?.addEventListener('input', () => { renderGeneratorFuel(); });
+  }
+}
+// Plan 136 (Plan 101-202) — Spare-parts reorder from stock levels.
+// This panel reads and writes only its own spare-reorder rules. It
+// never reads or writes the stock register, the field-bag stock,
+// the inventory book, or the Plan 132 fault parts-used log, and
+// marking a part ordered places no order, sends no message, and
+// changes no stock count, bill, or payment of any kind. The level
+// on a rule is the operator's own hand count of the shelf.
+const SPARE_REORDER_KEY = 'shahdara_spare_reorder_v1';
+function loadSpareReorder() {
+  try {
+    const raw = localStorage.getItem(SPARE_REORDER_KEY);
+    return normalizeSpareReorderList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveSpareReorder(list) {
+  try { localStorage.setItem(SPARE_REORDER_KEY, JSON.stringify(normalizeSpareReorderList(list))); } catch { /* record only: a failed save leaves the previous rules in place */ }
+}
+let spareReorderBound = false;
+function renderSpareReorder() {
+  const bodyEl = $('#spareReorderBody');
+  if (!bodyEl) return;
+  const rules = loadSpareReorder();
+  bodyEl.innerHTML = spareReorderHtml(rules);
+  const summaryEl = $('#spareReorderSummary');
+  if (summaryEl) summaryEl.textContent = spareReorderSummaryText(rules);
+  if (!spareReorderBound) {
+    spareReorderBound = true;
+    $('#spareReorderSaveBtn')?.addEventListener('click', () => {
+      const before = loadSpareReorder();
+      const id = `SR-${Date.now()}`;
+      const next = upsertSpareReorder(before, {
+        id,
+        part: $('#spareReorderPart')?.value ?? '',
+        minimumLevel: $('#spareReorderMinimum')?.value ?? '',
+        reorderQuantity: $('#spareReorderQty')?.value ?? '',
+        onHand: $('#spareReorderOnHand')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Reorder rule not recorded: name a part, give a minimum level of zero or more, a reorder quantity above zero, and a level on hand of zero or more; one rule per part only.'); return; }
+      saveSpareReorder(next);
+      toast('Reorder rule recorded. Marking a part ordered places no order and changes no stock count — it only clears the low flag.');
+      renderSpareReorder();
+    });
+    $('#spareReorderOrderedBtn')?.addEventListener('click', () => {
+      const id = ($('#spareReorderOrderedId')?.value ?? '').trim();
+      if (!id) return;
+      saveSpareReorder(markSpareOrdered(loadSpareReorder(), id));
+      renderSpareReorder();
+    });
+    $('#spareReorderRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#spareReorderRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveSpareReorder(removeSpareReorder(loadSpareReorder(), id));
+      renderSpareReorder();
+    });
+    $('#spareReorderExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(spareReorderFilename(), spareReorderCsv(loadSpareReorder()));
+    });
   }
 }
 // Closed months for the guard: months closed on the month-end

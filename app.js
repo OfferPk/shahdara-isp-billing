@@ -370,6 +370,7 @@ import { normalizeVisitTimeList, upsertVisitTime, removeVisitTime, routeDayHtml,
 import { normalizeSiteAccessList, upsertSiteAccess, removeSiteAccess, siteAccessAllHtml, siteAccessHtml, flaggedAccessHtml, siteAccessSummaryText, siteAccessCsv, siteAccessFilename } from './site-access.js';
 import { normalizeSwapPairingList, upsertSwapPairing, removeSwapPairing, swapPairingAllHtml, swapPairingCustomerHtml, swapPairingSummaryText, swapPairingCsv, swapPairingFilename } from './swap-pairing.js';
 import { normalizeRecheckList, upsertRecheck, removeRecheck, recheckAllHtml, recheckTicketHtml, recheckFollowUpHtml, recheckSummaryText, recheckCsv, recheckFilename } from './recheck.js';
+import { normalizeSeasonalRiskList, upsertSeasonalRisk, removeSeasonalRisk, seasonalRiskAllHtml, seasonalRiskSeasonHtml, seasonalRiskSummaryText, seasonalRiskCsv, seasonalRiskFilename } from './seasonal-risk.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13923,6 +13924,7 @@ function renderAnalytics() {
   renderSiteAccess();
   renderSwapPairings();
   renderRechecks();
+  renderSeasonalRisks();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23391,6 +23393,54 @@ function renderRechecks() {
       downloadCsvFile(recheckFilename(), recheckCsv(loadRechecks()));
     });
     $('#recheckFilter')?.addEventListener('input', () => { renderRechecks(); });
+  }
+}
+const SEASONAL_RISK_KEY = 'shahdara_seasonal_risks_v1';
+function loadSeasonalRisks() {
+  try { return normalizeSeasonalRiskList(JSON.parse(localStorage.getItem(SEASONAL_RISK_KEY) || '[]')); } catch { return []; }
+}
+function saveSeasonalRisks(list) {
+  try { localStorage.setItem(SEASONAL_RISK_KEY, JSON.stringify(normalizeSeasonalRiskList(list))); } catch { /* risk note only: a failed save leaves the previous log in place */ }
+}
+let seasonalRiskBound = false;
+function renderSeasonalRisks() {
+  const bodyEl = $('#seasonalRiskBody');
+  if (!bodyEl) return;
+  const list = loadSeasonalRisks();
+  bodyEl.innerHTML = seasonalRiskAllHtml(list);
+  const seasonEl = $('#seasonalRiskSeasonBody');
+  if (seasonEl) {
+    const season = $('#seasonalRiskFilter')?.value ?? '';
+    seasonEl.innerHTML = season ? seasonalRiskSeasonHtml(list, season) : '<p>Pick a season to see its risks with their preparedness actions.</p>';
+  }
+  const summaryEl = $('#seasonalRiskSummary');
+  if (summaryEl) summaryEl.textContent = seasonalRiskSummaryText(list);
+  if (!seasonalRiskBound) {
+    seasonalRiskBound = true;
+    $('#seasonalRiskSaveBtn')?.addEventListener('click', () => {
+      const before = loadSeasonalRisks();
+      const next = upsertSeasonalRisk(before, {
+        id: `SR-${Date.now()}`,
+        season: $('#seasonalRiskSeason')?.value ?? '',
+        risk: $('#seasonalRiskRisk')?.value ?? '',
+        area: $('#seasonalRiskArea')?.value ?? '',
+        action: $('#seasonalRiskAction')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Seasonal risk note not recorded: give a season, a risk, and an affected area.'); return; }
+      saveSeasonalRisks(next);
+      toast('Seasonal risk note recorded. Prepare before the season, not after it.');
+      renderSeasonalRisks();
+    });
+    $('#seasonalRiskRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#seasonalRiskRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveSeasonalRisks(removeSeasonalRisk(loadSeasonalRisks(), id));
+      renderSeasonalRisks();
+    });
+    $('#seasonalRiskExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(seasonalRiskFilename(), seasonalRiskCsv(loadSeasonalRisks()));
+    });
+    $('#seasonalRiskFilter')?.addEventListener('input', () => { renderSeasonalRisks(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

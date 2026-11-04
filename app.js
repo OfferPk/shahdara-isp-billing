@@ -398,6 +398,7 @@ import { normalizeDecisionList, recordDecision, removeDecision, decisionsForTopi
 import { normalizeReviewTemplateList, recordReviewTemplate, removeReviewTemplate, findReviewTemplate, composeReview, reviewTemplateStarters, reviewTemplateSummaryText, reviewTemplateText, reviewTemplateHtml, reviewTemplateCsv, reviewTemplateFilename } from './review-template.js';
 import { normalizeTaxPackList, recordTaxPack, removeTaxPack, markTaxFigure, taxPackStarters, taxPackSummaryText, taxPackHtml, taxPackCsv, taxPackFilename } from './tax-figures.js';
 import { normalizeRetentionRuleList, recordRetentionRule, removeRetentionRule, retentionRulesSorted, overdueRetentionRules, retentionRuleAllHtml, retentionRuleSummaryText, retentionRuleCsv, retentionRuleFilename } from './retention-policy.js';
+import { normalizeBusinessDeviceList, recordBusinessDevice, removeBusinessDevice, markBusinessDeviceReturned, businessDevicesSorted, businessDeviceAllHtml, businessDeviceSummaryText, businessDeviceCsv, businessDeviceFilename } from './business-device.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13983,6 +13984,7 @@ function renderAnalytics() {
   renderReviewTemplate();
   renderTaxFigures();
   renderRetentionRules();
+  renderBusinessDevices();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25132,6 +25134,49 @@ function renderRetentionRules() {
       renderRetentionRules();
     });
     $('#rpFilter')?.addEventListener('input', () => { renderRetentionRules(); });
+  }
+}
+const BUSINESS_DEVICES_KEY = 'shahdara_business_devices_v1';
+function loadBusinessDevices() {
+  try { return normalizeBusinessDeviceList(JSON.parse(localStorage.getItem(BUSINESS_DEVICES_KEY) || '[]')); } catch { return []; }
+}
+function saveBusinessDevices(list) {
+  try { localStorage.setItem(BUSINESS_DEVICES_KEY, JSON.stringify(normalizeBusinessDeviceList(list))); } catch { /* business devices only: a failed save leaves the previous list in place */ }
+}
+let businessDevicesBound = false;
+function renderBusinessDevices() {
+  const bodyEl = $('#bdBody');
+  if (!bodyEl) return;
+  const entries = loadBusinessDevices();
+  const query = ($('#bdFilter')?.value ?? '').trim().toLowerCase();
+  const shown = query ? businessDevicesSorted(entries).filter((device) => device.holder.toLowerCase().includes(query)) : businessDevicesSorted(entries);
+  bodyEl.innerHTML = shown.length ? businessDeviceAllHtml(shown) : '<p>No business devices recorded.</p>';
+  const summaryEl = $('#bdSummary');
+  if (summaryEl) summaryEl.textContent = `${businessDeviceSummaryText(entries)}.`;
+  if (!businessDevicesBound) {
+    businessDevicesBound = true;
+    $('#bdExportBtn')?.addEventListener('click', () => { downloadCsvFile(businessDeviceFilename(), businessDeviceCsv(loadBusinessDevices())); });
+    $('#bdSaveBtn')?.addEventListener('click', () => {
+      saveBusinessDevices(recordBusinessDevice(loadBusinessDevices(), {
+        id: `BD-${Date.now()}`,
+        kind: $('#bdKind')?.value ?? '',
+        makeModel: $('#bdMake')?.value ?? '',
+        serial: $('#bdSerial')?.value ?? '',
+        holder: $('#bdHolder')?.value ?? '',
+        dateIssued: $('#bdIssued')?.value ?? '',
+        conditionNote: $('#bdNote')?.value ?? '',
+      }));
+      renderBusinessDevices();
+    });
+    $('#bdReturnBtn')?.addEventListener('click', () => {
+      saveBusinessDevices(markBusinessDeviceReturned(loadBusinessDevices(), $('#bdReturnId')?.value ?? '', $('#bdReturnDate')?.value ?? ''));
+      renderBusinessDevices();
+    });
+    $('#bdRemoveBtn')?.addEventListener('click', () => {
+      saveBusinessDevices(removeBusinessDevice(loadBusinessDevices(), $('#bdRemoveId')?.value ?? ''));
+      renderBusinessDevices();
+    });
+    $('#bdFilter')?.addEventListener('input', () => { renderBusinessDevices(); });
   }
 }
 function renderOwnerDecision() {

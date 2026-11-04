@@ -275,6 +275,7 @@ import { normalizeAtRiskThresholds, buildAtRiskList, atRiskSummaryText, atRiskHt
 import { EXIT_REASONS, EXIT_REASON_LABELS, normalizeExitRecord, normalizeExitRecordList, upsertExitRecord, removeExitRecord, buildMonthlyExitView, exitSummaryText, exitHtml, exitCsv, exitFilename } from './exit-reasons.js';
 import { SAVE_OFFERS, SAVE_OFFER_LABELS, SAVE_OUTCOMES, SAVE_OUTCOME_LABELS, SAVE_EXIT_REASONS, SAVE_EXIT_REASON_LABELS, normalizeSaveConversation, normalizeSaveConversationList, upsertSaveConversation, removeSaveConversation, filterSaveConversations, sortedSaveConversations, buildSaveSummary, saveSummaryText, saveHtml, saveCsv, saveFilename } from './save-conversations.js';
 import { buildMonthlyChurnSummary, churnSummaryText, churnHtml, churnCsv, churnFilename } from './churn-summary.js';
+import { DISPUTE_REASONS, DISPUTE_REASON_LABELS, DISPUTE_STATUSES, DISPUTE_STATUS_LABELS, normalizeDisputeCase, normalizeDisputeCaseList, upsertDisputeCase, removeDisputeCase, setDisputeStatus, openDisputeCases, buildDisputeSummary, disputeSummaryText, disputeHtml, disputeCsv, disputeFilename } from './dispute-cases.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13179,6 +13180,7 @@ function renderAnalytics() {
   renderSaveConversations();
   renderWinbackQueue();
   renderChurnSummary();
+  renderDisputeCases();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -14615,6 +14617,141 @@ function renderChurnSummary() {
         return { customerId: row.customerId, monthlyAmount: customer ? customer.monthlySellingAmount : null };
       }) });
       if (current) downloadCsvFile(churnFilename(current.month), churnCsv(current));
+    });
+  }
+}
+// Plan 61: billing dispute case log. A case is a record only —
+// recording, moving, or resolving it never changes any bill,
+// payment, or Waada record; any correction or concession still goes
+// through its existing path (Plan K), never through the case.
+const DISPUTE_CASES_KEY = 'shahdara_dispute_cases_v1';
+let disputeCasesBound = false;
+function loadDisputeCases() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DISPUTE_CASES_KEY) || '[]');
+    return normalizeDisputeCaseList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveDisputeCases(list) {
+  try { localStorage.setItem(DISPUTE_CASES_KEY, JSON.stringify(normalizeDisputeCaseList(list))); } catch {}
+}
+function refreshDisputeBills() {
+  const customerEl = $('#disputeCustomer');
+  const billEl = $('#disputeBill');
+  if (!customerEl || !billEl || document.activeElement === billEl) return;
+  const customer = (state.customers ?? []).find((c) => String(c.id) === String(customerEl.value ?? ''));
+  const bills = customer ? (customer.bills ?? []) : [];
+  billEl.innerHTML = bills.map((bill) => `<option value="${escapeHtml(bill.id)}">${escapeHtml(bill.month || bill.id)}${bill.dueAmount !== undefined && bill.dueAmount !== null && bill.dueAmount !== '' ? ` — Rs. ${escapeHtml(bill.dueAmount)}` : ''}</option>`).join('')
+    || '<option value="">No bills recorded for this customer</option>';
+  const idEl = $('#disputeBillId');
+  if (idEl && document.activeElement !== idEl) idEl.value = billEl.value ?? '';
+}
+function renderDisputeCases() {
+  const bodyEl = $('#disputeCasesBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const cases = loadDisputeCases();
+  const open = openDisputeCases(cases, {
+    status: $('#disputeFilterStatus')?.value ?? '',
+    reason: $('#disputeFilterReason')?.value ?? '',
+    mohalla: $('#disputeFilterMohalla')?.value ?? '',
+  });
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = disputeHtml(open.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const summaryEl = $('#disputeCasesSummary');
+  if (summaryEl) summaryEl.textContent = disputeSummaryText(buildDisputeSummary(cases));
+  const customerEl = $('#disputeCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  refreshDisputeBills();
+  const caseEl = $('#disputeCaseSelect');
+  if (caseEl && document.activeElement !== caseEl) {
+    caseEl.innerHTML = cases.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(entry.billId)} (${escapeHtml(DISPUTE_STATUS_LABELS[entry.status])})</option>`).join('')
+      || '<option value="">No cases yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['disputeFilterStatus', DISPUTE_STATUSES, DISPUTE_STATUS_LABELS],
+    ['disputeFilterReason', DISPUTE_REASONS, DISPUTE_REASON_LABELS],
+    ['disputeReason', DISPUTE_REASONS, DISPUTE_REASON_LABELS],
+    ['disputeStatus', DISPUTE_STATUSES, DISPUTE_STATUS_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('disputeFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  const mohallaEl = $('#disputeMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+    mohallaEl.value = selected ? (selected.mohalla || selected.area || '') : '';
+  }
+  if (!disputeCasesBound) {
+    disputeCasesBound = true;
+    $('#disputeCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#disputeCustomer')?.value ?? ''));
+      const mohallaInput = $('#disputeMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+      refreshDisputeBills();
+      renderDisputeCases();
+    });
+    $('#disputeBill')?.addEventListener('change', () => {
+      const idEl = $('#disputeBillId');
+      if (idEl) idEl.value = $('#disputeBill')?.value ?? '';
+    });
+    $('#disputeFilterStatus')?.addEventListener('change', () => renderDisputeCases());
+    $('#disputeFilterReason')?.addEventListener('change', () => renderDisputeCases());
+    $('#disputeFilterMohalla')?.addEventListener('input', () => renderDisputeCases());
+    $('#disputeRecordBtn')?.addEventListener('click', () => {
+      const customerId = $('#disputeCustomer')?.value ?? '';
+      if (!customerId) { toast('Pick a customer first.'); return; }
+      const selected = customers.find((c) => String(c.id) === String(customerId));
+      const record = normalizeDisputeCase({
+        id: $('#disputeCaseId')?.value ?? '',
+        customerId,
+        customerName: selected ? (selected.name || selected.customerName || '') : '',
+        billId: $('#disputeBillId')?.value ?? $('#disputeBill')?.value ?? '',
+        billMonth: $('#disputeBillMonth')?.value ?? '',
+        disputedAmount: $('#disputeAmount')?.value ?? '',
+        reason: $('#disputeReason')?.value ?? '',
+        status: 'open',
+        evidenceNote: $('#disputeEvidence')?.value ?? '',
+        dateOpened: $('#disputeDate')?.value ?? '',
+        mohalla: $('#disputeMohalla')?.value ?? '',
+      });
+      if (!record) {
+        toast('A dispute case needs a case id, a customer, a bill, a positive disputed amount, and a reason from the list.');
+        return;
+      }
+      saveDisputeCases(upsertDisputeCase(loadDisputeCases(), record));
+      toast('Dispute case recorded. It changes no bill, payment, or Waada record; any correction still goes through its existing path.');
+      renderDisputeCases();
+    });
+    $('#disputeMoveBtn')?.addEventListener('click', () => {
+      const id = $('#disputeCaseSelect')?.value ?? '';
+      const status = $('#disputeStatus')?.value ?? '';
+      const outcome = $('#disputeOutcome')?.value ?? '';
+      if (!id) { toast('Pick a case first.'); return; }
+      const next = setDisputeStatus(loadDisputeCases(), id, status, outcome);
+      const moved = next.find((entry) => entry.id === id);
+      if (!moved || moved.status !== status) {
+        toast(status === 'resolved' ? 'A case cannot be marked resolved without a recorded outcome.' : 'That status move is not allowed from the case’s current status.');
+        return;
+      }
+      saveDisputeCases(next);
+      renderDisputeCases();
+    });
+    $('#disputeRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#disputeCaseSelect')?.value ?? '';
+      if (!id) return;
+      saveDisputeCases(removeDisputeCase(loadDisputeCases(), id));
+      renderDisputeCases();
+    });
+    $('#disputeExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(disputeFilename(), disputeCsv(loadDisputeCases()));
     });
   }
 }

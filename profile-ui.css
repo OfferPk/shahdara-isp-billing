@@ -145,3 +145,14 @@
 .profile-field-save:disabled {
   opacity: 0.6;
 }
+
+/* Profile polish batch: fully-red errors, sticky save bar, completion counter. */
+.profile-form-error:not([hidden]) { display: block; width: 100%; margin: 0 0 12px; padding: 12px 14px; background: var(--color-danger-strong); border: 2px solid var(--color-danger-strong); border-radius: var(--radius-sm); color: white; font-size: var(--text-sm); font-weight: 700; text-align: left; cursor: pointer; }
+.profile-form-error[hidden] { display: none; }
+.contrib-warn.contrib-warn-error { background: var(--color-danger-strong); border-color: var(--color-danger-strong); color: white; font-weight: 700; cursor: pointer; }
+.contrib-warn.contrib-warn-error[hidden] { display: none; }
+.profile-completion-counter { margin: 4px 0 12px; font-size: 13px; font-weight: 700; }
+.profile-sticky-save { position: fixed; left: 12px; right: 12px; bottom: calc(var(--bottom-nav-height, 60px) + 8px); z-index: 1030; display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+#profileStickySaveBar[hidden] { display: none; }
+#profileStickySaveButton { min-height: 48px; flex: 0 0 auto; }
+.customer-profile-form.has-sticky-save { padding-bottom: 96px; }

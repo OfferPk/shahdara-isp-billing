@@ -25,6 +25,8 @@ import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveL
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry } from './profile-field-save.js?v=1.11.0';
+import { countProfileCompletion, countProfileCompletionFromControls } from './profile-completion.js?v=1.11.0';
+import { resolveProfileErrorTarget } from './profile-error-jump.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
 import { captureCurrentPosition, loadSplitterBoxPins, saveSplitterBoxPins, SPLITTER_BOX_GPS_STORAGE_KEY } from './gps-pin-helper.js';
@@ -4673,7 +4675,10 @@ function renderCustomerProfileView(customer) {
   const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
   const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
   const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p>When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><div><label>Date <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  // Profile polish batch: completion counter at the very top of every
+  // profile — filled/total over the PR #813 per-field-save controls.
+  $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -8586,7 +8591,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
   // voucher side effect below), never a silent drop.
   const contributorRows = collectContributorEditorRows();
   if (!contributorRows.ok) {
-    toast(t('contrib_invalid_row'));
+    showProfileFormError(t('contrib_invalid_row'), 'contributors');
     return;
   }
   const phoneVal = $('#phoneInput').value.trim();
@@ -8595,7 +8600,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
   if (phoneVal) {
     const checkPhone = validatePakistanPhone(phoneVal);
     if (!checkPhone.valid && !checkPhone.tip) {
-      toast(checkPhone.message || 'Invalid Pakistani phone number.');
+      showProfileFormError(checkPhone.message || 'Invalid Pakistani phone number.', 'phoneInput');
       $('#phoneInput').focus();
       return;
     }
@@ -8605,7 +8610,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
   if (cnicVal) {
     const checkCnic = validateCustomerCnic(cnicVal);
     if (!checkCnic.valid) {
-      toast(checkCnic.message || 'Invalid CNIC (13 digits required).');
+      showProfileFormError(checkCnic.message || 'Invalid CNIC (13 digits required).', 'cnicInput');
       $('#cnicInput').focus();
       return;
     }
@@ -8653,7 +8658,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
   if (submittedBoxId && Number.isInteger(submittedPort)
       && (submittedBoxId !== currentOptical.splitterBoxId || submittedPort !== currentOptical.splitterPort)
       && isPortDead(submittedBoxId, submittedPort, loadDeadPorts())) {
-    toast(t('pswap_err_dead', null, { box: submittedBoxId, port: submittedPort }));
+    showProfileFormError(t('pswap_err_dead', null, { box: submittedBoxId, port: submittedPort }), 'splitterPortInput');
     $('#splitterPortInput').focus();
     return;
   }
@@ -8855,7 +8860,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     } else {
       toast('Customer profile saved on this device.');
     }
-  } catch (error) { toast(error.message); }
+  } catch (error) { showProfileFormError(error.message, null); }
 });
 // Profile polish: one inline Save button per editable profile field.
 // Each button saves ONLY its own field through updateCustomerProfile —
@@ -8880,7 +8885,7 @@ async function saveProfileField(control, button, labelText) {
     if (entry.key === 'phone' && typeof entry.value === 'string' && entry.value.trim()) {
       const phoneVal = entry.value.trim();
       const checkPhone = validatePakistanPhone(phoneVal);
-      if (!checkPhone.valid && !checkPhone.tip) { toast(checkPhone.message || 'Invalid Pakistani phone number.'); control.focus(); return; }
+      if (!checkPhone.valid && !checkPhone.tip) { showProfileFormError(checkPhone.message || 'Invalid Pakistani phone number.', 'phoneInput'); control.focus(); return; }
       const matches = findPossibleDuplicateCustomers(state.customers, { customerId: customer.id, phone: phoneVal, cnic: '' });
       const exactDuplicates = matches.filter(m => m.reasons.some(r => r.field === 'phone' && r.type === 'exact'));
       if (exactDuplicates.length > 0) {
@@ -8898,7 +8903,7 @@ async function saveProfileField(control, button, labelText) {
     if (entry.key === 'cnic' && typeof entry.value === 'string' && entry.value.trim()) {
       const cnicVal = entry.value.trim();
       const checkCnic = validateCustomerCnic(cnicVal);
-      if (!checkCnic.valid) { toast(checkCnic.message || 'Invalid CNIC (13 digits required).'); control.focus(); return; }
+      if (!checkCnic.valid) { showProfileFormError(checkCnic.message || 'Invalid CNIC (13 digits required).', 'cnicInput'); control.focus(); return; }
       const matches = findPossibleDuplicateCustomers(state.customers, { customerId: customer.id, phone: '', cnic: checkCnic.formatted });
       const exactDuplicates = matches.filter(m => m.reasons.some(r => r.field === 'cnic' && r.type === 'exact'));
       if (exactDuplicates.length > 0) {
@@ -8915,7 +8920,7 @@ async function saveProfileField(control, button, labelText) {
       if (box && Number.isInteger(port)
         && (box !== currentOptical.splitterBoxId || port !== currentOptical.splitterPort)
         && isPortDead(box, port, loadDeadPorts())) {
-        toast(t('pswap_err_dead', null, { box, port }));
+        showProfileFormError(t('pswap_err_dead', null, { box, port }), 'splitterPortInput');
         control.focus();
         return;
       }
@@ -8947,7 +8952,7 @@ async function saveProfileField(control, button, labelText) {
     button.textContent = 'Saved ✓';
     setTimeout(() => { if (document.body.contains(button)) button.textContent = 'Save'; }, 1500);
   } catch (error) {
-    toast(error.message);
+    showProfileFormError(error.message, control.id);
     button.textContent = 'Save';
   } finally {
     button.disabled = false;
@@ -8978,6 +8983,94 @@ function bindProfileFieldSaveButtons() {
 }
 bindProfileFieldSaveButtons();
 $('#cancelProfileEditButton').addEventListener('click', () => { profileEditMode = false; renderDetail(); });
+
+// Profile polish batch: fully-red clickable errors, sticky save bar,
+// live completion counter. Presentation and navigation only — validation
+// messages and what saving stores are unchanged.
+function showProfileFormError(message, fieldId) {
+  const banner = $('#profileFormError');
+  if (!banner) { toast(message); return; }
+  const target = resolveProfileErrorTarget(fieldId);
+  banner.dataset.errorField = fieldId || '';
+  banner.textContent = target.kind === 'form' ? `${message} Tap to go to the top of the form.` : message;
+  banner.hidden = false;
+}
+function jumpToProfileErrorTarget(target) {
+  if (target.kind === 'field') {
+    const el = document.getElementById(target.id);
+    if (el) { el.scrollIntoView({ block: 'center' }); el.focus({ preventScroll: true }); return; }
+  }
+  if (target.kind === 'contributors') {
+    const host = $('#profileContributorsEditor');
+    const el = host?.querySelector('[data-contrib-share]') || host?.querySelector('[data-contrib-add]');
+    if (el) { el.scrollIntoView({ block: 'center' }); el.focus({ preventScroll: true }); return; }
+  }
+  const form = $('#customerProfileForm');
+  if (form) form.scrollIntoView({ block: 'start' });
+}
+$('#profileFormError')?.addEventListener('click', () => {
+  const banner = $('#profileFormError');
+  jumpToProfileErrorTarget(resolveProfileErrorTarget(banner?.dataset.errorField || ''));
+});
+function updateProfileCompletionCounter() {
+  const form = $('#customerProfileForm');
+  const el = $('#profileCompletionCounter');
+  if (!form || !el) return;
+  el.textContent = countProfileCompletionFromControls([...form.querySelectorAll('input, select, textarea')]).text;
+}
+const profileStickyObserved = new WeakSet();
+function observeStickyNode(node, options, callback) {
+  if (!node || profileStickyObserved.has(node) || typeof MutationObserver === 'undefined') return;
+  profileStickyObserved.add(node);
+  new MutationObserver(callback).observe(node, options);
+}
+let profileFormWasHidden = true;
+function onProfileFormVisibilityChange() {
+  const form = $('#customerProfileForm');
+  if (!form) return;
+  // A stale banner from a previous failed save must never greet the
+  // operator on reopening the form — it clears on open, not on save.
+  if (profileFormWasHidden && !form.hidden) {
+    const banner = $('#profileFormError');
+    if (banner) banner.hidden = true;
+  }
+  profileFormWasHidden = form.hidden;
+  syncProfileStickySaveBar();
+  updateProfileCompletionCounter();
+}
+function syncProfileStickySaveBar() {
+  const form = $('#customerProfileForm');
+  const bar = $('#profileStickySaveBar');
+  if (!form || !bar) return;
+  const save = $('#saveMohallaButton');
+  const hint = $('#profileSaveHint');
+  const btn = $('#profileStickySaveButton');
+  const barHint = $('#profileStickySaveHint');
+  // The bar shows only while the edit form itself is actually visible —
+  // never over another tab, and never over the bottom navigation, which
+  // it sits above via the bottom offset in CSS.
+  const editing = !form.hidden && form.offsetParent !== null;
+  bar.hidden = !editing;
+  form.classList.toggle('has-sticky-save', editing);
+  if (btn && save) btn.disabled = save.disabled;
+  if (barHint && hint) barHint.textContent = hint.textContent;
+  observeStickyNode(form, { attributes: true, attributeFilter: ['hidden'] }, onProfileFormVisibilityChange);
+  observeStickyNode(save, { attributes: true, attributeFilter: ['disabled'] }, () => { syncProfileStickySaveBar(); updateProfileCompletionCounter(); });
+  observeStickyNode(hint, { childList: true, characterData: true, subtree: true }, () => { syncProfileStickySaveBar(); updateProfileCompletionCounter(); });
+}
+// The sticky button triggers the exact same save flow as the in-form
+// button (including its disabled-when-clean state, mirrored above).
+$('#profileStickySaveButton')?.addEventListener('click', () => { $('#saveMohallaButton')?.click(); });
+const profileFormEl = $('#customerProfileForm');
+profileFormEl?.addEventListener('input', () => {
+  const banner = $('#profileFormError');
+  if (banner) banner.hidden = true;
+  updateProfileCompletionCounter();
+  syncProfileStickySaveBar();
+});
+profileFormEl?.addEventListener('change', () => { updateProfileCompletionCounter(); syncProfileStickySaveBar(); });
+syncProfileStickySaveBar();
+updateProfileCompletionCounter();
 
 // SISP-158: shared-router contributor editor wiring. The editor host is
 // static markup; rows are re-rendered by renderDetail on every profile
@@ -9025,6 +9118,12 @@ function collectContributorEditorRows() {
 }
 const contributorsEditorHost = $('#profileContributorsEditor');
 contributorsEditorHost?.addEventListener('click', (event) => {
+  // The fully-red shares warning jumps straight to the share amount
+  // that needs changing (or the add button when no rows exist yet).
+  if (event.target.closest('#contribEditorWarning')) {
+    jumpToProfileErrorTarget({ kind: 'contributors' });
+    return;
+  }
   if (event.target.closest('[data-contrib-add]')) {
     const rowsHost = contributorsEditorHost.querySelector('.contrib-rows');
     if (rowsHost) {
@@ -9041,6 +9140,12 @@ contributorsEditorHost?.addEventListener('click', (event) => {
   }
 });
 contributorsEditorHost?.addEventListener('input', refreshContributorEditorWarning);
+contributorsEditorHost?.addEventListener('keydown', (event) => {
+  if ((event.key === 'Enter' || event.key === ' ') && event.target.closest('#contribEditorWarning')) {
+    event.preventDefault();
+    jumpToProfileErrorTarget({ kind: 'contributors' });
+  }
+});
 $('#monthlyPurchaseCostInput').addEventListener('input', renderProfileMarginPreview);
 $('#monthlySellingAmountInput').addEventListener('input', () => {
   renderProfileMarginPreview();

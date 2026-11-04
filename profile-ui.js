@@ -879,7 +879,7 @@ export function contributorEditorHtml(customer, price = null) {
   const contributors = subContributorsOf(customer);
   const sharesSum = contributors.reduce((sum, entry) => sum + entry.sharePKR, 0);
   const warning = contributorSharesWarningText(sharesSum, price);
-  return `<section class="profile-contributors-editor" aria-label="${escapeHtml(t('contrib_aria'))}"><h4>${escapeHtml(t('contrib_heading'))}</h4><p class="contrib-note">${escapeHtml(t('contrib_note'))}</p><div class="contrib-rows">${contributors.length > 0 ? contributors.map((entry) => contributorEditorRowHtml(entry)).join('') : `<p class="contrib-empty">${escapeHtml(t('contrib_empty'))}</p>`}</div><button type="button" class="secondary-button" data-contrib-add>${escapeHtml(t('contrib_add'))}</button><p class="contrib-warn" id="contribEditorWarning"${warning ? '' : ' hidden'}>${escapeHtml(warning)}</p></section>`;
+  return `<section class="profile-contributors-editor" aria-label="${escapeHtml(t('contrib_aria'))}"><h4>${escapeHtml(t('contrib_heading'))}</h4><p class="contrib-note">${escapeHtml(t('contrib_note'))}</p><div class="contrib-rows">${contributors.length > 0 ? contributors.map((entry) => contributorEditorRowHtml(entry)).join('') : `<p class="contrib-empty">${escapeHtml(t('contrib_empty'))}</p>`}</div><button type="button" class="secondary-button" data-contrib-add>${escapeHtml(t('contrib_add'))}</button><p class="contrib-warn contrib-warn-error" id="contribEditorWarning" role="button" tabindex="0" data-error-jump="contributors" title="Tap to go to the share amount that needs changing"${warning ? '' : ' hidden'}>${escapeHtml(warning)}</p></section>`;
 }
 
 /**

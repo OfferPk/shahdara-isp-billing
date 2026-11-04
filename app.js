@@ -394,6 +394,7 @@ import { collectTimelineEntries, timelineAllHtml, timelineCustomerHtml, timeline
 import { normalizeMigrationStepList, upsertMigrationStep, removeMigrationStep, markMigrationStepDone, markMigrationStepUndone, migrationStepStarters, migrationStepAllHtml, migrationStepSummaryText, migrationStepCsv, migrationStepFilename, normalizePortMoveList, upsertPortMove, removePortMove, portMovesSorted, portMovesForCustomer, portMovesOnDate, portMoveAllHtml, portMoveSummaryText, portMoveCsv, portMoveFilename } from './migration-checklist.js';
 import { normalizeAuditCycleList, createAuditCycle, completeAuditCycle, removeAuditCycle, normalizeAuditLineList, addAuditLine, removeAuditLine, auditCycleAllHtml, auditCycleSummaryText, auditCycleCsv, auditCycleFilename } from './inventory-audit.js';
 import { normalizeStaffHandoverList, recordStaffHandover, removeStaffHandover, markStaffHandoverReceived, markStaffHandoverNotReceived, staffHandoversForPerson, staffHandoverAllHtml, staffHandoverSummaryText, staffHandoverCsv, staffHandoverFilename } from './staff-handover.js';
+import { normalizeDecisionList, recordDecision, removeDecision, decisionsForTopic, decisionAllHtml, decisionSummaryText, decisionCsv, decisionFilename } from './decision-log.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13975,6 +13976,7 @@ function renderAnalytics() {
   renderMigrationChecklist();
   renderInventoryAudit();
   renderStaffHandover();
+  renderOwnerDecision();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24966,6 +24968,54 @@ function renderStaffHandover() {
       renderStaffHandover();
     });
     $('#shFilter')?.addEventListener('input', () => { renderStaffHandover(); });
+  }
+}
+// Plan 184: owner decision log.
+// The panel keeps only its own list: decisions (date, decision in
+// plain words, reason, options considered, who decided, review
+// date). Logging a decision never applies it — the change itself
+// goes through its own existing flow — and never changes any
+// bill, payment, package price, or customer record. There is no
+// edit function, so a past entry is recorded or removed, never
+// silently rewritten.
+const OWNER_DECISION_KEY = 'shahdara_owner_decisions_v1';
+function loadOwnerDecisions() {
+  try { return normalizeDecisionList(JSON.parse(localStorage.getItem(OWNER_DECISION_KEY) || '[]')); } catch { return []; }
+}
+function saveOwnerDecisions(list) {
+  try { localStorage.setItem(OWNER_DECISION_KEY, JSON.stringify(normalizeDecisionList(list))); } catch { /* owner decisions only: a failed save leaves the previous list in place */ }
+}
+let ownerDecisionBound = false;
+function renderOwnerDecision() {
+  const bodyEl = $('#odBody');
+  if (!bodyEl) return;
+  const entries = loadOwnerDecisions();
+  const query = ($('#odSearch')?.value ?? '').trim();
+  const shown = query ? decisionsForTopic(entries, query) : entries;
+  bodyEl.innerHTML = shown.length ? decisionAllHtml(shown) : '<p>No owner decisions recorded.</p>';
+  const summaryEl = $('#odSummary');
+  if (summaryEl) summaryEl.textContent = `${decisionSummaryText(entries)}.`;
+  if (!ownerDecisionBound) {
+    ownerDecisionBound = true;
+    $('#odExportBtn')?.addEventListener('click', () => { downloadCsvFile(decisionFilename(), decisionCsv(loadOwnerDecisions())); });
+    $('#odSaveBtn')?.addEventListener('click', () => {
+      saveOwnerDecisions(recordDecision(loadOwnerDecisions(), {
+        id: `OD-${Date.now()}`,
+        topic: $('#odTopic')?.value ?? '',
+        decision: $('#odDecision')?.value ?? '',
+        date: $('#odDate')?.value ?? '',
+        reason: $('#odReason')?.value ?? '',
+        options: $('#odOptions')?.value ?? '',
+        decidedBy: $('#odBy')?.value ?? '',
+        reviewDate: $('#odReview')?.value ?? '',
+      }));
+      renderOwnerDecision();
+    });
+    $('#odRemoveBtn')?.addEventListener('click', () => {
+      saveOwnerDecisions(removeDecision(loadOwnerDecisions(), $('#odRemoveId')?.value ?? ''));
+      renderOwnerDecision();
+    });
+    $('#odSearch')?.addEventListener('input', () => { renderOwnerDecision(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

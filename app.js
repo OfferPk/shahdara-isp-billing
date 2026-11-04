@@ -259,7 +259,7 @@ import { normalizeVendorContract, normalizeVendorContracts, upsertVendorContract
 import { isValidCostMonth, parseCapitalCategories, buildCostPerCustomer, costPerCustomerSummaryText, costPerCustomerHtml, costPerCustomerCsv, costPerCustomerFilename } from './cost-per-customer.js';
 import { normalizeAdvance, normalizeAdvances, normalizeSpends, upsertAdvance, recordSpend, buildAdvanceSummaries, closeAdvance, pettyCashSummaryText, pettyCashHtml, pettyCashCsv, pettyCashFilename } from './petty-cash.js';
 import { DEFAULT_BILL_DUE_DAY, normalizeBillingCycleChoice, normalizeBillingCycleChoices, findBillingCycleChoice, upsertBillingCycleChoice, dueDateForBillMonth, billingCycleChoiceSummaryText, billingCycleChoiceHtml } from './billing-cycle-choice.js';
-import { normalizeConnectionRecord, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
+import { normalizeConnectionRecord, normalizeConnectionRecords, buildConnectionRegister, upsertConnectionRecord, swapOnu, buildPortRegister, connectionSummaryText, connectionRegisterHtml, connectionRegisterCsv } from './connection-register.js';
 import { previewFromCustomer, recordFirstBillPreviewShown, findFirstBillPreviewShown, firstBillPreviewShownText, firstBillPreviewHtml } from './first-bill-preview.js';
 import { buildPackageChangePreview, packageChangePreviewHtml, packageChangePreviewStoredText, findPackageChangePreview, recordPackageChangePreview, removePackageChangePreview, previewMatchesChange, attachPreviewNoteToChange } from './package-change-preview.js';
 import { recordQualityEntry, entriesForCustomer, qualityLogSummaryText, qualityLogHtml } from './quality-log.js';
@@ -295,6 +295,7 @@ import { DEPOSIT_DEVICE_TYPES, DEPOSIT_DEVICE_TYPE_LABELS, DEPOSIT_STATUSES, DEP
 import { LOAN_DEVICE_TYPES, LOAN_DEVICE_TYPE_LABELS, LOAN_STATUSES, LOAN_STATUS_LABELS, normalizeLoan, normalizeLoanList, upsertLoan, removeLoan, markLoanReturned, convertLoanPermanent, reopenLoan, loansFiltered, overdueLoans, buildLoanSummary, loanSummaryText, loanHtml, loanCsv, loanFilename } from './loan-tracker.js';
 import { JOB_MATERIAL_ITEMS, JOB_MATERIAL_LABELS, JOB_STATUSES, JOB_STATUS_LABELS, normalizeJob, normalizeJobList, upsertJob, removeJob, addJobMaterial, completeJob, reopenJob, jobsFiltered, buildJobCosts, buildJobSummary, jobSummaryText, jobHtml, jobCsv, jobFilename } from './job-cost.js';
 import { RMA_DEVICE_TYPES, RMA_DEVICE_TYPE_LABELS, RMA_STATUSES, RMA_STATUS_LABELS, normalizeRma, normalizeRmaList, upsertRma, removeRma, advanceRmaToAwaiting, markRmaReplaced, markRmaRepaired, markRmaRejected, reopenRma, rmasFiltered, awaitingRmas, buildRmaSummary, rmaSummaryText, rmaHtml, rmaCsv, rmaFilename } from './warranty-returns.js';
+import { RECOVERY_STATUSES, RECOVERY_STATUS_LABELS, normalizeRecoveryList, upsertRecovery, markRecoveryCollected, markRecoveryNotReturned, reopenRecovery, removeRecovery, buildRecoveryQueue, recoveryQueueFiltered, buildRecoverySummary, recoverySummaryText, recoveryHtml, recoveryCsv, recoveryFilename } from './recovery-queue.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13516,6 +13517,7 @@ function renderAnalytics() {
   renderLoanTracker();
   renderJobCost();
   renderRmaLog();
+  renderRecoveryQueue();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -16995,6 +16997,128 @@ function renderRmaLog() {
     });
     $('#rmaExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(rmaFilename(), rmaCsv(loadRmaLog()));
+    });
+  }
+}
+let recoveryQueueBound = false;
+const RECOVERY_QUEUE_KEY = 'shahdara_recovery_queue_v1';
+function loadRecoveryQueue() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECOVERY_QUEUE_KEY) || '[]');
+    return normalizeRecoveryList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveRecoveryQueue(list) {
+  try { localStorage.setItem(RECOVERY_QUEUE_KEY, JSON.stringify(normalizeRecoveryList(list))); } catch {}
+}
+// End-of-service equipment recovery queue (Plan 81): the queue is
+// derived, never stored — departed customers (archived, with the
+// exit log's recorded date as the service-ended date) who still
+// hold a unit on the connection register. Only recovery status
+// records are stored, in their own store. Marking a device
+// collected removes it from the queue and keeps the date and
+// collector; a not-returned case keeps its reason visible and
+// stays in the queue. Queue actions never alter any bill, payment,
+// or departed-customer record, and any deposit outcome stays with
+// the deposit register; a recovery visit is recorded through the
+// field-visit flow and only its id is kept here.
+function recoveryQueueInputs() {
+  const customers = state.customers ?? [];
+  const departed = customers.filter((c) => c.archived === true);
+  const exitByCustomer = new Map(loadExitReasons().map((entry) => [String(entry.customerId), entry]));
+  const departedInput = departed.map((c) => {
+    const exit = exitByCustomer.get(String(c.id));
+    return {
+      customerId: c.id,
+      customerName: c.name || c.id,
+      mohalla: c.mohalla || c.area || '',
+      dateEnded: exit ? exit.recordedDate : (c.archivedAt ? String(c.archivedAt).slice(0, 10) : null),
+      exitReason: exit ? exit.reason : null,
+    };
+  });
+  const equipment = normalizeConnectionRecords(loadOltOnuRegister()).map((record) => ({
+    customerId: record.customerId,
+    serial: record.onuSerial,
+    deviceType: 'onu',
+    ispOwned: true,
+  }));
+  return { departed: departedInput, equipment, recoveries: loadRecoveryQueue(), today: localDate() };
+}
+function renderRecoveryQueue() {
+  const bodyEl = $('#recoveryQueueBody');
+  if (!bodyEl) return;
+  const queue = buildRecoveryQueue(recoveryQueueInputs());
+  const shown = recoveryQueueFiltered(queue, {
+    status: $('#recoveryFilterStatus')?.value ?? '',
+    mohalla: $('#recoveryFilterMohalla')?.value ?? '',
+  });
+  bodyEl.innerHTML = recoveryHtml(shown);
+  const summaryEl = $('#recoveryQueueSummary');
+  if (summaryEl) summaryEl.textContent = recoverySummaryText(buildRecoverySummary(queue, loadRecoveryQueue()));
+  const selectEl = $('#recoverySelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = queue.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.customerName || entry.customerId)} — ${escapeHtml(entry.serial)} — ${escapeHtml(RECOVERY_STATUS_LABELS[entry.status])}</option>`).join('')
+      || '<option value="">No unreturned equipment in the queue</option>';
+  }
+  const filterEl = $('#recoveryFilterStatus');
+  if (filterEl && filterEl.options.length === 0) {
+    filterEl.innerHTML = '<option value="">All</option>' + RECOVERY_STATUSES.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(RECOVERY_STATUS_LABELS[key])}</option>`).join('');
+  }
+  if (!recoveryQueueBound) {
+    recoveryQueueBound = true;
+    $('#recoveryFilterStatus')?.addEventListener('change', () => renderRecoveryQueue());
+    $('#recoveryFilterMohalla')?.addEventListener('input', () => renderRecoveryQueue());
+    $('#recoveryCollectBtn')?.addEventListener('click', () => {
+      const id = $('#recoverySelect')?.value ?? '';
+      if (!id) return;
+      const entry = queue.find((row) => row.id === id);
+      if (!entry) return;
+      let current = loadRecoveryQueue();
+      if (!current.some((row) => row.id === id)) {
+        current = upsertRecovery(current, { id: entry.id, customerId: entry.customerId, customerName: entry.customerName, mohalla: entry.mohalla, serial: entry.serial, deviceType: entry.deviceType, dateEnded: entry.dateEnded, status: 'pending' });
+      }
+      const next = markRecoveryCollected(current, id, $('#recoveryCollectedDate')?.value ?? '', $('#recoveryCollector')?.value ?? '', $('#recoveryVisitId')?.value ?? '');
+      const updated = next.find((row) => row.id === id);
+      if (!updated || updated.status !== 'collected') {
+        toast('A collected device needs a collection date and a collector name, and only a pending device can be collected.');
+        return;
+      }
+      saveRecoveryQueue(next);
+      toast('Device marked collected and removed from the queue. This creates no charge, bill, or payment.');
+      renderRecoveryQueue();
+    });
+    $('#recoveryNotReturnedBtn')?.addEventListener('click', () => {
+      const id = $('#recoverySelect')?.value ?? '';
+      if (!id) return;
+      const entry = queue.find((row) => row.id === id);
+      if (!entry) return;
+      let current = loadRecoveryQueue();
+      if (!current.some((row) => row.id === id)) {
+        current = upsertRecovery(current, { id: entry.id, customerId: entry.customerId, customerName: entry.customerName, mohalla: entry.mohalla, serial: entry.serial, deviceType: entry.deviceType, dateEnded: entry.dateEnded, status: 'pending' });
+      }
+      const next = markRecoveryNotReturned(current, id, $('#recoveryReason')?.value ?? '');
+      const updated = next.find((row) => row.id === id);
+      if (!updated || updated.status !== 'not_returned') {
+        toast('A not-returned case needs its reason, and only a pending device can be marked not returned.');
+        return;
+      }
+      saveRecoveryQueue(next);
+      renderRecoveryQueue();
+    });
+    $('#recoveryReopenBtn')?.addEventListener('click', () => {
+      const id = $('#recoverySelect')?.value ?? '';
+      if (!id) return;
+      saveRecoveryQueue(reopenRecovery(loadRecoveryQueue(), id));
+      renderRecoveryQueue();
+    });
+    $('#recoveryRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#recoverySelect')?.value ?? '';
+      if (!id) return;
+      saveRecoveryQueue(removeRecovery(loadRecoveryQueue(), id));
+      renderRecoveryQueue();
+    });
+    $('#recoveryExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(recoveryFilename(), recoveryCsv(shown));
     });
   }
 }

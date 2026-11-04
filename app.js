@@ -397,6 +397,7 @@ import { normalizeStaffHandoverList, recordStaffHandover, removeStaffHandover, m
 import { normalizeDecisionList, recordDecision, removeDecision, decisionsForTopic, decisionAllHtml, decisionSummaryText, decisionCsv, decisionFilename } from './decision-log.js';
 import { normalizeReviewTemplateList, recordReviewTemplate, removeReviewTemplate, findReviewTemplate, composeReview, reviewTemplateStarters, reviewTemplateSummaryText, reviewTemplateText, reviewTemplateHtml, reviewTemplateCsv, reviewTemplateFilename } from './review-template.js';
 import { normalizeTaxPackList, recordTaxPack, removeTaxPack, markTaxFigure, taxPackStarters, taxPackSummaryText, taxPackHtml, taxPackCsv, taxPackFilename } from './tax-figures.js';
+import { normalizeRetentionRuleList, recordRetentionRule, removeRetentionRule, retentionRulesSorted, overdueRetentionRules, retentionRuleAllHtml, retentionRuleSummaryText, retentionRuleCsv, retentionRuleFilename } from './retention-policy.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13981,6 +13982,7 @@ function renderAnalytics() {
   renderOwnerDecision();
   renderReviewTemplate();
   renderTaxFigures();
+  renderRetentionRules();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25092,6 +25094,44 @@ function renderTaxFigures() {
       saveTaxPacks(removeTaxPack(loadTaxPacks(), $('#tfRemoveId')?.value ?? ''));
       renderTaxFigures();
     });
+  }
+}
+const RETENTION_RULES_KEY = 'shahdara_retention_rules_v1';
+function loadRetentionRules() {
+  try { return normalizeRetentionRuleList(JSON.parse(localStorage.getItem(RETENTION_RULES_KEY) || '[]')); } catch { return []; }
+}
+function saveRetentionRules(list) {
+  try { localStorage.setItem(RETENTION_RULES_KEY, JSON.stringify(normalizeRetentionRuleList(list))); } catch { /* retention rules only: a failed save leaves the previous list in place */ }
+}
+let retentionRulesBound = false;
+function renderRetentionRules() {
+  const bodyEl = $('#rpBody');
+  if (!bodyEl) return;
+  const entries = loadRetentionRules();
+  const query = ($('#rpFilter')?.value ?? '').trim().toLowerCase();
+  const shown = query ? retentionRulesSorted(entries).filter((rule) => rule.kind.toLowerCase().includes(query)) : retentionRulesSorted(entries);
+  bodyEl.innerHTML = shown.length ? retentionRuleAllHtml(shown) : '<p>No retention rules recorded.</p>';
+  const summaryEl = $('#rpSummary');
+  if (summaryEl) summaryEl.textContent = `${retentionRuleSummaryText(entries)}.` + (overdueRetentionRules(entries, new Date().toISOString().slice(0, 10)).length ? ' Overdue reviews are flagged in the list above.' : '');
+  if (!retentionRulesBound) {
+    retentionRulesBound = true;
+    $('#rpExportBtn')?.addEventListener('click', () => { downloadCsvFile(retentionRuleFilename(), retentionRuleCsv(loadRetentionRules())); });
+    $('#rpSaveBtn')?.addEventListener('click', () => {
+      saveRetentionRules(recordRetentionRule(loadRetentionRules(), {
+        id: `RP-${Date.now()}`,
+        kind: $('#rpKind')?.value ?? '',
+        keepPeriod: $('#rpKeep')?.value ?? '',
+        archiveAction: $('#rpAction')?.value ?? '',
+        reviewDate: $('#rpReview')?.value ?? '',
+        note: $('#rpNote')?.value ?? '',
+      }));
+      renderRetentionRules();
+    });
+    $('#rpRemoveBtn')?.addEventListener('click', () => {
+      saveRetentionRules(removeRetentionRule(loadRetentionRules(), $('#rpRemoveId')?.value ?? ''));
+      renderRetentionRules();
+    });
+    $('#rpFilter')?.addEventListener('input', () => { renderRetentionRules(); });
   }
 }
 function renderOwnerDecision() {

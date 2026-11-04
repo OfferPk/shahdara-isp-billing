@@ -380,6 +380,7 @@ import { normalizeInfoSheetList, upsertInfoSheet, removeInfoSheet, infoSheetForC
 import { normalizeAnnouncementDraftList, upsertAnnouncementDraft, copyAnnouncementDraft, removeAnnouncementDraft, markAnnouncementSent, markAnnouncementUnsent, announcementDraftAllHtml, announcementDraftMohallaHtml, announcementDraftSummaryText, announcementDraftCsv, announcementDraftFilename } from './announcement-draft.js';
 import { normalizeChangeConfirmationList, upsertChangeConfirmation, removeChangeConfirmation, markChangeConfirmationSent, markChangeConfirmationUnsent, changeConfirmationCustomerHtml, changeConfirmationAllHtml, changeConfirmationSummaryText, changeConfirmationCsv, changeConfirmationFilename } from './change-confirmation.js';
 import { normalizeEducationNoteList, upsertEducationNote, removeEducationNote, normalizeEducationShareList, recordEducationShare, removeEducationShare, educationNotesSorted, educationSharesForCustomer, educationNoteStarters, educationNoteSummaryText, educationShareSummaryText, educationNoteAllHtml, educationShareAllHtml, educationNoteCsv, educationNoteFilename, educationShareCsv, educationShareFilename } from './education-note.js';
+import { normalizeReferralThanksList, upsertReferralThanks, removeReferralThanks, markReferralThanksSent, markReferralThanksUnsent, referralThanksForReferrer, referralThanksAllHtml, referralThanksSummaryText, referralThanksCsv, referralThanksFilename } from './referral-thanks.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13947,6 +13948,7 @@ function renderAnalytics() {
   renderChangeConfirmations();
   renderReceiptScripts();
   renderEducationNotes();
+  renderReferralThanks();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24049,6 +24051,73 @@ function renderEducationNotes() {
       downloadCsvFile(educationShareFilename(), educationShareCsv(loadEducationShares()));
     });
     $('#enShareFilter')?.addEventListener('input', () => { renderEducationNotes(); });
+  }
+}
+// Plan 170: referral thank-you draft. The draft is prepared only
+// where a Plan 28 referral link is already stored for that referrer
+// and new customer; the link itself is only matched, never created
+// or changed here, and the SISP-40 credit engine is never read.
+// The draft states no offer, discount, or credit, grants nothing,
+// changes no bill, payment, package, or referral record, and is
+// sent by hand by the operator; marking it sent only records that.
+const REFERRAL_THANKS_KEY = 'shahdara_referral_thanks_v1';
+function loadReferralThanks() {
+  try { return normalizeReferralThanksList(JSON.parse(localStorage.getItem(REFERRAL_THANKS_KEY) || '[]')); } catch { return []; }
+}
+function saveReferralThanks(list) {
+  try { localStorage.setItem(REFERRAL_THANKS_KEY, JSON.stringify(normalizeReferralThanksList(list))); } catch { /* referral thank-you drafts only: a failed save leaves the previous list in place */ }
+}
+let referralThanksBound = false;
+function renderReferralThanks() {
+  const bodyEl = $('#rtBody');
+  if (!bodyEl) return;
+  const list = loadReferralThanks();
+  bodyEl.innerHTML = referralThanksAllHtml(list);
+  const referrerEl = $('#rtReferrerBody');
+  if (referrerEl) {
+    const referrer = $('#rtFilter')?.value ?? '';
+    referrerEl.innerHTML = referrer ? referralThanksAllHtml(referralThanksForReferrer(list, referrer)) : '<p>Pick a referring customer to see their thank-you drafts.</p>';
+  }
+  const summaryEl = $('#rtSummary');
+  if (summaryEl) summaryEl.textContent = referralThanksSummaryText(list);
+  if (!referralThanksBound) {
+    referralThanksBound = true;
+    $('#rtReferrer')?.addEventListener('input', () => {
+      const referrer = ($('#rtReferrer')?.value ?? '').trim();
+      const languageEl = $('#rtLanguage');
+      if (languageEl) languageEl.value = preferenceFor(loadDraftLanguages(), referrer, 'referral-thanks');
+    });
+    $('#rtSaveBtn')?.addEventListener('click', () => {
+      const before = loadReferralThanks();
+      const next = upsertReferralThanks(before, {
+        id: `RT-${Date.now()}`,
+        referrerId: $('#rtReferrer')?.value ?? '',
+        newCustomerId: $('#rtNewCustomer')?.value ?? '',
+        message: $('#rtMessage')?.value ?? '',
+        language: $('#rtLanguage')?.value ?? 'roman',
+      }, loadReferralTracking());
+      if (next.length === before.length) { toast('Thank-you draft not recorded: it needs a referring customer, a new customer, a message, and a stored referral link for that pair.'); return; }
+      saveReferralThanks(next); renderReferralThanks();
+    });
+    $('#rtRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#rtRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveReferralThanks(removeReferralThanks(loadReferralThanks(), id)); renderReferralThanks();
+    });
+    $('#rtMarkSentBtn')?.addEventListener('click', () => {
+      const id = ($('#rtSentId')?.value ?? '').trim();
+      if (!id) return;
+      saveReferralThanks(markReferralThanksSent(loadReferralThanks(), id, $('#rtSentDate')?.value ?? '')); renderReferralThanks();
+    });
+    $('#rtMarkUnsentBtn')?.addEventListener('click', () => {
+      const id = ($('#rtSentId')?.value ?? '').trim();
+      if (!id) return;
+      saveReferralThanks(markReferralThanksUnsent(loadReferralThanks(), id)); renderReferralThanks();
+    });
+    $('#rtExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(referralThanksFilename(), referralThanksCsv(loadReferralThanks()));
+    });
+    $('#rtFilter')?.addEventListener('input', () => { renderReferralThanks(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

@@ -381,6 +381,7 @@ import { normalizeAnnouncementDraftList, upsertAnnouncementDraft, copyAnnounceme
 import { normalizeChangeConfirmationList, upsertChangeConfirmation, removeChangeConfirmation, markChangeConfirmationSent, markChangeConfirmationUnsent, changeConfirmationCustomerHtml, changeConfirmationAllHtml, changeConfirmationSummaryText, changeConfirmationCsv, changeConfirmationFilename } from './change-confirmation.js';
 import { normalizeEducationNoteList, upsertEducationNote, removeEducationNote, normalizeEducationShareList, recordEducationShare, removeEducationShare, educationNotesSorted, educationSharesForCustomer, educationNoteStarters, educationNoteSummaryText, educationShareSummaryText, educationNoteAllHtml, educationShareAllHtml, educationNoteCsv, educationNoteFilename, educationShareCsv, educationShareFilename } from './education-note.js';
 import { normalizeReferralThanksList, upsertReferralThanks, removeReferralThanks, markReferralThanksSent, markReferralThanksUnsent, referralThanksForReferrer, referralThanksAllHtml, referralThanksSummaryText, referralThanksCsv, referralThanksFilename } from './referral-thanks.js';
+import { normalizeCadenceSettings, normalizeWinbackCadenceList, startWinbackCadence, removeWinbackCadence, completeWinbackStep, markWinbackCadenceReturned, markWinbackCadenceDoNotContact, winbackCadenceNext, winbackCadenceAllHtml, winbackCadenceSummaryText, winbackCadenceCsv, winbackCadenceFilename } from './winback-cadence.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13949,6 +13950,7 @@ function renderAnalytics() {
   renderReceiptScripts();
   renderEducationNotes();
   renderReferralThanks();
+  renderWinbackCadence();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24118,6 +24120,87 @@ function renderReferralThanks() {
       downloadCsvFile(referralThanksFilename(), referralThanksCsv(loadReferralThanks()));
     });
     $('#rtFilter')?.addEventListener('input', () => { renderReferralThanks(); });
+  }
+}
+// Plan 171: winback follow-up cadence on top of the Plan 59 queue.
+// This panel only tracks cadence steps for queued customers: it
+// never reads or rewrites the Plan 59 queue itself, never changes
+// any bill, payment, package, or status, and never sends anything
+// — completing a step moves only the step marker, and the step
+// drafts are texts the operator sends by hand.
+const WINBACK_CADENCE_KEY = 'shahdara_wb_cadence_v1';
+const WINBACK_CADENCE_SETTINGS_KEY = 'shahdara_wb_cadence_settings_v1';
+function loadWinbackCadence() {
+  try { return normalizeWinbackCadenceList(JSON.parse(localStorage.getItem(WINBACK_CADENCE_KEY) || '[]')); } catch { return []; }
+}
+function saveWinbackCadence(list) {
+  try { localStorage.setItem(WINBACK_CADENCE_KEY, JSON.stringify(normalizeWinbackCadenceList(list))); } catch { /* winback cadence only: a failed save leaves the previous list in place */ }
+}
+function loadWinbackCadenceSettings() {
+  try { return normalizeCadenceSettings(JSON.parse(localStorage.getItem(WINBACK_CADENCE_SETTINGS_KEY) || '{}')); } catch { return normalizeCadenceSettings(null); }
+}
+function saveWinbackCadenceSettings(settings) {
+  try { localStorage.setItem(WINBACK_CADENCE_SETTINGS_KEY, JSON.stringify(normalizeCadenceSettings(settings))); } catch { /* cadence settings only: a failed save leaves the previous settings in place */ }
+}
+let winbackCadenceBound = false;
+function renderWinbackCadence() {
+  const bodyEl = $('#wcBody');
+  if (!bodyEl) return;
+  const list = loadWinbackCadence();
+  const settings = loadWinbackCadenceSettings();
+  const today = new Date().toISOString().slice(0, 10);
+  const filter = ($('#wcFilter')?.value ?? '').trim().toLowerCase();
+  const shown = filter ? list.filter((item) => item.customerId.toLowerCase().includes(filter)) : list;
+  bodyEl.innerHTML = winbackCadenceAllHtml(shown, settings, today);
+  const summaryEl = $('#wcSummary');
+  if (summaryEl) summaryEl.textContent = winbackCadenceSummaryText(list);
+  const firstGapEl = $('#wcFirstGap');
+  if (firstGapEl && document.activeElement !== firstGapEl) firstGapEl.value = String(settings.firstGapDays);
+  const secondGapEl = $('#wcSecondGap');
+  if (secondGapEl && document.activeElement !== secondGapEl) secondGapEl.value = String(settings.secondGapDays);
+  if (!winbackCadenceBound) {
+    winbackCadenceBound = true;
+    $('#wcSaveBtn')?.addEventListener('click', () => {
+      const before = loadWinbackCadence();
+      const next = startWinbackCadence(before, {
+        id: `WC-${Date.now()}`,
+        customerId: $('#wcCustomer')?.value ?? '',
+        startDate: $('#wcStartDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Cadence not started: give a queued customer and a real start date.'); return; }
+      saveWinbackCadence(next); renderWinbackCadence();
+    });
+    $('#wcCompleteBtn')?.addEventListener('click', () => {
+      const id = ($('#wcStepId')?.value ?? '').trim();
+      if (!id) return;
+      saveWinbackCadence(completeWinbackStep(loadWinbackCadence(), id, $('#wcStepDate')?.value ?? '')); renderWinbackCadence();
+    });
+    $('#wcReturnedBtn')?.addEventListener('click', () => {
+      const id = ($('#wcStepId')?.value ?? '').trim();
+      if (!id) return;
+      saveWinbackCadence(markWinbackCadenceReturned(loadWinbackCadence(), id)); renderWinbackCadence();
+    });
+    $('#wcDoNotBtn')?.addEventListener('click', () => {
+      const id = ($('#wcStepId')?.value ?? '').trim();
+      if (!id) return;
+      saveWinbackCadence(markWinbackCadenceDoNotContact(loadWinbackCadence(), id)); renderWinbackCadence();
+    });
+    $('#wcRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#wcRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveWinbackCadence(removeWinbackCadence(loadWinbackCadence(), id)); renderWinbackCadence();
+    });
+    $('#wcSettingsBtn')?.addEventListener('click', () => {
+      saveWinbackCadenceSettings({
+        firstGapDays: $('#wcFirstGap')?.value ?? '',
+        secondGapDays: $('#wcSecondGap')?.value ?? '',
+      });
+      renderWinbackCadence();
+    });
+    $('#wcExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(winbackCadenceFilename(), winbackCadenceCsv(loadWinbackCadence(), loadWinbackCadenceSettings()));
+    });
+    $('#wcFilter')?.addEventListener('input', () => { renderWinbackCadence(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

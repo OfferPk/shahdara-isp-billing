@@ -267,6 +267,7 @@ import { normalizeMaintenanceWindow, upsertMaintenanceWindow, removeMaintenanceW
 import { normalizeSatisfactionNoteList, findSatisfactionNote, upsertSatisfactionNote, removeSatisfactionNote, satisfactionEligibleTicketIds, buildMonthlySatisfaction, satisfactionSummaryText, satisfactionHtml, satisfactionCsv, satisfactionFilename } from './satisfaction.js';
 import { normalizeChangeRequestList, findChangeRequest, upsertChangeRequest, removeChangeRequest, setChangeRequestStatus, changeRequestQueue, changeRequestSummaryText, changeRequestsHtml, changeRequestsCsv, changeRequestFilename, CHANGE_REQUEST_TYPE_LABELS, CHANGE_REQUEST_STATUS_LABELS } from './change-requests.js';
 import { normalizeStockRowList, normalizeStockMovementList, removeStockRow, setStockMinimum, receiveStock, issueStock, returnFaultyStock, lowStockSignals, stockSummaryText, stockRowsHtml, stockMovementsHtml, stockCsv, stockFilename, STOCK_ITEM_LABELS, STOCK_LOCATION_LABELS } from './stock-register.js';
+import { DEPENDENCY_TYPE_OPTIONS, normalizeDependencyList, upsertDependency, removeDependency, buildDependencyBlastRadii, dependencySummaryText, dependencyRegisterHtml, dependencyBlastRadiusHtml, dependencyCsv, dependencyFilename } from './dependency-register.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13159,6 +13160,7 @@ function renderAnalytics() {
   renderSatisfactionView();
   renderChangeRequests();
   renderStockRegister();
+  renderDependencyRegister();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -13670,6 +13672,78 @@ function renderStockRegister() {
     $('#stockRegisterExportBtn')?.addEventListener('click', () => {
       const current = loadStockRegister();
       downloadCsvFile(stockFilename(localDate()), stockCsv(current.rows));
+    });
+  }
+}
+const DEPENDENCY_REGISTER_KEY = 'shahdara_dependency_register_v1';
+let dependencyRegisterBound = false;
+function loadDependencies() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DEPENDENCY_REGISTER_KEY) || '[]');
+    return normalizeDependencyList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveDependencies(list) {
+  try {
+    localStorage.setItem(DEPENDENCY_REGISTER_KEY, JSON.stringify(normalizeDependencyList(list)));
+  } catch {}
+}
+function dependencyRegisterContext() {
+  return { customers: state.customers ?? [], connectionRecords: loadOltOnuRegister() };
+}
+function renderDependencyRegister() {
+  const bodyEl = $('#dependencyRegisterBody');
+  if (!bodyEl) return;
+  const list = loadDependencies();
+  const radii = buildDependencyBlastRadii(list, dependencyRegisterContext());
+  bodyEl.innerHTML = dependencyRegisterHtml(list, radii);
+  const summaryEl = $('#dependencyRegisterSummary');
+  if (summaryEl) summaryEl.textContent = dependencySummaryText(list, radii);
+  const selectEl = $('#dependencyRegisterSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = list.map((d) => `<option value="${escapeHtml(d.id)}">${escapeHtml(d.name)}</option>`).join('')
+      || '<option value="">No dependencies yet</option>';
+  }
+  const blastEl = $('#dependencyRegisterBlast');
+  if (blastEl) {
+    const selected = radii.find((r) => r.dependency.id === (selectEl?.value ?? ''));
+    blastEl.innerHTML = dependencyBlastRadiusHtml(selected ?? radii[0] ?? null);
+  }
+  const typeEl = $('#dependencyRegisterType');
+  if (typeEl && !typeEl.dataset.populated) {
+    typeEl.dataset.populated = '1';
+    typeEl.innerHTML = DEPENDENCY_TYPE_OPTIONS.map((o) => `<option value="${escapeHtml(o.key)}">${escapeHtml(o.label)}</option>`).join('');
+  }
+  if (!dependencyRegisterBound) {
+    dependencyRegisterBound = true;
+    const splitList = (value) => String(value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    $('#dependencyRegisterSaveBtn')?.addEventListener('click', () => {
+      const next = upsertDependency(loadDependencies(), {
+        id: `dep-${Date.now()}`,
+        name: $('#dependencyRegisterName')?.value ?? '',
+        type: $('#dependencyRegisterType')?.value ?? '',
+        mohallas: splitList($('#dependencyRegisterMohallas')?.value),
+        segments: splitList($('#dependencyRegisterSegments')?.value),
+        units: splitList($('#dependencyRegisterUnits')?.value),
+        note: $('#dependencyRegisterNote')?.value ?? '',
+      });
+      if (next.length === loadDependencies().length) {
+        toast('A dependency needs a name and a known type.');
+        return;
+      }
+      saveDependencies(next);
+      renderDependencyRegister();
+    });
+    $('#dependencyRegisterRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#dependencyRegisterSelect')?.value ?? '';
+      if (!id) return;
+      saveDependencies(removeDependency(loadDependencies(), id));
+      renderDependencyRegister();
+    });
+    $('#dependencyRegisterSelect')?.addEventListener('change', () => renderDependencyRegister());
+    $('#dependencyRegisterExportBtn')?.addEventListener('click', () => {
+      const current = loadDependencies();
+      downloadCsvFile(dependencyFilename(localDate()), dependencyCsv(current, buildDependencyBlastRadii(current, dependencyRegisterContext())));
     });
   }
 }

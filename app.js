@@ -339,6 +339,7 @@ import { normalizeBankCreditList, recordBankCredit, matchBankCredit, explainBank
 import { validGuardDate, validGuardMonth, normalizeClosedPeriodList, recordClosedPeriod, normalizeHeldEntryList, checkGuardPosting, holdEntry, approveHeldEntry, heldEntries, postedEntries, heldEntrySummaryText, heldEntryHtml, closedPeriodHtml, heldEntryCsv, heldEntryFilename } from './closed-period-posting.js';
 import { validShiftDate, normalizeShiftRuleList, recordShiftRule, shiftDueDate, shiftRuleForDate, shiftRuleSummaryText, shiftRuleHtml, shiftRuleCsv, shiftRuleFilename } from './due-date-shift.js';
 import { normalizeConnectionDuesList, buildCombinedDuesView, allocateCombinedPayment, combinedDuesSummaryText, combinedDuesHtml, combinedDuesCsv, combinedDuesFilename } from './combined-dues.js';
+import { normalizeBalanceConfirmationList, upsertBalanceConfirmation, removeBalanceConfirmation, balanceConfirmationSummaryText, balanceConfirmationHtml, balanceConfirmationCsv, balanceConfirmationFilename } from './balance-confirmations.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13861,6 +13862,7 @@ function renderAnalytics() {
   renderClosedPeriodPosting();
   renderDueDateShift();
   renderCombinedDues();
+  renderBalanceConfirmations();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21579,6 +21581,62 @@ function renderCombinedDues() {
       const view = buildCombinedDuesView(cust, connRows);
       downloadCsvFile(combinedDuesFilename(), combinedDuesCsv(view));
     });
+  }
+}
+// Plan 128: one balance-confirmation record per customer per date.
+// Recording one changes no balance — it is only the dated evidence
+// that the customer agreed that exact balance on that date.
+const BALANCE_CONFIRMATION_KEY = 'shahdara_balance_confirmations_v1';
+function loadBalanceConfirmations() {
+  try {
+    const raw = localStorage.getItem(BALANCE_CONFIRMATION_KEY);
+    if (!raw) return [];
+    return normalizeBalanceConfirmationList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveBalanceConfirmations(list) {
+  try { localStorage.setItem(BALANCE_CONFIRMATION_KEY, JSON.stringify(normalizeBalanceConfirmationList(list))); } catch { /* record only: a failed save leaves the previous confirmations in place */ }
+}
+let balanceConfBound = false;
+function renderBalanceConfirmations() {
+  const bodyEl = $('#balanceConfBody');
+  if (!bodyEl) return;
+  const filter = $('#balanceConfFilter')?.value ?? '';
+  const records = loadBalanceConfirmations();
+  const shown = filter.trim() ? records.filter((item) => item.customer === filter.trim()) : records;
+  bodyEl.innerHTML = balanceConfirmationHtml(shown);
+  const summaryEl = $('#balanceConfSummary');
+  if (summaryEl) summaryEl.textContent = filter.trim() ? balanceConfirmationSummaryText(records, filter.trim()) : `${records.length} confirmation${records.length === 1 ? '' : 's'} recorded.`;
+  if (!balanceConfBound) {
+    balanceConfBound = true;
+    $('#balanceConfSaveBtn')?.addEventListener('click', () => {
+      const customer = $('#balanceConfCustomer')?.value ?? '';
+      const balance = ($('#balanceConfBalance')?.value ?? '') === '' ? undefined : Number($('#balanceConfBalance')?.value ?? '');
+      // A half-formed record is refused by upsert, leaving the list unchanged.
+      const next = upsertBalanceConfirmation(loadBalanceConfirmations(), {
+        id: `BC-${Date.now()}`,
+        customer,
+        customerName: '',
+        balance,
+        date: $('#balanceConfDate')?.value ?? '',
+        method: $('#balanceConfMethod')?.value ?? '',
+        recordedBy: $('#balanceConfRecordedBy')?.value ?? '',
+        note: $('#balanceConfNote')?.value ?? '',
+      });
+      saveBalanceConfirmations(next);
+      renderBalanceConfirmations();
+    });
+    $('#balanceConfRemove')?.addEventListener('click', () => {
+      const id = $('#balanceConfRemoveId')?.value ?? '';
+      if (!id.trim()) return;
+      saveBalanceConfirmations(removeBalanceConfirmation(loadBalanceConfirmations(), id));
+      renderBalanceConfirmations();
+    });
+    $('#balanceConfExportBtn')?.addEventListener('click', () => {
+      const filterValue = $('#balanceConfFilter')?.value ?? '';
+      downloadCsvFile(balanceConfirmationFilename(), balanceConfirmationCsv(loadBalanceConfirmations(), filterValue.trim() ? filterValue.trim() : undefined));
+    });
+    $('#balanceConfFilter')?.addEventListener('input', () => { renderBalanceConfirmations(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

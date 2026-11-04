@@ -278,6 +278,7 @@ import { buildMonthlyChurnSummary, churnSummaryText, churnHtml, churnCsv, churnF
 import { DISPUTE_REASONS, DISPUTE_REASON_LABELS, DISPUTE_STATUSES, DISPUTE_STATUS_LABELS, normalizeDisputeCase, normalizeDisputeCaseList, upsertDisputeCase, removeDisputeCase, setDisputeStatus, openDisputeCases, buildDisputeSummary, disputeSummaryText, disputeHtml, disputeCsv, disputeFilename } from './dispute-cases.js';
 import { splitBillBalance, splitBillList, adjustLadderBills, disputeTotalsForCustomer, buildDisputedReminderDraft, DISPUTED_REMINDER_VARIANTS, disputedBalanceSummaryText, disputedBalanceHtml, disputedBalanceCsv, disputedBalanceFilename } from './disputed-balance.js';
 import { CLAIM_CHANNELS, CLAIM_CHANNEL_LABELS, CLAIM_OUTCOMES, CLAIM_OUTCOME_LABELS, normalizePaymentClaim, normalizePaymentClaimList, upsertPaymentClaim, removePaymentClaim, setClaimOutcome, closePaymentClaim, reopenPaymentClaim, openPaymentClaims, buildClaimSummary, claimSummaryText, claimHtml, claimCsv, claimFilename } from './payment-claims.js';
+import { RESOLUTION_PATHS, RESOLUTION_PATH_LABELS, normalizeResolution, normalizeDisputeResolutionList, upsertResolution, removeResolution, findResolution, resolutionReadiness, resolutionChecklist, buildResolutionSummaryWithThreshold, resolutionSummaryText, resolutionHtml, resolutionCsv, resolutionFilename, checklistHtml } from './dispute-resolutions.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13233,6 +13234,7 @@ function renderAnalytics() {
   renderDisputeCases();
   renderDisputedBalances();
   renderPaymentClaims();
+  renderDisputeResolutions();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -14987,6 +14989,148 @@ function renderPaymentClaims() {
     });
     $('#claimExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(claimFilename(), claimCsv(loadPaymentClaims()));
+    });
+  }
+}
+// Plan 64: dispute resolution checklist and owner sign-off for
+// large adjustments. A resolution is a record only — saving it
+// applies nothing and changes no total; the correction or
+// concession itself still goes through its existing path, and
+// the operator action audit log (Plan 31) still records that
+// action there, so this panel adds no audit entry of its own.
+// Marking a case resolved is gated: a finding and an outcome
+// must be recorded, a money path needs its link, and a
+// correction or concession above the operator-set threshold
+// needs an owner sign-off note first.
+const DISPUTE_RESOLUTIONS_KEY = 'shahdara_dispute_resolutions_v1';
+const DISPUTE_SIGNOFF_THRESHOLD_KEY = 'shahdara_dispute_signoff_threshold_v1';
+let disputeResolutionsBound = false;
+function loadDisputeResolutions() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DISPUTE_RESOLUTIONS_KEY) || '[]');
+    return normalizeDisputeResolutionList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveDisputeResolutions(list) {
+  try { localStorage.setItem(DISPUTE_RESOLUTIONS_KEY, JSON.stringify(normalizeDisputeResolutionList(list))); } catch {}
+}
+function loadSignoffThreshold() {
+  const raw = Number(localStorage.getItem(DISPUTE_SIGNOFF_THRESHOLD_KEY) ?? '');
+  return Number.isFinite(raw) && raw > 0 ? raw : null;
+}
+function saveSignoffThreshold(value) {
+  try {
+    if (value === null) localStorage.removeItem(DISPUTE_SIGNOFF_THRESHOLD_KEY);
+    else localStorage.setItem(DISPUTE_SIGNOFF_THRESHOLD_KEY, String(value));
+  } catch {}
+}
+function readResolutionForm() {
+  return {
+    caseId: $('#resolutionCase')?.value ?? '',
+    finding: $('#resolutionFinding')?.value ?? '',
+    outcome: $('#resolutionOutcome')?.value ?? '',
+    path: $('#resolutionPath')?.value ?? '',
+    adjustmentAmount: $('#resolutionAmount')?.value ?? '',
+    linkedId: $('#resolutionLinkedId')?.value ?? '',
+    signOffNote: $('#resolutionSignOff')?.value ?? '',
+    signOffBy: $('#resolutionSignOffBy')?.value ?? '',
+    dateResolved: $('#resolutionDate')?.value ?? '',
+  };
+}
+function renderDisputeResolutions() {
+  const bodyEl = $('#resolutionBody');
+  if (!bodyEl) return;
+  const cases = loadDisputeCases();
+  const resolutions = loadDisputeResolutions();
+  const threshold = loadSignoffThreshold();
+  const names = {};
+  for (const c of state.customers ?? []) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = resolutionHtml(resolutions);
+  const summaryEl = $('#resolutionSummary');
+  if (summaryEl) summaryEl.textContent = resolutionSummaryText(buildResolutionSummaryWithThreshold(resolutions, threshold));
+  const caseEl = $('#resolutionCase');
+  if (caseEl && document.activeElement !== caseEl) {
+    caseEl.innerHTML = cases.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(entry.billId)} (${escapeHtml(DISPUTE_STATUS_LABELS[entry.status])})</option>`).join('')
+      || '<option value="">No cases yet</option>';
+  }
+  const selectedId = caseEl?.value ?? '';
+  const stored = selectedId ? findResolution(resolutions, selectedId) : null;
+  const checklistEl = $('#resolutionChecklist');
+  if (checklistEl) {
+    const draft = stored || null;
+    checklistEl.innerHTML = draft
+      ? checklistHtml(resolutionChecklist(draft, threshold))
+      : '<p style="font-size: 12px;">Pick a case to see its resolution checklist.</p>';
+  }
+  const thresholdEl = $('#resolutionThreshold');
+  if (thresholdEl && document.activeElement !== thresholdEl) thresholdEl.value = threshold === null ? '' : String(threshold);
+  const pathEl = $('#resolutionPath');
+  if (pathEl && pathEl.options.length === 0) {
+    pathEl.innerHTML = RESOLUTION_PATHS.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(RESOLUTION_PATH_LABELS[key])}</option>`).join('');
+  }
+  if (!disputeResolutionsBound) {
+    disputeResolutionsBound = true;
+    $('#resolutionCase')?.addEventListener('change', () => {
+      const entry = findResolution(loadDisputeResolutions(), $('#resolutionCase')?.value ?? '');
+      const set = (id, value) => { const el = $(`#${id}`); if (el) el.value = value ?? ''; };
+      set('resolutionFinding', entry?.finding ?? '');
+      set('resolutionOutcome', entry?.outcome ?? '');
+      set('resolutionPath', entry?.path ?? 'correction');
+      set('resolutionAmount', entry?.adjustmentAmount ?? '');
+      set('resolutionLinkedId', entry?.linkedId ?? '');
+      set('resolutionSignOff', entry?.signOffNote ?? '');
+      set('resolutionSignOffBy', entry?.signOffBy ?? '');
+      set('resolutionDate', entry?.dateResolved ?? '');
+      renderDisputeResolutions();
+    });
+    $('#resolutionThresholdSaveBtn')?.addEventListener('click', () => {
+      const raw = ($('#resolutionThreshold')?.value ?? '').trim();
+      if (!raw) { saveSignoffThreshold(null); toast('Owner sign-off threshold cleared. Nothing is above an unset threshold.'); renderDisputeResolutions(); return; }
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value <= 0) { toast('A sign-off threshold needs a positive amount in rupees.'); return; }
+      saveSignoffThreshold(value);
+      toast(`Owner sign-off threshold set to Rs. ${value}. Corrections and concessions above it need an owner sign-off note.`);
+      renderDisputeResolutions();
+    });
+    $('#resolutionSaveBtn')?.addEventListener('click', () => {
+      const record = normalizeResolution(readResolutionForm());
+      if (!record) {
+        toast('A resolution needs a finding, an outcome, a path, and — for a correction, concession, or matched payment — a positive amount and a link.');
+        return;
+      }
+      saveDisputeResolutions(upsertResolution(loadDisputeResolutions(), record));
+      toast('Resolution checklist saved. Saving it applies nothing and resolves nothing — the correction or concession itself still goes through its own path.');
+      renderDisputeResolutions();
+    });
+    $('#resolutionResolveBtn')?.addEventListener('click', () => {
+      const form = readResolutionForm();
+      if (!form.caseId) { toast('Pick a case first.'); return; }
+      const record = normalizeResolution(form);
+      if (!record) {
+        toast('A resolution needs a finding, an outcome, a path, and — for a correction, concession, or matched payment — a positive amount and a link.');
+        return;
+      }
+      const cases = loadDisputeCases();
+      const caseRecord = cases.find((entry) => entry.id === form.caseId);
+      const readiness = resolutionReadiness(record, loadSignoffThreshold(), caseRecord ?? null);
+      if (!readiness.ready) { toast(readiness.reasons.join(' ')); return; }
+      const next = setDisputeStatus(cases, form.caseId, 'resolved', record.outcome);
+      const moved = next.find((entry) => entry.id === form.caseId);
+      if (!moved || moved.status !== 'resolved') { toast('That case could not be marked resolved.'); return; }
+      saveDisputeCases(next);
+      saveDisputeResolutions(upsertResolution(loadDisputeResolutions(), record));
+      toast('Case marked resolved with its finding, outcome, and link recorded. No total was changed by this record itself.');
+      renderDisputeCases();
+      renderDisputeResolutions();
+    });
+    $('#resolutionRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#resolutionCase')?.value ?? '';
+      if (!id) return;
+      saveDisputeResolutions(removeResolution(loadDisputeResolutions(), id));
+      renderDisputeResolutions();
+    });
+    $('#resolutionExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(resolutionFilename(), resolutionCsv(loadDisputeResolutions()));
     });
   }
 }

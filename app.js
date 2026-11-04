@@ -395,6 +395,7 @@ import { normalizeMigrationStepList, upsertMigrationStep, removeMigrationStep, m
 import { normalizeAuditCycleList, createAuditCycle, completeAuditCycle, removeAuditCycle, normalizeAuditLineList, addAuditLine, removeAuditLine, auditCycleAllHtml, auditCycleSummaryText, auditCycleCsv, auditCycleFilename } from './inventory-audit.js';
 import { normalizeStaffHandoverList, recordStaffHandover, removeStaffHandover, markStaffHandoverReceived, markStaffHandoverNotReceived, staffHandoversForPerson, staffHandoverAllHtml, staffHandoverSummaryText, staffHandoverCsv, staffHandoverFilename } from './staff-handover.js';
 import { normalizeDecisionList, recordDecision, removeDecision, decisionsForTopic, decisionAllHtml, decisionSummaryText, decisionCsv, decisionFilename } from './decision-log.js';
+import { normalizeReviewTemplateList, recordReviewTemplate, removeReviewTemplate, findReviewTemplate, composeReview, reviewTemplateStarters, reviewTemplateSummaryText, reviewTemplateText, reviewTemplateHtml, reviewTemplateCsv, reviewTemplateFilename } from './review-template.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13977,6 +13978,7 @@ function renderAnalytics() {
   renderInventoryAudit();
   renderStaffHandover();
   renderOwnerDecision();
+  renderReviewTemplate();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24986,6 +24988,59 @@ function saveOwnerDecisions(list) {
   try { localStorage.setItem(OWNER_DECISION_KEY, JSON.stringify(normalizeDecisionList(list))); } catch { /* owner decisions only: a failed save leaves the previous list in place */ }
 }
 let ownerDecisionBound = false;
+// Plan 185: review templates compose section order and source
+// references only — they compute no figure and no rating, and using
+// one never changes any bill, payment, or past report.
+const REVIEW_TEMPLATE_KEY = 'shahdara_review_templates_v1';
+function loadReviewTemplates() {
+  try { return normalizeReviewTemplateList(JSON.parse(localStorage.getItem(REVIEW_TEMPLATE_KEY) || '[]')); } catch { return []; }
+}
+function saveReviewTemplates(list) {
+  try { localStorage.setItem(REVIEW_TEMPLATE_KEY, JSON.stringify(normalizeReviewTemplateList(list))); } catch { /* review templates only: a failed save leaves the previous list in place */ }
+}
+let reviewTemplateBound = false;
+function renderReviewTemplate() {
+  const bodyEl = $('#rtBody');
+  if (!bodyEl) return;
+  const entries = loadReviewTemplates();
+  bodyEl.innerHTML = entries.length ? entries.map((entry) => reviewTemplateHtml(entry)).join('') : '<p>No review templates recorded.</p>';
+  const summaryEl = $('#rtSummary');
+  if (summaryEl) summaryEl.textContent = `${reviewTemplateSummaryText(entries)}.`;
+  const composeEl = $('#rtComposeBody');
+  if (composeEl) {
+    const picked = findReviewTemplate(entries, $('#rtComposeId')?.value ?? '');
+    const month = $('#rtMonth')?.value ?? '';
+    const review = picked && month ? composeReview(picked, month) : null;
+    composeEl.innerHTML = review ? `<pre>${reviewTemplateText(picked, month).replace(/&/g, '&amp;').replace(/</g, '&lt;')}</pre>` : '<p>Pick a template id and a month to compose its review outline.</p>';
+  }
+  if (!reviewTemplateBound) {
+    reviewTemplateBound = true;
+    $('#rtExportBtn')?.addEventListener('click', () => { downloadCsvFile(reviewTemplateFilename(), reviewTemplateCsv(loadReviewTemplates())); });
+    $('#rtStarterBtn')?.addEventListener('click', () => {
+      let list = loadReviewTemplates();
+      for (const starter of reviewTemplateStarters()) list = recordReviewTemplate(list, starter);
+      saveReviewTemplates(list);
+      renderReviewTemplate();
+    });
+    $('#rtSaveBtn')?.addEventListener('click', () => {
+      const sections = ($('#rtSections')?.value ?? '').split('\n').map((line) => {
+        const [heading, source] = line.split('|');
+        return { heading: (heading ?? '').trim(), source: (source ?? '').trim() };
+      });
+      saveReviewTemplates(recordReviewTemplate(loadReviewTemplates(), {
+        id: `RT-${Date.now()}`,
+        name: $('#rtName')?.value ?? '',
+        sections,
+      }));
+      renderReviewTemplate();
+    });
+    $('#rtRemoveBtn')?.addEventListener('click', () => {
+      saveReviewTemplates(removeReviewTemplate(loadReviewTemplates(), $('#rtRemoveId')?.value ?? ''));
+      renderReviewTemplate();
+    });
+    $('#rtComposeBtn')?.addEventListener('click', () => { renderReviewTemplate(); });
+  }
+}
 function renderOwnerDecision() {
   const bodyEl = $('#odBody');
   if (!bodyEl) return;

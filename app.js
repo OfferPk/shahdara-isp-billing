@@ -322,6 +322,7 @@ import { normalizeAllocationBillList, normalizeAllocationInstalmentList, normali
 import { normalizeCreditEntryList, normalizeCreditApplicationList, upsertCreditEntry, removeCreditEntry, applyCredit, removeCreditApplication, creditBalanceForCustomer, creditSummaryText, creditHtml, creditCsv, creditFilename } from './credit-balance.js';
 import { normalizeChargeScheduleList, upsertChargeSchedule, markInstalmentPaid, scheduleView, missedInstalments, billLinesForMonth, chargeScheduleSummaryText, chargeScheduleHtml, chargeScheduleCsv, chargeScheduleFilename } from './charge-instalments.js';
 import { normalizeTierList, upsertTier, removeTier, tierForAmount, normalizeApprovalList, addApproval, approvalsForReview, checkPosting, approvalSummaryText, tierHtml, approvalHtml, approvalCsv, approvalFilename } from './approval-limits.js';
+import { normalizeLateFeePolicyList, upsertLateFeePolicy, removeLateFeePolicy, lateFeeForBill, normalizeLateFeeWaiverList, addLateFeeWaiver, lateFeePolicySummaryText, lateFeePolicyHtml, lateFeeResultHtml, lateFeePolicyCsv, lateFeePolicyFilename } from './late-fee-policy.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13827,6 +13828,7 @@ function renderAnalytics() {
   renderBillingRunLog();
   renderBillingCorrections();
   renderApprovalLimits();
+  renderLateFeePolicies();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20286,6 +20288,104 @@ function renderApprovalLimits() {
     $('#approvalFilterCustomer')?.addEventListener('change', () => renderApprovalLimits());
     $('#approvalExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(approvalFilename(), approvalCsv(loadApprovals()));
+    });
+  }
+}
+const LATE_FEE_POLICY_KEY = 'shahdara_late_fee_policies_v1';
+const LATE_FEE_WAIVER_KEY = 'shahdara_late_fee_waivers_v1';
+function loadLateFeePolicies() {
+  try {
+    const raw = localStorage.getItem(LATE_FEE_POLICY_KEY);
+    if (!raw) return [];
+    return normalizeLateFeePolicyList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveLateFeePolicies(list) {
+  try { localStorage.setItem(LATE_FEE_POLICY_KEY, JSON.stringify(normalizeLateFeePolicyList(list))); } catch { /* record only: a failed save leaves the previous policies in place */ }
+}
+function loadLateFeeWaivers() {
+  try {
+    const raw = localStorage.getItem(LATE_FEE_WAIVER_KEY);
+    if (!raw) return [];
+    return normalizeLateFeeWaiverList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveLateFeeWaivers(list) {
+  try { localStorage.setItem(LATE_FEE_WAIVER_KEY, JSON.stringify(normalizeLateFeeWaiverList(list))); } catch { /* record only: a failed save leaves the previous waivers in place */ }
+}
+let lateFeePolicyBound = false;
+function renderLateFeePolicies() {
+  const bodyEl = $('#lateFeePolicyBody');
+  if (!bodyEl) return;
+  const policies = loadLateFeePolicies();
+  const waivers = loadLateFeeWaivers();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#lateFeeWaiveCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  bodyEl.innerHTML = policies.map((p) => `${lateFeePolicyHtml(p)}<button class="secondary-button btn-sm" type="button" data-late-fee-policy-remove="${escapeHtml(p.id)}">Remove policy</button>`).join('') || '<p>No late-fee policy recorded yet.</p>';
+  const summaryEl = $('#lateFeePolicySummary');
+  if (summaryEl) summaryEl.textContent = lateFeePolicySummaryText(policies);
+  const waiverEl = $('#lateFeeWaiverBody');
+  if (waiverEl) waiverEl.innerHTML = waivers.map((w) => `<div>Waived PKR ${escapeHtml(String(w.feeCents / 100))} for ${escapeHtml(names[w.customerId] || w.customerId)} · bill ${escapeHtml(w.billId)} · approval ${escapeHtml(w.approvalId)} · ${escapeHtml(w.date)}</div>`).join('') || '<p>No late-fee waivers recorded yet.</p>';
+  bodyEl.querySelectorAll('[data-late-fee-policy-remove]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      saveLateFeePolicies(removeLateFeePolicy(loadLateFeePolicies(), btn.dataset.lateFeePolicyRemove));
+      renderLateFeePolicies();
+    });
+  });
+  if (!lateFeePolicyBound) {
+    lateFeePolicyBound = true;
+    $('#lateFeePolicySaveBtn')?.addEventListener('click', () => {
+      const next = upsertLateFeePolicy(loadLateFeePolicies(), {
+        id: `LFP-${Date.now()}`,
+        name: $('#lateFeePolicyName')?.value ?? '',
+        graceDays: Number($('#lateFeePolicyGrace')?.value ?? 0),
+        feeAmount: Number($('#lateFeePolicyFee')?.value ?? 0) || undefined,
+        basis: $('#lateFeePolicyBasis')?.value ?? '',
+        maximumFee: Number($('#lateFeePolicyMax')?.value ?? 0) || undefined,
+        appliesToPackages: $('#lateFeePolicyPackages')?.value ?? '',
+        effectiveDate: $('#lateFeePolicyEffective')?.value ?? '',
+      });
+      if (next.length === loadLateFeePolicies().length) { toast('Policy not recorded: give a name, a fee basis in plain words, and a real effective date (fee and maximum must be positive when given).'); return; }
+      saveLateFeePolicies(next);
+      toast('Late-fee policy recorded. It charges no fee by itself.');
+      renderLateFeePolicies();
+    });
+    $('#lateFeeCheckBtn')?.addEventListener('click', () => {
+      const extended = $('#lateFeeCheckExtended')?.value ?? '';
+      const extensions = extended ? [{ billMonth: '', billId: '__panel-check__', extendedDueDate: extended }] : [];
+      const result = lateFeeForBill({
+        policies: loadLateFeePolicies(),
+        bill: { dueDate: $('#lateFeeCheckDue')?.value ?? '', billId: '__panel-check__' },
+        extensions,
+        asOfDate: $('#lateFeeCheckAsOf')?.value ?? '',
+      });
+      const out = $('#lateFeeCheckResult');
+      if (out) out.innerHTML = lateFeeResultHtml(result);
+    });
+    $('#lateFeeWaiveBtn')?.addEventListener('click', () => {
+      const next = addLateFeeWaiver(loadLateFeeWaivers(), {
+        id: `LFW-${Date.now()}`,
+        billId: $('#lateFeeWaiveBill')?.value ?? '',
+        customerId: $('#lateFeeWaiveCustomer')?.value ?? '',
+        approvalId: $('#lateFeeWaiveApproval')?.value ?? '',
+        reason: $('#lateFeeWaiveReason')?.value ?? '',
+        date: $('#lateFeeWaiveDate')?.value ?? '',
+        feeAmount: Number($('#lateFeeWaiveFee')?.value ?? 0),
+      });
+      if (next.length === loadLateFeeWaivers().length) { toast('Waiver not recorded: it needs a bill, a customer, a Plan 110 approval id, a reason, a positive fee, and a real date.'); return; }
+      saveLateFeeWaivers(next);
+      toast('Late-fee waiver recorded by approval reference. It grants nothing by itself.');
+      renderLateFeePolicies();
+    });
+    $('#lateFeePolicyExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(lateFeePolicyFilename(), lateFeePolicyCsv(loadLateFeePolicies()));
     });
   }
 }

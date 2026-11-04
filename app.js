@@ -325,6 +325,7 @@ import { normalizeTierList, upsertTier, removeTier, tierForAmount, normalizeAppr
 import { normalizeLateFeePolicyList, upsertLateFeePolicy, removeLateFeePolicy, lateFeeForBill, normalizeLateFeeWaiverList, addLateFeeWaiver, lateFeePolicySummaryText, lateFeePolicyHtml, lateFeeResultHtml, lateFeePolicyCsv, lateFeePolicyFilename } from './late-fee-policy.js';
 import { normalizeReconnectionFeeList, upsertReconnectionFee, removeReconnectionFee, feesForCustomer, reconnectionFeeSummaryText, reconnectionFeeHtml, reconnectionFeeCsv, reconnectionFeeFilename, normalizeReconnectionFeeWaiverList, addReconnectionFeeWaiver } from './reconnection-fees.js';
 import { normalizeDowngradeCreditList, upsertDowngradeCredit, removeDowngradeCredit, creditsForCustomer, applyDowngradeCredit, clearDowngradeCreditApplication, downgradeCreditSummaryText, downgradeCreditHtml, downgradeCreditCsv, downgradeCreditFilename } from './downgrade-credits.js';
+import { normalizeDepositNoteList, upsertDepositNote, supersedeDepositNote, notesForCustomer, activeDepositNotes, depositBalance, depositBalanceText, depositNoteSummaryText, depositNoteHtml, depositNoteCsv, depositNoteFilename } from './deposit-notes.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13833,6 +13834,7 @@ function renderAnalytics() {
   renderLateFeePolicies();
   renderReconnectionFees();
   renderDowngradeCredits();
+  renderDepositNotes();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20587,6 +20589,102 @@ function renderDowngradeCredits() {
     });
     $('#downgradeCreditExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(downgradeCreditFilename(), downgradeCreditCsv(loadDowngradeCredits()));
+    });
+  }
+}
+const DEPOSIT_NOTE_KEY = 'shahdara_deposit_notes_v1';
+function loadDepositNotes() {
+  try {
+    const raw = localStorage.getItem(DEPOSIT_NOTE_KEY);
+    if (!raw) return [];
+    return normalizeDepositNoteList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveDepositNotes(list) {
+  try { localStorage.setItem(DEPOSIT_NOTE_KEY, JSON.stringify(normalizeDepositNoteList(list))); } catch { /* record only: a failed save leaves the previous notes in place */ }
+}
+let depositNotesBound = false;
+function renderDepositNotes() {
+  const bodyEl = $('#depositNoteBody');
+  if (!bodyEl) return;
+  const notes = loadDepositNotes();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#depositNoteCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#depositNoteFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = '<option value="">All customers</option>' + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const filterCustomer = $('#depositNoteFilterCustomer')?.value ?? '';
+  const shown = filterCustomer ? notesForCustomer(notes, filterCustomer) : notes;
+  bodyEl.innerHTML = shown.map((item) => {
+    const named = { ...item, customerName: names[item.customerId] || item.customerName || item.customerId };
+    return depositNoteHtml(named);
+  }).join('') || '<p>No deposit notes recorded yet.</p>';
+  const summaryEl = $('#depositNoteSummary');
+  if (summaryEl) summaryEl.textContent = depositNoteSummaryText(notes);
+  const supersedeEl = $('#depositNoteSupersedeNote');
+  if (supersedeEl) {
+    const current = supersedeEl.value;
+    supersedeEl.innerHTML = activeDepositNotes(notes).map((n) => `<option value="${escapeHtml(n.id)}">${escapeHtml(n.id)} · ${escapeHtml(names[n.customerId] || n.customerId)} · deposit ${escapeHtml(n.depositId)}</option>`).join('');
+    if (current) supersedeEl.value = current;
+  }
+  if (!depositNotesBound) {
+    depositNotesBound = true;
+    $('#depositNoteSaveBtn')?.addEventListener('click', () => {
+      const next = upsertDepositNote(loadDepositNotes(), {
+        id: `DN-${Date.now()}`,
+        depositId: $('#depositNoteDeposit')?.value ?? '',
+        customerId: $('#depositNoteCustomer')?.value ?? '',
+        kind: $('#depositNoteKind')?.value ?? '',
+        period: $('#depositNotePeriod')?.value ?? '',
+        basis: $('#depositNoteBasis')?.value ?? '',
+        amount: Number($('#depositNoteAmount')?.value ?? 0),
+        noteDate: $('#depositNoteDate')?.value ?? '',
+      });
+      if (next.length === loadDepositNotes().length) { toast('Note not recorded: it needs a deposit id, a customer, a kind, a basis in plain words, a non-zero amount, and a real date.'); return; }
+      saveDepositNotes(next);
+      toast('Deposit note recorded. It never changes the deposit record itself.');
+      renderDepositNotes();
+    });
+    $('#depositNoteFilterCustomer')?.addEventListener('change', () => renderDepositNotes());
+    $('#depositNoteBalanceBtn')?.addEventListener('click', () => {
+      const opening = Math.round(Number($('#depositNoteBalanceOpening')?.value ?? NaN) * 100);
+      const resultEl = $('#depositNoteBalanceResult');
+      if (!resultEl) return;
+      resultEl.textContent = depositBalanceText(depositBalance(loadDepositNotes(), $('#depositNoteBalanceDeposit')?.value ?? '', opening));
+    });
+    $('#depositNoteSupersedeBtn')?.addEventListener('click', () => {
+      // The follow-up inherits the original note's deposit and
+      // customer, so it can never land on a different deposit.
+      const before = loadDepositNotes();
+      const original = before.find((n) => n.id === ($('#depositNoteSupersedeNote')?.value ?? ''));
+      if (!original) { toast('Follow-up not recorded: pick a note to supersede.'); return; }
+      const next = supersedeDepositNote(before, original.id, {
+        id: `DN-${Date.now()}`,
+        depositId: original.depositId,
+        customerId: original.customerId,
+        kind: $('#depositNoteSupersedeKind')?.value ?? '',
+        period: $('#depositNoteSupersedePeriod')?.value ?? '',
+        basis: $('#depositNoteSupersedeBasis')?.value ?? '',
+        amount: Number($('#depositNoteSupersedeAmount')?.value ?? 0),
+        noteDate: $('#depositNoteSupersedeDate')?.value ?? '',
+      });
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Follow-up not recorded: it needs a basis, a non-zero amount, and a date on or after the original note.'); return; }
+      saveDepositNotes(next);
+      toast('Follow-up note recorded; the original stays in history, superseded.');
+      renderDepositNotes();
+    });
+    $('#depositNoteExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(depositNoteFilename(), depositNoteCsv(loadDepositNotes()));
     });
   }
 }

@@ -272,6 +272,7 @@ import { POWER_STATE_OPTIONS, normalizePowerLog, upsertPowerEntry, removePowerEn
 import { EMERGENCY_ROLES, normalizeEmergencyCard, upsertEmergencyContact, removeEmergencyContact, findEmergencyContact, emergencyCardSummaryText, emergencyCardHtml, emergencyContactsCsv, emergencyCardFilename } from './emergency-card.js';
 import { normalizeSweep, upsertSweep, removeSweep, findSweep, markSegmentChecked, markCustomerConfirmed, markCustomerStillDown, completeSweep, sweepAffectedCustomers, sweepChecklist, sweepFollowUpList, followUpTicketDraft, sweepSummaryText, sweepsHtml, sweepsCsv, sweepFilename } from './restoration-sweep.js';
 import { normalizeAtRiskThresholds, buildAtRiskList, atRiskSummaryText, atRiskHtml, atRiskCsv, atRiskFilename } from './at-risk-signals.js';
+import { EXIT_REASONS, EXIT_REASON_LABELS, normalizeExitRecord, normalizeExitRecordList, upsertExitRecord, removeExitRecord, buildMonthlyExitView, exitSummaryText, exitHtml, exitCsv, exitFilename } from './exit-reasons.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13171,6 +13172,7 @@ function renderAnalytics() {
   renderEmergencyCard();
   renderRestorationSweep();
   renderAtRiskList();
+  renderExitReasonsView();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -14230,6 +14232,95 @@ function renderAtRiskList() {
     $('#atRiskExportBtn')?.addEventListener('click', () => {
       const current = buildAtRiskList({ ...buildAtRiskInputs(), thresholds: loadAtRiskThresholds() });
       downloadCsvFile(atRiskFilename(), atRiskCsv(current));
+    });
+  }
+}
+// Plan 57 (Plan 1-100) — exit reason log and monthly churn-reason
+// view. One structured reason per departed customer plus an optional
+// note, counted by reason and by mohalla for one month; a departed
+// customer with no record shows as "reason not recorded", never as
+// a guessed cause. This neither reads nor writes SISP-108's
+// disconnect fields on the customer record and never alters the
+// departed record, the archive rules (Plan U keeps the lifecycle
+// timeline), or any bill or payment: it only adds the two reasons
+// SISP-108 has no key for (repeated faults, service quality) and
+// the by-mohalla monthly view SISP-108 does not have, in its own
+// store.
+const EXIT_REASONS_KEY = 'shahdara_exit_reasons_v1';
+let exitReasonsViewBound = false;
+function loadExitReasons() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(EXIT_REASONS_KEY) || '[]');
+    return normalizeExitRecordList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveExitReasons(list) {
+  try { localStorage.setItem(EXIT_REASONS_KEY, JSON.stringify(normalizeExitRecordList(list))); } catch {}
+}
+function renderExitReasonsView() {
+  const bodyEl = $('#exitReasonsBody');
+  if (!bodyEl) return;
+  const monthEl = $('#exitReasonsMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const month = monthEl?.value ?? localDate().slice(0, 7);
+  const customers = state.customers ?? [];
+  const departed = customers.filter((c) => c.archived === true);
+  const view = buildMonthlyExitView(loadExitReasons(), departed, month);
+  bodyEl.innerHTML = view ? exitHtml(view) : '<p style="font-size: 12px;">Pick a valid month to see the exit view.</p>';
+  const summaryEl = $('#exitReasonsSummary');
+  if (summaryEl) summaryEl.textContent = view ? exitSummaryText(view) : '';
+  const customerEl = $('#exitReasonsCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    const archivedFirst = [...departed, ...customers.filter((c) => c.archived !== true)];
+    customerEl.innerHTML = archivedFirst.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.id)}${c.archived === true ? ' (archived)' : ''}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const reasonEl = $('#exitReasonsReason');
+  if (reasonEl && reasonEl.options.length === 0) {
+    reasonEl.innerHTML = EXIT_REASONS.map((reason) => `<option value="${escapeHtml(reason)}">${escapeHtml(EXIT_REASON_LABELS[reason])}</option>`).join('');
+  }
+  const customerId = customerEl?.value ?? '';
+  const customer = customers.find((c) => String(c.id) === String(customerId));
+  const mohallaEl = $('#exitReasonsMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    mohallaEl.value = customer ? (customer.mohalla || customer.area || '') : '';
+  }
+  if (!exitReasonsViewBound) {
+    exitReasonsViewBound = true;
+    $('#exitReasonsCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#exitReasonsCustomer')?.value ?? ''));
+      const mohallaInput = $('#exitReasonsMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+    });
+    $('#exitReasonsMonth')?.addEventListener('change', () => renderExitReasonsView());
+    $('#exitReasonsRecordBtn')?.addEventListener('click', () => {
+      const id = $('#exitReasonsCustomer')?.value ?? '';
+      if (!id) { toast('Pick a customer first.'); return; }
+      const selected = customers.find((c) => String(c.id) === String(id));
+      const record = normalizeExitRecord({
+        customerId: id,
+        customerName: selected ? (selected.name || '') : '',
+        mohalla: $('#exitReasonsMohalla')?.value ?? '',
+        reason: $('#exitReasonsReason')?.value ?? '',
+        note: $('#exitReasonsNote')?.value ?? '',
+        recordedDate: $('#exitReasonsDate')?.value ?? '',
+      });
+      if (!record) {
+        toast('An exit record needs a valid reason and a real calendar date.');
+        return;
+      }
+      saveExitReasons(upsertExitRecord(loadExitReasons(), record));
+      renderExitReasonsView();
+    });
+    $('#exitReasonsRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#exitReasonsCustomer')?.value ?? '';
+      if (!id) return;
+      saveExitReasons(removeExitRecord(loadExitReasons(), id));
+      renderExitReasonsView();
+    });
+    $('#exitReasonsExportBtn')?.addEventListener('click', () => {
+      const current = buildMonthlyExitView(loadExitReasons(), departed, monthEl?.value ?? localDate().slice(0, 7));
+      if (current) downloadCsvFile(exitFilename(current.month), exitCsv(current));
     });
   }
 }

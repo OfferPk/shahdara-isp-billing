@@ -400,6 +400,7 @@ import { normalizeTaxPackList, recordTaxPack, removeTaxPack, markTaxFigure, taxP
 import { normalizeRetentionRuleList, recordRetentionRule, removeRetentionRule, retentionRulesSorted, overdueRetentionRules, retentionRuleAllHtml, retentionRuleSummaryText, retentionRuleCsv, retentionRuleFilename } from './retention-policy.js';
 import { normalizeBusinessDeviceList, recordBusinessDevice, removeBusinessDevice, markBusinessDeviceReturned, businessDevicesSorted, businessDeviceAllHtml, businessDeviceSummaryText, businessDeviceCsv, businessDeviceFilename } from './business-device.js';
 import { normalizeLicenceList, recordLicence, removeLicence, markLicenceRenewed, licencesSorted, licenceAllHtml, licenceSummaryText, licenceCsv, licenceFilename } from './licence-tracker.js';
+import { normalizeShopAssetList, recordShopAsset, removeShopAsset, markShopAssetDisposed, shopAssetsSorted, shopAssetAllHtml, shopAssetSummaryText, shopAssetCsv, shopAssetFilename } from './shop-asset.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13987,6 +13988,7 @@ function renderAnalytics() {
   renderRetentionRules();
   renderBusinessDevices();
   renderLicences();
+  renderShopAssets();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25222,6 +25224,49 @@ function renderLicences() {
       renderLicences();
     });
     $('#lcFilter')?.addEventListener('input', () => { renderLicences(); });
+  }
+}
+const SHOP_ASSETS_KEY = 'shahdara_shop_assets_v1';
+function loadShopAssets() {
+  try { return normalizeShopAssetList(JSON.parse(localStorage.getItem(SHOP_ASSETS_KEY) || '[]')); } catch { return []; }
+}
+function saveShopAssets(list) {
+  try { localStorage.setItem(SHOP_ASSETS_KEY, JSON.stringify(normalizeShopAssetList(list))); } catch { /* shop assets only: a failed save leaves the previous list in place */ }
+}
+let shopAssetsBound = false;
+function renderShopAssets() {
+  const bodyEl = $('#saBody');
+  if (!bodyEl) return;
+  const entries = loadShopAssets();
+  const query = ($('#saFilter')?.value ?? '').trim().toLowerCase();
+  const shown = query ? shopAssetsSorted(entries).filter((asset) => asset.location.toLowerCase().includes(query) || asset.item.toLowerCase().includes(query)) : shopAssetsSorted(entries);
+  bodyEl.innerHTML = shown.length ? shopAssetAllHtml(shown) : '<p>No shop assets recorded.</p>';
+  const summaryEl = $('#saSummary');
+  if (summaryEl) summaryEl.textContent = `${shopAssetSummaryText(entries)}.`;
+  if (!shopAssetsBound) {
+    shopAssetsBound = true;
+    $('#saExportBtn')?.addEventListener('click', () => { downloadCsvFile(shopAssetFilename(), shopAssetCsv(loadShopAssets())); });
+    $('#saSaveBtn')?.addEventListener('click', () => {
+      saveShopAssets(recordShopAsset(loadShopAssets(), {
+        id: `SA-${Date.now()}`,
+        item: $('#saItem')?.value ?? '',
+        purchaseDate: $('#saPurchase')?.value ?? '',
+        cost: $('#saCost')?.value ?? '',
+        location: $('#saLocation')?.value ?? '',
+        insurer: $('#saInsurer')?.value ?? '',
+        coverNote: $('#saCover')?.value ?? '',
+      }));
+      renderShopAssets();
+    });
+    $('#saDisposeBtn')?.addEventListener('click', () => {
+      saveShopAssets(markShopAssetDisposed(loadShopAssets(), $('#saDisposeId')?.value ?? '', $('#saDisposeDate')?.value ?? ''));
+      renderShopAssets();
+    });
+    $('#saRemoveBtn')?.addEventListener('click', () => {
+      saveShopAssets(removeShopAsset(loadShopAssets(), $('#saRemoveId')?.value ?? ''));
+      renderShopAssets();
+    });
+    $('#saFilter')?.addEventListener('input', () => { renderShopAssets(); });
   }
 }
 function renderOwnerDecision() {

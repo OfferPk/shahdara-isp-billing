@@ -409,6 +409,7 @@ import { normalizeVersionList, recordVersionEntry, removeVersionEntry, versionsS
 import { normalizeAccessList, recordAccessEntry, markAccessReturned, removeAccessEntry, accessSorted, currentHolders, accessSummaryText, accessAllHtml, accessCsv, accessFilename } from './access-register.js';
 import { normalizeAgeingList, recordAgeingItem, removeAgeingItem, ageingSorted, ageingAllHtml, ageingSummaryText, equipmentAgeingCsv, equipmentAgeingFilename } from './equipment-ageing.js';
 import { normalizeAnnualGoalList, recordAnnualGoal, removeAnnualGoal, setAnnualGoalStatus, addAnnualGoalNote, annualGoalsSorted, annualGoalsAllHtml, annualGoalSummaryText, annualGoalsCsv, annualGoalsFilename } from './annual-goals.js';
+import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirmCustodyExport, custodyExportsSorted, custodyByKind, custodyAllHtml, custodySummaryText, custodyCsv, custodyFilename } from './export-custody.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -14005,6 +14006,7 @@ function renderAnalytics() {
   renderAccessRegister();
   renderEquipmentAgeing();
   renderAnnualGoals();
+  renderExportCustody();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25712,6 +25714,50 @@ function renderAnnualGoals() {
       renderAnnualGoals();
     });
     $('#agYearFilter')?.addEventListener('input', () => { renderAnnualGoals(); });
+  }
+}
+const EXPORT_CUSTODY_KEY = 'shahdara_export_custody_v1';
+function loadExportCustody() {
+  try { return normalizeCustodyList(JSON.parse(localStorage.getItem(EXPORT_CUSTODY_KEY) || '[]')); } catch { return []; }
+}
+function saveExportCustody(list) {
+  try { localStorage.setItem(EXPORT_CUSTODY_KEY, JSON.stringify(normalizeCustodyList(list))); } catch { /* custody log only: a failed save leaves the previous list in place */ }
+}
+let exportCustodyBound = false;
+function renderExportCustody() {
+  const bodyEl = $('#ecBody');
+  if (!bodyEl) return;
+  const kindQuery = ($('#ecKindFilter')?.value ?? '').trim();
+  const shown = kindQuery ? custodyByKind(loadExportCustody(), kindQuery) : custodyExportsSorted(loadExportCustody());
+  bodyEl.innerHTML = shown.length ? custodyAllHtml(shown) : '<p>No exports logged.</p>';
+  const summaryEl = $('#ecSummary');
+  if (summaryEl) summaryEl.textContent = custodySummaryText(loadExportCustody());
+  if (!exportCustodyBound) {
+    exportCustodyBound = true;
+    $('#ecExportBtn')?.addEventListener('click', () => { downloadCsvFile(custodyFilename(), custodyCsv(loadExportCustody())); });
+    $('#ecSaveBtn')?.addEventListener('click', () => {
+      const before = loadExportCustody();
+      const next = recordCustodyExport(before, {
+        id: `EC-${Date.now()}`,
+        date: $('#ecDate')?.value ?? '',
+        exportKind: $('#ecKind')?.value ?? '',
+        takenBy: $('#ecTakenBy')?.value ?? '',
+        purpose: $('#ecPurpose')?.value ?? '',
+        note: $('#ecNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Export not logged: use a real date, an export kind, who took it, and a purpose.'); return; }
+      saveExportCustody(next);
+      renderExportCustody();
+    });
+    $('#ecConfirmBtn')?.addEventListener('click', () => {
+      saveExportCustody(confirmCustodyExport(loadExportCustody(), $('#ecConfirmId')?.value ?? ''));
+      renderExportCustody();
+    });
+    $('#ecRemoveBtn')?.addEventListener('click', () => {
+      saveExportCustody(removeCustodyExport(loadExportCustody(), $('#ecRemoveId')?.value ?? ''));
+      renderExportCustody();
+    });
+    $('#ecKindFilter')?.addEventListener('input', () => { renderExportCustody(); });
   }
 }
 function renderOwnerDecision() {

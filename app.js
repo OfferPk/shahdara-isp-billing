@@ -298,6 +298,7 @@ import { RMA_DEVICE_TYPES, RMA_DEVICE_TYPE_LABELS, RMA_STATUSES, RMA_STATUS_LABE
 import { RECOVERY_STATUSES, RECOVERY_STATUS_LABELS, normalizeRecoveryList, upsertRecovery, markRecoveryCollected, markRecoveryNotReturned, reopenRecovery, removeRecovery, buildRecoveryQueue, recoveryQueueFiltered, buildRecoverySummary, recoverySummaryText, recoveryHtml, recoveryCsv, recoveryFilename } from './recovery-queue.js';
 import { HOLD_REASONS, HOLD_REASON_LABELS, HOLD_TREATMENTS, HOLD_TREATMENT_LABELS, HOLD_STATUSES, HOLD_STATUS_LABELS, normalizeHoldList, upsertHold, removeHold, holdMonthTreatment, holdMonthTreatmentText, endHold, reopenHold, holdsFiltered, buildHoldSummary, holdSummaryText, holdHtml, holdCsv, holdFilename } from './vacation-holds.js';
 import { SUSPENSION_REASONS, SUSPENSION_REASON_LABELS, SUSPENSION_STATUSES, SUSPENSION_STATUS_LABELS, CHECKLIST_ITEMS, CHECKLIST_ITEM_LABELS, normalizeSuspensionList, upsertSuspension, removeSuspension, setChecklistItem, completeChecklist, reconnectSuspension, reopenSuspension, suspensionsFiltered, buildSuspensionSummary, suspensionSummaryText, suspensionHtml, suspensionCsv, suspensionFilename } from './suspension-records.js';
+import { RESUME_KINDS, RESUME_KIND_LABELS, RESUME_STATUSES, RESUME_STATUS_LABELS, buildResumeQueue, resumeQueueFiltered, buildResumeSummary, resumeSummaryText, resumeHtml, resumeCsv, resumeFilename } from './resume-queue.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13522,6 +13523,7 @@ function renderAnalytics() {
   renderRecoveryQueue();
   renderVacationHolds();
   renderSuspensions();
+  renderResumeQueue();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -17429,6 +17431,76 @@ function renderSuspensions() {
         mohalla: $('#suspensionFilterMohalla')?.value ?? '',
       });
       downloadCsvFile(suspensionFilename(), suspensionCsv(fresh));
+    });
+  }
+}
+let resumeQueueBound = false;
+// Hold expiry and resume queue (Plan 84): a read-only,
+// derived list of Plan 82 holds ending inside the operator-set
+// window plus every overdue resume, earliest return first.
+// Confirming a resumption closes the hold through Plan 82's
+// own endHold, recording the resume date there; the queue
+// itself resumes, bills, or messages nobody. Relocations
+// (Plan 85) plug in later as a caller-supplied list.
+function renderResumeQueue() {
+  const bodyEl = $('#resumeQueueBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const windowDaysRaw = parseInt($('#resumeWindowDays')?.value ?? '7', 10);
+  const windowDays = Number.isInteger(windowDaysRaw) && windowDaysRaw >= 0 ? windowDaysRaw : 7;
+  const holds = loadVacationHolds().map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' }));
+  const queue = buildResumeQueue(holds, [], { today: localDate(), windowDays });
+  const shown = resumeQueueFiltered(queue, {
+    status: $('#resumeFilterStatus')?.value ?? '',
+    kind: $('#resumeFilterKind')?.value ?? '',
+    mohalla: $('#resumeFilterMohalla')?.value ?? '',
+  });
+  bodyEl.innerHTML = resumeHtml(shown);
+  const summaryEl = $('#resumeQueueSummary');
+  if (summaryEl) summaryEl.textContent = resumeSummaryText(buildResumeSummary(queue)) + ' Relocations join this queue with Plan 85; until then it lists holds only.';
+  const selectEl = $('#resumeSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = shown.filter((row) => row.kind === 'hold').map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.id)} — ${escapeHtml(row.customerName || row.customerId)} — return ${escapeHtml(row.returnDate)}</option>`).join('')
+      || '<option value="">No resumable holds in view</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['resumeFilterStatus', RESUME_STATUSES, RESUME_STATUS_LABELS],
+    ['resumeFilterKind', RESUME_KINDS, RESUME_KIND_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      el.innerHTML = '<option value="">All</option>' + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  if (!resumeQueueBound) {
+    resumeQueueBound = true;
+    $('#resumeWindowDays')?.addEventListener('change', () => renderResumeQueue());
+    $('#resumeFilterStatus')?.addEventListener('change', () => renderResumeQueue());
+    $('#resumeFilterKind')?.addEventListener('change', () => renderResumeQueue());
+    $('#resumeFilterMohalla')?.addEventListener('input', () => renderResumeQueue());
+    $('#resumeConfirmBtn')?.addEventListener('click', () => {
+      const id = $('#resumeSelect')?.value ?? '';
+      if (!id) return;
+      const next = endHold(loadVacationHolds(), id, localDate());
+      const updated = next.find((row) => row.id === id);
+      if (!updated || updated.status !== 'ended') {
+        toast('That hold cannot be resumed from here: it must still be active with a real return date.');
+        return;
+      }
+      saveVacationHolds(next);
+      toast('Resumption confirmed. The hold is closed with today as its resume date; ordinary billing resumes.');
+      renderResumeQueue();
+      renderVacationHolds();
+    });
+    $('#resumeExportBtn')?.addEventListener('click', () => {
+      const fresh = resumeQueueFiltered(buildResumeQueue(loadVacationHolds(), [], { today: localDate(), windowDays }), {
+        status: $('#resumeFilterStatus')?.value ?? '',
+        kind: $('#resumeFilterKind')?.value ?? '',
+        mohalla: $('#resumeFilterMohalla')?.value ?? '',
+      });
+      downloadCsvFile(resumeFilename(), resumeCsv(fresh));
     });
   }
 }

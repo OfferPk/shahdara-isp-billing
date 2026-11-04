@@ -323,6 +323,7 @@ import { normalizeCreditEntryList, normalizeCreditApplicationList, upsertCreditE
 import { normalizeChargeScheduleList, upsertChargeSchedule, markInstalmentPaid, scheduleView, missedInstalments, billLinesForMonth, chargeScheduleSummaryText, chargeScheduleHtml, chargeScheduleCsv, chargeScheduleFilename } from './charge-instalments.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
+import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13819,6 +13820,7 @@ function renderAnalytics() {
   renderChargeInstalments();
   renderProrataSheets();
   renderBillRounding();
+  renderBillExceptions();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -19889,6 +19891,130 @@ function renderBillRounding() {
     $('#billRoundingFilterCustomer')?.addEventListener('change', () => renderBillRounding());
     $('#billRoundingExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(roundingRecordFilename(), roundingRecordCsv(loadBillRounding()));
+    });
+  }
+}
+// Plan 107: pre-issue bill exception report — read-only. The report is
+// recomputed fresh from the customers' own bills on every render, so it
+// can never go stale; only clearance records are stored, and clearing
+// an exception never changes any bill, posted or not.
+const BILL_EXCEPTION_CLEARANCES_KEY = 'shahdara_bill_exceptions_v1';
+function loadBillExceptionClearances() {
+  try {
+    const raw = localStorage.getItem(BILL_EXCEPTION_CLEARANCES_KEY);
+    if (!raw) return [];
+    return normalizeExceptionClearanceList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveBillExceptionClearances(list) {
+  try { localStorage.setItem(BILL_EXCEPTION_CLEARANCES_KEY, JSON.stringify(normalizeExceptionClearanceList(list))); } catch { /* record only: a failed save leaves the previous clearances in place */ }
+}
+function billExceptionInputBills(runMonth) {
+  const customers = state.customers ?? [];
+  const bills = [];
+  for (const customer of customers) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      if (!bill?.month) continue;
+      bills.push({
+        id: bill.id ?? `${customer.id}-${bill.month}`,
+        customerId: customer.id,
+        customerName: customer.name || customer.customerName || customer.id,
+        month: bill.month,
+        amount: bill.dueAmount ?? null,
+      });
+    }
+  }
+  // Outdated-price candidates for the run month: the draft bill for that
+  // month would be priced at the customer's recorded selling amount, so
+  // a Plan 34 price that moved since then flags the draft here, before
+  // it is posted. With no price revision on record, priceOnDate falls
+  // back to the selling amount itself, so no false flag is raised.
+  if (runMonth) {
+    const history = loadPriceHistory();
+    for (const customer of customers) {
+      if (customer.archived) continue;
+      const selling = Number(customer.monthlySellingAmount);
+      if (!customer.packageSpeed || !Number.isFinite(selling) || selling <= 0) continue;
+      const expected = priceOnDate(history, customer.packageSpeed, `${runMonth}-01`, selling);
+      if (expected === null || Number(expected) === selling) continue;
+      bills.push({
+        id: `DRAFT-${customer.id}-${runMonth}`,
+        customerId: customer.id,
+        customerName: customer.name || customer.customerName || customer.id,
+        month: runMonth,
+        amountCents: Math.round(selling * 100),
+        pricedCents: Math.round(selling * 100),
+        expectedCents: Math.round(Number(expected) * 100),
+      });
+    }
+  }
+  return bills;
+}
+function currentBillExceptions() {
+  const runMonth = $('#billExceptionRunMonth')?.value ?? '';
+  const suspendedIds = loadSuspensions().filter((s) => s.status === 'open').map((s) => s.customerId);
+  const exitedIds = loadExitReasons().map((r) => r.customerId);
+  return buildBillExceptions({ bills: billExceptionInputBills(runMonth), suspendedCustomerIds: suspendedIds, exitedCustomerIds: exitedIds });
+}
+let billExceptionsBound = false;
+function renderBillExceptions() {
+  const bodyEl = $('#billExceptionBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const runMonthEl = $('#billExceptionRunMonth');
+  if (runMonthEl && !runMonthEl.value) runMonthEl.value = localDate().slice(0, 7);
+  const exceptions = currentBillExceptions();
+  const clearances = loadBillExceptionClearances();
+  const open = openBillExceptions(exceptions, clearances);
+  const cleared = clearedBillExceptions(exceptions, clearances);
+  const customerEl = $('#billExceptionFilterCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = `<option value="">All customers</option>` + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const pickEl = $('#billExceptionPick');
+  if (pickEl) {
+    const current = pickEl.value;
+    pickEl.innerHTML = open.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(names[item.customerId] || item.customerId)} · ${escapeHtml(item.billId)} · ${escapeHtml(item.month)} · ${escapeHtml(item.reasonLabel)}</option>`).join('');
+    if (current) pickEl.value = current;
+  }
+  const filterCustomer = customerEl?.value ?? '';
+  const filterReason = $('#billExceptionFilterReason')?.value ?? '';
+  const shownOpen = open.filter((item) => (!filterCustomer || item.customerId === filterCustomer) && (!filterReason || item.reason === filterReason));
+  const shownCleared = cleared.filter(({ exception }) => (!filterCustomer || exception.customerId === filterCustomer) && (!filterReason || exception.reason === filterReason));
+  bodyEl.innerHTML = (shownOpen.map((item) => billExceptionHtml(item)).join('') + shownCleared.map(({ exception, clearance }) => billExceptionHtml(exception, clearance)).join('')) || '<p>No bill exceptions for this run.</p>';
+  const summaryEl = $('#billExceptionSummary');
+  if (summaryEl) summaryEl.textContent = billExceptionSummaryText(exceptions, clearances);
+  if (!billExceptionsBound) {
+    billExceptionsBound = true;
+    $('#billExceptionRunBtn')?.addEventListener('click', () => renderBillExceptions());
+    $('#billExceptionFilterCustomer')?.addEventListener('change', () => renderBillExceptions());
+    $('#billExceptionFilterReason')?.addEventListener('change', () => renderBillExceptions());
+    $('#billExceptionClearBtn')?.addEventListener('click', () => {
+      const fresh = currentBillExceptions();
+      const freshOpen = openBillExceptions(fresh, loadBillExceptionClearances());
+      const picked = freshOpen.find((item) => item.id === ($('#billExceptionPick')?.value ?? ''));
+      if (!picked) { toast('Pick an open exception to clear.'); return; }
+      const next = applyBillExceptionClearance(fresh, loadBillExceptionClearances(), {
+        exceptionId: picked.id,
+        customerId: picked.customerId,
+        billId: picked.billId,
+        reason: picked.reason,
+        method: $('#billExceptionClearMethod')?.value ?? '',
+        note: $('#billExceptionClearNote')?.value ?? '',
+        date: $('#billExceptionClearDate')?.value ?? '',
+      });
+      if (!next) { toast('Exception not cleared: pick fixed or accepted, and give a note and a real date.'); return; }
+      saveBillExceptionClearances(next);
+      toast('Exception cleared with its reason recorded. No bill was changed.');
+      renderBillExceptions();
+    });
+    $('#billExceptionExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(billExceptionFilename(), billExceptionCsv(currentBillExceptions(), loadBillExceptionClearances()));
     });
   }
 }

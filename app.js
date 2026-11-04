@@ -301,6 +301,7 @@ import { SUSPENSION_REASONS, SUSPENSION_REASON_LABELS, SUSPENSION_STATUSES, SUSP
 import { RESUME_KINDS, RESUME_KIND_LABELS, RESUME_STATUSES, RESUME_STATUS_LABELS, buildResumeQueue, resumeQueueFiltered, buildResumeSummary, resumeSummaryText, resumeHtml, resumeCsv, resumeFilename } from './resume-queue.js';
 import { MOVE_STATUSES, MOVE_STATUS_LABELS, MOVE_TREATMENTS, MOVE_TREATMENT_LABELS, normalizeMoveList, upsertMove, removeMove, moveGapTreatment, moveGapTreatmentText, reconnectMove, reopenMove, movesFiltered, buildMoveSummary, moveSummaryText, movesToResumeRelocations, moveHtml, moveCsv, moveFilename } from './move-transfers.js';
 import { buildHoldHistory, historyForCustomer, normalizeGuardSettings, guardSettingsText, checkNewHold, normalizeOverrideList, upsertOverride, removeOverride, holdHistoryHtml, holdHistoryCsv, holdHistoryFilename, overrideHtml } from './hold-guard.js';
+import { normalizeDuplicateWarningSettings, findNearDuplicates, checkNewPayment, warningHtml, warningCsv, warningFilename, normalizeAckList, upsertAck, removeAck, ackHtml } from './duplicate-warning.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13528,6 +13529,7 @@ function renderAnalytics() {
   renderResumeQueue();
   renderMoveTransfers();
   renderHoldGuard();
+  renderDuplicateWarning();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -17693,6 +17695,114 @@ function renderMoveTransfers() {
 // never block by themselves, delete a hold, or change any bill,
 // payment, or hold record. Override reasons live in this plan's
 // own store, never on the hold record itself.
+const DUPLICATE_WARNING_SETTINGS_KEY = 'shahdara_duplicate_warning_settings_v1';
+const DUPLICATE_WARNING_ACK_KEY = 'shahdara_duplicate_warning_ack_v1';
+function loadDuplicateWarningSettings() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DUPLICATE_WARNING_SETTINGS_KEY) || '{}');
+    return normalizeDuplicateWarningSettings(parsed && typeof parsed === 'object' ? parsed : {});
+  } catch { return normalizeDuplicateWarningSettings({}); }
+}
+function saveDuplicateWarningSettings(settings) {
+  try { localStorage.setItem(DUPLICATE_WARNING_SETTINGS_KEY, JSON.stringify(normalizeDuplicateWarningSettings(settings))); } catch {}
+}
+function loadDuplicateWarningAcks() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DUPLICATE_WARNING_ACK_KEY) || '[]');
+    return normalizeAckList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveDuplicateWarningAcks(list) {
+  try { localStorage.setItem(DUPLICATE_WARNING_ACK_KEY, JSON.stringify(normalizeAckList(list))); } catch {}
+}
+function duplicateWarningPayments() {
+  const rows = [];
+  for (const customer of state.customers ?? []) {
+    for (const bill of customer.bills ?? []) {
+      for (const p of bill.payments ?? []) {
+        rows.push({ ...p, customerId: customer.id, customerName: customer.name || customer.customerName || customer.id, billMonth: bill.month });
+      }
+    }
+  }
+  return rows;
+}
+let duplicateWarningBound = false;
+let lastDuplicateWarning = null;
+function renderDuplicateWarning() {
+  const bodyEl = $('#duplicateWarningBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const customerEl = $('#duplicateWarningCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const settings = loadDuplicateWarningSettings();
+  const windowEl = $('#duplicateWarningWindow');
+  if (windowEl && document.activeElement !== windowEl) windowEl.value = String(settings.windowDays);
+  const ackEl = $('#duplicateWarningAckBody');
+  if (ackEl) ackEl.innerHTML = ackHtml(loadDuplicateWarningAcks().map((entry) => {
+    const c = customers.find((x) => x.id === entry.customerId);
+    return { ...entry, customerName: entry.customerName || c?.name || c?.customerName || '' };
+  }));
+  if (!duplicateWarningBound) {
+    duplicateWarningBound = true;
+    $('#duplicateWarningSaveWindowBtn')?.addEventListener('click', () => {
+      saveDuplicateWarningSettings({ windowDays: $('#duplicateWarningWindow')?.value ?? '' });
+      toast('Warning window saved. It warns only; it never blocks a payment.');
+      renderDuplicateWarning();
+    });
+    $('#duplicateWarningCheckBtn')?.addEventListener('click', () => {
+      const id = $('#duplicateWarningCustomer')?.value ?? '';
+      const date = $('#duplicateWarningDate')?.value ?? '';
+      const amountRaw = parseFloat($('#duplicateWarningAmount')?.value ?? '');
+      const channel = $('#duplicateWarningChannel')?.value ?? '';
+      const reference = $('#duplicateWarningReference')?.value ?? '';
+      const billMonth = $('#duplicateWarningBillMonth')?.value ?? '';
+      const resultEl = $('#duplicateWarningResult');
+      if (!id || !date || !Number.isFinite(amountRaw)) { if (resultEl) resultEl.textContent = 'Pick a customer, a date, and an amount first.'; return; }
+      const check = checkNewPayment({
+        payments: duplicateWarningPayments(),
+        candidate: { customerId: id, date, amountCents: Math.round(amountRaw * 100), channel, reference, billMonth },
+        settings: loadDuplicateWarningSettings(),
+        overrideReason: $('#duplicateWarningReason')?.value ?? '',
+      });
+      lastDuplicateWarning = { check, candidate: { customerId: id, date, amountCents: Math.round(amountRaw * 100), channel, reference } };
+      if (resultEl) resultEl.textContent = check.message;
+      bodyEl.innerHTML = warningHtml(check.warnings);
+    });
+    $('#duplicateWarningRecordAckBtn')?.addEventListener('click', () => {
+      const reason = $('#duplicateWarningReason')?.value.trim() ?? '';
+      const last = lastDuplicateWarning;
+      if (!last || last.check.warnings.length === 0) { toast('Record a reason only after a check that warned.'); return; }
+      if (!reason) { toast('A save-after-warning needs a recorded reason.'); return; }
+      const ack = {
+        id: `DUPACK-${Date.now()}`,
+        customerId: last.candidate.customerId,
+        candidateDate: last.candidate.date,
+        candidateAmountCents: last.candidate.amountCents,
+        candidateChannel: last.candidate.channel,
+        candidateReference: last.candidate.reference,
+        matchedPaymentIds: last.check.warnings.map((w) => w.paymentId).filter(Boolean),
+        reason,
+        date: getWaadaTodayString(),
+      };
+      saveDuplicateWarningAcks(upsertAck(loadDuplicateWarningAcks(), ack));
+      toast('Reason recorded. The warning itself changed no payment, bill, or balance.');
+      renderDuplicateWarning();
+    });
+    $('#duplicateWarningExportBtn')?.addEventListener('click', () => {
+      const warnings = lastDuplicateWarning?.check.warnings ?? [];
+      downloadCsvFile(warningFilename(), warningCsv(warnings));
+    });
+    $('#duplicateWarningAckBody')?.addEventListener('click', (event) => {
+      const removeBtn = event.target.closest ? event.target.closest('.duplicate-warning-ack-remove-btn') : null;
+      if (!removeBtn?.dataset.ackId) return;
+      saveDuplicateWarningAcks(removeAck(loadDuplicateWarningAcks(), removeBtn.dataset.ackId));
+      renderDuplicateWarning();
+    });
+  }
+}
 function renderHoldGuard() {
   const bodyEl = $('#holdGuardBody');
   if (!bodyEl) return;

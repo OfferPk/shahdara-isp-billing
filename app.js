@@ -365,6 +365,7 @@ import { normalizeDropCableList, upsertDropCableRecord, removeDropCableRecord, d
 import { normalizeRootCauseCodeList, upsertRootCauseCode, removeRootCauseCode, normalizeRootCauseLinkList, upsertRootCauseLink, removeRootCauseLink, rootCauseSummaryText, rootCauseCodeHtml, rootCauseCountHtml, rootCauseCsv, rootCauseFilename } from './root-cause.js';
 import { normalizeWorkaroundList, upsertWorkaround, removeWorkaround, recordWorkaroundRemoval, workaroundSummaryText, workaroundOpenHtml, workaroundOverdueHtml, workaroundCsv, workaroundFilename } from './workaround.js';
 import { normalizeSafetyNoteList, upsertSafetyNote, removeSafetyNote, safetyNoteLocationHtml, safetyNoteAllHtml, safetyNoteSummaryText, safetyNoteCsv, safetyNoteFilename } from './safety-note.js';
+import { normalizeOnCallList, upsertOnCallEntry, removeOnCallEntry, onCallLookupHtml, onCallAllHtml, onCallOverlapHtml, onCallSummaryText, onCallCsv, onCallFilename } from './oncall-rota.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13913,6 +13914,7 @@ function renderAnalytics() {
   renderRootCauses();
   renderWorkarounds();
   renderSafetyNotes();
+  renderOnCallRota();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23125,6 +23127,59 @@ function renderSafetyNotes() {
       downloadCsvFile(safetyNoteFilename(), safetyNoteCsv(loadSafetyNotes()));
     });
     $('#safetyFilter')?.addEventListener('input', () => { renderSafetyNotes(); });
+  }
+}
+const ONCALL_ROTA_KEY = 'shahdara_oncall_rota_v1';
+function loadOnCallRota() {
+  try { return normalizeOnCallList(JSON.parse(localStorage.getItem(ONCALL_ROTA_KEY) || '[]')); } catch { return []; }
+}
+function saveOnCallRota(list) {
+  try { localStorage.setItem(ONCALL_ROTA_KEY, JSON.stringify(normalizeOnCallList(list))); } catch { /* rota only: a failed save leaves the previous rota in place */ }
+}
+let onCallBound = false;
+function renderOnCallRota() {
+  const bodyEl = $('#onCallBody');
+  if (!bodyEl) return;
+  const list = loadOnCallRota();
+  bodyEl.innerHTML = onCallAllHtml(list);
+  const lookupEl = $('#onCallLookupBody');
+  if (lookupEl) {
+    const date = $('#onCallLookupDate')?.value ?? '';
+    const coverage = $('#onCallLookupCoverage')?.value ?? '';
+    lookupEl.innerHTML = date ? onCallLookupHtml(list, date, coverage) : '<p>Pick a date to see exactly who is on call that night or weekend.</p>';
+  }
+  const overlapEl = $('#onCallOverlapBody');
+  if (overlapEl) overlapEl.innerHTML = onCallOverlapHtml(list);
+  const summaryEl = $('#onCallSummary');
+  if (summaryEl) summaryEl.textContent = onCallSummaryText(list);
+  if (!onCallBound) {
+    onCallBound = true;
+    $('#onCallSaveBtn')?.addEventListener('click', () => {
+      const before = loadOnCallRota();
+      const next = upsertOnCallEntry(before, {
+        id: `R-${Date.now()}`,
+        person: $('#onCallPerson')?.value ?? '',
+        startDate: $('#onCallStart')?.value ?? '',
+        endDate: $('#onCallEnd')?.value ?? '',
+        coverage: $('#onCallCoverage')?.value ?? '',
+        contactNote: $('#onCallContact')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Rota entry not recorded: give a person, real start and end dates, and a night or weekend coverage.'); return; }
+      saveOnCallRota(next);
+      toast('Rota entry recorded. Night and weekend faults now reach the right person first.');
+      renderOnCallRota();
+    });
+    $('#onCallRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#onCallRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveOnCallRota(removeOnCallEntry(loadOnCallRota(), id));
+      renderOnCallRota();
+    });
+    $('#onCallExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(onCallFilename(), onCallCsv(loadOnCallRota()));
+    });
+    $('#onCallLookupDate')?.addEventListener('input', () => { renderOnCallRota(); });
+    $('#onCallLookupCoverage')?.addEventListener('change', () => { renderOnCallRota(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

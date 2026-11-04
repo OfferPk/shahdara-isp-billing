@@ -291,6 +291,7 @@ import { buildPrecloseSweep, precloseSweepSummaryText, precloseSweepHtml, preclo
 import { validSnapshotMonth, normalizeSnapshotList, findSnapshot, takeSnapshot, removeSnapshot, snapshotSummaryText, snapshotHtml, snapshotCsv, snapshotFilename, compareSnapshots, compareSnapshotsSummaryText, compareSnapshotsHtml, compareSnapshotsCsv } from './month-snapshots.js';
 import { validAnnualYear, monthsOfYear, buildAnnualSummary, annualSummaryText, annualSummaryHtml, annualSummaryCsv, annualSummaryFilename } from './annual-summary.js';
 import { ENQUIRY_TYPES, ENQUIRY_TYPE_LABELS, ENQUIRY_STATUSES, ENQUIRY_STATUS_LABELS, ENQUIRY_REPLY_DRAFTS, ENQUIRY_REPLY_DRAFT_LABELS, ENQUIRY_REFERRED_STATUSES, normalizeEnquiry, normalizeEnquiryList, pendingEnquiries, buildEnquirySummary, enquirySummaryText, enquiryHtml, enquiryCsv, enquiryFilename, upsertEnquiry, removeEnquiry, markEnquiryAnswered, referEnquiry, reopenEnquiry } from './enquiry-log.js';
+import { DEPOSIT_DEVICE_TYPES, DEPOSIT_DEVICE_TYPE_LABELS, DEPOSIT_STATUSES, DEPOSIT_STATUS_LABELS, normalizeDeposit, normalizeDepositList, upsertDeposit, removeDeposit, markDepositRefunded, markDepositApplied, reopenDeposit, depositsFiltered, buildDepositSummary, depositSummaryText, depositHtml, depositCsv, depositFilename } from './deposit-register.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13508,6 +13509,7 @@ function renderAnalytics() {
   renderMonthSnapshots();
   renderAnnualSummary();
   renderEnquiryLog();
+  renderDepositRegister();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -16436,6 +16438,133 @@ function renderEnquiryLog() {
     });
     $('#enquiryExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(enquiryFilename(), enquiryCsv(loadEnquiryLog()));
+    });
+  }
+}
+const DEPOSIT_REGISTER_KEY = 'shahdara_deposit_register_v1';
+let depositRegisterBound = false;
+function loadDepositRegister() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DEPOSIT_REGISTER_KEY) || '[]');
+    return normalizeDepositList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveDepositRegister(list) {
+  try { localStorage.setItem(DEPOSIT_REGISTER_KEY, JSON.stringify(normalizeDepositList(list))); } catch {}
+}
+// Customer equipment deposit register (Plan 77): one record per
+// device with its serial, amount held, date taken, and status.
+// This panel never moves money itself — a refund only records
+// the id of the payment or concession that returned it, and an
+// applied deposit only records the operator's reason. It never
+// reads or writes the customer's security-deposit amount, the
+// active deposit offset, or the disconnection settlement.
+function renderDepositRegister() {
+  const bodyEl = $('#depositRegisterBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const entries = loadDepositRegister();
+  const shown = depositsFiltered(entries, {
+    status: $('#depositFilterStatus')?.value ?? '',
+    deviceType: $('#depositFilterDevice')?.value ?? '',
+    mohalla: $('#depositFilterMohalla')?.value ?? '',
+  });
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = depositHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const summaryEl = $('#depositRegisterSummary');
+  if (summaryEl) summaryEl.textContent = depositSummaryText(buildDepositSummary(entries));
+  const customerEl = $('#depositCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const selectEl = $('#depositSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = entries.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(DEPOSIT_DEVICE_TYPE_LABELS[entry.deviceType])} (${escapeHtml(DEPOSIT_STATUS_LABELS[entry.status])})</option>`).join('')
+      || '<option value="">No deposits yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['depositFilterStatus', DEPOSIT_STATUSES, DEPOSIT_STATUS_LABELS],
+    ['depositFilterDevice', DEPOSIT_DEVICE_TYPES, DEPOSIT_DEVICE_TYPE_LABELS],
+    ['depositDevice', DEPOSIT_DEVICE_TYPES, DEPOSIT_DEVICE_TYPE_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('depositFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  const mohallaEl = $('#depositMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+    mohallaEl.value = selected ? (selected.mohalla || selected.area || '') : '';
+  }
+  if (!depositRegisterBound) {
+    depositRegisterBound = true;
+    $('#depositCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#depositCustomer')?.value ?? ''));
+      const mohallaInput = $('#depositMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+      renderDepositRegister();
+    });
+    $('#depositFilterStatus')?.addEventListener('change', () => renderDepositRegister());
+    $('#depositFilterDevice')?.addEventListener('change', () => renderDepositRegister());
+    $('#depositFilterMohalla')?.addEventListener('input', () => renderDepositRegister());
+    $('#depositRecordBtn')?.addEventListener('click', () => {
+      const customerId = $('#depositCustomer')?.value ?? '';
+      if (!customerId) { toast('Pick a customer first.'); return; }
+      const selected = customers.find((c) => String(c.id) === String(customerId));
+      const record = normalizeDeposit({
+        id: $('#depositId')?.value ?? '',
+        customerId,
+        customerName: selected ? (selected.name || selected.customerName || '') : '',
+        connectionId: $('#depositConnectionId')?.value ?? '',
+        deviceType: $('#depositDevice')?.value ?? '',
+        serial: $('#depositSerial')?.value ?? '',
+        amount: $('#depositAmount')?.value ?? '',
+        dateTaken: $('#depositDate')?.value ?? '',
+        status: 'held',
+        mohalla: $('#depositMohalla')?.value ?? '',
+      });
+      if (!record) {
+        toast('A deposit needs an id, a customer, a device type, a serial, a positive amount, and a valid date taken.');
+        return;
+      }
+      saveDepositRegister(upsertDeposit(loadDepositRegister(), record));
+      toast('Deposit recorded as held. This register moves no money itself.');
+      renderDepositRegister();
+    });
+    $('#depositApplyBtn')?.addEventListener('click', () => {
+      const id = $('#depositSelect')?.value ?? '';
+      if (!id) return;
+      const action = $('#depositAction')?.value ?? '';
+      const current = loadDepositRegister();
+      let next = current;
+      if (action === 'refunded') next = markDepositRefunded(current, id, $('#depositLinkedId')?.value ?? '');
+      else if (action === 'applied') next = markDepositApplied(current, id, $('#depositReason')?.value ?? '');
+      const moved = next.find((entry) => entry.id === id);
+      if (!moved || moved.status === 'held') {
+        toast(action === 'refunded' ? 'Only a held deposit can be refunded, and only with the id of the payment or concession that returned it.' : 'Only a held deposit can be applied, and only with the operator-recorded reason.');
+        return;
+      }
+      saveDepositRegister(next);
+      renderDepositRegister();
+    });
+    $('#depositReopenBtn')?.addEventListener('click', () => {
+      const id = $('#depositSelect')?.value ?? '';
+      if (!id) return;
+      saveDepositRegister(reopenDeposit(loadDepositRegister(), id));
+      renderDepositRegister();
+    });
+    $('#depositRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#depositSelect')?.value ?? '';
+      if (!id) return;
+      saveDepositRegister(removeDeposit(loadDepositRegister(), id));
+      renderDepositRegister();
+    });
+    $('#depositExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(depositFilename(), depositCsv(loadDepositRegister()));
     });
   }
 }

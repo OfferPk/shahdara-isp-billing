@@ -7619,6 +7619,42 @@
 </div>
 <div id="rdBody"></div>
 </section>
+<section class="analytics-panel" aria-labelledby="vlHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="vlHeading">App version and release notes log for owner</h3>
+<p class="chart-caption">A plain-words record of which app version arrived when and what changed for the shop. A log only: recording a version never changes app behaviour and never changes any bill, payment, or customer record, and past entries are never silently edited.</p>
+<p id="vlSummary"></p>
+</div>
+<div>
+<button id="vlExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export version log CSV</button>
+</div>
+</div>
+<h4>Record a version</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Version <input id="vlVersion" type="text" style="width: 110px;" placeholder="e.g. 1.12.0">
+</label>
+<label style="font-size: 12px;">Date arrived <input id="vlDate" type="date" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">What changed (one per line, plain words) <input id="vlChanges" type="text" style="width: 260px;">
+</label>
+<label style="font-size: 12px;">Note for the shop <input id="vlShopNote" type="text" style="width: 180px;">
+</label>
+<button id="vlSaveBtn" class="secondary-button btn-sm" type="button">Record version</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove version id <input id="vlRemoveId" type="text" style="width: 110px;">
+</label>
+<button id="vlRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Versions</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by version <input id="vlFilter" type="text" style="width: 110px;" placeholder="e.g. 1.12.0">
+</label>
+</div>
+<div id="vlBody"></div>
+</section>
 
 
 

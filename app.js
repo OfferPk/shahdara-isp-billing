@@ -322,6 +322,7 @@ import { normalizeAllocationBillList, normalizeAllocationInstalmentList, normali
 import { normalizeCreditEntryList, normalizeCreditApplicationList, upsertCreditEntry, removeCreditEntry, applyCredit, removeCreditApplication, creditBalanceForCustomer, creditSummaryText, creditHtml, creditCsv, creditFilename } from './credit-balance.js';
 import { normalizeChargeScheduleList, upsertChargeSchedule, markInstalmentPaid, scheduleView, missedInstalments, billLinesForMonth, chargeScheduleSummaryText, chargeScheduleHtml, chargeScheduleCsv, chargeScheduleFilename } from './charge-instalments.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
+import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13817,6 +13818,7 @@ function renderAnalytics() {
   renderCreditBalances();
   renderChargeInstalments();
   renderProrataSheets();
+  renderBillRounding();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -19808,6 +19810,87 @@ function loadProrataSheets() {
 }
 function saveProrataSheets(list) {
   try { localStorage.setItem(PRORATA_SHEETS_KEY, JSON.stringify(normalizeProrataSheetList(list))); } catch { /* record only: a failed save leaves the previous sheets in place */ }
+}
+// Plan 106: bill total rounding records — the visible remainder rule.
+// Recording, or writing off, a remainder changes no bill, price, or
+// collected figure; the record only shows how a total was rounded.
+const BILL_ROUNDING_KEY = 'shahdara_bill_rounding_v1';
+function loadBillRounding() {
+  try {
+    const raw = localStorage.getItem(BILL_ROUNDING_KEY);
+    if (!raw) return [];
+    return normalizeRoundingRecordList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveBillRounding(list) {
+  try { localStorage.setItem(BILL_ROUNDING_KEY, JSON.stringify(normalizeRoundingRecordList(list))); } catch { /* record only: a failed save leaves the previous records in place */ }
+}
+let billRoundingBound = false;
+function renderBillRounding() {
+  const bodyEl = $('#billRoundingBody');
+  if (!bodyEl) return;
+  const records = loadBillRounding();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#billRoundingCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#billRoundingFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = `<option value="">All customers</option>` + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const pickEl = $('#billRoundingPick');
+  if (pickEl) {
+    const current = pickEl.value;
+    pickEl.innerHTML = records.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.id)} · ${escapeHtml(names[item.customerId] || item.customerId)} · ${escapeHtml(item.billMonth)}${item.status === 'written-off' ? ' · written off' : ''}</option>`).join('');
+    if (current) pickEl.value = current;
+  }
+  const filterCustomer = filterEl?.value ?? '';
+  const shown = filterCustomer ? roundingRecordsForCustomer(records, filterCustomer) : records;
+  bodyEl.innerHTML = shown.map((item) => roundingRecordHtml({ ...item, customerName: item.customerName || names[item.customerId] || item.customerId })).join('') || '<p>No rounding record yet.</p>';
+  const summaryEl = $('#billRoundingSummary');
+  if (summaryEl) summaryEl.textContent = roundingSummaryText(shown);
+  const reconcileEl = $('#billRoundingReconcile');
+  if (reconcileEl) {
+    const check = reconcileRounding(shown);
+    reconcileEl.textContent = check.reconciles
+      ? `Reconciliation: unrounded + adjustments = final on these ${check.recordCount} record${check.recordCount === 1 ? '' : 's'} — every rupee accounted for.`
+      : 'Reconciliation: these records do not reconcile — correct through the correction workflow, never by editing a record.';
+  }
+  if (!billRoundingBound) {
+    billRoundingBound = true;
+    $('#billRoundingSaveBtn')?.addEventListener('click', () => {
+      const next = upsertRoundingRecord(loadBillRounding(), {
+        id: `BR-${Date.now()}`,
+        customerId: $('#billRoundingCustomer')?.value ?? '',
+        billMonth: $('#billRoundingBillMonth')?.value ?? '',
+        issueDate: $('#billRoundingIssueDate')?.value ?? '',
+        unrounded: Number($('#billRoundingUnrounded')?.value ?? 0),
+        note: $('#billRoundingNote')?.value ?? '',
+      });
+      if (!next) { toast('Rounding record not saved: check the customer, bill month, issue date, and a positive unrounded total.'); return; }
+      saveBillRounding(next);
+      toast('Rounding record saved. It changes no price and no collected figure — it only shows how the total was rounded.');
+      renderBillRounding();
+    });
+    $('#billRoundingWriteOffBtn')?.addEventListener('click', () => {
+      const next = writeOffRoundingRecord(loadBillRounding(), $('#billRoundingPick')?.value ?? '', $('#billRoundingWriteOffReason')?.value ?? '', $('#billRoundingWriteOffDate')?.value ?? '');
+      if (!next) { toast('Remainder not written off: pick an open record and give a reason and a date.'); return; }
+      saveBillRounding(next);
+      toast('Remainder written off with its reason recorded. It stays listed and stays in the reconciliation.');
+      renderBillRounding();
+    });
+    $('#billRoundingFilterCustomer')?.addEventListener('change', () => renderBillRounding());
+    $('#billRoundingExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(roundingRecordFilename(), roundingRecordCsv(loadBillRounding()));
+    });
+  }
 }
 let prorataSheetsBound = false;
 function renderProrataSheets() {

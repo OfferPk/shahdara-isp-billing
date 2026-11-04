@@ -346,6 +346,7 @@ import { normalizeVisitScheduleList, upsertVisitSchedule, removeVisitSchedule, d
 import { normalizeFaultPartList, upsertFaultPart, removeFaultPart, partsForTicket, sumPartsForPeriod, faultPartSummaryText, faultPartHtml, faultPartCsv, faultPartFilename } from './fault-parts.js';
 import { normalizeSegmentFaultList, upsertSegmentFault, removeSegmentFault, segmentFaultCounts, segmentFaultSummaryText, segmentFaultHtml, segmentFaultCsv, segmentFaultFilename } from './segment-fault-history.js';
 import { normalizeOutageTypeList, upsertOutageType, removeOutageType, missingNoticeOutages, outageTypeSummaryText, outageTypeHtml, outageTypeCsv, outageTypeFilename } from './outage-type.js';
+import { normalizeGeneratorFuelList, upsertGeneratorFuel, removeGeneratorFuel, generatorFuelSummaryText, generatorFuelHtml, generatorFuelCsv, generatorFuelFilename } from './generator-fuel-log.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13875,6 +13876,7 @@ function renderAnalytics() {
   renderFaultParts();
   renderSegmentFaults();
   renderOutageTypes();
+  renderGeneratorFuel();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22058,6 +22060,61 @@ function renderOutageTypes() {
       downloadCsvFile(outageTypeFilename(), outageTypeCsv(loadOutageTypes()));
     });
     $('#outageTypeFilter')?.addEventListener('change', () => { renderOutageTypes(); });
+  }
+}
+// Plan 135 (Plan 101-202) — Generator/fuel log for sites.
+// This panel reads and writes only its own generator-fuel records. It
+// never reads or writes the Plan 53 power-status log, the SISP-62 UPS
+// backup monitor, or the SISP-112 lineman petrol tracker, and
+// recording a fill here creates no expense, vendor bill, or payment
+// of any kind.
+const GENERATOR_FUEL_KEY = 'shahdara_generator_fuel_v1';
+function loadGeneratorFuel() {
+  try {
+    const raw = localStorage.getItem(GENERATOR_FUEL_KEY);
+    return normalizeGeneratorFuelList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveGeneratorFuel(list) {
+  try { localStorage.setItem(GENERATOR_FUEL_KEY, JSON.stringify(normalizeGeneratorFuelList(list))); } catch { /* record only: a failed save leaves the previous entries in place */ }
+}
+let generatorFuelBound = false;
+function renderGeneratorFuel() {
+  const bodyEl = $('#generatorFuelBody');
+  if (!bodyEl) return;
+  const records = loadGeneratorFuel();
+  bodyEl.innerHTML = generatorFuelHtml(records, $('#generatorFuelFilter')?.value ?? '');
+  const summaryEl = $('#generatorFuelSummary');
+  if (summaryEl) summaryEl.textContent = generatorFuelSummaryText(records);
+  if (!generatorFuelBound) {
+    generatorFuelBound = true;
+    $('#generatorFuelSaveBtn')?.addEventListener('click', () => {
+      const before = loadGeneratorFuel();
+      const id = `GF-${Date.now()}`;
+      const next = upsertGeneratorFuel(before, {
+        id,
+        site: $('#generatorFuelSite')?.value ?? '',
+        date: $('#generatorFuelDate')?.value ?? '',
+        fuelAdded: $('#generatorFuelAdded')?.value ?? '',
+        levelAfterFill: $('#generatorFuelLevel')?.value ?? '',
+        runningHours: $('#generatorFuelHours')?.value ?? '',
+        note: $('#generatorFuelNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Fuel fill not recorded: name a site, give a real date, fuel added above zero, and a level of zero or more (running hours, if given, must be zero or more).'); return; }
+      saveGeneratorFuel(next);
+      toast('Fuel fill recorded. Recording never creates an expense, vendor bill, or payment, and never changes any other log.');
+      renderGeneratorFuel();
+    });
+    $('#generatorFuelRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#generatorFuelRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveGeneratorFuel(removeGeneratorFuel(loadGeneratorFuel(), id));
+      renderGeneratorFuel();
+    });
+    $('#generatorFuelExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(generatorFuelFilename(), generatorFuelCsv(loadGeneratorFuel()));
+    });
+    $('#generatorFuelFilter')?.addEventListener('input', () => { renderGeneratorFuel(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

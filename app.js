@@ -318,6 +318,7 @@ import { buildRecognitionList, filterRecognitionByMohalla, canonicalRecognitionM
 import { normalizeAdvanceAllocationList, upsertAdvanceAllocation, removeAdvanceAllocation, advanceWithAllocation, advancesForCustomer, advanceSummaryText, advanceHtml, advanceCsv, advanceFilename } from './advance-allocation.js';
 import { normalizeAllocationBillList, normalizeAllocationInstalmentList, normalizePartPaymentAllocationList, upsertPartPaymentAllocation, removePartPaymentAllocation, partPaymentsForCustomer, allocatePartPayment, defaultAllocationOrder, partPaymentSummaryText, partPaymentHtml, partPaymentCsv, partPaymentFilename } from './part-payment-rules.js';
 import { normalizeCreditEntryList, normalizeCreditApplicationList, upsertCreditEntry, removeCreditEntry, applyCredit, removeCreditApplication, creditBalanceForCustomer, creditSummaryText, creditHtml, creditCsv, creditFilename } from './credit-balance.js';
+import { normalizeChargeScheduleList, upsertChargeSchedule, markInstalmentPaid, scheduleView, missedInstalments, billLinesForMonth, chargeScheduleSummaryText, chargeScheduleHtml, chargeScheduleCsv, chargeScheduleFilename } from './charge-instalments.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13708,6 +13709,7 @@ function renderAnalytics() {
   renderAdvanceAllocations();
   renderPartPaymentAllocations();
   renderCreditBalances();
+  renderChargeInstalments();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -19586,6 +19588,100 @@ function renderCreditBalances() {
         .map((id) => creditBalanceForCustomer(loadCreditEntries(), loadCreditApplications(), id));
       const combined = balances.map((balance) => creditCsv(balance)).join('\n');
       downloadCsvFile(creditFilename(), combined);
+    });
+  }
+}
+// Plan 104: one-time charge instalment schedule — a large one-off
+// charge split across future months as separate bill lines. The
+// instalment amounts always sum exactly to the original charge; a
+// missed instalment stays visible as outstanding. The charge terms
+// can never be rewritten or deleted here — only paid marks move —
+// and recording a paid mark changes no bill or payment record.
+const CHARGE_INSTALMENTS_KEY = 'shahdara_charge_instalments_v1';
+function loadChargeInstalments() {
+  try {
+    const raw = localStorage.getItem(CHARGE_INSTALMENTS_KEY);
+    if (!raw) return [];
+    return normalizeChargeScheduleList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveChargeInstalments(list) {
+  try { localStorage.setItem(CHARGE_INSTALMENTS_KEY, JSON.stringify(normalizeChargeScheduleList(list))); } catch { /* record only: a failed save leaves the previous schedules in place */ }
+}
+let chargeInstalmentsBound = false;
+function renderChargeInstalments() {
+  const bodyEl = $('#chargeInstalmentBody');
+  if (!bodyEl) return;
+  const schedules = loadChargeInstalments();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#chargeInstalmentCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#chargeInstalmentFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = `<option value="">All customers</option>` + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const pickEl = $('#chargeInstalmentSchedulePick');
+  if (pickEl) {
+    const current = pickEl.value;
+    pickEl.innerHTML = schedules.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.id)} · ${escapeHtml(names[item.customerId] || item.customerId)} · ${escapeHtml(item.label)}</option>`).join('');
+    if (current) pickEl.value = current;
+  }
+  const currentMonth = $('#chargeInstalmentCurrentMonth')?.value ?? '';
+  const filterCustomer = filterEl?.value ?? '';
+  const shown = filterCustomer ? schedules.filter((item) => String(item.customerId) === String(filterCustomer)) : schedules;
+  const blocks = shown.map((item) => {
+    const view = scheduleView(item, currentMonth);
+    return view ? chargeScheduleHtml({ ...view, customerName: names[item.customerId] || item.customerId }) : '';
+  }).filter(Boolean).join('');
+  bodyEl.innerHTML = blocks || '<p>No charge instalment schedule recorded yet.</p>';
+  const missed = missedInstalments(schedules, currentMonth);
+  const summaryEl = $('#chargeInstalmentSummary');
+  if (summaryEl) {
+    summaryEl.textContent = schedules.length === 0
+      ? 'No schedules yet.'
+      : `${schedules.length} schedule(s) · ${missed.length} missed instalment(s) still outstanding.`;
+  }
+  if (!chargeInstalmentsBound) {
+    chargeInstalmentsBound = true;
+    $('#chargeInstalmentSaveBtn')?.addEventListener('click', () => {
+      const next = upsertChargeSchedule(loadChargeInstalments(), {
+        id: `CI-${Date.now()}`,
+        customerId: $('#chargeInstalmentCustomer')?.value ?? '',
+        label: $('#chargeInstalmentLabel')?.value ?? '',
+        amount: Number($('#chargeInstalmentAmount')?.value ?? 0),
+        instalmentCount: Number($('#chargeInstalmentCount')?.value ?? 0),
+        firstMonth: $('#chargeInstalmentFirstMonth')?.value ?? '',
+      });
+      if (!next) { toast('Schedule not recorded: a label, a positive amount, 1–60 instalments, and a valid first month are all required.'); return; }
+      saveChargeInstalments(next);
+      toast('Instalment schedule recorded. Its terms can never be rewritten or deleted here.');
+      renderChargeInstalments();
+    });
+    $('#chargeInstalmentMarkPaidBtn')?.addEventListener('click', () => {
+      const scheduleId = $('#chargeInstalmentSchedulePick')?.value ?? '';
+      const picked = loadChargeInstalments().find((item) => item.id === scheduleId);
+      if (!picked) { toast('Pick a schedule first.'); return; }
+      const index = Number($('#chargeInstalmentIndexPick')?.value ?? 0);
+      const marked = markInstalmentPaid(picked, index);
+      if (!marked) { toast('That instalment is out of range or already paid.'); return; }
+      const next = upsertChargeSchedule(loadChargeInstalments(), marked);
+      if (!next) { toast('Paid mark not recorded: the charge terms cannot change.'); return; }
+      saveChargeInstalments(next);
+      toast(`Instalment ${index} marked paid. No bill or payment record was changed.`);
+      renderChargeInstalments();
+    });
+    $('#chargeInstalmentFilterCustomer')?.addEventListener('change', () => renderChargeInstalments());
+    $('#chargeInstalmentCurrentMonth')?.addEventListener('change', () => renderChargeInstalments());
+    $('#chargeInstalmentExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(chargeScheduleFilename(), chargeScheduleCsv(loadChargeInstalments(), currentMonth));
     });
   }
 }

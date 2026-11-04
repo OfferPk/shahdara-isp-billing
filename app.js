@@ -376,6 +376,7 @@ import { normalizeComplaintAckList, upsertComplaintAck, removeComplaintAck, comp
 import { normalizeVisitFeedbackList, upsertVisitFeedback, removeVisitFeedback, markVisitFeedbackReviewed, feedbackAllHtml, feedbackCustomerHtml, feedbackUnreviewedHtml, feedbackSummaryText, feedbackCsv, feedbackFilename } from './visit-feedback.js';
 import { normalizeGreetingDateList, upsertGreetingDate, removeGreetingDate, markGreetingSent, greetingAllHtml, greetingCustomerHtml, greetingUpcomingHtml, greetingSummaryText, greetingCsv, greetingFilename } from './greeting-date.js';
 import { normalizeDraftLanguageList, upsertDraftLanguage, removeDraftLanguage, preferenceFor, applyDraftLanguage, draftLanguageAllHtml, draftLanguageCustomerHtml, draftLanguageSummaryText, draftLanguageCsv, draftLanguageFilename } from './draft-language.js';
+import { normalizeInfoSheetList, upsertInfoSheet, removeInfoSheet, infoSheetForCustomer, infoSheetAllHtml, infoSheetCustomerHtml, infoSheetSummaryText, infoSheetCsv, infoSheetFilename } from './info-sheet.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13935,6 +13936,7 @@ function renderAnalytics() {
   renderVisitFeedback();
   renderGreetingDates();
   renderDraftLanguages();
+  renderInfoSheets();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23726,6 +23728,61 @@ function renderDraftLanguages() {
       const text = applyDraftLanguage(loadDraftLanguages(), customer, draftType, romanText, urduText);
       previewEl.innerHTML = `<p>Draft for ${customer || '(no customer)'} (${draftType || '(no type)'}) uses <strong>${language === 'urdu' ? 'Urdu script' : 'Roman Urdu'}</strong>. Nothing is sent — the operator reviews and sends this draft by hand.</p><p>${text ? text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '(no draft text given)'}</p>`;
     });
+  }
+}
+const INFO_SHEET_KEY = 'shahdara_info_sheets_v1';
+function loadInfoSheets() {
+  try { return normalizeInfoSheetList(JSON.parse(localStorage.getItem(INFO_SHEET_KEY) || '[]')); } catch { return []; }
+}
+function saveInfoSheets(list) {
+  try { localStorage.setItem(INFO_SHEET_KEY, JSON.stringify(normalizeInfoSheetList(list))); } catch { /* info sheet only: a failed save leaves the previous list in place */ }
+}
+let infoSheetsBound = false;
+function renderInfoSheets() {
+  const bodyEl = $('#isBody');
+  if (!bodyEl) return;
+  const list = loadInfoSheets();
+  bodyEl.innerHTML = infoSheetAllHtml(list);
+  const sheetEl = $('#isSheetBody');
+  if (sheetEl) {
+    const customer = $('#isFilter')?.value ?? '';
+    sheetEl.innerHTML = customer ? infoSheetCustomerHtml(list, customer) : '<p>Pick a customer to see their printable info sheet.</p>';
+  }
+  const summaryEl = $('#isSummary');
+  if (summaryEl) summaryEl.textContent = infoSheetSummaryText(list);
+  if (!infoSheetsBound) {
+    infoSheetsBound = true;
+    $('#isSaveBtn')?.addEventListener('click', () => {
+      const before = loadInfoSheets();
+      const customer = $('#isCustomer')?.value ?? '';
+      // One sheet per customer: drop the old sheet for this customer, then record.
+      const existing = infoSheetForCustomer(before, customer);
+      const cleared = existing ? removeInfoSheet(before, existing.id) : before;
+      const next = upsertInfoSheet(cleared, {
+        id: `IS-${Date.now()}`,
+        customer,
+        packageName: $('#isPackage')?.value ?? '',
+        monthlyRate: $('#isRate')?.value ?? '',
+        mohalla: $('#isMohalla')?.value ?? '',
+        contactRoute: $('#isContact')?.value ?? '',
+        printedDate: $('#isPrintedDate')?.value ?? '',
+      });
+      if (next.length === cleared.length) { toast('Info sheet not recorded: give a customer, a package, a monthly rate, and a printed date.'); return; }
+      saveInfoSheets(next); renderInfoSheets();
+    });
+    $('#isRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#isRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveInfoSheets(removeInfoSheet(loadInfoSheets(), id));
+      renderInfoSheets();
+    });
+    $('#isExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(infoSheetFilename(), infoSheetCsv(loadInfoSheets()));
+    });
+    $('#isPrintBtn')?.addEventListener('click', () => {
+      try { window.print(); } catch { /* printing unavailable: the sheet preview stays on screen */ }
+    });
+    $('#isFilter')?.addEventListener('input', () => { renderInfoSheets(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

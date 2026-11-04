@@ -390,6 +390,7 @@ import { normalizePromiseList, upsertPromise, removePromise, markPromiseDone, ma
 import { normalizeNewCustomerCheckinList, upsertNewCustomerCheckin, removeNewCustomerCheckin, markNewCustomerCheckedIn, newCustomerCheckinList, checkinsForCustomer, newCustomerCheckinAllHtml, newCustomerCheckinSummaryText, newCustomerCheckinCsv, newCustomerCheckinFilename } from './new-customer-checkin.js';
 import { normalizeTestimonialConsentList, upsertTestimonialConsent, removeTestimonialConsent, withdrawTestimonialConsent, testimonialForCustomer, testimonialConsentAllHtml, testimonialConsentSummaryText, testimonialConsentCsv, testimonialConsentFilename } from './testimonial-consent.js';
 import { normalizeApologyDraftList, upsertApologyDraft, removeApologyDraft, markApologyDraftSent, markApologyDraftUnsent, apologyDraftStarters, apologyDraftAllHtml, apologyDraftSummaryText, apologyDraftCsv, apologyDraftFilename } from './apology-draft.js';
+import { collectTimelineEntries, timelineAllHtml, timelineCustomerHtml, timelineSummaryText, timelineCsv, timelineFilename } from './comms-timeline.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13967,6 +13968,7 @@ function renderAnalytics() {
   renderNewCustomerCheckin();
   renderTestimonialConsent();
   renderApologyDrafts();
+  renderCommsTimeline();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24701,6 +24703,47 @@ function renderApologyDrafts() {
       downloadCsvFile(apologyDraftFilename(), apologyDraftCsv(loadApologyDrafts()));
     });
     $('#adFilter')?.addEventListener('input', () => { renderApologyDrafts(); });
+  }
+}
+// Plan 180: a read-only timeline of what a customer was already told.
+// It is a view over the draft records the operator already marked as
+// sent — service-change confirmations, referral thank-yous, education
+// notes shared by hand, and greeting drafts with a sent date. It keeps
+// no records of its own, and there is deliberately no edit, remove,
+// or mark button here: a correction happens in the source record's
+// own panel, and the timeline simply shows the corrected record next
+// time it is built. Nothing here changes any draft, bill, payment,
+// or customer record, and nothing here sends anything.
+let commsTimelineBound = false;
+function renderCommsTimeline() {
+  const bodyEl = $('#ctBody');
+  if (!bodyEl) return;
+  const entries = collectTimelineEntries({
+    changeConfirmations: loadChangeConfirmations(),
+    referralThanks: loadReferralThanks(),
+    educationNotes: loadEducationNotes(),
+    educationShares: loadEducationShares(),
+    greetingDates: loadGreetingDates(),
+  });
+  const filter = ($('#ctFilter')?.value ?? '').trim();
+  bodyEl.innerHTML = filter
+    ? timelineCustomerHtml(entries, filter)
+    : timelineAllHtml(entries);
+  const summaryEl = $('#ctSummary');
+  if (summaryEl) summaryEl.textContent = timelineSummaryText(entries);
+  if (!commsTimelineBound) {
+    commsTimelineBound = true;
+    $('#ctExportBtn')?.addEventListener('click', () => {
+      const all = collectTimelineEntries({
+        changeConfirmations: loadChangeConfirmations(),
+        referralThanks: loadReferralThanks(),
+        educationNotes: loadEducationNotes(),
+        educationShares: loadEducationShares(),
+        greetingDates: loadGreetingDates(),
+      });
+      downloadCsvFile(timelineFilename(), timelineCsv(all));
+    });
+    $('#ctFilter')?.addEventListener('input', () => { renderCommsTimeline(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

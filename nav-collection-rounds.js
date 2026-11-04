@@ -18,6 +18,7 @@ export const FIELD_ROUTE_OUTCOMES_KEY = 'shahdara_field_route_outcomes';
 export const FIELD_ROUTE_ORDER_KEY = 'shahdara_field_route_order';
 import { sequenceRouteStops } from './route-sequencing.js';
 import { buildDayTargetProgress, getDayTarget, setDayTarget, clearDayTarget } from './day-target.js';
+import { fieldViewRouteOutcomeButtons } from './field-view.js';
 
 export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
@@ -1135,6 +1136,10 @@ export function setupFieldRouteSheet({
             ? '<span class="role-badge" style="background: #64748b; color: white;">🚪 Not Home</span>'
             : outcome === 'refused'
             ? '<span class="role-badge" style="background: #dc2626; color: white;">✕ Refused</span>'
+            : outcome === 'dispute'
+            ? '<span class="role-badge" style="background: #b45309; color: white;">⚠️ Dispute</span>'
+            : outcome === 'no_answer'
+            ? '<span class="role-badge" style="background: #64748b; color: white;">🔕 No answer</span>'
             : '';
 
           const whatsappAction = stop.whatsappReminderUrl || stop.whatsappUrl
@@ -1176,12 +1181,8 @@ export function setupFieldRouteSheet({
               </div>
             </div>
             <div class="route-card-right">
-              <div class="route-outcome-actions" style="display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 6px;">
-                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'paid' ? 'is-active' : ''}" data-set-outcome="paid" data-customer-id="${escapeHtml(stop.id)}" title="Customer Paid in Full">Paid</button>
-                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'partial' ? 'is-active' : ''}" data-set-outcome="partial" data-customer-id="${escapeHtml(stop.id)}" title="Partial Payment">Partial</button>
-                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'promised' ? 'is-active' : ''}" data-set-outcome="promised" data-customer-id="${escapeHtml(stop.id)}" title="Customer Promised (Wada)">Promised</button>
-                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'not_home' ? 'is-active' : ''}" data-set-outcome="not_home" data-customer-id="${escapeHtml(stop.id)}" title="Customer Not at Home">Not Home</button>
-                <button type="button" class="action-btn-xs outcome-btn ${outcome === 'refused' ? 'is-active' : ''}" data-set-outcome="refused" data-customer-id="${escapeHtml(stop.id)}" title="Customer Refused / Dispute">Refused</button>
+              <div class="route-outcome-actions" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+                ${fieldViewRouteOutcomeButtons({ activeOutcome: outcome, customerId: stop.id })}
               </div>
               <div class="route-action-buttons-row" style="display: flex; gap: 4px; align-items: center; justify-content: flex-end; flex-wrap: wrap;">
                 <button type="button" class="action-btn-xs route-reorder-btn" data-move-stop="up" data-customer-id="${escapeHtml(stop.id)}" ${!stop.canMoveUp ? 'disabled' : ''} title="Move Stop Up">▲</button>
@@ -1302,7 +1303,8 @@ export function setupFieldRouteSheet({
         return;
       }
 
-      // 6. Set visit outcome (Paid, Partial, Promised, Not Home, Refused)
+      // 6. Set visit outcome (Plan 97: paid, partial, promised, not home,
+      // refused, dispute, no answer — icon-led Urdu-labelled buttons)
       const outcomeBtn = e.target.closest('[data-set-outcome]');
       if (outcomeBtn) {
         const outcome = outcomeBtn.getAttribute('data-set-outcome');

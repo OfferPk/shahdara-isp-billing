@@ -385,6 +385,7 @@ import { normalizeCadenceSettings, normalizeWinbackCadenceList, startWinbackCade
 import { normalizeDormantSettings, normalizeDormantCustomerList, recordDormantCustomer, removeDormantCustomer, markDormantContacted, dormantCheckinList, dormantCheckinAllHtml, dormantCheckinSummaryText, dormantCheckinCsv, dormantCheckinFilename } from './dormant-checkin.js';
 import { normalizeVulnerableNoteList, recordVulnerableNote, updateVulnerableNote, removeVulnerableNote, vulnerableNoteForCustomer, vulnerableNoteAllHtml, vulnerableNoteSummaryText, vulnerableNoteCsv, vulnerableNoteFilename } from './vulnerable-note.js';
 import { normalizeVisitWindowList, recordVisitWindow, updateVisitWindow, removeVisitWindow, visitWindowForCustomer, visitWindowCustomers, visitWindowsForWindow, orderCustomersByWindow, visitWindowAllHtml, visitWindowOrderedHtml, visitWindowSummaryText, visitWindowCsv, visitWindowFilename } from './visit-window.js';
+import { normalizeMaintenanceNoticeList, upsertMaintenanceNotice, copyMaintenanceNotice, removeMaintenanceNotice, markMaintenanceSent, markMaintenanceUnsent, maintenanceNoticeAllHtml, maintenanceNoticeMohallaHtml, maintenanceNoticeSummaryText, maintenanceNoticeCsv, maintenanceNoticeFilename } from './maintenance-notice.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13957,6 +13958,7 @@ function renderAnalytics() {
   renderDormantCheckin();
   renderVulnerableNotes();
   renderVisitWindows();
+  renderMaintenanceNotices();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24395,6 +24397,68 @@ function renderVisitWindows() {
     });
     $('#vwFilter')?.addEventListener('input', () => { renderVisitWindows(); });
     $('#vwOrderFilter')?.addEventListener('change', () => { renderVisitWindows(); });
+  }
+}
+const MAINTENANCE_NOTICE_KEY = 'shahdara_maintenance_notices_v1';
+function loadMaintenanceNotices() {
+  try { return normalizeMaintenanceNoticeList(JSON.parse(localStorage.getItem(MAINTENANCE_NOTICE_KEY) || '[]')); } catch { return []; }
+}
+function saveMaintenanceNotices(list) {
+  try { localStorage.setItem(MAINTENANCE_NOTICE_KEY, JSON.stringify(normalizeMaintenanceNoticeList(list))); } catch { /* maintenance notices only: a failed save leaves the previous list in place */ }
+}
+let maintenanceNoticesBound = false;
+function renderMaintenanceNotices() {
+  const bodyEl = $('#mnBody');
+  if (!bodyEl) return;
+  const list = loadMaintenanceNotices();
+  const filter = ($('#mnFilter')?.value ?? '').trim().toLowerCase();
+  // A notice is a draft only: it names the work, the expected
+  // date and window, and the mohalla, and promises the operator
+  // will confirm when the work is done. It schedules nothing,
+  // records no work, and sends nothing by itself.
+  bodyEl.innerHTML = filter ? maintenanceNoticeMohallaHtml(list, filter) : maintenanceNoticeAllHtml(list);
+  const summaryEl = $('#mnSummary');
+  if (summaryEl) summaryEl.textContent = maintenanceNoticeSummaryText(list);
+  if (!maintenanceNoticesBound) {
+    maintenanceNoticesBound = true;
+    $('#mnSaveBtn')?.addEventListener('click', () => {
+      const before = loadMaintenanceNotices();
+      const next = upsertMaintenanceNotice(before, {
+        id: `MN-${Date.now()}`,
+        workItem: $('#mnWork')?.value ?? '',
+        expectedDate: $('#mnDate')?.value ?? '',
+        timeWindow: $('#mnTimeWindow')?.value ?? '',
+        mohalla: $('#mnMohalla')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Maintenance notice not recorded: give a work item, expected date, time window, and mohalla — one notice per work item per mohalla only.'); return; }
+      saveMaintenanceNotices(next); renderMaintenanceNotices();
+    });
+    $('#mnCopyBtn')?.addEventListener('click', () => {
+      const id = ($('#mnCopyId')?.value ?? '').trim();
+      const mohalla = ($('#mnCopyMohalla')?.value ?? '').trim();
+      const newId = ($('#mnCopyNewId')?.value ?? '').trim();
+      if (!id || !mohalla || !newId) return;
+      saveMaintenanceNotices(copyMaintenanceNotice(loadMaintenanceNotices(), id, mohalla, newId)); renderMaintenanceNotices();
+    });
+    $('#mnSentBtn')?.addEventListener('click', () => {
+      const id = ($('#mnSentId')?.value ?? '').trim();
+      if (!id) return;
+      saveMaintenanceNotices(markMaintenanceSent(loadMaintenanceNotices(), id, ($('#mnSentDate')?.value ?? ''))); renderMaintenanceNotices();
+    });
+    $('#mnUnsentBtn')?.addEventListener('click', () => {
+      const id = ($('#mnUnsentId')?.value ?? '').trim();
+      if (!id) return;
+      saveMaintenanceNotices(markMaintenanceUnsent(loadMaintenanceNotices(), id)); renderMaintenanceNotices();
+    });
+    $('#mnRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#mnRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveMaintenanceNotices(removeMaintenanceNotice(loadMaintenanceNotices(), id)); renderMaintenanceNotices();
+    });
+    $('#mnExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(maintenanceNoticeFilename(), maintenanceNoticeCsv(loadMaintenanceNotices()));
+    });
+    $('#mnFilter')?.addEventListener('input', () => { renderMaintenanceNotices(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

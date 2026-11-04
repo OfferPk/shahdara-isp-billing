@@ -341,7 +341,13 @@ export function escalationHtml(ladder, sentLog = []) {
     const sent = lastEscalationSent(sentLog, row.customerId);
     const draft = buildEscalationDraft(row);
     const draftUrdu = buildEscalationDraft(row, ESCALATION_DRAFT_VARIANTS.URDU);
-    return `<tr><td><strong>${escapeHtml(row.customerName)}</strong>${row.mohalla ? `<br><small>${escapeHtml(row.mohalla)}</small>` : ''}</td><td><strong>${escapeHtml(ESCALATION_STEP_LABELS[row.step])}</strong></td><td>${formatEscalationAmount(row.amount)}</td><td>${escapeHtml(formatEscalationDate(row.dueDate))}<br><small>${row.daysOverdue} day${row.daysOverdue === 1 ? '' : 's'} overdue</small></td><td><small>${escapeHtml(draft.text)}</small><details><summary>Urdu draft</summary><small>${escapeHtml(draftUrdu.text)}</small></details></td><td>${sent ? `<small>Last sent: ${escapeHtml(ESCALATION_STEP_LABELS[sent.step] ?? sent.step)} ${escapeHtml(formatSentAt(sent.sentAt))}</small>` : '<small>Not sent</small>'}<br><button class="secondary-button btn-sm escalation-send-btn" type="button" data-customer-id="${escapeHtml(row.customerId)}">📲 Send via WhatsApp</button></td></tr>`;
+    // Plan 62: when the caller adjusted this row to its undisputed
+    // portion, the preview says so — the amount shown is the
+    // undisputed portion only, never the disputed amount. Rows
+    // without a note render exactly as before.
+    const disputeNote = text(row?.disputeNote)
+      ? `<br><small>⚖️ ${escapeHtml(row.disputeNote)}</small>` : '';
+    return `<tr><td><strong>${escapeHtml(row.customerName)}</strong>${row.mohalla ? `<br><small>${escapeHtml(row.mohalla)}</small>` : ''}</td><td><strong>${escapeHtml(ESCALATION_STEP_LABELS[row.step])}</strong></td><td>${formatEscalationAmount(row.amount)}</td><td>${escapeHtml(formatEscalationDate(row.dueDate))}<br><small>${row.daysOverdue} day${row.daysOverdue === 1 ? '' : 's'} overdue</small></td><td><small>${escapeHtml(draft.text)}</small>${disputeNote}<details><summary>Urdu draft</summary><small>${escapeHtml(draftUrdu.text)}</small></details></td><td>${sent ? `<small>Last sent: ${escapeHtml(ESCALATION_STEP_LABELS[sent.step] ?? sent.step)} ${escapeHtml(formatSentAt(sent.sentAt))}</small>` : '<small>Not sent</small>'}<br><button class="secondary-button btn-sm escalation-send-btn" type="button" data-customer-id="${escapeHtml(row.customerId)}">📲 Send via WhatsApp</button></td></tr>`;
   }).join('');
   return `<table class="escalation-ladder-table"><thead><tr><th>Customer</th><th>Step</th><th>Amount due</th><th>Due date</th><th>Step draft</th><th>Send</th></tr></thead><tbody>${rows}</tbody></table>`;
 }

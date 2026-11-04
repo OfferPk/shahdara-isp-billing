@@ -412,6 +412,7 @@ import { normalizeAnnualGoalList, recordAnnualGoal, removeAnnualGoal, setAnnualG
 import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirmCustodyExport, custodyExportsSorted, custodyByKind, custodyAllHtml, custodySummaryText, custodyCsv, custodyFilename } from './export-custody.js';
 import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEntriesSorted, archiveByYear, archiveByKind, archiveAllHtml, archiveSummaryText, archiveCsv, archiveFilename } from './archive-index.js';
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
+import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -14011,6 +14012,7 @@ function renderAnalytics() {
   renderExportCustody();
   renderArchiveIndex();
   renderBusinessContacts();
+  renderAbsenceCover();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25851,6 +25853,56 @@ function renderBusinessContacts() {
     });
     $('#bcOrgFilter')?.addEventListener('input', () => { renderBusinessContacts(); });
     $('#bcRoleFilter')?.addEventListener('input', () => { renderBusinessContacts(); });
+  }
+}
+const ABSENCE_COVER_KEY = 'shahdara_absence_cover_v1';
+function loadAbsenceCover() {
+  try { return normalizeCoverList(JSON.parse(localStorage.getItem(ABSENCE_COVER_KEY) || '[]')); } catch { return []; }
+}
+function saveAbsenceCover(list) {
+  try { localStorage.setItem(ABSENCE_COVER_KEY, JSON.stringify(normalizeCoverList(list))); } catch { /* roster only: a failed save leaves the previous list in place */ }
+}
+let absenceCoverBound = false;
+function renderAbsenceCover() {
+  const bodyEl = $('#acBody');
+  if (!bodyEl) return;
+  const personQuery = ($('#acPersonFilter')?.value ?? '').trim();
+  let shown = coverPeriodsSorted(loadAbsenceCover());
+  if (personQuery) shown = coverPeriodsForPerson(shown, personQuery);
+  bodyEl.innerHTML = shown.length ? coverAllHtml(shown) : '<p>No cover periods recorded.</p>';
+  const summaryEl = $('#acSummary');
+  if (summaryEl) summaryEl.textContent = coverSummaryText(loadAbsenceCover());
+  const overlapsEl = $('#acOverlapsBody');
+  if (overlapsEl) {
+    const pairs = coverOverlaps(loadAbsenceCover());
+    overlapsEl.innerHTML = pairs.length ? pairs.map((pair) => `<p>${escapeHtml(coverOverlapText(pair))}</p>`).join('') : '<p>No overlaps flagged.</p>';
+  }
+  if (!absenceCoverBound) {
+    absenceCoverBound = true;
+    $('#acExportBtn')?.addEventListener('click', () => { downloadCsvFile(coverFilename(), coverCsv(loadAbsenceCover())); });
+    $('#acSaveBtn')?.addEventListener('click', () => {
+      const before = loadAbsenceCover();
+      const next = recordCoverPeriod(before, {
+        id: `AC-${Date.now()}`,
+        coverPerson: $('#acPerson')?.value ?? '',
+        fromDate: $('#acFrom')?.value ?? '',
+        toDate: $('#acTo')?.value ?? '',
+        scope: $('#acScope')?.value ?? '',
+        handoverNoteRef: $('#acRef')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Cover period not recorded: give a cover person and real from and to dates, with to on or after from.'); return; }
+      saveAbsenceCover(next);
+      renderAbsenceCover();
+    });
+    $('#acRemoveBtn')?.addEventListener('click', () => {
+      saveAbsenceCover(removeCoverPeriod(loadAbsenceCover(), $('#acRemoveId')?.value ?? ''));
+      renderAbsenceCover();
+    });
+    $('#acPersonFilter')?.addEventListener('input', () => { renderAbsenceCover(); });
+    $('#acGapsBtn')?.addEventListener('click', () => {
+      const gapsEl = $('#acGapsBody');
+      if (gapsEl) gapsEl.textContent = coverGapsText(loadAbsenceCover(), $('#acRangeStart')?.value ?? '', $('#acRangeEnd')?.value ?? '') || 'Give real start and end dates to check for cover gaps.';
+    });
   }
 }
 function renderOwnerDecision() {

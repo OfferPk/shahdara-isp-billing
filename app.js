@@ -302,6 +302,7 @@ import { RESUME_KINDS, RESUME_KIND_LABELS, RESUME_STATUSES, RESUME_STATUS_LABELS
 import { MOVE_STATUSES, MOVE_STATUS_LABELS, MOVE_TREATMENTS, MOVE_TREATMENT_LABELS, normalizeMoveList, upsertMove, removeMove, moveGapTreatment, moveGapTreatmentText, reconnectMove, reopenMove, movesFiltered, buildMoveSummary, moveSummaryText, movesToResumeRelocations, moveHtml, moveCsv, moveFilename } from './move-transfers.js';
 import { buildHoldHistory, historyForCustomer, normalizeGuardSettings, guardSettingsText, checkNewHold, normalizeOverrideList, upsertOverride, removeOverride, holdHistoryHtml, holdHistoryCsv, holdHistoryFilename, overrideHtml } from './hold-guard.js';
 import { normalizeDuplicateWarningSettings, findNearDuplicates, checkNewPayment, warningHtml, warningCsv, warningFilename, normalizeAckList, upsertAck, removeAck, ackHtml } from './duplicate-warning.js';
+import { UNUSUAL_FLAG_REASONS, UNUSUAL_FLAG_REASON_LABELS, normalizeUnusualFlagSettings, buildUnusualFlags, flagsFiltered, buildFlagSummary, flagSummaryText, normalizeClearedList, clearFlag, removeCleared, flagsHtml, clearedHtml, flagsCsv, flagsFilename } from './unusual-payment-flags.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13530,6 +13531,7 @@ function renderAnalytics() {
   renderMoveTransfers();
   renderHoldGuard();
   renderDuplicateWarning();
+  renderUnusualPaymentFlags();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -17800,6 +17802,139 @@ function renderDuplicateWarning() {
       if (!removeBtn?.dataset.ackId) return;
       saveDuplicateWarningAcks(removeAck(loadDuplicateWarningAcks(), removeBtn.dataset.ackId));
       renderDuplicateWarning();
+    });
+  }
+}
+// Plan 88: unusual payment flag for review, read-only. Flags are
+// computed fresh from the customers' own bills and payments with
+// operator-set tolerances; flagging never blocks a payment, never
+// changes an amount, and never creates a suspense item or a dispute
+// case. Clearing a flag only records who reviewed it and why in
+// this plan's own cleared log.
+const UNUSUAL_FLAG_SETTINGS_KEY = 'shahdara_unusual_payment_flag_settings_v1';
+const UNUSUAL_FLAG_CLEARED_KEY = 'shahdara_unusual_payment_flag_cleared_v1';
+function loadUnusualFlagSettings() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(UNUSUAL_FLAG_SETTINGS_KEY) || '{}');
+    return normalizeUnusualFlagSettings(parsed && typeof parsed === 'object' ? parsed : {});
+  } catch { return normalizeUnusualFlagSettings({}); }
+}
+function saveUnusualFlagSettings(settings) {
+  try { localStorage.setItem(UNUSUAL_FLAG_SETTINGS_KEY, JSON.stringify(normalizeUnusualFlagSettings(settings))); } catch {}
+}
+function loadUnusualFlagCleared() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(UNUSUAL_FLAG_CLEARED_KEY) || '[]');
+    return normalizeClearedList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveUnusualFlagCleared(list) {
+  try { localStorage.setItem(UNUSUAL_FLAG_CLEARED_KEY, JSON.stringify(normalizeClearedList(list))); } catch {}
+}
+function unusualFlagSource() {
+  const bills = [];
+  const payments = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      const billId = bill.id || `${customer.id}::${bill.month}`;
+      bills.push({ billId, customerId: customer.id, amount: bill.dueAmount ?? bill.total ?? bill.amount, billMonth: bill.month });
+      (bill.payments ?? []).forEach((p, idx) => {
+        payments.push({
+          paymentId: p.id || `${customer.id}::${bill.month}::${idx}`,
+          customerId: customer.id,
+          customerName: customer.name || customer.customerName || customer.id,
+          mohalla: customer.mohalla || customer.area || '',
+          billId, billMonth: bill.month,
+          date: p.date, amount: p.amount,
+          channel: p.method || p.channel || '',
+          reference: p.tid || p.reference || p.receiptId || '',
+          voided: p.voided === true,
+        });
+      });
+    }
+  }
+  return { bills, payments };
+}
+let unusualFlagBound = false;
+function renderUnusualPaymentFlags() {
+  const bodyEl = $('#unusualFlagBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const cleared = loadUnusualFlagCleared();
+  const { bills, payments } = unusualFlagSource();
+  const flags = buildUnusualFlags({ payments, bills, settings: loadUnusualFlagSettings(), clearedPaymentIds: cleared.map((e) => e.paymentId) });
+  const reasonEl = $('#unusualFlagReason');
+  const mohallaEl = $('#unusualFlagMohalla');
+  const reason = reasonEl?.value ?? '';
+  const mohalla = mohallaEl?.value ?? '';
+  const shown = flagsFiltered(flags, { reason, mohalla });
+  bodyEl.innerHTML = flagsHtml(shown);
+  const summaryEl = $('#unusualFlagSummary');
+  if (summaryEl) summaryEl.textContent = flagSummaryText(buildFlagSummary(flags)) + ` · showing ${shown.length}.`;
+  const clearedEl = $('#unusualFlagClearedBody');
+  if (clearedEl) clearedEl.innerHTML = clearedHtml(cleared.map((entry) => {
+    const c = customers.find((x) => x.id === entry.customerId);
+    return { ...entry, customerName: entry.customerName || c?.name || c?.customerName || '' };
+  }));
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const seen = new Set();
+    const options = ['<option value="">All mohallas</option><option value="__unassigned__">Unassigned</option>'];
+    for (const c of customers) {
+      const m = (c.mohalla || c.area || '').trim();
+      if (m && !seen.has(m)) { seen.add(m); options.push(`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`); }
+    }
+    const current = mohallaEl.value;
+    mohallaEl.innerHTML = options.join('');
+    mohallaEl.value = current;
+  }
+  const settings = loadUnusualFlagSettings();
+  for (const [elId, value] of [['unusualFlagTolerance', settings.tolerancePercent], ['unusualFlagNoBillThreshold', settings.noBillThresholdCents / 100], ['unusualFlagSameDay', settings.sameDayThreshold]]) {
+    const el = $(`#${elId}`);
+    if (el && document.activeElement !== el) el.value = String(value);
+  }
+  if (!unusualFlagBound) {
+    unusualFlagBound = true;
+    $('#unusualFlagSaveSettingsBtn')?.addEventListener('click', () => {
+      saveUnusualFlagSettings({
+        tolerancePercent: $('#unusualFlagTolerance')?.value ?? '',
+        noBillThresholdCents: Math.round(Number($('#unusualFlagNoBillThreshold')?.value ?? '') * 100),
+        sameDayThreshold: $('#unusualFlagSameDay')?.value ?? '',
+      });
+      toast('Review tolerances saved. Flagging is read-only; it never changes a payment.');
+      renderUnusualPaymentFlags();
+    });
+    $('#unusualFlagReason')?.addEventListener('change', renderUnusualPaymentFlags);
+    $('#unusualFlagMohalla')?.addEventListener('change', renderUnusualPaymentFlags);
+    $('#unusualFlagExportBtn')?.addEventListener('click', () => {
+      const r = $('#unusualFlagReason')?.value ?? '';
+      const m = $('#unusualFlagMohalla')?.value ?? '';
+      const { bills: b2, payments: p2 } = unusualFlagSource();
+      const all = buildUnusualFlags({ payments: p2, bills: b2, settings: loadUnusualFlagSettings(), clearedPaymentIds: loadUnusualFlagCleared().map((e) => e.paymentId) });
+      downloadCsvFile(flagsFilename(), flagsCsv(flagsFiltered(all, { reason: r, mohalla: m })));
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const clearBtn = event.target.closest ? event.target.closest('.unusual-flag-clear-btn') : null;
+      if (!clearBtn?.dataset.paymentId) return;
+      const reviewer = ($('#unusualFlagReviewer')?.value ?? '').trim() || 'Owner';
+      const reasonText = ($('#unusualFlagClearReason')?.value ?? '').trim();
+      if (!reasonText) { toast('A cleared flag needs a recorded reason.'); return; }
+      const { bills: b3, payments: p3 } = unusualFlagSource();
+      const all = buildUnusualFlags({ payments: p3, bills: b3, settings: loadUnusualFlagSettings(), clearedPaymentIds: loadUnusualFlagCleared().map((e) => e.paymentId) });
+      const flag = all.find((f) => f.paymentId === clearBtn.dataset.paymentId);
+      if (!flag) return;
+      saveUnusualFlagCleared(clearFlag(loadUnusualFlagCleared(), {
+        paymentId: flag.paymentId, customerId: flag.customerId, customerName: flag.customerName,
+        date: flag.date, amountCents: flag.amountCents, reviewedBy: reviewer, reason: reasonText, clearedAt: getWaadaTodayString(),
+      }));
+      toast('Flag marked reviewed. The payment record itself was not touched.');
+      renderUnusualPaymentFlags();
+    });
+    $('#unusualFlagClearedBody')?.addEventListener('click', (event) => {
+      const restoreBtn = event.target.closest ? event.target.closest('.unusual-flag-unclear-btn') : null;
+      if (!restoreBtn?.dataset.paymentId) return;
+      saveUnusualFlagCleared(removeCleared(loadUnusualFlagCleared(), restoreBtn.dataset.paymentId));
+      renderUnusualPaymentFlags();
     });
   }
 }

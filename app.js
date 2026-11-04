@@ -297,6 +297,7 @@ import { JOB_MATERIAL_ITEMS, JOB_MATERIAL_LABELS, JOB_STATUSES, JOB_STATUS_LABEL
 import { RMA_DEVICE_TYPES, RMA_DEVICE_TYPE_LABELS, RMA_STATUSES, RMA_STATUS_LABELS, normalizeRma, normalizeRmaList, upsertRma, removeRma, advanceRmaToAwaiting, markRmaReplaced, markRmaRepaired, markRmaRejected, reopenRma, rmasFiltered, awaitingRmas, buildRmaSummary, rmaSummaryText, rmaHtml, rmaCsv, rmaFilename } from './warranty-returns.js';
 import { RECOVERY_STATUSES, RECOVERY_STATUS_LABELS, normalizeRecoveryList, upsertRecovery, markRecoveryCollected, markRecoveryNotReturned, reopenRecovery, removeRecovery, buildRecoveryQueue, recoveryQueueFiltered, buildRecoverySummary, recoverySummaryText, recoveryHtml, recoveryCsv, recoveryFilename } from './recovery-queue.js';
 import { HOLD_REASONS, HOLD_REASON_LABELS, HOLD_TREATMENTS, HOLD_TREATMENT_LABELS, HOLD_STATUSES, HOLD_STATUS_LABELS, normalizeHoldList, upsertHold, removeHold, holdMonthTreatment, holdMonthTreatmentText, endHold, reopenHold, holdsFiltered, buildHoldSummary, holdSummaryText, holdHtml, holdCsv, holdFilename } from './vacation-holds.js';
+import { SUSPENSION_REASONS, SUSPENSION_REASON_LABELS, SUSPENSION_STATUSES, SUSPENSION_STATUS_LABELS, CHECKLIST_ITEMS, CHECKLIST_ITEM_LABELS, normalizeSuspensionList, upsertSuspension, removeSuspension, setChecklistItem, completeChecklist, reconnectSuspension, reopenSuspension, suspensionsFiltered, buildSuspensionSummary, suspensionSummaryText, suspensionHtml, suspensionCsv, suspensionFilename } from './suspension-records.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13520,6 +13521,7 @@ function renderAnalytics() {
   renderRmaLog();
   renderRecoveryQueue();
   renderVacationHolds();
+  renderSuspensions();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -17264,6 +17266,169 @@ function renderVacationHolds() {
         mohalla: $('#vacationFilterMohalla')?.value ?? '',
       });
       downloadCsvFile(holdFilename(), holdCsv(fresh));
+    });
+  }
+}
+const SUSPENSION_RECORDS_KEY = 'shahdara_suspension_records_v1';
+function loadSuspensions() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SUSPENSION_RECORDS_KEY) || '[]');
+    return normalizeSuspensionList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveSuspensions(list) {
+  try { localStorage.setItem(SUSPENSION_RECORDS_KEY, JSON.stringify(normalizeSuspensionList(list))); } catch {}
+}
+let suspensionsBound = false;
+// Non-payment suspension record and reconnection checklist
+// (Plan 83): one dated record per suspension with the arrears
+// figure at suspension and a three-item reconnection checklist.
+// The record disconnects nothing by itself and creates no
+// charge — any fee still goes through its existing path and
+// only its reference is kept here. Closing a suspension needs
+// a complete checklist plus a real reconnection date, and keeps
+// the full history; recording or closing never changes any past
+// bill or payment.
+function renderSuspensions() {
+  const bodyEl = $('#suspensionRecordsBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const entries = loadSuspensions();
+  const shown = suspensionsFiltered(entries, {
+    status: $('#suspensionFilterStatus')?.value ?? '',
+    reason: $('#suspensionFilterReason')?.value ?? '',
+    mohalla: $('#suspensionFilterMohalla')?.value ?? '',
+  });
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = suspensionHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const summaryEl = $('#suspensionRecordsSummary');
+  if (summaryEl) summaryEl.textContent = suspensionSummaryText(buildSuspensionSummary(entries));
+  const customerEl = $('#suspensionCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const selectEl = $('#suspensionSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = entries.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(SUSPENSION_STATUS_LABELS[entry.status])}</option>`).join('')
+      || '<option value="">No suspensions yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['suspensionFilterStatus', SUSPENSION_STATUSES, SUSPENSION_STATUS_LABELS],
+    ['suspensionFilterReason', SUSPENSION_REASONS, SUSPENSION_REASON_LABELS],
+    ['suspensionReason', SUSPENSION_REASONS, SUSPENSION_REASON_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('suspensionFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  const mohallaEl = $('#suspensionMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+    mohallaEl.value = selected ? (selected.mohalla || selected.area || '') : '';
+  }
+  const picked = entries.find((row) => row.id === ($('#suspensionSelect')?.value ?? ''));
+  for (const item of CHECKLIST_ITEMS) {
+    const box = $(`#suspensionCheck_${item}`);
+    if (box) {
+      box.checked = picked ? picked.checklist[item] === true : false;
+      box.disabled = !picked || picked.status !== 'open';
+    }
+  }
+  const completeEl = $('#suspensionChecklistState');
+  if (completeEl) {
+    completeEl.textContent = !picked ? '' : picked.checklistComplete ? 'Checklist complete.' : 'Checklist incomplete — tick every item, then mark it complete.';
+  }
+  if (!suspensionsBound) {
+    suspensionsBound = true;
+    $('#suspensionFilterStatus')?.addEventListener('change', () => renderSuspensions());
+    $('#suspensionFilterReason')?.addEventListener('change', () => renderSuspensions());
+    $('#suspensionFilterMohalla')?.addEventListener('input', () => renderSuspensions());
+    $('#suspensionCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#suspensionCustomer')?.value ?? ''));
+      const mohallaInput = $('#suspensionMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+    });
+    $('#suspensionRecordBtn')?.addEventListener('click', () => {
+      const id = $('#suspensionId')?.value.trim() ?? '';
+      const customerId = $('#suspensionCustomer')?.value ?? '';
+      if (!id || !customerId) { toast('A suspension needs an id and a customer.'); return; }
+      const next = upsertSuspension(loadSuspensions(), {
+        id,
+        customerId,
+        customerName: names[customerId] || '',
+        suspensionDate: $('#suspensionDate')?.value ?? '',
+        reason: $('#suspensionReason')?.value ?? '',
+        arrearsAmount: $('#suspensionArrears')?.value ?? '',
+        feeReference: $('#suspensionFeeReference')?.value.trim() ?? '',
+        note: $('#suspensionNote')?.value.trim() ?? '',
+        status: 'open',
+        mohalla: $('#suspensionMohalla')?.value ?? '',
+      });
+      if (!next.some((row) => row.id === id)) {
+        toast('That suspension is half-formed: it needs a real suspension date, the non-payment reason, and a usable arrears figure.');
+        return;
+      }
+      saveSuspensions(next);
+      toast('Suspension recorded. It disconnects nothing by itself and creates no charge.');
+      renderSuspensions();
+    });
+    for (const item of CHECKLIST_ITEMS) {
+      $(`#suspensionCheck_${item}`)?.addEventListener('change', (event) => {
+        const id = $('#suspensionSelect')?.value ?? '';
+        if (!id) return;
+        saveSuspensions(setChecklistItem(loadSuspensions(), id, item, event.target.checked));
+        renderSuspensions();
+      });
+    }
+    $('#suspensionCompleteBtn')?.addEventListener('click', () => {
+      const id = $('#suspensionSelect')?.value ?? '';
+      if (!id) return;
+      const next = completeChecklist(loadSuspensions(), id);
+      const updated = next.find((row) => row.id === id);
+      if (!updated || !updated.checklistComplete) {
+        toast('The checklist cannot be marked complete while an item is unchecked.');
+        return;
+      }
+      saveSuspensions(next);
+      toast('Reconnection checklist complete.');
+      renderSuspensions();
+    });
+    $('#suspensionReconnectBtn')?.addEventListener('click', () => {
+      const id = $('#suspensionSelect')?.value ?? '';
+      if (!id) return;
+      const next = reconnectSuspension(loadSuspensions(), id, $('#suspensionReconnectDate')?.value ?? '');
+      const updated = next.find((row) => row.id === id);
+      if (!updated || updated.status !== 'closed') {
+        toast('Reconnecting needs a complete checklist and a real reconnection date on or after the suspension date.');
+        return;
+      }
+      saveSuspensions(next);
+      toast('Customer reconnected. The suspension history is kept.');
+      renderSuspensions();
+    });
+    $('#suspensionReopenBtn')?.addEventListener('click', () => {
+      const id = $('#suspensionSelect')?.value ?? '';
+      if (!id) return;
+      saveSuspensions(reopenSuspension(loadSuspensions(), id));
+      renderSuspensions();
+    });
+    $('#suspensionRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#suspensionSelect')?.value ?? '';
+      if (!id) return;
+      saveSuspensions(removeSuspension(loadSuspensions(), id));
+      renderSuspensions();
+    });
+    $('#suspensionExportBtn')?.addEventListener('click', () => {
+      const fresh = suspensionsFiltered(loadSuspensions(), {
+        status: $('#suspensionFilterStatus')?.value ?? '',
+        reason: $('#suspensionFilterReason')?.value ?? '',
+        mohalla: $('#suspensionFilterMohalla')?.value ?? '',
+      });
+      downloadCsvFile(suspensionFilename(), suspensionCsv(fresh));
     });
   }
 }

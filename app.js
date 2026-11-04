@@ -357,6 +357,7 @@ import { normalizeSegmentDiaryList, upsertSegmentDiaryEntry, removeSegmentDiaryE
 import { normalizeEquipmentCycleList, upsertEquipmentCycleRecord, removeEquipmentCycleRecord, recordEquipmentCycleCheck, equipmentCycleSummaryText, equipmentCycleDueHtml, equipmentCycleCsv, equipmentCycleFilename } from './equipment-cycle.js';
 import { normalizeJobChecklistTemplateList, jobChecklistTemplatesWithDefaults, upsertJobChecklistTemplate, removeJobChecklistTemplate, normalizeJobChecklistVisitList, upsertJobChecklistVisit, removeJobChecklistVisit, tickJobChecklistVisit, untickJobChecklistVisit, jobChecklistSummaryText, jobChecklistHtml, jobChecklistIncompleteHtml, jobChecklistTemplatesHtml, jobChecklistCsv, jobChecklistFilename } from './job-checklist.js';
 import { normalizeSpliceRepairList, upsertSpliceRepairRecord, removeSpliceRepairRecord, spliceRepairSummaryText, spliceRepairHtml, spliceRepairCsv, spliceRepairFilename } from './splice-repair.js';
+import { normalizePoleInspectionList, parsePoleInspectionItems, upsertPoleInspectionRound, removePoleInspectionRound, markPoleInspectionItemFixed, poleInspectionSummaryText, poleInspectionRoundsHtml, poleInspectionActionHtml, poleInspectionCsv, poleInspectionFilename } from './pole-inspection.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13897,6 +13898,7 @@ function renderAnalytics() {
   renderEquipmentCycle();
   renderJobChecklists();
   renderSpliceRepairs();
+  renderPoleInspections();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22708,6 +22710,58 @@ function renderSpliceRepairs() {
     });
     $('#spliceFilterSegment')?.addEventListener('input', () => { renderSpliceRepairs(); });
     $('#spliceFilterJoint')?.addEventListener('input', () => { renderSpliceRepairs(); });
+  }
+}
+const POLE_INSPECTION_KEY = 'shahdara_pole_inspections_v1';
+function loadPoleInspections() {
+  try { return normalizePoleInspectionList(JSON.parse(localStorage.getItem(POLE_INSPECTION_KEY) || '[]')); } catch { return []; }
+}
+function savePoleInspections(list) {
+  try { localStorage.setItem(POLE_INSPECTION_KEY, JSON.stringify(normalizePoleInspectionList(list))); } catch { /* rounds only: a failed save leaves the previous rounds in place */ }
+}
+let poleInspectionBound = false;
+function renderPoleInspections() {
+  const bodyEl = $('#poleBody');
+  if (!bodyEl) return;
+  const rounds = loadPoleInspections();
+  bodyEl.innerHTML = poleInspectionRoundsHtml(rounds, $('#poleFilterArea')?.value ?? '');
+  const actionEl = $('#poleActionBody');
+  if (actionEl) actionEl.innerHTML = poleInspectionActionHtml(rounds);
+  const summaryEl = $('#poleSummary');
+  if (summaryEl) summaryEl.textContent = poleInspectionSummaryText(rounds);
+  if (!poleInspectionBound) {
+    poleInspectionBound = true;
+    $('#poleSaveBtn')?.addEventListener('click', () => {
+      const before = loadPoleInspections();
+      const next = upsertPoleInspectionRound(before, {
+        id: `POL-${Date.now()}`,
+        area: $('#poleArea')?.value ?? '',
+        date: $('#poleDate')?.value ?? '',
+        inspector: $('#poleInspector')?.value ?? '',
+        items: parsePoleInspectionItems($('#poleItems')?.value ?? ''),
+      });
+      if (next.length === before.length) { toast('Inspection round not recorded: give an area and a real date. An area already has a round for that date.'); return; }
+      savePoleInspections(next);
+      toast('Inspection round recorded. Watch and poor items stay on the action list until fixed.');
+      renderPoleInspections();
+    });
+    $('#poleRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#poleRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      savePoleInspections(removePoleInspectionRound(loadPoleInspections(), id));
+      renderPoleInspections();
+    });
+    $('#poleFixBtn')?.addEventListener('click', () => {
+      const roundId = ($('#poleFixRound')?.value ?? '').trim();
+      const item = ($('#poleFixItem')?.value ?? '').trim();
+      if (!roundId || !item) return;
+      savePoleInspections(markPoleInspectionItemFixed(loadPoleInspections(), roundId, item, $('#poleFixDate')?.value ?? ''));
+      renderPoleInspections();
+    });
+    $('#poleExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(poleInspectionFilename(), poleInspectionCsv(loadPoleInspections()));
+    });
+    $('#poleFilterArea')?.addEventListener('input', () => { renderPoleInspections(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

@@ -338,6 +338,7 @@ import { normalizeClearanceList, recordClearance, markCleared, markBounced, pend
 import { normalizeBankCreditList, recordBankCredit, matchBankCredit, explainBankCredit, unmatchedBankCredits, matchedBankCredits, bankCreditSummaryText, bankCreditHtml, bankCreditCsv, bankCreditFilename } from './bank-credits.js';
 import { validGuardDate, validGuardMonth, normalizeClosedPeriodList, recordClosedPeriod, normalizeHeldEntryList, checkGuardPosting, holdEntry, approveHeldEntry, heldEntries, postedEntries, heldEntrySummaryText, heldEntryHtml, closedPeriodHtml, heldEntryCsv, heldEntryFilename } from './closed-period-posting.js';
 import { validShiftDate, normalizeShiftRuleList, recordShiftRule, shiftDueDate, shiftRuleForDate, shiftRuleSummaryText, shiftRuleHtml, shiftRuleCsv, shiftRuleFilename } from './due-date-shift.js';
+import { normalizeConnectionDuesList, buildCombinedDuesView, allocateCombinedPayment, combinedDuesSummaryText, combinedDuesHtml, combinedDuesCsv, combinedDuesFilename } from './combined-dues.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13859,6 +13860,7 @@ function renderAnalytics() {
   renderBankCredits();
   renderClosedPeriodPosting();
   renderDueDateShift();
+  renderCombinedDues();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21530,6 +21532,52 @@ function renderDueDateShift() {
     });
     $('#shiftExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(shiftRuleFilename(), shiftRuleCsv(loadShiftRules()));
+    });
+  }
+}
+// Plan 127: multi-connection combined dues view, read-only. The view is
+// computed fresh from the connection lines the operator types — one line
+// per connection, "label | amount Rs. | oldest month (optional)". No record
+// is merged, deleted, or changed here, and no store is kept: the panel
+// shows per-connection dues, one combined total, and how a payment
+// against the combined view allocates across connections, oldest
+// outstanding first, by the part-payment allocation rule.
+let combinedDuesBound = false;
+function combinedDuesRows() {
+  const customer = $('#combinedCustomer')?.value ?? '';
+  const raw = ($('#combinedLines')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  const rows = raw.map((line, index) => {
+    const parts = line.split('|').map((part) => part.trim());
+    const amount = parts[1] === undefined || parts[1] === '' ? undefined : Number(parts[1]);
+    return { id: `CD-${index + 1}`, customer, label: parts[0] ?? '', amount, month: parts[2] ?? '' };
+  });
+  return { customer, rows: normalizeConnectionDuesList(rows) };
+}
+function renderCombinedDues() {
+  const bodyEl = $('#combinedBody');
+  if (!bodyEl) return;
+  const { customer, rows } = combinedDuesRows();
+  const view = buildCombinedDuesView(customer, rows);
+  bodyEl.innerHTML = view ? combinedDuesHtml(view) : '<p>Type one line per connection to see the combined view — nothing is merged or changed here.</p>';
+  const summaryEl = $('#combinedSummary');
+  if (summaryEl) summaryEl.textContent = combinedDuesSummaryText(view);
+  if (!combinedDuesBound) {
+    combinedDuesBound = true;
+    $('#combinedBuildBtn')?.addEventListener('click', () => { renderCombinedDues(); });
+    $('#combinedAllocateBtn')?.addEventListener('click', () => {
+      const { customer: cust, rows: connRows } = combinedDuesRows();
+      const resultEl = $('#combinedAllocBody');
+      if (!resultEl) return;
+      const amount = ($('#combinedPayment')?.value ?? '') === '' ? undefined : Number($('#combinedPayment')?.value ?? '');
+      const alloc = allocateCombinedPayment({ customer: cust, amount }, connRows, { order: $('#combinedOrder')?.value ?? '', orderReason: $('#combinedOrderReason')?.value ?? '' });
+      if (!alloc) { resultEl.textContent = 'Allocation not shown: pick a customer, type connection lines with amounts, enter a positive payment, and record a reason if you change the order.'; return; }
+      const view2 = buildCombinedDuesView(cust, connRows);
+      resultEl.innerHTML = view2 ? combinedDuesHtml(view2, alloc) : '<p>No combined dues view.</p>';
+    });
+    $('#combinedExportBtn')?.addEventListener('click', () => {
+      const { customer: cust, rows: connRows } = combinedDuesRows();
+      const view = buildCombinedDuesView(cust, connRows);
+      downloadCsvFile(combinedDuesFilename(), combinedDuesCsv(view));
     });
   }
 }

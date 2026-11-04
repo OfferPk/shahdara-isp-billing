@@ -360,6 +360,7 @@ import { normalizeSpliceRepairList, upsertSpliceRepairRecord, removeSpliceRepair
 import { normalizePoleInspectionList, parsePoleInspectionItems, upsertPoleInspectionRound, removePoleInspectionRound, markPoleInspectionItemFixed, poleInspectionSummaryText, poleInspectionRoundsHtml, poleInspectionActionHtml, poleInspectionCsv, poleInspectionFilename } from './pole-inspection.js';
 import { normalizeBatteryRuntimeList, upsertBatteryRuntimeRecord, removeBatteryRuntimeRecord, batteryRuntimeSummaryText, batteryRuntimeHtml, batteryRuntimeCsv, batteryRuntimeFilename } from './battery-runtime.js';
 import { normalizeToolKitList, upsertToolKitIssue, returnToolKitIssue, removeToolKitIssue, toolKitSummaryText, toolKitOutstandingHtml, toolKitCsv, toolKitFilename } from './tool-kit-log.js';
+import { normalizePremisesCheckList, upsertPremisesCheckRecord, removePremisesCheckRecord, premisesCheckSummaryText, premisesCustomerChecksHtml, premisesCheckCsv, premisesCheckFilename } from './premises-check.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13903,6 +13904,7 @@ function renderAnalytics() {
   renderPoleInspections();
   renderBatteryRuntimes();
   renderToolKitLog();
+  renderPremisesChecks();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22860,6 +22862,51 @@ function renderToolKitLog() {
     });
     $('#toolKitRefDate')?.addEventListener('input', () => { renderToolKitLog(); });
     $('#toolKitHolderFilter')?.addEventListener('input', () => { renderToolKitLog(); });
+  }
+}
+const PREMISES_CHECK_KEY = 'shahdara_premises_checks_v1';
+function loadPremisesChecks() {
+  try { return normalizePremisesCheckList(JSON.parse(localStorage.getItem(PREMISES_CHECK_KEY) || '[]')); } catch { return []; }
+}
+function savePremisesChecks(list) {
+  try { localStorage.setItem(PREMISES_CHECK_KEY, JSON.stringify(normalizePremisesCheckList(list))); } catch { /* records only: a failed save leaves the previous records in place */ }
+}
+let premisesCheckBound = false;
+function renderPremisesChecks() {
+  const bodyEl = $('#premisesBody');
+  if (!bodyEl) return;
+  const records = loadPremisesChecks();
+  bodyEl.innerHTML = premisesCustomerChecksHtml(records, $('#premisesFilter')?.value ?? '');
+  const summaryEl = $('#premisesSummary');
+  if (summaryEl) summaryEl.textContent = premisesCheckSummaryText(records);
+  if (!premisesCheckBound) {
+    premisesCheckBound = true;
+    $('#premisesSaveBtn')?.addEventListener('click', () => {
+      const before = loadPremisesChecks();
+      const next = upsertPremisesCheckRecord(before, {
+        id: `CHK-${Date.now()}`,
+        customer: $('#premisesCustomer')?.value ?? '',
+        date: $('#premisesDate')?.value ?? '',
+        onu: $('#premisesOnu')?.value ?? '',
+        router: $('#premisesRouter')?.value ?? '',
+        adapter: $('#premisesAdapter')?.value ?? '',
+        note: $('#premisesNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Premises check not recorded: give a customer and a real date.'); return; }
+      savePremisesChecks(next);
+      toast('Premises check recorded. A poor item is flagged on the customer page.');
+      renderPremisesChecks();
+    });
+    $('#premisesRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#premisesRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      savePremisesChecks(removePremisesCheckRecord(loadPremisesChecks(), id));
+      renderPremisesChecks();
+    });
+    $('#premisesExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(premisesCheckFilename(), premisesCheckCsv(loadPremisesChecks()));
+    });
+    $('#premisesFilter')?.addEventListener('input', () => { renderPremisesChecks(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

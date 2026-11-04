@@ -317,6 +317,7 @@ import { normalizeAssignmentList, upsertAssignment, removeAssignment, canonicalC
 import { buildRecognitionList, filterRecognitionByMohalla, canonicalRecognitionMohalla, thankYouDraft, normalizeThankYouSendList, upsertThankYouSend, normalizeRestartList, upsertRestart, removeRestart, restartDateFor, recognitionSummaryText, recognitionHtml, recognitionCsv, recognitionFilename, normalizeMilestoneYears } from './loyalty-recognition.js';
 import { normalizeAdvanceAllocationList, upsertAdvanceAllocation, removeAdvanceAllocation, advanceWithAllocation, advancesForCustomer, advanceSummaryText, advanceHtml, advanceCsv, advanceFilename } from './advance-allocation.js';
 import { normalizeAllocationBillList, normalizeAllocationInstalmentList, normalizePartPaymentAllocationList, upsertPartPaymentAllocation, removePartPaymentAllocation, partPaymentsForCustomer, allocatePartPayment, defaultAllocationOrder, partPaymentSummaryText, partPaymentHtml, partPaymentCsv, partPaymentFilename } from './part-payment-rules.js';
+import { normalizeCreditEntryList, normalizeCreditApplicationList, upsertCreditEntry, removeCreditEntry, applyCredit, removeCreditApplication, creditBalanceForCustomer, creditSummaryText, creditHtml, creditCsv, creditFilename } from './credit-balance.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -4630,6 +4631,11 @@ function renderCustomerProfileView(customer) {
   // version from an old one.
   const termsAckStatus = customerTermsStatus(loadTermsAck(), customer.id, loadTermsCurrentVersion());
   const termsAckSectionHtml = `<section class="profile-custody-section" aria-label="Service terms acknowledgement"><h4>Service terms acknowledgement</h4><p>Which terms version this customer agreed to, and on what date — so a "nobody told me" dispute is answered from a dated record, not from memory. The record stores the version and the date only, never a copy of any identity document, and it changes no package, billing, or lifecycle rule. A new terms version shows this customer as not yet acknowledged until they actually acknowledge it.</p>${termsAckStatusHtml(termsAckStatus)}</section>`;
+  // Plan 103 — Credit balance on the profile: credit in, applied, and
+  // remaining, always visible and summing exactly. Credit moves only
+  // by a recorded application naming a bill, never automatically,
+  // and it is never turned into cash here.
+  const creditBalanceSectionHtml = `<section class="profile-custody-section" aria-label="Customer credit balance"><h4>Customer credit balance</h4><p>Overpayments stay as this customer's money in plain sight: credit in, credit applied, and credit remaining always sum exactly. Credit is applied to a bill only by a recorded application naming that bill, never automatically, and it is never converted to cash without a refund record.</p><p>${escapeHtml(creditSummaryText(creditBalanceForCustomer(loadCreditEntries(), loadCreditApplications(), customer.id)))}</p></section>`;
   // Plan 46 (Plan 1-100) — Package change preview on the profile.
   // The preview is built from this profile's own package and monthly
   // amount, and the proposed package's catalogue price; both prices
@@ -4666,7 +4672,7 @@ function renderCustomerProfileView(customer) {
   const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
   const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
   const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p>When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><div><label>Date <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -13701,6 +13707,7 @@ function renderAnalytics() {
   renderLoyaltyRecognition();
   renderAdvanceAllocations();
   renderPartPaymentAllocations();
+  renderCreditBalances();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -19442,6 +19449,143 @@ function renderPartPaymentAllocations() {
     });
     $('#partPaymentExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(partPaymentFilename(), partPaymentCsv(loadPartPaymentAllocations()));
+    });
+  }
+}
+// Plan 103: customer credit balance from overpayment — credit in,
+// credit applied, and credit remaining, always summing exactly.
+// Credit is applied only by an operator-recorded application naming
+// the bill it settles, never automatically; credit is never turned
+// into cash here (that needs a Plan 116 refund record, not built
+// here), and no past payment is ever rewritten.
+const CREDIT_ENTRIES_KEY = 'shahdara_credit_entries_v1';
+const CREDIT_APPLICATIONS_KEY = 'shahdara_credit_applications_v1';
+function loadCreditEntries() {
+  try {
+    const raw = localStorage.getItem(CREDIT_ENTRIES_KEY);
+    if (!raw) return [];
+    return normalizeCreditEntryList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveCreditEntries(list) {
+  try { localStorage.setItem(CREDIT_ENTRIES_KEY, JSON.stringify(normalizeCreditEntryList(list))); } catch { /* record only: a failed save leaves the previous credit entries in place */ }
+}
+function loadCreditApplications() {
+  try {
+    const raw = localStorage.getItem(CREDIT_APPLICATIONS_KEY);
+    if (!raw) return [];
+    return normalizeCreditApplicationList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveCreditApplications(list) {
+  try { localStorage.setItem(CREDIT_APPLICATIONS_KEY, JSON.stringify(normalizeCreditApplicationList(list))); } catch { /* record only: a failed save leaves the previous credit applications in place */ }
+}
+function creditBills(customer) {
+  return (Array.isArray(customer?.bills) ? customer.bills : []).map((bill) => ({
+    id: bill?.id ?? bill?.month ?? '',
+    month: bill?.month ?? '',
+  })).filter((bill) => bill.id !== '');
+}
+let creditBalancesBound = false;
+function renderCreditBalances() {
+  const bodyEl = $('#creditBalanceBody');
+  if (!bodyEl) return;
+  const entries = loadCreditEntries();
+  const applications = loadCreditApplications();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#creditBalanceCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#creditBalanceFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = `<option value="">All customers</option>` + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const entryPickEl = $('#creditBalanceEntryPick');
+  if (entryPickEl) {
+    const current = entryPickEl.value;
+    entryPickEl.innerHTML = entries.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.id)} · ${escapeHtml(names[item.customerId] || item.customerId)} · ${escapeHtml(item.source)}</option>`).join('');
+    if (current) entryPickEl.value = current;
+  }
+  const billEl = $('#creditBalanceBill');
+  const chosenCustomer = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+  if (billEl) {
+    const bills = chosenCustomer ? creditBills(chosenCustomer) : [];
+    billEl.innerHTML = bills.map((bill) => `<option value="${escapeHtml(bill.id)}">${escapeHtml(bill.month || bill.id)}</option>`).join('');
+  }
+  const filterCustomer = filterEl?.value ?? '';
+  const shownCustomers = filterCustomer ? customers.filter((c) => String(c.id) === String(filterCustomer)) : customers;
+  const blocks = shownCustomers.map((c) => {
+    const balance = creditBalanceForCustomer(entries, applications, c.id);
+    if (balance.entries.length === 0 && balance.applications.length === 0) return '';
+    return `<h4>${escapeHtml(names[c.id])}</h4>${creditHtml(balance)}`;
+  }).filter(Boolean).join('');
+  bodyEl.innerHTML = blocks || '<p>No credit recorded yet.</p>';
+  const summaryEl = $('#creditBalanceSummary');
+  if (summaryEl) {
+    const totals = shownCustomers.reduce((sum, c) => {
+      const balance = creditBalanceForCustomer(entries, applications, c.id);
+      return { in: sum.in + balance.totalInCents, applied: sum.applied + balance.totalAppliedCents, remaining: sum.remaining + balance.remainingCents };
+    }, { in: 0, applied: 0, remaining: 0 });
+    summaryEl.textContent = `Credit in Rs. ${(totals.in / 100).toFixed(2)} · applied Rs. ${(totals.applied / 100).toFixed(2)} · remaining Rs. ${(totals.remaining / 100).toFixed(2)}.`;
+  }
+  if (!creditBalancesBound) {
+    creditBalancesBound = true;
+    $('#creditBalanceSaveBtn')?.addEventListener('click', () => {
+      const next = upsertCreditEntry(loadCreditEntries(), {
+        id: `CR-${Date.now()}`,
+        customerId: $('#creditBalanceCustomer')?.value ?? '',
+        source: $('#creditBalanceSource')?.value ?? 'overpayment',
+        sourcePaymentId: $('#creditBalanceSourcePayment')?.value ?? '',
+        amount: Number($('#creditBalanceAmount')?.value ?? 0),
+        date: $('#creditBalanceDate')?.value ?? '',
+        note: $('#creditBalanceNote')?.value ?? '',
+      });
+      if (!next) { toast('Credit entry not recorded: an overpayment must name its payment, and an adjustment must carry an approval note.'); return; }
+      saveCreditEntries(next);
+      toast('Credit recorded. It will only move when an operator applies it to a named bill.');
+      renderCreditBalances();
+    });
+    $('#creditBalanceApplyBtn')?.addEventListener('click', () => {
+      const entryId = $('#creditBalanceEntryPick')?.value ?? '';
+      const picked = loadCreditEntries().find((item) => item.id === entryId);
+      if (!picked) { toast('Pick a credit entry first.'); return; }
+      const next = applyCredit(loadCreditEntries(), loadCreditApplications(), {
+        id: `CA-${Date.now()}`,
+        creditEntryId: entryId,
+        customerId: picked.customerId,
+        billId: $('#creditBalanceBill')?.value ?? '',
+        amount: Number($('#creditBalanceApplyAmount')?.value ?? 0),
+        date: $('#creditBalanceApplyDate')?.value ?? '',
+        note: $('#creditBalanceApplyNote')?.value ?? '',
+      });
+      if (!next) { toast('Credit not applied: the application must name a bill and must not exceed the remaining credit.'); return; }
+      saveCreditApplications(next);
+      toast('Credit applied to the named bill. No past payment was changed.');
+      renderCreditBalances();
+    });
+    $('#creditBalanceRemoveEntryBtn')?.addEventListener('click', () => {
+      const entryId = $('#creditBalanceEntryPick')?.value ?? '';
+      const next = removeCreditEntry(loadCreditEntries(), loadCreditApplications(), entryId);
+      if (!next) { toast('That credit entry is named by an application and cannot be removed.'); return; }
+      saveCreditEntries(next);
+      toast('Credit entry removed.');
+      renderCreditBalances();
+    });
+    $('#creditBalanceCustomer')?.addEventListener('change', () => renderCreditBalances());
+    $('#creditBalanceFilterCustomer')?.addEventListener('change', () => renderCreditBalances());
+    $('#creditBalanceExportBtn')?.addEventListener('click', () => {
+      const filterCustomer = $('#creditBalanceFilterCustomer')?.value ?? '';
+      const balances = (filterCustomer ? [filterCustomer] : (state.customers ?? []).map((c) => c.id))
+        .map((id) => creditBalanceForCustomer(loadCreditEntries(), loadCreditApplications(), id));
+      const combined = balances.map((balance) => creditCsv(balance)).join('\n');
+      downloadCsvFile(creditFilename(), combined);
     });
   }
 }

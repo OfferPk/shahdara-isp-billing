@@ -342,6 +342,7 @@ import { normalizeConnectionDuesList, buildCombinedDuesView, allocateCombinedPay
 import { normalizeBalanceConfirmationList, upsertBalanceConfirmation, removeBalanceConfirmation, balanceConfirmationSummaryText, balanceConfirmationHtml, balanceConfirmationCsv, balanceConfirmationFilename } from './balance-confirmations.js';
 import { normalizeSettlementList, upsertSettlement, removeSettlement, settlementSummaryText, settlementHtml, settlementCsv, settlementFilename, signSettlement } from './collector-settlements.js';
 import { normalizeSplitReceiptList, upsertSplitReceipt, splitReceiptSummaryText, splitReceiptListHtml, splitReceiptCsv, splitReceiptFilename } from './split-payments.js';
+import { normalizeVisitScheduleList, upsertVisitSchedule, removeVisitSchedule, dayPartSchedule, doubleBookingFlags, missedVisits, markVisitDone, markVisitMissed, rescheduleVisit, visitScheduleSummaryText, visitScheduleHtml, visitScheduleCsv, visitScheduleFilename } from './visit-day-part.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13867,6 +13868,7 @@ function renderAnalytics() {
   renderBalanceConfirmations();
   renderCollectorSettlements();
   renderSplitReceipts();
+  renderVisitDayPart();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21763,6 +21765,106 @@ function renderSplitReceipts() {
       downloadCsvFile(splitReceiptFilename(), splitReceiptCsv(loadSplitReceipts(), filterValue.trim() ? filterValue.trim() : undefined));
     });
     $('#splitFilter')?.addEventListener('input', () => { renderSplitReceipts(); });
+  }
+}
+// Plan 131: one visit booking per record, with a day part. Booking a
+// visit never changes any outcome, payment, or bill record — it only
+// says when the visit is planned and what came of the plan itself.
+const VISIT_DAY_PART_KEY = 'shahdara_visit_day_part_v1';
+function loadVisitSchedules() {
+  try {
+    const raw = localStorage.getItem(VISIT_DAY_PART_KEY);
+    if (!raw) return [];
+    return normalizeVisitScheduleList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveVisitSchedules(list) {
+  try { localStorage.setItem(VISIT_DAY_PART_KEY, JSON.stringify(normalizeVisitScheduleList(list))); } catch { /* booking only: a failed save leaves the previous bookings in place */ }
+}
+let visitDayPartBound = false;
+function renderVisitDayPart() {
+  const bodyEl = $('#visitBody');
+  if (!bodyEl) return;
+  const records = loadVisitSchedules();
+  const listDate = $('#visitListDate')?.value ?? '';
+  const listPart = $('#visitListPart')?.value ?? 'all';
+  const shown = listDate ? dayPartSchedule(records, listDate, listPart) : [];
+  const clashCount = doubleBookingFlags(records).length;
+  bodyEl.innerHTML = listDate
+    ? (shown.length ? visitScheduleHtml(shown) : '<p>No booked visit for that date and day part.</p>')
+    : '<p>Pick a date above to see that day\'s booked visits in day-part order.</p>';
+  const missedEl = $('#visitMissedBody');
+  if (missedEl) {
+    const missed = missedVisits(records);
+    missedEl.innerHTML = missed.length ? visitScheduleHtml(missed) : '<p>No missed visit waiting to be rebooked.</p>';
+  }
+  const summaryEl = $('#visitSummary');
+  if (summaryEl) summaryEl.textContent = visitScheduleSummaryText(records) + (clashCount ? '' : ' No double-booked clash.');
+  if (!visitDayPartBound) {
+    visitDayPartBound = true;
+    $('#visitSaveBtn')?.addEventListener('click', () => {
+      const before = loadVisitSchedules();
+      const next = upsertVisitSchedule(before, {
+        id: `VS-${Date.now()}`,
+        customer: $('#visitCustomer')?.value ?? '',
+        collector: $('#visitCollector')?.value ?? '',
+        date: $('#visitDate')?.value ?? '',
+        dayPart: $('#visitDayPart')?.value ?? '',
+        jobType: $('#visitJobType')?.value ?? '',
+        status: 'booked',
+        note: '',
+      });
+      if (next.length === before.length) { toast('Visit not booked: fill in the customer, a real date, a day part, and a job type.'); return; }
+      saveVisitSchedules(next);
+      toast('Visit booked for its day part. Booking never changes any outcome, payment, or bill.');
+      renderVisitDayPart();
+    });
+    $('#visitDoneBtn')?.addEventListener('click', () => {
+      const id = ($('#visitDoneId')?.value ?? '').trim();
+      if (!id) return;
+      const before = loadVisitSchedules();
+      const next = markVisitDone(before, id);
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Not marked done: pick a booked visit.'); return; }
+      saveVisitSchedules(next);
+      toast('Visit marked done.');
+      renderVisitDayPart();
+    });
+    $('#visitMissedBtn')?.addEventListener('click', () => {
+      const id = ($('#visitMissedId')?.value ?? '').trim();
+      if (!id) return;
+      const before = loadVisitSchedules();
+      const next = markVisitMissed(before, id);
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Not marked missed: pick a booked visit.'); return; }
+      saveVisitSchedules(next);
+      toast('Visit marked missed. It stays listed until it is rebooked.');
+      renderVisitDayPart();
+    });
+    $('#visitReschedBtn')?.addEventListener('click', () => {
+      const id = ($('#visitReschedId')?.value ?? '').trim();
+      if (!id) return;
+      const before = loadVisitSchedules();
+      const next = rescheduleVisit(before, id, {
+        newId: `VS-${Date.now()}`,
+        newDate: $('#visitReschedDate')?.value ?? '',
+        newDayPart: $('#visitReschedPart')?.value ?? '',
+        note: '',
+      });
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Not rescheduled: pick a booked or missed visit and a real new date and day part.'); return; }
+      saveVisitSchedules(next);
+      toast('Visit rescheduled: the old booking stays as history and the new booking carries it forward.');
+      renderVisitDayPart();
+    });
+    $('#visitRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#visitRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveVisitSchedules(removeVisitSchedule(loadVisitSchedules(), id));
+      renderVisitDayPart();
+    });
+    $('#visitExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(visitScheduleFilename(), visitScheduleCsv(loadVisitSchedules()));
+    });
+    $('#visitListDate')?.addEventListener('input', () => { renderVisitDayPart(); });
+    $('#visitListPart')?.addEventListener('input', () => { renderVisitDayPart(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

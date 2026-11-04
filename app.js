@@ -408,6 +408,7 @@ import { normalizeDrillList, recordDrill, removeDrill, noteDrillFollowUp, drills
 import { normalizeVersionList, recordVersionEntry, removeVersionEntry, versionsSorted, versionAllHtml, versionSummaryText, versionCsv, versionFilename } from './version-log.js';
 import { normalizeAccessList, recordAccessEntry, markAccessReturned, removeAccessEntry, accessSorted, currentHolders, accessSummaryText, accessAllHtml, accessCsv, accessFilename } from './access-register.js';
 import { normalizeAgeingList, recordAgeingItem, removeAgeingItem, ageingSorted, ageingAllHtml, ageingSummaryText, equipmentAgeingCsv, equipmentAgeingFilename } from './equipment-ageing.js';
+import { normalizeAnnualGoalList, recordAnnualGoal, removeAnnualGoal, setAnnualGoalStatus, addAnnualGoalNote, annualGoalsSorted, annualGoalsAllHtml, annualGoalSummaryText, annualGoalsCsv, annualGoalsFilename } from './annual-goals.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -14003,6 +14004,7 @@ function renderAnalytics() {
   renderVersionLog();
   renderAccessRegister();
   renderEquipmentAgeing();
+  renderAnnualGoals();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25658,6 +25660,58 @@ function renderEquipmentAgeing() {
       renderEquipmentAgeing();
     });
     $('#eaFilter')?.addEventListener('input', () => { renderEquipmentAgeing(); });
+  }
+}
+// Plan 198: owner annual goals tracker.
+// Goals only: recording or completing a goal never changes any
+// bill, payment, customer, or route record, and past years stay
+// as history. The monthly collection target and the SISP-54
+// forecaster are neither read nor written here.
+const ANNUAL_GOALS_KEY = 'shahdara_annual_goals_v1';
+function loadAnnualGoals() {
+  try { return normalizeAnnualGoalList(JSON.parse(localStorage.getItem(ANNUAL_GOALS_KEY) || '[]')); } catch { return []; }
+}
+function saveAnnualGoals(list) {
+  try { localStorage.setItem(ANNUAL_GOALS_KEY, JSON.stringify(normalizeAnnualGoalList(list))); } catch { /* goals tracker only: a failed save leaves the previous list in place */ }
+}
+let annualGoalsBound = false;
+function renderAnnualGoals() {
+  const bodyEl = $('#agBody');
+  if (!bodyEl) return;
+  const query = ($('#agYearFilter')?.value ?? '').trim();
+  const shown = query ? annualGoalsSorted(loadAnnualGoals()).filter((entry) => String(entry.year).includes(query)) : annualGoalsSorted(loadAnnualGoals());
+  bodyEl.innerHTML = shown.length ? annualGoalsAllHtml(shown) : '<p>No annual goals recorded.</p>';
+  const summaryEl = $('#agSummary');
+  if (summaryEl) summaryEl.textContent = annualGoalSummaryText(loadAnnualGoals());
+  if (!annualGoalsBound) {
+    annualGoalsBound = true;
+    $('#agExportBtn')?.addEventListener('click', () => { downloadCsvFile(annualGoalsFilename(), annualGoalsCsv(loadAnnualGoals())); });
+    $('#agSaveBtn')?.addEventListener('click', () => {
+      const before = loadAnnualGoals();
+      const next = recordAnnualGoal(before, {
+        id: `AG-${Date.now()}`,
+        year: $('#agYear')?.value ?? '',
+        goal: $('#agGoal')?.value ?? '',
+        target: $('#agTarget')?.value ?? '',
+        reviewNote: $('#agReviewNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Annual goal not recorded: use a real year, a goal in plain words, and a target.'); return; }
+      saveAnnualGoals(next);
+      renderAnnualGoals();
+    });
+    $('#agRemoveBtn')?.addEventListener('click', () => {
+      saveAnnualGoals(removeAnnualGoal(loadAnnualGoals(), $('#agRemoveId')?.value ?? ''));
+      renderAnnualGoals();
+    });
+    $('#agStatusBtn')?.addEventListener('click', () => {
+      saveAnnualGoals(setAnnualGoalStatus(loadAnnualGoals(), $('#agStatusId')?.value ?? '', $('#agStatus')?.value ?? ''));
+      renderAnnualGoals();
+    });
+    $('#agNoteBtn')?.addEventListener('click', () => {
+      saveAnnualGoals(addAnnualGoalNote(loadAnnualGoals(), $('#agNoteId')?.value ?? '', $('#agNoteDate')?.value ?? '', $('#agNoteText')?.value ?? ''));
+      renderAnnualGoals();
+    });
+    $('#agYearFilter')?.addEventListener('input', () => { renderAnnualGoals(); });
   }
 }
 function renderOwnerDecision() {

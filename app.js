@@ -274,6 +274,7 @@ import { normalizeSweep, upsertSweep, removeSweep, findSweep, markSegmentChecked
 import { normalizeAtRiskThresholds, buildAtRiskList, atRiskSummaryText, atRiskHtml, atRiskCsv, atRiskFilename } from './at-risk-signals.js';
 import { EXIT_REASONS, EXIT_REASON_LABELS, normalizeExitRecord, normalizeExitRecordList, upsertExitRecord, removeExitRecord, buildMonthlyExitView, exitSummaryText, exitHtml, exitCsv, exitFilename } from './exit-reasons.js';
 import { SAVE_OFFERS, SAVE_OFFER_LABELS, SAVE_OUTCOMES, SAVE_OUTCOME_LABELS, SAVE_EXIT_REASONS, SAVE_EXIT_REASON_LABELS, normalizeSaveConversation, normalizeSaveConversationList, upsertSaveConversation, removeSaveConversation, filterSaveConversations, sortedSaveConversations, buildSaveSummary, saveSummaryText, saveHtml, saveCsv, saveFilename } from './save-conversations.js';
+import { buildMonthlyChurnSummary, churnSummaryText, churnHtml, churnCsv, churnFilename } from './churn-summary.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13177,6 +13178,7 @@ function renderAnalytics() {
   renderExitReasonsView();
   renderSaveConversations();
   renderWinbackQueue();
+  renderChurnSummary();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -14561,6 +14563,58 @@ function renderWinbackQueue() {
       const formerNow = (state.customers ?? []).filter((c) => c.archived === true);
       const current = buildWinbackQueue({ formerCustomers: formerNow, exitRecords: loadExitReasons(), saveConversations: loadSaveConversations(), doNotRecontactIds: loadWinbackDoNotRecontact(), today: localDate() });
       downloadCsvFile(winbackFilename(), winbackCsv(current));
+    });
+  }
+}
+// Plan 60 (Plan 1-100) — monthly churn and retention summary,
+// read-only. One honest monthly page: customers at month start, new
+// activations, departures, stayed, month end, churn rate, and the
+// monthly revenue at risk from the Plan 56 at-risk list. It creates
+// no new metric store and changes no bill, payment, or lifecycle
+// record; the Plan 56 list and the Plan 16 activation ticks are
+// read as caller-supplied input and never rewritten.
+let churnSummaryBound = false;
+function churnSummaryCustomers() {
+  const checklists = loadOnboardingChecklists();
+  return (state.customers ?? []).map((c) => {
+    const ticks = findOnboardingTicks(checklists, c.id);
+    const activation = (ticks ?? []).find((t) => t && t.stepId === 'activation' && t.completed === true && t.date);
+    const joinedDate = activation
+      ? activation.date
+      : (c.addedOn || (c.billingStartMonth ? `${c.billingStartMonth}-01` : null) || c.connectionDate || null);
+    return {
+      id: c.id,
+      name: c.name || c.id,
+      joinedDate,
+      leftDate: c.archived === true ? (c.archivedAt || null) : null,
+    };
+  });
+}
+function renderChurnSummary() {
+  const bodyEl = $('#churnSummaryBody');
+  if (!bodyEl) return;
+  const monthEl = $('#churnSummaryMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const month = monthEl?.value ?? localDate().slice(0, 7);
+  const customers = churnSummaryCustomers();
+  const atRiskView = buildAtRiskList({ ...buildAtRiskInputs(), thresholds: loadAtRiskThresholds() });
+  const atRisk = (atRiskView.rows ?? []).map((row) => {
+    const customer = (state.customers ?? []).find((c) => String(c.id) === String(row.customerId));
+    return { customerId: row.customerId, monthlyAmount: customer ? customer.monthlySellingAmount : null };
+  });
+  const view = buildMonthlyChurnSummary({ month, customers, atRisk });
+  bodyEl.innerHTML = view ? churnHtml(view) : '<p style="font-size: 12px;">Pick a valid month to see the churn summary.</p>';
+  const summaryEl = $('#churnSummarySummary');
+  if (summaryEl) summaryEl.textContent = view ? churnSummaryText(view) : '';
+  if (!churnSummaryBound) {
+    churnSummaryBound = true;
+    $('#churnSummaryMonth')?.addEventListener('change', () => renderChurnSummary());
+    $('#churnSummaryExportBtn')?.addEventListener('click', () => {
+      const current = buildMonthlyChurnSummary({ month: monthEl?.value ?? localDate().slice(0, 7), customers: churnSummaryCustomers(), atRisk: (buildAtRiskList({ ...buildAtRiskInputs(), thresholds: loadAtRiskThresholds() }).rows ?? []).map((row) => {
+        const customer = (state.customers ?? []).find((c) => String(c.id) === String(row.customerId));
+        return { customerId: row.customerId, monthlyAmount: customer ? customer.monthlySellingAmount : null };
+      }) });
+      if (current) downloadCsvFile(churnFilename(current.month), churnCsv(current));
     });
   }
 }

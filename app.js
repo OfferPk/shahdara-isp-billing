@@ -270,6 +270,7 @@ import { normalizeStockRowList, normalizeStockMovementList, removeStockRow, setS
 import { DEPENDENCY_TYPE_OPTIONS, normalizeDependencyList, upsertDependency, removeDependency, buildDependencyBlastRadii, dependencySummaryText, dependencyRegisterHtml, dependencyBlastRadiusHtml, dependencyCsv, dependencyFilename } from './dependency-register.js';
 import { POWER_STATE_OPTIONS, normalizePowerLog, upsertPowerEntry, removePowerEntry, powerHistoryForSite, latestPowerStatePerSite, powerSummaryText, latestPowerHtml, powerLogHtml, powerCsv, powerFilename } from './power-status-log.js';
 import { EMERGENCY_ROLES, normalizeEmergencyCard, upsertEmergencyContact, removeEmergencyContact, findEmergencyContact, emergencyCardSummaryText, emergencyCardHtml, emergencyContactsCsv, emergencyCardFilename } from './emergency-card.js';
+import { normalizeSweep, upsertSweep, removeSweep, findSweep, markSegmentChecked, markCustomerConfirmed, markCustomerStillDown, completeSweep, sweepAffectedCustomers, sweepChecklist, sweepFollowUpList, followUpTicketDraft, sweepSummaryText, sweepsHtml, sweepsCsv, sweepFilename } from './restoration-sweep.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13167,6 +13168,7 @@ function renderAnalytics() {
   renderDependencyRegister();
   renderPowerStatusLog();
   renderEmergencyCard();
+  renderRestorationSweep();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -13938,6 +13940,179 @@ function renderEmergencyCard() {
     });
     $('#emergencyCardExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(emergencyCardFilename(localDate()), emergencyContactsCsv(loadEmergencyCard()));
+    });
+  }
+}
+
+// Plan 55 (Plan 1-100) — post-outage restoration verification sweep.
+// A checklist only, run after an outage is resolved: the customers
+// in the outage's affected mohallas or segments, each segment
+// marked checked with a date and by whom, each customer confirmed
+// back or flagged still down, with still-down cases offered as
+// follow-up tickets linked to the original outage. Completing a
+// sweep never reopens the parent outage and never changes a bill
+// or a payment; only a follow-up ticket the operator confirms is
+// created, through the existing ticket flow.
+const RESTORATION_SWEEPS_KEY = 'shahdara_restoration_sweeps_v1';
+let restorationSweepBound = false;
+function loadRestorationSweeps() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RESTORATION_SWEEPS_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((s) => normalizeSweep(s)) : [];
+  } catch { return []; }
+}
+function saveRestorationSweeps(list) {
+  try { localStorage.setItem(RESTORATION_SWEEPS_KEY, JSON.stringify(list.filter((s) => normalizeSweep(s)))); } catch {}
+}
+function restorationSweepDetails(sweep) {
+  const customers = state.customers ?? [];
+  const affected = sweepAffectedCustomers(sweep, { customers, connections: loadOltOnuRegister() });
+  const checklist = sweepChecklist(sweep, affected);
+  const followUps = sweepFollowUpList(sweep, { customers, tickets: loadTicketLog() });
+  return { affected, checklist, followUps };
+}
+function renderRestorationSweep() {
+  const bodyEl = $('#restorationSweepBody');
+  if (!bodyEl) return;
+  const sweeps = loadRestorationSweeps();
+  const detailsById = {};
+  for (const sweep of sweeps) detailsById[sweep.id] = restorationSweepDetails(sweep);
+  bodyEl.innerHTML = sweepsHtml(sweeps, detailsById);
+  const summaryEl = $('#restorationSweepSummary');
+  if (summaryEl) summaryEl.textContent = sweeps.length === 0
+    ? 'After a major fault is fixed, do not assume everyone is back: this sweep lists exactly the customers in a resolved outage\'s affected mohallas or segments, so each segment can be marked checked with a date and by whom, each customer confirmed back or flagged still down, and still-down cases offered as follow-up tickets linked to the original outage. Completing a sweep never reopens the parent outage and never changes a bill or a payment.'
+    : sweepSummaryText(sweeps);
+  const outageEl = $('#restorationSweepOutage');
+  if (outageEl && document.activeElement !== outageEl) {
+    const resolved = loadOutageGrouping().filter((o) => o.status === 'resolved');
+    outageEl.innerHTML = resolved.map((o) => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.id)} · ${escapeHtml(o.area)}${o.segment ? ` · ${escapeHtml(o.segment)}` : ''}</option>`).join('')
+      || '<option value="">No resolved outages yet</option>';
+  }
+  const sweepEl = $('#restorationSweepSelect');
+  if (sweepEl && document.activeElement !== sweepEl) {
+    sweepEl.innerHTML = sweeps.map((s) => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.id)} · outage ${escapeHtml(s.outageId)}</option>`).join('')
+      || '<option value="">No sweeps yet</option>';
+  }
+  const selected = findSweep(sweeps, sweepEl?.value ?? '');
+  const checklistEl = $('#restorationSweepChecklist');
+  if (checklistEl) {
+    if (!selected) {
+      checklistEl.innerHTML = '<p class="empty-state">Start a sweep, then pick it here to work its checklist.</p>';
+    } else {
+      const details = detailsById[selected.id];
+      checklistEl.innerHTML = details.checklist.map((row) => `<div style="margin-bottom: 8px;"><strong>${escapeHtml(row.segment)}</strong> — ${row.customers.length} customer${row.customers.length === 1 ? '' : 's'} · ${row.confirmedCount} back · ${row.stillDownCount} still down${row.checked ? ` · checked ${escapeHtml(row.checked.date)} by ${escapeHtml(row.checked.by)}` : ' · not checked yet'}<br><small>${row.customers.map((c) => escapeHtml(c.customerName)).join(', ') || 'No customers in this segment'}</small></div>`).join('')
+        + (details.followUps.length ? `<div style="margin-top: 8px;"><strong>Still-down follow-ups:</strong> ${details.followUps.map((entry) => `${escapeHtml(entry.customerName)}${entry.originalTicketId ? ` (original ticket ${escapeHtml(entry.originalTicketId)})` : ''} <button class="secondary-button btn-sm sweep-followup-btn" type="button" data-sweep-followup-sweep="${escapeHtml(selected.id)}" data-sweep-followup-customer="${escapeHtml(entry.customerId)}">Create follow-up ticket</button>`).join('<br>')}</div>` : '');
+    }
+  }
+  const customerEl = $('#restorationSweepCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    const rows = selected ? detailsById[selected.id].affected.customers : [];
+    customerEl.innerHTML = rows.map((c) => `<option value="${escapeHtml(c.customerId)}">${escapeHtml(c.customerName)}</option>`).join('')
+      || '<option value="">No covered customers</option>';
+  }
+  if (!restorationSweepBound) {
+    restorationSweepBound = true;
+    sweepEl?.addEventListener('change', () => renderRestorationSweep());
+    outageEl?.addEventListener('change', () => {
+      const outage = loadOutageGrouping().find((o) => o.id === outageEl.value);
+      if (!outage) return;
+      const mohallasEl = $('#restorationSweepMohallas');
+      const segmentsEl = $('#restorationSweepSegments');
+      if (mohallasEl) mohallasEl.value = outage.area || '';
+      if (segmentsEl) segmentsEl.value = outage.segment || '';
+    });
+    $('#restorationSweepStartBtn')?.addEventListener('click', () => {
+      const row = {
+        id: `SW55-${Date.now()}`,
+        outageId: $('#restorationSweepOutage')?.value ?? '',
+        date: $('#restorationSweepDate')?.value ?? '',
+        mohallas: ($('#restorationSweepMohallas')?.value ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+        segments: ($('#restorationSweepSegments')?.value ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+        note: $('#restorationSweepNote')?.value ?? '',
+      };
+      if (!normalizeSweep(row)) {
+        toast('A sweep needs a resolved outage and at least one affected mohalla or segment.');
+        return;
+      }
+      saveRestorationSweeps(upsertSweep(loadRestorationSweeps(), row));
+      renderRestorationSweep();
+    });
+    $('#restorationSweepCheckBtn')?.addEventListener('click', () => {
+      const sweep = findSweep(loadRestorationSweeps(), sweepEl?.value ?? '');
+      if (!sweep) return;
+      const checklist = sweepChecklist(sweep, sweepAffectedCustomers(sweep, { customers: state.customers ?? [], connections: loadOltOnuRegister() }));
+      const current = loadRestorationSweeps();
+      const next = markSegmentChecked(current, sweep.id, {
+        segment: $('#restorationSweepSegment')?.value ?? '',
+        date: $('#restorationSweepCheckDate')?.value ?? '',
+        by: $('#restorationSweepCheckBy')?.value ?? '',
+      }, checklist.map((row) => row.segment));
+      if (next === current) {
+        toast('A segment check needs a checklist segment, a real date, and the checker\'s name.');
+        return;
+      }
+      saveRestorationSweeps(next);
+      renderRestorationSweep();
+    });
+    $('#restorationSweepBackBtn')?.addEventListener('click', () => {
+      const sweep = findSweep(loadRestorationSweeps(), sweepEl?.value ?? '');
+      if (!sweep || !customerEl?.value) return;
+      saveRestorationSweeps(markCustomerConfirmed(loadRestorationSweeps(), sweep.id, customerEl.value));
+      renderRestorationSweep();
+    });
+    $('#restorationSweepDownBtn')?.addEventListener('click', () => {
+      const sweep = findSweep(loadRestorationSweeps(), sweepEl?.value ?? '');
+      if (!sweep || !customerEl?.value) return;
+      saveRestorationSweeps(markCustomerStillDown(loadRestorationSweeps(), sweep.id, {
+        customerId: customerEl.value,
+        note: $('#restorationSweepDownNote')?.value ?? '',
+      }));
+      renderRestorationSweep();
+    });
+    $('#restorationSweepExportBtn')?.addEventListener('click', () => {
+      const current = loadRestorationSweeps();
+      const details = {};
+      for (const sweep of current) details[sweep.id] = restorationSweepDetails(sweep);
+      downloadCsvFile(sweepFilename(localDate()), sweepsCsv(current, details));
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const completeBtn = event.target.closest('[data-sweep-complete]');
+      const removeBtn = event.target.closest('[data-sweep-remove]');
+      if (completeBtn) {
+        saveRestorationSweeps(completeSweep(loadRestorationSweeps(), completeBtn.dataset.sweepComplete));
+        renderRestorationSweep();
+      } else if (removeBtn) {
+        saveRestorationSweeps(removeSweep(loadRestorationSweeps(), removeBtn.dataset.sweepRemove));
+        renderRestorationSweep();
+      }
+    });
+    checklistEl?.addEventListener('click', (event) => {
+      const followBtn = event.target.closest('[data-sweep-followup-customer]');
+      if (!followBtn) return;
+      const sweep = findSweep(loadRestorationSweeps(), followBtn.dataset.sweepFollowupSweep);
+      if (!sweep) return;
+      const followUps = sweepFollowUpList(sweep, { customers: state.customers ?? [], tickets: loadTicketLog() });
+      const entry = followUps.find((item) => item.customerId === followBtn.dataset.sweepFollowupCustomer);
+      if (!entry) return;
+      const draft = followUpTicketDraft(entry, { outageId: sweep.outageId });
+      if (!draft) return;
+      const customer = (state.customers ?? []).find((c) => String(c.id) === String(entry.customerId));
+      const stored = loadTicketLog();
+      const created = createTicket({
+        id: `T21-${Date.now()}-${stored.length + 1}`,
+        customerId: entry.customerId,
+        customerName: customer ? (customer.name || '') : entry.customerName,
+        mohalla: customer ? (customer.mohalla || customer.area || '') : '',
+        category: draft.category,
+        priority: draft.priority,
+        status: 'open',
+        reportedDate: localDate(),
+        note: draft.note,
+      });
+      if (!created) return;
+      saveTicketLog([...stored, created]);
+      toast('Follow-up ticket created in the ticket log.');
+      renderRestorationSweep();
     });
   }
 }

@@ -7254,6 +7254,8 @@
             <div class="customer-meta">
               <div id="customerProfileView" class="customer-profile-view" data-i18n-aria-label="prof_view_aria" aria-label="Saved customer information"></div>
               <div id="customerProfileForm" class="customer-profile-form" hidden>
+              <p id="profileCompletionCounter" class="profile-completion-counter" aria-live="polite"></p>
+              <button id="profileFormError" class="profile-form-error" type="button" hidden></button>
               <div class="profile-grid">
                 <label class="profile-field" for="profileNameInput"><span class="field-label"><span data-i18n="prof_form_name">Customer name</span> <span class="optional-label" data-i18n="prof_form_name_note">Shown on bills, receipts &amp; lists</span></span><input id="profileNameInput" type="text" maxlength="100" autocomplete="off" required></label><label class="profile-field" for="nameUrduInput"><span class="field-label"><span data-i18n="prof_form_name_urdu">Customer name in Urdu</span> <span class="optional-label" data-i18n="prof_form_name_urdu_note">Optional · shown instead of the auto-transliterated name when Urdu is selected</span></span><input id="nameUrduInput" type="text" maxlength="100" autocomplete="off" placeholder="مثال: راجہ فیصل"></label>
                 <label class="profile-field" for="fatherOrReferenceNameInput"><span class="field-label"><span data-i18n="fas_form_father">Father / reference name</span> <span class="optional-label" data-i18n="fas_form_father_note">Optional · search finds this customer by this name too</span></span><input id="fatherOrReferenceNameInput" type="text" maxlength="100" autocomplete="off" data-i18n-placeholder="prof_not_set" placeholder="Not set"></label>
@@ -7358,6 +7360,7 @@
                 </div>
               </div>
                 <div class="profile-form-actions"><button id="saveMohallaButton" class="secondary-button profile-save" type="button" data-i18n="prof_form_save">Save profile</button><button id="cancelProfileEditButton" class="secondary-button" type="button" data-i18n="prof_cancel">Cancel</button></div>
+              <div id="profileStickySaveBar" class="profile-sticky-save" hidden><button id="profileStickySaveButton" class="secondary-button profile-save" type="button" data-i18n="prof_form_save">Save profile</button><span id="profileStickySaveHint" class="profile-save-hint" aria-live="polite"></span></div>
               </div>
             </div>
             <section class="package-history-section" aria-labelledby="packageHistoryHeading"><div><p class="eyebrow" data-i18n="prof_pkghist_eyebrow">PRICE SNAPSHOT HISTORY</p><h3 id="packageHistoryHeading" data-i18n="prof_pkghist_heading">Package changes</h3><p class="incident-manual-note" data-i18n="prof_pkghist_note">Recorded only when package or monthly selling amount changes. Existing bill snapshots remain unchanged.</p></div><ol id="packageHistoryList" class="package-history-list"></ol><p id="packageHistoryEmpty" class="incident-empty" data-i18n="prof_pkghist_empty">No package or monthly selling-rate changes have been recorded.</p></section>

@@ -306,6 +306,7 @@ import { UNUSUAL_FLAG_REASONS, UNUSUAL_FLAG_REASON_LABELS, normalizeUnusualFlagS
 import { PATTERN_DIMENSIONS, PATTERN_DEFAULTS, normalizePatternEvents, groupPatternCounts, normalizePatternSettings, buildReviewItems, filterReviewItems, buildPatternSummary, patternSummaryText, normalizeReviewList, markReviewed, removeReviewed, reviewHtml, reviewedHtml, patternCsv, patternFilename } from './pattern-watch.js';
 import { formatCashCents, normalizeCashLimitSettings, buildCashInHandStatus, cashInHandSummaryText, cashInHandPromptHtml, cashInHandReceiptsHtml, cashInHandCsv, cashInHandFilename } from './cash-in-hand.js';
 import { receiptNumberFromReference, isReceiptDeliveryStatus, buildGapAudit, filterGaps, gapSummaryText, explainGap, removeExplanation, normalizeExplanations, gapAuditHtml, issuedReceiptsHtml, gapAuditCsv, gapAuditFilename } from './receipt-gap-audit.js';
+import { buildStatusBoard, filterBoardRows, boardSummaryText, boardHtml, boardCsv, boardFilename } from './status-board.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13552,6 +13553,7 @@ function renderAnalytics() {
   renderPatternWatch();
   renderCashInHand();
   renderReceiptGapAudit();
+  renderStatusBoard();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -18219,6 +18221,40 @@ function renderReceiptGapAudit() {
       const current = buildGapAudit({ receipts: source.receipts, voids: source.voids, explanations: loadReceiptGapExplanations() });
       downloadCsvFile(gapAuditFilename(current), gapAuditCsv(current));
     });
+  }
+}
+// Plan 92 (Plan 1-100) — Mohalla service-status board. Read-only:
+// one honest status per mohalla, recomputed fresh from the open
+// outage records and the active maintenance windows. The board
+// sets no status by itself and changes no ticket, billing, or
+// customer record; clearing a source record clears its board entry.
+function statusBoardSource() {
+  const mohallas = [];
+  const seen = new Set();
+  for (const c of (state.customers ?? [])) {
+    const m = (c.mohalla || c.area || '').trim();
+    if (m && !seen.has(m)) { seen.add(m); mohallas.push(m); }
+  }
+  return { mohallas, outages: loadOutageGrouping(), windows: loadMaintenanceWindows(), today: localDate() };
+}
+let statusBoardBound = false;
+function renderStatusBoard() {
+  const bodyEl = $('#statusBoardBody');
+  if (!bodyEl) return;
+  const board = buildStatusBoard(statusBoardSource());
+  const status = $('#statusBoardStatus')?.value ?? '';
+  const shown = filterBoardRows(board.rows, { status });
+  const summaryEl = $('#statusBoardSummary');
+  if (summaryEl) summaryEl.textContent = boardSummaryText(board) + ` · showing ${shown.length}.`;
+  bodyEl.innerHTML = boardHtml({ ...board, rows: shown });
+  if (!statusBoardBound) {
+    statusBoardBound = true;
+    $('#statusBoardStatus')?.addEventListener('change', () => renderStatusBoard());
+    $('#statusBoardExportBtn')?.addEventListener('click', () => {
+      const current = buildStatusBoard(statusBoardSource());
+      downloadCsvFile(boardFilename(current.today), boardCsv(current));
+    });
+    $('#statusBoardPrintBtn')?.addEventListener('click', () => window.print());
   }
 }
 function renderHoldGuard() {

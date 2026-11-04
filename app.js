@@ -368,6 +368,7 @@ import { normalizeSafetyNoteList, upsertSafetyNote, removeSafetyNote, safetyNote
 import { normalizeOnCallList, upsertOnCallEntry, removeOnCallEntry, onCallLookupHtml, onCallAllHtml, onCallOverlapHtml, onCallSummaryText, onCallCsv, onCallFilename } from './oncall-rota.js';
 import { normalizeVisitTimeList, upsertVisitTime, removeVisitTime, routeDayHtml, visitTimeAllHtml, routeDayTotalsHtml, visitTimeSummaryText, visitTimeCsv, visitTimeFilename } from './visit-times.js';
 import { normalizeSiteAccessList, upsertSiteAccess, removeSiteAccess, siteAccessAllHtml, siteAccessHtml, flaggedAccessHtml, siteAccessSummaryText, siteAccessCsv, siteAccessFilename } from './site-access.js';
+import { normalizeSwapPairingList, upsertSwapPairing, removeSwapPairing, swapPairingAllHtml, swapPairingCustomerHtml, swapPairingSummaryText, swapPairingCsv, swapPairingFilename } from './swap-pairing.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13919,6 +13920,7 @@ function renderAnalytics() {
   renderOnCallRota();
   renderVisitTimes();
   renderSiteAccess();
+  renderSwapPairings();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23288,6 +23290,55 @@ function renderSiteAccess() {
     });
     $('#siteAccessFilter')?.addEventListener('input', () => { renderSiteAccess(); });
     $('#siteAccessReferenceDate')?.addEventListener('input', () => { renderSiteAccess(); });
+  }
+}
+const SWAP_PAIRING_KEY = 'shahdara_swap_pairings_v1';
+function loadSwapPairings() {
+  try { return normalizeSwapPairingList(JSON.parse(localStorage.getItem(SWAP_PAIRING_KEY) || '[]')); } catch { return []; }
+}
+function saveSwapPairings(list) {
+  try { localStorage.setItem(SWAP_PAIRING_KEY, JSON.stringify(normalizeSwapPairingList(list))); } catch { /* pairing only: a failed save leaves the previous log in place */ }
+}
+let swapPairingBound = false;
+function renderSwapPairings() {
+  const bodyEl = $('#swapBody');
+  if (!bodyEl) return;
+  const list = loadSwapPairings();
+  bodyEl.innerHTML = swapPairingAllHtml(list);
+  const customerEl = $('#swapCustomerBody');
+  if (customerEl) {
+    const customer = $('#swapFilter')?.value ?? '';
+    customerEl.innerHTML = customer ? swapPairingCustomerHtml(list, customer) : '<p>Pick a customer to see its swap pairs in date order.</p>';
+  }
+  const summaryEl = $('#swapSummary');
+  if (summaryEl) summaryEl.textContent = swapPairingSummaryText(list);
+  if (!swapPairingBound) {
+    swapPairingBound = true;
+    $('#swapSaveBtn')?.addEventListener('click', () => {
+      const before = loadSwapPairings();
+      const next = upsertSwapPairing(before, {
+        id: `SP-${Date.now()}`,
+        customer: $('#swapCustomer')?.value ?? '',
+        oldUnit: $('#swapOldUnit')?.value ?? '',
+        newUnit: $('#swapNewUnit')?.value ?? '',
+        date: $('#swapDate')?.value ?? '',
+        reason: $('#swapReason')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Swap not recorded: give a customer, an old unit, a new unit, and a real date.'); return; }
+      saveSwapPairings(next);
+      toast('Swap pairing recorded. This unit history stays traceable.');
+      renderSwapPairings();
+    });
+    $('#swapRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#swapRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveSwapPairings(removeSwapPairing(loadSwapPairings(), id));
+      renderSwapPairings();
+    });
+    $('#swapExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(swapPairingFilename(), swapPairingCsv(loadSwapPairings()));
+    });
+    $('#swapFilter')?.addEventListener('input', () => { renderSwapPairings(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

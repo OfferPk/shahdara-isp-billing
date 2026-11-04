@@ -378,6 +378,7 @@ import { normalizeGreetingDateList, upsertGreetingDate, removeGreetingDate, mark
 import { normalizeDraftLanguageList, upsertDraftLanguage, removeDraftLanguage, preferenceFor, applyDraftLanguage, draftLanguageAllHtml, draftLanguageCustomerHtml, draftLanguageSummaryText, draftLanguageCsv, draftLanguageFilename } from './draft-language.js';
 import { normalizeInfoSheetList, upsertInfoSheet, removeInfoSheet, infoSheetForCustomer, infoSheetAllHtml, infoSheetCustomerHtml, infoSheetSummaryText, infoSheetCsv, infoSheetFilename } from './info-sheet.js';
 import { normalizeAnnouncementDraftList, upsertAnnouncementDraft, copyAnnouncementDraft, removeAnnouncementDraft, markAnnouncementSent, markAnnouncementUnsent, announcementDraftAllHtml, announcementDraftMohallaHtml, announcementDraftSummaryText, announcementDraftCsv, announcementDraftFilename } from './announcement-draft.js';
+import { normalizeChangeConfirmationList, upsertChangeConfirmation, removeChangeConfirmation, markChangeConfirmationSent, markChangeConfirmationUnsent, changeConfirmationCustomerHtml, changeConfirmationAllHtml, changeConfirmationSummaryText, changeConfirmationCsv, changeConfirmationFilename } from './change-confirmation.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13939,6 +13940,7 @@ function renderAnalytics() {
   renderDraftLanguages();
   renderInfoSheets();
   renderAnnouncementDrafts();
+  renderChangeConfirmations();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23852,6 +23854,66 @@ function renderAnnouncementDrafts() {
       downloadCsvFile(announcementDraftFilename(), announcementDraftCsv(loadAnnouncementDrafts()));
     });
     $('#adFilter')?.addEventListener('input', () => { renderAnnouncementDrafts(); });
+  }
+}
+const CHANGE_CONFIRMATION_KEY = 'shahdara_change_confirmations_v1';
+function loadChangeConfirmations() {
+  try { return normalizeChangeConfirmationList(JSON.parse(localStorage.getItem(CHANGE_CONFIRMATION_KEY) || '[]')); } catch { return []; }
+}
+function saveChangeConfirmations(list) {
+  try { localStorage.setItem(CHANGE_CONFIRMATION_KEY, JSON.stringify(normalizeChangeConfirmationList(list))); } catch { /* confirmation drafts only: a failed save leaves the previous list in place */ }
+}
+let changeConfirmationsBound = false;
+function renderChangeConfirmations() {
+  const bodyEl = $('#ccBody');
+  if (!bodyEl) return;
+  const list = loadChangeConfirmations();
+  bodyEl.innerHTML = changeConfirmationAllHtml(list);
+  const customerEl = $('#ccCustomerBody');
+  if (customerEl) {
+    const customer = $('#ccFilter')?.value ?? '';
+    customerEl.innerHTML = customer ? changeConfirmationCustomerHtml(list, customer) : '<p>Pick a customer to see their confirmation drafts.</p>';
+  }
+  const summaryEl = $('#ccSummary');
+  if (summaryEl) summaryEl.textContent = changeConfirmationSummaryText(list);
+  if (!changeConfirmationsBound) {
+    changeConfirmationsBound = true;
+    $('#ccSaveBtn')?.addEventListener('click', () => {
+      const before = loadChangeConfirmations();
+      const unchanged = ($('#ccUnchanged')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+      const next = upsertChangeConfirmation(before, {
+        id: `CC-${Date.now()}`,
+        customerId: $('#ccCustomer')?.value ?? '',
+        changeDate: $('#ccChangeDate')?.value ?? '',
+        agreedChange: $('#ccAgreedChange')?.value ?? '',
+        appliesFrom: $('#ccAppliesFrom')?.value ?? '',
+        unchanged,
+      });
+      if (next.length === before.length) { toast('Confirmation draft not recorded: give a customer, a change date, the agreed change, and the date it applies from.'); return; }
+      saveChangeConfirmations(next); renderChangeConfirmations();
+    });
+    $('#ccMarkSentBtn')?.addEventListener('click', () => {
+      const id = ($('#ccSentId')?.value ?? '').trim();
+      if (!id) return;
+      saveChangeConfirmations(markChangeConfirmationSent(loadChangeConfirmations(), id, $('#ccSentDate')?.value ?? ''));
+      renderChangeConfirmations();
+    });
+    $('#ccMarkUnsentBtn')?.addEventListener('click', () => {
+      const id = ($('#ccSentId')?.value ?? '').trim();
+      if (!id) return;
+      saveChangeConfirmations(markChangeConfirmationUnsent(loadChangeConfirmations(), id));
+      renderChangeConfirmations();
+    });
+    $('#ccRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#ccRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveChangeConfirmations(removeChangeConfirmation(loadChangeConfirmations(), id));
+      renderChangeConfirmations();
+    });
+    $('#ccExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(changeConfirmationFilename(), changeConfirmationCsv(loadChangeConfirmations()));
+    });
+    $('#ccFilter')?.addEventListener('input', () => { renderChangeConfirmations(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

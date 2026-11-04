@@ -391,6 +391,7 @@ import { normalizeNewCustomerCheckinList, upsertNewCustomerCheckin, removeNewCus
 import { normalizeTestimonialConsentList, upsertTestimonialConsent, removeTestimonialConsent, withdrawTestimonialConsent, testimonialForCustomer, testimonialConsentAllHtml, testimonialConsentSummaryText, testimonialConsentCsv, testimonialConsentFilename } from './testimonial-consent.js';
 import { normalizeApologyDraftList, upsertApologyDraft, removeApologyDraft, markApologyDraftSent, markApologyDraftUnsent, apologyDraftStarters, apologyDraftAllHtml, apologyDraftSummaryText, apologyDraftCsv, apologyDraftFilename } from './apology-draft.js';
 import { collectTimelineEntries, timelineAllHtml, timelineCustomerHtml, timelineSummaryText, timelineCsv, timelineFilename } from './comms-timeline.js';
+import { normalizeMigrationStepList, upsertMigrationStep, removeMigrationStep, markMigrationStepDone, markMigrationStepUndone, migrationStepStarters, migrationStepAllHtml, migrationStepSummaryText, migrationStepCsv, migrationStepFilename, normalizePortMoveList, upsertPortMove, removePortMove, portMovesSorted, portMovesForCustomer, portMovesOnDate, portMoveAllHtml, portMoveSummaryText, portMoveCsv, portMoveFilename } from './migration-checklist.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13969,6 +13970,7 @@ function renderAnalytics() {
   renderTestimonialConsent();
   renderApologyDrafts();
   renderCommsTimeline();
+  renderMigrationChecklist();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24744,6 +24746,94 @@ function renderCommsTimeline() {
       downloadCsvFile(timelineFilename(), timelineCsv(all));
     });
     $('#ctFilter')?.addEventListener('input', () => { renderCommsTimeline(); });
+  }
+}
+// Plan 181: second-unit migration checklist and port-move log.
+// The panel keeps only its own two lists: ordered checklist steps
+// (done/not-done, date, done-by) and port moves (customer, old
+// unit/port, new unit/port, date, reason). It is a written trail
+// for a move the operator performs by hand — it never reads the
+// existing unit/port register or capacity forecast, never changes
+// any bill, payment, package, or customer status, never talks to
+// a live router, and never sends anything.
+const MIGRATION_STEP_KEY = 'shahdara_migration_steps_v1';
+const PORT_MOVE_KEY = 'shahdara_port_moves_v1';
+function loadMigrationSteps() {
+  try { return normalizeMigrationStepList(JSON.parse(localStorage.getItem(MIGRATION_STEP_KEY) || '[]')); } catch { return []; }
+}
+function saveMigrationSteps(list) {
+  try { localStorage.setItem(MIGRATION_STEP_KEY, JSON.stringify(normalizeMigrationStepList(list))); } catch { /* migration steps only: a failed save leaves the previous list in place */ }
+}
+function loadPortMoves() {
+  try { return normalizePortMoveList(JSON.parse(localStorage.getItem(PORT_MOVE_KEY) || '[]')); } catch { return []; }
+}
+function savePortMoves(list) {
+  try { localStorage.setItem(PORT_MOVE_KEY, JSON.stringify(normalizePortMoveList(list))); } catch { /* port moves only: a failed save leaves the previous list in place */ }
+}
+let migrationChecklistBound = false;
+function renderMigrationChecklist() {
+  const stepBodyEl = $('#migStepBody');
+  const moveBodyEl = $('#migMoveBody');
+  if (!stepBodyEl || !moveBodyEl) return;
+  const steps = loadMigrationSteps();
+  stepBodyEl.innerHTML = steps.length ? migrationStepAllHtml(steps) : '<p>No migration steps.</p>';
+  const summaryEl = $('#migSummary');
+  if (summaryEl) summaryEl.textContent = `${migrationStepSummaryText(steps)}; ${portMoveSummaryText(loadPortMoves())}.`;
+  const customerFilter = ($('#migMoveFilter')?.value ?? '').trim();
+  const dateFilter = ($('#migMoveDateFilter')?.value ?? '').trim();
+  let moves = portMovesSorted(loadPortMoves());
+  if (customerFilter) moves = portMovesForCustomer(moves, customerFilter);
+  if (dateFilter) moves = portMovesOnDate(moves, dateFilter);
+  moveBodyEl.innerHTML = moves.length ? portMoveAllHtml(moves) : '<p>No port moves logged.</p>';
+  if (!migrationChecklistBound) {
+    migrationChecklistBound = true;
+    $('#migExportStepsBtn')?.addEventListener('click', () => { downloadCsvFile(migrationStepFilename(), migrationStepCsv(loadMigrationSteps())); });
+    $('#migExportMovesBtn')?.addEventListener('click', () => { downloadCsvFile(portMoveFilename(), portMoveCsv(loadPortMoves())); });
+    $('#migStepSaveBtn')?.addEventListener('click', () => {
+      const next = upsertMigrationStep(loadMigrationSteps(), {
+        id: $('#migStepId')?.value ?? '',
+        order: $('#migStepOrder')?.value ?? '',
+        step: $('#migStepText')?.value ?? '',
+        done: false, doneDate: '', doneBy: '',
+      });
+      saveMigrationSteps(next); renderMigrationChecklist();
+    });
+    $('#migStepDoneBtn')?.addEventListener('click', () => {
+      saveMigrationSteps(markMigrationStepDone(loadMigrationSteps(), $('#migStepDoneId')?.value ?? '', $('#migStepDoneDate')?.value ?? '', $('#migStepDoneBy')?.value ?? ''));
+      renderMigrationChecklist();
+    });
+    $('#migStepUndoneBtn')?.addEventListener('click', () => {
+      saveMigrationSteps(markMigrationStepUndone(loadMigrationSteps(), $('#migStepDoneId')?.value ?? ''));
+      renderMigrationChecklist();
+    });
+    $('#migStepRemoveBtn')?.addEventListener('click', () => {
+      saveMigrationSteps(removeMigrationStep(loadMigrationSteps(), $('#migStepDoneId')?.value ?? ''));
+      renderMigrationChecklist();
+    });
+    $('#migStarterBtn')?.addEventListener('click', () => {
+      let next = loadMigrationSteps();
+      for (const starter of migrationStepStarters()) next = upsertMigrationStep(next, starter);
+      saveMigrationSteps(next); renderMigrationChecklist();
+    });
+    $('#migMoveSaveBtn')?.addEventListener('click', () => {
+      const next = upsertPortMove(loadPortMoves(), {
+        id: $('#migMoveId')?.value ?? '',
+        customerId: $('#migMoveCustomer')?.value ?? '',
+        oldUnit: $('#migMoveOldUnit')?.value ?? '',
+        oldPort: $('#migMoveOldPort')?.value ?? '',
+        newUnit: $('#migMoveNewUnit')?.value ?? '',
+        newPort: $('#migMoveNewPort')?.value ?? '',
+        date: $('#migMoveDate')?.value ?? '',
+        reason: $('#migMoveReason')?.value ?? '',
+      });
+      savePortMoves(next); renderMigrationChecklist();
+    });
+    $('#migMoveRemoveBtn')?.addEventListener('click', () => {
+      savePortMoves(removePortMove(loadPortMoves(), $('#migMoveId')?.value ?? ''));
+      renderMigrationChecklist();
+    });
+    $('#migMoveFilter')?.addEventListener('input', () => { renderMigrationChecklist(); });
+    $('#migMoveDateFilter')?.addEventListener('input', () => { renderMigrationChecklist(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

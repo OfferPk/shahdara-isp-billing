@@ -268,6 +268,7 @@ import { normalizeSatisfactionNoteList, findSatisfactionNote, upsertSatisfaction
 import { normalizeChangeRequestList, findChangeRequest, upsertChangeRequest, removeChangeRequest, setChangeRequestStatus, changeRequestQueue, changeRequestSummaryText, changeRequestsHtml, changeRequestsCsv, changeRequestFilename, CHANGE_REQUEST_TYPE_LABELS, CHANGE_REQUEST_STATUS_LABELS } from './change-requests.js';
 import { normalizeStockRowList, normalizeStockMovementList, removeStockRow, setStockMinimum, receiveStock, issueStock, returnFaultyStock, lowStockSignals, stockSummaryText, stockRowsHtml, stockMovementsHtml, stockCsv, stockFilename, STOCK_ITEM_LABELS, STOCK_LOCATION_LABELS } from './stock-register.js';
 import { DEPENDENCY_TYPE_OPTIONS, normalizeDependencyList, upsertDependency, removeDependency, buildDependencyBlastRadii, dependencySummaryText, dependencyRegisterHtml, dependencyBlastRadiusHtml, dependencyCsv, dependencyFilename } from './dependency-register.js';
+import { POWER_STATE_OPTIONS, normalizePowerLog, upsertPowerEntry, removePowerEntry, powerHistoryForSite, latestPowerStatePerSite, powerSummaryText, latestPowerHtml, powerLogHtml, powerCsv, powerFilename } from './power-status-log.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13161,6 +13162,7 @@ function renderAnalytics() {
   renderChangeRequests();
   renderStockRegister();
   renderDependencyRegister();
+  renderPowerStatusLog();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -13744,6 +13746,87 @@ function renderDependencyRegister() {
     $('#dependencyRegisterExportBtn')?.addEventListener('click', () => {
       const current = loadDependencies();
       downloadCsvFile(dependencyFilename(localDate()), dependencyCsv(current, buildDependencyBlastRadii(current, dependencyRegisterContext())));
+    });
+  }
+}
+// Plan 53: site power and backup-power status log. A manual log only:
+// the operator notes the power state at a site (mains, backup
+// battery, generator, or out) with the time noted and a short note.
+// It measures nothing, times nothing, and never opens, closes, or
+// alters a fault ticket on its own; an entry may name a ticket so
+// the ticket can be traced back to the state noted at the time.
+const POWER_STATUS_LOG_KEY = 'shahdara_power_status_log_v1';
+let powerStatusLogBound = false;
+let powerStatusLogSiteFilter = '';
+function loadPowerStatusLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(POWER_STATUS_LOG_KEY) || '[]');
+    return normalizePowerLog(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function savePowerStatusLog(list) {
+  try {
+    localStorage.setItem(POWER_STATUS_LOG_KEY, JSON.stringify(normalizePowerLog(list)));
+  } catch {}
+}
+function renderPowerStatusLog() {
+  const bodyEl = $('#powerStatusLogBody');
+  if (!bodyEl) return;
+  const list = loadPowerStatusLog();
+  const latest = latestPowerStatePerSite(list);
+  const latestEl = $('#powerStatusLogLatest');
+  if (latestEl) latestEl.innerHTML = latestPowerHtml(latest);
+  const summaryEl = $('#powerStatusLogSummary');
+  if (summaryEl) summaryEl.textContent = powerSummaryText(list);
+  const history = powerHistoryForSite(list, powerStatusLogSiteFilter);
+  bodyEl.innerHTML = powerLogHtml(history);
+  const siteEl = $('#powerStatusLogSiteFilter');
+  if (siteEl && document.activeElement !== siteEl) {
+    const options = latest.map((entry) => `<option value="${escapeHtml(entry.siteKey)}">${escapeHtml(entry.site)}</option>`).join('');
+    siteEl.innerHTML = `<option value="">All sites</option>${options}`;
+    siteEl.value = powerStatusLogSiteFilter;
+  }
+  const selectEl = $('#powerStatusLogSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = list.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.site)} — ${escapeHtml(entry.stateLabel)} — ${escapeHtml(entry.notedAt)}</option>`).join('')
+      || '<option value="">No power notes yet</option>';
+  }
+  const stateEl = $('#powerStatusLogState');
+  if (stateEl && !stateEl.dataset.populated) {
+    stateEl.dataset.populated = '1';
+    stateEl.innerHTML = POWER_STATE_OPTIONS.map((o) => `<option value="${escapeHtml(o.key)}">${escapeHtml(o.label)}</option>`).join('');
+  }
+  if (!powerStatusLogBound) {
+    powerStatusLogBound = true;
+    $('#powerStatusLogSiteFilter')?.addEventListener('change', (event) => {
+      powerStatusLogSiteFilter = event.target.value ?? '';
+      renderPowerStatusLog();
+    });
+    $('#powerStatusLogRecordBtn')?.addEventListener('click', () => {
+      const before = loadPowerStatusLog();
+      const next = upsertPowerEntry(before, {
+        id: `power-${Date.now()}`,
+        site: $('#powerStatusLogSite')?.value ?? '',
+        state: $('#powerStatusLogState')?.value ?? '',
+        notedAt: $('#powerStatusLogTime')?.value ?? '',
+        note: $('#powerStatusLogNote')?.value ?? '',
+        ticketId: $('#powerStatusLogTicket')?.value ?? '',
+      });
+      if (next.length === before.length) {
+        toast('A power note needs a site, a known state, and a real date and time.');
+        return;
+      }
+      savePowerStatusLog(next);
+      renderPowerStatusLog();
+    });
+    $('#powerStatusLogRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#powerStatusLogSelect')?.value ?? '';
+      if (!id) return;
+      savePowerStatusLog(removePowerEntry(loadPowerStatusLog(), id));
+      renderPowerStatusLog();
+    });
+    $('#powerStatusLogExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(powerFilename(localDate()), powerCsv(loadPowerStatusLog()));
     });
   }
 }

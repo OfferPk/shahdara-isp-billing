@@ -313,6 +313,7 @@ import { normalizePriceNoticeList, upsertPriceNotice, removePriceNotice, buildNo
 import { TERMS_ACK_METHODS, TERMS_ACK_METHOD_LABELS, normalizeTermsAckList, upsertTermsAck, removeTermsAck, findTermsAck, customerTermsStatus, buildCustomerTermsRows, filterTermsAcks, termsAckSummaryText, termsAckHtml, termsAckStatusHtml, termsAckCsv, termsAckFilename } from './terms-ack.js';
 import { OPEN_SUGGESTION_STATUSES, suggestionStatusLabel, normalizeSuggestionList, upsertSuggestion, removeSuggestion, filterSuggestions, moveSuggestion, suggestionSummaryText, suggestionHtml, suggestionCsv, suggestionFilename } from './suggestion-log.js';
 import { normalizePromoList, upsertPromo, removePromo, promoStatus, promoStatusLabel, filterPromos, normalizePromoApplicationList, recordPromoApplication, removePromoApplication, promoSummaryText, promoHtml, promoApplicationHtml, promoCsv, promoApplicationCsv, promoFilename } from './promo-offers.js';
+import { normalizeAssignmentList, upsertAssignment, removeAssignment, canonicalCollectorMohalla, collectorsList, unassignedMohallas, collectorPreview, assignmentSummaryText, assignmentHtml, assignmentCsv, assignmentFilename } from './collector-assignments.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13693,6 +13694,7 @@ function renderAnalytics() {
   renderTermsAck();
   renderSuggestions();
   renderPromoOffers();
+  renderCollectorAssignments();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -18953,6 +18955,96 @@ function renderPromoOffers() {
       if (!recordId) { toast('Pick an application first.'); return; }
       savePromoApplications(removePromoApplication(loadPromoApplications(), recordId));
       renderPromoOffers();
+    });
+  }
+}
+// Plan 99: mohalla-to-collector assignment record. The record only
+// states which collector covers which mohalla, and the three queues
+// (route list, visit queue, dispatch queue) are each filterable to a
+// collector's mohallas through the pure filter in
+// collector-assignments.js. Assigning or reassigning a mohalla changes
+// no other record: it only moves future filtered views, and an
+// unassigned mohalla stays visible in the owner view, which always
+// shows every mohalla together.
+const COLLECTOR_ASSIGNMENTS_KEY = 'shahdara_collector_assignments_v1';
+function loadCollectorAssignments() {
+  try {
+    const raw = localStorage.getItem(COLLECTOR_ASSIGNMENTS_KEY);
+    if (!raw) return [];
+    return normalizeAssignmentList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveCollectorAssignments(list) {
+  try { localStorage.setItem(COLLECTOR_ASSIGNMENTS_KEY, JSON.stringify(normalizeAssignmentList(list))); } catch { /* record only: a failed save leaves the previous assignments in place */ }
+}
+let collectorAssignmentsBound = false;
+function renderCollectorAssignments() {
+  const bodyEl = $('#collectorAssignBody');
+  if (!bodyEl) return;
+  const records = loadCollectorAssignments();
+  const customers = (state.customers ?? []).filter((c) => c && c.id);
+  const mohallaKeys = new Map();
+  for (const name of DEFAULT_MOHALLAS) {
+    const key = canonicalCollectorMohalla(name);
+    if (key) mohallaKeys.set(key, key);
+  }
+  for (const c of customers) {
+    const key = canonicalCollectorMohalla(c.mohalla || c.area || '');
+    if (key) mohallaKeys.set(key, key);
+  }
+  const allMohallas = [...mohallaKeys.keys()].sort((a, b) => a.localeCompare(b));
+  const mohallaEl = $('#collectorAssignMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    mohallaEl.innerHTML = allMohallas.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('')
+      || '<option value="">No mohallas yet</option>';
+  }
+  const previewEl = $('#collectorAssignPreview');
+  if (previewEl && document.activeElement !== previewEl) {
+    const collectors = collectorsList(records);
+    previewEl.innerHTML = '<option value="">Owner view (all mohallas)</option>'
+      + collectors.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  }
+  bodyEl.innerHTML = assignmentHtml(records);
+  const summaryEl = $('#collectorAssignSummary');
+  if (summaryEl) summaryEl.textContent = assignmentSummaryText(records, allMohallas);
+  const unassignedEl = $('#collectorAssignUnassignedBody');
+  if (unassignedEl) {
+    const unassigned = unassignedMohallas(allMohallas, records);
+    unassignedEl.textContent = unassigned.length === 0
+      ? 'Every mohalla is assigned.'
+      : `Unassigned (still visible to the owner): ${unassigned.join(', ')}`;
+  }
+  const previewBodyEl = $('#collectorAssignPreviewBody');
+  if (previewBodyEl) {
+    const collector = previewEl?.value ?? '';
+    const preview = collectorPreview(records, collector, customers);
+    previewBodyEl.textContent = collector
+      ? `${collector} covers ${preview.mohallas.length === 0 ? 'no mohalla yet' : preview.mohallas.join(', ')} — ${preview.filteredCount} of ${preview.total} customers in the filtered route view.`
+      : `Owner view: all ${preview.total} customers across every mohalla, assigned or not.`;
+  }
+  if (!collectorAssignmentsBound) {
+    collectorAssignmentsBound = true;
+    $('#collectorAssignSaveBtn')?.addEventListener('click', () => {
+      const mohalla = $('#collectorAssignMohalla')?.value ?? '';
+      const collector = $('#collectorAssignCollector')?.value ?? '';
+      if (!mohalla || !collector.trim()) { toast('Pick a mohalla and type a collector name first.'); return; }
+      const current = loadCollectorAssignments();
+      const next = upsertAssignment(current, { id: `CA-${Date.now()}`, mohalla, collector });
+      if (!next.some((row) => row.mohalla === canonicalCollectorMohalla(mohalla) && row.collector === collector.trim())) { toast('That assignment is half-formed and was not recorded.'); return; }
+      saveCollectorAssignments(next);
+      toast('Mohalla assigned. Future route, visit, and dispatch views for that collector show only their mohallas.');
+      renderCollectorAssignments();
+    });
+    $('#collectorAssignRemoveBtn')?.addEventListener('click', () => {
+      const mohalla = $('#collectorAssignMohalla')?.value ?? '';
+      if (!mohalla) { toast('Pick a mohalla first.'); return; }
+      saveCollectorAssignments(removeAssignment(loadCollectorAssignments(), mohalla));
+      toast('Assignment removed. That mohalla is unassigned again and stays visible to the owner.');
+      renderCollectorAssignments();
+    });
+    $('#collectorAssignPreview')?.addEventListener('change', () => renderCollectorAssignments());
+    $('#collectorAssignExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(assignmentFilename(), assignmentCsv(loadCollectorAssignments()));
     });
   }
 }

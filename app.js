@@ -279,6 +279,7 @@ import { DISPUTE_REASONS, DISPUTE_REASON_LABELS, DISPUTE_STATUSES, DISPUTE_STATU
 import { splitBillBalance, splitBillList, adjustLadderBills, disputeTotalsForCustomer, buildDisputedReminderDraft, DISPUTED_REMINDER_VARIANTS, disputedBalanceSummaryText, disputedBalanceHtml, disputedBalanceCsv, disputedBalanceFilename } from './disputed-balance.js';
 import { CLAIM_CHANNELS, CLAIM_CHANNEL_LABELS, CLAIM_OUTCOMES, CLAIM_OUTCOME_LABELS, normalizePaymentClaim, normalizePaymentClaimList, upsertPaymentClaim, removePaymentClaim, setClaimOutcome, closePaymentClaim, reopenPaymentClaim, openPaymentClaims, buildClaimSummary, claimSummaryText, claimHtml, claimCsv, claimFilename } from './payment-claims.js';
 import { RESOLUTION_PATHS, RESOLUTION_PATH_LABELS, normalizeResolution, normalizeDisputeResolutionList, upsertResolution, removeResolution, findResolution, resolutionReadiness, resolutionChecklist, buildResolutionSummaryWithThreshold, resolutionSummaryText, resolutionHtml, resolutionCsv, resolutionFilename, checklistHtml } from './dispute-resolutions.js';
+import { DISPUTE_LETTER_VARIANTS, normalizeLetterVariant, letterStatus, buildOutcomeLetter, letterSentText, buildMonthlyDisputeView, monthlyDisputeViewText, monthlyDisputeHtml, monthlyDisputeCsv, monthlyDisputeFilename, logLetterSent, findLetterSends, letterHtml } from './dispute-letters.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13235,6 +13236,7 @@ function renderAnalytics() {
   renderDisputedBalances();
   renderPaymentClaims();
   renderDisputeResolutions();
+  renderDisputeLetters();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -15131,6 +15133,111 @@ function renderDisputeResolutions() {
     });
     $('#resolutionExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(resolutionFilename(), resolutionCsv(loadDisputeResolutions()));
+    });
+  }
+}
+
+// Plan 65: dispute outcome letter draft and monthly dispute-reason
+// view. The letter is composed fresh from the resolved case (Plan
+// 61) and its resolution (Plan 64) plus operator-typed ledger
+// figures; a blank ledger figure leaves the balance unrecorded,
+// never guessed. Sending goes through the existing WhatsApp route
+// only, respects Plan 15 contact preferences, and is logged in its
+// own store. Drafting, sending, or viewing never changes any bill,
+// payment, case, or Waada record.
+const DISPUTE_LETTERS_SENT_KEY = 'shahdara_dispute_letters_sent_v1';
+let disputeLettersBound = false;
+function loadDisputeLetterSentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(DISPUTE_LETTERS_SENT_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveDisputeLetterSentLog(list) {
+  try { localStorage.setItem(DISPUTE_LETTERS_SENT_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch {}
+}
+function disputeLetterForCase(caseId) {
+  const cases = loadDisputeCases();
+  const caseRecord = cases.find((entry) => entry.id === caseId) ?? null;
+  if (!caseRecord) return null;
+  const resolution = findResolution(loadDisputeResolutions(), caseId);
+  const status = letterStatus(caseRecord, resolution);
+  if (status !== 'ready') return { status, caseRecord, resolution: null, letter: null };
+  const variant = normalizeLetterVariant($('#disputeLetterVariant')?.value ?? '');
+  const billTotalRaw = ($('#disputeLetterBillTotal')?.value ?? '').trim();
+  const paymentsRaw = ($('#disputeLetterPayments')?.value ?? '').trim();
+  const letter = buildOutcomeLetter({
+    caseRecord,
+    resolution,
+    billTotal: billTotalRaw === '' ? null : billTotalRaw,
+    paymentsReceived: paymentsRaw === '' ? null : paymentsRaw,
+    variant,
+  });
+  return { status, caseRecord, resolution, letter };
+}
+function renderDisputeLetters() {
+  const bodyEl = $('#disputeLetterBody');
+  if (!bodyEl) return;
+  const cases = loadDisputeCases();
+  const names = {};
+  for (const c of state.customers ?? []) names[c.id] = c.name || c.customerName || c.id;
+  const caseEl = $('#disputeLetterCase');
+  if (caseEl && document.activeElement !== caseEl) {
+    caseEl.innerHTML = cases.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(entry.billId)} (${escapeHtml(DISPUTE_STATUS_LABELS[entry.status])})</option>`).join('')
+      || '<option value="">No cases yet</option>';
+  }
+  const picked = disputeLetterForCase(caseEl?.value ?? '');
+  const draftEl = $('#disputeLetterDraft');
+  const sendBtn = $('#disputeLetterSendBtn');
+  const pref = picked?.caseRecord ? findContactPreference(loadContactPreferences(), picked.caseRecord.customerId) : null;
+  if (!picked || !picked.caseRecord) {
+    if (draftEl) draftEl.innerHTML = '<p style="font-size: 12px;">Pick a case to see its outcome letter.</p>';
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Send letter via WhatsApp'; }
+  } else if (picked.status === 'not_resolved') {
+    if (draftEl) draftEl.innerHTML = '<p style="font-size: 12px;">Outcome letters are offered only for resolved cases. This case is still open.</p>';
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Send letter via WhatsApp'; }
+  } else if (picked.status === 'awaiting') {
+    if (draftEl) draftEl.innerHTML = '<p style="font-size: 12px;">This resolved case is still awaiting its letter — record its finding and outcome in the resolution panel above first. Nothing is invented for it.</p>';
+    if (sendBtn) { sendBtn.disabled = true; sendBtn.textContent = 'Send letter via WhatsApp'; }
+  } else {
+    const sends = findLetterSends(loadDisputeLetterSentLog(), picked.caseRecord.id);
+    if (draftEl) draftEl.innerHTML = letterHtml(picked.letter, { draftText: picked.letter.text, sends });
+    if (sendBtn) {
+      sendBtn.disabled = Boolean(pref && pref.doNotMessage);
+      sendBtn.textContent = pref && pref.doNotMessage ? 'Do not message' : (sends.length > 0 ? 'Re-send letter' : 'Send letter via WhatsApp');
+    }
+  }
+  const sentEl = $('#disputeLetterSent');
+  if (sentEl) sentEl.textContent = picked?.caseRecord ? letterSentText(findLetterSends(loadDisputeLetterSentLog(), picked.caseRecord.id)) : '';
+  const month = $('#disputeLetterMonth')?.value || '';
+  const view = buildMonthlyDisputeView(cases, loadDisputeResolutions(), month);
+  const viewEl = $('#disputeLetterMonthly');
+  if (viewEl) viewEl.innerHTML = monthlyDisputeHtml(view);
+  const summaryEl = $('#disputeLetterSummary');
+  if (summaryEl) summaryEl.textContent = monthlyDisputeViewText(view);
+  if (!disputeLettersBound) {
+    disputeLettersBound = true;
+    $('#disputeLetterCase')?.addEventListener('change', () => renderDisputeLetters());
+    $('#disputeLetterVariant')?.addEventListener('change', () => renderDisputeLetters());
+    $('#disputeLetterShowBtn')?.addEventListener('click', () => renderDisputeLetters());
+    $('#disputeLetterMonth')?.addEventListener('change', () => renderDisputeLetters());
+    $('#disputeLetterSendBtn')?.addEventListener('click', (event) => {
+      const button = event.currentTarget;
+      const pickedNow = disputeLetterForCase($('#disputeLetterCase')?.value ?? '');
+      if (!pickedNow?.letter) { button.disabled = true; return; }
+      const prefNow = findContactPreference(loadContactPreferences(), pickedNow.caseRecord.customerId);
+      if (prefNow && prefNow.doNotMessage) { button.disabled = true; button.textContent = 'Do not message'; return; }
+      const customer = (state.customers ?? []).find((c) => c.id === pickedNow.caseRecord.customerId) ?? null;
+      const wa = formatWhatsAppUrl(prefNow && prefNow.whatsappNumber ? prefNow.whatsappNumber : (customer ? whatsappPhoneFor(customer) : ''), pickedNow.letter.text);
+      if (!wa.validPhone || !wa.url) { button.disabled = true; button.textContent = 'No WhatsApp number'; return; }
+      window.open(wa.url, '_blank', 'noopener,noreferrer');
+      saveDisputeLetterSentLog(logLetterSent(loadDisputeLetterSentLog(), { caseId: pickedNow.caseRecord.id, customerId: pickedNow.caseRecord.customerId, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: pickedNow.letter.variant }));
+      toast('Outcome letter sent. Sending it changes no bill, payment, or case record.');
+      renderDisputeLetters();
+    });
+    $('#disputeLetterExportBtn')?.addEventListener('click', () => {
+      const exportMonth = $('#disputeLetterMonth')?.value || '';
+      downloadCsvFile(monthlyDisputeFilename(exportMonth), monthlyDisputeCsv(buildMonthlyDisputeView(loadDisputeCases(), loadDisputeResolutions(), exportMonth)));
     });
   }
 }

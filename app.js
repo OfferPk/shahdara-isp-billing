@@ -334,6 +334,7 @@ import { normalizeCashReconList, addCashRecon, lockCashRecon, cashReconsForMonth
 import { normalizeDepositSlipList, addDepositSlip, findDepositSlip, depositSlipsForMonth, depositedTotalForMonth, verifyAgainstDepositedTotal, depositSlipSummaryText, depositSlipHtml, depositSlipCsv, depositSlipFilename } from './deposit-slips.js';
 import { normalizeReceiptReprintList, addReceiptReprint, reprintsForReceipt, originalReceiptView, reprintCopy, receiptReprintSummaryText, receiptReprintHtml, originalReceiptHtml, receiptReprintCsv, receiptReprintFilename } from './receipt-reprints.js';
 import { normalizeReceiptSeriesList, addReceiptSeries, findReceiptSeries, seriesForCollector, seriesForNumber, returnReceiptSeries, normalizeReissueList, reissueUnusedNumber, returnedSeriesBreakdown, receiptSeriesSummaryText, receiptSeriesHtml, reissueHtml, receiptSeriesCsv, reissueCsv, receiptSeriesFilename, reissueFilename } from './receipt-series.js';
+import { normalizeClearanceList, recordClearance, markCleared, markBounced, pendingClearances, clearedClearances, billClearanceStatus, billSettledByClearance, clearanceSummaryText, clearanceHtml, clearanceCsv, clearanceFilename } from './payment-clearance.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13851,6 +13852,7 @@ function renderAnalytics() {
   renderDepositSlips();
   renderReceiptReprints();
   renderReceiptSeries();
+  renderPaymentClearance();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21289,6 +21291,94 @@ function renderReceiptSeries() {
     $('#receiptSeriesExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(receiptSeriesFilename(), receiptSeriesCsv(loadReceiptSeries()));
       downloadCsvFile(reissueFilename(), reissueCsv(loadReceiptReissues()));
+    });
+  }
+}
+const PAYMENT_CLEARANCE_KEY = 'shahdara_payment_clearance_v1';
+function loadPaymentClearance() {
+  try {
+    const raw = localStorage.getItem(PAYMENT_CLEARANCE_KEY);
+    if (!raw) return [];
+    return normalizeClearanceList(JSON.parse(raw));
+  } catch { return []; }
+}
+function savePaymentClearance(list) {
+  try { localStorage.setItem(PAYMENT_CLEARANCE_KEY, JSON.stringify(normalizeClearanceList(list))); } catch { /* record only: a failed save leaves the previous clearance records in place */ }
+}
+let paymentClearanceBound = false;
+function renderPaymentClearance() {
+  const bodyEl = $('#clearanceBody');
+  if (!bodyEl) return;
+  const all = loadPaymentClearance();
+  bodyEl.innerHTML = all.map((item) => clearanceHtml(item)).join('') || '<p>No cheque or bank transfer clearance recorded yet.</p>';
+  const summaryEl = $('#clearanceSummary');
+  if (summaryEl) summaryEl.textContent = clearanceSummaryText(all);
+  const pendingEl = $('#clearancePendingBody');
+  if (pendingEl) {
+    const pending = pendingClearances(all);
+    pendingEl.innerHTML = pending.map((item) => clearanceHtml(item)).join('') || '<p>No pending payments. Nothing is waiting on clearance.</p>';
+  }
+  const clearedEl = $('#clearanceClearedBody');
+  if (clearedEl) {
+    const cleared = clearedClearances(all);
+    clearedEl.innerHTML = cleared.map((item) => clearanceHtml(item)).join('') || '<p>No cleared collections yet.</p>';
+  }
+  if (!paymentClearanceBound) {
+    paymentClearanceBound = true;
+    $('#clearanceSaveBtn')?.addEventListener('click', () => {
+      const before = loadPaymentClearance();
+      const next = recordClearance(before, {
+        id: `PC-${Date.now()}`,
+        paymentId: $('#clearancePaymentId')?.value ?? '',
+        customer: $('#clearanceCustomer')?.value ?? '',
+        billId: $('#clearanceBillId')?.value ?? '',
+        method: $('#clearanceMethod')?.value ?? '',
+        status: 'pending',
+        dateRecorded: $('#clearanceDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Clearance not recorded: pick a payment id, a customer, cheque or bank transfer, and a real recorded date.'); return; }
+      savePaymentClearance(next);
+      toast('Payment marked pending clearance. It settles nothing until it is marked cleared.');
+      renderPaymentClearance();
+    });
+    $('#clearanceMarkClearedBtn')?.addEventListener('click', () => {
+      const before = loadPaymentClearance();
+      const paymentId = ($('#clearanceMarkPaymentId')?.value ?? '').trim();
+      const date = $('#clearanceMarkDate')?.value ?? '';
+      const next = markCleared(before, paymentId, date);
+      const target = next.find((item) => item.paymentId === paymentId);
+      if (!target || target.status !== 'cleared' || target.decisionDate !== date) { toast('Not marked cleared: pick a payment still pending and a real decision date.'); return; }
+      savePaymentClearance(next);
+      toast('Payment cleared. Its bill may now count it as settled.');
+      renderPaymentClearance();
+    });
+    $('#clearanceMarkBouncedBtn')?.addEventListener('click', () => {
+      const before = loadPaymentClearance();
+      const paymentId = ($('#clearanceMarkPaymentId')?.value ?? '').trim();
+      const date = $('#clearanceMarkDate')?.value ?? '';
+      const note = $('#clearanceMarkNote')?.value ?? '';
+      const next = markBounced(before, paymentId, date, note);
+      const target = next.find((item) => item.paymentId === paymentId);
+      if (!target || target.status !== 'bounced' || target.decisionDate !== date) { toast('Not marked bounced: pick a payment still pending, a real decision date, and a note saying why it bounced.'); return; }
+      savePaymentClearance(next);
+      toast('Payment bounced. Its bill is outstanding again, with the reason on record.');
+      renderPaymentClearance();
+    });
+    $('#clearanceBillLookup')?.addEventListener('input', () => {
+      const resultEl = $('#clearanceBillResult');
+      if (!resultEl) return;
+      const billId = ($('#clearanceBillLookup')?.value ?? '').trim();
+      if (!billId) { resultEl.textContent = ''; return; }
+      const status = billClearanceStatus(loadPaymentClearance(), billId);
+      if (!status) { resultEl.textContent = `Bill ${billId}: no cheque or bank transfer payment tracked for this bill.`; return; }
+      resultEl.textContent = status === 'bounced'
+        ? `Bill ${billId}: bounced — outstanding again. A pending or cleared payment never hides a bounce.`
+        : status === 'pending'
+          ? `Bill ${billId}: pending — not settled yet. It settles only when every tracked payment is cleared.`
+          : `Bill ${billId}: cleared — settled by clearance.`;
+    });
+    $('#clearanceExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(clearanceFilename(), clearanceCsv(loadPaymentClearance()));
     });
   }
 }

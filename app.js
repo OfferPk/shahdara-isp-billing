@@ -280,6 +280,7 @@ import { splitBillBalance, splitBillList, adjustLadderBills, disputeTotalsForCus
 import { CLAIM_CHANNELS, CLAIM_CHANNEL_LABELS, CLAIM_OUTCOMES, CLAIM_OUTCOME_LABELS, normalizePaymentClaim, normalizePaymentClaimList, upsertPaymentClaim, removePaymentClaim, setClaimOutcome, closePaymentClaim, reopenPaymentClaim, openPaymentClaims, buildClaimSummary, claimSummaryText, claimHtml, claimCsv, claimFilename } from './payment-claims.js';
 import { RESOLUTION_PATHS, RESOLUTION_PATH_LABELS, normalizeResolution, normalizeDisputeResolutionList, upsertResolution, removeResolution, findResolution, resolutionReadiness, resolutionChecklist, buildResolutionSummaryWithThreshold, resolutionSummaryText, resolutionHtml, resolutionCsv, resolutionFilename, checklistHtml } from './dispute-resolutions.js';
 import { DISPUTE_LETTER_VARIANTS, normalizeLetterVariant, letterStatus, buildOutcomeLetter, letterSentText, buildMonthlyDisputeView, monthlyDisputeViewText, monthlyDisputeHtml, monthlyDisputeCsv, monthlyDisputeFilename, logLetterSent, findLetterSends, letterHtml } from './dispute-letters.js';
+import { answerPucho, buildMorningQueue, puchoHtml, puchoCatalogueHtml, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13237,6 +13238,7 @@ function renderAnalytics() {
   renderPaymentClaims();
   renderDisputeResolutions();
   renderDisputeLetters();
+  renderPuchoBox();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -15238,6 +15240,91 @@ function renderDisputeLetters() {
     $('#disputeLetterExportBtn')?.addEventListener('click', () => {
       const exportMonth = $('#disputeLetterMonth')?.value || '';
       downloadCsvFile(monthlyDisputeFilename(exportMonth), monthlyDisputeCsv(buildMonthlyDisputeView(loadDisputeCases(), loadDisputeResolutions(), exportMonth)));
+    });
+  }
+}
+// Plan 66 (Plan 1-100) — Co-pilot "Pucho" box. The box gathers the
+// app's existing records into the pure module's caller-supplied
+// shape and renders its answers. Asking changes nothing: no bill,
+// payment, Waada, ticket, or customer record is written here, and
+// every action button only reminds the operator to confirm the
+// action on its existing source screen.
+let puchoBound = false;
+let puchoLastQuestion = '';
+function puchoData() {
+  const today = localDate();
+  const allocations = calculatePaymentAllocations(state);
+  const customers = (state.customers ?? []).filter((c) => !c.archived);
+  const nameOf = (c) => c.name || c.customerName || c.id;
+  const mohallaOf = (c) => c.mohalla || c.area || '';
+  const dues = [];
+  const expiries = [];
+  const waada = [];
+  const payments = [];
+  for (const customer of customers) {
+    const outstanding = totalOutstandingFigures(customer, allocations).totalCents;
+    if (outstanding > 0) dues.push({ customerId: customer.id, customerName: nameOf(customer), mohalla: mohallaOf(customer), outstandingCents: outstanding });
+    if (customer.expiryDate) expiries.push({ customerId: customer.id, customerName: nameOf(customer), mohalla: mohallaOf(customer), expiryDate: customer.expiryDate });
+    if (customer.promiseDate) waada.push({ customerId: customer.id, customerName: nameOf(customer), mohalla: mohallaOf(customer), promiseDate: customer.promiseDate, promiseAmountCents: customer.promiseAmount === null || customer.promiseAmount === undefined || customer.promiseAmount === '' ? null : Math.round(Number(customer.promiseAmount) * 100) });
+    for (const bill of customer.bills ?? []) {
+      for (const payment of bill.payments ?? []) {
+        if (!payment || !Number.isFinite(Number(payment.amount))) continue;
+        payments.push({ date: payment.date, amountCents: Math.round(Number(payment.amount) * 100), voided: payment.voided === true, customerName: nameOf(customer) });
+      }
+    }
+  }
+  const suspense = loadSuspensePayments().filter((entry) => !entry.claimed).map((entry) => ({ id: entry.suspenseId, amountCents: Math.round(Number(entry.amount) * 100), date: entry.date, claimed: false }));
+  const tickets = ticketLogJoinedRows().map((ticket) => ({ id: ticket.id, customerId: ticket.customerId, customerName: ticket.customerName, mohalla: ticket.mohalla, category: ticket.category, priority: ticket.priority, status: ticket.status, reportedDate: ticket.reportedDate }));
+  const repeatFlags = currentRepeatFaultFlags().map((flag) => ({ customerId: flag.customerId, customerName: flag.customerName || flag.customerId, mohalla: flag.mohalla, category: flag.category, count: flag.count, ticketIds: flag.ticketIds ?? (flag.tickets ?? []).map((ticket) => ticket.id) }));
+  const atRisk = (buildAtRiskList({ ...buildAtRiskInputs(), thresholds: loadAtRiskThresholds() }).rows ?? []).map((row) => ({ customerId: row.customerId, customerName: row.customerName, mohalla: row.mohalla, signals: (row.signals ?? []).map((signal) => (signal.detail ? `${signal.label}: ${signal.detail}` : (signal.label || ''))).filter(Boolean) }));
+  const disputeBills = [];
+  for (const customer of customers) {
+    for (const bill of customer.bills ?? []) {
+      const summary = allocations.forMonth(customer.id, bill.month);
+      const balanceDue = summary && summary.balanceDueCents > 0 ? summary.balanceDueCents / 100 : 0;
+      if (!(balanceDue > 0)) continue;
+      disputeBills.push({ customerId: customer.id, customerName: nameOf(customer), mohalla: mohallaOf(customer), billId: bill.id, billMonth: bill.month, total: Math.round(balanceDue) });
+    }
+  }
+  const disputes = splitBillList(disputeBills, openDisputeCases(loadDisputeCases())).map((row) => ({ caseId: (row.caseIds ?? [])[0] ?? '', customerId: row.customerId, customerName: row.customerName, mohalla: row.mohalla, billId: row.billId, billMonth: row.billMonth, totalCents: row.totalCents, disputedCents: row.disputedCents, status: 'open' }));
+  return { today, dues, expiries, waada, suspense, tickets, repeatFlags, atRisk, disputes, payments };
+}
+function renderPuchoBox() {
+  const bodyEl = $('#puchoAnswerBody');
+  if (!bodyEl) return;
+  const catalogueEl = $('#puchoCatalogue');
+  if (catalogueEl) catalogueEl.innerHTML = puchoCatalogueHtml();
+  if (puchoLastQuestion) {
+    bodyEl.innerHTML = puchoHtml(answerPucho(puchoLastQuestion, puchoData()));
+  } else {
+    bodyEl.innerHTML = '<p style="font-size: 12px;">Ask a question above, or open the morning queue.</p>';
+  }
+  if (!puchoBound) {
+    puchoBound = true;
+    $('#puchoAskBtn')?.addEventListener('click', () => {
+      puchoLastQuestion = $('#puchoQuestion')?.value ?? '';
+      renderPuchoBox();
+    });
+    $('#puchoQuestion')?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        puchoLastQuestion = event.currentTarget.value;
+        renderPuchoBox();
+      }
+    });
+    $('#puchoQueueBtn')?.addEventListener('click', () => {
+      puchoLastQuestion = 'morning queue';
+      const input = $('#puchoQuestion');
+      if (input) input.value = 'morning queue';
+      renderPuchoBox();
+    });
+    $('#puchoQueueExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(morningQueueFilename(), morningQueueCsv(buildMorningQueue(puchoData())));
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const button = event.target.closest?.('.pucho-action-btn');
+      if (!button) return;
+      toast(`"${button.dataset.puchoAction}" — asking changes nothing. Confirm this action on the ${button.dataset.puchoSource} screen first.`);
     });
   }
 }

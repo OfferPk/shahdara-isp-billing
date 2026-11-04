@@ -351,6 +351,7 @@ import { normalizeSpareReorderList, upsertSpareReorder, removeSpareReorder, mark
 import { normalizeOnuSignalReadingList, upsertOnuSignalReading, removeOnuSignalReading, onuSignalTrendFlags, onuSignalSummaryText, onuSignalHtml, onuSignalCsv, onuSignalFilename } from './onu-signal-trend.js';
 import { normalizeFieldAttachmentList, upsertFieldAttachment, removeFieldAttachment, fieldAttachmentSummaryText, fieldAttachmentHtml, fieldAttachmentCsv, fieldAttachmentFilename } from './field-attachments.js';
 import { normalizeRouteProofList, upsertRouteProof, removeRouteProof, routeProofSummaryText, routeProofHtml, routeProofDayHtml, routeProofFollowupHtml, routeProofCsv, routeProofFilename } from './route-proof.js';
+import { normalizeSecondVisitList, upsertSecondVisit, removeSecondVisit, markSecondVisitOutcome, secondVisitSummaryText, secondVisitHtml, secondVisitOverdueHtml, secondVisitCsv, secondVisitFilename } from './second-visit.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13885,6 +13886,7 @@ function renderAnalytics() {
   renderOnuSignal();
   renderFieldAttachments();
   renderRouteProofs();
+  renderSecondVisits();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22351,6 +22353,58 @@ function renderRouteProofs() {
     });
     $('#routeProofFilter')?.addEventListener('input', () => { renderRouteProofs(); });
     $('#routeProofDayDate')?.addEventListener('change', () => { renderRouteProofs(); });
+  }
+}
+const SECOND_VISIT_KEY = 'shahdara_second_visits_v1';
+function loadSecondVisits() {
+  try { return normalizeSecondVisitList(JSON.parse(localStorage.getItem(SECOND_VISIT_KEY) || '[]')); } catch { return []; }
+}
+function saveSecondVisits(list) {
+  try { localStorage.setItem(SECOND_VISIT_KEY, JSON.stringify(normalizeSecondVisitList(list))); } catch { /* rule only: a failed save leaves the previous rules in place */ }
+}
+let secondVisitBound = false;
+function renderSecondVisits() {
+  const bodyEl = $('#secondVisitBody');
+  if (!bodyEl) return;
+  const records = loadSecondVisits();
+  bodyEl.innerHTML = secondVisitHtml(records, $('#secondVisitFilter')?.value ?? '');
+  const summaryEl = $('#secondVisitSummary');
+  if (summaryEl) summaryEl.textContent = secondVisitSummaryText(records);
+  const overdueEl = $('#secondVisitOverdueBody');
+  if (overdueEl) overdueEl.innerHTML = secondVisitOverdueHtml(records, new Date().toISOString().slice(0, 10));
+  if (!secondVisitBound) {
+    secondVisitBound = true;
+    $('#secondVisitSaveBtn')?.addEventListener('click', () => {
+      const before = loadSecondVisits();
+      const id = `SV-${Date.now()}`;
+      const next = upsertSecondVisit(before, {
+        id,
+        ticket: $('#secondVisitTicket')?.value ?? '',
+        dueDate: $('#secondVisitDue')?.value ?? '',
+        note: $('#secondVisitNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Second-visit rule not recorded: give a ticket id and a real due date. A ticket with an open rule already cannot gain a second one.'); return; }
+      saveSecondVisits(next);
+      toast('Second-visit rule recorded. Overdue rules stay on the open list until the visit outcome is closed.');
+      renderSecondVisits();
+    });
+    $('#secondVisitOutcomeBtn')?.addEventListener('click', () => {
+      const id = ($('#secondVisitOutcomeId')?.value ?? '').trim();
+      const outcome = $('#secondVisitOutcome')?.value ?? '';
+      if (!id) return;
+      saveSecondVisits(markSecondVisitOutcome(loadSecondVisits(), id, outcome));
+      renderSecondVisits();
+    });
+    $('#secondVisitRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#secondVisitRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveSecondVisits(removeSecondVisit(loadSecondVisits(), id));
+      renderSecondVisits();
+    });
+    $('#secondVisitExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(secondVisitFilename(), secondVisitCsv(loadSecondVisits()));
+    });
+    $('#secondVisitFilter')?.addEventListener('input', () => { renderSecondVisits(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

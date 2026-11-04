@@ -348,6 +348,7 @@ import { normalizeSegmentFaultList, upsertSegmentFault, removeSegmentFault, segm
 import { normalizeOutageTypeList, upsertOutageType, removeOutageType, missingNoticeOutages, outageTypeSummaryText, outageTypeHtml, outageTypeCsv, outageTypeFilename } from './outage-type.js';
 import { normalizeGeneratorFuelList, upsertGeneratorFuel, removeGeneratorFuel, generatorFuelSummaryText, generatorFuelHtml, generatorFuelCsv, generatorFuelFilename } from './generator-fuel-log.js';
 import { normalizeSpareReorderList, upsertSpareReorder, removeSpareReorder, markSpareOrdered, spareReorderSummaryText, spareReorderHtml, spareReorderCsv, spareReorderFilename } from './spare-reorder.js';
+import { normalizeOnuSignalReadingList, upsertOnuSignalReading, removeOnuSignalReading, onuSignalTrendFlags, onuSignalSummaryText, onuSignalHtml, onuSignalCsv, onuSignalFilename } from './onu-signal-trend.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13879,6 +13880,7 @@ function renderAnalytics() {
   renderOutageTypes();
   renderGeneratorFuel();
   renderSpareReorder();
+  renderOnuSignal();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22176,6 +22178,66 @@ function renderSpareReorder() {
     $('#spareReorderExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(spareReorderFilename(), spareReorderCsv(loadSpareReorder()));
     });
+  }
+}
+// Plan 137 (Plan 101-202) — Hand-recorded ONU signal (dBm) trend alerts.
+// This panel reads and writes only its own signal readings. It never
+// reads or writes the SISP signal history on the customer record, never
+// changes the profile's current signal, never reads any live device,
+// never changes any service status, and never changes any bill or
+// payment. A falling trend is a flag for a planned visit only.
+const ONU_SIGNAL_KEY = 'shahdara_onu_signal_trend_v1';
+function loadOnuSignal() {
+  try {
+    const raw = localStorage.getItem(ONU_SIGNAL_KEY);
+    return normalizeOnuSignalReadingList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveOnuSignal(list) {
+  try { localStorage.setItem(ONU_SIGNAL_KEY, JSON.stringify(normalizeOnuSignalReadingList(list))); } catch { /* record only: a failed save leaves the previous readings in place */ }
+}
+let onuSignalBound = false;
+function renderOnuSignal() {
+  const bodyEl = $('#onuSignalBody');
+  if (!bodyEl) return;
+  const records = loadOnuSignal();
+  bodyEl.innerHTML = onuSignalHtml(records, $('#onuSignalFilter')?.value ?? '');
+  const summaryEl = $('#onuSignalSummary');
+  if (summaryEl) summaryEl.textContent = onuSignalSummaryText(records);
+  const flagsEl = $('#onuSignalFlagsBody');
+  if (flagsEl) {
+    const flagged = onuSignalTrendFlags(records).filter((row) => row.flagged);
+    flagsEl.innerHTML = flagged.length === 0
+      ? '<p>No customer showing a falling trend.</p>'
+      : flagged.map((row) => `<p>⚠️ ${row.customer}: ${row.readings.map((item) => `${item.dbm.toFixed(1)} dBm`).join(' → ')} (fall of ${row.totalDrop.toFixed(1)} dB over the last three readings).</p>`).join('');
+  }
+  if (!onuSignalBound) {
+    onuSignalBound = true;
+    $('#onuSignalSaveBtn')?.addEventListener('click', () => {
+      const before = loadOnuSignal();
+      const id = `OS-${Date.now()}`;
+      const next = upsertOnuSignalReading(before, {
+        id,
+        customer: $('#onuSignalCustomer')?.value ?? '',
+        date: $('#onuSignalDate')?.value ?? '',
+        dbm: $('#onuSignalDbm')?.value ?? '',
+        note: $('#onuSignalNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Signal reading not recorded: name a customer, give a real date, and enter a numeric dBm value between -60 and +10.'); return; }
+      saveOnuSignal(next);
+      toast('Signal reading recorded. A falling trend only flags a planned visit — it never changes service status, a bill, or a payment.');
+      renderOnuSignal();
+    });
+    $('#onuSignalRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#onuSignalRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveOnuSignal(removeOnuSignalReading(loadOnuSignal(), id));
+      renderOnuSignal();
+    });
+    $('#onuSignalExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(onuSignalFilename(), onuSignalCsv(loadOnuSignal()));
+    });
+    $('#onuSignalFilter')?.addEventListener('input', () => { renderOnuSignal(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

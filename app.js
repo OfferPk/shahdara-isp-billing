@@ -323,6 +323,7 @@ import { normalizeCreditEntryList, normalizeCreditApplicationList, upsertCreditE
 import { normalizeChargeScheduleList, upsertChargeSchedule, markInstalmentPaid, scheduleView, missedInstalments, billLinesForMonth, chargeScheduleSummaryText, chargeScheduleHtml, chargeScheduleCsv, chargeScheduleFilename } from './charge-instalments.js';
 import { normalizeTierList, upsertTier, removeTier, tierForAmount, normalizeApprovalList, addApproval, approvalsForReview, checkPosting, approvalSummaryText, tierHtml, approvalHtml, approvalCsv, approvalFilename } from './approval-limits.js';
 import { normalizeLateFeePolicyList, upsertLateFeePolicy, removeLateFeePolicy, lateFeeForBill, normalizeLateFeeWaiverList, addLateFeeWaiver, lateFeePolicySummaryText, lateFeePolicyHtml, lateFeeResultHtml, lateFeePolicyCsv, lateFeePolicyFilename } from './late-fee-policy.js';
+import { normalizeReconnectionFeeList, upsertReconnectionFee, removeReconnectionFee, feesForCustomer, reconnectionFeeSummaryText, reconnectionFeeHtml, reconnectionFeeCsv, reconnectionFeeFilename, normalizeReconnectionFeeWaiverList, addReconnectionFeeWaiver } from './reconnection-fees.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13829,6 +13830,7 @@ function renderAnalytics() {
   renderBillingCorrections();
   renderApprovalLimits();
   renderLateFeePolicies();
+  renderReconnectionFees();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20386,6 +20388,111 @@ function renderLateFeePolicies() {
     });
     $('#lateFeePolicyExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(lateFeePolicyFilename(), lateFeePolicyCsv(loadLateFeePolicies()));
+    });
+  }
+}
+const RECONNECTION_FEE_KEY = 'shahdara_reconnection_fees_v1';
+const RECONNECTION_FEE_WAIVER_KEY = 'shahdara_reconnection_fee_waivers_v1';
+function loadReconnectionFees() {
+  try {
+    const raw = localStorage.getItem(RECONNECTION_FEE_KEY);
+    if (!raw) return [];
+    return normalizeReconnectionFeeList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveReconnectionFees(list) {
+  try { localStorage.setItem(RECONNECTION_FEE_KEY, JSON.stringify(normalizeReconnectionFeeList(list))); } catch { /* record only: a failed save leaves the previous fees in place */ }
+}
+function loadReconnectionFeeWaivers() {
+  try {
+    const raw = localStorage.getItem(RECONNECTION_FEE_WAIVER_KEY);
+    if (!raw) return [];
+    return normalizeReconnectionFeeWaiverList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveReconnectionFeeWaivers(list) {
+  try { localStorage.setItem(RECONNECTION_FEE_WAIVER_KEY, JSON.stringify(normalizeReconnectionFeeWaiverList(list))); } catch { /* record only: a failed save leaves the previous waivers in place */ }
+}
+let reconnectionFeesBound = false;
+function renderReconnectionFees() {
+  const bodyEl = $('#reconnectionFeeBody');
+  if (!bodyEl) return;
+  const fees = loadReconnectionFees();
+  const waivers = loadReconnectionFeeWaivers();
+  const waivedIds = new Set(waivers.map((w) => w.feeId));
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#reconnectionFeeCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#reconnectionFeeFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = '<option value="">All customers</option>' + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const filterCustomer = $('#reconnectionFeeFilterCustomer')?.value ?? '';
+  const shown = filterCustomer ? feesForCustomer(fees, filterCustomer) : fees;
+  bodyEl.innerHTML = shown.map((f) => {
+    const named = { ...f, customerName: names[f.customerId] || f.customerName || f.customerId };
+    return `${reconnectionFeeHtml(named, waivedIds.has(f.id))}<button class="secondary-button btn-sm" type="button" data-reconnection-fee-remove="${escapeHtml(f.id)}">Remove fee</button>`;
+  }).join('') || '<p>No reconnection fees recorded yet.</p>';
+  const summaryEl = $('#reconnectionFeeSummary');
+  if (summaryEl) summaryEl.textContent = reconnectionFeeSummaryText(fees, waivers);
+  const waiverEl = $('#reconnectionFeeWaiverBody');
+  if (waiverEl) waiverEl.innerHTML = waivers.map((w) => `<div>Waived fee ${escapeHtml(w.feeId)} · approval ${escapeHtml(w.approvalId)} · ${escapeHtml(w.reason)} · ${escapeHtml(w.date)}</div>`).join('') || '<p>No reconnection-fee waivers recorded yet.</p>';
+  const feePickEl = $('#reconnectionFeeWaiveFee');
+  if (feePickEl) {
+    const current = feePickEl.value;
+    feePickEl.innerHTML = fees.map((f) => `<option value="${escapeHtml(f.id)}">${escapeHtml(f.id)} · ${escapeHtml(names[f.customerId] || f.customerId)} · ${escapeHtml(f.suspensionId)}</option>`).join('');
+    if (current) feePickEl.value = current;
+  }
+  bodyEl.querySelectorAll('[data-reconnection-fee-remove]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const feeId = btn.dataset.reconnectionFeeRemove;
+      saveReconnectionFees(removeReconnectionFee(loadReconnectionFees(), feeId));
+      saveReconnectionFeeWaivers(loadReconnectionFeeWaivers().filter((w) => w.feeId !== feeId));
+      renderReconnectionFees();
+    });
+  });
+  if (!reconnectionFeesBound) {
+    reconnectionFeesBound = true;
+    $('#reconnectionFeeSaveBtn')?.addEventListener('click', () => {
+      const next = upsertReconnectionFee(loadReconnectionFees(), {
+        id: `RF-${Date.now()}`,
+        customerId: $('#reconnectionFeeCustomer')?.value ?? '',
+        suspensionId: $('#reconnectionFeeSuspension')?.value ?? '',
+        billId: $('#reconnectionFeeBill')?.value ?? '',
+        billLine: $('#reconnectionFeeLine')?.value ?? '',
+        feeAmount: Number($('#reconnectionFeeAmount')?.value ?? 0),
+        dateCharged: $('#reconnectionFeeDate')?.value ?? '',
+        reason: $('#reconnectionFeeReason')?.value ?? '',
+      });
+      if (next.length === loadReconnectionFees().length) { toast('Fee not recorded: it needs a customer, a suspension id, a bill id, a positive fee, and a real date — and a second fee for the same suspension needs a recorded reason.'); return; }
+      saveReconnectionFees(next);
+      toast('Reconnection fee recorded. It charges nothing by itself; the fee lands on the bill through the existing billing path.');
+      renderReconnectionFees();
+    });
+    $('#reconnectionFeeFilterCustomer')?.addEventListener('change', () => renderReconnectionFees());
+    $('#reconnectionFeeWaiveBtn')?.addEventListener('click', () => {
+      const next = addReconnectionFeeWaiver(loadReconnectionFees(), loadReconnectionFeeWaivers(), {
+        id: `RFW-${Date.now()}`,
+        feeId: $('#reconnectionFeeWaiveFee')?.value ?? '',
+        approvalId: $('#reconnectionFeeWaiveApproval')?.value ?? '',
+        reason: $('#reconnectionFeeWaiveReason')?.value ?? '',
+        date: $('#reconnectionFeeWaiveDate')?.value ?? '',
+      });
+      if (next.length === loadReconnectionFeeWaivers().length) { toast('Waiver not recorded: pick a recorded fee, give a Plan 110 approval id, a reason, and a real date — one fee can be waived only once.'); return; }
+      saveReconnectionFeeWaivers(next);
+      toast('Reconnection-fee waiver recorded by approval reference. It grants nothing by itself.');
+      renderReconnectionFees();
+    });
+    $('#reconnectionFeeExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(reconnectionFeeFilename(), reconnectionFeeCsv(loadReconnectionFees(), loadReconnectionFeeWaivers()));
     });
   }
 }

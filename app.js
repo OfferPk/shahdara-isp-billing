@@ -384,6 +384,7 @@ import { normalizeReferralThanksList, upsertReferralThanks, removeReferralThanks
 import { normalizeCadenceSettings, normalizeWinbackCadenceList, startWinbackCadence, removeWinbackCadence, completeWinbackStep, markWinbackCadenceReturned, markWinbackCadenceDoNotContact, winbackCadenceNext, winbackCadenceAllHtml, winbackCadenceSummaryText, winbackCadenceCsv, winbackCadenceFilename } from './winback-cadence.js';
 import { normalizeDormantSettings, normalizeDormantCustomerList, recordDormantCustomer, removeDormantCustomer, markDormantContacted, dormantCheckinList, dormantCheckinAllHtml, dormantCheckinSummaryText, dormantCheckinCsv, dormantCheckinFilename } from './dormant-checkin.js';
 import { normalizeVulnerableNoteList, recordVulnerableNote, updateVulnerableNote, removeVulnerableNote, vulnerableNoteForCustomer, vulnerableNoteAllHtml, vulnerableNoteSummaryText, vulnerableNoteCsv, vulnerableNoteFilename } from './vulnerable-note.js';
+import { normalizeVisitWindowList, recordVisitWindow, updateVisitWindow, removeVisitWindow, visitWindowForCustomer, visitWindowCustomers, visitWindowsForWindow, orderCustomersByWindow, visitWindowAllHtml, visitWindowOrderedHtml, visitWindowSummaryText, visitWindowCsv, visitWindowFilename } from './visit-window.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13955,6 +13956,7 @@ function renderAnalytics() {
   renderWinbackCadence();
   renderDormantCheckin();
   renderVulnerableNotes();
+  renderVisitWindows();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24333,6 +24335,66 @@ function renderVulnerableNotes() {
       downloadCsvFile(vulnerableNoteFilename(), vulnerableNoteCsv(loadVulnerableNotes()));
     });
     $('#vnFilter')?.addEventListener('input', () => { renderVulnerableNotes(); });
+  }
+}
+const VISIT_WINDOW_KEY = 'shahdara_visit_windows_v1';
+function loadVisitWindows() {
+  try { return normalizeVisitWindowList(JSON.parse(localStorage.getItem(VISIT_WINDOW_KEY) || '[]')); } catch { return []; }
+}
+function saveVisitWindows(list) {
+  try { localStorage.setItem(VISIT_WINDOW_KEY, JSON.stringify(normalizeVisitWindowList(list))); } catch { /* visit windows only: a failed save leaves the previous list in place */ }
+}
+let visitWindowsBound = false;
+function renderVisitWindows() {
+  const bodyEl = $('#vwBody');
+  if (!bodyEl) return;
+  const list = loadVisitWindows();
+  const filter = ($('#vwFilter')?.value ?? '').trim().toLowerCase();
+  const windowFilter = ($('#vwOrderFilter')?.value ?? '').trim().toLowerCase();
+  let shown = filter ? list.filter((item) => item.customerId.toLowerCase().includes(filter)) : list;
+  if (windowFilter && windowFilter !== 'all') shown = shown.filter((item) => item.window === windowFilter);
+  // The queue view: ordered by preferred window on the same
+  // fixture — morning, afternoon, evening, any-time — so visits
+  // land when customers are actually home. This orders only; it
+  // books nothing, promises nothing, and blocks no visit.
+  const ordered = orderCustomersByWindow(list, shown.map((item) => item.customerId));
+  bodyEl.innerHTML = visitWindowOrderedHtml(ordered.map((item) => {
+    const found = list.find((entry) => entry.customerId.toLowerCase() === item.customerId.toLowerCase());
+    return found ?? item;
+  }));
+  const summaryEl = $('#vwSummary');
+  if (summaryEl) summaryEl.textContent = visitWindowSummaryText(list);
+  if (!visitWindowsBound) {
+    visitWindowsBound = true;
+    $('#vwSaveBtn')?.addEventListener('click', () => {
+      const before = loadVisitWindows();
+      const next = recordVisitWindow(before, {
+        id: `VW-${Date.now()}`,
+        customerId: $('#vwCustomer')?.value ?? '',
+        window: $('#vwWindow')?.value ?? 'any-time',
+        note: $('#vwNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Visit window not recorded: give a customer name and one window per customer only.'); return; }
+      saveVisitWindows(next); renderVisitWindows();
+    });
+    $('#vwEditBtn')?.addEventListener('click', () => {
+      const id = ($('#vwEditId')?.value ?? '').trim();
+      if (!id) return;
+      saveVisitWindows(updateVisitWindow(loadVisitWindows(), id, {
+        window: ($('#vwEditWindow')?.value ?? ''),
+        note: ($('#vwEditNote')?.value ?? ''),
+      })); renderVisitWindows();
+    });
+    $('#vwRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#vwRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveVisitWindows(removeVisitWindow(loadVisitWindows(), id)); renderVisitWindows();
+    });
+    $('#vwExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(visitWindowFilename(), visitWindowCsv(loadVisitWindows()));
+    });
+    $('#vwFilter')?.addEventListener('input', () => { renderVisitWindows(); });
+    $('#vwOrderFilter')?.addEventListener('change', () => { renderVisitWindows(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

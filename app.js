@@ -359,6 +359,7 @@ import { normalizeJobChecklistTemplateList, jobChecklistTemplatesWithDefaults, u
 import { normalizeSpliceRepairList, upsertSpliceRepairRecord, removeSpliceRepairRecord, spliceRepairSummaryText, spliceRepairHtml, spliceRepairCsv, spliceRepairFilename } from './splice-repair.js';
 import { normalizePoleInspectionList, parsePoleInspectionItems, upsertPoleInspectionRound, removePoleInspectionRound, markPoleInspectionItemFixed, poleInspectionSummaryText, poleInspectionRoundsHtml, poleInspectionActionHtml, poleInspectionCsv, poleInspectionFilename } from './pole-inspection.js';
 import { normalizeBatteryRuntimeList, upsertBatteryRuntimeRecord, removeBatteryRuntimeRecord, batteryRuntimeSummaryText, batteryRuntimeHtml, batteryRuntimeCsv, batteryRuntimeFilename } from './battery-runtime.js';
+import { normalizeToolKitList, upsertToolKitIssue, returnToolKitIssue, removeToolKitIssue, toolKitSummaryText, toolKitOutstandingHtml, toolKitCsv, toolKitFilename } from './tool-kit-log.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13901,6 +13902,7 @@ function renderAnalytics() {
   renderSpliceRepairs();
   renderPoleInspections();
   renderBatteryRuntimes();
+  renderToolKitLog();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22807,6 +22809,57 @@ function renderBatteryRuntimes() {
       downloadCsvFile(batteryRuntimeFilename(), batteryRuntimeCsv(loadBatteryRuntimes()));
     });
     $('#batteryFilter')?.addEventListener('input', () => { renderBatteryRuntimes(); });
+  }
+}
+const TOOL_KIT_KEY = 'shahdara_tool_kit_log_v1';
+function loadToolKitLog() {
+  try { return normalizeToolKitList(JSON.parse(localStorage.getItem(TOOL_KIT_KEY) || '[]')); } catch { return []; }
+}
+function saveToolKitLog(list) {
+  try { localStorage.setItem(TOOL_KIT_KEY, JSON.stringify(normalizeToolKitList(list))); } catch { /* records only: a failed save leaves the previous records in place */ }
+}
+let toolKitBound = false;
+function renderToolKitLog() {
+  const bodyEl = $('#toolKitBody');
+  if (!bodyEl) return;
+  const records = loadToolKitLog();
+  bodyEl.innerHTML = toolKitOutstandingHtml(records, $('#toolKitRefDate')?.value ?? '', $('#toolKitHolderFilter')?.value ?? '');
+  const summaryEl = $('#toolKitSummary');
+  if (summaryEl) summaryEl.textContent = toolKitSummaryText(records);
+  if (!toolKitBound) {
+    toolKitBound = true;
+    $('#toolKitSaveBtn')?.addEventListener('click', () => {
+      const before = loadToolKitLog();
+      const next = upsertToolKitIssue(before, {
+        id: `KIT-${Date.now()}`,
+        tool: $('#toolKitTool')?.value ?? '',
+        issuedTo: $('#toolKitHolder')?.value ?? '',
+        issueDate: $('#toolKitIssueDate')?.value ?? '',
+        note: $('#toolKitNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Tool issue not recorded: give a tool, a holder, and a real issue date — and check the tool is not already out.'); return; }
+      saveToolKitLog(next);
+      toast('Tool issue recorded. Returning it clears it from the outstanding list.');
+      renderToolKitLog();
+    });
+    $('#toolKitReturnBtn')?.addEventListener('click', () => {
+      const id = ($('#toolKitReturnId')?.value ?? '').trim();
+      const date = $('#toolKitReturnDate')?.value ?? '';
+      if (!id || !date) return;
+      saveToolKitLog(returnToolKitIssue(loadToolKitLog(), id, date));
+      renderToolKitLog();
+    });
+    $('#toolKitRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#toolKitRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveToolKitLog(removeToolKitIssue(loadToolKitLog(), id));
+      renderToolKitLog();
+    });
+    $('#toolKitExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(toolKitFilename(), toolKitCsv(loadToolKitLog()));
+    });
+    $('#toolKitRefDate')?.addEventListener('input', () => { renderToolKitLog(); });
+    $('#toolKitHolderFilter')?.addEventListener('input', () => { renderToolKitLog(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

@@ -1748,6 +1748,22 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
 
   toggleBtn.addEventListener('click', toggle);
   if (closeBtn) closeBtn.addEventListener('click', close);
+  // Plan 97 (Plan 1-100): sunlight-readable field view toggle. Display
+  // only: it adds or removes the .field-view-big class on the overlay
+  // (default ON — the collector is outdoors by definition) and never
+  // touches a payment, visit, or route record. Session-only: reopening
+  // Field Mode always starts in the sunlight view.
+  const bigViewToggleBtn = document.getElementById('fieldModeBigViewToggleBtn');
+  if (view && bigViewToggleBtn) {
+    view.classList.add('field-view-big');
+    bigViewToggleBtn.classList.add('is-active');
+    bigViewToggleBtn.setAttribute('aria-pressed', 'true');
+    bigViewToggleBtn.addEventListener('click', () => {
+      const enabled = view.classList.toggle('field-view-big');
+      bigViewToggleBtn.classList.toggle('is-active', enabled);
+      bigViewToggleBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    });
+  }
   const resetSelection = () => {
     selectedId = null;
     lastReceipt = null;

@@ -393,6 +393,7 @@ import { normalizeApologyDraftList, upsertApologyDraft, removeApologyDraft, mark
 import { collectTimelineEntries, timelineAllHtml, timelineCustomerHtml, timelineSummaryText, timelineCsv, timelineFilename } from './comms-timeline.js';
 import { normalizeMigrationStepList, upsertMigrationStep, removeMigrationStep, markMigrationStepDone, markMigrationStepUndone, migrationStepStarters, migrationStepAllHtml, migrationStepSummaryText, migrationStepCsv, migrationStepFilename, normalizePortMoveList, upsertPortMove, removePortMove, portMovesSorted, portMovesForCustomer, portMovesOnDate, portMoveAllHtml, portMoveSummaryText, portMoveCsv, portMoveFilename } from './migration-checklist.js';
 import { normalizeAuditCycleList, createAuditCycle, completeAuditCycle, removeAuditCycle, normalizeAuditLineList, addAuditLine, removeAuditLine, auditCycleAllHtml, auditCycleSummaryText, auditCycleCsv, auditCycleFilename } from './inventory-audit.js';
+import { normalizeStaffHandoverList, recordStaffHandover, removeStaffHandover, markStaffHandoverReceived, markStaffHandoverNotReceived, staffHandoversForPerson, staffHandoverAllHtml, staffHandoverSummaryText, staffHandoverCsv, staffHandoverFilename } from './staff-handover.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13973,6 +13974,7 @@ function renderAnalytics() {
   renderCommsTimeline();
   renderMigrationChecklist();
   renderInventoryAudit();
+  renderStaffHandover();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24908,6 +24910,62 @@ function renderInventoryAudit() {
       renderInventoryAudit();
     });
     $('#iaFilter')?.addEventListener('input', () => { renderInventoryAudit(); });
+  }
+}
+// Plan 183: staff handover notes.
+// The panel keeps only its own list: handovers (person handing
+// over, person receiving, date, routine, open task, note, received
+// state). A handover links to a task by reference only — recording
+// one never reassigns or closes any task, and never changes any
+// bill, payment, customer record, or past visit. It is distinct
+// from the field handover note, which passes open field jobs
+// between collectors; this panel passes shop routines, keys, and
+// open tasks between staff members.
+const STAFF_HANDOVER_KEY = 'shahdara_staff_handovers_v1';
+function loadStaffHandovers() {
+  try { return normalizeStaffHandoverList(JSON.parse(localStorage.getItem(STAFF_HANDOVER_KEY) || '[]')); } catch { return []; }
+}
+function saveStaffHandovers(list) {
+  try { localStorage.setItem(STAFF_HANDOVER_KEY, JSON.stringify(normalizeStaffHandoverList(list))); } catch { /* staff handovers only: a failed save leaves the previous list in place */ }
+}
+let staffHandoverBound = false;
+function renderStaffHandover() {
+  const bodyEl = $('#shBody');
+  if (!bodyEl) return;
+  const notes = loadStaffHandovers();
+  const personFilter = ($('#shFilter')?.value ?? '').trim();
+  const shown = personFilter ? staffHandoversForPerson(notes, personFilter) : notes;
+  bodyEl.innerHTML = shown.length ? staffHandoverAllHtml(shown) : '<p>No staff handover notes.</p>';
+  const summaryEl = $('#shSummary');
+  if (summaryEl) summaryEl.textContent = `${staffHandoverSummaryText(notes)}.`;
+  if (!staffHandoverBound) {
+    staffHandoverBound = true;
+    $('#shExportBtn')?.addEventListener('click', () => { downloadCsvFile(staffHandoverFilename(), staffHandoverCsv(loadStaffHandovers())); });
+    $('#shSaveBtn')?.addEventListener('click', () => {
+      saveStaffHandovers(recordStaffHandover(loadStaffHandovers(), {
+        id: `SH-${Date.now()}`,
+        fromPerson: $('#shFrom')?.value ?? '',
+        toPerson: $('#shTo')?.value ?? '',
+        date: $('#shDate')?.value ?? '',
+        routine: $('#shRoutine')?.value ?? '',
+        openTask: $('#shTask')?.value ?? '',
+        note: $('#shNote')?.value ?? '',
+      }));
+      renderStaffHandover();
+    });
+    $('#shReceivedBtn')?.addEventListener('click', () => {
+      saveStaffHandovers(markStaffHandoverReceived(loadStaffHandovers(), $('#shReceivedId')?.value ?? '', $('#shReceivedDate')?.value ?? ''));
+      renderStaffHandover();
+    });
+    $('#shUnreceivedBtn')?.addEventListener('click', () => {
+      saveStaffHandovers(markStaffHandoverNotReceived(loadStaffHandovers(), $('#shUnreceivedId')?.value ?? ''));
+      renderStaffHandover();
+    });
+    $('#shRemoveBtn')?.addEventListener('click', () => {
+      saveStaffHandovers(removeStaffHandover(loadStaffHandovers(), $('#shRemoveId')?.value ?? ''));
+      renderStaffHandover();
+    });
+    $('#shFilter')?.addEventListener('input', () => { renderStaffHandover(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

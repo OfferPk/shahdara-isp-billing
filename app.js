@@ -329,6 +329,7 @@ import { normalizeDepositNoteList, upsertDepositNote, supersedeDepositNote, note
 import { normalizeWriteOffList, upsertWriteOff, writeOffsForCustomer, reconcileDues, liveCollectionList, writeOffSummaryText, reconcileDuesText, writeOffHtml, writeOffCsv, writeOffFilename } from './arrears-writeoffs.js';
 import { normalizeRefundList, upsertRefund, refundsForCustomer, refundSummaryText, refundHtml, refundCsv, refundFilename } from './refund-records.js';
 import { normalizeFollowUp, normalizeFollowUpList, recordFollowUp, removeFollowUp, buildFollowUpQueue, escalationList, buildFollowUpSummary, followUpSummaryText, followUpHtml, followUpCsv, followUpFilename } from './dispute-followups.js';
+import { buildMethodReconciliation, reconciliationSummaryText, methodReconciliationHtml, methodReconciliationCsv, methodReconciliationFilename, normalizeMethodNoteList, addMethodNote, methodNoteHtml, methodNoteCsv, methodNoteFilename } from './method-reconciliation.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13841,6 +13842,7 @@ function renderAnalytics() {
   renderWriteOffs();
   renderRefunds();
   renderFollowUps();
+  renderMethodReconciliation();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20916,6 +20918,85 @@ function renderFollowUps() {
     $('#followUpExportBtn')?.addEventListener('click', () => {
       const day = $('#followUpToday')?.value || getTodayDateString();
       downloadCsvFile(followUpFilename(), followUpCsv(buildFollowUpQueue(loadDisputeCases(), loadFollowUps(), day)));
+    });
+  }
+}
+const METHOD_RECON_KEY = 'shahdara_method_reconciliation_v1';
+function loadMethodReconNotes() {
+  try {
+    const raw = localStorage.getItem(METHOD_RECON_KEY);
+    if (!raw) return [];
+    return normalizeMethodNoteList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveMethodReconNotes(list) {
+  try { localStorage.setItem(METHOD_RECON_KEY, JSON.stringify(normalizeMethodNoteList(list))); } catch { /* record only: a failed save leaves the previous notes in place */ }
+}
+function methodReconDevicePayments(period) {
+  const rows = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      for (const payment of bill.payments ?? []) {
+        if (!payment?.date || payment.date.slice(0, 7) !== period) continue;
+        rows.push({ id: payment.id ?? `${customer.id}-${payment.date}`, method: payment.method, amount: payment.amount, date: payment.date, voided: payment.voided === true, status: payment.status });
+      }
+    }
+  }
+  return rows;
+}
+let methodReconBound = false;
+function renderMethodReconciliation() {
+  const bodyEl = $('#methodReconBody');
+  if (!bodyEl) return;
+  const monthEl = $('#methodReconMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const period = monthEl?.value ?? '';
+  const confirmedLines = ($('#methodReconConfirmed')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  const confirmed = [];
+  for (const line of confirmedLines) {
+    const [method, ...amountParts] = line.split('|');
+    confirmed.push({ method: (method ?? '').trim(), amount: Number(amountParts.join('|').trim()) });
+  }
+  const recon = buildMethodReconciliation(methodReconDevicePayments(period), confirmed, period);
+  bodyEl.innerHTML = recon ? methodReconciliationHtml(recon) : '<p>No reconciliation built: pick a real month.</p>';
+  const summaryEl = $('#methodReconSummary');
+  if (summaryEl) summaryEl.textContent = recon ? reconciliationSummaryText(recon) : 'No reconciliation built: pick a real month.';
+  const notesEl = $('#methodReconNotesBody');
+  if (notesEl) {
+    const notes = loadMethodReconNotes().filter((note) => note.period === period);
+    notesEl.innerHTML = notes.map((note) => methodNoteHtml(note)).join('') || '<p>No explanation notes for this month yet.</p>';
+  }
+  if (!methodReconBound) {
+    methodReconBound = true;
+    $('#methodReconMonth')?.addEventListener('change', () => renderMethodReconciliation());
+    $('#methodReconRefreshBtn')?.addEventListener('click', () => renderMethodReconciliation());
+    $('#methodReconSaveNoteBtn')?.addEventListener('click', () => {
+      const before = loadMethodReconNotes();
+      const next = addMethodNote(before, {
+        id: `MRN-${Date.now()}`,
+        period: $('#methodReconMonth')?.value ?? '',
+        method: $('#methodReconNoteMethod')?.value ?? '',
+        differenceCents: Math.round(Number($('#methodReconNoteDifference')?.value ?? '') * 100),
+        note: $('#methodReconNoteText')?.value ?? '',
+        date: $('#methodReconNoteDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Note not recorded: pick a real month and method, a nonzero difference (negative for a shortfall), a note, and a real date.'); return; }
+      saveMethodReconNotes(next);
+      toast('Explanation note recorded. No payment was changed.');
+      renderMethodReconciliation();
+    });
+    $('#methodReconExportBtn')?.addEventListener('click', () => {
+      const month = $('#methodReconMonth')?.value ?? '';
+      const confirmed2 = ($('#methodReconConfirmed')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+        const [method, ...amountParts] = line.split('|');
+        return { method: (method ?? '').trim(), amount: Number(amountParts.join('|').trim()) };
+      });
+      const recon2 = buildMethodReconciliation(methodReconDevicePayments(month), confirmed2, month);
+      if (recon2) downloadCsvFile(methodReconciliationFilename(month), methodReconciliationCsv(recon2));
+    });
+    $('#methodReconExportNotesBtn')?.addEventListener('click', () => {
+      downloadCsvFile(methodNoteFilename(), methodNoteCsv(loadMethodReconNotes()));
     });
   }
 }

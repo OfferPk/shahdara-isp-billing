@@ -401,6 +401,7 @@ import { normalizeRetentionRuleList, recordRetentionRule, removeRetentionRule, r
 import { normalizeBusinessDeviceList, recordBusinessDevice, removeBusinessDevice, markBusinessDeviceReturned, businessDevicesSorted, businessDeviceAllHtml, businessDeviceSummaryText, businessDeviceCsv, businessDeviceFilename } from './business-device.js';
 import { normalizeLicenceList, recordLicence, removeLicence, markLicenceRenewed, licencesSorted, licenceAllHtml, licenceSummaryText, licenceCsv, licenceFilename } from './licence-tracker.js';
 import { normalizeShopAssetList, recordShopAsset, removeShopAsset, markShopAssetDisposed, shopAssetsSorted, shopAssetAllHtml, shopAssetSummaryText, shopAssetCsv, shopAssetFilename } from './shop-asset.js';
+import { normalizeMilestoneList, recordMilestone, removeMilestone, setMilestoneStatus, starterMilestones, milestonesSorted, milestoneAllHtml, milestoneSummaryText, milestoneReadinessText, milestoneCsv, milestoneFilename } from './growth-milestone.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13989,6 +13990,7 @@ function renderAnalytics() {
   renderBusinessDevices();
   renderLicences();
   renderShopAssets();
+  renderGrowthMilestones();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25267,6 +25269,56 @@ function renderShopAssets() {
       renderShopAssets();
     });
     $('#saFilter')?.addEventListener('input', () => { renderShopAssets(); });
+  }
+}
+const GROWTH_MILESTONES_KEY = 'shahdara_growth_milestones_v1';
+function loadGrowthMilestones() {
+  try { return normalizeMilestoneList(JSON.parse(localStorage.getItem(GROWTH_MILESTONES_KEY) || '[]')); } catch { return []; }
+}
+function saveGrowthMilestones(list) {
+  try { localStorage.setItem(GROWTH_MILESTONES_KEY, JSON.stringify(normalizeMilestoneList(list))); } catch { /* growth milestones only: a failed save leaves the previous list in place */ }
+}
+let growthMilestonesBound = false;
+function renderGrowthMilestones() {
+  const bodyEl = $('#gmBody');
+  if (!bodyEl) return;
+  const entries = loadGrowthMilestones();
+  const query = ($('#gmFilter')?.value ?? '').trim().toLowerCase();
+  const shown = query ? milestonesSorted(entries).filter((entry) => entry.milestone.toLowerCase().includes(query)) : milestonesSorted(entries);
+  bodyEl.innerHTML = shown.length ? milestoneAllHtml(shown) : '<p>No growth milestones recorded.</p>';
+  const summaryEl = $('#gmSummary');
+  if (summaryEl) summaryEl.textContent = `${milestoneSummaryText(entries)}. ${milestoneReadinessText(entries)}`;
+  if (!growthMilestonesBound) {
+    growthMilestonesBound = true;
+    $('#gmExportBtn')?.addEventListener('click', () => { downloadCsvFile(milestoneFilename(), milestoneCsv(loadGrowthMilestones())); });
+    $('#gmStarterBtn')?.addEventListener('click', () => {
+      const current = loadGrowthMilestones();
+      let next = current;
+      for (const starter of starterMilestones()) next = recordMilestone(next, starter);
+      saveGrowthMilestones(next);
+      renderGrowthMilestones();
+    });
+    $('#gmSaveBtn')?.addEventListener('click', () => {
+      saveGrowthMilestones(recordMilestone(loadGrowthMilestones(), {
+        id: `GM-${Date.now()}`,
+        milestone: $('#gmMilestone')?.value ?? '',
+        target: $('#gmTarget')?.value ?? '',
+        current: $('#gmCurrent')?.value ?? '',
+        linkedCount: $('#gmLinked')?.value ?? '',
+        order: $('#gmOrder')?.value ?? '',
+        note: $('#gmNote')?.value ?? '',
+      }));
+      renderGrowthMilestones();
+    });
+    $('#gmStatusBtn')?.addEventListener('click', () => {
+      saveGrowthMilestones(setMilestoneStatus(loadGrowthMilestones(), $('#gmStatusId')?.value ?? '', $('#gmStatus')?.value ?? ''));
+      renderGrowthMilestones();
+    });
+    $('#gmRemoveBtn')?.addEventListener('click', () => {
+      saveGrowthMilestones(removeMilestone(loadGrowthMilestones(), $('#gmRemoveId')?.value ?? ''));
+      renderGrowthMilestones();
+    });
+    $('#gmFilter')?.addEventListener('input', () => { renderGrowthMilestones(); });
   }
 }
 function renderOwnerDecision() {

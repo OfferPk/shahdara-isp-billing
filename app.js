@@ -363,6 +363,7 @@ import { normalizeToolKitList, upsertToolKitIssue, returnToolKitIssue, removeToo
 import { normalizePremisesCheckList, upsertPremisesCheckRecord, removePremisesCheckRecord, premisesCheckSummaryText, premisesCustomerChecksHtml, premisesCheckCsv, premisesCheckFilename } from './premises-check.js';
 import { normalizeDropCableList, upsertDropCableRecord, removeDropCableRecord, dropCableSummaryText, dropCableCustomerHtml, dropCableWatchHtml, dropCableCsv, dropCableFilename } from './drop-cable.js';
 import { normalizeRootCauseCodeList, upsertRootCauseCode, removeRootCauseCode, normalizeRootCauseLinkList, upsertRootCauseLink, removeRootCauseLink, rootCauseSummaryText, rootCauseCodeHtml, rootCauseCountHtml, rootCauseCsv, rootCauseFilename } from './root-cause.js';
+import { normalizeWorkaroundList, upsertWorkaround, removeWorkaround, recordWorkaroundRemoval, workaroundSummaryText, workaroundOpenHtml, workaroundOverdueHtml, workaroundCsv, workaroundFilename } from './workaround.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13909,6 +13910,7 @@ function renderAnalytics() {
   renderPremisesChecks();
   renderDropCables();
   renderRootCauses();
+  renderWorkarounds();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23020,6 +23022,63 @@ function renderRootCauses() {
     $('#rootCauseExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(rootCauseFilename(), rootCauseCsv(loadRootCauseLinks(), loadRootCauseCodes()));
     });
+  }
+}
+const WORKAROUND_KEY = 'shahdara_workarounds_v1';
+function loadWorkarounds() {
+  try { return normalizeWorkaroundList(JSON.parse(localStorage.getItem(WORKAROUND_KEY) || '[]')); } catch { return []; }
+}
+function saveWorkarounds(list) {
+  try { localStorage.setItem(WORKAROUND_KEY, JSON.stringify(normalizeWorkaroundList(list))); } catch { /* records only: a failed save leaves the previous records in place */ }
+}
+let workaroundBound = false;
+function renderWorkarounds() {
+  const openEl = $('#workaroundOpenBody');
+  if (!openEl) return;
+  const list = loadWorkarounds();
+  const ref = $('#workaroundReferenceDate')?.value || '';
+  openEl.innerHTML = workaroundOpenHtml(list, ref);
+  const overdueEl = $('#workaroundOverdueBody');
+  if (overdueEl) overdueEl.innerHTML = workaroundOverdueHtml(list, ref);
+  const summaryEl = $('#workaroundSummary');
+  if (summaryEl) summaryEl.textContent = workaroundSummaryText(list, ref);
+  if (!workaroundBound) {
+    workaroundBound = true;
+    $('#workaroundSaveBtn')?.addEventListener('click', () => {
+      const before = loadWorkarounds();
+      const next = upsertWorkaround(before, {
+        id: `WA-${Date.now()}`,
+        link: $('#workaroundLink')?.value ?? '',
+        fittedDate: $('#workaroundFittedDate')?.value ?? '',
+        description: $('#workaroundDescription')?.value ?? '',
+        plannedRemovalDate: $('#workaroundPlannedDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Workaround not recorded: give a ticket or segment, a fitted date, a description, and a planned removal date.'); return; }
+      saveWorkarounds(next);
+      toast('Temporary workaround recorded. Its planned removal date keeps it temporary.');
+      renderWorkarounds();
+    });
+    $('#workaroundRemovalBtn')?.addEventListener('click', () => {
+      const id = ($('#workaroundRemovalId')?.value ?? '').trim();
+      const date = $('#workaroundRemovalDate')?.value ?? '';
+      if (!id || !date) return;
+      const before = loadWorkarounds();
+      const next = recordWorkaroundRemoval(before, id, date);
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Removal not recorded: check the id, and note a removal date cannot be before the fitted date.'); return; }
+      saveWorkarounds(next);
+      toast('Workaround removal recorded. It leaves the open and overdue lists.');
+      renderWorkarounds();
+    });
+    $('#workaroundRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#workaroundRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveWorkarounds(removeWorkaround(loadWorkarounds(), id));
+      renderWorkarounds();
+    });
+    $('#workaroundExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(workaroundFilename(), workaroundCsv(loadWorkarounds()));
+    });
+    $('#workaroundReferenceDate')?.addEventListener('input', () => { renderWorkarounds(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

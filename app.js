@@ -290,6 +290,7 @@ import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryTex
 import { buildPrecloseSweep, precloseSweepSummaryText, precloseSweepHtml, precloseSweepCsv, precloseSweepFilename, validSweepMonth } from './preclose-sweep.js';
 import { validSnapshotMonth, normalizeSnapshotList, findSnapshot, takeSnapshot, removeSnapshot, snapshotSummaryText, snapshotHtml, snapshotCsv, snapshotFilename, compareSnapshots, compareSnapshotsSummaryText, compareSnapshotsHtml, compareSnapshotsCsv } from './month-snapshots.js';
 import { validAnnualYear, monthsOfYear, buildAnnualSummary, annualSummaryText, annualSummaryHtml, annualSummaryCsv, annualSummaryFilename } from './annual-summary.js';
+import { ENQUIRY_TYPES, ENQUIRY_TYPE_LABELS, ENQUIRY_STATUSES, ENQUIRY_STATUS_LABELS, ENQUIRY_REPLY_DRAFTS, ENQUIRY_REPLY_DRAFT_LABELS, ENQUIRY_REFERRED_STATUSES, normalizeEnquiry, normalizeEnquiryList, pendingEnquiries, buildEnquirySummary, enquirySummaryText, enquiryHtml, enquiryCsv, enquiryFilename, upsertEnquiry, removeEnquiry, markEnquiryAnswered, referEnquiry, reopenEnquiry } from './enquiry-log.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13506,6 +13507,7 @@ function renderAnalytics() {
   renderPrecloseSweep();
   renderMonthSnapshots();
   renderAnnualSummary();
+  renderEnquiryLog();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -16298,6 +16300,142 @@ function renderAnnualSummary() {
       });
       const current = buildAnnualSummary({ year: currentYear, months: currentRows });
       if (current) downloadCsvFile(annualSummaryFilename(current.year), annualSummaryCsv(current));
+    });
+  }
+}
+const ENQUIRY_LOG_KEY = 'shahdara_enquiry_log_v1';
+let enquiryLogBound = false;
+function loadEnquiryLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(ENQUIRY_LOG_KEY) || '[]');
+    return normalizeEnquiryList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveEnquiryLog(list) {
+  try { localStorage.setItem(ENQUIRY_LOG_KEY, JSON.stringify(normalizeEnquiryList(list))); } catch {}
+}
+// Inbound enquiry log and unanswered-enquiry queue (Plan 76):
+// the operator records each question as it arrives, works the
+// pending queue oldest first, and marks it answered (recording
+// the reply draft used, Plans 72-75) or refers it to the ticket
+// log, dispute case log, or request queue by linked id. This
+// panel never changes any bill, payment, ticket, or request
+// record; the linked ticket, case, or request itself lives on
+// its own screen.
+function renderEnquiryLog() {
+  const bodyEl = $('#enquiryLogBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const entries = loadEnquiryLog();
+  const showAll = $('#enquiryShowAll')?.checked ?? false;
+  const pending = pendingEnquiries(entries, {
+    type: $('#enquiryFilterType')?.value ?? '',
+    mohalla: $('#enquiryFilterMohalla')?.value ?? '',
+  });
+  const shown = showAll ? normalizeEnquiryList(entries) : pending;
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = enquiryHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const summaryEl = $('#enquiryLogSummary');
+  if (summaryEl) summaryEl.textContent = enquirySummaryText(buildEnquirySummary(entries));
+  const customerEl = $('#enquiryCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const selectEl = $('#enquirySelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = entries.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(ENQUIRY_TYPE_LABELS[entry.type])} (${escapeHtml(ENQUIRY_STATUS_LABELS[entry.status])})</option>`).join('')
+      || '<option value="">No enquiries yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['enquiryFilterType', ENQUIRY_TYPES, ENQUIRY_TYPE_LABELS],
+    ['enquiryType', ENQUIRY_TYPES, ENQUIRY_TYPE_LABELS],
+    ['enquiryReplyDraft', ENQUIRY_REPLY_DRAFTS, ENQUIRY_REPLY_DRAFT_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('enquiryFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  const actionEl = $('#enquiryAction');
+  if (actionEl && actionEl.options.length === 0) {
+    actionEl.innerHTML = '<option value="answered">Mark answered</option>'
+      + ENQUIRY_REFERRED_STATUSES.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(ENQUIRY_STATUS_LABELS[key])}</option>`).join('');
+  }
+  const mohallaEl = $('#enquiryMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+    mohallaEl.value = selected ? (selected.mohalla || selected.area || '') : '';
+  }
+  if (!enquiryLogBound) {
+    enquiryLogBound = true;
+    $('#enquiryCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#enquiryCustomer')?.value ?? ''));
+      const mohallaInput = $('#enquiryMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+      renderEnquiryLog();
+    });
+    $('#enquiryFilterType')?.addEventListener('change', () => renderEnquiryLog());
+    $('#enquiryFilterMohalla')?.addEventListener('input', () => renderEnquiryLog());
+    $('#enquiryShowAll')?.addEventListener('change', () => renderEnquiryLog());
+    $('#enquiryRecordBtn')?.addEventListener('click', () => {
+      const customerId = $('#enquiryCustomer')?.value ?? '';
+      if (!customerId) { toast('Pick a customer first.'); return; }
+      const selected = customers.find((c) => String(c.id) === String(customerId));
+      const record = normalizeEnquiry({
+        id: $('#enquiryId')?.value ?? '',
+        customerId,
+        customerName: selected ? (selected.name || selected.customerName || '') : '',
+        date: $('#enquiryDate')?.value ?? '',
+        type: $('#enquiryType')?.value ?? '',
+        status: 'pending',
+        channel: $('#enquiryChannel')?.value ?? '',
+        question: $('#enquiryQuestion')?.value ?? '',
+        mohalla: $('#enquiryMohalla')?.value ?? '',
+      });
+      if (!record) {
+        toast('An enquiry needs an id, a customer, and a type from the list.');
+        return;
+      }
+      saveEnquiryLog(upsertEnquiry(loadEnquiryLog(), record));
+      toast('Enquiry recorded in the pending queue. Answering it here never changes any bill, payment, ticket, or request record.');
+      renderEnquiryLog();
+    });
+    $('#enquiryApplyBtn')?.addEventListener('click', () => {
+      const id = $('#enquirySelect')?.value ?? '';
+      if (!id) return;
+      const action = $('#enquiryAction')?.value ?? '';
+      const current = loadEnquiryLog();
+      let next = current;
+      if (action === 'answered') {
+        next = markEnquiryAnswered(current, id, $('#enquiryReplyDraft')?.value ?? 'none');
+      } else {
+        next = referEnquiry(current, id, action, $('#enquiryLinkedId')?.value ?? '');
+      }
+      const moved = next.find((entry) => entry.id === id);
+      if (!moved || moved.status === 'pending') {
+        toast(action === 'answered' ? 'Only a pending enquiry can be marked answered.' : 'A referral needs a linked ticket, case, or request id, and only a pending enquiry can be referred.');
+        return;
+      }
+      saveEnquiryLog(next);
+      renderEnquiryLog();
+    });
+    $('#enquiryReopenBtn')?.addEventListener('click', () => {
+      const id = $('#enquirySelect')?.value ?? '';
+      if (!id) return;
+      saveEnquiryLog(reopenEnquiry(loadEnquiryLog(), id));
+      renderEnquiryLog();
+    });
+    $('#enquiryRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#enquirySelect')?.value ?? '';
+      if (!id) return;
+      saveEnquiryLog(removeEnquiry(loadEnquiryLog(), id));
+      renderEnquiryLog();
+    });
+    $('#enquiryExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(enquiryFilename(), enquiryCsv(loadEnquiryLog()));
     });
   }
 }

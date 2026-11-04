@@ -7865,6 +7865,45 @@
 </label>
 </div>
 <div id="aiBody"></div>
+</section><section class="chart-card" aria-labelledby="bcHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="bcHeading">Business contact directory</h3>
+<p class="chart-caption">Business contacts only: suppliers, services, and authorities the shop may need to call. This directory stores contacts and sends no message automatically, and it never stores customer contacts. Recording a contact never changes any bill, payment, vendor record, or customer record.</p>
+<p id="bcSummary"></p>
+</div>
+<div>
+<button id="bcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export business contacts CSV</button>
+</div>
+</div>
+<h4>Record a business contact</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Organisation <input id="bcOrg" type="text" style="width: 160px;" placeholder="e.g. Fibre Supplier Ltd">
+</label>
+<label style="font-size: 12px;">Contact name <input id="bcName" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Role <input id="bcRole" type="text" style="width: 140px;" placeholder="e.g. Sales">
+</label>
+<label style="font-size: 12px;">Phone or address <input id="bcReach" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Note <input id="bcNote" type="text" style="width: 180px;">
+</label>
+<button id="bcSaveBtn" class="secondary-button btn-sm" type="button">Record contact</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove contact id <input id="bcRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="bcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Business contacts</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Search by organisation <input id="bcOrgFilter" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Search by role <input id="bcRoleFilter" type="text" style="width: 140px;">
+</label>
+</div>
+<div id="bcBody"></div>
 </section>
 
         <section id="ownerDigestPanel" class="chart-card" aria-labelledby="ownerDigestHeading"><div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><h3 id="ownerDigestHeading">Owner collection digest</h3><p>Read-only daily / weekly picture from existing figures — collections, dues, Waada broken, suspense unclaimed. It changes no record.</p></div><div><button id="ownerDigestDailyBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;" aria-pressed="true">Today</button><button id="ownerDigestWeeklyBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;" aria-pressed="false">This week</button><button id="ownerDigestExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">📥 Export digest CSV</button></div></div><div id="ownerDigestBody"></div></section>

@@ -266,6 +266,7 @@ import { recordQualityEntry, entriesForCustomer, qualityLogSummaryText, qualityL
 import { normalizeMaintenanceWindow, upsertMaintenanceWindow, removeMaintenanceWindow, findMaintenanceWindow, setMaintenanceWindowStatus, affectedMaintenanceCustomers, buildMaintenanceAnnouncement, maintenanceWhatsAppUrl, maintenanceSummaryText, maintenanceWindowsHtml, maintenanceWindowsCsv, maintenanceCalendarFilename } from './maintenance-calendar.js';
 import { normalizeSatisfactionNoteList, findSatisfactionNote, upsertSatisfactionNote, removeSatisfactionNote, satisfactionEligibleTicketIds, buildMonthlySatisfaction, satisfactionSummaryText, satisfactionHtml, satisfactionCsv, satisfactionFilename } from './satisfaction.js';
 import { normalizeChangeRequestList, findChangeRequest, upsertChangeRequest, removeChangeRequest, setChangeRequestStatus, changeRequestQueue, changeRequestSummaryText, changeRequestsHtml, changeRequestsCsv, changeRequestFilename, CHANGE_REQUEST_TYPE_LABELS, CHANGE_REQUEST_STATUS_LABELS } from './change-requests.js';
+import { normalizeStockRowList, normalizeStockMovementList, removeStockRow, setStockMinimum, receiveStock, issueStock, returnFaultyStock, lowStockSignals, stockSummaryText, stockRowsHtml, stockMovementsHtml, stockCsv, stockFilename, STOCK_ITEM_LABELS, STOCK_LOCATION_LABELS } from './stock-register.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13157,6 +13158,7 @@ function renderAnalytics() {
   renderMaintenanceCalendar();
   renderSatisfactionView();
   renderChangeRequests();
+  renderStockRegister();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -13579,6 +13581,95 @@ function renderChangeRequests() {
       const namesNow = {};
       for (const c of (state.customers ?? []).filter((x) => !x.archived)) namesNow[c.id] = c.name || c.customerName || c.id;
       downloadCsvFile(changeRequestFilename(localDate()), changeRequestsCsv(loadChangeRequests(), { names: namesNow, customers: state.customers ?? [] }));
+    });
+  }
+}
+const STOCK_REGISTER_KEY = 'shahdara_stock_register_v1';
+let stockRegisterBound = false;
+function loadStockRegister() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STOCK_REGISTER_KEY) || '{}');
+    return {
+      rows: normalizeStockRowList(Array.isArray(parsed.rows) ? parsed.rows : []),
+      movements: normalizeStockMovementList(Array.isArray(parsed.movements) ? parsed.movements : []),
+    };
+  } catch { return { rows: [], movements: [] }; }
+}
+function saveStockRegister(data) {
+  try {
+    localStorage.setItem(STOCK_REGISTER_KEY, JSON.stringify({
+      rows: normalizeStockRowList(data.rows),
+      movements: normalizeStockMovementList(data.movements),
+    }));
+  } catch {}
+}
+function renderStockRegister() {
+  const bodyEl = $('#stockRegisterBody');
+  if (!bodyEl) return;
+  const data = loadStockRegister();
+  bodyEl.innerHTML = stockRowsHtml(data.rows)
+    + '<h4 style="margin: 12px 0 4px;">Movement history</h4>' + stockMovementsHtml(data.movements);
+  const lowEl = $('#stockRegisterLow');
+  if (lowEl) {
+    const low = lowStockSignals(data.rows);
+    lowEl.textContent = low.length
+      ? 'Low stock: ' + low.map((s) => `${STOCK_ITEM_LABELS[s.item]} (${STOCK_LOCATION_LABELS[s.location]}) — ${s.onHand} on hand, minimum ${s.minimum}, short ${s.shortfall}`).join('; ')
+      : 'No low-stock signals.';
+  }
+  const summaryEl = $('#stockRegisterSummary');
+  if (summaryEl) summaryEl.textContent = stockSummaryText(data.rows, data.movements);
+  const dateEl = $('#stockRegisterDate');
+  if (dateEl && !dateEl.value) dateEl.value = localDate();
+  if (!stockRegisterBound) {
+    stockRegisterBound = true;
+    const readForm = () => ({
+      item: $('#stockRegisterItem')?.value ?? '',
+      location: $('#stockRegisterLocation')?.value ?? '',
+      qty: Number($('#stockRegisterQty')?.value ?? ''),
+      date: $('#stockRegisterDate')?.value ?? '',
+      target: $('#stockRegisterTarget')?.value ?? '',
+      note: $('#stockRegisterNote')?.value ?? '',
+      minimum: Number($('#stockRegisterMinimum')?.value ?? ''),
+    });
+    $('#stockRegisterReceiveBtn')?.addEventListener('click', () => {
+      const form = readForm();
+      const current = loadStockRegister();
+      const result = receiveStock(current.rows, current.movements, { id: `stock-${Date.now()}`, ...form });
+      if (!result.applied) { toast('Receiving needs a known item, a location, a positive quantity, and a real date.'); return; }
+      saveStockRegister(result);
+      renderStockRegister();
+    });
+    $('#stockRegisterIssueBtn')?.addEventListener('click', () => {
+      const form = readForm();
+      const result = issueStock(loadStockRegister().rows, loadStockRegister().movements, { id: `stock-${Date.now()}`, ...form });
+      if (!result.applied) { toast('Issuing needs a named job or customer, and no more than what is on hand.'); return; }
+      saveStockRegister(result);
+      renderStockRegister();
+    });
+    $('#stockRegisterFaultyBtn')?.addEventListener('click', () => {
+      const form = readForm();
+      const result = returnFaultyStock(loadStockRegister().rows, loadStockRegister().movements, { id: `stock-${Date.now()}`, ...form });
+      if (!result.applied) { toast('A faulty return needs no more units than are currently issued.'); return; }
+      saveStockRegister(result);
+      renderStockRegister();
+    });
+    $('#stockRegisterMinimumBtn')?.addEventListener('click', () => {
+      const form = readForm();
+      const result = setStockMinimum(loadStockRegister().rows, form.item, form.location, form.minimum);
+      if (!result.applied) { toast('A minimum needs a known item, a location, and a whole number of zero or more.'); return; }
+      const current = loadStockRegister();
+      saveStockRegister({ rows: result.rows, movements: current.movements });
+      renderStockRegister();
+    });
+    $('#stockRegisterRemoveBtn')?.addEventListener('click', () => {
+      const form = readForm();
+      const current = loadStockRegister();
+      saveStockRegister({ rows: removeStockRow(current.rows, form.item, form.location), movements: current.movements });
+      renderStockRegister();
+    });
+    $('#stockRegisterExportBtn')?.addEventListener('click', () => {
+      const current = loadStockRegister();
+      downloadCsvFile(stockFilename(localDate()), stockCsv(current.rows));
     });
   }
 }

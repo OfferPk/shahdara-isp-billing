@@ -383,6 +383,7 @@ import { normalizeEducationNoteList, upsertEducationNote, removeEducationNote, n
 import { normalizeReferralThanksList, upsertReferralThanks, removeReferralThanks, markReferralThanksSent, markReferralThanksUnsent, referralThanksForReferrer, referralThanksAllHtml, referralThanksSummaryText, referralThanksCsv, referralThanksFilename } from './referral-thanks.js';
 import { normalizeCadenceSettings, normalizeWinbackCadenceList, startWinbackCadence, removeWinbackCadence, completeWinbackStep, markWinbackCadenceReturned, markWinbackCadenceDoNotContact, winbackCadenceNext, winbackCadenceAllHtml, winbackCadenceSummaryText, winbackCadenceCsv, winbackCadenceFilename } from './winback-cadence.js';
 import { normalizeDormantSettings, normalizeDormantCustomerList, recordDormantCustomer, removeDormantCustomer, markDormantContacted, dormantCheckinList, dormantCheckinAllHtml, dormantCheckinSummaryText, dormantCheckinCsv, dormantCheckinFilename } from './dormant-checkin.js';
+import { normalizeVulnerableNoteList, recordVulnerableNote, updateVulnerableNote, removeVulnerableNote, vulnerableNoteForCustomer, vulnerableNoteAllHtml, vulnerableNoteSummaryText, vulnerableNoteCsv, vulnerableNoteFilename } from './vulnerable-note.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13953,6 +13954,7 @@ function renderAnalytics() {
   renderReferralThanks();
   renderWinbackCadence();
   renderDormantCheckin();
+  renderVulnerableNotes();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24214,6 +24216,7 @@ function renderWinbackCadence() {
 // the operator sends by hand.
 const DORMANT_CHECKIN_KEY = 'shahdara_dormant_checkin_v1';
 const DORMANT_CHECKIN_SETTINGS_KEY = 'shahdara_dormant_checkin_settings_v1';
+const VULNERABLE_NOTE_KEY = 'shahdara_vulnerable_notes_v1';
 function loadDormantCheckin() {
   try { return normalizeDormantCustomerList(JSON.parse(localStorage.getItem(DORMANT_CHECKIN_KEY) || '[]')); } catch { return []; }
 }
@@ -24275,6 +24278,61 @@ function renderDormantCheckin() {
       downloadCsvFile(dormantCheckinFilename(), dormantCheckinCsv(loadDormantCheckin(), loadDormantCheckinSettings(), new Date().toISOString().slice(0, 10)));
     });
     $('#dcFilter')?.addEventListener('input', () => { renderDormantCheckin(); });
+  }
+}
+function loadVulnerableNotes() {
+  try { return normalizeVulnerableNoteList(JSON.parse(localStorage.getItem(VULNERABLE_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveVulnerableNotes(list) {
+  try { localStorage.setItem(VULNERABLE_NOTE_KEY, JSON.stringify(normalizeVulnerableNoteList(list))); } catch { /* vulnerable notes only: a failed save leaves the previous list in place */ }
+}
+let vulnerableNotesBound = false;
+function renderVulnerableNotes() {
+  const bodyEl = $('#vnBody');
+  if (!bodyEl) return;
+  const list = loadVulnerableNotes();
+  const filter = ($('#vnFilter')?.value ?? '').trim().toLowerCase();
+  const shown = filter ? list.filter((item) => item.customerId.toLowerCase().includes(filter)) : list;
+  // The visit view: when a customer is looked up, that customer's
+  // note is shown on its own, and nothing about other customers.
+  const visitNote = filter ? vulnerableNoteForCustomer(list, filter) : null;
+  bodyEl.innerHTML = visitNote ? vulnerableNoteAllHtml([visitNote]) : vulnerableNoteAllHtml(shown);
+  const summaryEl = $('#vnSummary');
+  if (summaryEl) summaryEl.textContent = vulnerableNoteSummaryText(list);
+  if (!vulnerableNotesBound) {
+    vulnerableNotesBound = true;
+    const checkedNeeds = () => ['elderly', 'no-phone', 'family-member-present', 'needs-extra-time'].filter((need) => {
+      const box = { elderly: '#vnNeedElderly', 'no-phone': '#vnNeedNoPhone', 'family-member-present': '#vnNeedFamily', 'needs-extra-time': '#vnNeedExtraTime' }[need];
+      return $(box)?.checked ?? false;
+    });
+    $('#vnSaveBtn')?.addEventListener('click', () => {
+      const before = loadVulnerableNotes();
+      const next = recordVulnerableNote(before, {
+        id: `VN-${Date.now()}`,
+        customerId: $('#vnCustomer')?.value ?? '',
+        needs: checkedNeeds(),
+        note: $('#vnNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Visit note not recorded: give a customer name and one note per customer only.'); return; }
+      saveVulnerableNotes(next); renderVulnerableNotes();
+    });
+    $('#vnEditBtn')?.addEventListener('click', () => {
+      const id = ($('#vnEditId')?.value ?? '').trim();
+      if (!id) return;
+      saveVulnerableNotes(updateVulnerableNote(loadVulnerableNotes(), id, {
+        needs: ($('#vnEditNeeds')?.value ?? ''),
+        note: $('#vnEditNote')?.value ?? '',
+      })); renderVulnerableNotes();
+    });
+    $('#vnRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#vnRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveVulnerableNotes(removeVulnerableNote(loadVulnerableNotes(), id)); renderVulnerableNotes();
+    });
+    $('#vnExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(vulnerableNoteFilename(), vulnerableNoteCsv(loadVulnerableNotes()));
+    });
+    $('#vnFilter')?.addEventListener('input', () => { renderVulnerableNotes(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

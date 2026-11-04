@@ -283,6 +283,7 @@ import { DISPUTE_LETTER_VARIANTS, normalizeLetterVariant, letterStatus, buildOut
 import { answerPucho, buildMorningQueue, puchoHtml, puchoCatalogueHtml, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
 import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
 import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
+import { buildPrecloseSweep, precloseSweepSummaryText, precloseSweepHtml, precloseSweepCsv, precloseSweepFilename, validSweepMonth } from './preclose-sweep.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13243,6 +13244,7 @@ function renderAnalytics() {
   renderPuchoBox();
   renderMonthClose();
   renderRollForward();
+  renderPrecloseSweep();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -15535,6 +15537,147 @@ function renderRollForward() {
       if (!validRollMonth(pickedMonth)) { toast('Pick a valid month first.'); return; }
       const rows = rollForwardRowsForMonth(pickedMonth);
       downloadCsvFile(rollForwardFilename(pickedMonth), rollForwardCsv(rows, buildRollForwardTotals(rows)));
+    });
+  }
+}
+// Plan 69: pre-close unreconciled items sweep, read-only. One list
+// before the Plan 67 checklist is ticked: unclaimed suspense (all
+// currently open items, oldest first), unmatched or disputed wallet
+// entries for the picked month, open payment claims (Plan 63), and
+// days of the picked month with physical cash but no handover
+// record. Wallet rows are deduped by transaction id: a duplicate-TID
+// group already listed as disputed is not also listed as an
+// unmatched ledger row, so the same money is never counted twice.
+// The sweep holds no copy of its own — clearing an item from its
+// own screen removes it from the next sweep — and a month marked
+// closed with items still open carries them as carried-forward
+// exceptions. Nothing here resolves, creates, or changes a record.
+let precloseSweepBound = false;
+function precloseSweepForMonth(month) {
+  const today = localDate();
+  const suspenseItems = loadSuspensePayments().filter((entry) => entry && !entry.claimed).map((entry) => ({
+    id: entry.suspenseId,
+    label: entry.suspenseId || 'Suspense',
+    detail: [entry.wallet, entry.tid ? `TID ${entry.tid}` : '', entry.senderName].filter(Boolean).join(' · '),
+    amount: entry.amount,
+    ageDays: suspenseAgeDays(entry, today),
+    date: entry.date,
+  }));
+  let inboxItems = [];
+  try {
+    const parsed = JSON.parse(localStorage.getItem('easypaisaInbox.items') || '[]');
+    inboxItems = Array.isArray(parsed) ? parsed : [];
+  } catch { inboxItems = []; }
+  const report = buildWalletReconciliation(state.customers, month, loadShopSettlements());
+  const reconView = buildWalletReconView({
+    report,
+    customers: state.customers,
+    inboxItems,
+    suspenseEntries: loadSuspensePayments(),
+    settings: getDigitalPaymentsSettings(),
+  });
+  const buckets = reconView.buckets || {};
+  const unmatchedRows = [
+    ...(buckets.unmatched?.rows ?? []),
+    ...(buckets['inbox-review']?.rows ?? []),
+    ...(buckets['inbox-unrecorded']?.rows ?? []),
+  ];
+  const seenTids = new Set(unmatchedRows.map((row) => String(row.tid || '').trim().toUpperCase()).filter(Boolean));
+  const walletItems = [
+    ...unmatchedRows,
+    ...(buckets.disputed?.rows ?? []).filter((row) => !String(row.tid || '').trim() || !seenTids.has(String(row.tid).trim().toUpperCase())),
+  ].map((row, index) => ({
+    id: row.paymentId || row.tid || `${row.source || 'wallet'}-${row.date || ''}-${index}`,
+    bucket: row.bucket,
+    label: row.customerName || row.tid || 'Wallet entry',
+    detail: [row.method, row.tid ? `TID ${row.tid}` : '', row.detail].filter(Boolean).join(' · '),
+    amount: row.amount,
+    date: row.date,
+  }));
+  const claims = openPaymentClaims(loadPaymentClaims()).map((claim) => ({
+    id: claim.id,
+    label: `${claim.id} · ${claim.customerName || claim.customerId}`,
+    detail: [claim.channel, claim.reference ? `Ref ${claim.reference}` : '', claim.outcome].filter(Boolean).join(' · '),
+    amount: claim.amount,
+    date: claim.dateClaimed,
+    closed: false,
+  }));
+  const paymentDates = new Set();
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      if (!bill) continue;
+      for (const payment of bill.payments ?? []) {
+        if (!payment || payment.voided === true) continue;
+        const date = typeof payment.date === 'string' ? payment.date.slice(0, 10) : '';
+        if (date.startsWith(month)) paymentDates.add(date);
+      }
+    }
+  }
+  const handovers = [];
+  for (const date of [...paymentDates].sort()) {
+    let expectedCash = 0;
+    try { expectedCash = calculateCollectorCashExpected(state, date, 'all').expectedCash || 0; } catch { expectedCash = 0; }
+    if (!(expectedCash > 0)) continue;
+    const recorded = getDailyCashHandovers(typeof localStorage !== 'undefined' ? localStorage : null, date).length > 0;
+    if (recorded) continue;
+    handovers.push({
+      date,
+      label: `Day ${date}`,
+      detail: `Expected cash ${formatAmount(expectedCash)}, no handover recorded`,
+      amount: expectedCash,
+      handoverRecorded: false,
+    });
+  }
+  return buildPrecloseSweep({
+    month,
+    suspenseItems,
+    walletItems,
+    claims,
+    handovers,
+    monthClose: findMonthClose(loadMonthClose(), month),
+  });
+}
+function renderPrecloseSweep() {
+  const bodyEl = $('#precloseSweepBody');
+  if (!bodyEl) return;
+  const monthEl = $('#precloseSweepMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const month = monthEl?.value ?? localDate().slice(0, 7);
+  const summaryEl = $('#precloseSweepSummary');
+  if (!validSweepMonth(month)) {
+    bodyEl.innerHTML = '<p style="font-size: 12px;">Pick a valid month to run the pre-close sweep.</p>';
+    if (summaryEl) summaryEl.textContent = '';
+  } else {
+    const sweep = precloseSweepForMonth(month);
+    bodyEl.innerHTML = precloseSweepHtml(sweep);
+    if (summaryEl) summaryEl.textContent = precloseSweepSummaryText(sweep);
+  }
+  if (!precloseSweepBound) {
+    precloseSweepBound = true;
+    $('#precloseSweepMonth')?.addEventListener('change', () => renderPrecloseSweep());
+    $('#precloseSweepExportBtn')?.addEventListener('click', () => {
+      const pickedMonth = $('#precloseSweepMonth')?.value ?? localDate().slice(0, 7);
+      if (!validSweepMonth(pickedMonth)) { toast('Pick a valid month first.'); return; }
+      downloadCsvFile(precloseSweepFilename(pickedMonth), precloseSweepCsv(precloseSweepForMonth(pickedMonth)));
+    });
+    $('#precloseSweepOpenSuspenseBtn')?.addEventListener('click', () => {
+      if (typeof suspensePaymentsModalController !== 'undefined' && suspensePaymentsModalController?.open) suspensePaymentsModalController.open();
+      else toast('Suspense register is not available here.');
+    });
+    $('#precloseSweepOpenWalletBtn')?.addEventListener('click', () => {
+      const pickedMonth = $('#precloseSweepMonth')?.value ?? localDate().slice(0, 7);
+      if (walletLedgerModalController?.open) walletLedgerModalController.open({ month: pickedMonth });
+      else toast('Wallet ledger is not available here.');
+    });
+    $('#precloseSweepOpenClaimsBtn')?.addEventListener('click', () => {
+      const target = document.getElementById('paymentClaimsBody');
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else toast('Payment-claim check is not available here.');
+    });
+    $('#precloseSweepOpenHandoverBtn')?.addEventListener('click', () => {
+      if (dailyClosingModalController?.open) dailyClosingModalController.open();
+      else toast('Daily closing is not available here.');
     });
   }
 }

@@ -50,6 +50,10 @@ export const AUDIT_ACTIONS = Object.freeze([
   // Plan 33 adds the eighth action: an operator-mode switch is an
   // operator action worth auditing, recorded by the mode wiring.
   { value: 'mode_switched', label: 'Operator mode switched' },
+  // Plan 54 adds the ninth action: Plan 54 acceptance requires
+  // every emergency-contact edit to be logged here, recorded by
+  // the emergency-card wiring. No other Plan 31 behaviour changes.
+  { value: 'emergency_contact_edited', label: 'Emergency contact edited' },
 ]);
 
 const ACTION_LABELS = new Map(AUDIT_ACTIONS.map((a) => [a.value, a.label]));

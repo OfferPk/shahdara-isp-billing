@@ -379,6 +379,7 @@ import { normalizeDraftLanguageList, upsertDraftLanguage, removeDraftLanguage, p
 import { normalizeInfoSheetList, upsertInfoSheet, removeInfoSheet, infoSheetForCustomer, infoSheetAllHtml, infoSheetCustomerHtml, infoSheetSummaryText, infoSheetCsv, infoSheetFilename } from './info-sheet.js';
 import { normalizeAnnouncementDraftList, upsertAnnouncementDraft, copyAnnouncementDraft, removeAnnouncementDraft, markAnnouncementSent, markAnnouncementUnsent, announcementDraftAllHtml, announcementDraftMohallaHtml, announcementDraftSummaryText, announcementDraftCsv, announcementDraftFilename } from './announcement-draft.js';
 import { normalizeChangeConfirmationList, upsertChangeConfirmation, removeChangeConfirmation, markChangeConfirmationSent, markChangeConfirmationUnsent, changeConfirmationCustomerHtml, changeConfirmationAllHtml, changeConfirmationSummaryText, changeConfirmationCsv, changeConfirmationFilename } from './change-confirmation.js';
+import { normalizeEducationNoteList, upsertEducationNote, removeEducationNote, normalizeEducationShareList, recordEducationShare, removeEducationShare, educationNotesSorted, educationSharesForCustomer, educationNoteStarters, educationNoteSummaryText, educationShareSummaryText, educationNoteAllHtml, educationShareAllHtml, educationNoteCsv, educationNoteFilename, educationShareCsv, educationShareFilename } from './education-note.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13945,6 +13946,7 @@ function renderAnalytics() {
   renderAnnouncementDrafts();
   renderChangeConfirmations();
   renderReceiptScripts();
+  renderEducationNotes();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23961,6 +23963,92 @@ function renderReceiptScripts() {
       if (!customer || !bill || !payment) { toast('No saved receipt matches that customer, month, and payment id.'); return; }
       printPaymentReceipt(customer.id, bill.month, payment.id, { format: chosenFormat(), script: 'urdu' });
     });
+  }
+}
+// Plan 169: customer education notes as operator-shared drafts.
+// The panel keeps a small library of generic guidance notes and
+// records, per share, only that the note was shared, with a date
+// and a customer id. Notes contain no customer data, never diagnose
+// a fault, never change any other record, and nothing is sent
+// automatically — sharing happens by hand, outside this panel.
+const EDUCATION_NOTE_KEY = 'shahdara_education_notes_v1';
+const EDUCATION_SHARE_KEY = 'shahdara_education_shares_v1';
+function loadEducationNotes() {
+  try { return normalizeEducationNoteList(JSON.parse(localStorage.getItem(EDUCATION_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveEducationNotes(list) {
+  try { localStorage.setItem(EDUCATION_NOTE_KEY, JSON.stringify(normalizeEducationNoteList(list))); } catch { /* education notes only: a failed save leaves the previous list in place */ }
+}
+function loadEducationShares() {
+  try { return normalizeEducationShareList(JSON.parse(localStorage.getItem(EDUCATION_SHARE_KEY) || '[]')); } catch { return []; }
+}
+function saveEducationShares(list) {
+  try { localStorage.setItem(EDUCATION_SHARE_KEY, JSON.stringify(normalizeEducationShareList(list))); } catch { /* education shares only: a failed save leaves the previous list in place */ }
+}
+let educationNotesBound = false;
+function renderEducationNotes() {
+  const bodyEl = $('#enBody');
+  if (!bodyEl) return;
+  const notes = loadEducationNotes();
+  const shares = loadEducationShares();
+  const filter = ($('#enFilter')?.value ?? '').trim().toLowerCase();
+  const shown = filter ? educationNotesSorted(notes).filter((item) => item.title.toLowerCase().includes(filter)) : educationNotesSorted(notes);
+  bodyEl.innerHTML = shown.length ? shown.map((item) => educationNoteAllHtml([item])).join('') : '<p>No education notes recorded yet.</p>';
+  const shareFilter = ($('#enShareFilter')?.value ?? '').trim();
+  const shareEl = $('#enShareBody');
+  if (shareEl) {
+    const shownShares = shareFilter ? educationSharesForCustomer(shares, shareFilter) : shares;
+    shareEl.innerHTML = educationShareAllHtml(shownShares, notes);
+  }
+  const summaryEl = $('#enSummary');
+  if (summaryEl) summaryEl.textContent = `${educationNoteSummaryText(notes)}; ${educationShareSummaryText(shares)}.`;
+  if (!educationNotesBound) {
+    educationNotesBound = true;
+    $('#enSaveBtn')?.addEventListener('click', () => {
+      const before = loadEducationNotes();
+      const next = upsertEducationNote(before, {
+        id: `EDU-${Date.now()}`,
+        title: $('#enTitle')?.value ?? '',
+        steps: $('#enSteps')?.value ?? '',
+        appliesWhen: $('#enAppliesWhen')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Education note not recorded: give a title, at least one step, and an applies-when line.'); return; }
+      saveEducationNotes(next); renderEducationNotes();
+    });
+    $('#enStartersBtn')?.addEventListener('click', () => {
+      let next = loadEducationNotes();
+      for (const starter of educationNoteStarters()) next = upsertEducationNote(next, starter);
+      saveEducationNotes(next); renderEducationNotes();
+    });
+    $('#enRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#enRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveEducationNotes(removeEducationNote(loadEducationNotes(), id)); renderEducationNotes();
+    });
+    $('#enExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(educationNoteFilename(), educationNoteCsv(loadEducationNotes()));
+    });
+    $('#enFilter')?.addEventListener('input', () => { renderEducationNotes(); });
+    $('#enShareBtn')?.addEventListener('click', () => {
+      const before = loadEducationShares();
+      const next = recordEducationShare(loadEducationNotes(), before, {
+        id: `SHARE-${Date.now()}`,
+        noteId: $('#enShareNoteId')?.value ?? '',
+        customerId: $('#enShareCustomer')?.value ?? '',
+        sharedDate: $('#enShareDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Share not recorded: give a note id from the library, a customer, and a real date.'); return; }
+      saveEducationShares(next); renderEducationNotes();
+    });
+    $('#enShareRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#enShareRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveEducationShares(removeEducationShare(loadEducationShares(), id)); renderEducationNotes();
+    });
+    $('#enShareExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(educationShareFilename(), educationShareCsv(loadEducationShares()));
+    });
+    $('#enShareFilter')?.addEventListener('input', () => { renderEducationNotes(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

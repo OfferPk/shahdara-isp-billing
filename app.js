@@ -292,6 +292,7 @@ import { validSnapshotMonth, normalizeSnapshotList, findSnapshot, takeSnapshot, 
 import { validAnnualYear, monthsOfYear, buildAnnualSummary, annualSummaryText, annualSummaryHtml, annualSummaryCsv, annualSummaryFilename } from './annual-summary.js';
 import { ENQUIRY_TYPES, ENQUIRY_TYPE_LABELS, ENQUIRY_STATUSES, ENQUIRY_STATUS_LABELS, ENQUIRY_REPLY_DRAFTS, ENQUIRY_REPLY_DRAFT_LABELS, ENQUIRY_REFERRED_STATUSES, normalizeEnquiry, normalizeEnquiryList, pendingEnquiries, buildEnquirySummary, enquirySummaryText, enquiryHtml, enquiryCsv, enquiryFilename, upsertEnquiry, removeEnquiry, markEnquiryAnswered, referEnquiry, reopenEnquiry } from './enquiry-log.js';
 import { DEPOSIT_DEVICE_TYPES, DEPOSIT_DEVICE_TYPE_LABELS, DEPOSIT_STATUSES, DEPOSIT_STATUS_LABELS, normalizeDeposit, normalizeDepositList, upsertDeposit, removeDeposit, markDepositRefunded, markDepositApplied, reopenDeposit, depositsFiltered, buildDepositSummary, depositSummaryText, depositHtml, depositCsv, depositFilename } from './deposit-register.js';
+import { LOAN_DEVICE_TYPES, LOAN_DEVICE_TYPE_LABELS, LOAN_STATUSES, LOAN_STATUS_LABELS, normalizeLoan, normalizeLoanList, upsertLoan, removeLoan, markLoanReturned, convertLoanPermanent, reopenLoan, loansFiltered, overdueLoans, buildLoanSummary, loanSummaryText, loanHtml, loanCsv, loanFilename } from './loan-tracker.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13510,6 +13511,7 @@ function renderAnalytics() {
   renderAnnualSummary();
   renderEnquiryLog();
   renderDepositRegister();
+  renderLoanTracker();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -16565,6 +16567,145 @@ function renderDepositRegister() {
     });
     $('#depositExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(depositFilename(), depositCsv(loadDepositRegister()));
+    });
+  }
+}
+const LOAN_TRACKER_KEY = 'shahdara_loan_tracker_v1';
+let loanTrackerBound = false;
+function loadLoanTracker() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(LOAN_TRACKER_KEY) || '[]');
+    return normalizeLoanList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveLoanTracker(list) {
+  try { localStorage.setItem(LOAN_TRACKER_KEY, JSON.stringify(normalizeLoanList(list))); } catch {}
+}
+// Temporary loan equipment tracker (Plan 78): one record per loan
+// unit with its serial, customer, dates, and status. A loan never
+// changes a package, bill, or ticket status by itself, moves no
+// money, and touches no stock count — stock moves only through
+// the normal issue/return movement, and the original repair or
+// warranty record is not held here, so returning a loan cannot
+// alter it.
+function renderLoanTracker() {
+  const bodyEl = $('#loanTrackerBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const entries = loadLoanTracker();
+  const today = new Date().toISOString().slice(0, 10);
+  const overdue = overdueLoans(entries, today);
+  const showOverdueOnly = $('#loanShowOverdue')?.checked ?? false;
+  const shown = showOverdueOnly ? overdue : loansFiltered(entries, {
+    status: $('#loanFilterStatus')?.value ?? '',
+    deviceType: $('#loanFilterDevice')?.value ?? '',
+    mohalla: $('#loanFilterMohalla')?.value ?? '',
+  });
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = loanHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const summaryEl = $('#loanTrackerSummary');
+  if (summaryEl) summaryEl.textContent = loanSummaryText(buildLoanSummary(entries, today));
+  const overdueEl = $('#loanOverdueBody');
+  if (overdueEl) {
+    overdueEl.innerHTML = overdue.length === 0
+      ? '<p class="empty-state">No overdue loans.</p>'
+      : `<table><thead><tr><th>Loan</th><th>Customer</th><th>Return due</th><th>Days overdue</th></tr></thead><tbody>${overdue.map((entry) => `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(names[entry.customerId] || entry.customerId)}</td><td>${escapeHtml(entry.expectedReturnDate)}</td><td>${escapeHtml(entry.daysOverdue)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  const customerEl = $('#loanCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const selectEl = $('#loanSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = entries.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(LOAN_DEVICE_TYPE_LABELS[entry.deviceType])} (${escapeHtml(LOAN_STATUS_LABELS[entry.status])})</option>`).join('')
+      || '<option value="">No loans yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['loanFilterStatus', LOAN_STATUSES, LOAN_STATUS_LABELS],
+    ['loanFilterDevice', LOAN_DEVICE_TYPES, LOAN_DEVICE_TYPE_LABELS],
+    ['loanDevice', LOAN_DEVICE_TYPES, LOAN_DEVICE_TYPE_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('loanFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  const mohallaEl = $('#loanMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+    mohallaEl.value = selected ? (selected.mohalla || selected.area || '') : '';
+  }
+  if (!loanTrackerBound) {
+    loanTrackerBound = true;
+    $('#loanCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#loanCustomer')?.value ?? ''));
+      const mohallaInput = $('#loanMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+      renderLoanTracker();
+    });
+    $('#loanFilterStatus')?.addEventListener('change', () => renderLoanTracker());
+    $('#loanFilterDevice')?.addEventListener('change', () => renderLoanTracker());
+    $('#loanFilterMohalla')?.addEventListener('input', () => renderLoanTracker());
+    $('#loanShowOverdue')?.addEventListener('change', () => renderLoanTracker());
+    $('#loanRecordBtn')?.addEventListener('click', () => {
+      const customerId = $('#loanCustomer')?.value ?? '';
+      if (!customerId) { toast('Pick a customer first.'); return; }
+      const selected = customers.find((c) => String(c.id) === String(customerId));
+      const record = normalizeLoan({
+        id: $('#loanId')?.value ?? '',
+        customerId,
+        customerName: selected ? (selected.name || selected.customerName || '') : '',
+        ticketId: $('#loanTicketId')?.value ?? '',
+        connectionId: $('#loanConnectionId')?.value ?? '',
+        deviceType: $('#loanDevice')?.value ?? '',
+        loanSerial: $('#loanSerial')?.value ?? '',
+        originalSerial: $('#loanOriginalSerial')?.value ?? '',
+        dateIssued: $('#loanDateIssued')?.value ?? '',
+        expectedReturnDate: $('#loanReturnDue')?.value ?? '',
+        status: 'out',
+        mohalla: $('#loanMohalla')?.value ?? '',
+      });
+      if (!record) {
+        toast('A loan needs an id, a customer, a device type, a loan serial, a valid date issued, and a valid return due date.');
+        return;
+      }
+      saveLoanTracker(upsertLoan(loadLoanTracker(), record));
+      toast('Loan recorded as out. This tracker moves no money and changes no ticket, package, or bill.');
+      renderLoanTracker();
+    });
+    $('#loanApplyBtn')?.addEventListener('click', () => {
+      const id = $('#loanSelect')?.value ?? '';
+      if (!id) return;
+      const action = $('#loanAction')?.value ?? '';
+      const current = loadLoanTracker();
+      let next = current;
+      if (action === 'returned') next = markLoanReturned(current, id, $('#loanReturnDate')?.value ?? '');
+      else if (action === 'converted') next = convertLoanPermanent(current, id, $('#loanNote')?.value ?? '');
+      const moved = next.find((entry) => entry.id === id);
+      if (!moved || moved.status === 'out') {
+        toast(action === 'returned' ? 'Only a loan still out can be returned.' : 'Only a loan still out can be converted, and only with the operator note.');
+        return;
+      }
+      saveLoanTracker(next);
+      renderLoanTracker();
+    });
+    $('#loanReopenBtn')?.addEventListener('click', () => {
+      const id = $('#loanSelect')?.value ?? '';
+      if (!id) return;
+      saveLoanTracker(reopenLoan(loadLoanTracker(), id));
+      renderLoanTracker();
+    });
+    $('#loanRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#loanSelect')?.value ?? '';
+      if (!id) return;
+      saveLoanTracker(removeLoan(loadLoanTracker(), id));
+      renderLoanTracker();
+    });
+    $('#loanExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(loanFilename(), loanCsv(loadLoanTracker()));
     });
   }
 }

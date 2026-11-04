@@ -271,6 +271,7 @@ import { DEPENDENCY_TYPE_OPTIONS, normalizeDependencyList, upsertDependency, rem
 import { POWER_STATE_OPTIONS, normalizePowerLog, upsertPowerEntry, removePowerEntry, powerHistoryForSite, latestPowerStatePerSite, powerSummaryText, latestPowerHtml, powerLogHtml, powerCsv, powerFilename } from './power-status-log.js';
 import { EMERGENCY_ROLES, normalizeEmergencyCard, upsertEmergencyContact, removeEmergencyContact, findEmergencyContact, emergencyCardSummaryText, emergencyCardHtml, emergencyContactsCsv, emergencyCardFilename } from './emergency-card.js';
 import { normalizeSweep, upsertSweep, removeSweep, findSweep, markSegmentChecked, markCustomerConfirmed, markCustomerStillDown, completeSweep, sweepAffectedCustomers, sweepChecklist, sweepFollowUpList, followUpTicketDraft, sweepSummaryText, sweepsHtml, sweepsCsv, sweepFilename } from './restoration-sweep.js';
+import { normalizeAtRiskThresholds, buildAtRiskList, atRiskSummaryText, atRiskHtml, atRiskCsv, atRiskFilename } from './at-risk-signals.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13169,6 +13170,7 @@ function renderAnalytics() {
   renderPowerStatusLog();
   renderEmergencyCard();
   renderRestorationSweep();
+  renderAtRiskList();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -14113,6 +14115,121 @@ function renderRestorationSweep() {
       saveTicketLog([...stored, created]);
       toast('Follow-up ticket created in the ticket log.');
       renderRestorationSweep();
+    });
+  }
+}
+// Plan 56 (Plan 1-100) — at-risk customer signals list, read-only.
+// The list is recomputed fresh from current records on every render:
+// payment lateness over recent settled months, Plan 24 repeat-fault
+// flags, unhappy Plan 49 satisfaction notes, and the gap since the
+// last recorded payment or ticket activity (no dedicated contact log
+// exists, so the panel copy says exactly that). Flagging never
+// changes a payment, Waada, ticket, or customer status, sends no
+// message, and takes no automatic action — each row only links to
+// the customer profile. Thresholds live in their own store next to
+// Plan 8's thresholds place in this panel, with the same
+// normalisation pattern; the two stores stay separate because Plan
+// 8 measures thresholds already crossed while this list predicts
+// drift, so merging their keys would conflate the two.
+const AT_RISK_THRESHOLDS_KEY = 'shahdara_at_risk_thresholds_v1';
+let atRiskListBound = false;
+function loadAtRiskThresholds() {
+  try {
+    const raw = localStorage.getItem(AT_RISK_THRESHOLDS_KEY);
+    return raw ? normalizeAtRiskThresholds(JSON.parse(raw)) : { ...normalizeAtRiskThresholds() };
+  } catch { return { ...normalizeAtRiskThresholds() }; }
+}
+function saveAtRiskThresholds(thresholds) {
+  try { localStorage.setItem(AT_RISK_THRESHOLDS_KEY, JSON.stringify(normalizeAtRiskThresholds(thresholds))); } catch {}
+}
+function atRiskDaysBetween(earlierStr, laterStr) {
+  if (typeof earlierStr !== 'string' || typeof laterStr !== 'string') return null;
+  const parse = (s) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+    if (!m) return null;
+    const built = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    if (built.getUTCFullYear() !== Number(m[1]) || built.getUTCMonth() !== Number(m[2]) - 1 || built.getUTCDate() !== Number(m[3])) return null;
+    return built;
+  };
+  const earlier = parse(earlierStr);
+  const later = parse(laterStr);
+  if (!earlier || !later) return null;
+  return Math.round((later - earlier) / 86400000);
+}
+function buildAtRiskInputs() {
+  const customers = (state.customers ?? []).filter((c) => !c.archived);
+  const tickets = loadTicketLog();
+  const ticketCustomerById = new Map(tickets.map((t) => [String(t.id), String(t.customerId ?? '')]));
+  const paymentLateness = [];
+  const lastActivity = [];
+  for (const customer of customers) {
+    const lateness = [];
+    let latestActivity = null;
+    const bills = [...(customer.bills ?? [])].sort((a, b) => String(a.month ?? '').localeCompare(String(b.month ?? '')));
+    for (const bill of bills) {
+      const payments = (bill.payments ?? []).filter((p) => p && p.voided !== true && typeof p.date === 'string');
+      for (const payment of payments) {
+        if (!latestActivity || payment.date > latestActivity) latestActivity = payment.date;
+      }
+      if (!bill.dueDate || payments.length === 0) continue;
+      const latestPayment = payments.map((p) => p.date).sort().pop();
+      const days = atRiskDaysBetween(bill.dueDate, latestPayment);
+      if (days !== null) lateness.push(days);
+    }
+    for (const ticket of tickets) {
+      if (String(ticket.customerId ?? '') !== String(customer.id)) continue;
+      if (ticket.reportedDate && (!latestActivity || ticket.reportedDate > latestActivity)) latestActivity = ticket.reportedDate;
+    }
+    if (lateness.length) paymentLateness.push({ customerId: customer.id, latenessDays: lateness });
+    if (latestActivity) lastActivity.push({ customerId: customer.id, lastDate: latestActivity });
+  }
+  const today = localDate();
+  const repeatByCustomer = new Map();
+  for (const flag of buildRepeatFaultFlags(tickets, { today })) {
+    const key = String(flag.customerId ?? '');
+    if (key === '') continue;
+    repeatByCustomer.set(key, Math.max(repeatByCustomer.get(key) ?? 0, flag.count ?? 0));
+  }
+  const repeatFaults = [...repeatByCustomer.entries()].map(([customerId, count]) => ({ customerId, count }));
+  const satisfactionNotes = loadSatisfactionNotes()
+    .map((note) => ({ customerId: ticketCustomerById.get(String(note.ticketId ?? '')) ?? '', rating: note.rating }))
+    .filter((note) => note.customerId !== '');
+  return { customers, paymentLateness, repeatFaults, satisfactionNotes, lastActivity, today };
+}
+function renderAtRiskList() {
+  const bodyEl = $('#atRiskBody');
+  if (!bodyEl) return;
+  const thresholds = loadAtRiskThresholds();
+  const inputs = buildAtRiskInputs();
+  const view = buildAtRiskList({ ...inputs, thresholds });
+  bodyEl.innerHTML = atRiskHtml(view);
+  const summaryEl = $('#atRiskSummary');
+  if (summaryEl) summaryEl.textContent = atRiskSummaryText(view);
+  const lateEl = $('#atRiskLateDays');
+  const monthsEl = $('#atRiskRecentMonths');
+  const minLateEl = $('#atRiskMinLateMonths');
+  const gapEl = $('#atRiskGapDays');
+  if (lateEl && document.activeElement !== lateEl) lateEl.value = thresholds.lateDays;
+  if (monthsEl && document.activeElement !== monthsEl) monthsEl.value = thresholds.recentMonths;
+  if (minLateEl && document.activeElement !== minLateEl) minLateEl.value = thresholds.minLateMonths;
+  if (gapEl && document.activeElement !== gapEl) gapEl.value = thresholds.gapDays;
+  bodyEl.querySelectorAll('[data-at-risk-customer-id]').forEach((button) => {
+    button.addEventListener('click', () => selectCustomer(button.dataset.atRiskCustomerId));
+  });
+  if (!atRiskListBound) {
+    atRiskListBound = true;
+    $('#atRiskSaveThresholdsBtn')?.addEventListener('click', () => {
+      saveAtRiskThresholds({
+        lateDays: Number($('#atRiskLateDays')?.value),
+        recentMonths: Number($('#atRiskRecentMonths')?.value),
+        minLateMonths: Number($('#atRiskMinLateMonths')?.value),
+        gapDays: Number($('#atRiskGapDays')?.value),
+      });
+      renderAtRiskList();
+    });
+    $('#atRiskExportBtn')?.addEventListener('click', () => {
+      const current = buildAtRiskList({ ...buildAtRiskInputs(), thresholds: loadAtRiskThresholds() });
+      downloadCsvFile(atRiskFilename(), atRiskCsv(current));
     });
   }
 }

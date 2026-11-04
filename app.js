@@ -375,6 +375,7 @@ import { normalizeHandoverList, upsertHandover, removeHandover, handoverAllHtml,
 import { normalizeComplaintAckList, upsertComplaintAck, removeComplaintAck, complaintAckAllHtml, complaintAckCustomerHtml, complaintAckSummaryText, complaintAckCsv, complaintAckFilename } from './complaint-ack.js';
 import { normalizeVisitFeedbackList, upsertVisitFeedback, removeVisitFeedback, markVisitFeedbackReviewed, feedbackAllHtml, feedbackCustomerHtml, feedbackUnreviewedHtml, feedbackSummaryText, feedbackCsv, feedbackFilename } from './visit-feedback.js';
 import { normalizeGreetingDateList, upsertGreetingDate, removeGreetingDate, markGreetingSent, greetingAllHtml, greetingCustomerHtml, greetingUpcomingHtml, greetingSummaryText, greetingCsv, greetingFilename } from './greeting-date.js';
+import { normalizeDraftLanguageList, upsertDraftLanguage, removeDraftLanguage, preferenceFor, applyDraftLanguage, draftLanguageAllHtml, draftLanguageCustomerHtml, draftLanguageSummaryText, draftLanguageCsv, draftLanguageFilename } from './draft-language.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13933,6 +13934,7 @@ function renderAnalytics() {
   renderComplaintAcks();
   renderVisitFeedback();
   renderGreetingDates();
+  renderDraftLanguages();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23662,6 +23664,68 @@ function renderGreetingDates() {
     });
     $('#gdFilter')?.addEventListener('input', () => { renderGreetingDates(); });
     $('#gdRefDate')?.addEventListener('input', () => { renderGreetingDates(); });
+  }
+}
+const DRAFT_LANGUAGE_KEY = 'shahdara_draft_language_v1';
+function loadDraftLanguages() {
+  try { return normalizeDraftLanguageList(JSON.parse(localStorage.getItem(DRAFT_LANGUAGE_KEY) || '[]')); } catch { return []; }
+}
+function saveDraftLanguages(list) {
+  try { localStorage.setItem(DRAFT_LANGUAGE_KEY, JSON.stringify(normalizeDraftLanguageList(list))); } catch { /* draft language only: a failed save leaves the previous list in place */ }
+}
+let draftLanguagesBound = false;
+function renderDraftLanguages() {
+  const bodyEl = $('#dlBody');
+  if (!bodyEl) return;
+  const list = loadDraftLanguages();
+  bodyEl.innerHTML = draftLanguageAllHtml(list);
+  const customerEl = $('#dlCustomerBody');
+  if (customerEl) {
+    const customer = $('#dlFilter')?.value ?? '';
+    customerEl.innerHTML = customer ? draftLanguageCustomerHtml(list, customer) : '<p>Pick a customer to see their draft language preferences; a missing preference never blocks a draft — it falls back to Roman Urdu.</p>';
+  }
+  const summaryEl = $('#dlSummary');
+  if (summaryEl) summaryEl.textContent = draftLanguageSummaryText(list);
+  if (!draftLanguagesBound) {
+    draftLanguagesBound = true;
+    $('#dlSaveBtn')?.addEventListener('click', () => {
+      const before = loadDraftLanguages();
+      const customer = $('#dlCustomer')?.value ?? '';
+      const draftType = $('#dlType')?.value ?? '';
+      const language = $('#dlLanguage')?.value ?? '';
+      // Changing one type's preference leaves every other type alone:
+      // drop the old record for this customer and type, then record.
+      const cleared = removeDraftLanguage(before, (before.find((item) => item.customer.toLowerCase() === customer.trim().toLowerCase() && item.draftType === draftType.trim().toLowerCase()) || {}).id || '');
+      const next = upsertDraftLanguage(cleared, {
+        id: `DL-${Date.now()}`,
+        customer,
+        draftType,
+        language,
+      });
+      if (next.length === cleared.length) { toast('Draft language not recorded: give a customer, a draft type, and Roman Urdu or Urdu script.'); return; }
+      saveDraftLanguages(next); renderDraftLanguages();
+    });
+    $('#dlRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#dlRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveDraftLanguages(removeDraftLanguage(loadDraftLanguages(), id));
+      renderDraftLanguages();
+    });
+    $('#dlExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(draftLanguageFilename(), draftLanguageCsv(loadDraftLanguages()));
+    });
+    $('#dlFilter')?.addEventListener('input', () => { renderDraftLanguages(); });
+    $('#dlPreviewBtn')?.addEventListener('click', () => {
+      const previewEl = $('#dlPreviewBody');
+      if (!previewEl) return;
+      const customer = $('#dlPreviewCustomer')?.value ?? '';
+      const draftType = $('#dlPreviewType')?.value ?? '';
+      const romanText = $('#dlPreviewRoman')?.value ?? '';
+      const urduText = $('#dlPreviewUrdu')?.value ?? '';
+      const language = preferenceFor(loadDraftLanguages(), customer, draftType);
+      const text = applyDraftLanguage(loadDraftLanguages(), customer, draftType, romanText, urduText);
+      previewEl.innerHTML = `<p>Draft for ${customer || '(no customer)'} (${draftType || '(no type)'}) uses <strong>${language === 'urdu' ? 'Urdu script' : 'Roman Urdu'}</strong>. Nothing is sent — the operator reviews and sends this draft by hand.</p><p>${text ? text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') : '(no draft text given)'}</p>`;
+    });
   }
 }
 // Closed months for the guard: months closed on the month-end

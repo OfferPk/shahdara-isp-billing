@@ -356,6 +356,7 @@ import { normalizeEscalationList, upsertEscalation, removeEscalation, recordEsca
 import { normalizeSegmentDiaryList, upsertSegmentDiaryEntry, removeSegmentDiaryEntry, segmentDiarySummaryText, segmentDiaryHtml, segmentDiaryCsv, segmentDiaryFilename } from './segment-diary.js';
 import { normalizeEquipmentCycleList, upsertEquipmentCycleRecord, removeEquipmentCycleRecord, recordEquipmentCycleCheck, equipmentCycleSummaryText, equipmentCycleDueHtml, equipmentCycleCsv, equipmentCycleFilename } from './equipment-cycle.js';
 import { normalizeJobChecklistTemplateList, jobChecklistTemplatesWithDefaults, upsertJobChecklistTemplate, removeJobChecklistTemplate, normalizeJobChecklistVisitList, upsertJobChecklistVisit, removeJobChecklistVisit, tickJobChecklistVisit, untickJobChecklistVisit, jobChecklistSummaryText, jobChecklistHtml, jobChecklistIncompleteHtml, jobChecklistTemplatesHtml, jobChecklistCsv, jobChecklistFilename } from './job-checklist.js';
+import { normalizeSpliceRepairList, upsertSpliceRepairRecord, removeSpliceRepairRecord, spliceRepairSummaryText, spliceRepairHtml, spliceRepairCsv, spliceRepairFilename } from './splice-repair.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13895,6 +13896,7 @@ function renderAnalytics() {
   renderSegmentDiary();
   renderEquipmentCycle();
   renderJobChecklists();
+  renderSpliceRepairs();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22661,6 +22663,51 @@ function renderJobChecklists() {
       downloadCsvFile(jobChecklistFilename(), jobChecklistCsv(loadJobChecklistVisits(), templatesNow));
     });
     $('#jobCheckFilter')?.addEventListener('input', () => { renderJobChecklists(); });
+  }
+}
+const SPLICE_REPAIR_KEY = 'shahdara_splice_repairs_v1';
+function loadSpliceRepairs() {
+  try { return normalizeSpliceRepairList(JSON.parse(localStorage.getItem(SPLICE_REPAIR_KEY) || '[]')); } catch { return []; }
+}
+function saveSpliceRepairs(list) {
+  try { localStorage.setItem(SPLICE_REPAIR_KEY, JSON.stringify(normalizeSpliceRepairList(list))); } catch { /* repairs only: a failed save leaves the previous records in place */ }
+}
+let spliceRepairBound = false;
+function renderSpliceRepairs() {
+  const bodyEl = $('#spliceBody');
+  if (!bodyEl) return;
+  const records = loadSpliceRepairs();
+  bodyEl.innerHTML = spliceRepairHtml(records, $('#spliceFilterSegment')?.value ?? '', $('#spliceFilterJoint')?.value ?? '');
+  const summaryEl = $('#spliceSummary');
+  if (summaryEl) summaryEl.textContent = spliceRepairSummaryText(records);
+  if (!spliceRepairBound) {
+    spliceRepairBound = true;
+    $('#spliceSaveBtn')?.addEventListener('click', () => {
+      const before = loadSpliceRepairs();
+      const next = upsertSpliceRepairRecord(before, {
+        id: `SPL-${Date.now()}`,
+        segment: $('#spliceSegment')?.value ?? '',
+        joint: $('#spliceJoint')?.value ?? '',
+        date: $('#spliceDate')?.value ?? '',
+        repairType: $('#spliceType')?.value ?? '',
+        ticket: $('#spliceTicket')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Splice/joint repair not recorded: give a segment, a joint location, and a real date.'); return; }
+      saveSpliceRepairs(next);
+      toast('Splice/joint repair recorded. A joint that keeps failing now shows its repeat count.');
+      renderSpliceRepairs();
+    });
+    $('#spliceRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#spliceRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveSpliceRepairs(removeSpliceRepairRecord(loadSpliceRepairs(), id));
+      renderSpliceRepairs();
+    });
+    $('#spliceExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(spliceRepairFilename(), spliceRepairCsv(loadSpliceRepairs()));
+    });
+    $('#spliceFilterSegment')?.addEventListener('input', () => { renderSpliceRepairs(); });
+    $('#spliceFilterJoint')?.addEventListener('input', () => { renderSpliceRepairs(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

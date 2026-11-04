@@ -7655,6 +7655,47 @@
 </div>
 <div id="vlBody"></div>
 </section>
+<section class="analytics-panel" aria-labelledby="akHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="akHeading">Shop keys and access register</h3>
+<p class="chart-caption">Custody only: which shop key or access item is held by whom, and whether it was returned. No code or password value is ever stored here, and recording an issue or return never grants or revokes any system access and never changes any bill, payment, staff record, or system permission. Each item has at most one current holder, and returned items stay in history.</p>
+<p id="akSummary"></p>
+</div>
+<div>
+<button id="akExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export access register CSV</button>
+</div>
+</div>
+<h4>Record an issue</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Item <input id="akItem" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Holder <input id="akHolder" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date issued <input id="akDateIssued" type="date" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">Note <input id="akNote" type="text" style="width: 180px;">
+</label>
+<button id="akSaveBtn" class="secondary-button btn-sm" type="button">Record issue</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Return access id <input id="akReturnId" type="text" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Date returned <input id="akReturnDate" type="date" style="width: 130px;">
+</label>
+<button id="akReturnBtn" class="secondary-button btn-sm" type="button">Mark returned</button>
+<label style="font-size: 12px;">Remove access id <input id="akRemoveId" type="text" style="width: 110px;">
+</label>
+<button id="akRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Access records</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by item <input id="akFilter" type="text" style="width: 140px;">
+</label>
+</div>
+<div id="akBody"></div>
+</section>
 
 
 

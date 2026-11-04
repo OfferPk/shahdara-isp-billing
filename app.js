@@ -406,6 +406,7 @@ import { normalizeChecklistList, recordChecklist, removeChecklist, tickChecklist
 import { validComparisonPeriod, buildYearComparison, yearComparisonText, yearComparisonHtml, yearComparisonCsv, yearComparisonFilename } from './year-comparison.js';
 import { normalizeDrillList, recordDrill, removeDrill, noteDrillFollowUp, drillsSorted, drillAllHtml, drillSummaryText, drillCsv, drillFilename } from './restore-drill.js';
 import { normalizeVersionList, recordVersionEntry, removeVersionEntry, versionsSorted, versionAllHtml, versionSummaryText, versionCsv, versionFilename } from './version-log.js';
+import { normalizeAccessList, recordAccessEntry, markAccessReturned, removeAccessEntry, accessSorted, currentHolders, accessSummaryText, accessAllHtml, accessCsv, accessFilename } from './access-register.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13999,6 +14000,7 @@ function renderAnalytics() {
   renderYearComparison();
   renderRestoreDrills();
   renderVersionLog();
+  renderAccessRegister();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25558,6 +25560,56 @@ function renderVersionLog() {
       renderVersionLog();
     });
     $('#vlFilter')?.addEventListener('input', () => { renderVersionLog(); });
+  }
+}
+// Plan 196: shop keys and access register. Custody only: which
+// access item is held by whom, and whether it was returned. No
+// code or password value is ever stored here, nothing here
+// grants or revokes any system access, and recording an issue
+// or return never changes any bill, payment, staff record, or
+// system permission. site-access.js and the tool-custody
+// register are neither read nor written here.
+const ACCESS_REGISTER_KEY = 'shahdara_access_register_v1';
+function loadAccessRegister() {
+  try { return normalizeAccessList(JSON.parse(localStorage.getItem(ACCESS_REGISTER_KEY) || '[]')); } catch { return []; }
+}
+function saveAccessRegister(list) {
+  try { localStorage.setItem(ACCESS_REGISTER_KEY, JSON.stringify(normalizeAccessList(list))); } catch { /* access register only: a failed save leaves the previous list in place */ }
+}
+let accessRegisterBound = false;
+function renderAccessRegister() {
+  const bodyEl = $('#akBody');
+  if (!bodyEl) return;
+  const query = ($('#akFilter')?.value ?? '').trim();
+  const shown = query ? accessSorted(loadAccessRegister()).filter((entry) => entry.item.toLowerCase().includes(query.toLowerCase())) : accessSorted(loadAccessRegister());
+  bodyEl.innerHTML = shown.length ? accessAllHtml(shown) : '<p>No access items recorded.</p>';
+  const summaryEl = $('#akSummary');
+  if (summaryEl) summaryEl.textContent = accessSummaryText(loadAccessRegister());
+  if (!accessRegisterBound) {
+    accessRegisterBound = true;
+    $('#akExportBtn')?.addEventListener('click', () => { downloadCsvFile(accessFilename(), accessCsv(loadAccessRegister())); });
+    $('#akSaveBtn')?.addEventListener('click', () => {
+      const before = loadAccessRegister();
+      const next = recordAccessEntry(before, {
+        id: `AK-${Date.now()}`,
+        item: $('#akItem')?.value ?? '',
+        holder: $('#akHolder')?.value ?? '',
+        dateIssued: $('#akDateIssued')?.value ?? '',
+        note: $('#akNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Access item not recorded: use an item, a holder, and a real issue date, and check the item is not already held by someone else.'); return; }
+      saveAccessRegister(next);
+      renderAccessRegister();
+    });
+    $('#akReturnBtn')?.addEventListener('click', () => {
+      saveAccessRegister(markAccessReturned(loadAccessRegister(), $('#akReturnId')?.value ?? '', $('#akReturnDate')?.value ?? ''));
+      renderAccessRegister();
+    });
+    $('#akRemoveBtn')?.addEventListener('click', () => {
+      saveAccessRegister(removeAccessEntry(loadAccessRegister(), $('#akRemoveId')?.value ?? ''));
+      renderAccessRegister();
+    });
+    $('#akFilter')?.addEventListener('input', () => { renderAccessRegister(); });
   }
 }
 function renderOwnerDecision() {

@@ -343,6 +343,7 @@ import { normalizeBalanceConfirmationList, upsertBalanceConfirmation, removeBala
 import { normalizeSettlementList, upsertSettlement, removeSettlement, settlementSummaryText, settlementHtml, settlementCsv, settlementFilename, signSettlement } from './collector-settlements.js';
 import { normalizeSplitReceiptList, upsertSplitReceipt, splitReceiptSummaryText, splitReceiptListHtml, splitReceiptCsv, splitReceiptFilename } from './split-payments.js';
 import { normalizeVisitScheduleList, upsertVisitSchedule, removeVisitSchedule, dayPartSchedule, doubleBookingFlags, missedVisits, markVisitDone, markVisitMissed, rescheduleVisit, visitScheduleSummaryText, visitScheduleHtml, visitScheduleCsv, visitScheduleFilename } from './visit-day-part.js';
+import { normalizeFaultPartList, upsertFaultPart, removeFaultPart, partsForTicket, sumPartsForPeriod, faultPartSummaryText, faultPartHtml, faultPartCsv, faultPartFilename } from './fault-parts.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13869,6 +13870,7 @@ function renderAnalytics() {
   renderCollectorSettlements();
   renderSplitReceipts();
   renderVisitDayPart();
+  renderFaultParts();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21865,6 +21867,69 @@ function renderVisitDayPart() {
     });
     $('#visitListDate')?.addEventListener('input', () => { renderVisitDayPart(); });
     $('#visitListPart')?.addEventListener('input', () => { renderVisitDayPart(); });
+  }
+}
+// Plan 132: one parts-used record per fault fix, linked by ticket id.
+// Recording a part here never moves any stock count and creates no
+// bill or payment — it only names what the fix used.
+const FAULT_PART_KEY = 'shahdara_fault_parts_v1';
+function loadFaultParts() {
+  try {
+    const raw = localStorage.getItem(FAULT_PART_KEY);
+    if (!raw) return [];
+    return normalizeFaultPartList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveFaultParts(list) {
+  try { localStorage.setItem(FAULT_PART_KEY, JSON.stringify(normalizeFaultPartList(list))); } catch { /* log only: a failed save leaves the previous entries in place */ }
+}
+let faultPartsBound = false;
+function renderFaultParts() {
+  const bodyEl = $('#faultPartBody');
+  if (!bodyEl) return;
+  const records = loadFaultParts();
+  const filter = ($('#faultPartFilter')?.value ?? '').trim();
+  const shown = filter ? partsForTicket(records, filter) : records;
+  bodyEl.innerHTML = shown.length ? faultPartHtml(shown) : (filter ? '<p>No part recorded for that ticket.</p>' : '<p>No fault part recorded yet.</p>');
+  const summaryEl = $('#faultPartSummary');
+  if (summaryEl) summaryEl.textContent = faultPartSummaryText(records);
+  if (!faultPartsBound) {
+    faultPartsBound = true;
+    $('#faultPartSaveBtn')?.addEventListener('click', () => {
+      const before = loadFaultParts();
+      const id = `FP-${Date.now()}`;
+      const next = upsertFaultPart(before, {
+        id,
+        ticketId: $('#faultPartTicket')?.value ?? '',
+        part: $('#faultPartName')?.value ?? '',
+        quantity: Number($('#faultPartQty')?.value ?? ''),
+        date: $('#faultPartDate')?.value ?? '',
+        note: $('#faultPartNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Part not recorded: fill in a ticket link, a part name, a whole quantity above zero, and a real date.'); return; }
+      saveFaultParts(next);
+      toast('Part recorded for the ticket. Recording never moves a stock count and creates no bill or payment.');
+      renderFaultParts();
+    });
+    $('#faultPartRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#faultPartRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveFaultParts(removeFaultPart(loadFaultParts(), id));
+      renderFaultParts();
+    });
+    $('#faultPartExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(faultPartFilename(), faultPartCsv(loadFaultParts()));
+    });
+    $('#faultPartFilter')?.addEventListener('input', () => { renderFaultParts(); });
+    $('#faultPartPeriodBtn')?.addEventListener('click', () => {
+      const periodEl = $('#faultPartPeriodBody');
+      if (!periodEl) return;
+      const sums = sumPartsForPeriod(loadFaultParts(), $('#faultPartPeriodStart')?.value ?? '', $('#faultPartPeriodEnd')?.value ?? '');
+      if (sums === null) { periodEl.innerHTML = '<p>Pick a real start and end date, start on or before the end.</p>'; return; }
+      periodEl.innerHTML = sums.length
+        ? `<table><thead><tr><th>Part</th><th>Units used</th></tr></thead><tbody>${sums.map((row) => `<tr><td>${row.part.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td><td>${row.quantity}</td></tr>`).join('')}</tbody></table>`
+        : '<p>No part used in that period.</p>';
+    });
   }
 }
 // Closed months for the guard: months closed on the month-end

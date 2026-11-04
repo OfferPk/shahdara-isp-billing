@@ -389,6 +389,7 @@ import { normalizeMaintenanceNoticeList, upsertMaintenanceNotice, copyMaintenanc
 import { normalizePromiseList, upsertPromise, removePromise, markPromiseDone, markPromiseWithdrawn, overduePromises, promisesForCustomer, promiseAllHtml, promiseOpenHtml, promiseSummaryText, promiseCsv, promiseFilename } from './promise-tracker.js';
 import { normalizeNewCustomerCheckinList, upsertNewCustomerCheckin, removeNewCustomerCheckin, markNewCustomerCheckedIn, newCustomerCheckinList, checkinsForCustomer, newCustomerCheckinAllHtml, newCustomerCheckinSummaryText, newCustomerCheckinCsv, newCustomerCheckinFilename } from './new-customer-checkin.js';
 import { normalizeTestimonialConsentList, upsertTestimonialConsent, removeTestimonialConsent, withdrawTestimonialConsent, testimonialForCustomer, testimonialConsentAllHtml, testimonialConsentSummaryText, testimonialConsentCsv, testimonialConsentFilename } from './testimonial-consent.js';
+import { normalizeApologyDraftList, upsertApologyDraft, removeApologyDraft, markApologyDraftSent, markApologyDraftUnsent, apologyDraftStarters, apologyDraftAllHtml, apologyDraftSummaryText, apologyDraftCsv, apologyDraftFilename } from './apology-draft.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13965,6 +13966,7 @@ function renderAnalytics() {
   renderPromiseTracker();
   renderNewCustomerCheckin();
   renderTestimonialConsent();
+  renderApologyDrafts();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24636,6 +24638,69 @@ function renderTestimonialConsent() {
       downloadCsvFile(testimonialConsentFilename(), testimonialConsentCsv(loadTestimonialConsent()));
     });
     $('#tcFilter')?.addEventListener('input', () => { renderTestimonialConsent(); });
+  }
+}
+// Apology and explanation drafts only: a draft states what happened,
+// what happens next, and what the customer should do, and never
+// promises a credit, refund, or fix date. Sending is marked by the
+// operator only. Nothing here changes any bill, payment, fault, or
+// goodwill record, and nothing here sends anything automatically.
+const APOLOGY_DRAFT_KEY = 'shahdara_apology_drafts_v1';
+function loadApologyDrafts() {
+  try { return normalizeApologyDraftList(JSON.parse(localStorage.getItem(APOLOGY_DRAFT_KEY) || '[]')); } catch { return []; }
+}
+function saveApologyDrafts(list) {
+  try { localStorage.setItem(APOLOGY_DRAFT_KEY, JSON.stringify(normalizeApologyDraftList(list))); } catch { /* apology drafts only: a failed save leaves the previous list in place */ }
+}
+let apologyDraftsBound = false;
+function renderApologyDrafts() {
+  const bodyEl = $('#adBody');
+  if (!bodyEl) return;
+  const list = loadApologyDrafts();
+  const filter = ($('#adFilter')?.value ?? '').trim().toLowerCase();
+  const shown = filter ? list.filter((draft) => draft.topic.toLowerCase().includes(filter)) : list;
+  bodyEl.innerHTML = shown.length ? apologyDraftAllHtml(shown) : '<p>No apology drafts.</p>';
+  const summaryEl = $('#adSummary');
+  if (summaryEl) summaryEl.textContent = apologyDraftSummaryText(list);
+  if (!apologyDraftsBound) {
+    apologyDraftsBound = true;
+    $('#adSaveBtn')?.addEventListener('click', () => {
+      const before = loadApologyDrafts();
+      const next = upsertApologyDraft(before, {
+        id: `AD-${Date.now()}`,
+        topic: $('#adTopic')?.value ?? '',
+        whatHappened: $('#adHappened')?.value ?? '',
+        whatNext: $('#adNext')?.value ?? '',
+        customerAction: $('#adAction')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Apology draft not added: give a topic, what happened, what happens next, and what the customer should do — and never promise a credit, refund, discount, waiver, or compensation.'); return; }
+      saveApologyDrafts(next); renderApologyDrafts();
+    });
+    $('#adStarterBtn')?.addEventListener('click', () => {
+      let next = loadApologyDrafts();
+      for (const starter of apologyDraftStarters()) next = upsertApologyDraft(next, starter);
+      saveApologyDrafts(next); renderApologyDrafts();
+    });
+    $('#adSentBtn')?.addEventListener('click', () => {
+      const id = ($('#adSentId')?.value ?? '').trim();
+      const date = ($('#adSentDate')?.value ?? '').trim();
+      if (!id || !date) return;
+      saveApologyDrafts(markApologyDraftSent(loadApologyDrafts(), id, date)); renderApologyDrafts();
+    });
+    $('#adUnsentBtn')?.addEventListener('click', () => {
+      const id = ($('#adUnsentId')?.value ?? '').trim();
+      if (!id) return;
+      saveApologyDrafts(markApologyDraftUnsent(loadApologyDrafts(), id)); renderApologyDrafts();
+    });
+    $('#adRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#adRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveApologyDrafts(removeApologyDraft(loadApologyDrafts(), id)); renderApologyDrafts();
+    });
+    $('#adExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(apologyDraftFilename(), apologyDraftCsv(loadApologyDrafts()));
+    });
+    $('#adFilter')?.addEventListener('input', () => { renderApologyDrafts(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

@@ -281,6 +281,7 @@ import { CLAIM_CHANNELS, CLAIM_CHANNEL_LABELS, CLAIM_OUTCOMES, CLAIM_OUTCOME_LAB
 import { RESOLUTION_PATHS, RESOLUTION_PATH_LABELS, normalizeResolution, normalizeDisputeResolutionList, upsertResolution, removeResolution, findResolution, resolutionReadiness, resolutionChecklist, buildResolutionSummaryWithThreshold, resolutionSummaryText, resolutionHtml, resolutionCsv, resolutionFilename, checklistHtml } from './dispute-resolutions.js';
 import { DISPUTE_LETTER_VARIANTS, normalizeLetterVariant, letterStatus, buildOutcomeLetter, letterSentText, buildMonthlyDisputeView, monthlyDisputeViewText, monthlyDisputeHtml, monthlyDisputeCsv, monthlyDisputeFilename, logLetterSent, findLetterSends, letterHtml } from './dispute-letters.js';
 import { BALANCE_REPLY_VARIANTS, normalizeBalanceReplyVariant, validBalanceReplyDate, buildBalanceReply, balanceReplySentText, logBalanceReplySent, findBalanceReplySends, balanceReplyHtml } from './balance-reply.js';
+import { PAYMENT_SLIP_VARIANTS, PAYMENT_SLIP_DEFAULT_COUNT, normalizePaymentSlipVariant, normalizePaymentSlipCount, validPaymentSlipDate, buildPaymentSlip, paymentSlipSentText, logPaymentSlipSent, findPaymentSlipSends, paymentSlipHtml } from './payment-slip.js';
 import { answerPucho, buildMorningQueue, puchoHtml, puchoCatalogueHtml, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
 import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
 import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
@@ -4543,6 +4544,19 @@ function renderCustomerProfileView(customer) {
   const balanceReplySends = () => findBalanceReplySends(loadBalanceReplySentLog(), customer.id);
   const balanceReplySendLabel = balanceReplyPref && balanceReplyPref.doNotMessage ? 'Do not message' : (balanceReplySends().length > 0 ? 'Re-send balance reply' : 'Send balance reply');
   const balanceReplySectionHtml = `<section class="profile-custody-section" aria-label="Balance enquiry reply"><h4>Balance enquiry reply</h4><p>When the customer asks "mera balance kitna hai?", send one accurate, same-shaped answer instead of a typed-from-memory figure — current outstanding, next due date, and last payment, with the payment instructions for this customer's preferred channel. Where a dispute case is open, the reply shows the undisputed balance and says a case is open. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, case, or Waada record.</p><div><label>Draft language <select id="balanceReplyVariant"><option value="${BALANCE_REPLY_VARIANTS.ROMAN}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${BALANCE_REPLY_VARIANTS.URDU}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="balanceReplyShowBtn">Show reply</button></div><div id="balanceReplyResult">${balanceReplyCurrent ? balanceReplyHtml(balanceReplyCurrent, { draftText: balanceReplyCurrent.text, sends: balanceReplySends() }) : '<p class="empty-state">Balance reply unavailable.</p>'}</div><button type="button" class="secondary-button" id="balanceReplySendBtn" ${balanceReplySendDisabled ? 'disabled' : ''}>${escapeHtml(balanceReplySendLabel)}</button></section>`;
+  // Plan 73 (Plan 1-100) — Payment history mini-slip on the
+  // profile, after the balance reply section. The last few
+  // payments with date, amount, and channel, plus the current
+  // balance line; voided payments are marked VOID and excluded
+  // from the subtotal, never shown as live payments.
+  const paymentSlipPref = balanceReplyPref;
+  let paymentSlipVariant = balanceReplyVariant;
+  let paymentSlipCount = PAYMENT_SLIP_DEFAULT_COUNT;
+  let paymentSlipCurrent = paymentSlipForCustomer(customer, paymentSlipVariant, paymentSlipCount);
+  const paymentSlipSendDisabled = Boolean(paymentSlipPref && paymentSlipPref.doNotMessage) || !paymentSlipCurrent;
+  const paymentSlipSends = () => findPaymentSlipSends(loadPaymentSlipSentLog(), customer.id);
+  const paymentSlipSendLabel = paymentSlipPref && paymentSlipPref.doNotMessage ? 'Do not message' : (paymentSlipSends().length > 0 ? 'Re-send payment slip' : 'Send payment slip');
+  const paymentSlipSectionHtml = `<section class="profile-custody-section" aria-label="Payment history mini-slip"><h4>Payment history mini-slip</h4><p>When the customer asks "maine kab kab pay kiya?", send a short, checkable history instead of a verbal list — the last few payments with date, amount, and channel, plus the current balance line. Voided payments are marked VOID and excluded from the subtotal, never shown as successful payments. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, case, or Waada record.</p><div><label>Payments to list <input id="paymentSlipCount" type="number" min="1" value="${paymentSlipCount}"></label> <label>Draft language <select id="paymentSlipVariant"><option value="${PAYMENT_SLIP_VARIANTS.ROMAN}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${PAYMENT_SLIP_VARIANTS.URDU}" ${paymentSlipVariant === PAYMENT_SLIP_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="paymentSlipShowBtn">Show slip</button></div><div id="paymentSlipResult">${paymentSlipCurrent ? paymentSlipHtml(paymentSlipCurrent, { draftText: paymentSlipCurrent.text, sends: paymentSlipSends() }) : '<p class="empty-state">Payment slip unavailable.</p>'}</div><button type="button" class="secondary-button" id="paymentSlipSendBtn" ${paymentSlipSendDisabled ? 'disabled' : ''}>${escapeHtml(paymentSlipSendLabel)}</button></section>`;
   // Plan 46 (Plan 1-100) — Package change preview on the profile.
   // The preview is built from this profile's own package and monthly
   // amount, and the proposed package's catalogue price; both prices
@@ -4579,7 +4593,7 @@ function renderCustomerProfileView(customer) {
   const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
   const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
   const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p>When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><div><label>Date <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4768,6 +4782,57 @@ function renderCustomerProfileView(customer) {
     const resultEl = $('#customerProfileView').querySelector('#balanceReplyResult');
     if (resultEl) resultEl.innerHTML = balanceReplyHtml(built, { draftText: built.text, sends: balanceReplySends() });
     sendBtn.textContent = 'Re-send balance reply';
+  });
+  // Plan 73 (Plan 1-100) — Payment history mini-slip on the
+  // profile. When the customer asks "maine kab kab pay kiya?",
+  // the operator opens this section and gets the last few
+  // payments with date, amount, and channel, plus the current
+  // balance line — voided payments marked VOID and excluded
+  // from the subtotal, never shown as live payments. This is a
+  // draft only: sending opens WhatsApp with the text prefilled
+  // and logs the send; it changes no bill, payment, case, or
+  // Waada record.
+  $('#customerProfileView').querySelector('#paymentSlipShowBtn')?.addEventListener('click', () => {
+    paymentSlipVariant = normalizePaymentSlipVariant($('#customerProfileView').querySelector('#paymentSlipVariant')?.value || '');
+    paymentSlipCount = normalizePaymentSlipCount($('#customerProfileView').querySelector('#paymentSlipCount')?.value || '');
+    paymentSlipCurrent = paymentSlipForCustomer(customer, paymentSlipVariant, paymentSlipCount);
+    const resultEl = $('#customerProfileView').querySelector('#paymentSlipResult');
+    const sendBtnEl = $('#customerProfileView').querySelector('#paymentSlipSendBtn');
+    if (!paymentSlipCurrent) {
+      if (resultEl) resultEl.innerHTML = '<p class="empty-state">Payment slip unavailable.</p>';
+      if (sendBtnEl) sendBtnEl.disabled = true;
+      return;
+    }
+    if (resultEl) resultEl.innerHTML = paymentSlipHtml(paymentSlipCurrent, { draftText: paymentSlipCurrent.text, sends: paymentSlipSends() });
+    if (sendBtnEl) {
+      sendBtnEl.disabled = Boolean(paymentSlipPref && paymentSlipPref.doNotMessage);
+      sendBtnEl.textContent = paymentSlipSends().length > 0 ? 'Re-send payment slip' : 'Send payment slip';
+    }
+  });
+  $('#customerProfileView').querySelector('#paymentSlipSendBtn')?.addEventListener('click', (event) => {
+    const sendBtn = event.currentTarget;
+    if (paymentSlipPref && paymentSlipPref.doNotMessage) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Do not message';
+      return;
+    }
+    const built = paymentSlipCurrent;
+    if (!built) {
+      sendBtn.disabled = true;
+      return;
+    }
+    const channelVariant = built.variant === PAYMENT_SLIP_VARIANTS.URDU ? PAYMENT_CHANNEL_VARIANTS.URDU : PAYMENT_CHANNEL_VARIANTS.ROMAN;
+    const wa = formatWhatsAppUrl(paymentSlipPref && paymentSlipPref.whatsappNumber ? paymentSlipPref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(built.text, findPaymentChannel(loadPaymentChannels(), customer.id), channelVariant));
+    if (!wa.validPhone || !wa.url) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'No WhatsApp number';
+      return;
+    }
+    window.open(wa.url, '_blank', 'noopener,noreferrer');
+    savePaymentSlipSentLog(logPaymentSlipSent(loadPaymentSlipSentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
+    const resultEl = $('#customerProfileView').querySelector('#paymentSlipResult');
+    if (resultEl) resultEl.innerHTML = paymentSlipHtml(built, { draftText: built.text, sends: paymentSlipSends() });
+    sendBtn.textContent = 'Re-send payment slip';
   });
   $('#customerProfileView').querySelector('#billingCycleSaveBtn')?.addEventListener('click', () => {
     const dueDayValue = $('#customerProfileView').querySelector('#billingCycleDueDay')?.value || '';
@@ -15232,6 +15297,47 @@ function loadBalanceReplySentLog() {
 }
 function saveBalanceReplySentLog(list) {
   try { localStorage.setItem(BALANCE_REPLY_SENT_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch {}
+}
+// Plan 73 (Plan 1-100) — Payment history mini-slip send log. One
+// entry per send (customer, time, channel, variant); logging a send
+// changes no bill, payment, case, or Waada record.
+const PAYMENT_SLIP_SENT_KEY = 'shahdara_payment_slip_sent_v1';
+function loadPaymentSlipSentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PAYMENT_SLIP_SENT_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function savePaymentSlipSentLog(list) {
+  try { localStorage.setItem(PAYMENT_SLIP_SENT_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch {}
+}
+// Build one customer's mini-slip from this profile's own ledger:
+// every payment across the customer's bills (voided rows kept so
+// the module can mark them VOID), plus the current outstanding
+// from the shared figures helper. No payment is created, edited,
+// or voided here; the module only reads caller-supplied rows.
+function paymentSlipForCustomer(customer, variant, count) {
+  const allocations = calculatePaymentAllocations(state);
+  const outstanding = totalOutstandingFigures(customer, allocations).total;
+  const payments = [];
+  for (const bill of customer.bills ?? []) {
+    for (const payment of bill.payments ?? []) {
+      payments.push({
+        date: payment.date,
+        amount: payment.amount,
+        channel: payment.method,
+        voided: payment.voided === true,
+      });
+    }
+  }
+  return buildPaymentSlip({
+    customerId: customer.id,
+    customerName: customer.name || customer.customerName,
+    payments,
+    count,
+    balance: outstanding,
+    variant,
+  });
 }
 // Build one customer's balance reply from this profile's own
 // figures: total outstanding from the shared figures helper, the

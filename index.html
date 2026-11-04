@@ -7696,6 +7696,44 @@
 </div>
 <div id="akBody"></div>
 </section>
+<section class="analytics-panel" aria-labelledby="eaHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="eaHeading">Replacement reserve and equipment ageing tracker</h3>
+<p class="chart-caption">Ageing and reserve notes only: which shop equipment is oldest or nearest to replacement, and which items are past their entered expected life. Tracking an item never creates an expense, a purchase, or a stock movement, and never changes any bill, payment, expense, or stock record.</p>
+<p id="eaSummary"></p>
+</div>
+<div>
+<button id="eaExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export equipment ageing CSV</button>
+</div>
+</div>
+<h4>Record an equipment item</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Item <input id="eaItem" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Purchase date <input id="eaPurchaseDate" type="date" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">Expected life (years) <input id="eaExpectedLife" type="text" style="width: 110px;" placeholder="e.g. 5">
+</label>
+<label style="font-size: 12px;">Condition note <input id="eaConditionNote" type="text" style="width: 180px;">
+</label>
+<label style="font-size: 12px;">Reserve note <input id="eaReserveNote" type="text" style="width: 180px;">
+</label>
+<button id="eaSaveBtn" class="secondary-button btn-sm" type="button">Record item</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove item id <input id="eaRemoveId" type="text" style="width: 110px;">
+</label>
+<button id="eaRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Equipment items</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by item <input id="eaFilter" type="text" style="width: 140px;">
+</label>
+</div>
+<div id="eaBody"></div>
+</section>
 
 
 

@@ -1,0 +1,97 @@
+/* Plan 97 (Plan 1-100) — Field Mode big-touch, sunlight-readable
+   collection view. Theme tokens only, so dark mode stays correct, and
+   scoped to the field screens, so no other view changes size. This is
+   not Plan C keyboard/focus work and not Plan D small-phone layout —
+   it is the outdoor, one-hand field view: thumb-sized targets, large
+   figures, and a high-contrast amount display. Toggling the view only
+   adds or removes the .field-view-big class; it never changes a
+   payment, visit, or route record. */
+
+/* The sunlight-view toggle in the Field Mode head: wider than the
+   fixed 40px header buttons so its label is never clipped. */
+.field-view-toggle-btn {
+  width: auto;
+  padding: 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* --- Field Mode overlay, sunlight view ON (.field-view-big) --- */
+
+/* Customer list rows: taller rows, larger names, larger due figures. */
+.field-mode-view.field-view-big .field-mode-customer-btn {
+  min-height: 68px;
+  padding: 12px 14px;
+}
+.field-mode-view.field-view-big .field-mode-customer-main strong {
+  font-size: 19px;
+}
+.field-mode-view.field-view-big .field-mode-customer-due {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+/* Collection sheet: large customer name and high-contrast amount.
+   The amount figure is ink text on a surface block with an ink border
+   in light mode, and the same tokens swapped in dark mode — readable
+   in direct sunlight either way, never colour alone. */
+.field-mode-view.field-view-big .field-mode-actions h3 {
+  font-size: 24px;
+}
+.field-mode-view.field-view-big .field-mode-due-line {
+  font-size: 18px;
+}
+.field-mode-view.field-view-big .field-mode-due-line strong {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--ink);
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  padding: 2px 12px;
+}
+.field-mode-view.field-view-big .field-mode-receipt p strong {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+/* Primary actions (record payment, advance, speak due, next customer,
+   back to list) and the search/zone controls: thumb-sized targets. */
+.field-mode-view.field-view-big .field-mode-action-btn {
+  min-height: 56px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.field-mode-view.field-view-big .field-mode-search {
+  min-height: 56px;
+  font-size: 17px;
+}
+.field-mode-view.field-view-big .field-mode-zone-chip {
+  min-height: 48px;
+  font-size: 14px;
+}
+
+/* --- Route sheet outcome buttons: always big-touch --- */
+/* The route sheet has no sunlight toggle of its own, so its outcome
+   buttons are big-touch by construction — the old extra-small buttons
+   were exactly the mis-tap problem this plan fixes. */
+.field-view-outcome-btn {
+  min-height: 52px;
+  min-width: 72px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.field-view-outcome-btn.is-active {
+  background: var(--green);
+  border-color: var(--green);
+  color: var(--surface);
+}

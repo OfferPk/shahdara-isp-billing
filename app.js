@@ -307,6 +307,7 @@ import { PATTERN_DIMENSIONS, PATTERN_DEFAULTS, normalizePatternEvents, groupPatt
 import { formatCashCents, normalizeCashLimitSettings, buildCashInHandStatus, cashInHandSummaryText, cashInHandPromptHtml, cashInHandReceiptsHtml, cashInHandCsv, cashInHandFilename } from './cash-in-hand.js';
 import { receiptNumberFromReference, isReceiptDeliveryStatus, buildGapAudit, filterGaps, gapSummaryText, explainGap, removeExplanation, normalizeExplanations, gapAuditHtml, issuedReceiptsHtml, gapAuditCsv, gapAuditFilename } from './receipt-gap-audit.js';
 import { buildStatusBoard, filterBoardRows, boardSummaryText, boardHtml, boardCsv, boardFilename } from './status-board.js';
+import { normalizeOutageCreditList, upsertOutageCredit, removeOutageCredit, markCreditApplied, reopenCredit, filterOutageCredits, buildOutageCreditSummary, outageCreditSummaryText, outageCreditHtml, outageCreditCsv, outageCreditFilename } from './outage-credits.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13554,6 +13555,7 @@ function renderAnalytics() {
   renderCashInHand();
   renderReceiptGapAudit();
   renderStatusBoard();
+  renderOutageCredits();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -18255,6 +18257,118 @@ function renderStatusBoard() {
       downloadCsvFile(boardFilename(current.today), boardCsv(current));
     });
     $('#statusBoardPrintBtn')?.addEventListener('click', () => window.print());
+  }
+}
+const OUTAGE_CREDITS_KEY = 'shahdara_outage_credits_v1';
+function loadOutageCredits() {
+  try {
+    const raw = localStorage.getItem(OUTAGE_CREDITS_KEY);
+    if (!raw) return [];
+    return normalizeOutageCreditList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveOutageCredits(list) {
+  try { localStorage.setItem(OUTAGE_CREDITS_KEY, JSON.stringify(normalizeOutageCreditList(list))); } catch { /* record-only: a failed save leaves the previous records in place */ }
+}
+let outageCreditsBound = false;
+function renderOutageCredits() {
+  const bodyEl = $('#outageCreditBody');
+  if (!bodyEl) return;
+  const records = loadOutageCredits();
+  const outageIdFilter = $('#outageCreditFilterOutage')?.value ?? '';
+  const shown = filterOutageCredits(records, { outageId: outageIdFilter });
+  const summaryEl = $('#outageCreditSummary');
+  if (summaryEl) summaryEl.textContent = outageCreditSummaryText(buildOutageCreditSummary(records)) + ` · showing ${shown.length} record${shown.length === 1 ? '' : 's'}.`;
+  bodyEl.innerHTML = outageCreditHtml(shown);
+  const outageEl = $('#outageCreditOutage');
+  if (outageEl && document.activeElement !== outageEl) {
+    const resolved = loadOutageGrouping().filter((o) => o.status === 'resolved');
+    outageEl.innerHTML = resolved.map((o) => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.id)} — ${escapeHtml(o.area)}${o.causeNote ? ` (${escapeHtml(o.causeNote)})` : ''}</option>`).join('')
+      || '<option value="">No resolved outages yet</option>';
+  }
+  const windowEl = $('#outageCreditWindow');
+  if (windowEl && document.activeElement !== windowEl) {
+    const windows = loadMaintenanceWindows();
+    windowEl.innerHTML = '<option value="">No maintenance window</option>' + windows.map((w) => `<option value="${escapeHtml(w.id)}">${escapeHtml(w.id)} — ${escapeHtml(w.description)}</option>`).join('');
+  }
+  const filterEl = $('#outageCreditFilterOutage');
+  if (filterEl && document.activeElement !== filterEl) {
+    const currentFilter = filterEl.value ?? '';
+    const outageIds = [...new Set(records.map((r) => r.outageId))];
+    filterEl.innerHTML = '<option value="">All outages</option>' + outageIds.map((id) => `<option value="${escapeHtml(id)}">${escapeHtml(id)}</option>`).join('');
+    filterEl.value = outageIds.includes(currentFilter) ? currentFilter : '';
+  }
+  const recordEl = $('#outageCreditRecord');
+  if (recordEl && document.activeElement !== recordEl) {
+    recordEl.innerHTML = records.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.id)} — outage ${escapeHtml(r.outageId)}</option>`).join('')
+      || '<option value="">No credit records yet</option>';
+  }
+  const customerEl = $('#outageCreditCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    const picked = records.find((r) => r.id === ($('#outageCreditRecord')?.value ?? ''));
+    const planned = picked ? picked.credits.filter((row) => row.status === 'planned') : [];
+    const applied = picked ? picked.credits.filter((row) => row.status === 'applied') : [];
+    const options = planned.map((row) => `<option value="${escapeHtml(row.customerId)}">${escapeHtml(row.customerName || row.customerId)} — planned</option>`).join('')
+      + applied.map((row) => `<option value="${escapeHtml(row.customerId)}">${escapeHtml(row.customerName || row.customerId)} — applied</option>`).join('');
+    customerEl.innerHTML = options || '<option value="">No credited customers in this record</option>';
+  }
+  if (!outageCreditsBound) {
+    outageCreditsBound = true;
+    $('#outageCreditFilterOutage')?.addEventListener('change', () => renderOutageCredits());
+    $('#outageCreditRecord')?.addEventListener('change', () => renderOutageCredits());
+    $('#outageCreditExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(outageCreditFilename(localDate()), outageCreditCsv(loadOutageCredits()));
+    });
+    $('#outageCreditBuildBtn')?.addEventListener('click', () => {
+      const outageId = $('#outageCreditOutage')?.value ?? '';
+      if (!outageId) { toast('Pick a resolved outage first.'); return; }
+      const outage = loadOutageGrouping().find((o) => o.id === outageId);
+      const id = ($('#outageCreditId')?.value ?? '').trim() || `OC-${Date.now()}`;
+      const customers = (state.customers ?? []).map((c) => ({
+        customerId: c.id,
+        customerName: c.name || c.customerName || c.id,
+        mohalla: c.mohalla || c.area || '',
+        monthlyPrice: c.monthlySellingAmount,
+      }));
+      const next = upsertOutageCredit(loadOutageCredits(), {
+        id,
+        outageId,
+        outageLabel: outage ? (outage.causeNote || outage.area || '') : '',
+        month: $('#outageCreditMonth')?.value ?? '',
+        downtimeHours: $('#outageCreditDowntime')?.value ?? '',
+        thresholdHours: $('#outageCreditThreshold')?.value ?? '',
+        affectedMohallas: ($('#outageCreditMohallas')?.value ?? '').split(',').map((m) => m.trim()).filter(Boolean),
+        maintenanceWindowId: $('#outageCreditWindow')?.value ?? '',
+        maintenanceIncludeReason: $('#outageCreditWindowReason')?.value ?? '',
+        customers,
+      });
+      if (!next.some((r) => r.id === id)) { toast('That credit record is half-formed and was not saved — check the outage, hours, threshold, and affected mohallas.'); return; }
+      saveOutageCredits(next);
+      toast('Outage credit record saved. Applying it still goes through the existing bill concession flow; this record only notes the reference.');
+      renderOutageCredits();
+    });
+    $('#outageCreditApplyBtn')?.addEventListener('click', () => {
+      const recordId = $('#outageCreditRecord')?.value ?? '';
+      const customerId = $('#outageCreditCustomer')?.value ?? '';
+      const ref = ($('#outageCreditRef')?.value ?? '').trim();
+      if (!recordId || !customerId || !ref) { toast('Pick a record, a customer, and a concession reference first.'); return; }
+      saveOutageCredits(markCreditApplied(loadOutageCredits(), recordId, customerId, ref));
+      toast('Concession reference recorded. The amount itself is applied only through the existing concession flow, never by this record.');
+      renderOutageCredits();
+    });
+    $('#outageCreditReopenBtn')?.addEventListener('click', () => {
+      const recordId = $('#outageCreditRecord')?.value ?? '';
+      const customerId = $('#outageCreditCustomer')?.value ?? '';
+      if (!recordId || !customerId) { toast('Pick a record and a customer first.'); return; }
+      saveOutageCredits(reopenCredit(loadOutageCredits(), recordId, customerId));
+      renderOutageCredits();
+    });
+    $('#outageCreditRemoveBtn')?.addEventListener('click', () => {
+      const recordId = $('#outageCreditRecord')?.value ?? '';
+      if (!recordId) { toast('Pick a record first.'); return; }
+      saveOutageCredits(removeOutageCredit(loadOutageCredits(), recordId));
+      renderOutageCredits();
+    });
   }
 }
 function renderHoldGuard() {

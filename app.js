@@ -314,6 +314,7 @@ import { TERMS_ACK_METHODS, TERMS_ACK_METHOD_LABELS, normalizeTermsAckList, upse
 import { OPEN_SUGGESTION_STATUSES, suggestionStatusLabel, normalizeSuggestionList, upsertSuggestion, removeSuggestion, filterSuggestions, moveSuggestion, suggestionSummaryText, suggestionHtml, suggestionCsv, suggestionFilename } from './suggestion-log.js';
 import { normalizePromoList, upsertPromo, removePromo, promoStatus, promoStatusLabel, filterPromos, normalizePromoApplicationList, recordPromoApplication, removePromoApplication, promoSummaryText, promoHtml, promoApplicationHtml, promoCsv, promoApplicationCsv, promoFilename } from './promo-offers.js';
 import { normalizeAssignmentList, upsertAssignment, removeAssignment, canonicalCollectorMohalla, collectorsList, unassignedMohallas, collectorPreview, assignmentSummaryText, assignmentHtml, assignmentCsv, assignmentFilename } from './collector-assignments.js';
+import { buildRecognitionList, filterRecognitionByMohalla, canonicalRecognitionMohalla, thankYouDraft, normalizeThankYouSendList, upsertThankYouSend, normalizeRestartList, upsertRestart, removeRestart, restartDateFor, recognitionSummaryText, recognitionHtml, recognitionCsv, recognitionFilename, normalizeMilestoneYears } from './loyalty-recognition.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13695,6 +13696,7 @@ function renderAnalytics() {
   renderSuggestions();
   renderPromoOffers();
   renderCollectorAssignments();
+  renderLoyaltyRecognition();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -19045,6 +19047,147 @@ function renderCollectorAssignments() {
     $('#collectorAssignPreview')?.addEventListener('change', () => renderCollectorAssignments());
     $('#collectorAssignExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(assignmentFilename(), assignmentCsv(loadCollectorAssignments()));
+    });
+  }
+}
+// Plan 100: long-standing customer recognition list and anniversary
+// thank-you draft. The list is recomputed fresh from the customers'
+// own connection dates on every render: a customer reaches it only
+// on a full year (or the operator-set milestone) of continuous
+// service, and a recorded restart date restarts the count from the
+// latest continuous period. The draft is prepared here and sent by
+// the operator through the existing WhatsApp route — nothing is
+// sent automatically, and logging a send records only the send. The
+// list never reads the Plan 56 drifting-away list, and it changes
+// no bill, payment, or lifecycle record.
+const LOYALTY_MILESTONE_KEY = 'shahdara_loyalty_milestone_v1';
+const LOYALTY_THANKS_KEY = 'shahdara_loyalty_thanks_sends_v1';
+const LOYALTY_RESTARTS_KEY = 'shahdara_loyalty_restarts_v1';
+function loadLoyaltyMilestone() {
+  try {
+    const raw = localStorage.getItem(LOYALTY_MILESTONE_KEY);
+    return normalizeMilestoneYears(raw === null ? 1 : raw);
+  } catch { return 1; }
+}
+function saveLoyaltyMilestone(value) {
+  try { localStorage.setItem(LOYALTY_MILESTONE_KEY, String(normalizeMilestoneYears(value))); } catch { /* setting only: a failed save leaves the previous milestone in place */ }
+}
+function loadLoyaltyThanks() {
+  try {
+    const raw = localStorage.getItem(LOYALTY_THANKS_KEY);
+    if (!raw) return [];
+    return normalizeThankYouSendList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveLoyaltyThanks(list) {
+  try { localStorage.setItem(LOYALTY_THANKS_KEY, JSON.stringify(normalizeThankYouSendList(list))); } catch { /* record only: a failed save leaves the previous sends in place */ }
+}
+function loadLoyaltyRestarts() {
+  try {
+    const raw = localStorage.getItem(LOYALTY_RESTARTS_KEY);
+    if (!raw) return [];
+    return normalizeRestartList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveLoyaltyRestarts(list) {
+  try { localStorage.setItem(LOYALTY_RESTARTS_KEY, JSON.stringify(normalizeRestartList(list))); } catch { /* record only: a failed save leaves the previous restarts in place */ }
+}
+let loyaltyRecognitionBound = false;
+let loyaltyRecognitionRows = [];
+function renderLoyaltyRecognition() {
+  const bodyEl = $('#loyaltyRecognitionBody');
+  if (!bodyEl) return;
+  const customers = (state.customers ?? []).filter((c) => c && c.id && !c.archived);
+  const restarts = loadLoyaltyRestarts();
+  const asOf = localDate();
+  const milestone = loadLoyaltyMilestone();
+  const inputs = customers.map((c) => {
+    const restart = restartDateFor(restarts, c.id);
+    return restart ? { ...c, continuousSince: restart } : c;
+  });
+  const standings = customers.map((c) => {
+    const bills = Array.isArray(c.bills) ? c.bills : [];
+    return {
+      customerId: c.id,
+      billsCount: bills.length,
+      paidInFullCount: bills.filter((b) => Number(b.dueAmount || 0) > 0 && Number(b.paidAmount || 0) >= Number(b.dueAmount || 0)).length,
+      outstandingCount: bills.filter((b) => Number(b.dueAmount || 0) > Number(b.paidAmount || 0)).length,
+    };
+  });
+  const allRows = buildRecognitionList(inputs, { asOf, milestoneYears: milestone, standings });
+  const mohallaFilter = $('#loyaltyRecognitionMohalla')?.value ?? '';
+  const rows = filterRecognitionByMohalla(allRows, mohallaFilter);
+  loyaltyRecognitionRows = rows;
+  bodyEl.innerHTML = recognitionHtml(rows, loadLoyaltyThanks());
+  const summaryEl = $('#loyaltyRecognitionSummary');
+  if (summaryEl) summaryEl.textContent = recognitionSummaryText(rows, milestone);
+  const milestoneEl = $('#loyaltyRecognitionMilestone');
+  if (milestoneEl && document.activeElement !== milestoneEl) milestoneEl.value = String(milestone);
+  const mohallaEl = $('#loyaltyRecognitionMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const names = [...new Set(customers.map((c) => (c.mohalla || c.area || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const current = mohallaEl.value;
+    mohallaEl.innerHTML = '<option value="">All mohallas</option>' + names.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+    if (names.includes(current) || current === '') mohallaEl.value = current;
+  }
+  const customerOptions = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+    || '<option value="">No customers yet</option>';
+  const restartCustomerEl = $('#loyaltyRestartCustomer');
+  if (restartCustomerEl && document.activeElement !== restartCustomerEl) restartCustomerEl.innerHTML = customerOptions;
+  const pickEl = $('#loyaltyThanksPick');
+  if (pickEl && document.activeElement !== pickEl) {
+    const current = pickEl.value;
+    pickEl.innerHTML = rows.map((row) => `<option value="${escapeHtml(row.customerId)}">${escapeHtml(row.customerName || row.customerId)} · ${row.fullYears} year${row.fullYears === 1 ? '' : 's'}</option>`).join('')
+      || '<option value="">No loyal customer yet</option>';
+    if (rows.some((row) => row.customerId === current)) pickEl.value = current;
+  }
+  const draftEl = $('#loyaltyThanksDraftBody');
+  if (draftEl) {
+    const picked = rows.find((row) => row.customerId === (pickEl?.value ?? ''));
+    const variant = $('#loyaltyThanksVariant')?.value ?? 'roman';
+    draftEl.textContent = picked ? thankYouDraft(picked, variant) : 'Pick a loyal customer to see their thank-you draft.';
+  }
+  if (!loyaltyRecognitionBound) {
+    loyaltyRecognitionBound = true;
+    $('#loyaltyRecognitionMohalla')?.addEventListener('change', () => renderLoyaltyRecognition());
+    $('#loyaltyThanksVariant')?.addEventListener('change', () => renderLoyaltyRecognition());
+    $('#loyaltyThanksPick')?.addEventListener('change', () => renderLoyaltyRecognition());
+    $('#loyaltyMilestoneSaveBtn')?.addEventListener('click', () => {
+      saveLoyaltyMilestone($('#loyaltyRecognitionMilestone')?.value ?? '');
+      toast('Milestone saved. The list now shows customers at that many full years or more.');
+      renderLoyaltyRecognition();
+    });
+    $('#loyaltyRestartSaveBtn')?.addEventListener('click', () => {
+      const customer = $('#loyaltyRestartCustomer')?.value ?? '';
+      const restartDate = $('#loyaltyRestartDate')?.value ?? '';
+      if (!customer || !restartDate) { toast('Pick a customer and a restart date first.'); return; }
+      const next = upsertRestart(loadLoyaltyRestarts(), { customer, restartDate });
+      if (!next.some((row) => row.customer === customer && row.restartDate === restartDate)) { toast('That restart date is not a real calendar date and was not recorded.'); return; }
+      saveLoyaltyRestarts(next);
+      toast('Restart recorded. That customer\'s tenure now counts from the restart date.');
+      renderLoyaltyRecognition();
+    });
+    $('#loyaltyRestartRemoveBtn')?.addEventListener('click', () => {
+      const customer = $('#loyaltyRestartCustomer')?.value ?? '';
+      if (!customer) { toast('Pick a customer first.'); return; }
+      saveLoyaltyRestarts(removeRestart(loadLoyaltyRestarts(), customer));
+      toast('Restart removed. That customer\'s tenure counts from the connection date again.');
+      renderLoyaltyRecognition();
+    });
+    $('#loyaltyThanksLogBtn')?.addEventListener('click', () => {
+      const customer = $('#loyaltyThanksPick')?.value ?? '';
+      if (!customer) { toast('Pick a loyal customer first.'); return; }
+      const picked = loyaltyRecognitionRows.find((row) => row.customerId === customer);
+      const variant = $('#loyaltyThanksVariant')?.value ?? 'roman';
+      const before = loadLoyaltyThanks();
+      const next = upsertThankYouSend(before, { id: `LT-${Date.now()}`, customer, customerName: picked?.customerName || '', date: localDate(), channel: 'whatsapp', variant });
+      if (next.length === before.length) { toast('That send could not be logged.'); return; }
+      saveLoyaltyThanks(next);
+      toast('Thank-you send logged. Send the draft through the existing WhatsApp route — this log itself changes no bill, payment, or lifecycle record.');
+      renderLoyaltyRecognition();
+    });
+    $('#loyaltyRecognitionExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(recognitionFilename(), recognitionCsv(loyaltyRecognitionRows));
     });
   }
 }

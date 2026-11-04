@@ -44,7 +44,11 @@ export function validBalanceConfirmationDate(value) {
   const month = Number(match[2]);
   const day = Number(match[3]);
   if (month < 1 || month > 12 || day < 1) return null;
-  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 30, 31, 30, 31, 30, 31][month - 1];
+  // Plan 130 fix: this table previously had 13 entries, shifting every
+  // month from August onward by one and wrongly rejecting Aug 31,
+  // Oct 31, and Dec 31 (while wrongly accepting Sep 31 and Nov 31).
+  // The correct calendar has exactly 12 entries.
+  const daysInMonth = [31, isLeapYear(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
   return day <= daysInMonth ? value : null;
 }
 

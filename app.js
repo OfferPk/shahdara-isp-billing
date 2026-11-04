@@ -341,6 +341,7 @@ import { validShiftDate, normalizeShiftRuleList, recordShiftRule, shiftDueDate, 
 import { normalizeConnectionDuesList, buildCombinedDuesView, allocateCombinedPayment, combinedDuesSummaryText, combinedDuesHtml, combinedDuesCsv, combinedDuesFilename } from './combined-dues.js';
 import { normalizeBalanceConfirmationList, upsertBalanceConfirmation, removeBalanceConfirmation, balanceConfirmationSummaryText, balanceConfirmationHtml, balanceConfirmationCsv, balanceConfirmationFilename } from './balance-confirmations.js';
 import { normalizeSettlementList, upsertSettlement, removeSettlement, settlementSummaryText, settlementHtml, settlementCsv, settlementFilename, signSettlement } from './collector-settlements.js';
+import { normalizeSplitReceiptList, upsertSplitReceipt, splitReceiptSummaryText, splitReceiptListHtml, splitReceiptCsv, splitReceiptFilename } from './split-payments.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13865,6 +13866,7 @@ function renderAnalytics() {
   renderCombinedDues();
   renderBalanceConfirmations();
   renderCollectorSettlements();
+  renderSplitReceipts();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21708,6 +21710,59 @@ function renderCollectorSettlements() {
       downloadCsvFile(settlementFilename(), settlementCsv(loadCollectorSettlements(), filterValue.trim() ? filterValue.trim() : undefined));
     });
     $('#settleFilter')?.addEventListener('input', () => { renderCollectorSettlements(); });
+  }
+}
+// Plan 130: one receipt split across two or more methods, one number,
+// one total. Recording here changes no payment total and creates no
+// second payment record or receipt number — the parts only say how
+// this one payment's money arrived, method by method.
+const SPLIT_RECEIPT_KEY = 'shahdara_split_receipts_v1';
+function loadSplitReceipts() {
+  try {
+    const raw = localStorage.getItem(SPLIT_RECEIPT_KEY);
+    if (!raw) return [];
+    return normalizeSplitReceiptList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveSplitReceipts(list) {
+  try { localStorage.setItem(SPLIT_RECEIPT_KEY, JSON.stringify(normalizeSplitReceiptList(list))); } catch { /* receipt only: a failed save leaves the previous receipts in place */ }
+}
+let splitReceiptBound = false;
+function renderSplitReceipts() {
+  const bodyEl = $('#splitBody');
+  if (!bodyEl) return;
+  const filter = $('#splitFilter')?.value ?? '';
+  const records = loadSplitReceipts();
+  bodyEl.innerHTML = splitReceiptListHtml(records, filter.trim() ? filter.trim() : undefined);
+  const summaryEl = $('#splitSummary');
+  if (summaryEl) summaryEl.textContent = filter.trim() ? splitReceiptSummaryText(records, filter.trim()) : `${records.length} split receipt${records.length === 1 ? '' : 's'} recorded.`;
+  if (!splitReceiptBound) {
+    splitReceiptBound = true;
+    $('#splitSaveBtn')?.addEventListener('click', () => {
+      const before = loadSplitReceipts();
+      const parts = ($('#splitParts')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+        const pieces = line.split('|').map((piece) => piece.trim());
+        return { method: pieces[0] ?? '', amount: pieces[1] === undefined || pieces[1] === '' ? undefined : Number(pieces[1]) };
+      });
+      const next = upsertSplitReceipt(before, {
+        id: `SP-${Date.now()}`,
+        receiptNumber: $('#splitReceiptNumber')?.value ?? '',
+        customer: $('#splitCustomer')?.value ?? '',
+        customerName: '',
+        date: $('#splitDate')?.value ?? '',
+        parts,
+        note: '',
+      });
+      if (next.length === before.length) { toast('Split receipt not recorded: one receipt number, a customer, a real date, and at least two parts with different methods whose amounts sum to the total. A receipt number already on record is never recorded again.'); return; }
+      saveSplitReceipts(next);
+      toast('Split receipt recorded: one receipt, one total, split across methods.');
+      renderSplitReceipts();
+    });
+    $('#splitExportBtn')?.addEventListener('click', () => {
+      const filterValue = $('#splitFilter')?.value ?? '';
+      downloadCsvFile(splitReceiptFilename(), splitReceiptCsv(loadSplitReceipts(), filterValue.trim() ? filterValue.trim() : undefined));
+    });
+    $('#splitFilter')?.addEventListener('input', () => { renderSplitReceipts(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

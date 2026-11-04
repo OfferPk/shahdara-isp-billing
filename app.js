@@ -355,6 +355,7 @@ import { normalizeSecondVisitList, upsertSecondVisit, removeSecondVisit, markSec
 import { normalizeEscalationList, upsertEscalation, removeEscalation, recordEscalationStage, closeEscalation, escalationSummaryText as escalationTimerSummaryText, escalationHtml as escalationTimerHtml, escalationCsv as escalationTimerCsv, escalationFilename as escalationTimerFilename } from './escalation-timer.js';
 import { normalizeSegmentDiaryList, upsertSegmentDiaryEntry, removeSegmentDiaryEntry, segmentDiarySummaryText, segmentDiaryHtml, segmentDiaryCsv, segmentDiaryFilename } from './segment-diary.js';
 import { normalizeEquipmentCycleList, upsertEquipmentCycleRecord, removeEquipmentCycleRecord, recordEquipmentCycleCheck, equipmentCycleSummaryText, equipmentCycleDueHtml, equipmentCycleCsv, equipmentCycleFilename } from './equipment-cycle.js';
+import { normalizeJobChecklistTemplateList, jobChecklistTemplatesWithDefaults, upsertJobChecklistTemplate, removeJobChecklistTemplate, normalizeJobChecklistVisitList, upsertJobChecklistVisit, removeJobChecklistVisit, tickJobChecklistVisit, untickJobChecklistVisit, jobChecklistSummaryText, jobChecklistHtml, jobChecklistIncompleteHtml, jobChecklistTemplatesHtml, jobChecklistCsv, jobChecklistFilename } from './job-checklist.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13893,6 +13894,7 @@ function renderAnalytics() {
   renderEscalations();
   renderSegmentDiary();
   renderEquipmentCycle();
+  renderJobChecklists();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22563,6 +22565,102 @@ function renderEquipmentCycle() {
     });
     $('#cycleRefDate')?.addEventListener('input', () => { renderEquipmentCycle(); });
     $('#cycleWindow')?.addEventListener('input', () => { renderEquipmentCycle(); });
+  }
+}
+const JOB_CHECKLIST_TEMPLATE_KEY = 'shahdara_job_checklist_templates_v1';
+const JOB_CHECKLIST_VISIT_KEY = 'shahdara_job_checklist_visits_v1';
+function loadJobChecklistTemplates() {
+  try { return normalizeJobChecklistTemplateList(JSON.parse(localStorage.getItem(JOB_CHECKLIST_TEMPLATE_KEY) || '[]')); } catch { return []; }
+}
+function saveJobChecklistTemplates(list) {
+  try { localStorage.setItem(JOB_CHECKLIST_TEMPLATE_KEY, JSON.stringify(normalizeJobChecklistTemplateList(list))); } catch { /* checklist only: a failed save leaves the previous templates in place */ }
+}
+function loadJobChecklistVisits() {
+  const templates = jobChecklistTemplatesWithDefaults(loadJobChecklistTemplates());
+  try { return normalizeJobChecklistVisitList(JSON.parse(localStorage.getItem(JOB_CHECKLIST_VISIT_KEY) || '[]'), templates); } catch { return []; }
+}
+function saveJobChecklistVisits(list) {
+  const templates = jobChecklistTemplatesWithDefaults(loadJobChecklistTemplates());
+  try { localStorage.setItem(JOB_CHECKLIST_VISIT_KEY, JSON.stringify(normalizeJobChecklistVisitList(list, templates))); } catch { /* checklist only: a failed save leaves the previous visits in place */ }
+}
+let jobChecklistBound = false;
+function renderJobChecklists() {
+  const bodyEl = $('#jobCheckBody');
+  if (!bodyEl) return;
+  const templates = jobChecklistTemplatesWithDefaults(loadJobChecklistTemplates());
+  const visits = loadJobChecklistVisits();
+  const templateEl = $('#jobCheckTemplateBody');
+  if (templateEl) templateEl.innerHTML = jobChecklistTemplatesHtml(templates);
+  bodyEl.innerHTML = jobChecklistHtml(visits, templates, $('#jobCheckFilter')?.value ?? '');
+  const incompleteEl = $('#jobCheckIncompleteBody');
+  if (incompleteEl) incompleteEl.innerHTML = jobChecklistIncompleteHtml(visits, templates);
+  const summaryEl = $('#jobCheckSummary');
+  if (summaryEl) summaryEl.textContent = jobChecklistSummaryText(visits, templates);
+  if (!jobChecklistBound) {
+    jobChecklistBound = true;
+    $('#jobCheckTemplateSaveBtn')?.addEventListener('click', () => {
+      const before = loadJobChecklistTemplates();
+      const items = ($('#jobCheckTemplateItems')?.value ?? '').split('\n')
+        .map((line) => line.trim()).filter(Boolean)
+        .map((line, index) => ({ id: `step-${index + 1}`, label: line }));
+      const next = upsertJobChecklistTemplate(before, {
+        jobType: $('#jobCheckTemplateType')?.value ?? '',
+        items,
+      });
+      if (next.length === before.length) { toast('Checklist template not recorded: give a job type and at least one check item. A job type that already has a template cannot gain a second one.'); return; }
+      saveJobChecklistTemplates(next);
+      toast('Checklist template recorded. Every visit of that job type now shows the same ordered steps.');
+      renderJobChecklists();
+    });
+    $('#jobCheckTemplateRemoveBtn')?.addEventListener('click', () => {
+      const jobType = ($('#jobCheckTemplateRemoveId')?.value ?? '').trim();
+      if (!jobType) return;
+      saveJobChecklistTemplates(removeJobChecklistTemplate(loadJobChecklistTemplates(), jobType));
+      renderJobChecklists();
+    });
+    $('#jobCheckVisitSaveBtn')?.addEventListener('click', () => {
+      const before = loadJobChecklistVisits();
+      const templatesNow = jobChecklistTemplatesWithDefaults(loadJobChecklistTemplates());
+      const next = upsertJobChecklistVisit(before, {
+        id: `JC-${Date.now()}`,
+        jobType: $('#jobCheckVisitType')?.value ?? '',
+        visit: $('#jobCheckVisit')?.value ?? '',
+        date: $('#jobCheckVisitDate')?.value ?? '',
+        ticks: [],
+      }, templatesNow);
+      if (next.length === before.length) { toast('Visit checklist not recorded: give a job type that has a template, a visit label, and a real date.'); return; }
+      saveJobChecklistVisits(next);
+      toast('Visit checklist recorded. Tick its items as the visit goes, and an incomplete list stays flagged.');
+      renderJobChecklists();
+    });
+    $('#jobCheckTickBtn')?.addEventListener('click', () => {
+      const id = ($('#jobCheckTickVisit')?.value ?? '').trim();
+      const item = ($('#jobCheckTickItem')?.value ?? '').trim();
+      if (!id || !item) return;
+      const templatesNow = jobChecklistTemplatesWithDefaults(loadJobChecklistTemplates());
+      saveJobChecklistVisits(tickJobChecklistVisit(loadJobChecklistVisits(), id, item, $('#jobCheckTickBy')?.value ?? '', $('#jobCheckTickDate')?.value ?? '', templatesNow));
+      renderJobChecklists();
+    });
+    $('#jobCheckUntickBtn')?.addEventListener('click', () => {
+      const id = ($('#jobCheckTickVisit')?.value ?? '').trim();
+      const item = ($('#jobCheckTickItem')?.value ?? '').trim();
+      if (!id || !item) return;
+      const templatesNow = jobChecklistTemplatesWithDefaults(loadJobChecklistTemplates());
+      saveJobChecklistVisits(untickJobChecklistVisit(loadJobChecklistVisits(), id, item, templatesNow));
+      renderJobChecklists();
+    });
+    $('#jobCheckRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#jobCheckRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      const templatesNow = jobChecklistTemplatesWithDefaults(loadJobChecklistTemplates());
+      saveJobChecklistVisits(removeJobChecklistVisit(loadJobChecklistVisits(), id, templatesNow));
+      renderJobChecklists();
+    });
+    $('#jobCheckExportBtn')?.addEventListener('click', () => {
+      const templatesNow = jobChecklistTemplatesWithDefaults(loadJobChecklistTemplates());
+      downloadCsvFile(jobChecklistFilename(), jobChecklistCsv(loadJobChecklistVisits(), templatesNow));
+    });
+    $('#jobCheckFilter')?.addEventListener('input', () => { renderJobChecklists(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

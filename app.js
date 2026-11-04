@@ -316,6 +316,7 @@ import { normalizePromoList, upsertPromo, removePromo, promoStatus, promoStatusL
 import { normalizeAssignmentList, upsertAssignment, removeAssignment, canonicalCollectorMohalla, collectorsList, unassignedMohallas, collectorPreview, assignmentSummaryText, assignmentHtml, assignmentCsv, assignmentFilename } from './collector-assignments.js';
 import { buildRecognitionList, filterRecognitionByMohalla, canonicalRecognitionMohalla, thankYouDraft, normalizeThankYouSendList, upsertThankYouSend, normalizeRestartList, upsertRestart, removeRestart, restartDateFor, recognitionSummaryText, recognitionHtml, recognitionCsv, recognitionFilename, normalizeMilestoneYears } from './loyalty-recognition.js';
 import { normalizeAdvanceAllocationList, upsertAdvanceAllocation, removeAdvanceAllocation, advanceWithAllocation, advancesForCustomer, advanceSummaryText, advanceHtml, advanceCsv, advanceFilename } from './advance-allocation.js';
+import { normalizeAllocationBillList, normalizeAllocationInstalmentList, normalizePartPaymentAllocationList, upsertPartPaymentAllocation, removePartPaymentAllocation, partPaymentsForCustomer, allocatePartPayment, defaultAllocationOrder, partPaymentSummaryText, partPaymentHtml, partPaymentCsv, partPaymentFilename } from './part-payment-rules.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13699,6 +13700,7 @@ function renderAnalytics() {
   renderCollectorAssignments();
   renderLoyaltyRecognition();
   renderAdvanceAllocations();
+  renderPartPaymentAllocations();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -19291,6 +19293,155 @@ function renderAdvanceAllocations() {
         return advanceWithAllocation(record, customer ? advanceAllocationBills(customer) : []);
       }).filter(Boolean);
       downloadCsvFile(advanceFilename(), advanceCsv(all));
+    });
+  }
+}
+// Plan 102: part-payment allocation rules — the written rule only, never a
+// change to any bill or payment total. Bills come from the customer's own
+// bill list and instalments from their open repayment plans (Plan 37);
+// both are inputs only, never rewritten here.
+const PART_PAYMENT_ALLOCATIONS_KEY = 'shahdara_part_payment_allocations_v1';
+function loadPartPaymentAllocations() {
+  try {
+    const raw = localStorage.getItem(PART_PAYMENT_ALLOCATIONS_KEY);
+    if (!raw) return [];
+    return normalizePartPaymentAllocationList(JSON.parse(raw));
+  } catch { return []; }
+}
+function savePartPaymentAllocations(list) {
+  try { localStorage.setItem(PART_PAYMENT_ALLOCATIONS_KEY, JSON.stringify(normalizePartPaymentAllocationList(list))); } catch { /* record only: a failed save leaves the previous allocations in place */ }
+}
+function partPaymentBills(customer) {
+  return (Array.isArray(customer?.bills) ? customer.bills : []).map((bill) => {
+    const due = Number(bill?.dueAmount ?? 0);
+    const paidAmount = Number(bill?.paidAmount ?? 0);
+    return {
+      id: bill?.id ?? bill?.month ?? '',
+      month: bill?.month ?? '',
+      amount: Number.isFinite(due) && due > 0 ? due : null,
+      paidCents: Number.isFinite(paidAmount) && paidAmount > 0 ? Math.round(paidAmount * 100) : 0,
+    };
+  });
+}
+function partPaymentInstalments(customerId) {
+  const out = [];
+  loadRepaymentPlans().forEach((plan) => {
+    if (String(plan.customerId) !== String(customerId) || plan.status === 'closed') return;
+    (plan.instalments ?? []).forEach((entry) => {
+      out.push({
+        id: `${plan.id}#${entry.sequence}`,
+        dueDate: entry.dueDate ?? '',
+        amount: entry.amount ?? null,
+        paidAmount: entry.paidAmount ?? 0,
+      });
+    });
+  });
+  return out;
+}
+let partPaymentAllocationsBound = false;
+function renderPartPaymentAllocations() {
+  const bodyEl = $('#partPaymentBody');
+  if (!bodyEl) return;
+  const records = loadPartPaymentAllocations();
+  const customers = (state.customers ?? []).filter((c) => c && c.id);
+  const customerEl = $('#partPaymentCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    const picked = customerEl.value ?? '';
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+    if (customers.some((c) => String(c.id) === picked)) customerEl.value = picked;
+  }
+  const byCustomer = new Map(customers.map((c) => [String(c.id), c]));
+  const currentCustomer = byCustomer.get(String(customerEl?.value ?? ''));
+  const currentBillEl = $('#partPaymentCurrentBill');
+  if (currentBillEl && document.activeElement !== currentBillEl) {
+    const bills = currentCustomer ? normalizeAllocationBillList(partPaymentBills(currentCustomer)) : [];
+    const picked = currentBillEl.value ?? '';
+    currentBillEl.innerHTML = '<option value="">Latest bill</option>'
+      + bills.map((bill) => `<option value="${escapeHtml(bill.id)}">${escapeHtml(bill.month)}</option>`).join('');
+    if (bills.some((bill) => bill.id === picked)) currentBillEl.value = picked;
+  }
+  const filterEl = $('#partPaymentFilterCustomer');
+  if (filterEl && document.activeElement !== filterEl) {
+    const picked = filterEl.value ?? '';
+    filterEl.innerHTML = '<option value="">All customers</option>'
+      + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('');
+    if (picked === '' || customers.some((c) => String(c.id) === picked)) filterEl.value = picked;
+  }
+  const pickEl = $('#partPaymentPick');
+  if (pickEl && document.activeElement !== pickEl) {
+    pickEl.innerHTML = records.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.id)} — ${escapeHtml(r.customerName || r.customer)}</option>`).join('')
+      || '<option value="">No part-payments yet</option>';
+  }
+  const dateInput = $('#partPaymentDate');
+  if (dateInput && !dateInput.value) dateInput.value = localDate();
+  const ruleEl = $('#partPaymentRuleBody');
+  if (ruleEl) {
+    const bills = currentCustomer ? normalizeAllocationBillList(partPaymentBills(currentCustomer)) : [];
+    const instalments = currentCustomer ? normalizeAllocationInstalmentList(partPaymentInstalments(currentCustomer.id)) : [];
+    const currentId = currentBillEl?.value ?? '';
+    const order = defaultAllocationOrder(bills, instalments, currentId);
+    ruleEl.textContent = order.length > 0
+      ? `Written rule for this customer: ${order.join(' → ')} (oldest bill first, then current bill, then arrears instalments).`
+      : 'Written rule: oldest outstanding bill first, then the current bill, then any arrears-plan instalment. Pick a customer to see their order.';
+  }
+  const filterCustomer = filterEl?.value ?? '';
+  const shown = filterCustomer ? partPaymentsForCustomer(records, filterCustomer) : records;
+  bodyEl.innerHTML = partPaymentHtml(shown);
+  const summaryEl = $('#partPaymentSummary');
+  if (summaryEl) summaryEl.textContent = partPaymentSummaryText(shown);
+  if (!partPaymentAllocationsBound) {
+    partPaymentAllocationsBound = true;
+    $('#partPaymentSaveBtn')?.addEventListener('click', () => {
+      const customer = $('#partPaymentCustomer')?.value ?? '';
+      const amountRs = Number($('#partPaymentAmount')?.value ?? 0);
+      const date = $('#partPaymentDate')?.value ?? '';
+      const currentBillId = $('#partPaymentCurrentBill')?.value ?? '';
+      const orderInput = $('#partPaymentOrder')?.value ?? '';
+      const orderReason = $('#partPaymentOrderReason')?.value ?? '';
+      const chosen = customers.find((c) => String(c.id) === customer);
+      if (!chosen) { toast('Pick a customer first.'); return; }
+      const bills = partPaymentBills(chosen);
+      const instalments = partPaymentInstalments(chosen.id);
+      const allocation = allocatePartPayment(
+        { id: `PP-${Date.now()}`, customer, customerName: chosen.name || chosen.customerName || '', date, amount: amountRs },
+        bills,
+        instalments,
+        { currentBillId, order: orderInput, orderReason },
+      );
+      if (!allocation) {
+        if (orderInput.trim() && !orderReason.trim()) { toast('A different order needs a recorded reason. Add the reason, or leave the order blank for the written rule.'); return; }
+        toast('That part-payment is half-formed and was not recorded. Check the amount and date.');
+        return;
+      }
+      const before = loadPartPaymentAllocations();
+      const record = {
+        id: allocation.paymentId,
+        customer: allocation.customer,
+        customerName: allocation.customerName,
+        date: allocation.date,
+        amountCents: allocation.amountCents,
+        order: orderInput.split(',').map((entry) => entry.trim()).filter(Boolean),
+        orderReason: allocation.orderReason,
+        lines: allocation.lines,
+      };
+      const next = upsertPartPaymentAllocation(before, record);
+      if (next.length === before.length) { toast('That part-payment could not be recorded. Check the amount, date, and order.'); return; }
+      savePartPaymentAllocations(next);
+      toast('Part-payment recorded bill by bill. No bill or payment total was changed by the allocation itself.');
+      renderPartPaymentAllocations();
+    });
+    $('#partPaymentCustomer')?.addEventListener('change', () => renderPartPaymentAllocations());
+    $('#partPaymentFilterCustomer')?.addEventListener('change', () => renderPartPaymentAllocations());
+    $('#partPaymentRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#partPaymentPick')?.value ?? '';
+      if (!id) { toast('Pick a part-payment first.'); return; }
+      savePartPaymentAllocations(removePartPaymentAllocation(loadPartPaymentAllocations(), id));
+      toast('Part-payment removed. No bill, payment, or total was changed.');
+      renderPartPaymentAllocations();
+    });
+    $('#partPaymentExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(partPaymentFilename(), partPaymentCsv(loadPartPaymentAllocations()));
     });
   }
 }

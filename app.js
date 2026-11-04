@@ -3340,7 +3340,7 @@ function clearReceiptPrint() {
   if (area) { area.hidden = true; area.replaceChildren(); }
 }
 // Receipt print fields: 'Nominal package price', 'Balance due after this payment'
-function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, format = isThermal ? 'thermal-80' : 'a4' } = {}) {
+function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, format = isThermal ? 'thermal-80' : 'a4', script = 'roman' } = {}) {
   const customer = state.customers.find(row => row.id === customerId);
   const bill = customer?.bills?.find(row => row.month === month);
   const payment = bill?.payments?.find(row => row.id === paymentId);
@@ -3354,7 +3354,10 @@ function printPaymentReceipt(customerId, month, paymentId, { isThermal = false, 
     format: targetFormat,
     businessName: state.settings?.businessName || 'Shahdara ISP',
     businessPhone: state.settings?.businessPhone || '0300-1234567',
-    receiptFooter: getReceiptFooter()
+    receiptFooter: getReceiptFooter(),
+    // Plan 168: print-time script choice; anything other than 'urdu'
+    // prints exactly as before, and the stored receipt is never touched.
+    script
   });
   area.hidden = false;
   document.body.classList.add('printing-receipt');
@@ -13941,6 +13944,7 @@ function renderAnalytics() {
   renderInfoSheets();
   renderAnnouncementDrafts();
   renderChangeConfirmations();
+  renderReceiptScripts();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23914,6 +23918,49 @@ function renderChangeConfirmations() {
       downloadCsvFile(changeConfirmationFilename(), changeConfirmationCsv(loadChangeConfirmations()));
     });
     $('#ccFilter')?.addEventListener('input', () => { renderChangeConfirmations(); });
+  }
+}
+// Plan 168: payment receipt in Urdu script, chosen at print time.
+// The panel previews a saved receipt with Urdu-script labels and
+// prints it the same way through printPaymentReceipt. Nothing is
+// stored here, no receipt record is created or altered, and the
+// stored receipt's own facts render exactly as in the Roman layout.
+let receiptScriptsBound = false;
+function renderReceiptScripts() {
+  const previewEl = $('#rsPreview');
+  if (!previewEl) return;
+  if (!receiptScriptsBound) {
+    receiptScriptsBound = true;
+    const findSavedReceipt = () => {
+      const typed = ($('#rsCustomer')?.value ?? '').trim();
+      const month = ($('#rsMonth')?.value ?? '').trim();
+      const paymentId = ($('#rsPaymentId')?.value ?? '').trim();
+      const customer = state.customers.find(row => String(row.id) === typed || String(row.customerNumber) === typed);
+      const bill = customer?.bills?.find(row => row.month === month);
+      const payment = bill?.payments?.find(row => row.id === paymentId);
+      return { customer, bill, payment };
+    };
+    const chosenFormat = () => {
+      const format = $('#rsFormat')?.value || 'a4';
+      return format === 'thermal-58' ? 'thermal-58' : format === 'thermal-80' ? 'thermal-80' : 'a4';
+    };
+    $('#rsPreviewBtn')?.addEventListener('click', () => {
+      const { customer, bill, payment } = findSavedReceipt();
+      if (!customer || !bill || !payment) { previewEl.innerHTML = '<p>No saved receipt matches that customer, month, and payment id.</p>'; return; }
+      const receipt = buildPaymentReceipt(customer, bill, payment);
+      previewEl.innerHTML = generatePaymentReceiptHtml(receipt, {
+        format: chosenFormat(),
+        businessName: state.settings?.businessName || 'Shahdara ISP',
+        businessPhone: state.settings?.businessPhone || '0300-1234567',
+        receiptFooter: getReceiptFooter(),
+        script: 'urdu'
+      });
+    });
+    $('#rsPrintBtn')?.addEventListener('click', () => {
+      const { customer, bill, payment } = findSavedReceipt();
+      if (!customer || !bill || !payment) { toast('No saved receipt matches that customer, month, and payment id.'); return; }
+      printPaymentReceipt(customer.id, bill.month, payment.id, { format: chosenFormat(), script: 'urdu' });
+    });
   }
 }
 // Closed months for the guard: months closed on the month-end

@@ -403,6 +403,7 @@ import { normalizeLicenceList, recordLicence, removeLicence, markLicenceRenewed,
 import { normalizeShopAssetList, recordShopAsset, removeShopAsset, markShopAssetDisposed, shopAssetsSorted, shopAssetAllHtml, shopAssetSummaryText, shopAssetCsv, shopAssetFilename } from './shop-asset.js';
 import { normalizeMilestoneList, recordMilestone, removeMilestone, setMilestoneStatus, starterMilestones, milestonesSorted, milestoneAllHtml, milestoneSummaryText, milestoneReadinessText, milestoneCsv, milestoneFilename } from './growth-milestone.js';
 import { normalizeChecklistList, recordChecklist, removeChecklist, tickChecklistStep, untickChecklistStep, starterCollectorSteps, checklistsSorted, checklistAllHtml, checklistSummaryText, checklistCsv, checklistFilename } from './collector-onboarding.js';
+import { validComparisonPeriod, buildYearComparison, yearComparisonText, yearComparisonHtml, yearComparisonCsv, yearComparisonFilename } from './year-comparison.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13993,6 +13994,7 @@ function renderAnalytics() {
   renderShopAssets();
   renderGrowthMilestones();
   renderCollectorOnboarding();
+  renderYearComparison();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25369,6 +25371,97 @@ function renderCollectorOnboarding() {
       renderCollectorOnboarding();
     });
     $('#coFilter')?.addEventListener('input', () => { renderCollectorOnboarding(); });
+  }
+}
+// Plan 193: multi-year comparison view (read-only). Figures come only
+// from the existing annual summaries (Plan 71) and month snapshots
+// (Plan 70), built exactly as the annual-summary panel builds them;
+// this view aligns the same figure across years for the same period
+// and adds no figure of its own. A year with no record for the
+// chosen period shows Missing, never zero. Nothing here writes,
+// edits, or removes any bill, payment, snapshot, or past total.
+let yearComparisonBound = false;
+function yearComparisonAnnualRows(year) {
+  const snapshots = loadMonthSnapshots();
+  const customers = churnSummaryCustomers();
+  return monthsOfYear(year).map((month) => {
+    const snap = findSnapshot(snapshots, month);
+    const churn = buildMonthlyChurnSummary({ month, customers, atRisk: [] });
+    return {
+      month,
+      collections: snap ? snap.collectionsCents / 100 : null,
+      expenses: snap ? snap.expensesCents / 100 : null,
+      newCustomers: churn ? churn.newCustomers : null,
+      departed: churn ? churn.departed : null,
+      customersStart: churn ? churn.start : null,
+      customersEnd: churn ? churn.end : null,
+      churnRate: churn ? churn.churnRate : null,
+      snapshotClosed: !!snap,
+    };
+  });
+}
+function buildYearComparisonRecords(period) {
+  const snapshots = loadMonthSnapshots();
+  const years = new Set([localDate().slice(0, 4)]);
+  for (const snap of snapshots) {
+    if (snap && typeof snap.month === 'string') years.add(snap.month.slice(0, 4));
+  }
+  return [...years].sort().map((year) => {
+    if (period === 'year') {
+      const summary = buildAnnualSummary({ year, months: yearComparisonAnnualRows(year) });
+      return {
+        year, period,
+        figures: summary ? {
+          Collections: summary.collectionsTotal,
+          Expenses: summary.expensesTotal,
+          Net: summary.netTotal,
+          'New customers': summary.newTotal,
+          Departures: summary.departedTotal,
+          'Customers at start': summary.yearStart,
+          'Customers at end': summary.yearEnd,
+          Growth: summary.growth,
+          'Churn rate %': summary.annualChurnRatePercent,
+        } : {},
+      };
+    }
+    const month = `${year}-${period}`;
+    const snap = findSnapshot(snapshots, month);
+    if (!snap) return { year, period, figures: {} };
+    const churn = buildMonthlyChurnSummary({ month, customers: churnSummaryCustomers(), atRisk: [] });
+    return {
+      year, period,
+      figures: {
+        Collections: snap.collectionsCents / 100,
+        Expenses: snap.expensesCents / 100,
+        Net: (snap.collectionsCents - snap.expensesCents) / 100,
+        'New customers': churn ? churn.newCustomers : null,
+        Departures: churn ? churn.departed : null,
+        'Customers at start': churn ? churn.start : null,
+        'Customers at end': churn ? churn.end : null,
+        'Churn rate': churn ? churn.churnRate : null,
+      },
+    };
+  });
+}
+function renderYearComparison() {
+  const bodyEl = $('#ycBody');
+  if (!bodyEl) return;
+  const periodEl = $('#ycPeriod');
+  const period = validComparisonPeriod(periodEl?.value ?? 'year') || 'year';
+  const view = buildYearComparison({ period, records: buildYearComparisonRecords(period) });
+  bodyEl.innerHTML = view
+    ? yearComparisonHtml(view)
+    : '<p>No year records available for this period.</p>';
+  const summaryEl = $('#ycSummary');
+  if (summaryEl) summaryEl.textContent = view ? yearComparisonText(view) : '';
+  if (!yearComparisonBound) {
+    yearComparisonBound = true;
+    $('#ycPeriod')?.addEventListener('change', () => { renderYearComparison(); });
+    $('#ycExportBtn')?.addEventListener('click', () => {
+      const currentPeriod = validComparisonPeriod($('#ycPeriod')?.value ?? 'year') || 'year';
+      const current = buildYearComparison({ period: currentPeriod, records: buildYearComparisonRecords(currentPeriod) });
+      if (current) downloadCsvFile(yearComparisonFilename(currentPeriod), yearComparisonCsv(current));
+    });
   }
 }
 function renderOwnerDecision() {

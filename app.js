@@ -337,6 +337,7 @@ import { normalizeReceiptSeriesList, addReceiptSeries, findReceiptSeries, series
 import { normalizeClearanceList, recordClearance, markCleared, markBounced, pendingClearances, clearedClearances, billClearanceStatus, billSettledByClearance, clearanceSummaryText, clearanceHtml, clearanceCsv, clearanceFilename } from './payment-clearance.js';
 import { normalizeBankCreditList, recordBankCredit, matchBankCredit, explainBankCredit, unmatchedBankCredits, matchedBankCredits, bankCreditSummaryText, bankCreditHtml, bankCreditCsv, bankCreditFilename } from './bank-credits.js';
 import { validGuardDate, validGuardMonth, normalizeClosedPeriodList, recordClosedPeriod, normalizeHeldEntryList, checkGuardPosting, holdEntry, approveHeldEntry, heldEntries, postedEntries, heldEntrySummaryText, heldEntryHtml, closedPeriodHtml, heldEntryCsv, heldEntryFilename } from './closed-period-posting.js';
+import { validShiftDate, normalizeShiftRuleList, recordShiftRule, shiftDueDate, shiftRuleForDate, shiftRuleSummaryText, shiftRuleHtml, shiftRuleCsv, shiftRuleFilename } from './due-date-shift.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13857,6 +13858,7 @@ function renderAnalytics() {
   renderPaymentClearance();
   renderBankCredits();
   renderClosedPeriodPosting();
+  renderDueDateShift();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21473,6 +21475,63 @@ function loadGuardHeldEntries() {
 }
 function saveGuardHeldEntries(list) {
   try { localStorage.setItem(GUARD_HELD_KEY, JSON.stringify(normalizeHeldEntryList(list))); } catch { /* record only: a failed save leaves the previous held entries in place */ }
+}
+const SHIFT_RULE_KEY = 'shahdara_due_date_shift_rules_v1';
+function loadShiftRules() {
+  try {
+    const raw = localStorage.getItem(SHIFT_RULE_KEY);
+    if (!raw) return [];
+    return normalizeShiftRuleList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveShiftRules(list) {
+  try { localStorage.setItem(SHIFT_RULE_KEY, JSON.stringify(normalizeShiftRuleList(list))); } catch { /* record only: a failed save leaves the previous shift rules in place */ }
+}
+let dueDateShiftBound = false;
+function renderDueDateShift() {
+  const bodyEl = $('#shiftRuleBody');
+  if (!bodyEl) return;
+  const rules = loadShiftRules();
+  bodyEl.innerHTML = rules.map((rule) => shiftRuleHtml(rule)).join('') || '<p>No due-date shift rule recorded yet.</p>';
+  const summaryEl = $('#shiftRuleSummary');
+  if (summaryEl) summaryEl.textContent = shiftRuleSummaryText(rules);
+  if (!dueDateShiftBound) {
+    dueDateShiftBound = true;
+    $('#shiftRuleSaveBtn')?.addEventListener('click', () => {
+      const before = loadShiftRules();
+      const weekdays = ($('#shiftRuleWeekdays')?.value ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '').map(Number);
+      const holidays = ($('#shiftRuleHolidays')?.value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+      const next = recordShiftRule(before, {
+        id: `DS-${Date.now()}`,
+        name: $('#shiftRuleName')?.value ?? '',
+        direction: $('#shiftRuleDirection')?.value ?? '',
+        closedWeekdays: weekdays,
+        holidays,
+        effectiveDate: $('#shiftRuleEffective')?.value ?? '',
+        note: $('#shiftRuleNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Shift rule not recorded: pick a direction, real closed weekdays (0 = Sunday … 6 = Saturday), real holiday dates, and a real effective date.'); return; }
+      saveShiftRules(next);
+      toast('Shift rule recorded. It shifts due dates only — no amount, cycle, or extension is changed.');
+      renderDueDateShift();
+    });
+    $('#shiftCheckBtn')?.addEventListener('click', () => {
+      const date = $('#shiftCheckDate')?.value ?? '';
+      const result = $('#shiftCheckResult');
+      if (!result) return;
+      if (!validShiftDate(date)) { result.textContent = 'Pick a real due date first.'; return; }
+      const rule = shiftRuleForDate(loadShiftRules(), date);
+      if (!rule) { result.textContent = `${date} has no shift rule in force — it stays as it is.`; return; }
+      const shifted = shiftDueDate(rule, date);
+      if (!shifted) { result.textContent = `${date} is closed under every day of the rule — no working day found within a year, so no date is guessed.`; return; }
+      result.textContent = shifted.shifted
+        ? `Original due ${shifted.originalDate} — shifted due ${shifted.shiftedDate}. ${shifted.reason} Later fee and reminder logic should use the shifted date.`
+        : `Original due ${shifted.originalDate} — not shifted. ${shifted.reason}`;
+    });
+    $('#shiftExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(shiftRuleFilename(), shiftRuleCsv(loadShiftRules()));
+    });
+  }
 }
 // Closed months for the guard: months closed on the month-end
 // checklist plus months recorded here. This panel reads the

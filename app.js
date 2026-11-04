@@ -396,6 +396,7 @@ import { normalizeAuditCycleList, createAuditCycle, completeAuditCycle, removeAu
 import { normalizeStaffHandoverList, recordStaffHandover, removeStaffHandover, markStaffHandoverReceived, markStaffHandoverNotReceived, staffHandoversForPerson, staffHandoverAllHtml, staffHandoverSummaryText, staffHandoverCsv, staffHandoverFilename } from './staff-handover.js';
 import { normalizeDecisionList, recordDecision, removeDecision, decisionsForTopic, decisionAllHtml, decisionSummaryText, decisionCsv, decisionFilename } from './decision-log.js';
 import { normalizeReviewTemplateList, recordReviewTemplate, removeReviewTemplate, findReviewTemplate, composeReview, reviewTemplateStarters, reviewTemplateSummaryText, reviewTemplateText, reviewTemplateHtml, reviewTemplateCsv, reviewTemplateFilename } from './review-template.js';
+import { normalizeTaxPackList, recordTaxPack, removeTaxPack, markTaxFigure, taxPackStarters, taxPackSummaryText, taxPackHtml, taxPackCsv, taxPackFilename } from './tax-figures.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13979,6 +13980,7 @@ function renderAnalytics() {
   renderStaffHandover();
   renderOwnerDecision();
   renderReviewTemplate();
+  renderTaxFigures();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25039,6 +25041,57 @@ function renderReviewTemplate() {
       renderReviewTemplate();
     });
     $('#rtComposeBtn')?.addEventListener('click', () => { renderReviewTemplate(); });
+  }
+}
+// Plan 186: tax-season figures packs are checklists only — they name
+// which figures the accountant needs, where each comes from, and
+// whether it is ready. They compute no tax and change no bill,
+// payment, expense, or past total.
+const TAX_FIGURES_KEY = 'shahdara_tax_figures_v1';
+function loadTaxPacks() {
+  try { return normalizeTaxPackList(JSON.parse(localStorage.getItem(TAX_FIGURES_KEY) || '[]')); } catch { return []; }
+}
+function saveTaxPacks(list) {
+  try { localStorage.setItem(TAX_FIGURES_KEY, JSON.stringify(normalizeTaxPackList(list))); } catch { /* tax packs only: a failed save leaves the previous list in place */ }
+}
+let taxFiguresBound = false;
+function renderTaxFigures() {
+  const bodyEl = $('#tfBody');
+  if (!bodyEl) return;
+  const entries = loadTaxPacks();
+  bodyEl.innerHTML = entries.length ? entries.map((entry) => taxPackHtml(entry)).join('') : '<p>No tax figures packs recorded.</p>';
+  const summaryEl = $('#tfSummary');
+  if (summaryEl) summaryEl.textContent = `${taxPackSummaryText(entries)}.`;
+  if (!taxFiguresBound) {
+    taxFiguresBound = true;
+    $('#tfExportBtn')?.addEventListener('click', () => { downloadCsvFile(taxPackFilename(), taxPackCsv(loadTaxPacks())); });
+    $('#tfStarterBtn')?.addEventListener('click', () => {
+      let list = loadTaxPacks();
+      for (const starter of taxPackStarters()) list = recordTaxPack(list, starter);
+      saveTaxPacks(list);
+      renderTaxFigures();
+    });
+    $('#tfSaveBtn')?.addEventListener('click', () => {
+      const figures = ($('#tfFigures')?.value ?? '').split('\n').map((line) => {
+        const [figure, source, status, note] = line.split('|');
+        return { figure: (figure ?? '').trim(), source: (source ?? '').trim(), status: (status ?? '').trim(), note: (note ?? '').trim() };
+      });
+      saveTaxPacks(recordTaxPack(loadTaxPacks(), {
+        id: `TF-${Date.now()}`,
+        name: $('#tfName')?.value ?? '',
+        period: $('#tfPeriod')?.value ?? '',
+        figures,
+      }));
+      renderTaxFigures();
+    });
+    $('#tfMarkBtn')?.addEventListener('click', () => {
+      saveTaxPacks(markTaxFigure(loadTaxPacks(), $('#tfMarkPackId')?.value ?? '', $('#tfMarkFigure')?.value ?? '', $('#tfMarkStatus')?.value ?? ''));
+      renderTaxFigures();
+    });
+    $('#tfRemoveBtn')?.addEventListener('click', () => {
+      saveTaxPacks(removeTaxPack(loadTaxPacks(), $('#tfRemoveId')?.value ?? ''));
+      renderTaxFigures();
+    });
   }
 }
 function renderOwnerDecision() {

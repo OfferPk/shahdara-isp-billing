@@ -333,6 +333,7 @@ import { buildMethodReconciliation, reconciliationSummaryText, methodReconciliat
 import { normalizeCashReconList, addCashRecon, lockCashRecon, cashReconsForMonth, cashReconSummaryText, cashReconHtml, cashReconCsv, cashReconFilename } from './cash-reconciliation.js';
 import { normalizeDepositSlipList, addDepositSlip, findDepositSlip, depositSlipsForMonth, depositedTotalForMonth, verifyAgainstDepositedTotal, depositSlipSummaryText, depositSlipHtml, depositSlipCsv, depositSlipFilename } from './deposit-slips.js';
 import { normalizeReceiptReprintList, addReceiptReprint, reprintsForReceipt, originalReceiptView, reprintCopy, receiptReprintSummaryText, receiptReprintHtml, originalReceiptHtml, receiptReprintCsv, receiptReprintFilename } from './receipt-reprints.js';
+import { normalizeReceiptSeriesList, addReceiptSeries, findReceiptSeries, seriesForCollector, seriesForNumber, returnReceiptSeries, normalizeReissueList, reissueUnusedNumber, returnedSeriesBreakdown, receiptSeriesSummaryText, receiptSeriesHtml, reissueHtml, receiptSeriesCsv, reissueCsv, receiptSeriesFilename, reissueFilename } from './receipt-series.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13849,6 +13850,7 @@ function renderAnalytics() {
   renderCashReconciliation();
   renderDepositSlips();
   renderReceiptReprints();
+  renderReceiptSeries();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21192,6 +21194,101 @@ function renderReceiptReprints() {
     });
     $('#receiptReprintExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(receiptReprintFilename(), receiptReprintCsv(loadReceiptReprints()));
+    });
+  }
+}
+const RECEIPT_SERIES_KEY = 'shahdara_receipt_series_v1';
+function loadReceiptSeries() {
+  try {
+    const raw = localStorage.getItem(RECEIPT_SERIES_KEY);
+    if (!raw) return [];
+    return normalizeReceiptSeriesList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveReceiptSeries(list) {
+  try { localStorage.setItem(RECEIPT_SERIES_KEY, JSON.stringify(normalizeReceiptSeriesList(list))); } catch { /* record only: a failed save leaves the previous series in place */ }
+}
+const RECEIPT_SERIES_REISSUE_KEY = 'shahdara_receipt_series_reissues_v1';
+function loadReceiptReissues() {
+  try {
+    const raw = localStorage.getItem(RECEIPT_SERIES_REISSUE_KEY);
+    if (!raw) return [];
+    return normalizeReissueList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveReceiptReissues(list) {
+  try { localStorage.setItem(RECEIPT_SERIES_REISSUE_KEY, JSON.stringify(normalizeReissueList(list))); } catch { /* record only: a failed save leaves the previous reissues in place */ }
+}
+let receiptSeriesBound = false;
+function renderReceiptSeries() {
+  const bodyEl = $('#receiptSeriesBody');
+  if (!bodyEl) return;
+  const filter = ($('#receiptSeriesFilter')?.value ?? '').trim();
+  const all = loadReceiptSeries();
+  const shown = filter ? all.filter((item) => item.collector === filter) : all;
+  bodyEl.innerHTML = shown.map((item) => receiptSeriesHtml(item)).join('') || '<p>No receipt series recorded yet.</p>';
+  const summaryEl = $('#receiptSeriesSummary');
+  if (summaryEl) summaryEl.textContent = receiptSeriesSummaryText(all);
+  const reissueEl = $('#receiptSeriesReissueBody');
+  if (reissueEl) {
+    const reissues = loadReceiptReissues();
+    reissueEl.innerHTML = reissues.map((item) => reissueHtml(item)).join('') || '<p>No reissue recorded yet.</p>';
+  }
+  if (!receiptSeriesBound) {
+    receiptSeriesBound = true;
+    $('#receiptSeriesFilter')?.addEventListener('change', () => renderReceiptSeries());
+    $('#receiptSeriesSaveBtn')?.addEventListener('click', () => {
+      const before = loadReceiptSeries();
+      const next = addReceiptSeries(before, {
+        id: `RS-${Date.now()}`,
+        collector: $('#receiptSeriesCollector')?.value ?? '',
+        startNumber: Number($('#receiptSeriesStart')?.value ?? ''),
+        endNumber: Number($('#receiptSeriesEnd')?.value ?? ''),
+        dateIssued: $('#receiptSeriesIssued')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Series not recorded: pick a collector, a start number no higher than the end number, and a real issue date — and a range that does not overlap an existing series.'); return; }
+      saveReceiptSeries(next);
+      toast('Receipt series recorded. Each number in it belongs to exactly one collector.');
+      renderReceiptSeries();
+    });
+    $('#receiptSeriesReturnBtn')?.addEventListener('click', () => {
+      const before = loadReceiptSeries();
+      const next = returnReceiptSeries(before, ($('#receiptSeriesReturnId')?.value ?? '').trim(), $('#receiptSeriesReturnDate')?.value ?? '');
+      const target = before.find((item) => item.id === ($('#receiptSeriesReturnId')?.value ?? '').trim());
+      if (!target || target.dateReturned || next.find((item) => item.id === target.id)?.dateReturned !== $('#receiptSeriesReturnDate')?.value) { toast('Series not returned: pick a series still out with a collector and a return date on or after its issue date.'); return; }
+      saveReceiptSeries(next);
+      toast('Series returned. Its unused numbers stay in this book until reissued with a recorded reason.');
+      renderReceiptSeries();
+    });
+    $('#receiptSeriesReissueBtn')?.addEventListener('click', () => {
+      const before = loadReceiptReissues();
+      const series = loadReceiptSeries();
+      const number = Number($('#receiptSeriesReissueNumber')?.value ?? '');
+      const from = seriesForNumber(series, number);
+      const next = reissueUnusedNumber(series, before, [], [], {
+        id: `RI-${Date.now()}`,
+        number,
+        fromSeriesId: from?.id ?? '',
+        toCollector: $('#receiptSeriesReissueTo')?.value ?? '',
+        reason: $('#receiptSeriesReissueReason')?.value ?? '',
+        date: $('#receiptSeriesReissueDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Reissue not recorded: the number must be an unused number of a returned series, with a collector and a recorded reason.'); return; }
+      saveReceiptReissues(next);
+      toast('Unused number reissued with its reason recorded. No receipt content or gap rule changed.');
+      renderReceiptSeries();
+    });
+    $('#receiptSeriesBreakdownBtn')?.addEventListener('click', () => {
+      const series = findReceiptSeries(loadReceiptSeries(), ($('#receiptSeriesBreakdownSeries')?.value ?? '').trim());
+      const resultEl = $('#receiptSeriesBreakdownResult');
+      if (!series || !series.dateReturned) { if (resultEl) resultEl.textContent = 'Pick a returned series to see its used, void, and unused numbers.'; return; }
+      const parseNums = (value) => (value ?? '').split(',').map((s) => Number(s.trim())).filter((n) => Number.isInteger(n) && n > 0);
+      const breakdown = returnedSeriesBreakdown(series, parseNums($('#receiptSeriesBreakdownUsed')?.value), parseNums($('#receiptSeriesBreakdownVoid')?.value));
+      if (resultEl) resultEl.textContent = `Series ${breakdown.id} (${breakdown.collector}): ${breakdown.used.length} used, ${breakdown.voided.length} void, ${breakdown.unused.length} unused of ${breakdown.total}. Unused: ${breakdown.unused.join(', ') || 'none'}.`;
+    });
+    $('#receiptSeriesExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(receiptSeriesFilename(), receiptSeriesCsv(loadReceiptSeries()));
+      downloadCsvFile(reissueFilename(), reissueCsv(loadReceiptReissues()));
     });
   }
 }

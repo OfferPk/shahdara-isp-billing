@@ -336,6 +336,7 @@ import { normalizeReceiptReprintList, addReceiptReprint, reprintsForReceipt, ori
 import { normalizeReceiptSeriesList, addReceiptSeries, findReceiptSeries, seriesForCollector, seriesForNumber, returnReceiptSeries, normalizeReissueList, reissueUnusedNumber, returnedSeriesBreakdown, receiptSeriesSummaryText, receiptSeriesHtml, reissueHtml, receiptSeriesCsv, reissueCsv, receiptSeriesFilename, reissueFilename } from './receipt-series.js';
 import { normalizeClearanceList, recordClearance, markCleared, markBounced, pendingClearances, clearedClearances, billClearanceStatus, billSettledByClearance, clearanceSummaryText, clearanceHtml, clearanceCsv, clearanceFilename } from './payment-clearance.js';
 import { normalizeBankCreditList, recordBankCredit, matchBankCredit, explainBankCredit, unmatchedBankCredits, matchedBankCredits, bankCreditSummaryText, bankCreditHtml, bankCreditCsv, bankCreditFilename } from './bank-credits.js';
+import { validGuardDate, validGuardMonth, normalizeClosedPeriodList, recordClosedPeriod, normalizeHeldEntryList, checkGuardPosting, holdEntry, approveHeldEntry, heldEntries, postedEntries, heldEntrySummaryText, heldEntryHtml, closedPeriodHtml, heldEntryCsv, heldEntryFilename } from './closed-period-posting.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13855,6 +13856,7 @@ function renderAnalytics() {
   renderReceiptSeries();
   renderPaymentClearance();
   renderBankCredits();
+  renderClosedPeriodPosting();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21447,6 +21449,117 @@ function renderBankCredits() {
     });
     $('#bankCreditExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(bankCreditFilename(), bankCreditCsv(loadBankCredits()));
+    });
+  }
+}
+const GUARD_CLOSED_KEY = 'shahdara_closed_periods_v1';
+const GUARD_HELD_KEY = 'shahdara_held_postings_v1';
+function loadGuardClosedPeriods() {
+  try {
+    const raw = localStorage.getItem(GUARD_CLOSED_KEY);
+    if (!raw) return [];
+    return normalizeClosedPeriodList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveGuardClosedPeriods(list) {
+  try { localStorage.setItem(GUARD_CLOSED_KEY, JSON.stringify(normalizeClosedPeriodList(list))); } catch { /* record only: a failed save leaves the previous closed periods in place */ }
+}
+function loadGuardHeldEntries() {
+  try {
+    const raw = localStorage.getItem(GUARD_HELD_KEY);
+    if (!raw) return [];
+    return normalizeHeldEntryList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveGuardHeldEntries(list) {
+  try { localStorage.setItem(GUARD_HELD_KEY, JSON.stringify(normalizeHeldEntryList(list))); } catch { /* record only: a failed save leaves the previous held entries in place */ }
+}
+// Closed months for the guard: months closed on the month-end
+// checklist plus months recorded here. This panel reads the
+// checklist only — it never reopens, edits, or rewrites it, and
+// the guard module itself never opens any other record.
+function guardClosedPeriods() {
+  const fromChecklist = [];
+  try {
+    for (const record of loadMonthClose()) {
+      if (record && record.status === 'closed' && validGuardMonth(record.month)) {
+        fromChecklist.push({ month: record.month, closedDate: record.closedDate || '', closedBy: record.closedBy || '' });
+      }
+    }
+  } catch { /* checklist unavailable: the guard's own records still apply */ }
+  const merged = [...loadGuardClosedPeriods()];
+  for (const period of fromChecklist) {
+    if (!merged.some((item) => item.month === period.month)) merged.push(period);
+  }
+  return normalizeClosedPeriodList(merged);
+}
+let closedPeriodPostingBound = false;
+function renderClosedPeriodPosting() {
+  const bodyEl = $('#guardHeldBody');
+  if (!bodyEl) return;
+  const all = loadGuardHeldEntries();
+  const closed = guardClosedPeriods();
+  bodyEl.innerHTML = heldEntries(all).map((item) => heldEntryHtml(item)).join('') || '<p>Nothing held. No entry dated in a closed period is waiting for review.</p>';
+  const closedEl = $('#guardClosedBody');
+  if (closedEl) closedEl.innerHTML = closed.map((period) => closedPeriodHtml(period)).join('') || '<p>No closed period recorded yet.</p>';
+  const summaryEl = $('#guardSummary');
+  if (summaryEl) summaryEl.textContent = heldEntrySummaryText(all);
+  if (!closedPeriodPostingBound) {
+    closedPeriodPostingBound = true;
+    $('#guardClosedSaveBtn')?.addEventListener('click', () => {
+      const before = loadGuardClosedPeriods();
+      const next = recordClosedPeriod(before, {
+        month: $('#guardClosedMonth')?.value ?? '',
+        closedDate: $('#guardClosedDate')?.value ?? '',
+        closedBy: $('#guardClosedBy')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Closed period not recorded: pick a real month and a real closed date. A month already recorded is never rewritten.'); return; }
+      saveGuardClosedPeriods(next);
+      toast('Closed period recorded. Entries dated in it will now be held for review.');
+      renderClosedPeriodPosting();
+    });
+    $('#guardCheckBtn')?.addEventListener('click', () => {
+      const date = $('#guardCheckDate')?.value ?? '';
+      const result = $('#guardCheckResult');
+      if (!result) return;
+      if (!validGuardDate(date)) { result.textContent = 'Pick a real date first.'; return; }
+      const check = checkGuardPosting(guardClosedPeriods(), date);
+      result.textContent = check.blocked
+        ? `Held: ${date} falls in closed period ${check.closedMonth}. It posts only with owner approval and a dated note.`
+        : `${date} is in an open period. It is not held by this guard.`;
+    });
+    $('#guardEntrySaveBtn')?.addEventListener('click', () => {
+      const before = loadGuardHeldEntries();
+      const next = holdEntry(before, guardClosedPeriods(), {
+        id: `GP-${Date.now()}`,
+        customer: $('#guardEntryCustomer')?.value ?? '',
+        kind: $('#guardEntryKind')?.value ?? '',
+        intendedDate: $('#guardEntryDate')?.value ?? '',
+        amount: ($('#guardEntryAmount')?.value ?? '') === '' ? undefined : Number($('#guardEntryAmount')?.value ?? ''),
+      });
+      if (next.length === before.length) { toast('Entry not held: pick a customer, a kind, and a real intended date in a closed period. Open-period entries are not held.'); return; }
+      saveGuardHeldEntries(next);
+      toast('Entry held for review. It posts nowhere until it is approved.');
+      renderClosedPeriodPosting();
+    });
+    $('#guardApproveBtn')?.addEventListener('click', () => {
+      const before = loadGuardHeldEntries();
+      const entryId = ($('#guardApproveId')?.value ?? '').trim();
+      const next = approveHeldEntry(before, guardClosedPeriods(), entryId, {
+        approvalId: $('#guardApprovalId')?.value ?? '',
+        approver: $('#guardApprover')?.value ?? '',
+        approvalDate: $('#guardApprovalDate')?.value ?? '',
+        approvalNote: $('#guardApprovalNote')?.value ?? '',
+        postedToMonth: $('#guardPostMonth')?.value ?? '',
+      });
+      const target = next.find((item) => item.id === entryId);
+      if (!target || target.status !== 'posted') { toast('Not approved: pick a held entry, an approval id, an approver, a real approval date, a note, and an open post-to month.'); return; }
+      saveGuardHeldEntries(next);
+      toast('Approved. The entry posts to the current period with its original date noted. The closed period is unchanged.');
+      renderClosedPeriodPosting();
+    });
+    $('#guardExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(heldEntryFilename(), heldEntryCsv(loadGuardHeldEntries()));
     });
   }
 }

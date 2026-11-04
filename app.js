@@ -332,6 +332,7 @@ import { normalizeFollowUp, normalizeFollowUpList, recordFollowUp, removeFollowU
 import { buildMethodReconciliation, reconciliationSummaryText, methodReconciliationHtml, methodReconciliationCsv, methodReconciliationFilename, normalizeMethodNoteList, addMethodNote, methodNoteHtml, methodNoteCsv, methodNoteFilename } from './method-reconciliation.js';
 import { normalizeCashReconList, addCashRecon, lockCashRecon, cashReconsForMonth, cashReconSummaryText, cashReconHtml, cashReconCsv, cashReconFilename } from './cash-reconciliation.js';
 import { normalizeDepositSlipList, addDepositSlip, findDepositSlip, depositSlipsForMonth, depositedTotalForMonth, verifyAgainstDepositedTotal, depositSlipSummaryText, depositSlipHtml, depositSlipCsv, depositSlipFilename } from './deposit-slips.js';
+import { normalizeReceiptReprintList, addReceiptReprint, reprintsForReceipt, originalReceiptView, reprintCopy, receiptReprintSummaryText, receiptReprintHtml, originalReceiptHtml, receiptReprintCsv, receiptReprintFilename } from './receipt-reprints.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13847,6 +13848,7 @@ function renderAnalytics() {
   renderMethodReconciliation();
   renderCashReconciliation();
   renderDepositSlips();
+  renderReceiptReprints();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21133,6 +21135,63 @@ function renderDepositSlips() {
     });
     $('#depositSlipExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(depositSlipFilename(), depositSlipCsv(loadDepositSlips()));
+    });
+  }
+}
+const RECEIPT_REPRINT_KEY = 'shahdara_receipt_reprints_v1';
+function loadReceiptReprints() {
+  try {
+    const raw = localStorage.getItem(RECEIPT_REPRINT_KEY);
+    if (!raw) return [];
+    return normalizeReceiptReprintList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveReceiptReprints(list) {
+  try { localStorage.setItem(RECEIPT_REPRINT_KEY, JSON.stringify(normalizeReceiptReprintList(list))); } catch { /* record only: a failed save leaves the previous reprints in place */ }
+}
+let receiptReprintBound = false;
+function renderReceiptReprints() {
+  const bodyEl = $('#receiptReprintBody');
+  if (!bodyEl) return;
+  const filter = ($('#receiptReprintFilter')?.value ?? '').trim();
+  const all = loadReceiptReprints();
+  const shown = filter ? all.filter((item) => item.receiptNumber === filter) : all;
+  bodyEl.innerHTML = shown.map((item) => receiptReprintHtml(item)).join('') || '<p>No receipt reprint recorded yet.</p>';
+  const summaryEl = $('#receiptReprintSummary');
+  if (summaryEl) summaryEl.textContent = receiptReprintSummaryText(all);
+  const copyEl = $('#receiptReprintCopy');
+  if (copyEl) {
+    const number = filter || ($('#receiptReprintNumber')?.value ?? '').trim();
+    if (number) {
+      const amount = Number($('#receiptReprintAmount')?.value ?? '');
+      const copy = Number.isFinite(amount) && amount > 0 ? reprintCopy({ receiptNumber: number, amount }, all) : null;
+      copyEl.textContent = copy
+        ? `REPRINT copy — receipt ${copy.receiptNumber} — Rs. ${(copy.amountCents / 100).toFixed(2)} — ${copy.reprintCount} reprint(s)${copy.lastReprintDate ? `, last reprinted ${copy.lastReprintDate}` : ', never reprinted'}. This copy issues no new receipt number and creates no payment.`
+        : 'Type a receipt number and its original amount to preview its REPRINT copy.';
+    } else {
+      copyEl.textContent = 'Type a receipt number and its original amount to preview its REPRINT copy.';
+    }
+  }
+  if (!receiptReprintBound) {
+    receiptReprintBound = true;
+    $('#receiptReprintFilter')?.addEventListener('change', () => renderReceiptReprints());
+    $('#receiptReprintSaveBtn')?.addEventListener('click', () => {
+      const before = loadReceiptReprints();
+      const next = addReceiptReprint(before, {
+        id: `RR-${Date.now()}`,
+        receiptNumber: $('#receiptReprintNumber')?.value ?? '',
+        amount: Number($('#receiptReprintAmount')?.value ?? ''),
+        reprintDate: $('#receiptReprintDate')?.value ?? '',
+        operator: $('#receiptReprintOperator')?.value ?? '',
+        note: $('#receiptReprintNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Reprint not recorded: pick the original receipt number, its original amount, and a real reprint date.'); return; }
+      saveReceiptReprints(next);
+      toast('Receipt reprint recorded and marked REPRINT. No payment was created and no new receipt number was issued.');
+      renderReceiptReprints();
+    });
+    $('#receiptReprintExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(receiptReprintFilename(), receiptReprintCsv(loadReceiptReprints()));
     });
   }
 }

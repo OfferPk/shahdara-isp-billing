@@ -303,6 +303,7 @@ import { MOVE_STATUSES, MOVE_STATUS_LABELS, MOVE_TREATMENTS, MOVE_TREATMENT_LABE
 import { buildHoldHistory, historyForCustomer, normalizeGuardSettings, guardSettingsText, checkNewHold, normalizeOverrideList, upsertOverride, removeOverride, holdHistoryHtml, holdHistoryCsv, holdHistoryFilename, overrideHtml } from './hold-guard.js';
 import { normalizeDuplicateWarningSettings, findNearDuplicates, checkNewPayment, warningHtml, warningCsv, warningFilename, normalizeAckList, upsertAck, removeAck, ackHtml } from './duplicate-warning.js';
 import { UNUSUAL_FLAG_REASONS, UNUSUAL_FLAG_REASON_LABELS, normalizeUnusualFlagSettings, buildUnusualFlags, flagsFiltered, buildFlagSummary, flagSummaryText, normalizeClearedList, clearFlag, removeCleared, flagsHtml, clearedHtml, flagsCsv, flagsFilename } from './unusual-payment-flags.js';
+import { PATTERN_DIMENSIONS, PATTERN_DEFAULTS, normalizePatternEvents, groupPatternCounts, normalizePatternSettings, buildReviewItems, filterReviewItems, buildPatternSummary, patternSummaryText, normalizeReviewList, markReviewed, removeReviewed, reviewHtml, reviewedHtml, patternCsv, patternFilename } from './pattern-watch.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13532,6 +13533,7 @@ function renderAnalytics() {
   renderHoldGuard();
   renderDuplicateWarning();
   renderUnusualPaymentFlags();
+  renderPatternWatch();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -17935,6 +17937,144 @@ function renderUnusualPaymentFlags() {
       if (!restoreBtn?.dataset.paymentId) return;
       saveUnusualFlagCleared(removeCleared(loadUnusualFlagCleared(), restoreBtn.dataset.paymentId));
       renderUnusualPaymentFlags();
+    });
+  }
+}
+// Plan 89: void and correction pattern watch (review list, not a
+// block). Events come from the operator audit log (Plan 31) plus the
+// per-payment correction history (Plan K); a correction-history entry
+// is added only when the audit log has no event for the same
+// customer, date, and kind, so one correction is never counted
+// twice. The view accuses nobody, blocks nothing, and changes no
+// void, correction, or payment record; reviewing only records who
+// reviewed the pattern and the outcome in this plan's own log.
+const PATTERN_WATCH_SETTINGS_KEY = 'shahdara_pattern_watch_settings_v1';
+const PATTERN_WATCH_REVIEWED_KEY = 'shahdara_pattern_watch_reviewed_v1';
+function loadPatternWatchSettings() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PATTERN_WATCH_SETTINGS_KEY) || '{}');
+    return normalizePatternSettings(parsed && typeof parsed === 'object' ? parsed : {});
+  } catch { return normalizePatternSettings({}); }
+}
+function savePatternWatchSettings(settings) {
+  try { localStorage.setItem(PATTERN_WATCH_SETTINGS_KEY, JSON.stringify(normalizePatternSettings(settings))); } catch {}
+}
+function loadPatternWatchReviewed() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PATTERN_WATCH_REVIEWED_KEY) || '[]');
+    return normalizeReviewList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function savePatternWatchReviewed(list) {
+  try { localStorage.setItem(PATTERN_WATCH_REVIEWED_KEY, JSON.stringify(normalizeReviewList(list))); } catch {}
+}
+function patternWatchSource() {
+  const customers = state.customers ?? [];
+  const names = {};
+  const mohallas = {};
+  for (const c of customers) {
+    names[c.id] = c.name || c.customerName || c.id;
+    mohallas[c.id] = c.mohalla || c.area || '';
+  }
+  const events = [];
+  const seen = new Set();
+  for (const entry of loadAuditLog()) {
+    const kind = entry.action === 'payment_voided' ? 'void' : entry.action === 'payment_corrected' ? 'correction' : '';
+    if (!kind) continue;
+    const event = { date: entry.date, kind, customerId: entry.customerId, customerName: entry.customerName || names[entry.customerId] || entry.customerId, mohalla: mohallas[entry.customerId] || '', by: entry.by || '' };
+    const normalised = normalizePatternEvents([event])[0];
+    if (!normalised) continue;
+    events.push(normalised);
+    seen.add(`${normalised.customerId}::${normalised.date}::${normalised.kind}`);
+  }
+  for (const customer of customers) {
+    for (const bill of customer.bills ?? []) {
+      for (const payment of bill.payments ?? []) {
+        for (const entry of payment.correctionHistory ?? []) {
+          const date = typeof entry.correctedAt === 'string' ? entry.correctedAt.slice(0, 10) : '';
+          const candidate = { date, kind: 'correction', customerId: customer.id, customerName: names[customer.id], mohalla: mohallas[customer.id] || '', by: '' };
+          const normalised = normalizePatternEvents([candidate])[0];
+          if (!normalised) continue;
+          const key = `${normalised.customerId}::${normalised.date}::${normalised.kind}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          events.push(normalised);
+        }
+      }
+    }
+  }
+  return events;
+}
+let patternWatchBound = false;
+function renderPatternWatch() {
+  const bodyEl = $('#patternWatchBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const events = patternWatchSource();
+  const reviewed = loadPatternWatchReviewed();
+  const settings = loadPatternWatchSettings();
+  const items = buildReviewItems({ events, settings, reviewedKeys: reviewed.map((e) => e.key) });
+  const dimension = $('#patternWatchDimension')?.value ?? '';
+  const mohalla = $('#patternWatchMohalla')?.value ?? '';
+  const shown = filterReviewItems(items, { dimension, mohalla });
+  bodyEl.innerHTML = reviewHtml(shown);
+  const summaryEl = $('#patternWatchSummary');
+  if (summaryEl) summaryEl.textContent = patternSummaryText(buildPatternSummary(events)) + ` · ${items.length} pattern${items.length === 1 ? '' : 's'} above threshold, showing ${shown.length}.`;
+  const reviewedEl = $('#patternWatchReviewedBody');
+  if (reviewedEl) reviewedEl.innerHTML = reviewedHtml(reviewed);
+  const mohallaEl = $('#patternWatchMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const seen = new Set();
+    const options = ['<option value="">All mohallas</option><option value="__unassigned__">Unassigned</option>'];
+    for (const c of customers) {
+      const m = (c.mohalla || c.area || '').trim();
+      if (m && !seen.has(m)) { seen.add(m); options.push(`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`); }
+    }
+    const current = mohallaEl.value;
+    mohallaEl.innerHTML = options.join('');
+    mohallaEl.value = current;
+  }
+  for (const [elId, value] of [['patternWatchDayThreshold', settings.dayThreshold], ['patternWatchOperatorThreshold', settings.operatorThreshold], ['patternWatchCustomerThreshold', settings.customerThreshold]]) {
+    const el = $(`#${elId}`);
+    if (el && document.activeElement !== el) el.value = String(value);
+  }
+  if (!patternWatchBound) {
+    patternWatchBound = true;
+    $('#patternWatchSaveSettingsBtn')?.addEventListener('click', () => {
+      savePatternWatchSettings({
+        dayThreshold: $('#patternWatchDayThreshold')?.value ?? '',
+        operatorThreshold: $('#patternWatchOperatorThreshold')?.value ?? '',
+        customerThreshold: $('#patternWatchCustomerThreshold')?.value ?? '',
+      });
+      toast('Pattern thresholds saved. The view is read-only; it changes no record.');
+      renderPatternWatch();
+    });
+    $('#patternWatchDimension')?.addEventListener('change', renderPatternWatch);
+    $('#patternWatchMohalla')?.addEventListener('change', renderPatternWatch);
+    $('#patternWatchExportBtn')?.addEventListener('click', () => {
+      const d = $('#patternWatchDimension')?.value ?? '';
+      const m = $('#patternWatchMohalla')?.value ?? '';
+      const all = buildReviewItems({ events: patternWatchSource(), settings: loadPatternWatchSettings(), reviewedKeys: loadPatternWatchReviewed().map((e) => e.key) });
+      downloadCsvFile(patternFilename(), patternCsv(filterReviewItems(all, { dimension: d, mohalla: m })));
+    });
+    bodyEl.addEventListener('click', (event) => {
+      const reviewBtn = event.target.closest ? event.target.closest('.pattern-review-btn') : null;
+      if (!reviewBtn?.dataset.patternKey) return;
+      const reviewer = ($('#patternWatchReviewer')?.value ?? '').trim() || 'Owner';
+      const outcome = ($('#patternWatchOutcome')?.value ?? '').trim();
+      if (!outcome) { toast('A reviewed pattern needs a recorded outcome.'); return; }
+      const all = buildReviewItems({ events: patternWatchSource(), settings: loadPatternWatchSettings(), reviewedKeys: loadPatternWatchReviewed().map((e) => e.key) });
+      const item = all.find((i) => i.key === reviewBtn.dataset.patternKey);
+      if (!item) return;
+      savePatternWatchReviewed(markReviewed(loadPatternWatchReviewed(), item, { reviewedBy: reviewer, outcome, reviewedAt: getWaadaTodayString() }));
+      toast('Pattern marked reviewed. The underlying records were not touched.');
+      renderPatternWatch();
+    });
+    $('#patternWatchReviewedBody')?.addEventListener('click', (event) => {
+      const restoreBtn = event.target.closest ? event.target.closest('.pattern-unreview-btn') : null;
+      if (!restoreBtn?.dataset.patternKey) return;
+      savePatternWatchReviewed(removeReviewed(loadPatternWatchReviewed(), restoreBtn.dataset.patternKey));
+      renderPatternWatch();
     });
   }
 }

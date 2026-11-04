@@ -305,6 +305,7 @@ import { normalizeDuplicateWarningSettings, findNearDuplicates, checkNewPayment,
 import { UNUSUAL_FLAG_REASONS, UNUSUAL_FLAG_REASON_LABELS, normalizeUnusualFlagSettings, buildUnusualFlags, flagsFiltered, buildFlagSummary, flagSummaryText, normalizeClearedList, clearFlag, removeCleared, flagsHtml, clearedHtml, flagsCsv, flagsFilename } from './unusual-payment-flags.js';
 import { PATTERN_DIMENSIONS, PATTERN_DEFAULTS, normalizePatternEvents, groupPatternCounts, normalizePatternSettings, buildReviewItems, filterReviewItems, buildPatternSummary, patternSummaryText, normalizeReviewList, markReviewed, removeReviewed, reviewHtml, reviewedHtml, patternCsv, patternFilename } from './pattern-watch.js';
 import { formatCashCents, normalizeCashLimitSettings, buildCashInHandStatus, cashInHandSummaryText, cashInHandPromptHtml, cashInHandReceiptsHtml, cashInHandCsv, cashInHandFilename } from './cash-in-hand.js';
+import { receiptNumberFromReference, isReceiptDeliveryStatus, buildGapAudit, filterGaps, gapSummaryText, explainGap, removeExplanation, normalizeExplanations, gapAuditHtml, issuedReceiptsHtml, gapAuditCsv, gapAuditFilename } from './receipt-gap-audit.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13550,6 +13551,7 @@ function renderAnalytics() {
   renderUnusualPaymentFlags();
   renderPatternWatch();
   renderCashInHand();
+  renderReceiptGapAudit();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -18139,6 +18141,83 @@ function renderCashInHand() {
       const source = cashInHandSource();
       const current = buildCashInHandStatus({ receipts: source.receipts, settings: loadCashInHandSettings(), handoverRecorded: source.recorded, date: source.date });
       downloadCsvFile(cashInHandFilename(), cashInHandCsv(current.receipts));
+    });
+  }
+}
+const RECEIPT_GAP_EXPLANATIONS_KEY = 'shahdara_receipt_gap_explanations_v1';
+function loadReceiptGapExplanations() {
+  try {
+    const raw = localStorage.getItem(RECEIPT_GAP_EXPLANATIONS_KEY);
+    if (!raw) return [];
+    return normalizeExplanations(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveReceiptGapExplanations(list) {
+  try { localStorage.setItem(RECEIPT_GAP_EXPLANATIONS_KEY, JSON.stringify(normalizeExplanations(list))); } catch { /* audit-only: a failed save leaves the previous explanations in place */ }
+}
+// Plan 91: issued numbers come from payments whose stored receipt
+// reference is a plain integer (operator-typed field receipt
+// numbers); generated REC- references never parse as a number, so
+// they are never mistaken for a sequence. A voided payment still
+// carrying its receipt number becomes the void record for that
+// number. Delivery status is passed only where the payment carries
+// a Plan 5 status; otherwise the audit shows 'not recorded'.
+function receiptGapSource() {
+  const receipts = [];
+  const voids = [];
+  for (const customer of state.customers ?? []) {
+    const name = customer.name || customer.customerName || customer.id;
+    for (const bill of customer.bills ?? []) {
+      for (const payment of bill.payments ?? []) {
+        const number = receiptNumberFromReference(payment.receiptNumber || payment.permanentReceiptNumber);
+        if (number === null) continue;
+        if (payment.voided) {
+          voids.push({ number, reason: payment.voidReason || 'voided', date: payment.voidedAt || payment.date || '' });
+        } else {
+          receipts.push({ number, customer: name, date: payment.date || '', deliveryStatus: isReceiptDeliveryStatus(payment.receiptDeliveryStatus) ? payment.receiptDeliveryStatus : null });
+        }
+      }
+    }
+  }
+  return { receipts, voids };
+}
+let receiptGapBound = false;
+function renderReceiptGapAudit() {
+  const bodyEl = $('#receiptGapBody');
+  if (!bodyEl) return;
+  const { receipts, voids } = receiptGapSource();
+  const explanations = loadReceiptGapExplanations();
+  const audit = buildGapAudit({ receipts, voids, explanations });
+  const status = $('#receiptGapStatus')?.value ?? '';
+  const shown = filterGaps(audit.gaps, status);
+  const summaryEl = $('#receiptGapSummary');
+  if (summaryEl) summaryEl.textContent = gapSummaryText(audit);
+  bodyEl.innerHTML = gapAuditHtml({ ...audit, gaps: shown });
+  const issuedEl = $('#receiptGapIssuedBody');
+  if (issuedEl) issuedEl.innerHTML = issuedReceiptsHtml(audit);
+  if (!receiptGapBound) {
+    receiptGapBound = true;
+    $('#receiptGapStatus')?.addEventListener('change', () => renderReceiptGapAudit());
+    $('#receiptGapExplainBtn')?.addEventListener('click', () => {
+      const rawNumber = ($('#receiptGapNumber')?.value ?? '').trim();
+      const note = ($('#receiptGapNote')?.value ?? '').trim();
+      const number = receiptNumberFromReference(rawNumber);
+      if (number === null || !note) { toast('A plain receipt number and a note are both needed to explain a gap.'); return; }
+      saveReceiptGapExplanations(explainGap(loadReceiptGapExplanations(), { number, note }));
+      toast('Gap explanation recorded. The number now shows as explained.');
+      renderReceiptGapAudit();
+    });
+    $('#receiptGapUnexplainBtn')?.addEventListener('click', () => {
+      const number = receiptNumberFromReference(($('#receiptGapNumber')?.value ?? '').trim());
+      if (number === null) { toast('A plain receipt number is needed to remove an explanation.'); return; }
+      saveReceiptGapExplanations(removeExplanation(loadReceiptGapExplanations(), number));
+      toast('Explanation removed. The number shows as unexplained again unless it has a void record.');
+      renderReceiptGapAudit();
+    });
+    $('#receiptGapExportBtn')?.addEventListener('click', () => {
+      const source = receiptGapSource();
+      const current = buildGapAudit({ receipts: source.receipts, voids: source.voids, explanations: loadReceiptGapExplanations() });
+      downloadCsvFile(gapAuditFilename(current), gapAuditCsv(current));
     });
   }
 }

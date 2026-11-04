@@ -7824,6 +7824,47 @@
 </label>
 </div>
 <div id="ecBody"></div>
+</section><section class="chart-card" aria-labelledby="aiHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="aiHeading">Year-end archive index</h3>
+<p class="chart-caption">Index only: which year-end pack sits where, and whether it is missing. The index creates no pack, moves no record, and never deletes or changes any archived record, bill, or payment. An entry with no pack reference is shown plainly as missing.</p>
+<p id="aiSummary"></p>
+</div>
+<div>
+<button id="aiExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export archive index CSV</button>
+</div>
+</div>
+<h4>Log an archive entry</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Year <input id="aiYear" type="number" min="1900" max="2100" style="width: 90px;" placeholder="e.g. 2025">
+</label>
+<label style="font-size: 12px;">Pack kind <input id="aiKind" type="text" style="width: 160px;" placeholder="e.g. Year-end pack">
+</label>
+<label style="font-size: 12px;">Pack reference <input id="aiReference" type="text" style="width: 160px;" placeholder="e.g. Pack 2025-A">
+</label>
+<label style="font-size: 12px;">Location <input id="aiLocation" type="text" style="width: 160px;" placeholder="e.g. Shop shelf">
+</label>
+<label style="font-size: 12px;">Date archived <input id="aiDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="aiNote" type="text" style="width: 180px;">
+</label>
+<button id="aiSaveBtn" class="secondary-button btn-sm" type="button">Log entry</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove entry id <input id="aiRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="aiRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Archive entries</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by year <input id="aiYearFilter" type="text" style="width: 90px;">
+</label>
+<label style="font-size: 12px;">Filter by kind <input id="aiKindFilter" type="text" style="width: 160px;">
+</label>
+</div>
+<div id="aiBody"></div>
 </section>
 
         <section id="ownerDigestPanel" class="chart-card" aria-labelledby="ownerDigestHeading"><div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><h3 id="ownerDigestHeading">Owner collection digest</h3><p>Read-only daily / weekly picture from existing figures — collections, dues, Waada broken, suspense unclaimed. It changes no record.</p></div><div><button id="ownerDigestDailyBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;" aria-pressed="true">Today</button><button id="ownerDigestWeeklyBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;" aria-pressed="false">This week</button><button id="ownerDigestExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">📥 Export digest CSV</button></div></div><div id="ownerDigestBody"></div></section>

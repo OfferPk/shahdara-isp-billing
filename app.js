@@ -410,6 +410,7 @@ import { normalizeAccessList, recordAccessEntry, markAccessReturned, removeAcces
 import { normalizeAgeingList, recordAgeingItem, removeAgeingItem, ageingSorted, ageingAllHtml, ageingSummaryText, equipmentAgeingCsv, equipmentAgeingFilename } from './equipment-ageing.js';
 import { normalizeAnnualGoalList, recordAnnualGoal, removeAnnualGoal, setAnnualGoalStatus, addAnnualGoalNote, annualGoalsSorted, annualGoalsAllHtml, annualGoalSummaryText, annualGoalsCsv, annualGoalsFilename } from './annual-goals.js';
 import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirmCustodyExport, custodyExportsSorted, custodyByKind, custodyAllHtml, custodySummaryText, custodyCsv, custodyFilename } from './export-custody.js';
+import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEntriesSorted, archiveByYear, archiveByKind, archiveAllHtml, archiveSummaryText, archiveCsv, archiveFilename } from './archive-index.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -14007,6 +14008,7 @@ function renderAnalytics() {
   renderEquipmentAgeing();
   renderAnnualGoals();
   renderExportCustody();
+  renderArchiveIndex();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25758,6 +25760,51 @@ function renderExportCustody() {
       renderExportCustody();
     });
     $('#ecKindFilter')?.addEventListener('input', () => { renderExportCustody(); });
+  }
+}
+const ARCHIVE_INDEX_KEY = 'shahdara_archive_index_v1';
+function loadArchiveIndex() {
+  try { return normalizeArchiveList(JSON.parse(localStorage.getItem(ARCHIVE_INDEX_KEY) || '[]')); } catch { return []; }
+}
+function saveArchiveIndex(list) {
+  try { localStorage.setItem(ARCHIVE_INDEX_KEY, JSON.stringify(normalizeArchiveList(list))); } catch { /* index only: a failed save leaves the previous list in place */ }
+}
+let archiveIndexBound = false;
+function renderArchiveIndex() {
+  const bodyEl = $('#aiBody');
+  if (!bodyEl) return;
+  const yearQuery = ($('#aiYearFilter')?.value ?? '').trim();
+  const kindQuery = ($('#aiKindFilter')?.value ?? '').trim();
+  let shown = archiveEntriesSorted(loadArchiveIndex());
+  if (yearQuery) shown = archiveByYear(shown, yearQuery);
+  if (kindQuery) shown = archiveByKind(shown, kindQuery);
+  bodyEl.innerHTML = shown.length ? archiveAllHtml(shown) : '<p>No archive entries logged.</p>';
+  const summaryEl = $('#aiSummary');
+  if (summaryEl) summaryEl.textContent = archiveSummaryText(loadArchiveIndex());
+  if (!archiveIndexBound) {
+    archiveIndexBound = true;
+    $('#aiExportBtn')?.addEventListener('click', () => { downloadCsvFile(archiveFilename(), archiveCsv(loadArchiveIndex())); });
+    $('#aiSaveBtn')?.addEventListener('click', () => {
+      const before = loadArchiveIndex();
+      const next = recordArchiveEntry(before, {
+        id: `AI-${Date.now()}`,
+        year: $('#aiYear')?.value ?? '',
+        packKind: $('#aiKind')?.value ?? '',
+        packReference: $('#aiReference')?.value ?? '',
+        location: $('#aiLocation')?.value ?? '',
+        dateArchived: $('#aiDate')?.value ?? '',
+        note: $('#aiNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Archive entry not logged: use a valid year, a pack kind, and a real archived date.'); return; }
+      saveArchiveIndex(next);
+      renderArchiveIndex();
+    });
+    $('#aiRemoveBtn')?.addEventListener('click', () => {
+      saveArchiveIndex(removeArchiveEntry(loadArchiveIndex(), $('#aiRemoveId')?.value ?? ''));
+      renderArchiveIndex();
+    });
+    $('#aiYearFilter')?.addEventListener('input', () => { renderArchiveIndex(); });
+    $('#aiKindFilter')?.addEventListener('input', () => { renderArchiveIndex(); });
   }
 }
 function renderOwnerDecision() {

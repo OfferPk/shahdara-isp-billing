@@ -340,6 +340,7 @@ import { validGuardDate, validGuardMonth, normalizeClosedPeriodList, recordClose
 import { validShiftDate, normalizeShiftRuleList, recordShiftRule, shiftDueDate, shiftRuleForDate, shiftRuleSummaryText, shiftRuleHtml, shiftRuleCsv, shiftRuleFilename } from './due-date-shift.js';
 import { normalizeConnectionDuesList, buildCombinedDuesView, allocateCombinedPayment, combinedDuesSummaryText, combinedDuesHtml, combinedDuesCsv, combinedDuesFilename } from './combined-dues.js';
 import { normalizeBalanceConfirmationList, upsertBalanceConfirmation, removeBalanceConfirmation, balanceConfirmationSummaryText, balanceConfirmationHtml, balanceConfirmationCsv, balanceConfirmationFilename } from './balance-confirmations.js';
+import { normalizeSettlementList, upsertSettlement, removeSettlement, settlementSummaryText, settlementHtml, settlementCsv, settlementFilename, signSettlement } from './collector-settlements.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13863,6 +13864,7 @@ function renderAnalytics() {
   renderDueDateShift();
   renderCombinedDues();
   renderBalanceConfirmations();
+  renderCollectorSettlements();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21637,6 +21639,75 @@ function renderBalanceConfirmations() {
       downloadCsvFile(balanceConfirmationFilename(), balanceConfirmationCsv(loadBalanceConfirmations(), filterValue.trim() ? filterValue.trim() : undefined));
     });
     $('#balanceConfFilter')?.addEventListener('input', () => { renderBalanceConfirmations(); });
+  }
+}
+// Plan 129: one settlement statement per collector per period.
+// The statement only proves whether the figures agree — it changes
+// no payment, handover, or count of any kind.
+const COLLECTOR_SETTLEMENT_KEY = 'shahdara_collector_settlements_v1';
+function loadCollectorSettlements() {
+  try {
+    const raw = localStorage.getItem(COLLECTOR_SETTLEMENT_KEY);
+    if (!raw) return [];
+    return normalizeSettlementList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveCollectorSettlements(list) {
+  try { localStorage.setItem(COLLECTOR_SETTLEMENT_KEY, JSON.stringify(normalizeSettlementList(list))); } catch { /* statement only: a failed save leaves the previous statements in place */ }
+}
+let collectorSettlementBound = false;
+function renderCollectorSettlements() {
+  const bodyEl = $('#settleBody');
+  if (!bodyEl) return;
+  const filter = $('#settleFilter')?.value ?? '';
+  const records = loadCollectorSettlements();
+  const shown = filter.trim() ? records.filter((item) => item.collector === filter.trim()) : records;
+  bodyEl.innerHTML = settlementHtml(shown);
+  const summaryEl = $('#settleSummary');
+  if (summaryEl) summaryEl.textContent = filter.trim() ? settlementSummaryText(records, filter.trim()) : `${records.length} settlement statement${records.length === 1 ? '' : 's'} recorded.`;
+  if (!collectorSettlementBound) {
+    collectorSettlementBound = true;
+    $('#settleSaveBtn')?.addEventListener('click', () => {
+      const before = loadCollectorSettlements();
+      const next = upsertSettlement(before, {
+        id: `CS-${Date.now()}`,
+        collector: $('#settleCollector')?.value ?? '',
+        collectorName: '',
+        period: $('#settlePeriod')?.value ?? '',
+        statementDate: $('#settleDate')?.value ?? '',
+        collected: ($('#settleCollected')?.value ?? '') === '' ? undefined : Number($('#settleCollected')?.value ?? ''),
+        handedOver: ($('#settleHandedOver')?.value ?? '') === '' ? undefined : Number($('#settleHandedOver')?.value ?? ''),
+        pending: ($('#settlePending')?.value ?? '') === '' ? undefined : Number($('#settlePending')?.value ?? ''),
+        cashInHand: ($('#settleInHand')?.value ?? '') === '' ? undefined : Number($('#settleInHand')?.value ?? ''),
+        preparedBy: $('#settlePreparedBy')?.value ?? '',
+        note: $('#settleNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Statement not recorded: fill in the collector, a real period and date, and all four figures. One statement per collector per period.'); return; }
+      saveCollectorSettlements(next);
+      toast('Settlement statement recorded. It changes no payment or handover — it only proves the figures.');
+      renderCollectorSettlements();
+    });
+    $('#settleSignBtn')?.addEventListener('click', () => {
+      const id = ($('#settleSignId')?.value ?? '').trim();
+      if (!id) return;
+      const before = loadCollectorSettlements();
+      const next = signSettlement(before, id, $('#settleSignedBy')?.value ?? '', $('#settleSignedDate')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Not signed: pick a recorded, unsigned statement, a signer, and a real date.'); return; }
+      saveCollectorSettlements(next);
+      toast('Statement signed.');
+      renderCollectorSettlements();
+    });
+    $('#settleRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#settleRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveCollectorSettlements(removeSettlement(loadCollectorSettlements(), id));
+      renderCollectorSettlements();
+    });
+    $('#settleExportBtn')?.addEventListener('click', () => {
+      const filterValue = $('#settleFilter')?.value ?? '';
+      downloadCsvFile(settlementFilename(), settlementCsv(loadCollectorSettlements(), filterValue.trim() ? filterValue.trim() : undefined));
+    });
+    $('#settleFilter')?.addEventListener('input', () => { renderCollectorSettlements(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

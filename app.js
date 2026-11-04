@@ -280,6 +280,7 @@ import { splitBillBalance, splitBillList, adjustLadderBills, disputeTotalsForCus
 import { CLAIM_CHANNELS, CLAIM_CHANNEL_LABELS, CLAIM_OUTCOMES, CLAIM_OUTCOME_LABELS, normalizePaymentClaim, normalizePaymentClaimList, upsertPaymentClaim, removePaymentClaim, setClaimOutcome, closePaymentClaim, reopenPaymentClaim, openPaymentClaims, buildClaimSummary, claimSummaryText, claimHtml, claimCsv, claimFilename } from './payment-claims.js';
 import { RESOLUTION_PATHS, RESOLUTION_PATH_LABELS, normalizeResolution, normalizeDisputeResolutionList, upsertResolution, removeResolution, findResolution, resolutionReadiness, resolutionChecklist, buildResolutionSummaryWithThreshold, resolutionSummaryText, resolutionHtml, resolutionCsv, resolutionFilename, checklistHtml } from './dispute-resolutions.js';
 import { DISPUTE_LETTER_VARIANTS, normalizeLetterVariant, letterStatus, buildOutcomeLetter, letterSentText, buildMonthlyDisputeView, monthlyDisputeViewText, monthlyDisputeHtml, monthlyDisputeCsv, monthlyDisputeFilename, logLetterSent, findLetterSends, letterHtml } from './dispute-letters.js';
+import { BALANCE_REPLY_VARIANTS, normalizeBalanceReplyVariant, validBalanceReplyDate, buildBalanceReply, balanceReplySentText, logBalanceReplySent, findBalanceReplySends, balanceReplyHtml } from './balance-reply.js';
 import { answerPucho, buildMorningQueue, puchoHtml, puchoCatalogueHtml, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
 import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
 import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
@@ -4525,6 +4526,23 @@ function renderCustomerProfileView(customer) {
   const statementDraftSendsForMonth = (month) => findStatementSends(loadStatementDraftSentLog(), customer.id, month);
   const statementDraftSendLabel = statementDraftPref && statementDraftPref.doNotMessage ? 'Do not message' : (statementDraftSendsForMonth(statementDraftMonth).length > 0 ? 'Re-send statement' : 'Send monthly statement');
   const statementDraftSectionHtml = `<section class="profile-custody-section" aria-label="Monthly statement"><h4>Monthly statement</h4><p>One clear page each month — opening balance, this month's charges, payments received, and closing balance — so the customer never has to ask "what do I actually owe and for what?" again. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, Waada, or lifecycle record.</p><div><label>Statement month <input id="statementDraftMonth" type="month" value="${escapeHtml(statementDraftMonth)}"></label> <button type="button" class="secondary-button" id="statementDraftShowBtn">Show statement</button></div><div id="statementDraftResult">${statementDraftCurrent ? statementDraftHtml(statementDraftCurrent.statement, { draftText: statementDraftCurrent.draft.text, sends: statementDraftSendsForMonth(statementDraftMonth) }) : '<p class="empty-state">Monthly statement unavailable.</p>'}</div><button type="button" class="secondary-button" id="statementDraftSendBtn" ${statementDraftSendDisabled ? 'disabled' : ''}>${escapeHtml(statementDraftSendLabel)}</button></section>`;
+  // Plan 72 (Plan 1-100) — Balance enquiry reply draft on the
+  // profile. When the customer asks "mera balance kitna hai?",
+  // the operator opens this section and gets one same-shaped
+  // answer from the ledger: current outstanding, next due date,
+  // and last payment, plus the preferred-channel instructions
+  // (Plan 40) at send time — and where a dispute case (Plan 61)
+  // is open, the undisputed balance with a note that a case is
+  // open. No automatic reply, no chatbot; sending opens WhatsApp
+  // with the text prefilled and logs the send; it changes no
+  // bill, payment, case, or Waada record.
+  const balanceReplyPref = findContactPreference(loadContactPreferences(), customer.id);
+  let balanceReplyVariant = balanceReplyPref && balanceReplyPref.language === CONTACT_PREFERENCE_LANGUAGES.URDU ? BALANCE_REPLY_VARIANTS.URDU : BALANCE_REPLY_VARIANTS.ROMAN;
+  let balanceReplyCurrent = balanceReplyForCustomer(customer, balanceReplyVariant);
+  const balanceReplySendDisabled = Boolean(balanceReplyPref && balanceReplyPref.doNotMessage) || !balanceReplyCurrent;
+  const balanceReplySends = () => findBalanceReplySends(loadBalanceReplySentLog(), customer.id);
+  const balanceReplySendLabel = balanceReplyPref && balanceReplyPref.doNotMessage ? 'Do not message' : (balanceReplySends().length > 0 ? 'Re-send balance reply' : 'Send balance reply');
+  const balanceReplySectionHtml = `<section class="profile-custody-section" aria-label="Balance enquiry reply"><h4>Balance enquiry reply</h4><p>When the customer asks "mera balance kitna hai?", send one accurate, same-shaped answer instead of a typed-from-memory figure — current outstanding, next due date, and last payment, with the payment instructions for this customer's preferred channel. Where a dispute case is open, the reply shows the undisputed balance and says a case is open. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no bill, payment, case, or Waada record.</p><div><label>Draft language <select id="balanceReplyVariant"><option value="${BALANCE_REPLY_VARIANTS.ROMAN}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${BALANCE_REPLY_VARIANTS.URDU}" ${balanceReplyVariant === BALANCE_REPLY_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="balanceReplyShowBtn">Show reply</button></div><div id="balanceReplyResult">${balanceReplyCurrent ? balanceReplyHtml(balanceReplyCurrent, { draftText: balanceReplyCurrent.text, sends: balanceReplySends() }) : '<p class="empty-state">Balance reply unavailable.</p>'}</div><button type="button" class="secondary-button" id="balanceReplySendBtn" ${balanceReplySendDisabled ? 'disabled' : ''}>${escapeHtml(balanceReplySendLabel)}</button></section>`;
   // Plan 46 (Plan 1-100) — Package change preview on the profile.
   // The preview is built from this profile's own package and monthly
   // amount, and the proposed package's catalogue price; both prices
@@ -4561,7 +4579,7 @@ function renderCustomerProfileView(customer) {
   const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
   const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
   const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p>When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><div><label>Date <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4706,6 +4724,50 @@ function renderCustomerProfileView(customer) {
     const sentEl = $('#customerProfileView').querySelector('#statementDraftSent');
     if (sentEl) sentEl.textContent = statementSentText(statementDraftSendsForMonth(statementDraftMonth));
     sendBtn.textContent = 'Re-send statement';
+  });
+  // Plan 72: show the balance reply in the chosen language, and
+  // send it through the existing WhatsApp route with the
+  // preferred-channel instructions (Plan 40) appended.
+  $('#customerProfileView').querySelector('#balanceReplyShowBtn')?.addEventListener('click', () => {
+    balanceReplyVariant = normalizeBalanceReplyVariant($('#customerProfileView').querySelector('#balanceReplyVariant')?.value || '');
+    balanceReplyCurrent = balanceReplyForCustomer(customer, balanceReplyVariant);
+    const resultEl = $('#customerProfileView').querySelector('#balanceReplyResult');
+    const sendBtnEl = $('#customerProfileView').querySelector('#balanceReplySendBtn');
+    if (!balanceReplyCurrent) {
+      if (resultEl) resultEl.innerHTML = '<p class="empty-state">Balance reply unavailable.</p>';
+      if (sendBtnEl) sendBtnEl.disabled = true;
+      return;
+    }
+    if (resultEl) resultEl.innerHTML = balanceReplyHtml(balanceReplyCurrent, { draftText: balanceReplyCurrent.text, sends: balanceReplySends() });
+    if (sendBtnEl) {
+      sendBtnEl.disabled = Boolean(balanceReplyPref && balanceReplyPref.doNotMessage);
+      sendBtnEl.textContent = balanceReplySends().length > 0 ? 'Re-send balance reply' : 'Send balance reply';
+    }
+  });
+  $('#customerProfileView').querySelector('#balanceReplySendBtn')?.addEventListener('click', (event) => {
+    const sendBtn = event.currentTarget;
+    if (balanceReplyPref && balanceReplyPref.doNotMessage) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Do not message';
+      return;
+    }
+    const built = balanceReplyCurrent;
+    if (!built) {
+      sendBtn.disabled = true;
+      return;
+    }
+    const channelVariant = built.variant === BALANCE_REPLY_VARIANTS.URDU ? PAYMENT_CHANNEL_VARIANTS.URDU : PAYMENT_CHANNEL_VARIANTS.ROMAN;
+    const wa = formatWhatsAppUrl(balanceReplyPref && balanceReplyPref.whatsappNumber ? balanceReplyPref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(built.text, findPaymentChannel(loadPaymentChannels(), customer.id), channelVariant));
+    if (!wa.validPhone || !wa.url) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'No WhatsApp number';
+      return;
+    }
+    window.open(wa.url, '_blank', 'noopener,noreferrer');
+    saveBalanceReplySentLog(logBalanceReplySent(loadBalanceReplySentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
+    const resultEl = $('#customerProfileView').querySelector('#balanceReplyResult');
+    if (resultEl) resultEl.innerHTML = balanceReplyHtml(built, { draftText: built.text, sends: balanceReplySends() });
+    sendBtn.textContent = 'Re-send balance reply';
   });
   $('#customerProfileView').querySelector('#billingCycleSaveBtn')?.addEventListener('click', () => {
     const dueDayValue = $('#customerProfileView').querySelector('#billingCycleDueDay')?.value || '';
@@ -15158,6 +15220,57 @@ function renderDisputeResolutions() {
 // own store. Drafting, sending, or viewing never changes any bill,
 // payment, case, or Waada record.
 const DISPUTE_LETTERS_SENT_KEY = 'shahdara_dispute_letters_sent_v1';
+// Plan 72 (Plan 1-100) — Balance enquiry reply send log. One entry
+// per send (customer, time, channel, variant); logging a send
+// changes no bill, payment, case, or Waada record.
+const BALANCE_REPLY_SENT_KEY = 'shahdara_balance_reply_sent_v1';
+function loadBalanceReplySentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BALANCE_REPLY_SENT_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveBalanceReplySentLog(list) {
+  try { localStorage.setItem(BALANCE_REPLY_SENT_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch {}
+}
+// Build one customer's balance reply from this profile's own
+// figures: total outstanding from the shared figures helper, the
+// earliest due date among bills that still carry a balance, the
+// latest non-voided payment, and that customer's open Plan 61
+// cases (Plan 62's split is not recomputed here — the module
+// shows the undisputed balance from those open cases only).
+function balanceReplyForCustomer(customer, variant) {
+  const allocations = calculatePaymentAllocations(state);
+  const outstanding = totalOutstandingFigures(customer, allocations).total;
+  let nextDueDate = null;
+  for (const bill of customer.bills ?? []) {
+    const summary = allocations.forMonth(customer.id, bill.month);
+    if (summary && summary.balanceDueCents > 0 && bill.dueDate) {
+      const valid = validBalanceReplyDate(bill.dueDate);
+      if (valid && (!nextDueDate || valid < nextDueDate)) nextDueDate = valid;
+    }
+  }
+  let lastPayment = null;
+  for (const bill of customer.bills ?? []) {
+    for (const payment of bill.payments ?? []) {
+      if (payment.voided === true) continue;
+      const date = validBalanceReplyDate(payment.date);
+      const amount = Number(payment.amount);
+      if (!date || !Number.isFinite(amount) || amount <= 0) continue;
+      if (!lastPayment || date >= lastPayment.date) lastPayment = { amount, date };
+    }
+  }
+  const openDisputes = openDisputeCases(loadDisputeCases()).filter((entry) => entry.customerId === customer.id);
+  return buildBalanceReply({
+    customerId: customer.id,
+    customerName: customer.name || customer.customerName,
+    outstanding,
+    dueDate: nextDueDate,
+    lastPayment,
+    openDisputes,
+    variant,
+  });
+}
 let disputeLettersBound = false;
 function loadDisputeLetterSentLog() {
   try {

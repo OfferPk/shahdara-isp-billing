@@ -265,6 +265,7 @@ import { buildPackageChangePreview, packageChangePreviewHtml, packageChangePrevi
 import { recordQualityEntry, entriesForCustomer, qualityLogSummaryText, qualityLogHtml } from './quality-log.js';
 import { normalizeMaintenanceWindow, upsertMaintenanceWindow, removeMaintenanceWindow, findMaintenanceWindow, setMaintenanceWindowStatus, affectedMaintenanceCustomers, buildMaintenanceAnnouncement, maintenanceWhatsAppUrl, maintenanceSummaryText, maintenanceWindowsHtml, maintenanceWindowsCsv, maintenanceCalendarFilename } from './maintenance-calendar.js';
 import { normalizeSatisfactionNoteList, findSatisfactionNote, upsertSatisfactionNote, removeSatisfactionNote, satisfactionEligibleTicketIds, buildMonthlySatisfaction, satisfactionSummaryText, satisfactionHtml, satisfactionCsv, satisfactionFilename } from './satisfaction.js';
+import { normalizeChangeRequestList, findChangeRequest, upsertChangeRequest, removeChangeRequest, setChangeRequestStatus, changeRequestQueue, changeRequestSummaryText, changeRequestsHtml, changeRequestsCsv, changeRequestFilename, CHANGE_REQUEST_TYPE_LABELS, CHANGE_REQUEST_STATUS_LABELS } from './change-requests.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13155,6 +13156,7 @@ function renderAnalytics() {
   renderPettyCash();
   renderMaintenanceCalendar();
   renderSatisfactionView();
+  renderChangeRequests();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -13468,6 +13470,115 @@ function renderSatisfactionView() {
       const viewNow = buildMonthlySatisfaction(loadSatisfactionNotes(), ticketLogJoinedRows(), monthNow);
       if (!viewNow) { toast('Pick a valid month to export.'); return; }
       downloadCsvFile(satisfactionFilename(monthNow), satisfactionCsv(viewNow));
+    });
+  }
+}
+// Plan 50 (Plan 1-100) — customer-requested plan change queue. A
+// record only: the operator records an ask (package change,
+// due-date change, relocation, other) and tracks it to done or
+// declined. Queue actions never alter a bill, a payment, or a
+// package — fulfilling still happens through the existing flows
+// (Plan 46 preview for package changes, Plan 36 rule for due-date
+// changes), and marking done only records the link to that change.
+const CHANGE_REQUESTS_KEY = 'shahdara_change_requests_v1';
+let changeRequestsBound = false;
+function loadChangeRequests() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(CHANGE_REQUESTS_KEY) || '[]');
+    return normalizeChangeRequestList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveChangeRequests(list) {
+  try { localStorage.setItem(CHANGE_REQUESTS_KEY, JSON.stringify(normalizeChangeRequestList(list))); } catch {}
+}
+function renderChangeRequests() {
+  const bodyEl = $('#changeRequestBody');
+  if (!bodyEl) return;
+  const active = (state.customers ?? []).filter((c) => !c.archived);
+  const names = {};
+  for (const c of active) names[c.id] = c.name || c.customerName || c.id;
+  const requests = loadChangeRequests();
+  const typeFilter = $('#changeRequestTypeFilter')?.value ?? '';
+  const mohallaFilter = $('#changeRequestMohallaFilter')?.value ?? '';
+  const queue = changeRequestQueue(requests, { type: typeFilter, mohalla: mohallaFilter, customers: active });
+  bodyEl.innerHTML = changeRequestsHtml(queue, { names, customers: active });
+  const summaryEl = $('#changeRequestSummary');
+  if (summaryEl) summaryEl.textContent = changeRequestSummaryText(requests, active);
+  const customerEl = $('#changeRequestCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = active.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const mohallaEl = $('#changeRequestMohallaFilter');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const areas = [...new Set(active.map((c) => (c.mohalla || c.area || '').trim()).filter(Boolean))].sort();
+    const current = mohallaEl.value;
+    mohallaEl.innerHTML = '<option value="">All mohallas</option><option value="__unassigned__">Unassigned</option>'
+      + areas.map((a) => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
+    if (current) mohallaEl.value = current;
+  }
+  const selectEl = $('#changeRequestSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    const current = selectEl.value;
+    selectEl.innerHTML = requests.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(names[r.customerId] || r.customerId)} — ${escapeHtml(CHANGE_REQUEST_TYPE_LABELS[r.type])} — ${escapeHtml(CHANGE_REQUEST_STATUS_LABELS[r.status])} — ${escapeHtml(r.id)}</option>`).join('')
+      || '<option value="">No requests yet</option>';
+    if (current) selectEl.value = current;
+  }
+  const dateEl = $('#changeRequestDate');
+  if (dateEl && !dateEl.value) dateEl.value = localDate();
+  if (!changeRequestsBound) {
+    changeRequestsBound = true;
+    $('#changeRequestTypeFilter')?.addEventListener('change', () => renderChangeRequests());
+    $('#changeRequestMohallaFilter')?.addEventListener('change', () => renderChangeRequests());
+    $('#changeRequestAddBtn')?.addEventListener('click', () => {
+      const customerId = $('#changeRequestCustomer')?.value ?? '';
+      const type = $('#changeRequestType')?.value ?? '';
+      const detail = $('#changeRequestDetail')?.value ?? '';
+      const dateRequested = $('#changeRequestDate')?.value ?? '';
+      const handler = $('#changeRequestHandler')?.value ?? '';
+      const before = loadChangeRequests();
+      const next = upsertChangeRequest(before, {
+        id: `change-request-${Date.now()}`, customerId, type, detail, dateRequested, status: 'pending', handler,
+      });
+      if (next.length === before.length) {
+        toast('A request needs a customer and one of: package change, due-date change, relocation, other.');
+        return;
+      }
+      saveChangeRequests(next);
+      renderChangeRequests();
+    });
+    $('#changeRequestStartBtn')?.addEventListener('click', () => {
+      const id = $('#changeRequestSelect')?.value ?? '';
+      const result = setChangeRequestStatus(loadChangeRequests(), id, 'in_progress');
+      if (!result.applied) { toast('That request cannot be started from its current status.'); return; }
+      saveChangeRequests(result.requests);
+      renderChangeRequests();
+    });
+    $('#changeRequestDoneBtn')?.addEventListener('click', () => {
+      const id = $('#changeRequestSelect')?.value ?? '';
+      const fulfilledBy = $('#changeRequestFulfilledBy')?.value ?? '';
+      const result = setChangeRequestStatus(loadChangeRequests(), id, 'done', { fulfilledBy });
+      if (!result.applied) { toast('That request cannot be marked done from its current status.'); return; }
+      saveChangeRequests(result.requests);
+      renderChangeRequests();
+    });
+    $('#changeRequestDeclineBtn')?.addEventListener('click', () => {
+      const id = $('#changeRequestSelect')?.value ?? '';
+      const reason = $('#changeRequestDeclineReason')?.value ?? '';
+      const result = setChangeRequestStatus(loadChangeRequests(), id, 'declined', { declineReason: reason });
+      if (!result.applied) { toast('Declining a request needs a reason, and the request must still be waiting.'); return; }
+      saveChangeRequests(result.requests);
+      renderChangeRequests();
+    });
+    $('#changeRequestRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#changeRequestSelect')?.value ?? '';
+      saveChangeRequests(removeChangeRequest(loadChangeRequests(), id));
+      renderChangeRequests();
+    });
+    $('#changeRequestExportBtn')?.addEventListener('click', () => {
+      const namesNow = {};
+      for (const c of (state.customers ?? []).filter((x) => !x.archived)) namesNow[c.id] = c.name || c.customerName || c.id;
+      downloadCsvFile(changeRequestFilename(localDate()), changeRequestsCsv(loadChangeRequests(), { names: namesNow, customers: state.customers ?? [] }));
     });
   }
 }

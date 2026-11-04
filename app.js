@@ -310,6 +310,7 @@ import { buildStatusBoard, filterBoardRows, boardSummaryText, boardHtml, boardCs
 import { normalizeOutageCreditList, upsertOutageCredit, removeOutageCredit, markCreditApplied, reopenCredit, filterOutageCredits, buildOutageCreditSummary, outageCreditSummaryText, outageCreditHtml, outageCreditCsv, outageCreditFilename } from './outage-credits.js';
 import { normalizePriceNoticeList, upsertPriceNotice, removePriceNotice, buildNoticeDrafts, buildNoticeText, priceNoticeSummaryText, priceNoticeHtml, priceNoticeDraftHtml, priceNoticeCsv, priceNoticeFilename, normalizePriceNoticeSendList, logPriceNoticeSent } from './price-notices.js';
 import { TERMS_ACK_METHODS, TERMS_ACK_METHOD_LABELS, normalizeTermsAckList, upsertTermsAck, removeTermsAck, findTermsAck, customerTermsStatus, buildCustomerTermsRows, filterTermsAcks, termsAckSummaryText, termsAckHtml, termsAckStatusHtml, termsAckCsv, termsAckFilename } from './terms-ack.js';
+import { OPEN_SUGGESTION_STATUSES, suggestionStatusLabel, normalizeSuggestionList, upsertSuggestion, removeSuggestion, filterSuggestions, moveSuggestion, suggestionSummaryText, suggestionHtml, suggestionCsv, suggestionFilename } from './suggestion-log.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13568,6 +13569,7 @@ function renderAnalytics() {
   renderOutageCredits();
   renderPriceNotices();
   renderTermsAck();
+  renderSuggestions();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -18592,6 +18594,108 @@ function renderTermsAck() {
       if (!recordId) { toast('Pick an acknowledgement first.'); return; }
       saveTermsAck(removeTermsAck(loadTermsAck(), recordId));
       renderTermsAck();
+    });
+  }
+}
+const SUGGESTION_LOG_KEY = 'shahdara_suggestion_log_v1';
+function loadSuggestions() {
+  try {
+    const raw = localStorage.getItem(SUGGESTION_LOG_KEY);
+    if (!raw) return [];
+    return normalizeSuggestionList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveSuggestions(list) {
+  try { localStorage.setItem(SUGGESTION_LOG_KEY, JSON.stringify(normalizeSuggestionList(list))); } catch { /* log only: a failed save leaves the previous suggestions in place */ }
+}
+let suggestionLogBound = false;
+function renderSuggestions() {
+  const bodyEl = $('#suggestionLogBody');
+  if (!bodyEl) return;
+  const records = loadSuggestions();
+  const customers = (state.customers ?? []).filter((c) => c && c.id);
+  const customerEl = $('#suggestionCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    const picked = customerEl.value ?? '';
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+    if (customers.some((c) => String(c.id) === picked)) customerEl.value = picked;
+  }
+  const dateInput = $('#suggestionDate');
+  if (dateInput && !dateInput.value) dateInput.value = localDate();
+  const mohallaEl = $('#suggestionFilterMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const picked = mohallaEl.value ?? '';
+    const mohallas = [...new Set(records.map((r) => r.mohalla).filter(Boolean))];
+    mohallaEl.innerHTML = '<option value="">All mohallas</option><option value="__unassigned__">No mohalla set</option>'
+      + mohallas.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+    if (picked === '__unassigned__' || mohallas.includes(picked)) mohallaEl.value = picked;
+  }
+  const pickEl = $('#suggestionPick');
+  if (pickEl && document.activeElement !== pickEl) {
+    pickEl.innerHTML = records.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.id)} — ${escapeHtml(r.customerName || r.customer)}: ${escapeHtml(r.text.slice(0, 60))}</option>`).join('')
+      || '<option value="">No suggestions yet</option>';
+  }
+  const shown = filterSuggestions(records, {
+    category: $('#suggestionFilterCategory')?.value ?? '',
+    status: $('#suggestionFilterStatus')?.value ?? '',
+    mohalla: $('#suggestionFilterMohalla')?.value ?? '',
+  });
+  const openOnly = $('#suggestionOpenOnly')?.checked;
+  bodyEl.innerHTML = suggestionHtml(openOnly ? shown.filter((r) => OPEN_SUGGESTION_STATUSES.includes(r.status)) : shown);
+  const summaryEl = $('#suggestionSummary');
+  if (summaryEl) summaryEl.textContent = suggestionSummaryText(records);
+  if (!suggestionLogBound) {
+    suggestionLogBound = true;
+    $('#suggestionFilterCategory')?.addEventListener('change', () => renderSuggestions());
+    $('#suggestionFilterStatus')?.addEventListener('change', () => renderSuggestions());
+    $('#suggestionFilterMohalla')?.addEventListener('change', () => renderSuggestions());
+    $('#suggestionOpenOnly')?.addEventListener('change', () => renderSuggestions());
+    $('#suggestionExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(suggestionFilename(localDate()), suggestionCsv(loadSuggestions()));
+    });
+    $('#suggestionSaveBtn')?.addEventListener('click', () => {
+      const customerId = $('#suggestionCustomer')?.value ?? '';
+      const customer = (state.customers ?? []).find((c) => String(c.id) === customerId);
+      const id = `SG-${Date.now()}`;
+      const next = upsertSuggestion(loadSuggestions(), {
+        id, customer: customerId, customerName: customer ? (customer.name || customer.customerName || '') : '',
+        mohalla: customer ? (customer.mohalla || customer.area || '') : '',
+        text: ($('#suggestionText')?.value ?? '').trim(),
+        category: $('#suggestionCategory')?.value ?? '',
+        date: $('#suggestionDate')?.value ?? '',
+        status: 'noted',
+      });
+      if (!next.some((item) => item.id === id)) { toast('That suggestion is half-formed and was not saved — check the customer, text, and category.'); return; }
+      saveSuggestions(next);
+      toast('Suggestion logged in the customer\u2019s own words. Adopting it later changes nothing by itself — any real change still goes through its own path.');
+      renderSuggestions();
+    });
+    $('#suggestionMoveBtn')?.addEventListener('click', () => {
+      const recordId = $('#suggestionPick')?.value ?? '';
+      const nextStatus = $('#suggestionMoveStatus')?.value ?? '';
+      if (!recordId) { toast('Pick a suggestion first.'); return; }
+      const before = loadSuggestions();
+      const next = moveSuggestion(before, recordId, nextStatus, {
+        adoptedNote: ($('#suggestionOutcomeNote')?.value ?? '').trim(),
+        declineReason: ($('#suggestionOutcomeNote')?.value ?? '').trim(),
+        fulfilledLink: ($('#suggestionFulfilledLink')?.value ?? '').trim(),
+      });
+      const moved = next.find((item) => item.id === recordId);
+      if (!moved || moved.status !== nextStatus) {
+        toast(nextStatus === 'adopted' ? 'Adopting needs its note — write what was done first.'
+          : (nextStatus === 'declined' ? 'Declining needs its reason — write why first.' : 'That move was not possible.'));
+        return;
+      }
+      saveSuggestions(next);
+      toast(`Suggestion marked ${suggestionStatusLabel(nextStatus).toLowerCase()}. The log itself changed nothing else.`);
+      renderSuggestions();
+    });
+    $('#suggestionRemoveBtn')?.addEventListener('click', () => {
+      const recordId = $('#suggestionPick')?.value ?? '';
+      if (!recordId) { toast('Pick a suggestion first.'); return; }
+      saveSuggestions(removeSuggestion(loadSuggestions(), recordId));
+      renderSuggestions();
     });
   }
 }

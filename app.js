@@ -321,6 +321,7 @@ import { normalizeAdvanceAllocationList, upsertAdvanceAllocation, removeAdvanceA
 import { normalizeAllocationBillList, normalizeAllocationInstalmentList, normalizePartPaymentAllocationList, upsertPartPaymentAllocation, removePartPaymentAllocation, partPaymentsForCustomer, allocatePartPayment, defaultAllocationOrder, partPaymentSummaryText, partPaymentHtml, partPaymentCsv, partPaymentFilename } from './part-payment-rules.js';
 import { normalizeCreditEntryList, normalizeCreditApplicationList, upsertCreditEntry, removeCreditEntry, applyCredit, removeCreditApplication, creditBalanceForCustomer, creditSummaryText, creditHtml, creditCsv, creditFilename } from './credit-balance.js';
 import { normalizeChargeScheduleList, upsertChargeSchedule, markInstalmentPaid, scheduleView, missedInstalments, billLinesForMonth, chargeScheduleSummaryText, chargeScheduleHtml, chargeScheduleCsv, chargeScheduleFilename } from './charge-instalments.js';
+import { normalizeTierList, upsertTier, removeTier, tierForAmount, normalizeApprovalList, addApproval, approvalsForReview, checkPosting, approvalSummaryText, tierHtml, approvalHtml, approvalCsv, approvalFilename } from './approval-limits.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13825,6 +13826,7 @@ function renderAnalytics() {
   renderBillExceptions();
   renderBillingRunLog();
   renderBillingCorrections();
+  renderApprovalLimits();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20172,6 +20174,118 @@ function renderBillingCorrections() {
     $('#billingCorrectionFilterCustomer')?.addEventListener('change', () => renderBillingCorrections());
     $('#billingCorrectionExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(correctionFilename(), correctionCsv(loadBillingCorrections()));
+    });
+  }
+}
+const APPROVAL_TIER_KEY = 'shahdara_approval_tiers_v1';
+const APPROVAL_RECORD_KEY = 'shahdara_approval_records_v1';
+function loadApprovalTiers() {
+  try {
+    const raw = localStorage.getItem(APPROVAL_TIER_KEY);
+    if (!raw) return [];
+    return normalizeTierList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveApprovalTiers(list) {
+  try { localStorage.setItem(APPROVAL_TIER_KEY, JSON.stringify(normalizeTierList(list))); } catch { /* record only: a failed save leaves the previous limits in place */ }
+}
+function loadApprovals() {
+  try {
+    const raw = localStorage.getItem(APPROVAL_RECORD_KEY);
+    if (!raw) return [];
+    return normalizeApprovalList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveApprovals(list) {
+  try { localStorage.setItem(APPROVAL_RECORD_KEY, JSON.stringify(normalizeApprovalList(list))); } catch { /* record only: a failed save leaves the previous log in place */ }
+}
+let approvalLimitsBound = false;
+function renderApprovalLimits() {
+  const bodyEl = $('#approvalLimitsBody');
+  if (!bodyEl) return;
+  const tiers = loadApprovalTiers();
+  const approvals = loadApprovals();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const tierSelects = ['#approvalTierSelect', '#approvalCheckTier'];
+  for (const sel of tierSelects) {
+    const el = $(sel);
+    if (el) {
+      const current = el.value;
+      el.innerHTML = tiers.map((t) => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.role)} (up to PKR ${escapeHtml(String(t.upToCents / 100))})</option>`).join('');
+      if (current) el.value = current;
+    }
+  }
+  const customerEls = ['#approvalCustomer', '#approvalFilterCustomer'];
+  for (const sel of customerEls) {
+    const el = $(sel);
+    if (el) {
+      const current = el.value;
+      el.innerHTML = (sel === '#approvalFilterCustomer' ? '<option value="">All customers</option>' : '') + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+      if (current) el.value = current;
+    }
+  }
+  const tierBody = $('#approvalTierBody');
+  if (tierBody) tierBody.innerHTML = tiers.map((t) => `${tierHtml(t)}<button class="secondary-button btn-sm" type="button" data-approval-tier-remove="${escapeHtml(t.id)}">Remove tier</button>`).join('') || '<p>No approval tiers recorded yet.</p>';
+  const filterCustomer = $('#approvalFilterCustomer')?.value ?? '';
+  const reviewDate = $('#approvalCheckDate')?.value ?? '';
+  const shown = approvalsForReview(approvals, { customerId: filterCustomer, onDate: reviewDate });
+  bodyEl.innerHTML = shown.map((item) => `${approvalHtml({ ...item, customerName: item.customerName || names[item.customerId] || item.customerId })}${item.expired ? '<p>Expired on this date.</p>' : ''}`).join('') || '<p>No approvals recorded yet.</p>';
+  const summaryEl = $('#approvalLimitsSummary');
+  if (summaryEl) summaryEl.textContent = approvalSummaryText(approvals);
+  tierBody?.querySelectorAll('[data-approval-tier-remove]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      saveApprovalTiers(removeTier(loadApprovalTiers(), btn.dataset.approvalTierRemove));
+      renderApprovalLimits();
+    });
+  });
+  if (!approvalLimitsBound) {
+    approvalLimitsBound = true;
+    $('#approvalTierSaveBtn')?.addEventListener('click', () => {
+      const next = upsertTier(loadApprovalTiers(), {
+        id: `TIER-${Date.now()}`,
+        role: $('#approvalTierRole')?.value ?? '',
+        upTo: Number($('#approvalTierUpTo')?.value ?? 0),
+      });
+      if (next.length === loadApprovalTiers().length) { toast('Tier not recorded: give a role and a positive up-to amount.'); return; }
+      saveApprovalTiers(next);
+      toast('Approval tier recorded. It grants nothing by itself.');
+      renderApprovalLimits();
+    });
+    $('#approvalSaveBtn')?.addEventListener('click', () => {
+      const next = addApproval(loadApprovals(), {
+        id: `APPR-${Date.now()}`,
+        customerId: $('#approvalCustomer')?.value ?? '',
+        kind: $('#approvalKind')?.value ?? '',
+        tierId: $('#approvalTierSelect')?.value ?? '',
+        approver: $('#approvalApprover')?.value ?? '',
+        reason: $('#approvalReason')?.value ?? '',
+        amount: Number($('#approvalAmount')?.value ?? 0),
+        date: $('#approvalDate')?.value ?? '',
+        expiresDate: $('#approvalExpiresDate')?.value ?? '',
+      });
+      if (!next) { toast('Approval not recorded: check the customer, kind, tier, approver, reason, positive amount, and real grant and expiry dates (expiry on or after the grant date). A duplicate approval id is never overwritten.'); return; }
+      saveApprovals(next);
+      toast('Approval recorded for review. It grants no discount by itself.');
+      renderApprovalLimits();
+    });
+    $('#approvalCheckBtn')?.addEventListener('click', () => {
+      const result = checkPosting({
+        tiers: loadApprovalTiers(),
+        operatorTierId: $('#approvalCheckTier')?.value ?? '',
+        amountCents: Math.round(Number($('#approvalCheckAmount')?.value ?? 0) * 100),
+        kind: $('#approvalCheckKind')?.value ?? '',
+        reason: $('#approvalCheckReason')?.value ?? '',
+        approvals: loadApprovals(),
+        date: $('#approvalCheckDate')?.value ?? '',
+      });
+      const out = $('#approvalCheckResult');
+      if (out) out.textContent = result.allowed ? `Allowed: within the ${result.tier.role} tier.` : `Refused: ${result.refusal}`;
+    });
+    $('#approvalFilterCustomer')?.addEventListener('change', () => renderApprovalLimits());
+    $('#approvalExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(approvalFilename(), approvalCsv(loadApprovals()));
     });
   }
 }

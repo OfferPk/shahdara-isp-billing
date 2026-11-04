@@ -274,6 +274,7 @@ import { normalizeSweep, upsertSweep, removeSweep, findSweep, markSegmentChecked
 import { normalizeAtRiskThresholds, buildAtRiskList, atRiskSummaryText, atRiskHtml, atRiskCsv, atRiskFilename } from './at-risk-signals.js';
 import { EXIT_REASONS, EXIT_REASON_LABELS, normalizeExitRecord, normalizeExitRecordList, upsertExitRecord, removeExitRecord, buildMonthlyExitView, exitSummaryText, exitHtml, exitCsv, exitFilename } from './exit-reasons.js';
 import { SAVE_OFFERS, SAVE_OFFER_LABELS, SAVE_OUTCOMES, SAVE_OUTCOME_LABELS, SAVE_EXIT_REASONS, SAVE_EXIT_REASON_LABELS, normalizeSaveConversation, normalizeSaveConversationList, upsertSaveConversation, removeSaveConversation, filterSaveConversations, sortedSaveConversations, buildSaveSummary, saveSummaryText, saveHtml, saveCsv, saveFilename } from './save-conversations.js';
+import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -13175,6 +13176,7 @@ function renderAnalytics() {
   renderAtRiskList();
   renderExitReasonsView();
   renderSaveConversations();
+  renderWinbackQueue();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -14412,6 +14414,153 @@ function renderSaveConversations() {
     });
     $('#saveConversationsExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(saveFilename(), saveCsv(loadSaveConversations()));
+    });
+  }
+}
+// Plan 59 (Plan 1-100) — Former-customer winback queue. The queue
+// itself is derived fresh from archived customers, Plan 57 exit
+// records, and Plan 58 save conversations on every render; only two
+// small lists are stored: the do-not-re-contact flags and the send
+// log. Flagging never deletes an exit record, a save conversation,
+// or a customer, and sending only ever opens the operator's
+// WhatsApp draft — one entry at a time, never in bulk. Reactivation
+// still goes through the normal onboarding checklist on the
+// customer profile, and this queue creates no bill by itself.
+const WINBACK_DO_NOT_RECONTACT_KEY = 'shahdara_winbackDoNotRecontact_v1';
+const WINBACK_SENT_LOG_KEY = 'shahdara_winbackSentLog_v1';
+let winbackQueueBound = false;
+let winbackCurrentDraft = null;
+function loadWinbackDoNotRecontact() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WINBACK_DO_NOT_RECONTACT_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.map((id) => String(id)).filter(Boolean) : [];
+  } catch { return []; }
+}
+function saveWinbackDoNotRecontact(list) {
+  try { localStorage.setItem(WINBACK_DO_NOT_RECONTACT_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch {}
+}
+function loadWinbackSentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(WINBACK_SENT_LOG_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveWinbackSentLog(log) {
+  try { localStorage.setItem(WINBACK_SENT_LOG_KEY, JSON.stringify(Array.isArray(log) ? log : [])); } catch {}
+}
+function renderWinbackQueue() {
+  const bodyEl = $('#winbackQueueBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const former = customers.filter((c) => c.archived === true);
+  const flagged = loadWinbackDoNotRecontact();
+  const queue = buildWinbackQueue({ formerCustomers: former, exitRecords: loadExitReasons(), saveConversations: loadSaveConversations(), doNotRecontactIds: flagged, today: localDate() });
+  const excluded = winbackDoNotRecontactList({ formerCustomers: former, doNotRecontactIds: flagged });
+  const sends = loadWinbackSentLog();
+  const sendsByCustomer = {};
+  for (const entry of queue) sendsByCustomer[entry.customerId] = findWinbackSends(sends, entry.customerId);
+  bodyEl.innerHTML = winbackHtml(queue, sendsByCustomer);
+  const summaryEl = $('#winbackQueueSummary');
+  if (summaryEl) summaryEl.textContent = winbackSummaryText(buildWinbackSummary(queue));
+  const customerEl = $('#winbackQueueCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = queue.map((entry) => `<option value="${escapeHtml(entry.customerId)}">${escapeHtml(entry.customerName || entry.customerId)} — ${entry.daysSinceLeaving === null ? 'left date not recorded' : `${entry.daysSinceLeaving} days ago`} — ${escapeHtml(entry.exitReasonLabel)}</option>`).join('')
+      || '<option value="">No former customers in the queue</option>';
+  }
+  const excludedEl = $('#winbackQueueExcluded');
+  if (excludedEl && document.activeElement !== excludedEl) {
+    excludedEl.innerHTML = excluded.map((entry) => `<option value="${escapeHtml(entry.customerId)}">${escapeHtml(entry.customerName || entry.customerId)}</option>`).join('')
+      || '<option value="">Nobody flagged do-not-re-contact</option>';
+  }
+  const variantEl = $('#winbackQueueVariant');
+  if (variantEl && variantEl.options.length === 0) {
+    variantEl.innerHTML = `<option value="roman">Roman Urdu</option><option value="urdu">Urdu script</option>`;
+  }
+  const selectedId = customerEl?.value ?? '';
+  const selectedEntry = queue.find((entry) => entry.customerId === selectedId) ?? null;
+  const selectedCustomer = customers.find((c) => String(c.id) === String(selectedId)) ?? null;
+  const pref = selectedId ? findContactPreference(loadContactPreferences(), selectedId) : null;
+  const sendBtn = $('#winbackQueueSendBtn');
+  if (sendBtn) {
+    if (pref && pref.doNotMessage) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Do not message';
+    } else if (!selectedEntry) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Send via WhatsApp';
+    } else {
+      const wa = formatWhatsAppUrl(pref && pref.whatsappNumber ? pref.whatsappNumber : (selectedCustomer ? whatsappPhoneFor(selectedCustomer) : ''), 'x');
+      if (!wa.validPhone) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'No WhatsApp number';
+      } else {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send via WhatsApp';
+      }
+    }
+  }
+  const draftEl = $('#winbackQueueDraft');
+  if (draftEl) {
+    if (winbackCurrentDraft && winbackCurrentDraft.customerId === selectedId) {
+      draftEl.textContent = winbackCurrentDraft.text;
+      const sentEl = $('#winbackQueueSent');
+      if (sentEl) sentEl.textContent = winbackSentText(findWinbackSends(sends, selectedId));
+    } else {
+      draftEl.textContent = 'Pick a customer and press Show draft.';
+    }
+  }
+  if (!winbackQueueBound) {
+    winbackQueueBound = true;
+    $('#winbackQueueCustomer')?.addEventListener('change', () => { winbackCurrentDraft = null; renderWinbackQueue(); });
+    $('#winbackQueueShowBtn')?.addEventListener('click', () => {
+      const id = $('#winbackQueueCustomer')?.value ?? '';
+      if (!id) { toast('Pick a customer first.'); return; }
+      const formerNow = (state.customers ?? []).filter((c) => c.archived === true);
+      const entry = buildWinbackQueue({ formerCustomers: formerNow, exitRecords: loadExitReasons(), saveConversations: loadSaveConversations(), doNotRecontactIds: loadWinbackDoNotRecontact(), today: localDate() }).find((item) => item.customerId === id);
+      if (!entry) { toast('That customer is no longer in the queue.'); return; }
+      winbackCurrentDraft = buildRecontactDraft(entry, { whatChanged: $('#winbackQueueChange')?.value ?? '', variant: $('#winbackQueueVariant')?.value ?? 'roman' });
+      renderWinbackQueue();
+    });
+    $('#winbackQueueSendBtn')?.addEventListener('click', () => {
+      const id = $('#winbackQueueCustomer')?.value ?? '';
+      if (!id) { toast('Pick a customer first.'); return; }
+      const customersNow = state.customers ?? [];
+      const formerNow = customersNow.filter((c) => c.archived === true);
+      const entry = buildWinbackQueue({ formerCustomers: formerNow, exitRecords: loadExitReasons(), saveConversations: loadSaveConversations(), doNotRecontactIds: loadWinbackDoNotRecontact(), today: localDate() }).find((item) => item.customerId === id);
+      const customer = customersNow.find((c) => String(c.id) === String(id));
+      if (!entry || !customer) { toast('That customer is no longer in the queue.'); return; }
+      const customerPref = findContactPreference(loadContactPreferences(), id);
+      if (customerPref && customerPref.doNotMessage) { toast('This customer is marked do-not-message.'); return; }
+      const draft = buildRecontactDraft(entry, { whatChanged: $('#winbackQueueChange')?.value ?? '', variant: $('#winbackQueueVariant')?.value ?? 'roman' });
+      const wa = formatWhatsAppUrl(customerPref && customerPref.whatsappNumber ? customerPref.whatsappNumber : whatsappPhoneFor(customer), draft.text);
+      if (!wa.validPhone || !wa.url) { toast('No WhatsApp number for this customer.'); return; }
+      window.open(wa.url, '_blank', 'noopener,noreferrer');
+      winbackCurrentDraft = draft;
+      saveWinbackSentLog(logWinbackSend(loadWinbackSentLog(), { customerId: id, sentAt: new Date().toISOString(), variant: draft.variant, channel: 'whatsapp' }));
+      renderWinbackQueue();
+    });
+    $('#winbackQueueProfileBtn')?.addEventListener('click', () => {
+      const id = $('#winbackQueueCustomer')?.value ?? '';
+      if (!id) { toast('Pick a customer first.'); return; }
+      selectCustomer(id);
+    });
+    $('#winbackQueueDoNotBtn')?.addEventListener('click', () => {
+      const id = $('#winbackQueueCustomer')?.value ?? '';
+      if (!id) return;
+      saveWinbackDoNotRecontact(markDoNotRecontact(loadWinbackDoNotRecontact(), id));
+      winbackCurrentDraft = null;
+      renderWinbackQueue();
+    });
+    $('#winbackQueueAllowBtn')?.addEventListener('click', () => {
+      const id = $('#winbackQueueExcluded')?.value ?? '';
+      if (!id) return;
+      saveWinbackDoNotRecontact(unmarkDoNotRecontact(loadWinbackDoNotRecontact(), id));
+      renderWinbackQueue();
+    });
+    $('#winbackQueueExportBtn')?.addEventListener('click', () => {
+      const formerNow = (state.customers ?? []).filter((c) => c.archived === true);
+      const current = buildWinbackQueue({ formerCustomers: formerNow, exitRecords: loadExitReasons(), saveConversations: loadSaveConversations(), doNotRecontactIds: loadWinbackDoNotRecontact(), today: localDate() });
+      downloadCsvFile(winbackFilename(), winbackCsv(current));
     });
   }
 }

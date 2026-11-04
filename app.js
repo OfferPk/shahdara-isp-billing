@@ -300,6 +300,7 @@ import { HOLD_REASONS, HOLD_REASON_LABELS, HOLD_TREATMENTS, HOLD_TREATMENT_LABEL
 import { SUSPENSION_REASONS, SUSPENSION_REASON_LABELS, SUSPENSION_STATUSES, SUSPENSION_STATUS_LABELS, CHECKLIST_ITEMS, CHECKLIST_ITEM_LABELS, normalizeSuspensionList, upsertSuspension, removeSuspension, setChecklistItem, completeChecklist, reconnectSuspension, reopenSuspension, suspensionsFiltered, buildSuspensionSummary, suspensionSummaryText, suspensionHtml, suspensionCsv, suspensionFilename } from './suspension-records.js';
 import { RESUME_KINDS, RESUME_KIND_LABELS, RESUME_STATUSES, RESUME_STATUS_LABELS, buildResumeQueue, resumeQueueFiltered, buildResumeSummary, resumeSummaryText, resumeHtml, resumeCsv, resumeFilename } from './resume-queue.js';
 import { MOVE_STATUSES, MOVE_STATUS_LABELS, MOVE_TREATMENTS, MOVE_TREATMENT_LABELS, normalizeMoveList, upsertMove, removeMove, moveGapTreatment, moveGapTreatmentText, reconnectMove, reopenMove, movesFiltered, buildMoveSummary, moveSummaryText, movesToResumeRelocations, moveHtml, moveCsv, moveFilename } from './move-transfers.js';
+import { buildHoldHistory, historyForCustomer, normalizeGuardSettings, guardSettingsText, checkNewHold, normalizeOverrideList, upsertOverride, removeOverride, holdHistoryHtml, holdHistoryCsv, holdHistoryFilename, overrideHtml } from './hold-guard.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13526,6 +13527,7 @@ function renderAnalytics() {
   renderSuspensions();
   renderResumeQueue();
   renderMoveTransfers();
+  renderHoldGuard();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -17531,6 +17533,27 @@ function loadMoveTransfers() {
 function saveMoveTransfers(list) {
   try { localStorage.setItem(MOVE_TRANSFERS_KEY, JSON.stringify(normalizeMoveList(list))); } catch {}
 }
+const HOLD_GUARD_SETTINGS_KEY = 'shahdara_hold_guard_settings_v1';
+const HOLD_GUARD_OVERRIDES_KEY = 'shahdara_hold_guard_overrides_v1';
+function loadHoldGuardSettings() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HOLD_GUARD_SETTINGS_KEY) || '{}');
+    return normalizeGuardSettings(parsed && typeof parsed === 'object' ? parsed : {});
+  } catch { return normalizeGuardSettings({}); }
+}
+function saveHoldGuardSettings(settings) {
+  try { localStorage.setItem(HOLD_GUARD_SETTINGS_KEY, JSON.stringify(normalizeGuardSettings(settings))); } catch {}
+}
+function loadHoldGuardOverrides() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(HOLD_GUARD_OVERRIDES_KEY) || '[]');
+    return normalizeOverrideList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveHoldGuardOverrides(list) {
+  try { localStorage.setItem(HOLD_GUARD_OVERRIDES_KEY, JSON.stringify(normalizeOverrideList(list))); } catch {}
+}
+let holdGuardBound = false;
 let moveTransfersBound = false;
 // Move-house pause and transfer (Plan 85): one record per move
 // for the same customer at a new address. The connection update
@@ -17660,6 +17683,101 @@ function renderMoveTransfers() {
         mohalla: $('#moveFilterMohalla')?.value ?? '',
       });
       downloadCsvFile(moveFilename(), moveCsv(fresh));
+    });
+  }
+}
+// Hold history and fair-use guard (Plan 86): read-only history
+// drawn from the vacation holds (Plan 82) and move pauses
+// (Plan 85), plus three operator-set limits. The guardrails warn
+// and require a recorded reason to proceed over a limit — they
+// never block by themselves, delete a hold, or change any bill,
+// payment, or hold record. Override reasons live in this plan's
+// own store, never on the hold record itself.
+function renderHoldGuard() {
+  const bodyEl = $('#holdGuardBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const history = buildHoldHistory(loadVacationHolds(), loadMoveTransfers());
+  const customerId = $('#holdGuardCustomer')?.value ?? '';
+  const shown = historyForCustomer(history, customerId).map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' }));
+  bodyEl.innerHTML = holdHistoryHtml(shown);
+  const summaryEl = $('#holdGuardSummary');
+  if (summaryEl) summaryEl.textContent = guardSettingsText(loadHoldGuardSettings()) + ` · ${shown.length} hold${shown.length === 1 ? '' : 's'} in this customer's history.`;
+  const overridesEl = $('#holdGuardOverridesBody');
+  if (overridesEl) overridesEl.innerHTML = overrideHtml(loadHoldGuardOverrides().map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const customerEl = $('#holdGuardCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const settings = loadHoldGuardSettings();
+  for (const [elId, value] of [['holdGuardMaxDays', settings.maxHoldDays], ['holdGuardMaxPerYear', settings.maxHoldsPerYear], ['holdGuardMinActive', settings.minActiveDays]]) {
+    const el = $(`#${elId}`);
+    if (el && document.activeElement !== el) el.value = value === null ? '' : String(value);
+  }
+  if (!holdGuardBound) {
+    holdGuardBound = true;
+    $('#holdGuardCustomer')?.addEventListener('change', () => renderHoldGuard());
+    $('#holdGuardSaveSettingsBtn')?.addEventListener('click', () => {
+      saveHoldGuardSettings({
+        maxHoldDays: $('#holdGuardMaxDays')?.value ?? '',
+        maxHoldsPerYear: $('#holdGuardMaxPerYear')?.value ?? '',
+        minActiveDays: $('#holdGuardMinActive')?.value ?? '',
+      });
+      toast('Guardrail settings saved. They warn and require a reason over a limit; they never delete a hold or change a bill.');
+      renderHoldGuard();
+    });
+    $('#holdGuardCheckBtn')?.addEventListener('click', () => {
+      const id = $('#holdGuardCustomer')?.value ?? '';
+      const start = $('#holdGuardCheckStart')?.value ?? '';
+      const expected = $('#holdGuardCheckReturn')?.value ?? '';
+      const resultEl = $('#holdGuardCheckResult');
+      if (!id || !start || !expected) { if (resultEl) resultEl.textContent = 'Pick a customer, a start date, and an expected return date first.'; return; }
+      const check = checkNewHold({
+        history: historyForCustomer(buildHoldHistory(loadVacationHolds(), loadMoveTransfers()), id),
+        startDate: start,
+        expectedReturnDate: expected,
+        settings: loadHoldGuardSettings(),
+        overrideReason: $('#holdGuardOverrideReason')?.value ?? '',
+      });
+      if (resultEl) resultEl.textContent = check.message;
+    });
+    $('#holdGuardRecordOverrideBtn')?.addEventListener('click', () => {
+      const id = $('#holdGuardCustomer')?.value ?? '';
+      const start = $('#holdGuardCheckStart')?.value ?? '';
+      const expected = $('#holdGuardCheckReturn')?.value ?? '';
+      const reason = $('#holdGuardOverrideReason')?.value.trim() ?? '';
+      if (!id || !start || !expected || !reason) { toast('An override needs a customer, both dates, and a recorded reason.'); return; }
+      const check = checkNewHold({
+        history: historyForCustomer(buildHoldHistory(loadVacationHolds(), loadMoveTransfers()), id),
+        startDate: start,
+        expectedReturnDate: expected,
+        settings: loadHoldGuardSettings(),
+        overrideReason: reason,
+      });
+      if (!check.valid) { toast('Those dates are not a valid hold span.'); return; }
+      const overrideId = `OVR-${Date.now()}`;
+      const next = upsertOverride(loadHoldGuardOverrides(), {
+        id: overrideId,
+        customerId: id,
+        customerName: names[id] || '',
+        startDate: start,
+        expectedReturnDate: expected,
+        reason,
+        limits: check.exceeded.map((item) => item.limit),
+        recordedDate: localDate(),
+      });
+      if (!next.some((row) => row.id === overrideId)) { toast('That override is half-formed and was not recorded.'); return; }
+      saveHoldGuardOverrides(next);
+      toast(check.exceeded.length === 0 ? 'No guardrail was exceeded, but the reason is recorded anyway.' : 'Override reason recorded. The hold may now be saved on the holds screen.');
+      renderHoldGuard();
+    });
+    $('#holdGuardExportBtn')?.addEventListener('click', () => {
+      const id = $('#holdGuardCustomer')?.value ?? '';
+      const shown = historyForCustomer(buildHoldHistory(loadVacationHolds(), loadMoveTransfers()), id);
+      downloadCsvFile(holdHistoryFilename(), holdHistoryCsv(shown));
     });
   }
 }

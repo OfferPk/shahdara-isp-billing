@@ -349,6 +349,7 @@ import { normalizeOutageTypeList, upsertOutageType, removeOutageType, missingNot
 import { normalizeGeneratorFuelList, upsertGeneratorFuel, removeGeneratorFuel, generatorFuelSummaryText, generatorFuelHtml, generatorFuelCsv, generatorFuelFilename } from './generator-fuel-log.js';
 import { normalizeSpareReorderList, upsertSpareReorder, removeSpareReorder, markSpareOrdered, spareReorderSummaryText, spareReorderHtml, spareReorderCsv, spareReorderFilename } from './spare-reorder.js';
 import { normalizeOnuSignalReadingList, upsertOnuSignalReading, removeOnuSignalReading, onuSignalTrendFlags, onuSignalSummaryText, onuSignalHtml, onuSignalCsv, onuSignalFilename } from './onu-signal-trend.js';
+import { normalizeFieldAttachmentList, upsertFieldAttachment, removeFieldAttachment, fieldAttachmentSummaryText, fieldAttachmentHtml, fieldAttachmentCsv, fieldAttachmentFilename } from './field-attachments.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13881,6 +13882,7 @@ function renderAnalytics() {
   renderGeneratorFuel();
   renderSpareReorder();
   renderOnuSignal();
+  renderFieldAttachments();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22238,6 +22240,64 @@ function renderOnuSignal() {
       downloadCsvFile(onuSignalFilename(), onuSignalCsv(loadOnuSignal()));
     });
     $('#onuSignalFilter')?.addEventListener('input', () => { renderOnuSignal(); });
+  }
+}
+// Plan 138 (Plan 101-202) — Field photo/note attachment record
+// (metadata only). This panel stores a finding aid, never a file:
+// one record per field item with a linked customer or ticket, a
+// date, a type (photo or note), and a short description, plus an
+// optional operator-typed file reference so the item can be found
+// again on the phone it lives on. It never uploads, syncs, or
+// sends any file, and it never changes any fault, bill, or
+// payment record; the ticket log and visit outcomes are neither
+// read nor written here.
+const FIELD_ATTACH_KEY = 'shahdara_field_attachments_v1';
+function loadFieldAttachments() {
+  try {
+    const raw = localStorage.getItem(FIELD_ATTACH_KEY);
+    return normalizeFieldAttachmentList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveFieldAttachments(list) {
+  try { localStorage.setItem(FIELD_ATTACH_KEY, JSON.stringify(normalizeFieldAttachmentList(list))); } catch { /* record only: a failed save leaves the previous attachments in place */ }
+}
+let fieldAttachBound = false;
+function renderFieldAttachments() {
+  const bodyEl = $('#fieldAttachBody');
+  if (!bodyEl) return;
+  const records = loadFieldAttachments();
+  bodyEl.innerHTML = fieldAttachmentHtml(records, $('#fieldAttachFilter')?.value ?? '');
+  const summaryEl = $('#fieldAttachSummary');
+  if (summaryEl) summaryEl.textContent = fieldAttachmentSummaryText(records);
+  if (!fieldAttachBound) {
+    fieldAttachBound = true;
+    $('#fieldAttachSaveBtn')?.addEventListener('click', () => {
+      const before = loadFieldAttachments();
+      const id = `FA-${Date.now()}`;
+      const next = upsertFieldAttachment(before, {
+        id,
+        customer: $('#fieldAttachCustomer')?.value ?? '',
+        ticket: $('#fieldAttachTicket')?.value ?? '',
+        date: $('#fieldAttachDate')?.value ?? '',
+        type: $('#fieldAttachType')?.value ?? '',
+        description: $('#fieldAttachDescription')?.value ?? '',
+        fileRef: $('#fieldAttachFileRef')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Attachment not recorded: link a customer or a ticket, give a real date, pick photo or note, and write a short description. No file is ever uploaded.'); return; }
+      saveFieldAttachments(next);
+      toast('Attachment recorded (metadata only). No file was uploaded, synced, or sent.');
+      renderFieldAttachments();
+    });
+    $('#fieldAttachRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#fieldAttachRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveFieldAttachments(removeFieldAttachment(loadFieldAttachments(), id));
+      renderFieldAttachments();
+    });
+    $('#fieldAttachExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(fieldAttachmentFilename(), fieldAttachmentCsv(loadFieldAttachments()));
+    });
+    $('#fieldAttachFilter')?.addEventListener('input', () => { renderFieldAttachments(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

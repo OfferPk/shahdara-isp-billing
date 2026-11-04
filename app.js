@@ -362,6 +362,7 @@ import { normalizeBatteryRuntimeList, upsertBatteryRuntimeRecord, removeBatteryR
 import { normalizeToolKitList, upsertToolKitIssue, returnToolKitIssue, removeToolKitIssue, toolKitSummaryText, toolKitOutstandingHtml, toolKitCsv, toolKitFilename } from './tool-kit-log.js';
 import { normalizePremisesCheckList, upsertPremisesCheckRecord, removePremisesCheckRecord, premisesCheckSummaryText, premisesCustomerChecksHtml, premisesCheckCsv, premisesCheckFilename } from './premises-check.js';
 import { normalizeDropCableList, upsertDropCableRecord, removeDropCableRecord, dropCableSummaryText, dropCableCustomerHtml, dropCableWatchHtml, dropCableCsv, dropCableFilename } from './drop-cable.js';
+import { normalizeRootCauseCodeList, upsertRootCauseCode, removeRootCauseCode, normalizeRootCauseLinkList, upsertRootCauseLink, removeRootCauseLink, rootCauseSummaryText, rootCauseCodeHtml, rootCauseCountHtml, rootCauseCsv, rootCauseFilename } from './root-cause.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13907,6 +13908,7 @@ function renderAnalytics() {
   renderToolKitLog();
   renderPremisesChecks();
   renderDropCables();
+  renderRootCauses();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22954,6 +22956,70 @@ function renderDropCables() {
       downloadCsvFile(dropCableFilename(), dropCableCsv(loadDropCables()));
     });
     $('#dropCableFilter')?.addEventListener('input', () => { renderDropCables(); });
+  }
+}
+const ROOT_CAUSE_KEY = 'shahdara_root_causes_v1';
+const ROOT_CAUSE_LINK_KEY = 'shahdara_root_cause_links_v1';
+function loadRootCauseCodes() {
+  try { return normalizeRootCauseCodeList(JSON.parse(localStorage.getItem(ROOT_CAUSE_KEY) || '[]')); } catch { return []; }
+}
+function saveRootCauseCodes(list) {
+  try { localStorage.setItem(ROOT_CAUSE_KEY, JSON.stringify(normalizeRootCauseCodeList(list))); } catch { /* records only: a failed save leaves the previous records in place */ }
+}
+function loadRootCauseLinks() {
+  try { return normalizeRootCauseLinkList(JSON.parse(localStorage.getItem(ROOT_CAUSE_LINK_KEY) || '[]')); } catch { return []; }
+}
+function saveRootCauseLinks(list) {
+  try { localStorage.setItem(ROOT_CAUSE_LINK_KEY, JSON.stringify(normalizeRootCauseLinkList(list))); } catch { /* records only: a failed save leaves the previous records in place */ }
+}
+let rootCauseBound = false;
+function renderRootCauses() {
+  const bodyEl = $('#rootCauseBody');
+  if (!bodyEl) return;
+  const codes = loadRootCauseCodes();
+  const links = loadRootCauseLinks();
+  bodyEl.innerHTML = rootCauseCodeHtml(codes);
+  const countEl = $('#rootCauseCountBody');
+  if (countEl) countEl.innerHTML = rootCauseCountHtml(links, codes);
+  const summaryEl = $('#rootCauseSummary');
+  if (summaryEl) summaryEl.textContent = rootCauseSummaryText(links, codes);
+  if (!rootCauseBound) {
+    rootCauseBound = true;
+    $('#rootCauseSaveBtn')?.addEventListener('click', () => {
+      const before = loadRootCauseCodes();
+      const next = upsertRootCauseCode(before, {
+        code: $('#rootCauseCode')?.value ?? '',
+        meaning: $('#rootCauseMeaning')?.value ?? '',
+        category: $('#rootCauseCategory')?.value ?? 'other',
+      });
+      if (next.length === before.length) { toast('Root-cause code not recorded: give a short code and a plain-words meaning.'); return; }
+      saveRootCauseCodes(next);
+      toast('Root-cause code recorded. Tickets can now link to it without changing any ticket note.');
+      renderRootCauses();
+    });
+    $('#rootCauseLinkBtn')?.addEventListener('click', () => {
+      const before = loadRootCauseLinks();
+      const next = upsertRootCauseLink(before, {
+        id: `RC-LINK-${Date.now()}`,
+        ticketId: $('#rootCauseTicketId')?.value ?? '',
+        code: $('#rootCauseLinkCode')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Ticket not linked: give a ticket id and a code, and note a ticket links to only one code.'); return; }
+      saveRootCauseLinks(next);
+      toast('Ticket linked to its root-cause code. The ticket note itself is unchanged.');
+      renderRootCauses();
+    });
+    $('#rootCauseRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#rootCauseRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      const removed = removeRootCauseCode(loadRootCauseCodes(), loadRootCauseLinks(), id);
+      saveRootCauseCodes(removed.codes);
+      saveRootCauseLinks(removed.links);
+      renderRootCauses();
+    });
+    $('#rootCauseExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(rootCauseFilename(), rootCauseCsv(loadRootCauseLinks(), loadRootCauseCodes()));
+    });
   }
 }
 // Closed months for the guard: months closed on the month-end

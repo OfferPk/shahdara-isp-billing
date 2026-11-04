@@ -407,6 +407,7 @@ import { validComparisonPeriod, buildYearComparison, yearComparisonText, yearCom
 import { normalizeDrillList, recordDrill, removeDrill, noteDrillFollowUp, drillsSorted, drillAllHtml, drillSummaryText, drillCsv, drillFilename } from './restore-drill.js';
 import { normalizeVersionList, recordVersionEntry, removeVersionEntry, versionsSorted, versionAllHtml, versionSummaryText, versionCsv, versionFilename } from './version-log.js';
 import { normalizeAccessList, recordAccessEntry, markAccessReturned, removeAccessEntry, accessSorted, currentHolders, accessSummaryText, accessAllHtml, accessCsv, accessFilename } from './access-register.js';
+import { normalizeAgeingList, recordAgeingItem, removeAgeingItem, ageingSorted, ageingAllHtml, ageingSummaryText, equipmentAgeingCsv, equipmentAgeingFilename } from './equipment-ageing.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -14001,6 +14002,7 @@ function renderAnalytics() {
   renderRestoreDrills();
   renderVersionLog();
   renderAccessRegister();
+  renderEquipmentAgeing();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25610,6 +25612,52 @@ function renderAccessRegister() {
       renderAccessRegister();
     });
     $('#akFilter')?.addEventListener('input', () => { renderAccessRegister(); });
+  }
+}
+// Plan 197: replacement reserve and equipment ageing tracker.
+// Ageing and reserve notes only: tracking an item never creates
+// an expense, a purchase, or a stock movement, and never changes
+// any bill, payment, expense, or stock record. shop-asset.js and
+// equipment-cycle.js are neither read nor written here.
+const EQUIPMENT_AGEING_KEY = 'shahdara_equipment_ageing_v1';
+function loadEquipmentAgeing() {
+  try { return normalizeAgeingList(JSON.parse(localStorage.getItem(EQUIPMENT_AGEING_KEY) || '[]')); } catch { return []; }
+}
+function saveEquipmentAgeing(list) {
+  try { localStorage.setItem(EQUIPMENT_AGEING_KEY, JSON.stringify(normalizeAgeingList(list))); } catch { /* ageing tracker only: a failed save leaves the previous list in place */ }
+}
+let equipmentAgeingBound = false;
+function renderEquipmentAgeing() {
+  const bodyEl = $('#eaBody');
+  if (!bodyEl) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const query = ($('#eaFilter')?.value ?? '').trim();
+  const shown = query ? ageingSorted(loadEquipmentAgeing()).filter((entry) => entry.item.toLowerCase().includes(query.toLowerCase())) : ageingSorted(loadEquipmentAgeing());
+  bodyEl.innerHTML = shown.length ? ageingAllHtml(shown, today) : '<p>No equipment items recorded.</p>';
+  const summaryEl = $('#eaSummary');
+  if (summaryEl) summaryEl.textContent = ageingSummaryText(loadEquipmentAgeing(), today);
+  if (!equipmentAgeingBound) {
+    equipmentAgeingBound = true;
+    $('#eaExportBtn')?.addEventListener('click', () => { downloadCsvFile(equipmentAgeingFilename(), equipmentAgeingCsv(loadEquipmentAgeing(), today)); });
+    $('#eaSaveBtn')?.addEventListener('click', () => {
+      const before = loadEquipmentAgeing();
+      const next = recordAgeingItem(before, {
+        id: `EA-${Date.now()}`,
+        item: $('#eaItem')?.value ?? '',
+        purchaseDate: $('#eaPurchaseDate')?.value ?? '',
+        expectedLifeYears: $('#eaExpectedLife')?.value ?? '',
+        conditionNote: $('#eaConditionNote')?.value ?? '',
+        reserveNote: $('#eaReserveNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Equipment item not recorded: use an item, a real purchase date, and a positive whole number of years for expected life (or leave it blank).'); return; }
+      saveEquipmentAgeing(next);
+      renderEquipmentAgeing();
+    });
+    $('#eaRemoveBtn')?.addEventListener('click', () => {
+      saveEquipmentAgeing(removeAgeingItem(loadEquipmentAgeing(), $('#eaRemoveId')?.value ?? ''));
+      renderEquipmentAgeing();
+    });
+    $('#eaFilter')?.addEventListener('input', () => { renderEquipmentAgeing(); });
   }
 }
 function renderOwnerDecision() {

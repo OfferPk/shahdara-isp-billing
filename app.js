@@ -352,6 +352,7 @@ import { normalizeOnuSignalReadingList, upsertOnuSignalReading, removeOnuSignalR
 import { normalizeFieldAttachmentList, upsertFieldAttachment, removeFieldAttachment, fieldAttachmentSummaryText, fieldAttachmentHtml, fieldAttachmentCsv, fieldAttachmentFilename } from './field-attachments.js';
 import { normalizeRouteProofList, upsertRouteProof, removeRouteProof, routeProofSummaryText, routeProofHtml, routeProofDayHtml, routeProofFollowupHtml, routeProofCsv, routeProofFilename } from './route-proof.js';
 import { normalizeSecondVisitList, upsertSecondVisit, removeSecondVisit, markSecondVisitOutcome, secondVisitSummaryText, secondVisitHtml, secondVisitOverdueHtml, secondVisitCsv, secondVisitFilename } from './second-visit.js';
+import { normalizeEscalationList, upsertEscalation, removeEscalation, recordEscalationStage, closeEscalation, escalationSummaryText as escalationTimerSummaryText, escalationHtml as escalationTimerHtml, escalationCsv as escalationTimerCsv, escalationFilename as escalationTimerFilename } from './escalation-timer.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13887,6 +13888,7 @@ function renderAnalytics() {
   renderFieldAttachments();
   renderRouteProofs();
   renderSecondVisits();
+  renderEscalations();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22405,6 +22407,63 @@ function renderSecondVisits() {
       downloadCsvFile(secondVisitFilename(), secondVisitCsv(loadSecondVisits()));
     });
     $('#secondVisitFilter')?.addEventListener('input', () => { renderSecondVisits(); });
+  }
+}
+const ESCALATION_KEY = 'shahdara_escalation_timers_v1';
+function loadEscalations() {
+  try { return normalizeEscalationList(JSON.parse(localStorage.getItem(ESCALATION_KEY) || '[]')); } catch { return []; }
+}
+function saveEscalations(list) {
+  try { localStorage.setItem(ESCALATION_KEY, JSON.stringify(normalizeEscalationList(list))); } catch { /* timer only: a failed save leaves the previous timers in place */ }
+}
+let escalationBound = false;
+function renderEscalations() {
+  const bodyEl = $('#escBody');
+  if (!bodyEl) return;
+  const records = loadEscalations();
+  const today = new Date().toISOString().slice(0, 10);
+  bodyEl.innerHTML = escalationTimerHtml(records, today, $('#escFilter')?.value ?? '');
+  const summaryEl = $('#escSummary');
+  if (summaryEl) summaryEl.textContent = escalationTimerSummaryText(records, today);
+  if (!escalationBound) {
+    escalationBound = true;
+    $('#escSaveBtn')?.addEventListener('click', () => {
+      const before = loadEscalations();
+      const next = upsertEscalation(before, {
+        id: `ESC-${Date.now()}`,
+        ticket: $('#escTicket')?.value ?? '',
+        openedDate: $('#escOpened')?.value ?? '',
+        watchDays: $('#escWatch')?.value ?? '',
+        escalatedDays: $('#escEscalated')?.value ?? '',
+        note: $('#escNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Escalation timer not recorded: give a ticket id, a real opened date, and watch days below escalated days. An open ticket cannot gain a second timer.'); return; }
+      saveEscalations(next);
+      toast('Escalation timer recorded. The stage rises only when an age threshold is crossed or you record it.');
+      renderEscalations();
+    });
+    $('#escStageBtn')?.addEventListener('click', () => {
+      const id = ($('#escStageId')?.value ?? '').trim();
+      if (!id) return;
+      saveEscalations(recordEscalationStage(loadEscalations(), id, $('#escStage')?.value ?? '', $('#escStageDate')?.value ?? ''));
+      renderEscalations();
+    });
+    $('#escCloseBtn')?.addEventListener('click', () => {
+      const id = ($('#escCloseId')?.value ?? '').trim();
+      if (!id) return;
+      saveEscalations(closeEscalation(loadEscalations(), id));
+      renderEscalations();
+    });
+    $('#escRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#escRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveEscalations(removeEscalation(loadEscalations(), id));
+      renderEscalations();
+    });
+    $('#escExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(escalationTimerFilename(), escalationTimerCsv(loadEscalations()));
+    });
+    $('#escFilter')?.addEventListener('input', () => { renderEscalations(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

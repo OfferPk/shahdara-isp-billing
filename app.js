@@ -344,6 +344,7 @@ import { normalizeSettlementList, upsertSettlement, removeSettlement, settlement
 import { normalizeSplitReceiptList, upsertSplitReceipt, splitReceiptSummaryText, splitReceiptListHtml, splitReceiptCsv, splitReceiptFilename } from './split-payments.js';
 import { normalizeVisitScheduleList, upsertVisitSchedule, removeVisitSchedule, dayPartSchedule, doubleBookingFlags, missedVisits, markVisitDone, markVisitMissed, rescheduleVisit, visitScheduleSummaryText, visitScheduleHtml, visitScheduleCsv, visitScheduleFilename } from './visit-day-part.js';
 import { normalizeFaultPartList, upsertFaultPart, removeFaultPart, partsForTicket, sumPartsForPeriod, faultPartSummaryText, faultPartHtml, faultPartCsv, faultPartFilename } from './fault-parts.js';
+import { normalizeSegmentFaultList, upsertSegmentFault, removeSegmentFault, segmentFaultCounts, segmentFaultSummaryText, segmentFaultHtml, segmentFaultCsv, segmentFaultFilename } from './segment-fault-history.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13871,6 +13872,7 @@ function renderAnalytics() {
   renderSplitReceipts();
   renderVisitDayPart();
   renderFaultParts();
+  renderSegmentFaults();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21930,6 +21932,68 @@ function renderFaultParts() {
         ? `<table><thead><tr><th>Part</th><th>Units used</th></tr></thead><tbody>${sums.map((row) => `<tr><td>${row.part.replace(/&/g, '&amp;').replace(/</g, '&lt;')}</td><td>${row.quantity}</td></tr>`).join('')}</tbody></table>`
         : '<p>No part used in that period.</p>';
     });
+  }
+}
+// A segment fault history entry never rewrites any customer fault
+// ticket and never changes any bill or payment — it only names the
+// segment, its splitter/cable identifier, the affected count, and
+// the date, so a weak segment becomes visible before it becomes a
+// mohalla-wide complaint.
+const SEGMENT_FAULT_KEY = 'shahdara_segment_faults_v1';
+function loadSegmentFaults() {
+  try {
+    const raw = localStorage.getItem(SEGMENT_FAULT_KEY);
+    if (!raw) return [];
+    return normalizeSegmentFaultList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveSegmentFaults(list) {
+  try { localStorage.setItem(SEGMENT_FAULT_KEY, JSON.stringify(normalizeSegmentFaultList(list))); } catch { /* log only: a failed save leaves the previous entries in place */ }
+}
+let segmentFaultsBound = false;
+function renderSegmentFaults() {
+  const bodyEl = $('#segmentFaultBody');
+  if (!bodyEl) return;
+  const records = loadSegmentFaults();
+  const segment = ($('#segmentFaultFilter')?.value ?? '').trim();
+  bodyEl.innerHTML = segment ? segmentFaultHtml(records, segment) : '<p>Pick a segment above to see its fault history, newest first with its repeat count.</p>';
+  const summaryEl = $('#segmentFaultSummary');
+  if (summaryEl) summaryEl.textContent = segmentFaultSummaryText(records);
+  const countsEl = $('#segmentFaultCountsBody');
+  if (countsEl) {
+    const counts = segmentFaultCounts(records);
+    countsEl.innerHTML = counts.length
+      ? `<table><thead><tr><th>Segment</th><th>Splitter / cable</th><th>Repeat count</th></tr></thead><tbody>${counts.map((row) => `<tr><td>${escapeHtml(row.segment)}</td><td>${escapeHtml(row.segmentId)}</td><td>${row.count}</td></tr>`).join('')}</tbody></table>`
+      : '<p>No segment fault recorded yet.</p>';
+  }
+  if (!segmentFaultsBound) {
+    segmentFaultsBound = true;
+    $('#segmentFaultSaveBtn')?.addEventListener('click', () => {
+      const before = loadSegmentFaults();
+      const id = `SF-${Date.now()}`;
+      const next = upsertSegmentFault(before, {
+        id,
+        segment: $('#segmentFaultName')?.value ?? '',
+        segmentId: $('#segmentFaultId')?.value ?? '',
+        affectedCustomers: Number($('#segmentFaultCount')?.value ?? ''),
+        date: $('#segmentFaultDate')?.value ?? '',
+        note: $('#segmentFaultNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Segment fault not recorded: fill in a segment name, a splitter/cable identifier, a whole affected-customers count, and a real date.'); return; }
+      saveSegmentFaults(next);
+      toast('Segment fault recorded. Recording never rewrites any customer fault ticket and changes no bill or payment.');
+      renderSegmentFaults();
+    });
+    $('#segmentFaultRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#segmentFaultRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveSegmentFaults(removeSegmentFault(loadSegmentFaults(), id));
+      renderSegmentFaults();
+    });
+    $('#segmentFaultExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(segmentFaultFilename(), segmentFaultCsv(loadSegmentFaults()));
+    });
+    $('#segmentFaultFilter')?.addEventListener('input', () => { renderSegmentFaults(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

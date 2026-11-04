@@ -330,6 +330,7 @@ import { normalizeWriteOffList, upsertWriteOff, writeOffsForCustomer, reconcileD
 import { normalizeRefundList, upsertRefund, refundsForCustomer, refundSummaryText, refundHtml, refundCsv, refundFilename } from './refund-records.js';
 import { normalizeFollowUp, normalizeFollowUpList, recordFollowUp, removeFollowUp, buildFollowUpQueue, escalationList, buildFollowUpSummary, followUpSummaryText, followUpHtml, followUpCsv, followUpFilename } from './dispute-followups.js';
 import { buildMethodReconciliation, reconciliationSummaryText, methodReconciliationHtml, methodReconciliationCsv, methodReconciliationFilename, normalizeMethodNoteList, addMethodNote, methodNoteHtml, methodNoteCsv, methodNoteFilename } from './method-reconciliation.js';
+import { normalizeCashReconList, addCashRecon, lockCashRecon, cashReconsForMonth, cashReconSummaryText, cashReconHtml, cashReconCsv, cashReconFilename } from './cash-reconciliation.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13843,6 +13844,7 @@ function renderAnalytics() {
   renderRefunds();
   renderFollowUps();
   renderMethodReconciliation();
+  renderCashReconciliation();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20932,6 +20934,17 @@ function loadMethodReconNotes() {
 function saveMethodReconNotes(list) {
   try { localStorage.setItem(METHOD_RECON_KEY, JSON.stringify(normalizeMethodNoteList(list))); } catch { /* record only: a failed save leaves the previous notes in place */ }
 }
+const CASH_RECON_KEY = 'shahdara_cash_reconciliation_v1';
+function loadCashRecons() {
+  try {
+    const raw = localStorage.getItem(CASH_RECON_KEY);
+    if (!raw) return [];
+    return normalizeCashReconList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveCashRecons(list) {
+  try { localStorage.setItem(CASH_RECON_KEY, JSON.stringify(normalizeCashReconList(list))); } catch { /* record only: a failed save leaves the previous records in place */ }
+}
 function methodReconDevicePayments(period) {
   const rows = [];
   for (const customer of state.customers ?? []) {
@@ -20997,6 +21010,67 @@ function renderMethodReconciliation() {
     });
     $('#methodReconExportNotesBtn')?.addEventListener('click', () => {
       downloadCsvFile(methodNoteFilename(), methodNoteCsv(loadMethodReconNotes()));
+    });
+  }
+}
+let cashReconBound = false;
+function renderCashReconciliation() {
+  const bodyEl = $('#cashReconBody');
+  if (!bodyEl) return;
+  const monthEl = $('#cashReconMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const period = monthEl?.value ?? '';
+  const records = cashReconsForMonth(loadCashRecons(), period);
+  bodyEl.innerHTML = records.map((record) => cashReconHtml(record)).join('') || '<p>No month-end cash reconciliation for this month yet.</p>';
+  const summaryEl = $('#cashReconSummary');
+  if (summaryEl) summaryEl.textContent = cashReconSummaryText(loadCashRecons());
+  if (!cashReconBound) {
+    cashReconBound = true;
+    $('#cashReconMonth')?.addEventListener('change', () => renderCashReconciliation());
+    $('#cashReconFillBtn')?.addEventListener('click', () => {
+      const month = $('#cashReconMonth')?.value ?? '';
+      let totalCents = 0;
+      for (const row of methodReconDevicePayments(month)) {
+        const method = String(row.method ?? '').trim().toLowerCase();
+        if (row.voided) continue;
+        if (method !== 'cash' && !method.startsWith('cash at ')) continue;
+        if (typeof row.amount !== 'number' || !Number.isFinite(row.amount)) continue;
+        totalCents += Math.round(row.amount * 100);
+      }
+      const ledgerEl = $('#cashReconLedger');
+      if (ledgerEl) ledgerEl.value = (totalCents / 100).toFixed(2);
+      toast('Ledger cash filled from this month\'s recorded cash payments. Counted, deposited, and in-hand figures are still typed by the operator.');
+    });
+    $('#cashReconSaveBtn')?.addEventListener('click', () => {
+      const before = loadCashRecons();
+      const next = addCashRecon(before, {
+        id: `CR-${Date.now()}`,
+        month: $('#cashReconMonth')?.value ?? '',
+        ledgerCash: Number($('#cashReconLedger')?.value ?? ''),
+        counted: Number($('#cashReconCounted')?.value ?? ''),
+        deposited: Number($('#cashReconDeposited')?.value ?? ''),
+        inHand: Number($('#cashReconInHand')?.value ?? ''),
+        explanation: $('#cashReconExplanation')?.value ?? '',
+        operator: $('#cashReconOperator')?.value ?? '',
+        date: $('#cashReconDate')?.value ?? '',
+        closeRef: $('#cashReconCloseRef')?.value ?? '',
+        snapshotRef: $('#cashReconSnapshotRef')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Record not saved: pick a real month and date, an operator, and non-negative amounts for ledger, counted, deposited, and in-hand cash.'); return; }
+      saveCashRecons(next);
+      toast('Month-end cash reconciliation recorded. No payment was changed.');
+      renderCashReconciliation();
+    });
+    $('#cashReconLockBtn')?.addEventListener('click', () => {
+      const before = loadCashRecons();
+      const next = lockCashRecon(before, ($('#cashReconLockId')?.value ?? '').trim(), $('#cashReconLockDate')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Not locked: the record must exist, be open, have a real lock date, and carry an explanation when its difference is nonzero.'); return; }
+      saveCashRecons(next);
+      toast('Record locked. It can never be changed again.');
+      renderCashReconciliation();
+    });
+    $('#cashReconExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(cashReconFilename(), cashReconCsv(loadCashRecons()));
     });
   }
 }

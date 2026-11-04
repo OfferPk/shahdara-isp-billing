@@ -326,6 +326,7 @@ import { normalizeLateFeePolicyList, upsertLateFeePolicy, removeLateFeePolicy, l
 import { normalizeReconnectionFeeList, upsertReconnectionFee, removeReconnectionFee, feesForCustomer, reconnectionFeeSummaryText, reconnectionFeeHtml, reconnectionFeeCsv, reconnectionFeeFilename, normalizeReconnectionFeeWaiverList, addReconnectionFeeWaiver } from './reconnection-fees.js';
 import { normalizeDowngradeCreditList, upsertDowngradeCredit, removeDowngradeCredit, creditsForCustomer, applyDowngradeCredit, clearDowngradeCreditApplication, downgradeCreditSummaryText, downgradeCreditHtml, downgradeCreditCsv, downgradeCreditFilename } from './downgrade-credits.js';
 import { normalizeDepositNoteList, upsertDepositNote, supersedeDepositNote, notesForCustomer, activeDepositNotes, depositBalance, depositBalanceText, depositNoteSummaryText, depositNoteHtml, depositNoteCsv, depositNoteFilename } from './deposit-notes.js';
+import { normalizeWriteOffList, upsertWriteOff, writeOffsForCustomer, reconcileDues, liveCollectionList, writeOffSummaryText, reconcileDuesText, writeOffHtml, writeOffCsv, writeOffFilename } from './arrears-writeoffs.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13835,6 +13836,7 @@ function renderAnalytics() {
   renderReconnectionFees();
   renderDowngradeCredits();
   renderDepositNotes();
+  renderWriteOffs();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20685,6 +20687,96 @@ function renderDepositNotes() {
     });
     $('#depositNoteExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(depositNoteFilename(), depositNoteCsv(loadDepositNotes()));
+    });
+  }
+}
+const WRITE_OFF_KEY = 'shahdara_arrears_writeoffs_v1';
+function loadWriteOffs() {
+  try {
+    const raw = localStorage.getItem(WRITE_OFF_KEY);
+    if (!raw) return [];
+    return normalizeWriteOffList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveWriteOffs(list) {
+  try { localStorage.setItem(WRITE_OFF_KEY, JSON.stringify(normalizeWriteOffList(list))); } catch { /* record only: a failed save leaves the previous write-offs in place */ }
+}
+function writeOffDeviceBills() {
+  const bills = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      const amount = bill?.dueAmount ?? bill?.total ?? bill?.amount;
+      if (amount === null || amount === undefined || amount === '' || !Number.isFinite(Number(amount))) continue;
+      bills.push({ id: bill.id ?? `${customer.id}-${bill.month}`, customerId: customer.id, amount: Number(amount) });
+    }
+  }
+  return bills;
+}
+let writeOffsBound = false;
+function renderWriteOffs() {
+  const bodyEl = $('#writeOffBody');
+  if (!bodyEl) return;
+  const records = loadWriteOffs();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#writeOffCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#writeOffFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = '<option value="">All customers</option>' + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const filterCustomer = $('#writeOffFilterCustomer')?.value ?? '';
+  const shown = filterCustomer ? writeOffsForCustomer(records, filterCustomer) : records;
+  bodyEl.innerHTML = shown.map((item) => {
+    const named = { ...item, customerName: names[item.customerId] || item.customerName || item.customerId };
+    return writeOffHtml(named);
+  }).join('') || '<p>No arrears written off yet.</p>';
+  const summaryEl = $('#writeOffSummary');
+  if (summaryEl) summaryEl.textContent = writeOffSummaryText(records);
+  const liveEl = $('#writeOffLiveList');
+  if (liveEl) {
+    const live = liveCollectionList(writeOffDeviceBills(), records);
+    liveEl.innerHTML = live.map((b) => `<div>${escapeHtml(names[b.customerId] || b.customerId)} · bill ${escapeHtml(b.billId)} · live ${escapeHtml(`Rs. ${(b.liveCents / 100).toFixed(2)}`)}${b.writtenOffCents > 0 ? ` (Rs. ${(b.writtenOffCents / 100).toFixed(2)} written off)` : ''}</div>`).join('') || '<p>No live bills on this device yet.</p>';
+  }
+  if (!writeOffsBound) {
+    writeOffsBound = true;
+    $('#writeOffSaveBtn')?.addEventListener('click', () => {
+      const billLines = ($('#writeOffBills')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+      const bills = [];
+      for (const line of billLines) {
+        const [billId, ...amountParts] = line.split('|');
+        bills.push({ billId: (billId ?? '').trim(), amount: Number(amountParts.join('|').trim()) });
+      }
+      const next = upsertWriteOff(loadWriteOffs(), {
+        id: `WO-${Date.now()}`,
+        customerId: $('#writeOffCustomer')?.value ?? '',
+        bills,
+        reason: $('#writeOffReason')?.value ?? '',
+        approver: $('#writeOffApprover')?.value ?? '',
+        approvalId: $('#writeOffApproval')?.value ?? '',
+        writeOffDate: $('#writeOffDate')?.value ?? '',
+      });
+      if (next.length === loadWriteOffs().length) { toast('Write-off not recorded: it needs a customer, at least one bill line as "bill id | amount (Rs.)", a reason, an approver, an owner approval id, and a real date — and no bill already written off.'); return; }
+      saveWriteOffs(next);
+      toast('Write-off recorded as a separate entry. No bill, payment, or past total was deleted or edited.');
+      renderWriteOffs();
+    });
+    $('#writeOffFilterCustomer')?.addEventListener('change', () => renderWriteOffs());
+    $('#writeOffReconcileBtn')?.addEventListener('click', () => {
+      const resultEl = $('#writeOffReconcileResult');
+      if (!resultEl) return;
+      resultEl.textContent = reconcileDuesText(reconcileDues(writeOffDeviceBills(), loadWriteOffs()));
+    });
+    $('#writeOffExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(writeOffFilename(), writeOffCsv(loadWriteOffs()));
     });
   }
 }

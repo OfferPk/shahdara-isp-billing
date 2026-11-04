@@ -327,6 +327,7 @@ import { normalizeReconnectionFeeList, upsertReconnectionFee, removeReconnection
 import { normalizeDowngradeCreditList, upsertDowngradeCredit, removeDowngradeCredit, creditsForCustomer, applyDowngradeCredit, clearDowngradeCreditApplication, downgradeCreditSummaryText, downgradeCreditHtml, downgradeCreditCsv, downgradeCreditFilename } from './downgrade-credits.js';
 import { normalizeDepositNoteList, upsertDepositNote, supersedeDepositNote, notesForCustomer, activeDepositNotes, depositBalance, depositBalanceText, depositNoteSummaryText, depositNoteHtml, depositNoteCsv, depositNoteFilename } from './deposit-notes.js';
 import { normalizeWriteOffList, upsertWriteOff, writeOffsForCustomer, reconcileDues, liveCollectionList, writeOffSummaryText, reconcileDuesText, writeOffHtml, writeOffCsv, writeOffFilename } from './arrears-writeoffs.js';
+import { normalizeRefundList, upsertRefund, refundsForCustomer, refundSummaryText, refundHtml, refundCsv, refundFilename } from './refund-records.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13837,6 +13838,7 @@ function renderAnalytics() {
   renderDowngradeCredits();
   renderDepositNotes();
   renderWriteOffs();
+  renderRefunds();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20777,6 +20779,74 @@ function renderWriteOffs() {
     });
     $('#writeOffExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(writeOffFilename(), writeOffCsv(loadWriteOffs()));
+    });
+  }
+}
+const REFUND_KEY = 'shahdara_refund_records_v1';
+function loadRefunds() {
+  try {
+    const raw = localStorage.getItem(REFUND_KEY);
+    if (!raw) return [];
+    return normalizeRefundList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveRefunds(list) {
+  try { localStorage.setItem(REFUND_KEY, JSON.stringify(normalizeRefundList(list))); } catch { /* record only: a failed save leaves the previous refunds in place */ }
+}
+let refundsBound = false;
+function renderRefunds() {
+  const bodyEl = $('#refundBody');
+  if (!bodyEl) return;
+  const records = loadRefunds();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#refundCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#refundFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = '<option value="">All customers</option>' + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const filterCustomer = $('#refundFilterCustomer')?.value ?? '';
+  const shown = filterCustomer ? refundsForCustomer(records, filterCustomer) : records;
+  bodyEl.innerHTML = shown.map((item) => {
+    const named = { ...item, customerName: names[item.customerId] || item.customerName || item.customerId };
+    return refundHtml(named);
+  }).join('') || '<p>No refunds recorded yet.</p>';
+  const summaryEl = $('#refundSummary');
+  if (summaryEl) summaryEl.textContent = refundSummaryText(records);
+  if (!refundsBound) {
+    refundsBound = true;
+    $('#refundSaveBtn')?.addEventListener('click', () => {
+      const tierRaw = ($('#refundTierLimit')?.value ?? '').trim();
+      const tierLimitCents = tierRaw === '' ? null : Math.round(Number(tierRaw) * 100);
+      const before = loadRefunds();
+      const next = upsertRefund(before, {
+        id: `REF-${Date.now()}`,
+        customerId: $('#refundCustomer')?.value ?? '',
+        sourceKind: $('#refundSourceKind')?.value ?? '',
+        sourceId: $('#refundSourceId')?.value ?? '',
+        sourceAmount: Number($('#refundSourceAmount')?.value ?? ''),
+        amount: Number($('#refundAmount')?.value ?? ''),
+        reason: $('#refundReason')?.value ?? '',
+        method: $('#refundMethod')?.value ?? '',
+        approvalId: $('#refundApproval')?.value ?? '',
+        refundDate: $('#refundDate')?.value ?? '',
+      }, tierLimitCents);
+      if (next.length === before.length) { toast('Refund not recorded: it needs a customer, one source (credit or overpayment) with its id and source amount, a refund amount no larger than the source, a reason, a method, and a real date — and a refund above the operator tier needs an owner approval id.'); return; }
+      saveRefunds(next);
+      toast('Refund recorded. The original payment, bill, and credit history were not changed.');
+      renderRefunds();
+    });
+    $('#refundFilterCustomer')?.addEventListener('change', () => renderRefunds());
+    $('#refundExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(refundFilename(), refundCsv(loadRefunds()));
     });
   }
 }

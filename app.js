@@ -324,6 +324,7 @@ import { normalizeChargeScheduleList, upsertChargeSchedule, markInstalmentPaid, 
 import { normalizeTierList, upsertTier, removeTier, tierForAmount, normalizeApprovalList, addApproval, approvalsForReview, checkPosting, approvalSummaryText, tierHtml, approvalHtml, approvalCsv, approvalFilename } from './approval-limits.js';
 import { normalizeLateFeePolicyList, upsertLateFeePolicy, removeLateFeePolicy, lateFeeForBill, normalizeLateFeeWaiverList, addLateFeeWaiver, lateFeePolicySummaryText, lateFeePolicyHtml, lateFeeResultHtml, lateFeePolicyCsv, lateFeePolicyFilename } from './late-fee-policy.js';
 import { normalizeReconnectionFeeList, upsertReconnectionFee, removeReconnectionFee, feesForCustomer, reconnectionFeeSummaryText, reconnectionFeeHtml, reconnectionFeeCsv, reconnectionFeeFilename, normalizeReconnectionFeeWaiverList, addReconnectionFeeWaiver } from './reconnection-fees.js';
+import { normalizeDowngradeCreditList, upsertDowngradeCredit, removeDowngradeCredit, creditsForCustomer, applyDowngradeCredit, clearDowngradeCreditApplication, downgradeCreditSummaryText, downgradeCreditHtml, downgradeCreditCsv, downgradeCreditFilename } from './downgrade-credits.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13831,6 +13832,7 @@ function renderAnalytics() {
   renderApprovalLimits();
   renderLateFeePolicies();
   renderReconnectionFees();
+  renderDowngradeCredits();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20493,6 +20495,98 @@ function renderReconnectionFees() {
     });
     $('#reconnectionFeeExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(reconnectionFeeFilename(), reconnectionFeeCsv(loadReconnectionFees(), loadReconnectionFeeWaivers()));
+    });
+  }
+}
+const DOWNGRADE_CREDIT_KEY = 'shahdara_downgrade_credits_v1';
+function loadDowngradeCredits() {
+  try {
+    const raw = localStorage.getItem(DOWNGRADE_CREDIT_KEY);
+    if (!raw) return [];
+    return normalizeDowngradeCreditList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveDowngradeCredits(list) {
+  try { localStorage.setItem(DOWNGRADE_CREDIT_KEY, JSON.stringify(normalizeDowngradeCreditList(list))); } catch { /* record only: a failed save leaves the previous credits in place */ }
+}
+let downgradeCreditsBound = false;
+function renderDowngradeCredits() {
+  const bodyEl = $('#downgradeCreditBody');
+  if (!bodyEl) return;
+  const credits = loadDowngradeCredits();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#downgradeCreditCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#downgradeCreditFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = '<option value="">All customers</option>' + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const filterCustomer = $('#downgradeCreditFilterCustomer')?.value ?? '';
+  const shown = filterCustomer ? creditsForCustomer(credits, filterCustomer) : credits;
+  bodyEl.innerHTML = shown.map((item) => {
+    const named = { ...item, customerName: names[item.customerId] || item.customerName || item.customerId };
+    const actions = item.appliedBillId
+      ? `<button class="secondary-button btn-sm" type="button" data-downgrade-credit-clear="${escapeHtml(item.id)}">Clear bill link</button>`
+      : `<button class="secondary-button btn-sm" type="button" data-downgrade-credit-remove="${escapeHtml(item.id)}">Remove credit</button>`;
+    return `${downgradeCreditHtml(named)}${actions}`;
+  }).join('') || '<p>No downgrade credits recorded yet.</p>';
+  const summaryEl = $('#downgradeCreditSummary');
+  if (summaryEl) summaryEl.textContent = downgradeCreditSummaryText(credits);
+  const applyEl = $('#downgradeCreditApplyCredit');
+  if (applyEl) {
+    const current = applyEl.value;
+    applyEl.innerHTML = credits.filter((c) => !c.appliedBillId).map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.id)} · ${escapeHtml(names[c.customerId] || c.customerId)} · ${escapeHtml(c.oldPackage)} → ${escapeHtml(c.newPackage)}</option>`).join('');
+    if (current) applyEl.value = current;
+  }
+  bodyEl.querySelectorAll('[data-downgrade-credit-remove]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      saveDowngradeCredits(removeDowngradeCredit(loadDowngradeCredits(), btn.dataset.downgradeCreditRemove));
+      renderDowngradeCredits();
+    });
+  });
+  bodyEl.querySelectorAll('[data-downgrade-credit-clear]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      saveDowngradeCredits(clearDowngradeCreditApplication(loadDowngradeCredits(), btn.dataset.downgradeCreditClear));
+      renderDowngradeCredits();
+    });
+  });
+  if (!downgradeCreditsBound) {
+    downgradeCreditsBound = true;
+    $('#downgradeCreditSaveBtn')?.addEventListener('click', () => {
+      const next = upsertDowngradeCredit(loadDowngradeCredits(), {
+        id: `DC-${Date.now()}`,
+        customerId: $('#downgradeCreditCustomer')?.value ?? '',
+        oldPackage: $('#downgradeCreditOld')?.value ?? '',
+        newPackage: $('#downgradeCreditNew')?.value ?? '',
+        downgradeDate: $('#downgradeCreditDate')?.value ?? '',
+        daysUnused: Number($('#downgradeCreditDays')?.value ?? 0),
+        dailyRate: Number($('#downgradeCreditRate')?.value ?? 0),
+        paidForUnusedDays: Number($('#downgradeCreditPaid')?.value ?? 0),
+        note: $('#downgradeCreditNote')?.value ?? '',
+      });
+      if (next.length === loadDowngradeCredits().length) { toast('Credit not recorded: it needs a customer, two different packages, whole days unused, a positive daily rate, the amount paid for those days, and a real date.'); return; }
+      saveDowngradeCredits(next);
+      toast('Downgrade credit recorded with its arithmetic shown. It settles a bill only through the customer credit balance.');
+      renderDowngradeCredits();
+    });
+    $('#downgradeCreditFilterCustomer')?.addEventListener('change', () => renderDowngradeCredits());
+    $('#downgradeCreditApplyBtn')?.addEventListener('click', () => {
+      const next = applyDowngradeCredit(loadDowngradeCredits(), $('#downgradeCreditApplyCredit')?.value ?? '', $('#downgradeCreditApplyBill')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(loadDowngradeCredits())) { toast('Application not recorded: pick an unapplied credit and name the bill it settles.'); return; }
+      saveDowngradeCredits(next);
+      toast('Credit linked to its bill. Record the same credit through the customer credit balance to settle it.');
+      renderDowngradeCredits();
+    });
+    $('#downgradeCreditExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(downgradeCreditFilename(), downgradeCreditCsv(loadDowngradeCredits()));
     });
   }
 }

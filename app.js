@@ -367,6 +367,7 @@ import { normalizeWorkaroundList, upsertWorkaround, removeWorkaround, recordWork
 import { normalizeSafetyNoteList, upsertSafetyNote, removeSafetyNote, safetyNoteLocationHtml, safetyNoteAllHtml, safetyNoteSummaryText, safetyNoteCsv, safetyNoteFilename } from './safety-note.js';
 import { normalizeOnCallList, upsertOnCallEntry, removeOnCallEntry, onCallLookupHtml, onCallAllHtml, onCallOverlapHtml, onCallSummaryText, onCallCsv, onCallFilename } from './oncall-rota.js';
 import { normalizeVisitTimeList, upsertVisitTime, removeVisitTime, routeDayHtml, visitTimeAllHtml, routeDayTotalsHtml, visitTimeSummaryText, visitTimeCsv, visitTimeFilename } from './visit-times.js';
+import { normalizeSiteAccessList, upsertSiteAccess, removeSiteAccess, siteAccessAllHtml, siteAccessHtml, flaggedAccessHtml, siteAccessSummaryText, siteAccessCsv, siteAccessFilename } from './site-access.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13917,6 +13918,7 @@ function renderAnalytics() {
   renderSafetyNotes();
   renderOnCallRota();
   renderVisitTimes();
+  renderSiteAccess();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23234,6 +23236,58 @@ function renderVisitTimes() {
       downloadCsvFile(visitTimeFilename(), visitTimeCsv(loadVisitTimes()));
     });
     $('#visitTimeRouteDate')?.addEventListener('input', () => { renderVisitTimes(); });
+  }
+}
+const SITE_ACCESS_KEY = 'shahdara_site_access_v1';
+function loadSiteAccess() {
+  try { return normalizeSiteAccessList(JSON.parse(localStorage.getItem(SITE_ACCESS_KEY) || '[]')); } catch { return []; }
+}
+function saveSiteAccess(list) {
+  try { localStorage.setItem(SITE_ACCESS_KEY, JSON.stringify(normalizeSiteAccessList(list))); } catch { /* access only: a failed save leaves the previous log in place */ }
+}
+let siteAccessBound = false;
+function renderSiteAccess() {
+  const bodyEl = $('#siteAccessBody');
+  if (!bodyEl) return;
+  const list = loadSiteAccess();
+  const referenceDate = $('#siteAccessReferenceDate')?.value ?? '';
+  bodyEl.innerHTML = siteAccessAllHtml(list, referenceDate);
+  const siteEl = $('#siteAccessSiteBody');
+  if (siteEl) {
+    const site = $('#siteAccessFilter')?.value ?? '';
+    siteEl.innerHTML = site ? siteAccessHtml(list, site, referenceDate) : '<p>Pick a site to see its current permission before the visit.</p>';
+  }
+  const flaggedEl = $('#siteAccessFlaggedBody');
+  if (flaggedEl) flaggedEl.innerHTML = flaggedAccessHtml(list, referenceDate);
+  const summaryEl = $('#siteAccessSummary');
+  if (summaryEl) summaryEl.textContent = siteAccessSummaryText(list, referenceDate);
+  if (!siteAccessBound) {
+    siteAccessBound = true;
+    $('#siteAccessSaveBtn')?.addEventListener('click', () => {
+      const before = loadSiteAccess();
+      const next = upsertSiteAccess(before, {
+        id: `SA-${Date.now()}`,
+        site: $('#siteAccessSite')?.value ?? '',
+        holder: $('#siteAccessHolder')?.value ?? '',
+        scope: $('#siteAccessScope')?.value ?? '',
+        expiryDate: $('#siteAccessExpiry')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Access record not recorded: give a site, a holder, a scope, and a real expiry or review date.'); return; }
+      saveSiteAccess(next);
+      toast('Site access recorded. The next visit will not be wasted on an access refusal.');
+      renderSiteAccess();
+    });
+    $('#siteAccessRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#siteAccessRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveSiteAccess(removeSiteAccess(loadSiteAccess(), id));
+      renderSiteAccess();
+    });
+    $('#siteAccessExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(siteAccessFilename(), siteAccessCsv(loadSiteAccess()));
+    });
+    $('#siteAccessFilter')?.addEventListener('input', () => { renderSiteAccess(); });
+    $('#siteAccessReferenceDate')?.addEventListener('input', () => { renderSiteAccess(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

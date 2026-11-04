@@ -387,6 +387,7 @@ import { normalizeVulnerableNoteList, recordVulnerableNote, updateVulnerableNote
 import { normalizeVisitWindowList, recordVisitWindow, updateVisitWindow, removeVisitWindow, visitWindowForCustomer, visitWindowCustomers, visitWindowsForWindow, orderCustomersByWindow, visitWindowAllHtml, visitWindowOrderedHtml, visitWindowSummaryText, visitWindowCsv, visitWindowFilename } from './visit-window.js';
 import { normalizeMaintenanceNoticeList, upsertMaintenanceNotice, copyMaintenanceNotice, removeMaintenanceNotice, markMaintenanceSent, markMaintenanceUnsent, maintenanceNoticeAllHtml, maintenanceNoticeMohallaHtml, maintenanceNoticeSummaryText, maintenanceNoticeCsv, maintenanceNoticeFilename } from './maintenance-notice.js';
 import { normalizePromiseList, upsertPromise, removePromise, markPromiseDone, markPromiseWithdrawn, overduePromises, promisesForCustomer, promiseAllHtml, promiseOpenHtml, promiseSummaryText, promiseCsv, promiseFilename } from './promise-tracker.js';
+import { normalizeNewCustomerCheckinList, upsertNewCustomerCheckin, removeNewCustomerCheckin, markNewCustomerCheckedIn, newCustomerCheckinList, checkinsForCustomer, newCustomerCheckinAllHtml, newCustomerCheckinSummaryText, newCustomerCheckinCsv, newCustomerCheckinFilename } from './new-customer-checkin.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13961,6 +13962,7 @@ function renderAnalytics() {
   renderVisitWindows();
   renderMaintenanceNotices();
   renderPromiseTracker();
+  renderNewCustomerCheckin();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24525,6 +24527,60 @@ function renderPromiseTracker() {
       downloadCsvFile(promiseFilename(), promiseCsv(loadPromiseTracker()));
     });
     $('#ptFilter')?.addEventListener('input', () => { renderPromiseTracker(); });
+  }
+}
+const NEW_CUSTOMER_CHECKIN_KEY = 'shahdara_new_customer_checkin_v1';
+function loadNewCustomerCheckin() {
+  try { return normalizeNewCustomerCheckinList(JSON.parse(localStorage.getItem(NEW_CUSTOMER_CHECKIN_KEY) || '[]')); } catch { return []; }
+}
+function saveNewCustomerCheckin(list) {
+  try { localStorage.setItem(NEW_CUSTOMER_CHECKIN_KEY, JSON.stringify(normalizeNewCustomerCheckinList(list))); } catch { /* new-customer check-in only: a failed save leaves the previous list in place */ }
+}
+let newCustomerCheckinBound = false;
+function renderNewCustomerCheckin() {
+  const bodyEl = $('#ncBody');
+  if (!bodyEl) return;
+  const list = loadNewCustomerCheckin();
+  const today = new Date().toISOString().slice(0, 10);
+  const filter = ($('#ncFilter')?.value ?? '').trim().toLowerCase();
+  // A timed list only: customers inside their first month after
+  // connection, oldest connection first. Checking in updates only
+  // the last-contact date; a customer who leaves the window leaves
+  // the list. The onboarding checklist itself is never read or
+  // rewritten here, nothing here changes any bill, payment, package,
+  // or onboarding record, and nothing is ever sent automatically —
+  // the check-in draft is sent by hand.
+  const shown = filter ? newCustomerCheckinList(checkinsForCustomer(list, filter), today) : newCustomerCheckinList(list, today);
+  bodyEl.innerHTML = shown.length ? newCustomerCheckinAllHtml(shown) : '<p>No new customers in their first month.</p>';
+  const summaryEl = $('#ncSummary');
+  if (summaryEl) summaryEl.textContent = newCustomerCheckinSummaryText(list, today);
+  if (!newCustomerCheckinBound) {
+    newCustomerCheckinBound = true;
+    $('#ncSaveBtn')?.addEventListener('click', () => {
+      const before = loadNewCustomerCheckin();
+      const next = upsertNewCustomerCheckin(before, {
+        id: `NC-${Date.now()}`,
+        customerId: $('#ncCustomer')?.value ?? '',
+        connectionDate: $('#ncConnectionDate')?.value ?? '',
+        mohalla: $('#ncMohalla')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Check-in record not added: give a customer, a valid connection date, and a mohalla.'); return; }
+      saveNewCustomerCheckin(next); renderNewCustomerCheckin();
+    });
+    $('#ncCheckinBtn')?.addEventListener('click', () => {
+      const id = ($('#ncCheckinId')?.value ?? '').trim();
+      if (!id) return;
+      saveNewCustomerCheckin(markNewCustomerCheckedIn(loadNewCustomerCheckin(), id, ($('#ncCheckinDate')?.value ?? ''))); renderNewCustomerCheckin();
+    });
+    $('#ncRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#ncRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveNewCustomerCheckin(removeNewCustomerCheckin(loadNewCustomerCheckin(), id)); renderNewCustomerCheckin();
+    });
+    $('#ncExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(newCustomerCheckinFilename(), newCustomerCheckinCsv(loadNewCustomerCheckin()));
+    });
+    $('#ncFilter')?.addEventListener('input', () => { renderNewCustomerCheckin(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

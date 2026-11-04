@@ -364,6 +364,7 @@ import { normalizePremisesCheckList, upsertPremisesCheckRecord, removePremisesCh
 import { normalizeDropCableList, upsertDropCableRecord, removeDropCableRecord, dropCableSummaryText, dropCableCustomerHtml, dropCableWatchHtml, dropCableCsv, dropCableFilename } from './drop-cable.js';
 import { normalizeRootCauseCodeList, upsertRootCauseCode, removeRootCauseCode, normalizeRootCauseLinkList, upsertRootCauseLink, removeRootCauseLink, rootCauseSummaryText, rootCauseCodeHtml, rootCauseCountHtml, rootCauseCsv, rootCauseFilename } from './root-cause.js';
 import { normalizeWorkaroundList, upsertWorkaround, removeWorkaround, recordWorkaroundRemoval, workaroundSummaryText, workaroundOpenHtml, workaroundOverdueHtml, workaroundCsv, workaroundFilename } from './workaround.js';
+import { normalizeSafetyNoteList, upsertSafetyNote, removeSafetyNote, safetyNoteLocationHtml, safetyNoteAllHtml, safetyNoteSummaryText, safetyNoteCsv, safetyNoteFilename } from './safety-note.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13911,6 +13912,7 @@ function renderAnalytics() {
   renderDropCables();
   renderRootCauses();
   renderWorkarounds();
+  renderSafetyNotes();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23079,6 +23081,50 @@ function renderWorkarounds() {
       downloadCsvFile(workaroundFilename(), workaroundCsv(loadWorkarounds()));
     });
     $('#workaroundReferenceDate')?.addEventListener('input', () => { renderWorkarounds(); });
+  }
+}
+const SAFETY_NOTE_KEY = 'shahdara_safety_notes_v1';
+function loadSafetyNotes() {
+  try { return normalizeSafetyNoteList(JSON.parse(localStorage.getItem(SAFETY_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveSafetyNotes(list) {
+  try { localStorage.setItem(SAFETY_NOTE_KEY, JSON.stringify(normalizeSafetyNoteList(list))); } catch { /* notes only: a failed save leaves the previous notes in place */ }
+}
+let safetyNoteBound = false;
+function renderSafetyNotes() {
+  const bodyEl = $('#safetyBody');
+  if (!bodyEl) return;
+  const list = loadSafetyNotes();
+  const filter = $('#safetyFilter')?.value ?? '';
+  bodyEl.innerHTML = filter.trim() ? safetyNoteLocationHtml(list, filter) : safetyNoteAllHtml(list);
+  const summaryEl = $('#safetySummary');
+  if (summaryEl) summaryEl.textContent = safetyNoteSummaryText(list);
+  if (!safetyNoteBound) {
+    safetyNoteBound = true;
+    $('#safetySaveBtn')?.addEventListener('click', () => {
+      const before = loadSafetyNotes();
+      const next = upsertSafetyNote(before, {
+        id: `SN-${Date.now()}`,
+        location: $('#safetyLocation')?.value ?? '',
+        hazard: $('#safetyHazard')?.value ?? '',
+        dateNoted: $('#safetyDate')?.value ?? '',
+        precaution: $('#safetyPrecaution')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Safety note not recorded: give a location, a hazard, and a real date noted.'); return; }
+      saveSafetyNotes(next);
+      toast('Safety note recorded. The next visitor to that location will see the warning first.');
+      renderSafetyNotes();
+    });
+    $('#safetyRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#safetyRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveSafetyNotes(removeSafetyNote(loadSafetyNotes(), id));
+      renderSafetyNotes();
+    });
+    $('#safetyExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(safetyNoteFilename(), safetyNoteCsv(loadSafetyNotes()));
+    });
+    $('#safetyFilter')?.addEventListener('input', () => { renderSafetyNotes(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

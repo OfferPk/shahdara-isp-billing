@@ -371,6 +371,7 @@ import { normalizeSiteAccessList, upsertSiteAccess, removeSiteAccess, siteAccess
 import { normalizeSwapPairingList, upsertSwapPairing, removeSwapPairing, swapPairingAllHtml, swapPairingCustomerHtml, swapPairingSummaryText, swapPairingCsv, swapPairingFilename } from './swap-pairing.js';
 import { normalizeRecheckList, upsertRecheck, removeRecheck, recheckAllHtml, recheckTicketHtml, recheckFollowUpHtml, recheckSummaryText, recheckCsv, recheckFilename } from './recheck.js';
 import { normalizeSeasonalRiskList, upsertSeasonalRisk, removeSeasonalRisk, seasonalRiskAllHtml, seasonalRiskSeasonHtml, seasonalRiskSummaryText, seasonalRiskCsv, seasonalRiskFilename } from './seasonal-risk.js';
+import { normalizeHandoverList, upsertHandover, removeHandover, handoverAllHtml, handoverPersonHtml, handoverSummaryText, handoverCsv, handoverFilename } from './handover.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13925,6 +13926,7 @@ function renderAnalytics() {
   renderSwapPairings();
   renderRechecks();
   renderSeasonalRisks();
+  renderHandovers();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23441,6 +23443,59 @@ function renderSeasonalRisks() {
       downloadCsvFile(seasonalRiskFilename(), seasonalRiskCsv(loadSeasonalRisks()));
     });
     $('#seasonalRiskFilter')?.addEventListener('input', () => { renderSeasonalRisks(); });
+  }
+}
+const HANDOVER_KEY = 'shahdara_handovers_v1';
+function loadHandovers() {
+  try { return normalizeHandoverList(JSON.parse(localStorage.getItem(HANDOVER_KEY) || '[]')); } catch { return []; }
+}
+function saveHandovers(list) {
+  try { localStorage.setItem(HANDOVER_KEY, JSON.stringify(normalizeHandoverList(list))); } catch { /* handover note only: a failed save leaves the previous log in place */ }
+}
+let handoverBound = false;
+function renderHandovers() {
+  const bodyEl = $('#handoverBody');
+  if (!bodyEl) return;
+  const list = loadHandovers();
+  bodyEl.innerHTML = handoverAllHtml(list);
+  const personEl = $('#handoverPersonBody');
+  if (personEl) {
+    const person = $('#handoverFilter')?.value ?? '';
+    personEl.innerHTML = person ? handoverPersonHtml(list, person) : '<p>Pick a person to see their handovers with open jobs and warnings.</p>';
+  }
+  const summaryEl = $('#handoverSummary');
+  if (summaryEl) summaryEl.textContent = handoverSummaryText(list);
+  if (!handoverBound) {
+    handoverBound = true;
+    $('#handoverSaveBtn')?.addEventListener('click', () => {
+      const jobsText = $('#handoverJobs')?.value ?? '';
+      const jobs = jobsText.split('\n').map((line) => {
+        const pipe = line.indexOf('|');
+        if (pipe === -1) return line.trim();
+        return { description: line.slice(0, pipe).trim(), status: line.slice(pipe + 1).trim() };
+      }).filter((job) => (typeof job === 'string' ? job : job.description));
+      const before = loadHandovers();
+      const next = upsertHandover(before, {
+        id: `HO-${Date.now()}`,
+        date: $('#handoverDate')?.value ?? '',
+        from: $('#handoverFrom')?.value ?? '',
+        to: $('#handoverTo')?.value ?? '',
+        jobs,
+        warnings: $('#handoverWarnings')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Handover note not recorded: give a date, a from person, and a to person.'); return; }
+      saveHandovers(next); renderHandovers();
+    });
+    $('#handoverRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#handoverRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveHandovers(removeHandover(loadHandovers(), id));
+      renderHandovers();
+    });
+    $('#handoverExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(handoverFilename(), handoverCsv(loadHandovers()));
+    });
+    $('#handoverFilter')?.addEventListener('input', () => { renderHandovers(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

@@ -405,6 +405,7 @@ import { normalizeMilestoneList, recordMilestone, removeMilestone, setMilestoneS
 import { normalizeChecklistList, recordChecklist, removeChecklist, tickChecklistStep, untickChecklistStep, starterCollectorSteps, checklistsSorted, checklistAllHtml, checklistSummaryText, checklistCsv, checklistFilename } from './collector-onboarding.js';
 import { validComparisonPeriod, buildYearComparison, yearComparisonText, yearComparisonHtml, yearComparisonCsv, yearComparisonFilename } from './year-comparison.js';
 import { normalizeDrillList, recordDrill, removeDrill, noteDrillFollowUp, drillsSorted, drillAllHtml, drillSummaryText, drillCsv, drillFilename } from './restore-drill.js';
+import { normalizeVersionList, recordVersionEntry, removeVersionEntry, versionsSorted, versionAllHtml, versionSummaryText, versionCsv, versionFilename } from './version-log.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13997,6 +13998,7 @@ function renderAnalytics() {
   renderCollectorOnboarding();
   renderYearComparison();
   renderRestoreDrills();
+  renderVersionLog();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25510,6 +25512,52 @@ function renderRestoreDrills() {
       renderRestoreDrills();
     });
     $('#rdFilter')?.addEventListener('input', () => { renderRestoreDrills(); });
+  }
+}
+// Plan 195: a plain-words log of which app version arrived when and
+// what changed for the shop. A log only: recording a version never
+// changes app behaviour and never changes any bill, payment, or
+// customer record, and past entries are never silently edited —
+// there is no edit function, only record and remove. The
+// release-assurance gate (release-assurance.js) is neither read nor
+// written here.
+const VERSION_LOG_KEY = 'shahdara_version_log_v1';
+function loadVersionLog() {
+  try { return normalizeVersionList(JSON.parse(localStorage.getItem(VERSION_LOG_KEY) || '[]')); } catch { return []; }
+}
+function saveVersionLog(list) {
+  try { localStorage.setItem(VERSION_LOG_KEY, JSON.stringify(normalizeVersionList(list))); } catch { /* version log only: a failed save leaves the previous list in place */ }
+}
+let versionLogBound = false;
+function renderVersionLog() {
+  const bodyEl = $('#vlBody');
+  if (!bodyEl) return;
+  const query = ($('#vlFilter')?.value ?? '').trim();
+  const shown = query ? versionsSorted(loadVersionLog()).filter((entry) => entry.version === query) : versionsSorted(loadVersionLog());
+  bodyEl.innerHTML = shown.length ? versionAllHtml(shown) : '<p>No version entries recorded.</p>';
+  const summaryEl = $('#vlSummary');
+  if (summaryEl) summaryEl.textContent = versionSummaryText(loadVersionLog());
+  if (!versionLogBound) {
+    versionLogBound = true;
+    $('#vlExportBtn')?.addEventListener('click', () => { downloadCsvFile(versionFilename(), versionCsv(loadVersionLog())); });
+    $('#vlSaveBtn')?.addEventListener('click', () => {
+      const before = loadVersionLog();
+      const next = recordVersionEntry(before, {
+        id: `VL-${Date.now()}`,
+        version: $('#vlVersion')?.value ?? '',
+        date: $('#vlDate')?.value ?? '',
+        changes: $('#vlChanges')?.value ?? '',
+        shopNote: $('#vlShopNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Version entry not recorded: use a version like 1.12.0, a real date, and plain-words changes with no technical filler.'); return; }
+      saveVersionLog(next);
+      renderVersionLog();
+    });
+    $('#vlRemoveBtn')?.addEventListener('click', () => {
+      saveVersionLog(removeVersionEntry(loadVersionLog(), $('#vlRemoveId')?.value ?? ''));
+      renderVersionLog();
+    });
+    $('#vlFilter')?.addEventListener('input', () => { renderVersionLog(); });
   }
 }
 function renderOwnerDecision() {

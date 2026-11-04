@@ -345,6 +345,7 @@ import { normalizeSplitReceiptList, upsertSplitReceipt, splitReceiptSummaryText,
 import { normalizeVisitScheduleList, upsertVisitSchedule, removeVisitSchedule, dayPartSchedule, doubleBookingFlags, missedVisits, markVisitDone, markVisitMissed, rescheduleVisit, visitScheduleSummaryText, visitScheduleHtml, visitScheduleCsv, visitScheduleFilename } from './visit-day-part.js';
 import { normalizeFaultPartList, upsertFaultPart, removeFaultPart, partsForTicket, sumPartsForPeriod, faultPartSummaryText, faultPartHtml, faultPartCsv, faultPartFilename } from './fault-parts.js';
 import { normalizeSegmentFaultList, upsertSegmentFault, removeSegmentFault, segmentFaultCounts, segmentFaultSummaryText, segmentFaultHtml, segmentFaultCsv, segmentFaultFilename } from './segment-fault-history.js';
+import { normalizeOutageTypeList, upsertOutageType, removeOutageType, missingNoticeOutages, outageTypeSummaryText, outageTypeHtml, outageTypeCsv, outageTypeFilename } from './outage-type.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13873,6 +13874,7 @@ function renderAnalytics() {
   renderVisitDayPart();
   renderFaultParts();
   renderSegmentFaults();
+  renderOutageTypes();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -21994,6 +21996,68 @@ function renderSegmentFaults() {
       downloadCsvFile(segmentFaultFilename(), segmentFaultCsv(loadSegmentFaults()));
     });
     $('#segmentFaultFilter')?.addEventListener('input', () => { renderSegmentFaults(); });
+  }
+}
+// Plan 134 (Plan 101-202) — Planned vs unplanned outage distinction.
+// This panel reads and writes only its own outage-type records. It
+// never reads or writes Plan 22's outage grouping, Plan 93's outage
+// credits, or the feeder-impact view, and recording an outage here
+// creates no credit, bill, or payment of any kind.
+const OUTAGE_TYPE_KEY = 'shahdara_outage_type_v1';
+function loadOutageTypes() {
+  try {
+    const raw = localStorage.getItem(OUTAGE_TYPE_KEY);
+    return normalizeOutageTypeList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveOutageTypes(list) {
+  try { localStorage.setItem(OUTAGE_TYPE_KEY, JSON.stringify(normalizeOutageTypeList(list))); } catch { /* record only: a failed save leaves the previous entries in place */ }
+}
+let outageTypesBound = false;
+function renderOutageTypes() {
+  const bodyEl = $('#outageTypeBody');
+  if (!bodyEl) return;
+  const records = loadOutageTypes();
+  const type = ($('#outageTypeFilter')?.value ?? 'planned');
+  bodyEl.innerHTML = outageTypeHtml(records, type);
+  const summaryEl = $('#outageTypeSummary');
+  if (summaryEl) summaryEl.textContent = outageTypeSummaryText(records);
+  const flagEl = $('#outageTypeFlagBody');
+  if (flagEl) {
+    const flagged = missingNoticeOutages(records);
+    flagEl.innerHTML = flagged.length
+      ? `<table><thead><tr><th>Id</th><th>Start</th><th>Mohallas</th></tr></thead><tbody>${flagged.map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.startDate)}</td><td>${escapeHtml(item.mohallas.join(', '))}</td></tr>`).join('')}</tbody></table>`
+      : '<p>No planned outage is missing its notice note.</p>';
+  }
+  if (!outageTypesBound) {
+    outageTypesBound = true;
+    $('#outageTypeSaveBtn')?.addEventListener('click', () => {
+      const before = loadOutageTypes();
+      const id = `OT-${Date.now()}`;
+      const next = upsertOutageType(before, {
+        id,
+        type: $('#outageTypeKind')?.value ?? 'planned',
+        mohallas: ($('#outageTypeMohallas')?.value ?? '').split(',').map((part) => part.trim()).filter(Boolean),
+        startDate: $('#outageTypeStart')?.value ?? '',
+        endDate: $('#outageTypeEnd')?.value ?? '',
+        noticeGiven: $('#outageTypeNotice')?.value === 'yes',
+        noticeNote: $('#outageTypeNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Outage not recorded: pick planned or unplanned, name at least one mohalla, and give a real start date (and an end date on or after it, if any).'); return; }
+      saveOutageTypes(next);
+      toast('Outage recorded. Recording never creates a credit, bill, or payment, and never changes any other outage record.');
+      renderOutageTypes();
+    });
+    $('#outageTypeRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#outageTypeRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveOutageTypes(removeOutageType(loadOutageTypes(), id));
+      renderOutageTypes();
+    });
+    $('#outageTypeExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(outageTypeFilename(), outageTypeCsv(loadOutageTypes()));
+    });
+    $('#outageTypeFilter')?.addEventListener('change', () => { renderOutageTypes(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

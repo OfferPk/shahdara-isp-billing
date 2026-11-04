@@ -29,11 +29,14 @@ const entry = (overrides = {}) => ({
   ...overrides,
 });
 
-test('Plan 31: audit catalogue covers exactly the seven plan actions, plus the Plan 33 mode switch', () => {
+test('Plan 31: audit catalogue covers exactly the seven plan actions, plus the Plan 33 mode switch and the Plan 54 contact edit', () => {
   // Plan 33 intentionally extends the catalogue with one action,
   // 'mode_switched', because Plan 33 acceptance requires every mode
-  // switch to be recorded in this log. No other Plan 31 behaviour changes.
-  assert.equal(AUDIT_ACTIONS.length, 8);
+  // switch to be recorded in this log. Plan 54 intentionally extends
+  // it with one more, 'emergency_contact_edited', because Plan 54
+  // acceptance requires every emergency-contact edit to be logged.
+  // No other Plan 31 behaviour changes.
+  assert.equal(AUDIT_ACTIONS.length, 9);
   assert.deepEqual(AUDIT_ACTIONS.map((a) => a.value), [
     'payment_recorded',
     'payment_voided',
@@ -43,6 +46,7 @@ test('Plan 31: audit catalogue covers exactly the seven plan actions, plus the P
     'waada_set',
     'concession_applied',
     'mode_switched',
+    'emergency_contact_edited',
   ]);
   assert.equal(auditActionLabel('payment_voided'), 'Payment voided');
   assert.equal(auditActionLabel('waada_set'), 'Waada set');

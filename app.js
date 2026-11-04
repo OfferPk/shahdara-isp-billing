@@ -269,6 +269,7 @@ import { normalizeChangeRequestList, findChangeRequest, upsertChangeRequest, rem
 import { normalizeStockRowList, normalizeStockMovementList, removeStockRow, setStockMinimum, receiveStock, issueStock, returnFaultyStock, lowStockSignals, stockSummaryText, stockRowsHtml, stockMovementsHtml, stockCsv, stockFilename, STOCK_ITEM_LABELS, STOCK_LOCATION_LABELS } from './stock-register.js';
 import { DEPENDENCY_TYPE_OPTIONS, normalizeDependencyList, upsertDependency, removeDependency, buildDependencyBlastRadii, dependencySummaryText, dependencyRegisterHtml, dependencyBlastRadiusHtml, dependencyCsv, dependencyFilename } from './dependency-register.js';
 import { POWER_STATE_OPTIONS, normalizePowerLog, upsertPowerEntry, removePowerEntry, powerHistoryForSite, latestPowerStatePerSite, powerSummaryText, latestPowerHtml, powerLogHtml, powerCsv, powerFilename } from './power-status-log.js';
+import { EMERGENCY_ROLES, normalizeEmergencyCard, upsertEmergencyContact, removeEmergencyContact, findEmergencyContact, emergencyCardSummaryText, emergencyCardHtml, emergencyContactsCsv, emergencyCardFilename } from './emergency-card.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
 import { PAYMENT_CHANNELS, PAYMENT_CHANNEL_VARIANTS, normalizePaymentChannelRecords, findPaymentChannel, findPaymentChannelRecord, upsertPaymentChannel, removePaymentChannel, withPaymentInstructions, paymentChannelHtml } from './payment-channel.js';
@@ -11442,6 +11443,7 @@ function renderTicketLog() {
     $('#ticketLogExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(ticketFilename(), ticketCsv(currentTicketLogRows(), { today: localDate() }));
     });
+    $('#emergencyCardFromTicketsBtn')?.addEventListener('click', () => showEmergencyCard());
     for (const id of ['ticketLogStatusFilter', 'ticketLogCategoryFilter', 'ticketLogMohallaFilter', 'ticketLogOpenOnly']) {
       $(`#${id}`)?.addEventListener('change', () => renderTicketLog());
     }
@@ -11524,6 +11526,7 @@ function renderOutageGrouping() {
     $('#outageGroupingExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(outageFilename(), outageCsv(loadOutageGrouping()));
     });
+    $('#emergencyCardFromOutagesBtn')?.addEventListener('click', () => showEmergencyCard());
     bodyEl.addEventListener('click', (event) => {
       const btn = event.target?.closest?.('.outage-group-action-btn');
       if (!btn) return;
@@ -13163,6 +13166,7 @@ function renderAnalytics() {
   renderStockRegister();
   renderDependencyRegister();
   renderPowerStatusLog();
+  renderEmergencyCard();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -13827,6 +13831,113 @@ function renderPowerStatusLog() {
     });
     $('#powerStatusLogExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(powerFilename(localDate()), powerCsv(loadPowerStatusLog()));
+    });
+  }
+}
+// Plan 54: emergency contact and escalation card (offline,
+// on-device). A reference card only: named contacts with a role,
+// a phone number, and the situations each covers, plus an ordered
+// escalation list saying who to call first, then next. It dials
+// nothing and sends nothing; phones render as plain text, and
+// viewing or using the card never alters any record. Saving or
+// removing a contact is logged through Plan 31's audit log.
+const EMERGENCY_CARD_KEY = 'shahdara_emergency_card_v1';
+let emergencyCardBound = false;
+function loadEmergencyCard() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(EMERGENCY_CARD_KEY) || 'null');
+    return normalizeEmergencyCard(parsed && typeof parsed === 'object' ? parsed : { contacts: [] });
+  } catch { return normalizeEmergencyCard({ contacts: [] }); }
+}
+function saveEmergencyCard(card) {
+  try { localStorage.setItem(EMERGENCY_CARD_KEY, JSON.stringify(normalizeEmergencyCard(card))); } catch {}
+}
+function showEmergencyCard() {
+  const el = $('#emergencyCardPanel');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function renderEmergencyCard() {
+  const bodyEl = $('#emergencyCardBody');
+  if (!bodyEl) return;
+  const card = loadEmergencyCard();
+  const summaryEl = $('#emergencyCardSummary');
+  if (summaryEl) summaryEl.textContent = emergencyCardSummaryText(card);
+  bodyEl.innerHTML = emergencyCardHtml(card);
+  const roleEl = $('#emergencyCardRole');
+  if (roleEl && !roleEl.dataset.populated) {
+    roleEl.dataset.populated = '1';
+    roleEl.innerHTML = EMERGENCY_ROLES.map((o) => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+  }
+  const selectEl = $('#emergencyCardSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = card.contacts.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)} — ${escapeHtml(c.roleLabel)}</option>`).join('')
+      || '<option value="">No emergency contacts yet</option>';
+  }
+  const orderEl = $('#emergencyCardOrderSelect');
+  if (orderEl && document.activeElement !== orderEl) {
+    orderEl.innerHTML = card.contacts.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`).join('')
+      || '<option value="">No emergency contacts yet</option>';
+  }
+  const noteEl = $('#emergencyCardNote');
+  if (noteEl && document.activeElement !== noteEl) noteEl.value = card.escalationNote || '';
+  if (!emergencyCardBound) {
+    emergencyCardBound = true;
+    $('#emergencyCardSelect')?.addEventListener('change', (event) => {
+      const contact = findEmergencyContact(loadEmergencyCard().contacts, event.target.value);
+      if (!contact) return;
+      const nameEl = $('#emergencyCardName'); if (nameEl) nameEl.value = contact.name;
+      const roleSel = $('#emergencyCardRole'); if (roleSel) roleSel.value = contact.role;
+      const phoneEl = $('#emergencyCardPhone'); if (phoneEl) phoneEl.value = contact.phone;
+      const sitEl = $('#emergencyCardSituations'); if (sitEl) sitEl.value = contact.situations.join(', ');
+    });
+    $('#emergencyCardSaveBtn')?.addEventListener('click', () => {
+      const before = loadEmergencyCard();
+      const selected = $('#emergencyCardSelect')?.value ?? '';
+      const next = upsertEmergencyContact(before.contacts, {
+        id: selected || `emergency-${Date.now()}`,
+        name: $('#emergencyCardName')?.value ?? '',
+        role: $('#emergencyCardRole')?.value ?? '',
+        phone: $('#emergencyCardPhone')?.value ?? '',
+        situations: $('#emergencyCardSituations')?.value ?? '',
+      });
+      if (JSON.stringify(next) === JSON.stringify(before.contacts)) {
+        toast('An emergency contact needs a name, a known role, a phone number with at least 7 digits, and at least one covered situation.');
+        return;
+      }
+      const saved = next.find((c) => c.id === (selected || next[next.length - 1].id)) ?? next[next.length - 1];
+      saveEmergencyCard({ ...before, contacts: next });
+      recordAudit('emergency_contact_edited', { recordRef: saved.id, detail: `Emergency contact saved: ${saved.name} (${saved.roleLabel}).` });
+      renderEmergencyCard();
+    });
+    $('#emergencyCardRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#emergencyCardSelect')?.value ?? '';
+      if (!id) return;
+      const before = loadEmergencyCard();
+      const removed = findEmergencyContact(before.contacts, id);
+      saveEmergencyCard({ ...before, contacts: removeEmergencyContact(before.contacts, id) });
+      if (removed) recordAudit('emergency_contact_edited', { recordRef: removed.id, detail: `Emergency contact removed: ${removed.name}.` });
+      renderEmergencyCard();
+    });
+    $('#emergencyCardOrderAddBtn')?.addEventListener('click', () => {
+      const id = $('#emergencyCardOrderSelect')?.value ?? '';
+      if (!id) return;
+      const before = loadEmergencyCard();
+      if (before.escalationOrder.includes(id)) return;
+      saveEmergencyCard({ ...before, escalationOrder: [...before.escalationOrder, id] });
+      renderEmergencyCard();
+    });
+    $('#emergencyCardOrderClearBtn')?.addEventListener('click', () => {
+      const before = loadEmergencyCard();
+      saveEmergencyCard({ ...before, escalationOrder: [] });
+      renderEmergencyCard();
+    });
+    $('#emergencyCardNoteBtn')?.addEventListener('click', () => {
+      const before = loadEmergencyCard();
+      saveEmergencyCard({ ...before, escalationNote: $('#emergencyCardNote')?.value ?? '' });
+      renderEmergencyCard();
+    });
+    $('#emergencyCardExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(emergencyCardFilename(localDate()), emergencyContactsCsv(loadEmergencyCard()));
     });
   }
 }

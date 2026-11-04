@@ -296,6 +296,7 @@ import { LOAN_DEVICE_TYPES, LOAN_DEVICE_TYPE_LABELS, LOAN_STATUSES, LOAN_STATUS_
 import { JOB_MATERIAL_ITEMS, JOB_MATERIAL_LABELS, JOB_STATUSES, JOB_STATUS_LABELS, normalizeJob, normalizeJobList, upsertJob, removeJob, addJobMaterial, completeJob, reopenJob, jobsFiltered, buildJobCosts, buildJobSummary, jobSummaryText, jobHtml, jobCsv, jobFilename } from './job-cost.js';
 import { RMA_DEVICE_TYPES, RMA_DEVICE_TYPE_LABELS, RMA_STATUSES, RMA_STATUS_LABELS, normalizeRma, normalizeRmaList, upsertRma, removeRma, advanceRmaToAwaiting, markRmaReplaced, markRmaRepaired, markRmaRejected, reopenRma, rmasFiltered, awaitingRmas, buildRmaSummary, rmaSummaryText, rmaHtml, rmaCsv, rmaFilename } from './warranty-returns.js';
 import { RECOVERY_STATUSES, RECOVERY_STATUS_LABELS, normalizeRecoveryList, upsertRecovery, markRecoveryCollected, markRecoveryNotReturned, reopenRecovery, removeRecovery, buildRecoveryQueue, recoveryQueueFiltered, buildRecoverySummary, recoverySummaryText, recoveryHtml, recoveryCsv, recoveryFilename } from './recovery-queue.js';
+import { HOLD_REASONS, HOLD_REASON_LABELS, HOLD_TREATMENTS, HOLD_TREATMENT_LABELS, HOLD_STATUSES, HOLD_STATUS_LABELS, normalizeHoldList, upsertHold, removeHold, holdMonthTreatment, holdMonthTreatmentText, endHold, reopenHold, holdsFiltered, buildHoldSummary, holdSummaryText, holdHtml, holdCsv, holdFilename } from './vacation-holds.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13518,6 +13519,7 @@ function renderAnalytics() {
   renderJobCost();
   renderRmaLog();
   renderRecoveryQueue();
+  renderVacationHolds();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -17119,6 +17121,149 @@ function renderRecoveryQueue() {
     });
     $('#recoveryExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(recoveryFilename(), recoveryCsv(shown));
+    });
+  }
+}
+const VACATION_HOLDS_KEY = 'shahdara_vacation_holds_v1';
+function loadVacationHolds() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(VACATION_HOLDS_KEY) || '[]');
+    return normalizeHoldList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveVacationHolds(list) {
+  try { localStorage.setItem(VACATION_HOLDS_KEY, JSON.stringify(normalizeHoldList(list))); } catch {}
+}
+let vacationHoldsBound = false;
+// Customer-requested vacation and seasonal hold (Plan 82): one
+// dated record per hold with a reason and an operator-set billing
+// treatment (no bill raised, or a retention charge only). The
+// SISP-8 flat hold fields on the customer record are neither read
+// nor written here — this panel owns only the dated record and
+// its month treatment. A hold creates no bill by itself and past
+// bills are never rewritten; the month check below only shows
+// what a month means for the picked hold.
+function renderVacationHolds() {
+  const bodyEl = $('#vacationHoldsBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const entries = loadVacationHolds();
+  const shown = holdsFiltered(entries, {
+    status: $('#vacationFilterStatus')?.value ?? '',
+    reason: $('#vacationFilterReason')?.value ?? '',
+    treatment: $('#vacationFilterTreatment')?.value ?? '',
+    mohalla: $('#vacationFilterMohalla')?.value ?? '',
+  });
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = holdHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const summaryEl = $('#vacationHoldsSummary');
+  if (summaryEl) summaryEl.textContent = holdSummaryText(buildHoldSummary(entries));
+  const customerEl = $('#vacationCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const selectEl = $('#vacationSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = entries.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(HOLD_STATUS_LABELS[entry.status])}</option>`).join('')
+      || '<option value="">No holds yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['vacationFilterStatus', HOLD_STATUSES, HOLD_STATUS_LABELS],
+    ['vacationFilterReason', HOLD_REASONS, HOLD_REASON_LABELS],
+    ['vacationFilterTreatment', HOLD_TREATMENTS, HOLD_TREATMENT_LABELS],
+    ['vacationReason', HOLD_REASONS, HOLD_REASON_LABELS],
+    ['vacationTreatment', HOLD_TREATMENTS, HOLD_TREATMENT_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('vacationFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  const mohallaEl = $('#vacationMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+    mohallaEl.value = selected ? (selected.mohalla || selected.area || '') : '';
+  }
+  if (!vacationHoldsBound) {
+    vacationHoldsBound = true;
+    $('#vacationFilterStatus')?.addEventListener('change', () => renderVacationHolds());
+    $('#vacationFilterReason')?.addEventListener('change', () => renderVacationHolds());
+    $('#vacationFilterTreatment')?.addEventListener('change', () => renderVacationHolds());
+    $('#vacationFilterMohalla')?.addEventListener('input', () => renderVacationHolds());
+    $('#vacationCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#vacationCustomer')?.value ?? ''));
+      const mohallaInput = $('#vacationMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+    });
+    $('#vacationRecordBtn')?.addEventListener('click', () => {
+      const id = $('#vacationId')?.value.trim() ?? '';
+      const customerId = $('#vacationCustomer')?.value ?? '';
+      if (!id || !customerId) { toast('A hold needs an id and a customer.'); return; }
+      const next = upsertHold(loadVacationHolds(), {
+        id,
+        customerId,
+        customerName: names[customerId] || '',
+        requestId: $('#vacationRequestId')?.value.trim() ?? '',
+        startDate: $('#vacationStart')?.value ?? '',
+        expectedReturnDate: $('#vacationExpectedReturn')?.value ?? '',
+        reason: $('#vacationReason')?.value ?? '',
+        treatment: $('#vacationTreatment')?.value ?? '',
+        retentionAmount: $('#vacationRetention')?.value ?? '',
+        status: 'active',
+        mohalla: $('#vacationMohalla')?.value ?? '',
+      });
+      if (!next.some((row) => row.id === id)) {
+        toast('That hold is half-formed: it needs a start date, an expected return date after it, a reason, and — for a retention hold — a positive retention charge.');
+        return;
+      }
+      saveVacationHolds(next);
+      toast('Hold recorded. It creates no bill by itself.');
+      renderVacationHolds();
+    });
+    $('#vacationEndBtn')?.addEventListener('click', () => {
+      const id = $('#vacationSelect')?.value ?? '';
+      if (!id) return;
+      const next = endHold(loadVacationHolds(), id, $('#vacationEndDate')?.value ?? '');
+      const updated = next.find((row) => row.id === id);
+      if (!updated || updated.status !== 'ended') {
+        toast('Ending a hold needs a real return date on or after the start date, and only an active hold can end.');
+        return;
+      }
+      saveVacationHolds(next);
+      toast('Hold ended. Ordinary billing returns from the first month not fully inside the hold; treated months are never rewritten.');
+      renderVacationHolds();
+    });
+    $('#vacationReopenBtn')?.addEventListener('click', () => {
+      const id = $('#vacationSelect')?.value ?? '';
+      if (!id) return;
+      saveVacationHolds(reopenHold(loadVacationHolds(), id));
+      renderVacationHolds();
+    });
+    $('#vacationRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#vacationSelect')?.value ?? '';
+      if (!id) return;
+      saveVacationHolds(removeHold(loadVacationHolds(), id));
+      renderVacationHolds();
+    });
+    $('#vacationCheckMonthBtn')?.addEventListener('click', () => {
+      const id = $('#vacationSelect')?.value ?? '';
+      const month = $('#vacationCheckMonth')?.value ?? '';
+      const resultEl = $('#vacationMonthResult');
+      const entry = loadVacationHolds().find((row) => row.id === id);
+      if (!entry || !month) { if (resultEl) resultEl.textContent = 'Pick a hold and a month first.'; return; }
+      if (resultEl) resultEl.textContent = holdMonthTreatmentText(holdMonthTreatment(entry, month));
+    });
+    $('#vacationExportBtn')?.addEventListener('click', () => {
+      const fresh = holdsFiltered(loadVacationHolds(), {
+        status: $('#vacationFilterStatus')?.value ?? '',
+        reason: $('#vacationFilterReason')?.value ?? '',
+        treatment: $('#vacationFilterTreatment')?.value ?? '',
+        mohalla: $('#vacationFilterMohalla')?.value ?? '',
+      });
+      downloadCsvFile(holdFilename(), holdCsv(fresh));
     });
   }
 }

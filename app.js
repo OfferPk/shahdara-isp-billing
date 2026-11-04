@@ -281,6 +281,7 @@ import { CLAIM_CHANNELS, CLAIM_CHANNEL_LABELS, CLAIM_OUTCOMES, CLAIM_OUTCOME_LAB
 import { RESOLUTION_PATHS, RESOLUTION_PATH_LABELS, normalizeResolution, normalizeDisputeResolutionList, upsertResolution, removeResolution, findResolution, resolutionReadiness, resolutionChecklist, buildResolutionSummaryWithThreshold, resolutionSummaryText, resolutionHtml, resolutionCsv, resolutionFilename, checklistHtml } from './dispute-resolutions.js';
 import { DISPUTE_LETTER_VARIANTS, normalizeLetterVariant, letterStatus, buildOutcomeLetter, letterSentText, buildMonthlyDisputeView, monthlyDisputeViewText, monthlyDisputeHtml, monthlyDisputeCsv, monthlyDisputeFilename, logLetterSent, findLetterSends, letterHtml } from './dispute-letters.js';
 import { answerPucho, buildMorningQueue, puchoHtml, puchoCatalogueHtml, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
+import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13239,6 +13240,7 @@ function renderAnalytics() {
   renderDisputeResolutions();
   renderDisputeLetters();
   renderPuchoBox();
+  renderMonthClose();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -15325,6 +15327,119 @@ function renderPuchoBox() {
       const button = event.target.closest?.('.pucho-action-btn');
       if (!button) return;
       toast(`"${button.dataset.puchoAction}" — asking changes nothing. Confirm this action on the ${button.dataset.puchoSource} screen first.`);
+    });
+  }
+}
+// Plan 67 (Plan 1-100) — Month-end close checklist. One ticked
+// record per month with the same six ordered steps; ticking,
+// waiving, closing, or reopening a step never posts, corrects,
+// or closes any other record. A closed month reopens only with
+// an owner-recorded reason, which is also written into the
+// Plan 31 operator action audit log. This is the close routine,
+// not the owner pack (Plan R), not the balance proof (Plan 68),
+// and not the SISP-130 pre-flight wizard, which is neither read
+// nor written here.
+const MONTH_CLOSE_KEY = 'shahdara_month_close_v1';
+function loadMonthClose() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MONTH_CLOSE_KEY) || '[]');
+    return normalizeMonthCloseList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveMonthClose(list) {
+  try { localStorage.setItem(MONTH_CLOSE_KEY, JSON.stringify(normalizeMonthCloseList(list))); } catch {}
+}
+let monthCloseBound = false;
+function renderMonthClose() {
+  const bodyEl = $('#monthCloseBody');
+  if (!bodyEl) return;
+  const monthEl = $('#monthCloseMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const month = monthEl?.value ?? localDate().slice(0, 7);
+  const list = loadMonthClose();
+  const record = validCloseMonth(month) ? findMonthClose(list, month) : null;
+  const stepEl = $('#monthCloseStep');
+  if (stepEl && document.activeElement !== stepEl) {
+    stepEl.innerHTML = CLOSE_STEPS.map((step) => `<option value="${escapeHtml(step.id)}">${escapeHtml(step.label)}</option>`).join('');
+  }
+  const summaryEl = $('#monthCloseSummary');
+  if (!record) {
+    bodyEl.innerHTML = '<p style="font-size: 12px;">No close checklist started for this month yet.</p>';
+    if (summaryEl) summaryEl.textContent = '';
+  } else {
+    bodyEl.innerHTML = monthCloseHtml(record);
+    if (summaryEl) summaryEl.textContent = monthCloseSummaryText(record);
+  }
+  const closeBtn = $('#monthCloseCloseBtn');
+  if (closeBtn) closeBtn.disabled = !record || record.status === 'closed';
+  const reopenBtn = $('#monthCloseReopenBtn');
+  if (reopenBtn) reopenBtn.disabled = !record || record.status !== 'closed';
+  if (!monthCloseBound) {
+    monthCloseBound = true;
+    $('#monthCloseMonth')?.addEventListener('change', () => renderMonthClose());
+    $('#monthCloseStartBtn')?.addEventListener('click', () => {
+      const picked = $('#monthCloseMonth')?.value ?? '';
+      if (!validCloseMonth(picked)) { toast('Pick a valid month first.'); return; }
+      if (findMonthClose(loadMonthClose(), picked)) { toast('A checklist for this month already exists.'); return; }
+      saveMonthClose([...loadMonthClose(), blankMonthClose(picked)]);
+      toast('Close checklist started. Ticking a step changes no other record.');
+      renderMonthClose();
+    });
+    const stepAction = (action) => {
+      const picked = $('#monthCloseMonth')?.value ?? '';
+      const stepId = $('#monthCloseStep')?.value ?? '';
+      const date = $('#monthCloseDate')?.value ?? '';
+      const by = ($('#monthCloseBy')?.value ?? '').trim();
+      const reason = ($('#monthCloseReason')?.value ?? '').trim();
+      const before = loadMonthClose();
+      let next = before;
+      if (action === 'tick') next = tickCloseStep(next, { month: picked, stepId, date, by });
+      else if (action === 'waive') next = waiveCloseStep(next, { month: picked, stepId, date, by, reason });
+      else next = untickCloseStep(next, { month: picked, stepId });
+      if (JSON.stringify(next) === JSON.stringify(before)) {
+        toast(action === 'waive'
+          ? 'Waiving needs a date, a name, and a reason — and an open month.'
+          : 'Ticking needs a date and a name — and an open month.');
+        return;
+      }
+      saveMonthClose(next);
+      renderMonthClose();
+    };
+    $('#monthCloseTickBtn')?.addEventListener('click', () => stepAction('tick'));
+    $('#monthCloseWaiveBtn')?.addEventListener('click', () => stepAction('waive'));
+    $('#monthCloseUntickBtn')?.addEventListener('click', () => stepAction('untick'));
+    $('#monthCloseCloseBtn')?.addEventListener('click', () => {
+      const picked = $('#monthCloseMonth')?.value ?? '';
+      const by = ($('#monthCloseBy')?.value ?? '').trim();
+      const recordNow = findMonthClose(loadMonthClose(), picked);
+      if (!recordNow) { toast('Start the checklist for this month first.'); return; }
+      const readiness = closeReadiness(recordNow);
+      if (!readiness.canClose) { toast(`Cannot close yet — still pending: ${readiness.missing.join(', ')}.`); return; }
+      saveMonthClose(closeMonth(loadMonthClose(), { month: picked, date: localDate(), by }));
+      toast('Month marked closed. Closing ticks nothing and changes no other record.');
+      renderMonthClose();
+    });
+    $('#monthCloseReopenBtn')?.addEventListener('click', () => {
+      const picked = $('#monthCloseMonth')?.value ?? '';
+      const by = ($('#monthCloseBy')?.value ?? '').trim();
+      const reason = ($('#monthCloseReason')?.value ?? '').trim();
+      if (!reason) { toast('Reopening needs an owner-recorded reason.'); return; }
+      const before = loadMonthClose();
+      const next = reopenMonth(before, { month: picked, reason, by, date: localDate() });
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Only a closed month can be reopened, with a reason, by, and date.'); return; }
+      saveMonthClose(next);
+      recordAudit('month_close_reopened', { recordRef: picked, detail: reason, by });
+      toast('Month reopened. The reason is recorded in the audit log.');
+      renderMonthClose();
+    });
+    $('#monthCloseRemoveBtn')?.addEventListener('click', () => {
+      const picked = $('#monthCloseMonth')?.value ?? '';
+      saveMonthClose(removeMonthClose(loadMonthClose(), picked));
+      renderMonthClose();
+    });
+    $('#monthCloseExportBtn')?.addEventListener('click', () => {
+      const picked = $('#monthCloseMonth')?.value ?? '';
+      downloadCsvFile(monthCloseFilename(picked), monthCloseCsv(loadMonthClose()));
     });
   }
 }

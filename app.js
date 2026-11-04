@@ -184,7 +184,7 @@ import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, v
 import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { displayCustomerName, currentAppLanguage } from './urdu-names.js';
-import { applyFifoPaymentEventToState, applicablePriceForMonth, buildArrearsBreakdown, loadBillingCycles, pakistanMonthKey, setupBillingCycleModal } from './billing-cycle.js';
+import { applyFifoPaymentEventToState, applicablePriceForMonth, arrearsAndAdvance, buildArrearsBreakdown, loadBillingCycles, pakistanMonthKey, setupBillingCycleModal } from './billing-cycle.js';
 import { billClarityBreakdown, customerBillClarityBreakdowns } from './billing-clarity.js';
 import { sanitizeSubContributors } from './shared-router-contributors.js?v=1.11.0';
 import { setupMonthEndWizard } from './month-end-wizard.js';
@@ -282,6 +282,7 @@ import { RESOLUTION_PATHS, RESOLUTION_PATH_LABELS, normalizeResolution, normaliz
 import { DISPUTE_LETTER_VARIANTS, normalizeLetterVariant, letterStatus, buildOutcomeLetter, letterSentText, buildMonthlyDisputeView, monthlyDisputeViewText, monthlyDisputeHtml, monthlyDisputeCsv, monthlyDisputeFilename, logLetterSent, findLetterSends, letterHtml } from './dispute-letters.js';
 import { answerPucho, buildMorningQueue, puchoHtml, puchoCatalogueHtml, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
 import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
+import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13241,6 +13242,7 @@ function renderAnalytics() {
   renderDisputeLetters();
   renderPuchoBox();
   renderMonthClose();
+  renderRollForward();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -15440,6 +15442,99 @@ function renderMonthClose() {
     $('#monthCloseExportBtn')?.addEventListener('click', () => {
       const picked = $('#monthCloseMonth')?.value ?? '';
       downloadCsvFile(monthCloseFilename(picked), monthCloseCsv(loadMonthClose()));
+    });
+  }
+}
+// Plan 68: balance roll-forward, read-only. The proof view only:
+// opening (previous arrears from the allocation engine, Plan P) plus
+// this month's bills raised, minus cash received, minus concessions
+// and waivers applied through their existing paths, equals the
+// closing balance. A customer with no bill in the month carries the
+// opening balance forward unchanged. Nothing here posts, corrects,
+// or rewrites any figure; a row that does not reconcile shows its
+// difference plainly.
+let rollForwardBound = false;
+function rollForwardRowsForMonth(month) {
+  return (state.customers ?? []).map((customer) => {
+    const opening = arrearsAndAdvance(customer, month).previousArrears;
+    const bills = (customer.bills ?? []).filter((bill) => bill && bill.month === month);
+    const charges = [];
+    const payments = [];
+    const concessions = [];
+    let reported = opening;
+    for (const bill of bills) {
+      const breakdown = billClarityBreakdown(customer, bill);
+      if (!breakdown) continue;
+      const billId = bill.id ?? bill.month;
+      const push = (list, label, amount) => {
+        if (typeof amount === 'number' && amount > 0) list.push({ sourceId: String(billId), label, amount });
+      };
+      push(charges, 'Monthly package', breakdown.packageAmount);
+      push(charges, 'Kist (installments this month)', breakdown.kistAmount);
+      push(charges, 'Late fee', breakdown.lateFeeAmount);
+      push(charges, 'Shifting fee', breakdown.shiftingFeeAmount);
+      push(payments, 'Cash received this month', breakdown.cashPaid);
+      push(concessions, 'Concession', breakdown.concessionAmount);
+      push(concessions, 'Deposit offset', breakdown.depositOffsetAmount);
+      push(concessions, 'Referral credit', breakdown.referralCreditAmount);
+      push(concessions, 'Feeder host credit', breakdown.feederHostCreditAmount);
+      push(concessions, 'Credit transfer in', breakdown.creditTransferInAmount);
+      push(concessions, 'Bad-debt write-off', breakdown.badDebtWriteOffAmount);
+      push(concessions, 'Advance consumed', breakdown.advanceConsumed);
+      push(concessions, 'Payment discount', breakdown.discountApplied);
+      reported += (breakdown.netBalance ?? 0) - (breakdown.previousArrears ?? 0);
+    }
+    return buildCustomerRollForward({
+      customerId: customer.id,
+      customerName: customer.name || customer.id,
+      mohalla: customer.mohalla || '',
+      month,
+      opening,
+      charges,
+      payments,
+      concessions,
+      reportedClosing: reported,
+    });
+  }).filter((row) => row !== null);
+}
+function renderRollForward() {
+  const bodyEl = $('#rollForwardBody');
+  if (!bodyEl) return;
+  const monthEl = $('#rollForwardMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const month = monthEl?.value ?? localDate().slice(0, 7);
+  const customerEl = $('#rollForwardCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    const current = customerEl.value ?? '';
+    customerEl.innerHTML = `<option value="">All customers</option>` + (state.customers ?? []).map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.id)}</option>`).join('');
+    if ((state.customers ?? []).some((c) => String(c.id) === String(current))) customerEl.value = current;
+  }
+  const summaryEl = $('#rollForwardSummary');
+  if (!validRollMonth(month)) {
+    bodyEl.innerHTML = '<p style="font-size: 12px;">Pick a valid month to see the roll-forward.</p>';
+    if (summaryEl) summaryEl.textContent = '';
+  } else {
+    const rows = rollForwardRowsForMonth(month);
+    const totals = buildRollForwardTotals(rows);
+    const picked = customerEl?.value ?? '';
+    if (picked) {
+      const row = rows.find((item) => String(item.customerId) === String(picked));
+      bodyEl.innerHTML = row ? rollForwardHtml(row) : '<p style="font-size: 12px;">No roll-forward row for this customer.</p>';
+      if (summaryEl) summaryEl.textContent = row ? rollForwardSummaryText(row) : '';
+    } else {
+      bodyEl.innerHTML = rollForwardTableHtml(rows);
+      if (summaryEl) summaryEl.textContent = rollForwardSummaryText({ ...totals, month });
+    }
+  }
+  if (!rollForwardBound) {
+    rollForwardBound = true;
+    $('#rollForwardMonth')?.addEventListener('change', () => renderRollForward());
+    $('#rollForwardCustomer')?.addEventListener('change', () => renderRollForward());
+    $('#rollForwardExportBtn')?.addEventListener('click', () => {
+      const pickedMonth = $('#rollForwardMonth')?.value ?? localDate().slice(0, 7);
+      if (!validRollMonth(pickedMonth)) { toast('Pick a valid month first.'); return; }
+      const rows = rollForwardRowsForMonth(pickedMonth);
+      downloadCsvFile(rollForwardFilename(pickedMonth), rollForwardCsv(rows, buildRollForwardTotals(rows)));
     });
   }
 }

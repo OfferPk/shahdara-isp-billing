@@ -539,7 +539,17 @@ body.drawer-open {
   align-items: center;
   justify-content: center;
   z-index: 800;
+  /* Hidden by default: the author display:flex above overrides the UA
+     `hidden` rule, so without opacity/pointer-events here the button sat
+     over content (e.g. the profile Speak Due button) even at the top of
+     the page. It only appears once JS adds .is-visible after scrolling. */
+  opacity: 0;
+  pointer-events: none;
   transition: transform 0.2s ease, opacity 0.2s ease, background-color 0.15s ease;
+}
+
+.scroll-top-button[hidden] {
+  display: none;
 }
 
 .scroll-top-button.is-visible {
@@ -1689,7 +1699,7 @@ kbd {
   }
 
   .scroll-top-button {
-    bottom: 52px;
+    bottom: 60px;
     right: 12px;
     width: 34px;
     height: 34px;

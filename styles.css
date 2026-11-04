@@ -1080,8 +1080,8 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .profile-tab-panel{min-width:0}
 .profile-tab-panel[hidden],.customer-profile-view[hidden],.customer-profile-form[hidden]{display:none!important}
 .customer-profile-view{min-width:0}
-.profile-view-heading{margin-bottom:12px}
-.profile-view-actions{display:flex;align-items:center;gap:8px}
+.profile-view-heading{margin-bottom:12px;flex-wrap:wrap}
+.profile-view-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .profile-edit-button{min-height:34px;border:1px solid #b7cfc2;border-radius:8px;background:var(--surface);color:#174f40;padding:5px 11px;font-size:11px}
 .profile-readonly-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin:0}
 .profile-readonly-field{min-width:0;padding:9px 10px;border:1px solid #e3ebe7;border-radius:9px;background:var(--surface)}

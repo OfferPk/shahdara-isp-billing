@@ -293,6 +293,7 @@ import { validAnnualYear, monthsOfYear, buildAnnualSummary, annualSummaryText, a
 import { ENQUIRY_TYPES, ENQUIRY_TYPE_LABELS, ENQUIRY_STATUSES, ENQUIRY_STATUS_LABELS, ENQUIRY_REPLY_DRAFTS, ENQUIRY_REPLY_DRAFT_LABELS, ENQUIRY_REFERRED_STATUSES, normalizeEnquiry, normalizeEnquiryList, pendingEnquiries, buildEnquirySummary, enquirySummaryText, enquiryHtml, enquiryCsv, enquiryFilename, upsertEnquiry, removeEnquiry, markEnquiryAnswered, referEnquiry, reopenEnquiry } from './enquiry-log.js';
 import { DEPOSIT_DEVICE_TYPES, DEPOSIT_DEVICE_TYPE_LABELS, DEPOSIT_STATUSES, DEPOSIT_STATUS_LABELS, normalizeDeposit, normalizeDepositList, upsertDeposit, removeDeposit, markDepositRefunded, markDepositApplied, reopenDeposit, depositsFiltered, buildDepositSummary, depositSummaryText, depositHtml, depositCsv, depositFilename } from './deposit-register.js';
 import { LOAN_DEVICE_TYPES, LOAN_DEVICE_TYPE_LABELS, LOAN_STATUSES, LOAN_STATUS_LABELS, normalizeLoan, normalizeLoanList, upsertLoan, removeLoan, markLoanReturned, convertLoanPermanent, reopenLoan, loansFiltered, overdueLoans, buildLoanSummary, loanSummaryText, loanHtml, loanCsv, loanFilename } from './loan-tracker.js';
+import { JOB_MATERIAL_ITEMS, JOB_MATERIAL_LABELS, JOB_STATUSES, JOB_STATUS_LABELS, normalizeJob, normalizeJobList, upsertJob, removeJob, addJobMaterial, completeJob, reopenJob, jobsFiltered, buildJobCosts, buildJobSummary, jobSummaryText, jobHtml, jobCsv, jobFilename } from './job-cost.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13512,6 +13513,7 @@ function renderAnalytics() {
   renderEnquiryLog();
   renderDepositRegister();
   renderLoanTracker();
+  renderJobCost();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -16706,6 +16708,172 @@ function renderLoanTracker() {
     });
     $('#loanExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(loanFilename(), loanCsv(loadLoanTracker()));
+    });
+  }
+}
+const JOB_COST_KEY = 'shahdara_job_cost_v1';
+let jobCostBound = false;
+function loadJobCost() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(JOB_COST_KEY) || '[]');
+    return normalizeJobList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveJobCost(list) {
+  try { localStorage.setItem(JOB_COST_KEY, JSON.stringify(normalizeJobList(list))); } catch {}
+}
+function jobRupeesToCents(value) {
+  const raw = (value ?? '').toString().trim();
+  if (!raw) return null;
+  const num = Number(raw);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.round(num * 100);
+}
+// Installation job cost sheet (Plan 79): one record per job with
+// its materials, labour, transport, and fee, shown as fee minus
+// recorded costs equals margin. A cost view only — it posts no
+// expense, raises no bill, and moves no stock; stock totals move
+// only through the normal stock-issue movement, and a job with no
+// cost entries shows as uncosted, never as zero-cost.
+function renderJobCost() {
+  const bodyEl = $('#jobCostBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const entries = loadJobCost();
+  const shown = jobsFiltered(entries, {
+    status: $('#jobCostFilterStatus')?.value ?? '',
+    mohalla: $('#jobCostFilterMohalla')?.value ?? '',
+  });
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = jobHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const summaryEl = $('#jobCostSummary');
+  if (summaryEl) summaryEl.textContent = jobSummaryText(buildJobSummary(entries));
+  const customerEl = $('#jobCostCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const selectEl = $('#jobCostSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = entries.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(JOB_STATUS_LABELS[entry.status])}</option>`).join('')
+      || '<option value="">No job sheets yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['jobCostFilterStatus', JOB_STATUSES, JOB_STATUS_LABELS],
+    ['jobCostMaterial', JOB_MATERIAL_ITEMS, JOB_MATERIAL_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('jobCostFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  const mohallaEl = $('#jobCostMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+    mohallaEl.value = selected ? (selected.mohalla || selected.area || '') : '';
+  }
+  if (!jobCostBound) {
+    jobCostBound = true;
+    $('#jobCostCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#jobCostCustomer')?.value ?? ''));
+      const mohallaInput = $('#jobCostMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+      renderJobCost();
+    });
+    $('#jobCostFilterStatus')?.addEventListener('change', () => renderJobCost());
+    $('#jobCostFilterMohalla')?.addEventListener('input', () => renderJobCost());
+    $('#jobCostRecordBtn')?.addEventListener('click', () => {
+      const customerId = $('#jobCostCustomer')?.value ?? '';
+      if (!customerId) { toast('Pick a customer first.'); return; }
+      const selected = customers.find((c) => String(c.id) === String(customerId));
+      const record = normalizeJob({
+        id: $('#jobCostId')?.value ?? '',
+        customerId,
+        customerName: selected ? (selected.name || selected.customerName || '') : '',
+        onboardingId: $('#jobCostOnboardingId')?.value ?? '',
+        date: $('#jobCostDate')?.value ?? '',
+        mohalla: $('#jobCostMohalla')?.value ?? '',
+        materials: [],
+        labourMinutes: $('#jobCostLabourMinutes')?.value ?? '',
+        labourCostCents: jobRupeesToCents($('#jobCostLabourCost')?.value ?? ''),
+        transportCostCents: jobRupeesToCents($('#jobCostTransportCost')?.value ?? ''),
+        feeCents: jobRupeesToCents($('#jobCostFee')?.value ?? ''),
+        status: 'draft',
+      });
+      if (!record) {
+        toast('A job sheet needs an id, a customer, and a valid job date.');
+        return;
+      }
+      saveJobCost(upsertJob(loadJobCost(), record));
+      toast('Job sheet recorded as draft. This sheet posts no expense and raises no bill.');
+      renderJobCost();
+    });
+    $('#jobCostAddMaterialBtn')?.addEventListener('click', () => {
+      const id = $('#jobCostSelect')?.value ?? '';
+      if (!id) return;
+      const unitCostCents = jobRupeesToCents($('#jobCostMaterialCost')?.value ?? '');
+      const next = addJobMaterial(loadJobCost(), id, {
+        item: $('#jobCostMaterial')?.value ?? '',
+        label: $('#jobCostMaterialOther')?.value ?? '',
+        qty: $('#jobCostMaterialQty')?.value ?? '',
+        unitCostCents,
+      });
+      const updated = next.find((entry) => entry.id === id);
+      if (!updated || updated.materials.length === 0) {
+        toast('A material needs a stock item, a positive quantity, and a unit cost.');
+        return;
+      }
+      saveJobCost(next);
+      renderJobCost();
+    });
+    $('#jobCostUpdateBtn')?.addEventListener('click', () => {
+      const id = $('#jobCostSelect')?.value ?? '';
+      if (!id) return;
+      const current = loadJobCost();
+      const entry = current.find((row) => row.id === id);
+      if (!entry) return;
+      const labourMinutesRaw = $('#jobCostLabourMinutes')?.value ?? '';
+      const labourCostRaw = $('#jobCostLabourCost')?.value ?? '';
+      const transportCostRaw = $('#jobCostTransportCost')?.value ?? '';
+      const feeRaw = $('#jobCostFee')?.value ?? '';
+      const updated = normalizeJob({
+        ...entry,
+        labourMinutes: labourMinutesRaw === '' ? entry.labourMinutes : labourMinutesRaw,
+        labourCostCents: labourCostRaw === '' ? entry.labourCostCents : jobRupeesToCents(labourCostRaw),
+        transportCostCents: transportCostRaw === '' ? entry.transportCostCents : jobRupeesToCents(transportCostRaw),
+        feeCents: feeRaw === '' ? entry.feeCents : jobRupeesToCents(feeRaw),
+      });
+      if (!updated) { toast('Those cost figures are not valid.'); return; }
+      saveJobCost(upsertJob(current, updated));
+      renderJobCost();
+    });
+    $('#jobCostCompleteBtn')?.addEventListener('click', () => {
+      const id = $('#jobCostSelect')?.value ?? '';
+      if (!id) return;
+      const next = completeJob(loadJobCost(), id);
+      if (next.find((entry) => entry.id === id)?.status !== 'complete') {
+        toast('Only a draft sheet can be completed.');
+        return;
+      }
+      saveJobCost(next);
+      renderJobCost();
+    });
+    $('#jobCostReopenBtn')?.addEventListener('click', () => {
+      const id = $('#jobCostSelect')?.value ?? '';
+      if (!id) return;
+      saveJobCost(reopenJob(loadJobCost(), id));
+      renderJobCost();
+    });
+    $('#jobCostRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#jobCostSelect')?.value ?? '';
+      if (!id) return;
+      saveJobCost(removeJob(loadJobCost(), id));
+      renderJobCost();
+    });
+    $('#jobCostExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(jobFilename(), jobCsv(loadJobCost()));
     });
   }
 }

@@ -299,6 +299,7 @@ import { RECOVERY_STATUSES, RECOVERY_STATUS_LABELS, normalizeRecoveryList, upser
 import { HOLD_REASONS, HOLD_REASON_LABELS, HOLD_TREATMENTS, HOLD_TREATMENT_LABELS, HOLD_STATUSES, HOLD_STATUS_LABELS, normalizeHoldList, upsertHold, removeHold, holdMonthTreatment, holdMonthTreatmentText, endHold, reopenHold, holdsFiltered, buildHoldSummary, holdSummaryText, holdHtml, holdCsv, holdFilename } from './vacation-holds.js';
 import { SUSPENSION_REASONS, SUSPENSION_REASON_LABELS, SUSPENSION_STATUSES, SUSPENSION_STATUS_LABELS, CHECKLIST_ITEMS, CHECKLIST_ITEM_LABELS, normalizeSuspensionList, upsertSuspension, removeSuspension, setChecklistItem, completeChecklist, reconnectSuspension, reopenSuspension, suspensionsFiltered, buildSuspensionSummary, suspensionSummaryText, suspensionHtml, suspensionCsv, suspensionFilename } from './suspension-records.js';
 import { RESUME_KINDS, RESUME_KIND_LABELS, RESUME_STATUSES, RESUME_STATUS_LABELS, buildResumeQueue, resumeQueueFiltered, buildResumeSummary, resumeSummaryText, resumeHtml, resumeCsv, resumeFilename } from './resume-queue.js';
+import { MOVE_STATUSES, MOVE_STATUS_LABELS, MOVE_TREATMENTS, MOVE_TREATMENT_LABELS, normalizeMoveList, upsertMove, removeMove, moveGapTreatment, moveGapTreatmentText, reconnectMove, reopenMove, movesFiltered, buildMoveSummary, moveSummaryText, movesToResumeRelocations, moveHtml, moveCsv, moveFilename } from './move-transfers.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13524,6 +13525,7 @@ function renderAnalytics() {
   renderVacationHolds();
   renderSuspensions();
   renderResumeQueue();
+  renderMoveTransfers();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -17451,7 +17453,8 @@ function renderResumeQueue() {
   const windowDaysRaw = parseInt($('#resumeWindowDays')?.value ?? '7', 10);
   const windowDays = Number.isInteger(windowDaysRaw) && windowDaysRaw >= 0 ? windowDaysRaw : 7;
   const holds = loadVacationHolds().map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' }));
-  const queue = buildResumeQueue(holds, [], { today: localDate(), windowDays });
+  const relocations = movesToResumeRelocations(loadMoveTransfers()).map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' }));
+  const queue = buildResumeQueue(holds, relocations, { today: localDate(), windowDays });
   const shown = resumeQueueFiltered(queue, {
     status: $('#resumeFilterStatus')?.value ?? '',
     kind: $('#resumeFilterKind')?.value ?? '',
@@ -17459,10 +17462,10 @@ function renderResumeQueue() {
   });
   bodyEl.innerHTML = resumeHtml(shown);
   const summaryEl = $('#resumeQueueSummary');
-  if (summaryEl) summaryEl.textContent = resumeSummaryText(buildResumeSummary(queue)) + ' Relocations join this queue with Plan 85; until then it lists holds only.';
+  if (summaryEl) summaryEl.textContent = resumeSummaryText(buildResumeSummary(queue)) + ' Relocations from Plan 85 moves are included.';
   const selectEl = $('#resumeSelect');
   if (selectEl && document.activeElement !== selectEl) {
-    selectEl.innerHTML = shown.filter((row) => row.kind === 'hold').map((row) => `<option value="${escapeHtml(row.id)}">${escapeHtml(row.id)} — ${escapeHtml(row.customerName || row.customerId)} — return ${escapeHtml(row.returnDate)}</option>`).join('')
+    selectEl.innerHTML = shown.map((row) => `<option value="${escapeHtml(row.kind === 'relocation' ? `relocation:${row.id}` : row.id)}">${escapeHtml(row.id)} — ${escapeHtml(row.customerName || row.customerId)} — ${escapeHtml(RESUME_KIND_LABELS[row.kind] ?? row.kind)} — return ${escapeHtml(row.returnDate)}</option>`).join('')
       || '<option value="">No resumable holds in view</option>';
   }
   for (const [elId, options, labels] of [
@@ -17481,10 +17484,24 @@ function renderResumeQueue() {
     $('#resumeFilterKind')?.addEventListener('change', () => renderResumeQueue());
     $('#resumeFilterMohalla')?.addEventListener('input', () => renderResumeQueue());
     $('#resumeConfirmBtn')?.addEventListener('click', () => {
-      const id = $('#resumeSelect')?.value ?? '';
-      if (!id) return;
-      const next = endHold(loadVacationHolds(), id, localDate());
-      const updated = next.find((row) => row.id === id);
+      const raw = $('#resumeSelect')?.value ?? '';
+      if (!raw) return;
+      if (raw.startsWith('relocation:')) {
+        const id = raw.slice('relocation:'.length);
+        const next = reconnectMove(loadMoveTransfers(), id, localDate());
+        const updated = next.find((row) => row.id === id);
+        if (!updated || updated.status !== 'reconnected') {
+          toast('That move cannot be reconnected from here: it must still be pending with a real reconnect date.');
+          return;
+        }
+        saveMoveTransfers(next);
+        toast('Resumption confirmed. The move is closed with today as its reconnect date; the customer keeps one profile at the new address.');
+        renderResumeQueue();
+        renderMoveTransfers();
+        return;
+      }
+      const next = endHold(loadVacationHolds(), raw, localDate());
+      const updated = next.find((row) => row.id === raw);
       if (!updated || updated.status !== 'ended') {
         toast('That hold cannot be resumed from here: it must still be active with a real return date.');
         return;
@@ -17495,12 +17512,154 @@ function renderResumeQueue() {
       renderVacationHolds();
     });
     $('#resumeExportBtn')?.addEventListener('click', () => {
-      const fresh = resumeQueueFiltered(buildResumeQueue(loadVacationHolds(), [], { today: localDate(), windowDays }), {
+      const fresh = resumeQueueFiltered(buildResumeQueue(loadVacationHolds(), movesToResumeRelocations(loadMoveTransfers()), { today: localDate(), windowDays }), {
         status: $('#resumeFilterStatus')?.value ?? '',
         kind: $('#resumeFilterKind')?.value ?? '',
         mohalla: $('#resumeFilterMohalla')?.value ?? '',
       });
       downloadCsvFile(resumeFilename(), resumeCsv(fresh));
+    });
+  }
+}
+const MOVE_TRANSFERS_KEY = 'shahdara_move_transfers_v1';
+function loadMoveTransfers() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MOVE_TRANSFERS_KEY) || '[]');
+    return normalizeMoveList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveMoveTransfers(list) {
+  try { localStorage.setItem(MOVE_TRANSFERS_KEY, JSON.stringify(normalizeMoveList(list))); } catch {}
+}
+let moveTransfersBound = false;
+// Move-house pause and transfer (Plan 85): one record per move
+// for the same customer at a new address. The connection update
+// itself lives in the connection register (Plan 17); only its
+// record id is kept here, and no new customer, bill, payment, or
+// deposit is ever created by this panel.
+function renderMoveTransfers() {
+  const bodyEl = $('#moveTransfersBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const entries = loadMoveTransfers();
+  const shown = movesFiltered(entries, {
+    status: $('#moveFilterStatus')?.value ?? '',
+    treatment: $('#moveFilterTreatment')?.value ?? '',
+    mohalla: $('#moveFilterMohalla')?.value ?? '',
+  });
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = moveHtml(shown.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const summaryEl = $('#moveTransfersSummary');
+  if (summaryEl) summaryEl.textContent = moveSummaryText(buildMoveSummary(entries));
+  const customerEl = $('#moveCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const selectEl = $('#moveSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = entries.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — ${escapeHtml(MOVE_STATUS_LABELS[entry.status])}</option>`).join('')
+      || '<option value="">No moves yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['moveFilterStatus', MOVE_STATUSES, MOVE_STATUS_LABELS],
+    ['moveFilterTreatment', MOVE_TREATMENTS, MOVE_TREATMENT_LABELS],
+    ['moveTreatment', MOVE_TREATMENTS, MOVE_TREATMENT_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('moveFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  const oldMohallaEl = $('#moveOldMohalla');
+  if (oldMohallaEl && document.activeElement !== oldMohallaEl) {
+    const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+    oldMohallaEl.value = selected ? (selected.mohalla || selected.area || '') : '';
+  }
+  if (!moveTransfersBound) {
+    moveTransfersBound = true;
+    $('#moveFilterStatus')?.addEventListener('change', () => renderMoveTransfers());
+    $('#moveFilterTreatment')?.addEventListener('change', () => renderMoveTransfers());
+    $('#moveFilterMohalla')?.addEventListener('input', () => renderMoveTransfers());
+    $('#moveCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#moveCustomer')?.value ?? ''));
+      const mohallaInput = $('#moveOldMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+    });
+    $('#moveRecordBtn')?.addEventListener('click', () => {
+      const id = $('#moveId')?.value.trim() ?? '';
+      const customerId = $('#moveCustomer')?.value ?? '';
+      if (!id || !customerId) { toast('A move needs an id and a customer.'); return; }
+      const next = upsertMove(loadMoveTransfers(), {
+        id,
+        customerId,
+        customerName: names[customerId] || '',
+        requestId: $('#moveRequestId')?.value.trim() ?? '',
+        connectionId: $('#moveConnectionId')?.value.trim() ?? '',
+        oldMohalla: $('#moveOldMohalla')?.value ?? '',
+        oldAddress: $('#moveOldAddress')?.value.trim() ?? '',
+        newMohalla: $('#moveNewMohalla')?.value ?? '',
+        newAddress: $('#moveNewAddress')?.value.trim() ?? '',
+        pauseStartDate: $('#movePauseStart')?.value ?? '',
+        expectedReconnectDate: $('#moveExpectedReconnect')?.value ?? '',
+        treatment: $('#moveTreatment')?.value ?? '',
+        retentionAmount: $('#moveRetention')?.value ?? '',
+        status: 'pending',
+      });
+      if (!next.some((row) => row.id === id)) {
+        toast('That move is half-formed: it needs both addresses, a pause start, an expected reconnect date after it, a gap treatment, and — for a retention move — a positive retention charge.');
+        return;
+      }
+      saveMoveTransfers(next);
+      toast('Move recorded. The customer keeps one profile; no bill, payment, or deposit is created here.');
+      renderMoveTransfers();
+      renderResumeQueue();
+    });
+    $('#moveReconnectBtn')?.addEventListener('click', () => {
+      const id = $('#moveSelect')?.value ?? '';
+      if (!id) return;
+      const next = reconnectMove(loadMoveTransfers(), id, $('#moveReconnectDate')?.value ?? '');
+      const updated = next.find((row) => row.id === id);
+      if (!updated || updated.status !== 'reconnected') {
+        toast('Reconnecting a move needs a real reconnect date on or after the pause start, and only a pending move can reconnect. Update the connection record in the register for the new port, splitter, or ONU.');
+        return;
+      }
+      saveMoveTransfers(next);
+      toast('Move reconnected. Both addresses and both dates are kept; the old connection entry stays in the register history.');
+      renderMoveTransfers();
+      renderResumeQueue();
+    });
+    $('#moveReopenBtn')?.addEventListener('click', () => {
+      const id = $('#moveSelect')?.value ?? '';
+      if (!id) return;
+      saveMoveTransfers(reopenMove(loadMoveTransfers(), id));
+      renderMoveTransfers();
+      renderResumeQueue();
+    });
+    $('#moveRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#moveSelect')?.value ?? '';
+      if (!id) return;
+      saveMoveTransfers(removeMove(loadMoveTransfers(), id));
+      renderMoveTransfers();
+      renderResumeQueue();
+    });
+    $('#moveCheckMonthBtn')?.addEventListener('click', () => {
+      const id = $('#moveSelect')?.value ?? '';
+      const month = $('#moveCheckMonth')?.value ?? '';
+      const resultEl = $('#moveMonthResult');
+      const entry = loadMoveTransfers().find((row) => row.id === id);
+      if (!entry || !month) { if (resultEl) resultEl.textContent = 'Pick a move and a month first.'; return; }
+      if (resultEl) resultEl.textContent = moveGapTreatmentText(moveGapTreatment(entry, month));
+    });
+    $('#moveExportBtn')?.addEventListener('click', () => {
+      const fresh = movesFiltered(loadMoveTransfers(), {
+        status: $('#moveFilterStatus')?.value ?? '',
+        treatment: $('#moveFilterTreatment')?.value ?? '',
+        mohalla: $('#moveFilterMohalla')?.value ?? '',
+      });
+      downloadCsvFile(moveFilename(), moveCsv(fresh));
     });
   }
 }

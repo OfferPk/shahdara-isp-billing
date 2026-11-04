@@ -373,6 +373,7 @@ import { normalizeRecheckList, upsertRecheck, removeRecheck, recheckAllHtml, rec
 import { normalizeSeasonalRiskList, upsertSeasonalRisk, removeSeasonalRisk, seasonalRiskAllHtml, seasonalRiskSeasonHtml, seasonalRiskSummaryText, seasonalRiskCsv, seasonalRiskFilename } from './seasonal-risk.js';
 import { normalizeHandoverList, upsertHandover, removeHandover, handoverAllHtml, handoverPersonHtml, handoverSummaryText, handoverCsv, handoverFilename } from './handover.js';
 import { normalizeComplaintAckList, upsertComplaintAck, removeComplaintAck, complaintAckAllHtml, complaintAckCustomerHtml, complaintAckSummaryText, complaintAckCsv, complaintAckFilename } from './complaint-ack.js';
+import { normalizeVisitFeedbackList, upsertVisitFeedback, removeVisitFeedback, markVisitFeedbackReviewed, feedbackAllHtml, feedbackCustomerHtml, feedbackUnreviewedHtml, feedbackSummaryText, feedbackCsv, feedbackFilename } from './visit-feedback.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13929,6 +13930,7 @@ function renderAnalytics() {
   renderSeasonalRisks();
   renderHandovers();
   renderComplaintAcks();
+  renderVisitFeedback();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23544,6 +23546,61 @@ function renderComplaintAcks() {
       downloadCsvFile(complaintAckFilename(), complaintAckCsv(loadComplaintAcks()));
     });
     $('#ackFilter')?.addEventListener('input', () => { renderComplaintAcks(); });
+  }
+}
+const VISIT_FEEDBACK_KEY = 'shahdara_visit_feedback_v1';
+function loadVisitFeedback() {
+  try { return normalizeVisitFeedbackList(JSON.parse(localStorage.getItem(VISIT_FEEDBACK_KEY) || '[]')); } catch { return []; }
+}
+function saveVisitFeedback(list) {
+  try { localStorage.setItem(VISIT_FEEDBACK_KEY, JSON.stringify(normalizeVisitFeedbackList(list))); } catch { /* visit feedback only: a failed save leaves the previous log in place */ }
+}
+let visitFeedbackBound = false;
+function renderVisitFeedback() {
+  const bodyEl = $('#fbBody');
+  if (!bodyEl) return;
+  const list = loadVisitFeedback();
+  bodyEl.innerHTML = feedbackAllHtml(list);
+  const customerEl = $('#fbCustomerBody');
+  if (customerEl) {
+    const customer = $('#fbFilter')?.value ?? '';
+    customerEl.innerHTML = customer ? feedbackCustomerHtml(list, customer) : '<p>Pick a customer to see their visit feedback; not-satisfied records stay flagged until marked reviewed.</p>';
+  }
+  const unreviewedEl = $('#fbUnreviewedBody');
+  if (unreviewedEl) unreviewedEl.innerHTML = feedbackUnreviewedHtml(list);
+  const summaryEl = $('#fbSummary');
+  if (summaryEl) summaryEl.textContent = feedbackSummaryText(list);
+  if (!visitFeedbackBound) {
+    visitFeedbackBound = true;
+    $('#fbSaveBtn')?.addEventListener('click', () => {
+      const before = loadVisitFeedback();
+      const next = upsertVisitFeedback(before, {
+        id: `FB-${Date.now()}`,
+        visitId: $('#fbVisit')?.value ?? '',
+        customer: $('#fbCustomer')?.value ?? '',
+        date: $('#fbDate')?.value ?? '',
+        rating: $('#fbRating')?.value ?? '',
+        comment: $('#fbComment')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Feedback not recorded: give a visit id, a customer, a real date, and a feedback choice. One feedback record per visit.'); return; }
+      saveVisitFeedback(next); renderVisitFeedback();
+    });
+    $('#fbReviewBtn')?.addEventListener('click', () => {
+      const id = ($('#fbReviewId')?.value ?? '').trim();
+      if (!id) return;
+      saveVisitFeedback(markVisitFeedbackReviewed(loadVisitFeedback(), id));
+      renderVisitFeedback();
+    });
+    $('#fbRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#fbRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveVisitFeedback(removeVisitFeedback(loadVisitFeedback(), id));
+      renderVisitFeedback();
+    });
+    $('#fbExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(feedbackFilename(), feedbackCsv(loadVisitFeedback()));
+    });
+    $('#fbFilter')?.addEventListener('input', () => { renderVisitFeedback(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

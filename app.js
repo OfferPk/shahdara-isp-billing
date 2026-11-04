@@ -353,6 +353,7 @@ import { normalizeFieldAttachmentList, upsertFieldAttachment, removeFieldAttachm
 import { normalizeRouteProofList, upsertRouteProof, removeRouteProof, routeProofSummaryText, routeProofHtml, routeProofDayHtml, routeProofFollowupHtml, routeProofCsv, routeProofFilename } from './route-proof.js';
 import { normalizeSecondVisitList, upsertSecondVisit, removeSecondVisit, markSecondVisitOutcome, secondVisitSummaryText, secondVisitHtml, secondVisitOverdueHtml, secondVisitCsv, secondVisitFilename } from './second-visit.js';
 import { normalizeEscalationList, upsertEscalation, removeEscalation, recordEscalationStage, closeEscalation, escalationSummaryText as escalationTimerSummaryText, escalationHtml as escalationTimerHtml, escalationCsv as escalationTimerCsv, escalationFilename as escalationTimerFilename } from './escalation-timer.js';
+import { normalizeSegmentDiaryList, upsertSegmentDiaryEntry, removeSegmentDiaryEntry, segmentDiarySummaryText, segmentDiaryHtml, segmentDiaryCsv, segmentDiaryFilename } from './segment-diary.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13889,6 +13890,7 @@ function renderAnalytics() {
   renderRouteProofs();
   renderSecondVisits();
   renderEscalations();
+  renderSegmentDiary();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22464,6 +22466,49 @@ function renderEscalations() {
       downloadCsvFile(escalationTimerFilename(), escalationTimerCsv(loadEscalations()));
     });
     $('#escFilter')?.addEventListener('input', () => { renderEscalations(); });
+  }
+}
+const SEGMENT_DIARY_KEY = 'shahdara_segment_diary_v1';
+function loadSegmentDiary() {
+  try { return normalizeSegmentDiaryList(JSON.parse(localStorage.getItem(SEGMENT_DIARY_KEY) || '[]')); } catch { return []; }
+}
+function saveSegmentDiary(list) {
+  try { localStorage.setItem(SEGMENT_DIARY_KEY, JSON.stringify(normalizeSegmentDiaryList(list))); } catch { /* diary only: a failed save leaves the previous entries in place */ }
+}
+let segmentDiaryBound = false;
+function renderSegmentDiary() {
+  const bodyEl = $('#diaryBody');
+  if (!bodyEl) return;
+  const entries = loadSegmentDiary();
+  bodyEl.innerHTML = segmentDiaryHtml(entries, $('#diaryFilter')?.value ?? '');
+  const summaryEl = $('#diarySummary');
+  if (summaryEl) summaryEl.textContent = segmentDiarySummaryText(entries);
+  if (!segmentDiaryBound) {
+    segmentDiaryBound = true;
+    $('#diarySaveBtn')?.addEventListener('click', () => {
+      const before = loadSegmentDiary();
+      const next = upsertSegmentDiaryEntry(before, {
+        id: `DIARY-${Date.now()}`,
+        segment: $('#diarySegment')?.value ?? '',
+        date: $('#diaryDate')?.value ?? '',
+        condition: $('#diaryCondition')?.value ?? '',
+        symptom: $('#diarySymptom')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Diary entry not recorded: give a segment name and a real date. A segment already has an entry for that date.'); return; }
+      saveSegmentDiary(next);
+      toast('Diary entry recorded. A segment drifting to poor shows up here before it becomes a fault.');
+      renderSegmentDiary();
+    });
+    $('#diaryRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#diaryRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveSegmentDiary(removeSegmentDiaryEntry(loadSegmentDiary(), id));
+      renderSegmentDiary();
+    });
+    $('#diaryExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(segmentDiaryFilename(), segmentDiaryCsv(loadSegmentDiary()));
+    });
+    $('#diaryFilter')?.addEventListener('input', () => { renderSegmentDiary(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

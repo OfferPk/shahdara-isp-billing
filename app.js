@@ -283,6 +283,7 @@ import { DISPUTE_LETTER_VARIANTS, normalizeLetterVariant, letterStatus, buildOut
 import { BALANCE_REPLY_VARIANTS, normalizeBalanceReplyVariant, validBalanceReplyDate, buildBalanceReply, balanceReplySentText, logBalanceReplySent, findBalanceReplySends, balanceReplyHtml } from './balance-reply.js';
 import { PAYMENT_SLIP_VARIANTS, PAYMENT_SLIP_DEFAULT_COUNT, normalizePaymentSlipVariant, normalizePaymentSlipCount, validPaymentSlipDate, buildPaymentSlip, paymentSlipSentText, logPaymentSlipSent, findPaymentSlipSends, paymentSlipHtml } from './payment-slip.js';
 import { INFO_CARD_VARIANTS, normalizeInfoCardVariant, buildInfoCard, infoCardSentText, logInfoCardSent, findInfoCardSends, infoCardHtml } from './info-card.js';
+import { STATUS_REPLY_VARIANTS, normalizeStatusReplyVariant, buildStatusReply, statusReplySentText, logStatusReplySent, findStatusReplySends, statusReplyHtml } from './status-reply.js';
 import { answerPucho, buildMorningQueue, puchoHtml, puchoCatalogueHtml, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
 import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
 import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
@@ -4576,6 +4577,24 @@ function renderCustomerProfileView(customer) {
   const infoCardSends = () => findInfoCardSends(loadInfoCardSentLog(), customer.id);
   const infoCardSendLabel = infoCardPref && infoCardPref.doNotMessage ? 'Do not message' : (infoCardSends().length > 0 ? 'Re-send info card' : 'Send info card');
   const infoCardSectionHtml = `<section class="profile-custody-section" aria-label="Package and service info card"><h4>Package and service info card</h4><p>When the customer asks "mera package kya hai, aur bill kab due hai?", send one consistent card instead of a different answer each time — current package and monthly price, billing cycle and next due date, connection status, expiry, and the support contact. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no package, billing, or lifecycle record.</p><div><label>Draft language <select id="infoCardVariant"><option value="${INFO_CARD_VARIANTS.ROMAN}" ${infoCardVariant === INFO_CARD_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${INFO_CARD_VARIANTS.URDU}" ${infoCardVariant === INFO_CARD_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="infoCardShowBtn">Show card</button></div><div id="infoCardResult">${infoCardCurrent ? infoCardHtml(infoCardCurrent, { draftText: infoCardCurrent.text, sends: infoCardSends() }) : '<p class="empty-state">Info card unavailable.</p>'}</div><button type="button" class="secondary-button" id="infoCardSendBtn" ${infoCardSendDisabled ? 'disabled' : ''}>${escapeHtml(infoCardSendLabel)}</button></section>`;
+  // Plan 75 (Plan 1-100) — Open fault and request status reply on
+  // the profile, after the info card section. When the customer
+  // chases an open fault or request, send one accurate status
+  // message — what was reported or requested, its current
+  // status, and the next step with a date where one is recorded
+  // — instead of a verbal "ho jayega". Resolved tickets are
+  // never included here (Plan 25 covers those); a customer with
+  // no open case gets a plain "no open case" wording, never an
+  // invented status. This is a draft only: sending opens
+  // WhatsApp with the text prefilled and logs the send; it
+  // changes no ticket or request record.
+  const statusReplyPref = balanceReplyPref;
+  let statusReplyVariant = balanceReplyVariant;
+  let statusReplyCurrent = statusReplyForCustomer(customer, statusReplyVariant);
+  const statusReplySendDisabled = Boolean(statusReplyPref && statusReplyPref.doNotMessage) || !statusReplyCurrent;
+  const statusReplySends = () => findStatusReplySends(loadStatusReplySentLog(), customer.id);
+  const statusReplySendLabel = statusReplyPref && statusReplyPref.doNotMessage ? 'Do not message' : (statusReplySends().length > 0 ? 'Re-send status reply' : 'Send status reply');
+  const statusReplySectionHtml = `<section class="profile-custody-section" aria-label="Open fault and request status reply"><h4>Open fault and request status reply</h4><p>When the customer chases an open fault or request, send one accurate status message instead of "ho jayega" — what was reported or requested, its current status, and the next step with a date where one is recorded. A customer with no open case gets a plain "no open case" wording, never an invented status. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no ticket or request record.</p><div><label>Draft language <select id="statusReplyVariant"><option value="${STATUS_REPLY_VARIANTS.ROMAN}" ${statusReplyVariant === STATUS_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${STATUS_REPLY_VARIANTS.URDU}" ${statusReplyVariant === STATUS_REPLY_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="statusReplyShowBtn">Show reply</button></div><div id="statusReplyResult">${statusReplyCurrent ? statusReplyHtml(statusReplyCurrent, { draftText: statusReplyCurrent.text, sends: statusReplySends() }) : '<p class="empty-state">Status reply unavailable.</p>'}</div><button type="button" class="secondary-button" id="statusReplySendBtn" ${statusReplySendDisabled ? 'disabled' : ''}>${escapeHtml(statusReplySendLabel)}</button></section>`;
   // Plan 46 (Plan 1-100) — Package change preview on the profile.
   // The preview is built from this profile's own package and monthly
   // amount, and the proposed package's catalogue price; both prices
@@ -4612,7 +4631,7 @@ function renderCustomerProfileView(customer) {
   const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
   const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
   const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p>When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><div><label>Date <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -4898,6 +4917,52 @@ function renderCustomerProfileView(customer) {
     const resultEl = $('#customerProfileView').querySelector('#infoCardResult');
     if (resultEl) resultEl.innerHTML = infoCardHtml(built, { draftText: built.text, sends: infoCardSends() });
     sendBtn.textContent = 'Re-send info card';
+  });
+  // Plan 75 (Plan 1-100) — Open fault and request status reply on
+  // the profile. Show rebuilds the reply from this profile's own
+  // open cases; Send opens WhatsApp with the text prefilled
+  // (plus the Plan 40 channel instructions) and logs the send.
+  // It changes no ticket or request record.
+  $('#customerProfileView').querySelector('#statusReplyShowBtn')?.addEventListener('click', () => {
+    statusReplyVariant = normalizeStatusReplyVariant($('#customerProfileView').querySelector('#statusReplyVariant')?.value || '');
+    statusReplyCurrent = statusReplyForCustomer(customer, statusReplyVariant);
+    const resultEl = $('#customerProfileView').querySelector('#statusReplyResult');
+    const sendBtnEl = $('#customerProfileView').querySelector('#statusReplySendBtn');
+    if (!statusReplyCurrent) {
+      if (resultEl) resultEl.innerHTML = '<p class="empty-state">Status reply unavailable.</p>';
+      if (sendBtnEl) sendBtnEl.disabled = true;
+      return;
+    }
+    if (resultEl) resultEl.innerHTML = statusReplyHtml(statusReplyCurrent, { draftText: statusReplyCurrent.text, sends: statusReplySends() });
+    if (sendBtnEl) {
+      sendBtnEl.disabled = Boolean(statusReplyPref && statusReplyPref.doNotMessage);
+      sendBtnEl.textContent = statusReplySends().length > 0 ? 'Re-send status reply' : 'Send status reply';
+    }
+  });
+  $('#customerProfileView').querySelector('#statusReplySendBtn')?.addEventListener('click', (event) => {
+    const sendBtn = event.currentTarget;
+    if (statusReplyPref && statusReplyPref.doNotMessage) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Do not message';
+      return;
+    }
+    const built = statusReplyCurrent;
+    if (!built) {
+      sendBtn.disabled = true;
+      return;
+    }
+    const channelVariant = built.variant === STATUS_REPLY_VARIANTS.URDU ? PAYMENT_CHANNEL_VARIANTS.URDU : PAYMENT_CHANNEL_VARIANTS.ROMAN;
+    const wa = formatWhatsAppUrl(statusReplyPref && statusReplyPref.whatsappNumber ? statusReplyPref.whatsappNumber : whatsappPhoneFor(customer), withPaymentInstructions(built.text, findPaymentChannel(loadPaymentChannels(), customer.id), channelVariant));
+    if (!wa.validPhone || !wa.url) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'No WhatsApp number';
+      return;
+    }
+    window.open(wa.url, '_blank', 'noopener,noreferrer');
+    saveStatusReplySentLog(logStatusReplySent(loadStatusReplySentLog(), { customerId: customer.id, sentAt: new Date().toISOString(), channel: 'whatsapp', variant: built.variant }));
+    const resultEl = $('#customerProfileView').querySelector('#statusReplyResult');
+    if (resultEl) resultEl.innerHTML = statusReplyHtml(built, { draftText: built.text, sends: statusReplySends() });
+    sendBtn.textContent = 'Re-send status reply';
   });
   $('#customerProfileView').querySelector('#billingCycleSaveBtn')?.addEventListener('click', () => {
     const dueDayValue = $('#customerProfileView').querySelector('#billingCycleDueDay')?.value || '';
@@ -15388,6 +15453,39 @@ function loadInfoCardSentLog() {
 }
 function saveInfoCardSentLog(list) {
   try { localStorage.setItem(INFO_CARD_SENT_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch {}
+}
+// Plan 75 (Plan 1-100) — Open fault and request status reply send
+// log. One entry per send (customer, time, channel, variant);
+// logging a send changes no ticket or request record.
+const STATUS_REPLY_SENT_KEY = 'shahdara_status_reply_sent_v1';
+function loadStatusReplySentLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STATUS_REPLY_SENT_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+function saveStatusReplySentLog(list) {
+  try { localStorage.setItem(STATUS_REPLY_SENT_KEY, JSON.stringify(Array.isArray(list) ? list : [])); } catch {}
+}
+// Build one customer's status reply from this profile's own
+// open cases: the Plan 21 ticket log (joined rows, so the
+// mohalla comes from the customer), the Plan 22 outage grouping
+// (only an open outage linked to a ticket is named), and the
+// Plan 50 change-request queue. Resolved and closed tickets are
+// never included — the post-resolution confirmation (Plan 25)
+// covers those. This draft changes no ticket or request record.
+function statusReplyForCustomer(customer, variant) {
+  const tickets = ticketLogJoinedRows().filter((row) => String(row.customerId) === String(customer.id));
+  const outages = loadOutageGrouping();
+  const requests = loadChangeRequests().filter((row) => String(row.customerId) === String(customer.id));
+  return buildStatusReply({
+    customerId: customer.id,
+    customerName: customer.name || customer.customerName,
+    tickets,
+    outages,
+    requests,
+    variant,
+  });
 }
 // Build one customer's info card from this profile's own
 // figures: current package and monthly price resolved through

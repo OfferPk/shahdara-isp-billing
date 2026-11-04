@@ -382,6 +382,7 @@ import { normalizeChangeConfirmationList, upsertChangeConfirmation, removeChange
 import { normalizeEducationNoteList, upsertEducationNote, removeEducationNote, normalizeEducationShareList, recordEducationShare, removeEducationShare, educationNotesSorted, educationSharesForCustomer, educationNoteStarters, educationNoteSummaryText, educationShareSummaryText, educationNoteAllHtml, educationShareAllHtml, educationNoteCsv, educationNoteFilename, educationShareCsv, educationShareFilename } from './education-note.js';
 import { normalizeReferralThanksList, upsertReferralThanks, removeReferralThanks, markReferralThanksSent, markReferralThanksUnsent, referralThanksForReferrer, referralThanksAllHtml, referralThanksSummaryText, referralThanksCsv, referralThanksFilename } from './referral-thanks.js';
 import { normalizeCadenceSettings, normalizeWinbackCadenceList, startWinbackCadence, removeWinbackCadence, completeWinbackStep, markWinbackCadenceReturned, markWinbackCadenceDoNotContact, winbackCadenceNext, winbackCadenceAllHtml, winbackCadenceSummaryText, winbackCadenceCsv, winbackCadenceFilename } from './winback-cadence.js';
+import { normalizeDormantSettings, normalizeDormantCustomerList, recordDormantCustomer, removeDormantCustomer, markDormantContacted, dormantCheckinList, dormantCheckinAllHtml, dormantCheckinSummaryText, dormantCheckinCsv, dormantCheckinFilename } from './dormant-checkin.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13951,6 +13952,7 @@ function renderAnalytics() {
   renderEducationNotes();
   renderReferralThanks();
   renderWinbackCadence();
+  renderDormantCheckin();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24201,6 +24203,78 @@ function renderWinbackCadence() {
       downloadCsvFile(winbackCadenceFilename(), winbackCadenceCsv(loadWinbackCadence(), loadWinbackCadenceSettings()));
     });
     $('#wcFilter')?.addEventListener('input', () => { renderWinbackCadence(); });
+  }
+}
+// Plan 172: dormant-but-paid customer check-in list. This panel only
+// lists paid-up customers past the owner's silence period, oldest
+// silent first, with last-contact date and mohalla. Contacting a
+// customer updates only the last-contact date in this panel's own
+// records; the list never changes any bill, payment, package, or
+// status, and it never sends anything — the check-in draft is a text
+// the operator sends by hand.
+const DORMANT_CHECKIN_KEY = 'shahdara_dormant_checkin_v1';
+const DORMANT_CHECKIN_SETTINGS_KEY = 'shahdara_dormant_checkin_settings_v1';
+function loadDormantCheckin() {
+  try { return normalizeDormantCustomerList(JSON.parse(localStorage.getItem(DORMANT_CHECKIN_KEY) || '[]')); } catch { return []; }
+}
+function saveDormantCheckin(list) {
+  try { localStorage.setItem(DORMANT_CHECKIN_KEY, JSON.stringify(normalizeDormantCustomerList(list))); } catch { /* dormant check-in only: a failed save leaves the previous list in place */ }
+}
+function loadDormantCheckinSettings() {
+  try { return normalizeDormantSettings(JSON.parse(localStorage.getItem(DORMANT_CHECKIN_SETTINGS_KEY) || '{}')); } catch { return normalizeDormantSettings(null); }
+}
+function saveDormantCheckinSettings(settings) {
+  try { localStorage.setItem(DORMANT_CHECKIN_SETTINGS_KEY, JSON.stringify(normalizeDormantSettings(settings))); } catch { /* dormant check-in settings only: a failed save leaves the previous settings in place */ }
+}
+let dormantCheckinBound = false;
+function renderDormantCheckin() {
+  const bodyEl = $('#dcBody');
+  if (!bodyEl) return;
+  const list = loadDormantCheckin();
+  const settings = loadDormantCheckinSettings();
+  const today = new Date().toISOString().slice(0, 10);
+  const filter = ($('#dcFilter')?.value ?? '').trim().toLowerCase();
+  const dormant = dormantCheckinList(list, settings, today);
+  const shown = filter ? dormant.filter((item) => item.customerId.toLowerCase().includes(filter) || item.mohalla.toLowerCase().includes(filter)) : dormant;
+  bodyEl.innerHTML = dormantCheckinAllHtml(shown, settings, today);
+  const summaryEl = $('#dcSummary');
+  if (summaryEl) summaryEl.textContent = dormantCheckinSummaryText(list, settings, today);
+  const silenceEl = $('#dcSilenceDays');
+  if (silenceEl && document.activeElement !== silenceEl) silenceEl.value = String(settings.silenceDays);
+  if (!dormantCheckinBound) {
+    dormantCheckinBound = true;
+    $('#dcSaveBtn')?.addEventListener('click', () => {
+      const before = loadDormantCheckin();
+      const next = recordDormantCustomer(before, {
+        id: `DC-${Date.now()}`,
+        customerId: $('#dcCustomer')?.value ?? '',
+        mohalla: $('#dcMohalla')?.value ?? '',
+        paidUp: $('#dcPaidUp')?.checked ?? false,
+        contactDate: $('#dcContactDate')?.value ?? '',
+        visitDate: $('#dcVisitDate')?.value ?? '',
+        feedbackDate: $('#dcFeedbackDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Customer not recorded: give a customer name and one record per customer only.'); return; }
+      saveDormantCheckin(next); renderDormantCheckin();
+    });
+    $('#dcRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#dcRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveDormantCheckin(removeDormantCustomer(loadDormantCheckin(), id)); renderDormantCheckin();
+    });
+    $('#dcContactBtn')?.addEventListener('click', () => {
+      const id = ($('#dcContactId')?.value ?? '').trim();
+      if (!id) return;
+      saveDormantCheckin(markDormantContacted(loadDormantCheckin(), id, $('#dcContactedDate')?.value ?? '')); renderDormantCheckin();
+    });
+    $('#dcSettingsBtn')?.addEventListener('click', () => {
+      saveDormantCheckinSettings({ silenceDays: $('#dcSilenceDays')?.value ?? '' });
+      renderDormantCheckin();
+    });
+    $('#dcExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(dormantCheckinFilename(), dormantCheckinCsv(loadDormantCheckin(), loadDormantCheckinSettings(), new Date().toISOString().slice(0, 10)));
+    });
+    $('#dcFilter')?.addEventListener('input', () => { renderDormantCheckin(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

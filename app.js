@@ -374,6 +374,7 @@ import { normalizeSeasonalRiskList, upsertSeasonalRisk, removeSeasonalRisk, seas
 import { normalizeHandoverList, upsertHandover, removeHandover, handoverAllHtml, handoverPersonHtml, handoverSummaryText, handoverCsv, handoverFilename } from './handover.js';
 import { normalizeComplaintAckList, upsertComplaintAck, removeComplaintAck, complaintAckAllHtml, complaintAckCustomerHtml, complaintAckSummaryText, complaintAckCsv, complaintAckFilename } from './complaint-ack.js';
 import { normalizeVisitFeedbackList, upsertVisitFeedback, removeVisitFeedback, markVisitFeedbackReviewed, feedbackAllHtml, feedbackCustomerHtml, feedbackUnreviewedHtml, feedbackSummaryText, feedbackCsv, feedbackFilename } from './visit-feedback.js';
+import { normalizeGreetingDateList, upsertGreetingDate, removeGreetingDate, markGreetingSent, greetingAllHtml, greetingCustomerHtml, greetingUpcomingHtml, greetingSummaryText, greetingCsv, greetingFilename } from './greeting-date.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13931,6 +13932,7 @@ function renderAnalytics() {
   renderHandovers();
   renderComplaintAcks();
   renderVisitFeedback();
+  renderGreetingDates();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23601,6 +23603,65 @@ function renderVisitFeedback() {
       downloadCsvFile(feedbackFilename(), feedbackCsv(loadVisitFeedback()));
     });
     $('#fbFilter')?.addEventListener('input', () => { renderVisitFeedback(); });
+  }
+}
+const GREETING_DATE_KEY = 'shahdara_greeting_dates_v1';
+function loadGreetingDates() {
+  try { return normalizeGreetingDateList(JSON.parse(localStorage.getItem(GREETING_DATE_KEY) || '[]')); } catch { return []; }
+}
+function saveGreetingDates(list) {
+  try { localStorage.setItem(GREETING_DATE_KEY, JSON.stringify(normalizeGreetingDateList(list))); } catch { /* greeting dates only: a failed save leaves the previous list in place */ }
+}
+let greetingDatesBound = false;
+function renderGreetingDates() {
+  const bodyEl = $('#gdBody');
+  if (!bodyEl) return;
+  const list = loadGreetingDates();
+  bodyEl.innerHTML = greetingAllHtml(list);
+  const customerEl = $('#gdCustomerBody');
+  if (customerEl) {
+    const customer = $('#gdFilter')?.value ?? '';
+    customerEl.innerHTML = customer ? greetingCustomerHtml(list, customer) : '<p>Pick a customer to see their greeting dates; each greeting is a draft the operator confirms before sending, never sent automatically.</p>';
+  }
+  const upcomingEl = $('#gdUpcomingBody');
+  if (upcomingEl) {
+    const ref = $('#gdRefDate')?.value || new Date().toISOString().slice(0, 10);
+    upcomingEl.innerHTML = greetingUpcomingHtml(list, ref);
+  }
+  const summaryEl = $('#gdSummary');
+  if (summaryEl) summaryEl.textContent = greetingSummaryText(list);
+  if (!greetingDatesBound) {
+    greetingDatesBound = true;
+    $('#gdSaveBtn')?.addEventListener('click', () => {
+      const before = loadGreetingDates();
+      const next = upsertGreetingDate(before, {
+        id: `GD-${Date.now()}`,
+        customer: $('#gdCustomer')?.value ?? '',
+        kind: $('#gdKind')?.value ?? '',
+        date: $('#gdDate')?.value ?? '',
+        draft: $('#gdDraft')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Greeting date not recorded: give a customer, a kind (birthday or anniversary), and a real date. One date per customer per kind.'); return; }
+      saveGreetingDates(next); renderGreetingDates();
+    });
+    $('#gdMarkSentBtn')?.addEventListener('click', () => {
+      const id = ($('#gdSentId')?.value ?? '').trim();
+      if (!id) return;
+      const ref = new Date().toISOString().slice(0, 10);
+      saveGreetingDates(markGreetingSent(loadGreetingDates(), id, ref));
+      renderGreetingDates();
+    });
+    $('#gdRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#gdRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveGreetingDates(removeGreetingDate(loadGreetingDates(), id));
+      renderGreetingDates();
+    });
+    $('#gdExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(greetingFilename(), greetingCsv(loadGreetingDates()));
+    });
+    $('#gdFilter')?.addEventListener('input', () => { renderGreetingDates(); });
+    $('#gdRefDate')?.addEventListener('input', () => { renderGreetingDates(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

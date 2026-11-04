@@ -361,6 +361,7 @@ import { normalizePoleInspectionList, parsePoleInspectionItems, upsertPoleInspec
 import { normalizeBatteryRuntimeList, upsertBatteryRuntimeRecord, removeBatteryRuntimeRecord, batteryRuntimeSummaryText, batteryRuntimeHtml, batteryRuntimeCsv, batteryRuntimeFilename } from './battery-runtime.js';
 import { normalizeToolKitList, upsertToolKitIssue, returnToolKitIssue, removeToolKitIssue, toolKitSummaryText, toolKitOutstandingHtml, toolKitCsv, toolKitFilename } from './tool-kit-log.js';
 import { normalizePremisesCheckList, upsertPremisesCheckRecord, removePremisesCheckRecord, premisesCheckSummaryText, premisesCustomerChecksHtml, premisesCheckCsv, premisesCheckFilename } from './premises-check.js';
+import { normalizeDropCableList, upsertDropCableRecord, removeDropCableRecord, dropCableSummaryText, dropCableCustomerHtml, dropCableWatchHtml, dropCableCsv, dropCableFilename } from './drop-cable.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13905,6 +13906,7 @@ function renderAnalytics() {
   renderBatteryRuntimes();
   renderToolKitLog();
   renderPremisesChecks();
+  renderDropCables();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22907,6 +22909,51 @@ function renderPremisesChecks() {
       downloadCsvFile(premisesCheckFilename(), premisesCheckCsv(loadPremisesChecks()));
     });
     $('#premisesFilter')?.addEventListener('input', () => { renderPremisesChecks(); });
+  }
+}
+const DROP_CABLE_KEY = 'shahdara_drop_cables_v1';
+function loadDropCables() {
+  try { return normalizeDropCableList(JSON.parse(localStorage.getItem(DROP_CABLE_KEY) || '[]')); } catch { return []; }
+}
+function saveDropCables(list) {
+  try { localStorage.setItem(DROP_CABLE_KEY, JSON.stringify(normalizeDropCableList(list))); } catch { /* records only: a failed save leaves the previous records in place */ }
+}
+let dropCableBound = false;
+function renderDropCables() {
+  const bodyEl = $('#dropCableBody');
+  if (!bodyEl) return;
+  const records = loadDropCables();
+  bodyEl.innerHTML = dropCableCustomerHtml(records, $('#dropCableFilter')?.value ?? '');
+  const watchEl = $('#dropCableWatchBody');
+  if (watchEl) watchEl.innerHTML = dropCableWatchHtml(records);
+  const summaryEl = $('#dropCableSummary');
+  if (summaryEl) summaryEl.textContent = dropCableSummaryText(records);
+  if (!dropCableBound) {
+    dropCableBound = true;
+    $('#dropCableSaveBtn')?.addEventListener('click', () => {
+      const before = loadDropCables();
+      const next = upsertDropCableRecord(before, {
+        id: `DC-${Date.now()}`,
+        customer: $('#dropCableCustomer')?.value ?? '',
+        date: $('#dropCableDate')?.value ?? '',
+        condition: $('#dropCableCondition')?.value ?? 'watch',
+        routeNote: $('#dropCableRouteNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Drop cable record not recorded: give a customer and a real date.'); return; }
+      saveDropCables(next);
+      toast('Drop cable record recorded. A poor latest condition puts the premises on the watch list.');
+      renderDropCables();
+    });
+    $('#dropCableRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#dropCableRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveDropCables(removeDropCableRecord(loadDropCables(), id));
+      renderDropCables();
+    });
+    $('#dropCableExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(dropCableFilename(), dropCableCsv(loadDropCables()));
+    });
+    $('#dropCableFilter')?.addEventListener('input', () => { renderDropCables(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

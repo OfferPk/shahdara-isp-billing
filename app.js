@@ -402,6 +402,7 @@ import { normalizeBusinessDeviceList, recordBusinessDevice, removeBusinessDevice
 import { normalizeLicenceList, recordLicence, removeLicence, markLicenceRenewed, licencesSorted, licenceAllHtml, licenceSummaryText, licenceCsv, licenceFilename } from './licence-tracker.js';
 import { normalizeShopAssetList, recordShopAsset, removeShopAsset, markShopAssetDisposed, shopAssetsSorted, shopAssetAllHtml, shopAssetSummaryText, shopAssetCsv, shopAssetFilename } from './shop-asset.js';
 import { normalizeMilestoneList, recordMilestone, removeMilestone, setMilestoneStatus, starterMilestones, milestonesSorted, milestoneAllHtml, milestoneSummaryText, milestoneReadinessText, milestoneCsv, milestoneFilename } from './growth-milestone.js';
+import { normalizeChecklistList, recordChecklist, removeChecklist, tickChecklistStep, untickChecklistStep, starterCollectorSteps, checklistsSorted, checklistAllHtml, checklistSummaryText, checklistCsv, checklistFilename } from './collector-onboarding.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13991,6 +13992,7 @@ function renderAnalytics() {
   renderLicences();
   renderShopAssets();
   renderGrowthMilestones();
+  renderCollectorOnboarding();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25319,6 +25321,54 @@ function renderGrowthMilestones() {
       renderGrowthMilestones();
     });
     $('#gmFilter')?.addEventListener('input', () => { renderGrowthMilestones(); });
+  }
+}
+const COLLECTOR_ONBOARDING_KEY = 'shahdara_collector_onboarding_v1';
+function loadCollectorOnboarding() {
+  try { return normalizeChecklistList(JSON.parse(localStorage.getItem(COLLECTOR_ONBOARDING_KEY) || '[]')); } catch { return []; }
+}
+function saveCollectorOnboarding(list) {
+  try { localStorage.setItem(COLLECTOR_ONBOARDING_KEY, JSON.stringify(normalizeChecklistList(list))); } catch { /* collector onboarding only: a failed save leaves the previous list in place */ }
+}
+let collectorOnboardingBound = false;
+function renderCollectorOnboarding() {
+  const bodyEl = $('#coBody');
+  if (!bodyEl) return;
+  const entries = loadCollectorOnboarding();
+  const query = ($('#coFilter')?.value ?? '').trim().toLowerCase();
+  const shown = query ? checklistsSorted(entries).filter((entry) => entry.collector.toLowerCase().includes(query)) : checklistsSorted(entries);
+  bodyEl.innerHTML = shown.length ? checklistAllHtml(shown) : '<p>No collector onboarding checklists recorded.</p>';
+  const summaryEl = $('#coSummary');
+  if (summaryEl) summaryEl.textContent = checklistSummaryText(entries);
+  if (!collectorOnboardingBound) {
+    collectorOnboardingBound = true;
+    $('#coExportBtn')?.addEventListener('click', () => { downloadCsvFile(checklistFilename(), checklistCsv(loadCollectorOnboarding())); });
+    $('#coSaveBtn')?.addEventListener('click', () => {
+      const steps = ($('#coSteps')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map((step) => ({ step }));
+      saveCollectorOnboarding(recordChecklist(loadCollectorOnboarding(), {
+        id: `CO-${Date.now()}`,
+        collector: $('#coCollector')?.value ?? '',
+        steps,
+      }));
+      renderCollectorOnboarding();
+    });
+    $('#coTickBtn')?.addEventListener('click', () => {
+      saveCollectorOnboarding(tickChecklistStep(loadCollectorOnboarding(), $('#coTickId')?.value ?? '', $('#coTickStep')?.value ?? '', {
+        date: $('#coTickDate')?.value ?? '',
+        checkedBy: $('#coTickBy')?.value ?? '',
+        note: $('#coTickNote')?.value ?? '',
+      }));
+      renderCollectorOnboarding();
+    });
+    $('#coUntickBtn')?.addEventListener('click', () => {
+      saveCollectorOnboarding(untickChecklistStep(loadCollectorOnboarding(), $('#coUntickId')?.value ?? '', $('#coUntickStep')?.value ?? ''));
+      renderCollectorOnboarding();
+    });
+    $('#coRemoveBtn')?.addEventListener('click', () => {
+      saveCollectorOnboarding(removeChecklist(loadCollectorOnboarding(), $('#coRemoveId')?.value ?? ''));
+      renderCollectorOnboarding();
+    });
+    $('#coFilter')?.addEventListener('input', () => { renderCollectorOnboarding(); });
   }
 }
 function renderOwnerDecision() {

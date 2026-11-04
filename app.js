@@ -411,6 +411,7 @@ import { normalizeAgeingList, recordAgeingItem, removeAgeingItem, ageingSorted, 
 import { normalizeAnnualGoalList, recordAnnualGoal, removeAnnualGoal, setAnnualGoalStatus, addAnnualGoalNote, annualGoalsSorted, annualGoalsAllHtml, annualGoalSummaryText, annualGoalsCsv, annualGoalsFilename } from './annual-goals.js';
 import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirmCustodyExport, custodyExportsSorted, custodyByKind, custodyAllHtml, custodySummaryText, custodyCsv, custodyFilename } from './export-custody.js';
 import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEntriesSorted, archiveByYear, archiveByKind, archiveAllHtml, archiveSummaryText, archiveCsv, archiveFilename } from './archive-index.js';
+import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -14009,6 +14010,7 @@ function renderAnalytics() {
   renderAnnualGoals();
   renderExportCustody();
   renderArchiveIndex();
+  renderBusinessContacts();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25805,6 +25807,50 @@ function renderArchiveIndex() {
     });
     $('#aiYearFilter')?.addEventListener('input', () => { renderArchiveIndex(); });
     $('#aiKindFilter')?.addEventListener('input', () => { renderArchiveIndex(); });
+  }
+}
+const BUSINESS_CONTACT_KEY = 'shahdara_business_contacts_v1';
+function loadBusinessContacts() {
+  try { return normalizeBusinessContactList(JSON.parse(localStorage.getItem(BUSINESS_CONTACT_KEY) || '[]')); } catch { return []; }
+}
+function saveBusinessContacts(list) {
+  try { localStorage.setItem(BUSINESS_CONTACT_KEY, JSON.stringify(normalizeBusinessContactList(list))); } catch { /* directory only: a failed save leaves the previous list in place */ }
+}
+let businessContactsBound = false;
+function renderBusinessContacts() {
+  const bodyEl = $('#bcBody');
+  if (!bodyEl) return;
+  const orgQuery = ($('#bcOrgFilter')?.value ?? '').trim();
+  const roleQuery = ($('#bcRoleFilter')?.value ?? '').trim();
+  let shown = businessContactsSorted(loadBusinessContacts());
+  if (orgQuery) shown = businessContactsByOrganisation(shown, orgQuery);
+  if (roleQuery) shown = businessContactsByRole(shown, roleQuery);
+  bodyEl.innerHTML = shown.length ? businessContactAllHtml(shown) : '<p>No business contacts recorded.</p>';
+  const summaryEl = $('#bcSummary');
+  if (summaryEl) summaryEl.textContent = businessContactSummaryText(loadBusinessContacts());
+  if (!businessContactsBound) {
+    businessContactsBound = true;
+    $('#bcExportBtn')?.addEventListener('click', () => { downloadCsvFile(businessContactFilename(), businessContactCsv(loadBusinessContacts())); });
+    $('#bcSaveBtn')?.addEventListener('click', () => {
+      const before = loadBusinessContacts();
+      const next = recordBusinessContact(before, {
+        id: `BC-${Date.now()}`,
+        organisation: $('#bcOrg')?.value ?? '',
+        contactName: $('#bcName')?.value ?? '',
+        role: $('#bcRole')?.value ?? '',
+        phoneOrAddress: $('#bcReach')?.value ?? '',
+        note: $('#bcNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Business contact not recorded: give an organisation and a contact name.'); return; }
+      saveBusinessContacts(next);
+      renderBusinessContacts();
+    });
+    $('#bcRemoveBtn')?.addEventListener('click', () => {
+      saveBusinessContacts(removeBusinessContact(loadBusinessContacts(), $('#bcRemoveId')?.value ?? ''));
+      renderBusinessContacts();
+    });
+    $('#bcOrgFilter')?.addEventListener('input', () => { renderBusinessContacts(); });
+    $('#bcRoleFilter')?.addEventListener('input', () => { renderBusinessContacts(); });
   }
 }
 function renderOwnerDecision() {

@@ -277,6 +277,7 @@ import { SAVE_OFFERS, SAVE_OFFER_LABELS, SAVE_OUTCOMES, SAVE_OUTCOME_LABELS, SAV
 import { buildMonthlyChurnSummary, churnSummaryText, churnHtml, churnCsv, churnFilename } from './churn-summary.js';
 import { DISPUTE_REASONS, DISPUTE_REASON_LABELS, DISPUTE_STATUSES, DISPUTE_STATUS_LABELS, normalizeDisputeCase, normalizeDisputeCaseList, upsertDisputeCase, removeDisputeCase, setDisputeStatus, openDisputeCases, buildDisputeSummary, disputeSummaryText, disputeHtml, disputeCsv, disputeFilename } from './dispute-cases.js';
 import { splitBillBalance, splitBillList, adjustLadderBills, disputeTotalsForCustomer, buildDisputedReminderDraft, DISPUTED_REMINDER_VARIANTS, disputedBalanceSummaryText, disputedBalanceHtml, disputedBalanceCsv, disputedBalanceFilename } from './disputed-balance.js';
+import { CLAIM_CHANNELS, CLAIM_CHANNEL_LABELS, CLAIM_OUTCOMES, CLAIM_OUTCOME_LABELS, normalizePaymentClaim, normalizePaymentClaimList, upsertPaymentClaim, removePaymentClaim, setClaimOutcome, closePaymentClaim, reopenPaymentClaim, openPaymentClaims, buildClaimSummary, claimSummaryText, claimHtml, claimCsv, claimFilename } from './payment-claims.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13231,6 +13232,7 @@ function renderAnalytics() {
   renderChurnSummary();
   renderDisputeCases();
   renderDisputedBalances();
+  renderPaymentClaims();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -14844,6 +14846,147 @@ function renderDisputedBalances() {
     $('#disputedBalanceExportBtn')?.addEventListener('click', () => {
       if (!lastDisputedBalances) return;
       downloadCsvFile(disputedBalanceFilename(), disputedBalanceCsv(lastDisputedBalances));
+    });
+  }
+}
+// Plan 63: "I already paid" payment-claim check workflow. A claim is
+// a record only — recording, checking, or closing it never creates
+// or alters any payment record, and suspense claiming (Plan O) and
+// matching (Plan V) are untouched; a matched claim only stores the
+// payment or suspense id as a link. A not-found claim stays in the
+// open list with its follow-up note until the operator closes it
+// with a reason.
+const PAYMENT_CLAIMS_KEY = 'shahdara_payment_claims_v1';
+let paymentClaimsBound = false;
+function loadPaymentClaims() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PAYMENT_CLAIMS_KEY) || '[]');
+    return normalizePaymentClaimList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function savePaymentClaims(list) {
+  try { localStorage.setItem(PAYMENT_CLAIMS_KEY, JSON.stringify(normalizePaymentClaimList(list))); } catch {}
+}
+function renderPaymentClaims() {
+  const bodyEl = $('#paymentClaimsBody');
+  if (!bodyEl) return;
+  const customers = state.customers ?? [];
+  const claims = loadPaymentClaims();
+  const open = openPaymentClaims(claims, {
+    outcome: $('#claimFilterOutcome')?.value ?? '',
+    channel: $('#claimFilterChannel')?.value ?? '',
+    mohalla: $('#claimFilterMohalla')?.value ?? '',
+  });
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  bodyEl.innerHTML = claimHtml(open.map((entry) => ({ ...entry, customerName: entry.customerName || names[entry.customerId] || '' })));
+  const summaryEl = $('#paymentClaimsSummary');
+  if (summaryEl) summaryEl.textContent = claimSummaryText(buildClaimSummary(claims));
+  const customerEl = $('#claimCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+  }
+  const claimEl = $('#claimSelect');
+  if (claimEl && document.activeElement !== claimEl) {
+    claimEl.innerHTML = claims.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(names[entry.customerId] || entry.customerId)} — Rs. ${escapeHtml(entry.amount)} (${escapeHtml(CLAIM_OUTCOME_LABELS[entry.outcome])}${entry.closed ? ', closed' : ''})</option>`).join('')
+      || '<option value="">No claims yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['claimFilterOutcome', CLAIM_OUTCOMES, CLAIM_OUTCOME_LABELS],
+    ['claimFilterChannel', CLAIM_CHANNELS, CLAIM_CHANNEL_LABELS],
+    ['claimChannel', CLAIM_CHANNELS, CLAIM_CHANNEL_LABELS],
+    ['claimOutcome', CLAIM_OUTCOMES, CLAIM_OUTCOME_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('claimFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  const mohallaEl = $('#claimMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const selected = customers.find((c) => String(c.id) === String(customerEl?.value ?? ''));
+    mohallaEl.value = selected ? (selected.mohalla || selected.area || '') : '';
+  }
+  if (!paymentClaimsBound) {
+    paymentClaimsBound = true;
+    $('#claimCustomer')?.addEventListener('change', () => {
+      const selected = customers.find((c) => String(c.id) === String($('#claimCustomer')?.value ?? ''));
+      const mohallaInput = $('#claimMohalla');
+      if (mohallaInput) mohallaInput.value = selected ? (selected.mohalla || selected.area || '') : '';
+      renderPaymentClaims();
+    });
+    $('#claimFilterOutcome')?.addEventListener('change', () => renderPaymentClaims());
+    $('#claimFilterChannel')?.addEventListener('change', () => renderPaymentClaims());
+    $('#claimFilterMohalla')?.addEventListener('input', () => renderPaymentClaims());
+    $('#claimRecordBtn')?.addEventListener('click', () => {
+      const customerId = $('#claimCustomer')?.value ?? '';
+      if (!customerId) { toast('Pick a customer first.'); return; }
+      const selected = customers.find((c) => String(c.id) === String(customerId));
+      const record = normalizePaymentClaim({
+        id: $('#claimId')?.value ?? '',
+        customerId,
+        customerName: selected ? (selected.name || selected.customerName || '') : '',
+        dateClaimed: $('#claimDate')?.value ?? '',
+        amount: $('#claimAmount')?.value ?? '',
+        channel: $('#claimChannel')?.value ?? '',
+        reference: $('#claimReference')?.value ?? '',
+        outcome: 'pending',
+        followUpNote: $('#claimNote')?.value ?? '',
+        mohalla: $('#claimMohalla')?.value ?? '',
+      });
+      if (!record) {
+        toast('A payment claim needs a claim id, a customer, a positive amount, a channel, and the TID or receipt reference the customer showed.');
+        return;
+      }
+      savePaymentClaims(upsertPaymentClaim(loadPaymentClaims(), record));
+      toast('Payment claim recorded. It creates no payment; matching and suspense claiming are unchanged.');
+      renderPaymentClaims();
+    });
+    $('#claimOutcomeBtn')?.addEventListener('click', () => {
+      const id = $('#claimSelect')?.value ?? '';
+      const outcome = $('#claimOutcome')?.value ?? '';
+      if (!id) { toast('Pick a claim first.'); return; }
+      if ((outcome === 'matched_payment' || outcome === 'matched_suspense') && !($('#claimLinkedId')?.value ?? '').trim()) {
+        toast('A matched claim needs the payment or suspense id it links to.');
+        return;
+      }
+      const next = setClaimOutcome(loadPaymentClaims(), id, outcome, $('#claimLinkedId')?.value ?? '', $('#claimFollowUp')?.value ?? '');
+      const moved = next.find((entry) => entry.id === id);
+      if (!moved || moved.outcome !== outcome) {
+        toast('That outcome could not be recorded for this claim.');
+        return;
+      }
+      savePaymentClaims(next);
+      renderPaymentClaims();
+    });
+    $('#claimCloseBtn')?.addEventListener('click', () => {
+      const id = $('#claimSelect')?.value ?? '';
+      if (!id) return;
+      const next = closePaymentClaim(loadPaymentClaims(), id, $('#claimCloseReason')?.value ?? '');
+      const moved = next.find((entry) => entry.id === id);
+      if (!moved || !moved.closed) {
+        toast('A not-found claim closes only with a reason.');
+        return;
+      }
+      savePaymentClaims(next);
+      renderPaymentClaims();
+    });
+    $('#claimReopenBtn')?.addEventListener('click', () => {
+      const id = $('#claimSelect')?.value ?? '';
+      if (!id) return;
+      savePaymentClaims(reopenPaymentClaim(loadPaymentClaims(), id));
+      renderPaymentClaims();
+    });
+    $('#claimRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#claimSelect')?.value ?? '';
+      if (!id) return;
+      savePaymentClaims(removePaymentClaim(loadPaymentClaims(), id));
+      renderPaymentClaims();
+    });
+    $('#claimExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(claimFilename(), claimCsv(loadPaymentClaims()));
     });
   }
 }

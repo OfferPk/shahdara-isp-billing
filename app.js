@@ -325,6 +325,7 @@ import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, remove
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
 import { normalizeBillingRunList, addBillingRun, annotateBillingRun, verifyBillingRun, billingRunSummaryText, billingRunHtml, billingRunCsv, billingRunFilename } from './billing-run-log.js?v=1.11.0';
+import { normalizeBillingCorrectionList, addBillingCorrection, correctionsForCustomer, correctionSummaryText, correctionHtml, correctionCsv, correctionFilename } from './billing-corrections.js?v=1.11.0';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13823,6 +13824,7 @@ function renderAnalytics() {
   renderBillRounding();
   renderBillExceptions();
   renderBillingRunLog();
+  renderBillingCorrections();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20108,6 +20110,68 @@ function renderBillingRunLog() {
     });
     $('#billingRunExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(billingRunFilename(), billingRunCsv(loadBillingRunLog()));
+    });
+  }
+}
+const BILLING_CORRECTION_KEY = 'shahdara_billing_corrections_v1';
+function loadBillingCorrections() {
+  try {
+    const raw = localStorage.getItem(BILLING_CORRECTION_KEY);
+    if (!raw) return [];
+    return normalizeBillingCorrectionList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveBillingCorrections(list) {
+  try { localStorage.setItem(BILLING_CORRECTION_KEY, JSON.stringify(normalizeBillingCorrectionList(list))); } catch { /* record only: a failed save leaves the previous log in place */ }
+}
+let billingCorrectionsBound = false;
+function renderBillingCorrections() {
+  const bodyEl = $('#billingCorrectionBody');
+  if (!bodyEl) return;
+  const corrections = loadBillingCorrections();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#billingCorrectionCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#billingCorrectionFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = `<option value="">All customers</option>` + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const filterCustomer = filterEl?.value ?? '';
+  const shown = filterCustomer ? correctionsForCustomer(corrections, filterCustomer) : corrections;
+  bodyEl.innerHTML = shown.map((item) => correctionHtml({ ...item, customerName: item.customerName || names[item.customerId] || item.customerId })).join('') || '<p>No billing corrections recorded yet.</p>';
+  const summaryEl = $('#billingCorrectionSummary');
+  if (summaryEl) summaryEl.textContent = correctionSummaryText(shown);
+  if (!billingCorrectionsBound) {
+    billingCorrectionsBound = true;
+    $('#billingCorrectionSaveBtn')?.addEventListener('click', () => {
+      const next = addBillingCorrection(loadBillingCorrections(), {
+        id: `CORR-${Date.now()}`,
+        customerId: $('#billingCorrectionCustomer')?.value ?? '',
+        originalBillId: $('#billingCorrectionBillId')?.value ?? '',
+        errorKind: $('#billingCorrectionKind')?.value ?? '',
+        originalAmount: Number($('#billingCorrectionOriginal')?.value ?? 0),
+        correctedAmount: Number($('#billingCorrectionCorrected')?.value ?? 0),
+        reason: $('#billingCorrectionReason')?.value ?? '',
+        approver: $('#billingCorrectionApprover')?.value ?? '',
+        date: $('#billingCorrectionDate')?.value ?? '',
+        lockedSheetRef: $('#billingCorrectionSheetRef')?.value ?? '',
+      });
+      if (!next) { toast('Correction not recorded: check the bill id, a real date, the error kind, positive original and non-negative corrected amounts, and a reason plus approver. A correction id already recorded is never overwritten.'); return; }
+      saveBillingCorrections(next);
+      toast('Billing correction recorded. The original bill is preserved — nothing was edited in place.');
+      renderBillingCorrections();
+    });
+    $('#billingCorrectionFilterCustomer')?.addEventListener('change', () => renderBillingCorrections());
+    $('#billingCorrectionExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(correctionFilename(), correctionCsv(loadBillingCorrections()));
     });
   }
 }

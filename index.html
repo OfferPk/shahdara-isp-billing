@@ -7784,6 +7784,46 @@
 </label>
 </div>
 <div id="agBody"></div>
+</section><section class="chart-card" aria-labelledby="ecHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ecHeading">Export custody log</h3>
+<p class="chart-caption">Custody only: who took a copy of app data out, when, for what purpose, and whether its return or deletion is confirmed. The log stores no exported data itself, and logging an export never changes, sends, or deletes any bill, payment, or customer record.</p>
+<p id="ecSummary"></p>
+</div>
+<div>
+<button id="ecExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export custody CSV</button>
+</div>
+</div>
+<h4>Log an export taken out</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="ecDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Export kind <input id="ecKind" type="text" style="width: 160px;" placeholder="e.g. Accountant pack">
+</label>
+<label style="font-size: 12px;">Taken by <input id="ecTakenBy" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Purpose <input id="ecPurpose" type="text" style="width: 180px;">
+</label>
+<label style="font-size: 12px;">Note <input id="ecNote" type="text" style="width: 180px;">
+</label>
+<button id="ecSaveBtn" class="secondary-button btn-sm" type="button">Log export</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Confirm return or deletion — entry id <input id="ecConfirmId" type="text" style="width: 140px;">
+</label>
+<button id="ecConfirmBtn" class="secondary-button btn-sm" type="button">Confirm</button>
+<label style="font-size: 12px;">Remove entry id <input id="ecRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="ecRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Exports logged</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by kind <input id="ecKindFilter" type="text" style="width: 160px;">
+</label>
+</div>
+<div id="ecBody"></div>
 </section>
 
         <section id="ownerDigestPanel" class="chart-card" aria-labelledby="ownerDigestHeading"><div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><h3 id="ownerDigestHeading">Owner collection digest</h3><p>Read-only daily / weekly picture from existing figures — collections, dues, Waada broken, suspense unclaimed. It changes no record.</p></div><div><button id="ownerDigestDailyBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;" aria-pressed="true">Today</button><button id="ownerDigestWeeklyBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;" aria-pressed="false">This week</button><button id="ownerDigestExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">📥 Export digest CSV</button></div></div><div id="ownerDigestBody"></div></section>

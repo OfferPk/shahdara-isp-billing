@@ -312,6 +312,7 @@ import { normalizeOutageCreditList, upsertOutageCredit, removeOutageCredit, mark
 import { normalizePriceNoticeList, upsertPriceNotice, removePriceNotice, buildNoticeDrafts, buildNoticeText, priceNoticeSummaryText, priceNoticeHtml, priceNoticeDraftHtml, priceNoticeCsv, priceNoticeFilename, normalizePriceNoticeSendList, logPriceNoticeSent } from './price-notices.js';
 import { TERMS_ACK_METHODS, TERMS_ACK_METHOD_LABELS, normalizeTermsAckList, upsertTermsAck, removeTermsAck, findTermsAck, customerTermsStatus, buildCustomerTermsRows, filterTermsAcks, termsAckSummaryText, termsAckHtml, termsAckStatusHtml, termsAckCsv, termsAckFilename } from './terms-ack.js';
 import { OPEN_SUGGESTION_STATUSES, suggestionStatusLabel, normalizeSuggestionList, upsertSuggestion, removeSuggestion, filterSuggestions, moveSuggestion, suggestionSummaryText, suggestionHtml, suggestionCsv, suggestionFilename } from './suggestion-log.js';
+import { normalizePromoList, upsertPromo, removePromo, promoStatus, promoStatusLabel, filterPromos, normalizePromoApplicationList, recordPromoApplication, removePromoApplication, promoSummaryText, promoHtml, promoApplicationHtml, promoCsv, promoApplicationCsv, promoFilename } from './promo-offers.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13691,6 +13692,7 @@ function renderAnalytics() {
   renderPriceNotices();
   renderTermsAck();
   renderSuggestions();
+  renderPromoOffers();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -18817,6 +18819,140 @@ function renderSuggestions() {
       if (!recordId) { toast('Pick a suggestion first.'); return; }
       saveSuggestions(removeSuggestion(loadSuggestions(), recordId));
       renderSuggestions();
+    });
+  }
+}
+// Plan 98: time-boxed promotional offer record. The record only
+// states the offer in plain words; it grants no billing change of
+// its own. When a benefit is actually given, it goes through the
+// existing concession path, and only the concession reference is
+// kept here as the link. An expired promotion offers nothing.
+const PROMO_OFFERS_KEY = 'shahdara_promo_offers_v1';
+const PROMO_APPLICATIONS_KEY = 'shahdara_promo_applications_v1';
+function loadPromos() {
+  try {
+    const raw = localStorage.getItem(PROMO_OFFERS_KEY);
+    if (!raw) return [];
+    return normalizePromoList(JSON.parse(raw));
+  } catch { return []; }
+}
+function savePromos(list) {
+  try { localStorage.setItem(PROMO_OFFERS_KEY, JSON.stringify(normalizePromoList(list))); } catch { /* record only: a failed save leaves the previous promotions in place */ }
+}
+function loadPromoApplications() {
+  try {
+    const raw = localStorage.getItem(PROMO_APPLICATIONS_KEY);
+    if (!raw) return [];
+    return normalizePromoApplicationList(JSON.parse(raw));
+  } catch { return []; }
+}
+function savePromoApplications(list) {
+  try { localStorage.setItem(PROMO_APPLICATIONS_KEY, JSON.stringify(normalizePromoApplicationList(list))); } catch { /* record only: a failed save leaves the previous applications in place */ }
+}
+let promoOffersBound = false;
+function renderPromoOffers() {
+  const bodyEl = $('#promoOffersBody');
+  if (!bodyEl) return;
+  const today = localDate();
+  const records = loadPromos();
+  const applications = loadPromoApplications();
+  const customers = (state.customers ?? []).filter((c) => c && c.id);
+  const customerEl = $('#promoCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    const picked = customerEl.value ?? '';
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+    if (customers.some((c) => String(c.id) === picked)) customerEl.value = picked;
+  }
+  const packageEl = $('#promoFilterPackage');
+  if (packageEl && document.activeElement !== packageEl) {
+    const picked = packageEl.value ?? '';
+    const packages = [...new Set(records.flatMap((r) => r.packages))];
+    packageEl.innerHTML = '<option value="">All packages</option>'
+      + packages.map((p) => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+    if (packages.includes(picked)) packageEl.value = picked;
+  }
+  const mohallaEl = $('#promoFilterMohalla');
+  if (mohallaEl && document.activeElement !== mohallaEl) {
+    const picked = mohallaEl.value ?? '';
+    const mohallas = [...new Set(records.flatMap((r) => r.mohallas))];
+    mohallaEl.innerHTML = '<option value="">All mohallas</option>'
+      + mohallas.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
+    if (mohallas.includes(picked)) mohallaEl.value = picked;
+  }
+  const pickEl = $('#promoPick');
+  if (pickEl && document.activeElement !== pickEl) {
+    pickEl.innerHTML = records.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.name)} (${escapeHtml(promoStatusLabel(promoStatus(r, today)) )})</option>`).join('')
+      || '<option value="">No promotions yet</option>';
+  }
+  const shown = filterPromos(records, {
+    status: $('#promoFilterStatus')?.value ?? '',
+    package: $('#promoFilterPackage')?.value ?? '',
+    mohalla: $('#promoFilterMohalla')?.value ?? '',
+  }, today);
+  bodyEl.innerHTML = promoHtml(shown, today);
+  const summaryEl = $('#promoSummary');
+  if (summaryEl) summaryEl.textContent = promoSummaryText(records, today);
+  const appBodyEl = $('#promoApplicationBody');
+  if (appBodyEl) appBodyEl.innerHTML = promoApplicationHtml(applications);
+  const appPickEl = $('#promoApplicationPick');
+  if (appPickEl && document.activeElement !== appPickEl) {
+    appPickEl.innerHTML = applications.map((a) => `<option value="${escapeHtml(a.id)}">${escapeHtml(a.date)} — ${escapeHtml(a.customerName || a.customer)} (${escapeHtml(a.promotionId)})</option>`).join('')
+      || '<option value="">No applications yet</option>';
+  }
+  if (!promoOffersBound) {
+    promoOffersBound = true;
+    $('#promoFilterStatus')?.addEventListener('change', () => renderPromoOffers());
+    $('#promoFilterPackage')?.addEventListener('change', () => renderPromoOffers());
+    $('#promoFilterMohalla')?.addEventListener('change', () => renderPromoOffers());
+    $('#promoExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(promoFilename(localDate()), promoCsv(loadPromos()) + '\n\n' + promoApplicationCsv(loadPromoApplications()));
+    });
+    $('#promoSaveBtn')?.addEventListener('click', () => {
+      const id = `PR-${Date.now()}`;
+      const next = upsertPromo(loadPromos(), {
+        id,
+        name: ($('#promoName')?.value ?? '').trim(),
+        packages: ($('#promoPackages')?.value ?? '').split(','),
+        benefit: ($('#promoBenefit')?.value ?? '').trim(),
+        startDate: $('#promoStart')?.value ?? '',
+        endDate: $('#promoEnd')?.value ?? '',
+        mohallas: ($('#promoMohallas')?.value ?? '').split(','),
+      });
+      if (!next.some((item) => item.id === id)) { toast('That promotion is half-formed and was not saved — check the name, benefit, packages, mohallas, and that the end date is not before the start date.'); return; }
+      savePromos(next);
+      toast('Promotion recorded in plain words. It grants nothing by itself — any benefit still goes through the existing concession path.');
+      renderPromoOffers();
+    });
+    $('#promoApplyBtn')?.addEventListener('click', () => {
+      const promotionId = $('#promoPick')?.value ?? '';
+      const customerId = $('#promoCustomer')?.value ?? '';
+      const customer = (state.customers ?? []).find((c) => String(c.id) === customerId);
+      const before = loadPromoApplications();
+      const next = recordPromoApplication(loadPromos(), before, {
+        id: `PA-${Date.now()}`,
+        promotionId,
+        customer: customerId,
+        customerName: customer ? (customer.name || customer.customerName || '') : '',
+        concessionRef: ($('#promoConcessionRef')?.value ?? '').trim(),
+        date: $('#promoApplyDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('That application was not recorded — the promotion must be active on the application date, and the concession reference that carried the benefit is required.'); return; }
+      savePromoApplications(next);
+      toast('Promotion application recorded as a link to its concession. This record itself changed no bill or price.');
+      renderPromoOffers();
+    });
+    $('#promoRemoveBtn')?.addEventListener('click', () => {
+      const recordId = $('#promoPick')?.value ?? '';
+      if (!recordId) { toast('Pick a promotion first.'); return; }
+      savePromos(removePromo(loadPromos(), recordId));
+      renderPromoOffers();
+    });
+    $('#promoApplicationRemoveBtn')?.addEventListener('click', () => {
+      const recordId = $('#promoApplicationPick')?.value ?? '';
+      if (!recordId) { toast('Pick an application first.'); return; }
+      savePromoApplications(removePromoApplication(loadPromoApplications(), recordId));
+      renderPromoOffers();
     });
   }
 }

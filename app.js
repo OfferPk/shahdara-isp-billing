@@ -324,6 +324,7 @@ import { normalizeChargeScheduleList, upsertChargeSchedule, markInstalmentPaid, 
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
+import { normalizeBillingRunList, addBillingRun, annotateBillingRun, verifyBillingRun, billingRunSummaryText, billingRunHtml, billingRunCsv, billingRunFilename } from './billing-run-log.js?v=1.11.0';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13821,6 +13822,7 @@ function renderAnalytics() {
   renderProrataSheets();
   renderBillRounding();
   renderBillExceptions();
+  renderBillingRunLog();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20015,6 +20017,97 @@ function renderBillExceptions() {
     });
     $('#billExceptionExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(billExceptionFilename(), billExceptionCsv(currentBillExceptions(), loadBillExceptionClearances()));
+    });
+  }
+}
+// Plan 108: monthly billing run log — append-only. An entry, once
+// written, cannot be edited here: the panel offers no edit or remove
+// control at all, only a dated correction note. The log itself neither
+// creates nor changes any bill; the count check below only compares
+// the entry's ids against the month's bills on the same render.
+const BILLING_RUN_LOG_KEY = 'shahdara_billing_run_log_v1';
+function loadBillingRunLog() {
+  try {
+    const raw = localStorage.getItem(BILLING_RUN_LOG_KEY);
+    if (!raw) return [];
+    return normalizeBillingRunList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveBillingRunLog(list) {
+  try { localStorage.setItem(BILLING_RUN_LOG_KEY, JSON.stringify(normalizeBillingRunList(list))); } catch { /* record only: a failed save leaves the previous log in place */ }
+}
+function billingRunMonthBills(runMonth) {
+  const bills = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      if (!bill?.month || bill.month !== runMonth) continue;
+      bills.push({ id: bill.id ?? `${customer.id}-${bill.month}`, month: bill.month });
+    }
+  }
+  return bills;
+}
+let billingRunLogBound = false;
+function renderBillingRunLog() {
+  const bodyEl = $('#billingRunBody');
+  if (!bodyEl) return;
+  const runs = loadBillingRunLog();
+  const monthEl = $('#billingRunMonth');
+  if (monthEl && !monthEl.value) monthEl.value = localDate().slice(0, 7);
+  const dateEl = $('#billingRunDate');
+  if (dateEl && !dateEl.value) dateEl.value = localDate();
+  const pickEl = $('#billingRunPick');
+  if (pickEl) {
+    const current = pickEl.value;
+    pickEl.innerHTML = runs.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.runMonth)} · ${escapeHtml(entry.runDate)} · ${escapeHtml(entry.operator)}</option>`).join('');
+    if (current) pickEl.value = current;
+  }
+  bodyEl.innerHTML = runs.map((entry) => billingRunHtml(entry, verifyBillingRun(entry, billingRunMonthBills(entry.runMonth)))).join('') || '<p>No billing run logged yet.</p>';
+  const summaryEl = $('#billingRunSummary');
+  if (summaryEl) summaryEl.textContent = billingRunSummaryText(runs);
+  if (!billingRunLogBound) {
+    billingRunLogBound = true;
+    $('#billingRunFillBtn')?.addEventListener('click', () => {
+      const runMonth = $('#billingRunMonth')?.value ?? '';
+      const ids = billingRunMonthBills(runMonth).map((bill) => bill.id);
+      const target = $('#billingRunGenerated');
+      if (target) target.value = ids.join(', ');
+      toast(ids.length ? `${ids.length} bill ids filled from this month's bills.` : 'No bills found for that month yet.');
+    });
+    $('#billingRunSaveBtn')?.addEventListener('click', () => {
+      const skippedLines = ($('#billingRunSkipped')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+      const skippedBills = [];
+      for (const line of skippedLines) {
+        const [billId, ...reasonParts] = line.split('|');
+        skippedBills.push({ billId: (billId ?? '').trim(), reason: reasonParts.join('|').trim() });
+      }
+      const next = addBillingRun(loadBillingRunLog(), {
+        id: `RUN-${Date.now()}`,
+        runMonth: $('#billingRunMonth')?.value ?? '',
+        runDate: $('#billingRunDate')?.value ?? '',
+        operator: $('#billingRunOperator')?.value ?? '',
+        generatedBillIds: $('#billingRunGenerated')?.value ?? '',
+        skippedBills,
+        exceptionReportRef: $('#billingRunExceptionRef')?.value ?? '',
+      });
+      if (!next) { toast('Run not logged: check the month, a real run date, an operator name, and that every skipped bill line is "bill id | reason". A run id already logged is never overwritten.'); return; }
+      saveBillingRunLog(next);
+      toast('Billing run logged. It cannot be edited afterwards — only annotated with a dated note.');
+      renderBillingRunLog();
+    });
+    $('#billingRunAnnotateBtn')?.addEventListener('click', () => {
+      const next = annotateBillingRun(loadBillingRunLog(), {
+        runId: $('#billingRunPick')?.value ?? '',
+        note: $('#billingRunNote')?.value ?? '',
+        date: $('#billingRunNoteDate')?.value ?? '',
+      });
+      if (!next) { toast('Note not added: pick a run, write a note, and give a real date.'); return; }
+      saveBillingRunLog(next);
+      toast('Correction note added. The original entry is unchanged.');
+      renderBillingRunLog();
+    });
+    $('#billingRunExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(billingRunFilename(), billingRunCsv(loadBillingRunLog()));
     });
   }
 }

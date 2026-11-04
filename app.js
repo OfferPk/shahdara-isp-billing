@@ -399,6 +399,7 @@ import { normalizeReviewTemplateList, recordReviewTemplate, removeReviewTemplate
 import { normalizeTaxPackList, recordTaxPack, removeTaxPack, markTaxFigure, taxPackStarters, taxPackSummaryText, taxPackHtml, taxPackCsv, taxPackFilename } from './tax-figures.js';
 import { normalizeRetentionRuleList, recordRetentionRule, removeRetentionRule, retentionRulesSorted, overdueRetentionRules, retentionRuleAllHtml, retentionRuleSummaryText, retentionRuleCsv, retentionRuleFilename } from './retention-policy.js';
 import { normalizeBusinessDeviceList, recordBusinessDevice, removeBusinessDevice, markBusinessDeviceReturned, businessDevicesSorted, businessDeviceAllHtml, businessDeviceSummaryText, businessDeviceCsv, businessDeviceFilename } from './business-device.js';
+import { normalizeLicenceList, recordLicence, removeLicence, markLicenceRenewed, licencesSorted, licenceAllHtml, licenceSummaryText, licenceCsv, licenceFilename } from './licence-tracker.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13985,6 +13986,7 @@ function renderAnalytics() {
   renderTaxFigures();
   renderRetentionRules();
   renderBusinessDevices();
+  renderLicences();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25177,6 +25179,49 @@ function renderBusinessDevices() {
       renderBusinessDevices();
     });
     $('#bdFilter')?.addEventListener('input', () => { renderBusinessDevices(); });
+  }
+}
+const LICENCES_KEY = 'shahdara_licences_v1';
+function loadLicences() {
+  try { return normalizeLicenceList(JSON.parse(localStorage.getItem(LICENCES_KEY) || '[]')); } catch { return []; }
+}
+function saveLicences(list) {
+  try { localStorage.setItem(LICENCES_KEY, JSON.stringify(normalizeLicenceList(list))); } catch { /* licences only: a failed save leaves the previous list in place */ }
+}
+let licencesBound = false;
+function renderLicences() {
+  const bodyEl = $('#lcBody');
+  if (!bodyEl) return;
+  const entries = loadLicences();
+  const today = new Date().toISOString().slice(0, 10);
+  const query = ($('#lcFilter')?.value ?? '').trim().toLowerCase();
+  const shown = query ? licencesSorted(entries).filter((licence) => licence.toolName.toLowerCase().includes(query)) : licencesSorted(entries);
+  bodyEl.innerHTML = shown.length ? licenceAllHtml(shown, today) : '<p>No licences recorded.</p>';
+  const summaryEl = $('#lcSummary');
+  if (summaryEl) summaryEl.textContent = `${licenceSummaryText(entries, today)}.`;
+  if (!licencesBound) {
+    licencesBound = true;
+    $('#lcExportBtn')?.addEventListener('click', () => { downloadCsvFile(licenceFilename(), licenceCsv(loadLicences(), new Date().toISOString().slice(0, 10))); });
+    $('#lcSaveBtn')?.addEventListener('click', () => {
+      saveLicences(recordLicence(loadLicences(), {
+        id: `LC-${Date.now()}`,
+        toolName: $('#lcTool')?.value ?? '',
+        provider: $('#lcProvider')?.value ?? '',
+        renewalDate: $('#lcRenewal')?.value ?? '',
+        cost: $('#lcCost')?.value ?? '',
+        renewalNote: $('#lcNote')?.value ?? '',
+      }));
+      renderLicences();
+    });
+    $('#lcRenewBtn')?.addEventListener('click', () => {
+      saveLicences(markLicenceRenewed(loadLicences(), $('#lcRenewId')?.value ?? '', $('#lcRenewDate')?.value ?? ''));
+      renderLicences();
+    });
+    $('#lcRemoveBtn')?.addEventListener('click', () => {
+      saveLicences(removeLicence(loadLicences(), $('#lcRemoveId')?.value ?? ''));
+      renderLicences();
+    });
+    $('#lcFilter')?.addEventListener('input', () => { renderLicences(); });
   }
 }
 function renderOwnerDecision() {

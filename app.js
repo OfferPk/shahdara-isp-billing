@@ -321,6 +321,7 @@ import { normalizeAdvanceAllocationList, upsertAdvanceAllocation, removeAdvanceA
 import { normalizeAllocationBillList, normalizeAllocationInstalmentList, normalizePartPaymentAllocationList, upsertPartPaymentAllocation, removePartPaymentAllocation, partPaymentsForCustomer, allocatePartPayment, defaultAllocationOrder, partPaymentSummaryText, partPaymentHtml, partPaymentCsv, partPaymentFilename } from './part-payment-rules.js';
 import { normalizeCreditEntryList, normalizeCreditApplicationList, upsertCreditEntry, removeCreditEntry, applyCredit, removeCreditApplication, creditBalanceForCustomer, creditSummaryText, creditHtml, creditCsv, creditFilename } from './credit-balance.js';
 import { normalizeChargeScheduleList, upsertChargeSchedule, markInstalmentPaid, scheduleView, missedInstalments, billLinesForMonth, chargeScheduleSummaryText, chargeScheduleHtml, chargeScheduleCsv, chargeScheduleFilename } from './charge-instalments.js';
+import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13815,6 +13816,7 @@ function renderAnalytics() {
   renderPartPaymentAllocations();
   renderCreditBalances();
   renderChargeInstalments();
+  renderProrataSheets();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -19787,6 +19789,93 @@ function renderChargeInstalments() {
     $('#chargeInstalmentCurrentMonth')?.addEventListener('change', () => renderChargeInstalments());
     $('#chargeInstalmentExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(chargeScheduleFilename(), chargeScheduleCsv(loadChargeInstalments(), currentMonth));
+    });
+  }
+}
+// Plan 105: mid-cycle pro-rata bill sheet — the calculation record behind
+// a part-month bill. The sheet shows its inputs and arithmetic so the
+// figure can be recomputed from it; once the bill is issued the sheet is
+// locked and a correction goes through the correction workflow, never
+// through a silent recalculation. Recording, locking, or removing a sheet
+// changes no bill or payment record.
+const PRORATA_SHEETS_KEY = 'shahdara_prorata_sheets_v1';
+function loadProrataSheets() {
+  try {
+    const raw = localStorage.getItem(PRORATA_SHEETS_KEY);
+    if (!raw) return [];
+    return normalizeProrataSheetList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveProrataSheets(list) {
+  try { localStorage.setItem(PRORATA_SHEETS_KEY, JSON.stringify(normalizeProrataSheetList(list))); } catch { /* record only: a failed save leaves the previous sheets in place */ }
+}
+let prorataSheetsBound = false;
+function renderProrataSheets() {
+  const bodyEl = $('#prorataSheetBody');
+  if (!bodyEl) return;
+  const sheets = loadProrataSheets();
+  const customers = state.customers ?? [];
+  const names = {};
+  for (const c of customers) names[c.id] = c.name || c.customerName || c.id;
+  const customerEl = $('#prorataSheetCustomer');
+  if (customerEl) {
+    const current = customerEl.value;
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) customerEl.value = current;
+  }
+  const filterEl = $('#prorataSheetFilterCustomer');
+  if (filterEl) {
+    const current = filterEl.value;
+    filterEl.innerHTML = `<option value="">All customers</option>` + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(names[c.id])}</option>`).join('');
+    if (current) filterEl.value = current;
+  }
+  const pickEl = $('#prorataSheetPick');
+  if (pickEl) {
+    const current = pickEl.value;
+    pickEl.innerHTML = sheets.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.id)} · ${escapeHtml(names[item.customerId] || item.customerId)} · ${escapeHtml(item.billMonth)}${item.locked ? ' · locked' : ''}</option>`).join('');
+    if (current) pickEl.value = current;
+  }
+  const filterCustomer = filterEl?.value ?? '';
+  const shown = filterCustomer ? prorataSheetsForCustomer(sheets, filterCustomer) : sheets;
+  bodyEl.innerHTML = shown.map((item) => prorataSheetHtml({ ...item, customerName: item.customerName || names[item.customerId] || item.customerId })).join('') || '<p>No pro-rata sheet recorded yet.</p>';
+  const summaryEl = $('#prorataSheetSummary');
+  if (summaryEl) summaryEl.textContent = prorataSheetSummaryText(shown);
+  if (!prorataSheetsBound) {
+    prorataSheetsBound = true;
+    $('#prorataSheetSaveBtn')?.addEventListener('click', () => {
+      const daysRaw = $('#prorataSheetDaysCharged')?.value ?? '';
+      const next = upsertProrataSheet(loadProrataSheets(), {
+        id: `PS-${Date.now()}`,
+        customerId: $('#prorataSheetCustomer')?.value ?? '',
+        eventType: $('#prorataSheetEventType')?.value ?? 'join',
+        eventDate: $('#prorataSheetEventDate')?.value ?? '',
+        billMonth: $('#prorataSheetBillMonth')?.value ?? '',
+        monthlyPrice: Number($('#prorataSheetMonthlyPrice')?.value ?? 0),
+        daysCharged: daysRaw === '' ? null : Number(daysRaw),
+        note: $('#prorataSheetNote')?.value ?? '',
+      });
+      if (!next) { toast('Sheet not recorded: check the event date is inside the bill month, the price is positive, and the days charged fit the month.'); return; }
+      saveProrataSheets(next);
+      toast('Pro-rata sheet recorded. It applies nothing and rewrites no bill.');
+      renderProrataSheets();
+    });
+    $('#prorataSheetLockBtn')?.addEventListener('click', () => {
+      const next = lockProrataSheet(loadProrataSheets(), $('#prorataSheetPick')?.value ?? '', $('#prorataSheetBillId')?.value ?? '');
+      if (!next) { toast('Sheet not locked: pick a sheet, name its issued bill, and note a locked sheet cannot be locked again.'); return; }
+      saveProrataSheets(next);
+      toast('Sheet locked to its issued bill. It can no longer be edited or removed here.');
+      renderProrataSheets();
+    });
+    $('#prorataSheetRemoveBtn')?.addEventListener('click', () => {
+      const next = removeProrataSheet(loadProrataSheets(), $('#prorataSheetPick')?.value ?? '');
+      if (!next) { toast('That sheet is locked to an issued bill and cannot be removed.'); return; }
+      saveProrataSheets(next);
+      toast('Pro-rata sheet removed.');
+      renderProrataSheets();
+    });
+    $('#prorataSheetFilterCustomer')?.addEventListener('change', () => renderProrataSheets());
+    $('#prorataSheetExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(prorataSheetFilename(), prorataSheetCsv(loadProrataSheets()));
     });
   }
 }

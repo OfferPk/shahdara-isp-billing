@@ -388,6 +388,7 @@ import { normalizeVisitWindowList, recordVisitWindow, updateVisitWindow, removeV
 import { normalizeMaintenanceNoticeList, upsertMaintenanceNotice, copyMaintenanceNotice, removeMaintenanceNotice, markMaintenanceSent, markMaintenanceUnsent, maintenanceNoticeAllHtml, maintenanceNoticeMohallaHtml, maintenanceNoticeSummaryText, maintenanceNoticeCsv, maintenanceNoticeFilename } from './maintenance-notice.js';
 import { normalizePromiseList, upsertPromise, removePromise, markPromiseDone, markPromiseWithdrawn, overduePromises, promisesForCustomer, promiseAllHtml, promiseOpenHtml, promiseSummaryText, promiseCsv, promiseFilename } from './promise-tracker.js';
 import { normalizeNewCustomerCheckinList, upsertNewCustomerCheckin, removeNewCustomerCheckin, markNewCustomerCheckedIn, newCustomerCheckinList, checkinsForCustomer, newCustomerCheckinAllHtml, newCustomerCheckinSummaryText, newCustomerCheckinCsv, newCustomerCheckinFilename } from './new-customer-checkin.js';
+import { normalizeTestimonialConsentList, upsertTestimonialConsent, removeTestimonialConsent, withdrawTestimonialConsent, testimonialForCustomer, testimonialConsentAllHtml, testimonialConsentSummaryText, testimonialConsentCsv, testimonialConsentFilename } from './testimonial-consent.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13963,6 +13964,7 @@ function renderAnalytics() {
   renderMaintenanceNotices();
   renderPromiseTracker();
   renderNewCustomerCheckin();
+  renderTestimonialConsent();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24581,6 +24583,59 @@ function renderNewCustomerCheckin() {
       downloadCsvFile(newCustomerCheckinFilename(), newCustomerCheckinCsv(loadNewCustomerCheckin()));
     });
     $('#ncFilter')?.addEventListener('input', () => { renderNewCustomerCheckin(); });
+  }
+}
+const TESTIMONIAL_CONSENT_KEY = 'shahdara_testimonial_consent_v1';
+function loadTestimonialConsent() {
+  try { return normalizeTestimonialConsentList(JSON.parse(localStorage.getItem(TESTIMONIAL_CONSENT_KEY) || '[]')); } catch { return []; }
+}
+function saveTestimonialConsent(list) {
+  try { localStorage.setItem(TESTIMONIAL_CONSENT_KEY, JSON.stringify(normalizeTestimonialConsentList(list))); } catch { /* testimonial consent only: a failed save leaves the previous list in place */ }
+}
+let testimonialConsentBound = false;
+function renderTestimonialConsent() {
+  const bodyEl = $('#tcBody');
+  if (!bodyEl) return;
+  const list = loadTestimonialConsent();
+  const filter = ($('#tcFilter')?.value ?? '').trim().toLowerCase();
+  // A consent note only: a testimonial is usable only while its note
+  // says agreed, and withdrawing consent immediately marks it
+  // unusable. Nothing here publishes or sends anything, and nothing
+  // here changes any bill, payment, or customer record beyond the
+  // consent note itself.
+  const shown = filter ? list.filter((note) => note.customerId.toLowerCase().includes(filter)) : list;
+  bodyEl.innerHTML = shown.length ? testimonialConsentAllHtml(shown) : '<p>No testimonial consent notes.</p>';
+  const summaryEl = $('#tcSummary');
+  if (summaryEl) summaryEl.textContent = testimonialConsentSummaryText(list);
+  if (!testimonialConsentBound) {
+    testimonialConsentBound = true;
+    $('#tcSaveBtn')?.addEventListener('click', () => {
+      const before = loadTestimonialConsent();
+      const next = upsertTestimonialConsent(before, {
+        id: `TC-${Date.now()}`,
+        customerId: $('#tcCustomer')?.value ?? '',
+        agreed: ($('#tcAgreed')?.value ?? 'yes') === 'yes',
+        form: $('#tcForm')?.value ?? 'anonymous',
+        agreementDate: $('#tcDate')?.value ?? '',
+        words: $('#tcWords')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Consent note not added: give a customer, and for an agreed note a valid agreement date. One note per customer.'); return; }
+      saveTestimonialConsent(next); renderTestimonialConsent();
+    });
+    $('#tcWithdrawBtn')?.addEventListener('click', () => {
+      const id = ($('#tcWithdrawId')?.value ?? '').trim();
+      if (!id) return;
+      saveTestimonialConsent(withdrawTestimonialConsent(loadTestimonialConsent(), id)); renderTestimonialConsent();
+    });
+    $('#tcRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#tcRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveTestimonialConsent(removeTestimonialConsent(loadTestimonialConsent(), id)); renderTestimonialConsent();
+    });
+    $('#tcExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(testimonialConsentFilename(), testimonialConsentCsv(loadTestimonialConsent()));
+    });
+    $('#tcFilter')?.addEventListener('input', () => { renderTestimonialConsent(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

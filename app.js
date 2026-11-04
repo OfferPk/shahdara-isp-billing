@@ -366,6 +366,7 @@ import { normalizeRootCauseCodeList, upsertRootCauseCode, removeRootCauseCode, n
 import { normalizeWorkaroundList, upsertWorkaround, removeWorkaround, recordWorkaroundRemoval, workaroundSummaryText, workaroundOpenHtml, workaroundOverdueHtml, workaroundCsv, workaroundFilename } from './workaround.js';
 import { normalizeSafetyNoteList, upsertSafetyNote, removeSafetyNote, safetyNoteLocationHtml, safetyNoteAllHtml, safetyNoteSummaryText, safetyNoteCsv, safetyNoteFilename } from './safety-note.js';
 import { normalizeOnCallList, upsertOnCallEntry, removeOnCallEntry, onCallLookupHtml, onCallAllHtml, onCallOverlapHtml, onCallSummaryText, onCallCsv, onCallFilename } from './oncall-rota.js';
+import { normalizeVisitTimeList, upsertVisitTime, removeVisitTime, routeDayHtml, visitTimeAllHtml, routeDayTotalsHtml, visitTimeSummaryText, visitTimeCsv, visitTimeFilename } from './visit-times.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13915,6 +13916,7 @@ function renderAnalytics() {
   renderWorkarounds();
   renderSafetyNotes();
   renderOnCallRota();
+  renderVisitTimes();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23180,6 +23182,58 @@ function renderOnCallRota() {
     });
     $('#onCallLookupDate')?.addEventListener('input', () => { renderOnCallRota(); });
     $('#onCallLookupCoverage')?.addEventListener('change', () => { renderOnCallRota(); });
+  }
+}
+const VISIT_TIME_KEY = 'shahdara_visit_times_v1';
+function loadVisitTimes() {
+  try { return normalizeVisitTimeList(JSON.parse(localStorage.getItem(VISIT_TIME_KEY) || '[]')); } catch { return []; }
+}
+function saveVisitTimes(list) {
+  try { localStorage.setItem(VISIT_TIME_KEY, JSON.stringify(normalizeVisitTimeList(list))); } catch { /* times only: a failed save leaves the previous log in place */ }
+}
+let visitTimeBound = false;
+function renderVisitTimes() {
+  const bodyEl = $('#visitTimeBody');
+  if (!bodyEl) return;
+  const list = loadVisitTimes();
+  bodyEl.innerHTML = visitTimeAllHtml(list);
+  const dayEl = $('#visitTimeDayBody');
+  if (dayEl) {
+    const date = $('#visitTimeRouteDate')?.value ?? '';
+    dayEl.innerHTML = date ? routeDayHtml(list, date) : '<p>Pick a route-day date to see its total travel and visit time.</p>';
+  }
+  const totalsEl = $('#visitTimeTotalsBody');
+  if (totalsEl) totalsEl.innerHTML = routeDayTotalsHtml(list);
+  const summaryEl = $('#visitTimeSummary');
+  if (summaryEl) summaryEl.textContent = visitTimeSummaryText(list);
+  if (!visitTimeBound) {
+    visitTimeBound = true;
+    $('#visitTimeSaveBtn')?.addEventListener('click', () => {
+      const before = loadVisitTimes();
+      const next = upsertVisitTime(before, {
+        id: `VT-${Date.now()}`,
+        visitId: $('#visitTimeVisitId')?.value ?? '',
+        date: $('#visitTimeDate')?.value ?? '',
+        departureTime: $('#visitTimeDeparture')?.value ?? '',
+        arrivalTime: $('#visitTimeArrival')?.value ?? '',
+        finishTime: $('#visitTimeFinish')?.value ?? '',
+        travelNote: $('#visitTimeNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Time record not recorded: give a visit link, a real date, and departure, arrival, and finish times in order.'); return; }
+      saveVisitTimes(next);
+      toast('Visit times recorded. The next route can now be planned on measured times.');
+      renderVisitTimes();
+    });
+    $('#visitTimeRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#visitTimeRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveVisitTimes(removeVisitTime(loadVisitTimes(), id));
+      renderVisitTimes();
+    });
+    $('#visitTimeExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(visitTimeFilename(), visitTimeCsv(loadVisitTimes()));
+    });
+    $('#visitTimeRouteDate')?.addEventListener('input', () => { renderVisitTimes(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

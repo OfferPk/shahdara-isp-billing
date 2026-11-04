@@ -294,6 +294,7 @@ import { ENQUIRY_TYPES, ENQUIRY_TYPE_LABELS, ENQUIRY_STATUSES, ENQUIRY_STATUS_LA
 import { DEPOSIT_DEVICE_TYPES, DEPOSIT_DEVICE_TYPE_LABELS, DEPOSIT_STATUSES, DEPOSIT_STATUS_LABELS, normalizeDeposit, normalizeDepositList, upsertDeposit, removeDeposit, markDepositRefunded, markDepositApplied, reopenDeposit, depositsFiltered, buildDepositSummary, depositSummaryText, depositHtml, depositCsv, depositFilename } from './deposit-register.js';
 import { LOAN_DEVICE_TYPES, LOAN_DEVICE_TYPE_LABELS, LOAN_STATUSES, LOAN_STATUS_LABELS, normalizeLoan, normalizeLoanList, upsertLoan, removeLoan, markLoanReturned, convertLoanPermanent, reopenLoan, loansFiltered, overdueLoans, buildLoanSummary, loanSummaryText, loanHtml, loanCsv, loanFilename } from './loan-tracker.js';
 import { JOB_MATERIAL_ITEMS, JOB_MATERIAL_LABELS, JOB_STATUSES, JOB_STATUS_LABELS, normalizeJob, normalizeJobList, upsertJob, removeJob, addJobMaterial, completeJob, reopenJob, jobsFiltered, buildJobCosts, buildJobSummary, jobSummaryText, jobHtml, jobCsv, jobFilename } from './job-cost.js';
+import { RMA_DEVICE_TYPES, RMA_DEVICE_TYPE_LABELS, RMA_STATUSES, RMA_STATUS_LABELS, normalizeRma, normalizeRmaList, upsertRma, removeRma, advanceRmaToAwaiting, markRmaReplaced, markRmaRepaired, markRmaRejected, reopenRma, rmasFiltered, awaitingRmas, buildRmaSummary, rmaSummaryText, rmaHtml, rmaCsv, rmaFilename } from './warranty-returns.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13514,6 +13515,7 @@ function renderAnalytics() {
   renderDepositRegister();
   renderLoanTracker();
   renderJobCost();
+  renderRmaLog();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -16874,6 +16876,125 @@ function renderJobCost() {
     });
     $('#jobCostExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(jobFilename(), jobCsv(loadJobCost()));
+    });
+  }
+}
+let rmaLogBound = false;
+const RMA_LOG_KEY = 'shahdara_warranty_returns_v1';
+function loadRmaLog() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RMA_LOG_KEY) || '[]');
+    return normalizeRmaList(Array.isArray(parsed) ? parsed : []);
+  } catch { return []; }
+}
+function saveRmaLog(list) {
+  try { localStorage.setItem(RMA_LOG_KEY, JSON.stringify(normalizeRmaList(list))); } catch {}
+}
+// Equipment warranty and supplier return log (Plan 80): one record
+// per faulty unit sent to a supplier — serial, supplier, fault
+// note, return reference, date sent, and status. The awaiting list
+// is exactly the units still with the supplier, oldest first. The
+// log creates no purchase, bill, or stock record and never changes
+// any bill, payment, or customer record; recording a replacement
+// links the new serial on the same record without deleting the
+// faulty unit's history.
+function renderRmaLog() {
+  const bodyEl = $('#rmaLogBody');
+  if (!bodyEl) return;
+  const entries = loadRmaLog();
+  const today = new Date().toISOString().slice(0, 10);
+  const showAwaitingOnly = $('#rmaShowAwaiting')?.checked ?? false;
+  const shown = showAwaitingOnly
+    ? awaitingRmas(entries, today)
+    : rmasFiltered(entries, {
+      status: $('#rmaFilterStatus')?.value ?? '',
+      supplier: $('#rmaFilterSupplier')?.value ?? '',
+      deviceType: $('#rmaFilterDevice')?.value ?? '',
+    });
+  bodyEl.innerHTML = rmaHtml(shown);
+  const summaryEl = $('#rmaLogSummary');
+  if (summaryEl) summaryEl.textContent = rmaSummaryText(buildRmaSummary(entries));
+  const awaitingEl = $('#rmaAwaitingBody');
+  if (awaitingEl) {
+    const awaiting = awaitingRmas(entries, today);
+    awaitingEl.innerHTML = awaiting.length === 0
+      ? '<p class="empty-state">No units with the supplier.</p>'
+      : `<table><thead><tr><th>Return</th><th>Serial</th><th>Supplier</th><th>Date sent</th><th>Days away</th></tr></thead><tbody>${awaiting.map((entry) => `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(entry.serial)}</td><td>${escapeHtml(entry.supplier)}</td><td>${escapeHtml(entry.dateSent ?? 'Not recorded')}</td><td>${entry.daysAway === null ? 'Not recorded' : escapeHtml(entry.daysAway)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  const selectEl = $('#rmaSelect');
+  if (selectEl && document.activeElement !== selectEl) {
+    selectEl.innerHTML = entries.map((entry) => `<option value="${escapeHtml(entry.id)}">${escapeHtml(entry.id)} — ${escapeHtml(entry.serial)} — ${escapeHtml(RMA_STATUS_LABELS[entry.status])}</option>`).join('')
+      || '<option value="">No warranty returns yet</option>';
+  }
+  for (const [elId, options, labels] of [
+    ['rmaFilterStatus', RMA_STATUSES, RMA_STATUS_LABELS],
+    ['rmaDevice', RMA_DEVICE_TYPES, RMA_DEVICE_TYPE_LABELS],
+    ['rmaFilterDevice', RMA_DEVICE_TYPES, RMA_DEVICE_TYPE_LABELS],
+  ]) {
+    const el = $(`#${elId}`);
+    if (el && el.options.length === 0) {
+      const all = elId.startsWith('rmaFilter') ? '<option value="">All</option>' : '';
+      el.innerHTML = all + options.map((key) => `<option value="${escapeHtml(key)}">${escapeHtml(labels[key])}</option>`).join('');
+    }
+  }
+  if (!rmaLogBound) {
+    rmaLogBound = true;
+    $('#rmaFilterStatus')?.addEventListener('change', () => renderRmaLog());
+    $('#rmaFilterSupplier')?.addEventListener('input', () => renderRmaLog());
+    $('#rmaFilterDevice')?.addEventListener('change', () => renderRmaLog());
+    $('#rmaShowAwaiting')?.addEventListener('change', () => renderRmaLog());
+    $('#rmaRecordBtn')?.addEventListener('click', () => {
+      const record = normalizeRma({
+        id: $('#rmaId')?.value ?? '',
+        serial: $('#rmaSerial')?.value ?? '',
+        deviceType: $('#rmaDevice')?.value ?? '',
+        supplier: $('#rmaSupplier')?.value ?? '',
+        faultNote: $('#rmaFaultNote')?.value ?? '',
+        rmaReference: $('#rmaReference')?.value ?? '',
+        dateSent: $('#rmaDateSent')?.value ?? '',
+        status: 'sent',
+        connectionId: $('#rmaConnectionId')?.value ?? '',
+      });
+      if (!record) {
+        toast('A warranty return needs an id, a serial, a device, a supplier, and a valid sent date.');
+        return;
+      }
+      saveRmaLog(upsertRma(loadRmaLog(), record));
+      toast('Warranty return recorded as sent. This log creates no purchase, bill, or stock record.');
+      renderRmaLog();
+    });
+    $('#rmaApplyBtn')?.addEventListener('click', () => {
+      const id = $('#rmaSelect')?.value ?? '';
+      if (!id) return;
+      const action = $('#rmaAction')?.value ?? '';
+      const current = loadRmaLog();
+      let next = current;
+      if (action === 'awaiting') next = advanceRmaToAwaiting(current, id);
+      else if (action === 'replaced') next = markRmaReplaced(current, id, $('#rmaReplacementSerial')?.value ?? '', $('#rmaReplacementConnectionId')?.value ?? '', $('#rmaReturnDate')?.value ?? '');
+      else if (action === 'repaired') next = markRmaRepaired(current, id, $('#rmaReturnDate')?.value ?? '');
+      else if (action === 'rejected') next = markRmaRejected(current, id, $('#rmaReason')?.value ?? '');
+      const updated = next.find((entry) => entry.id === id);
+      if (!updated || updated.status === current.find((entry) => entry.id === id)?.status) {
+        toast('That move is not allowed: only a unit still with the supplier can move, a replacement needs its new serial, and a rejection needs its reason.');
+        return;
+      }
+      saveRmaLog(next);
+      renderRmaLog();
+    });
+    $('#rmaReopenBtn')?.addEventListener('click', () => {
+      const id = $('#rmaSelect')?.value ?? '';
+      if (!id) return;
+      saveRmaLog(reopenRma(loadRmaLog(), id));
+      renderRmaLog();
+    });
+    $('#rmaRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#rmaSelect')?.value ?? '';
+      if (!id) return;
+      saveRmaLog(removeRma(loadRmaLog(), id));
+      renderRmaLog();
+    });
+    $('#rmaExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(rmaFilename(), rmaCsv(loadRmaLog()));
     });
   }
 }

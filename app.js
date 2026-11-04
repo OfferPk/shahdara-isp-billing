@@ -392,6 +392,7 @@ import { normalizeTestimonialConsentList, upsertTestimonialConsent, removeTestim
 import { normalizeApologyDraftList, upsertApologyDraft, removeApologyDraft, markApologyDraftSent, markApologyDraftUnsent, apologyDraftStarters, apologyDraftAllHtml, apologyDraftSummaryText, apologyDraftCsv, apologyDraftFilename } from './apology-draft.js';
 import { collectTimelineEntries, timelineAllHtml, timelineCustomerHtml, timelineSummaryText, timelineCsv, timelineFilename } from './comms-timeline.js';
 import { normalizeMigrationStepList, upsertMigrationStep, removeMigrationStep, markMigrationStepDone, markMigrationStepUndone, migrationStepStarters, migrationStepAllHtml, migrationStepSummaryText, migrationStepCsv, migrationStepFilename, normalizePortMoveList, upsertPortMove, removePortMove, portMovesSorted, portMovesForCustomer, portMovesOnDate, portMoveAllHtml, portMoveSummaryText, portMoveCsv, portMoveFilename } from './migration-checklist.js';
+import { normalizeAuditCycleList, createAuditCycle, completeAuditCycle, removeAuditCycle, normalizeAuditLineList, addAuditLine, removeAuditLine, auditCycleAllHtml, auditCycleSummaryText, auditCycleCsv, auditCycleFilename } from './inventory-audit.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13971,6 +13972,7 @@ function renderAnalytics() {
   renderApologyDrafts();
   renderCommsTimeline();
   renderMigrationChecklist();
+  renderInventoryAudit();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24834,6 +24836,78 @@ function renderMigrationChecklist() {
     });
     $('#migMoveFilter')?.addEventListener('input', () => { renderMigrationChecklist(); });
     $('#migMoveDateFilter')?.addEventListener('input', () => { renderMigrationChecklist(); });
+  }
+}
+// Plan 182: shop inventory audit cycle.
+// The panel keeps only its own two lists: audit cycles (date,
+// auditor, open/completed) and counted lines (item, recorded
+// quantity, counted quantity, variance note). It reads the stock
+// register only through quantities the operator copies in — it
+// never rewrites a stock quantity, never changes a bill or
+// payment, and a completed audit is read-only here: no line can
+// be added or removed and the audit itself cannot be removed.
+const INVENTORY_AUDIT_KEY = 'shahdara_inventory_audits_v1';
+const INVENTORY_AUDIT_LINE_KEY = 'shahdara_inventory_audit_lines_v1';
+function loadInventoryAudits() {
+  try { return normalizeAuditCycleList(JSON.parse(localStorage.getItem(INVENTORY_AUDIT_KEY) || '[]')); } catch { return []; }
+}
+function saveInventoryAudits(list) {
+  try { localStorage.setItem(INVENTORY_AUDIT_KEY, JSON.stringify(normalizeAuditCycleList(list))); } catch { /* inventory audits only: a failed save leaves the previous list in place */ }
+}
+function loadInventoryAuditLines() {
+  try { return normalizeAuditLineList(JSON.parse(localStorage.getItem(INVENTORY_AUDIT_LINE_KEY) || '[]')); } catch { return []; }
+}
+function saveInventoryAuditLines(list) {
+  try { localStorage.setItem(INVENTORY_AUDIT_LINE_KEY, JSON.stringify(normalizeAuditLineList(list))); } catch { /* inventory audit lines only: a failed save leaves the previous list in place */ }
+}
+let inventoryAuditBound = false;
+function renderInventoryAudit() {
+  const bodyEl = $('#iaBody');
+  if (!bodyEl) return;
+  const audits = loadInventoryAudits();
+  const lines = loadInventoryAuditLines();
+  const auditorFilter = ($('#iaFilter')?.value ?? '').trim();
+  const shown = auditorFilter
+    ? audits.filter((audit) => audit.auditor.toLowerCase() === auditorFilter.toLowerCase())
+    : audits;
+  bodyEl.innerHTML = shown.length ? auditCycleAllHtml(shown, lines) : '<p>No inventory audits.</p>';
+  const summaryEl = $('#iaSummary');
+  if (summaryEl) summaryEl.textContent = `${auditCycleSummaryText(audits, lines)}.`;
+  if (!inventoryAuditBound) {
+    inventoryAuditBound = true;
+    $('#iaExportBtn')?.addEventListener('click', () => { downloadCsvFile(auditCycleFilename(), auditCycleCsv(loadInventoryAudits(), loadInventoryAuditLines())); });
+    $('#iaSaveBtn')?.addEventListener('click', () => {
+      saveInventoryAudits(createAuditCycle(loadInventoryAudits(), {
+        id: $('#iaAuditId')?.value ?? '',
+        auditDate: $('#iaAuditDate')?.value ?? '',
+        auditor: $('#iaAuditor')?.value ?? '',
+      }));
+      renderInventoryAudit();
+    });
+    $('#iaCompleteBtn')?.addEventListener('click', () => {
+      saveInventoryAudits(completeAuditCycle(loadInventoryAudits(), $('#iaCompleteId')?.value ?? '', $('#iaCompleteDate')?.value ?? ''));
+      renderInventoryAudit();
+    });
+    $('#iaRemoveAuditBtn')?.addEventListener('click', () => {
+      saveInventoryAudits(removeAuditCycle(loadInventoryAudits(), $('#iaRemoveAuditId')?.value ?? ''));
+      renderInventoryAudit();
+    });
+    $('#iaLineSaveBtn')?.addEventListener('click', () => {
+      saveInventoryAuditLines(addAuditLine(loadInventoryAudits(), loadInventoryAuditLines(), {
+        id: $('#iaLineId')?.value ?? '',
+        auditId: $('#iaLineAuditId')?.value ?? '',
+        item: $('#iaLineItem')?.value ?? '',
+        recordedQty: $('#iaLineRecorded')?.value ?? '',
+        countedQty: $('#iaLineCounted')?.value ?? '',
+        varianceNote: $('#iaLineNote')?.value ?? '',
+      }));
+      renderInventoryAudit();
+    });
+    $('#iaLineRemoveBtn')?.addEventListener('click', () => {
+      saveInventoryAuditLines(removeAuditLine(loadInventoryAudits(), loadInventoryAuditLines(), $('#iaLineAuditId')?.value ?? '', $('#iaLineRemoveId')?.value ?? ''));
+      renderInventoryAudit();
+    });
+    $('#iaFilter')?.addEventListener('input', () => { renderInventoryAudit(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

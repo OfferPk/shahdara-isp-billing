@@ -386,6 +386,7 @@ import { normalizeDormantSettings, normalizeDormantCustomerList, recordDormantCu
 import { normalizeVulnerableNoteList, recordVulnerableNote, updateVulnerableNote, removeVulnerableNote, vulnerableNoteForCustomer, vulnerableNoteAllHtml, vulnerableNoteSummaryText, vulnerableNoteCsv, vulnerableNoteFilename } from './vulnerable-note.js';
 import { normalizeVisitWindowList, recordVisitWindow, updateVisitWindow, removeVisitWindow, visitWindowForCustomer, visitWindowCustomers, visitWindowsForWindow, orderCustomersByWindow, visitWindowAllHtml, visitWindowOrderedHtml, visitWindowSummaryText, visitWindowCsv, visitWindowFilename } from './visit-window.js';
 import { normalizeMaintenanceNoticeList, upsertMaintenanceNotice, copyMaintenanceNotice, removeMaintenanceNotice, markMaintenanceSent, markMaintenanceUnsent, maintenanceNoticeAllHtml, maintenanceNoticeMohallaHtml, maintenanceNoticeSummaryText, maintenanceNoticeCsv, maintenanceNoticeFilename } from './maintenance-notice.js';
+import { normalizePromiseList, upsertPromise, removePromise, markPromiseDone, markPromiseWithdrawn, overduePromises, promisesForCustomer, promiseAllHtml, promiseOpenHtml, promiseSummaryText, promiseCsv, promiseFilename } from './promise-tracker.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13959,6 +13960,7 @@ function renderAnalytics() {
   renderVulnerableNotes();
   renderVisitWindows();
   renderMaintenanceNotices();
+  renderPromiseTracker();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -24459,6 +24461,70 @@ function renderMaintenanceNotices() {
       downloadCsvFile(maintenanceNoticeFilename(), maintenanceNoticeCsv(loadMaintenanceNotices()));
     });
     $('#mnFilter')?.addEventListener('input', () => { renderMaintenanceNotices(); });
+  }
+}
+const PROMISE_TRACKER_KEY = 'shahdara_promise_tracker_v1';
+function loadPromiseTracker() {
+  try { return normalizePromiseList(JSON.parse(localStorage.getItem(PROMISE_TRACKER_KEY) || '[]')); } catch { return []; }
+}
+function savePromiseTracker(list) {
+  try { localStorage.setItem(PROMISE_TRACKER_KEY, JSON.stringify(normalizePromiseList(list))); } catch { /* promise tracker only: a failed save leaves the previous list in place */ }
+}
+let promiseTrackerBound = false;
+function renderPromiseTracker() {
+  const bodyEl = $('#ptBody');
+  if (!bodyEl) return;
+  const list = loadPromiseTracker();
+  const filter = ($('#ptFilter')?.value ?? '').trim().toLowerCase();
+  // A commitment is a service promise only: payment promises stay
+  // under the Waada record and are never duplicated here. Marking
+  // done records only the completion date; an overdue commitment
+  // stays visible until done or withdrawn. Nothing here changes
+  // any Waada, bill, payment, fault, or customer status, and
+  // nothing is ever sent automatically.
+  bodyEl.innerHTML = filter ? promiseAllHtml(promisesForCustomer(list, filter)) : promiseOpenHtml(list);
+  const summaryEl = $('#ptSummary');
+  if (summaryEl) summaryEl.textContent = promiseSummaryText(list);
+  const overdueEl = $('#ptOverdueBody');
+  if (overdueEl) {
+    const today = new Date().toISOString().slice(0, 10);
+    const overdue = overduePromises(list, today);
+    overdueEl.innerHTML = overdue.length
+      ? `<p>Overdue commitments (still visible until done or withdrawn):</p>${promiseAllHtml(overdue)}`
+      : '<p>No overdue commitments.</p>';
+  }
+  if (!promiseTrackerBound) {
+    promiseTrackerBound = true;
+    $('#ptSaveBtn')?.addEventListener('click', () => {
+      const before = loadPromiseTracker();
+      const next = upsertPromise(before, {
+        id: `PT-${Date.now()}`,
+        customerId: $('#ptCustomer')?.value ?? '',
+        promise: $('#ptPromise')?.value ?? '',
+        dueDate: $('#ptDueDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Commitment not recorded: give a customer, a promise in plain words, and a valid promised-by date.'); return; }
+      savePromiseTracker(next); renderPromiseTracker();
+    });
+    $('#ptDoneBtn')?.addEventListener('click', () => {
+      const id = ($('#ptDoneId')?.value ?? '').trim();
+      if (!id) return;
+      savePromiseTracker(markPromiseDone(loadPromiseTracker(), id, ($('#ptDoneDate')?.value ?? ''))); renderPromiseTracker();
+    });
+    $('#ptWithdrawBtn')?.addEventListener('click', () => {
+      const id = ($('#ptWithdrawId')?.value ?? '').trim();
+      if (!id) return;
+      savePromiseTracker(markPromiseWithdrawn(loadPromiseTracker(), id)); renderPromiseTracker();
+    });
+    $('#ptRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#ptRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      savePromiseTracker(removePromise(loadPromiseTracker(), id)); renderPromiseTracker();
+    });
+    $('#ptExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(promiseFilename(), promiseCsv(loadPromiseTracker()));
+    });
+    $('#ptFilter')?.addEventListener('input', () => { renderPromiseTracker(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

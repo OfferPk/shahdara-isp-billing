@@ -404,6 +404,7 @@ import { normalizeShopAssetList, recordShopAsset, removeShopAsset, markShopAsset
 import { normalizeMilestoneList, recordMilestone, removeMilestone, setMilestoneStatus, starterMilestones, milestonesSorted, milestoneAllHtml, milestoneSummaryText, milestoneReadinessText, milestoneCsv, milestoneFilename } from './growth-milestone.js';
 import { normalizeChecklistList, recordChecklist, removeChecklist, tickChecklistStep, untickChecklistStep, starterCollectorSteps, checklistsSorted, checklistAllHtml, checklistSummaryText, checklistCsv, checklistFilename } from './collector-onboarding.js';
 import { validComparisonPeriod, buildYearComparison, yearComparisonText, yearComparisonHtml, yearComparisonCsv, yearComparisonFilename } from './year-comparison.js';
+import { normalizeDrillList, recordDrill, removeDrill, noteDrillFollowUp, drillsSorted, drillAllHtml, drillSummaryText, drillCsv, drillFilename } from './restore-drill.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13995,6 +13996,7 @@ function renderAnalytics() {
   renderGrowthMilestones();
   renderCollectorOnboarding();
   renderYearComparison();
+  renderRestoreDrills();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25462,6 +25464,52 @@ function renderYearComparison() {
       const current = buildYearComparison({ period: currentPeriod, records: buildYearComparisonRecords(currentPeriod) });
       if (current) downloadCsvFile(yearComparisonFilename(currentPeriod), yearComparisonCsv(current));
     });
+  }
+}
+// Plan 194: backup restore drill record (record only). A drill is a
+// note about a practise restore the operator did by hand: it never
+// restores, overwrites, or deletes live data, and it never reads or
+// writes any backup record. A failed drill stays visible until a
+// follow-up is noted, and stays in history afterwards.
+const RESTORE_DRILL_KEY = 'shahdara_restore_drills_v1';
+function loadRestoreDrills() {
+  try { return normalizeDrillList(JSON.parse(localStorage.getItem(RESTORE_DRILL_KEY) || '[]')); } catch { return []; }
+}
+function saveRestoreDrills(list) {
+  try { localStorage.setItem(RESTORE_DRILL_KEY, JSON.stringify(normalizeDrillList(list))); } catch { /* restore drills only: a failed save leaves the previous list in place */ }
+}
+let restoreDrillsBound = false;
+function renderRestoreDrills() {
+  const bodyEl = $('#rdBody');
+  if (!bodyEl) return;
+  const query = ($('#rdFilter')?.value ?? '').trim().toLowerCase();
+  const shown = query ? drillsSorted(loadRestoreDrills()).filter((entry) => entry.backupRef.toLowerCase().includes(query)) : drillsSorted(loadRestoreDrills());
+  bodyEl.innerHTML = shown.length ? drillAllHtml(shown) : '<p>No restore drills recorded.</p>';
+  const summaryEl = $('#rdSummary');
+  if (summaryEl) summaryEl.textContent = drillSummaryText(loadRestoreDrills());
+  if (!restoreDrillsBound) {
+    restoreDrillsBound = true;
+    $('#rdExportBtn')?.addEventListener('click', () => { downloadCsvFile(drillFilename(), drillCsv(loadRestoreDrills())); });
+    $('#rdSaveBtn')?.addEventListener('click', () => {
+      saveRestoreDrills(recordDrill(loadRestoreDrills(), {
+        id: `RD-${Date.now()}`,
+        drillDate: $('#rdDate')?.value ?? '',
+        backupRef: $('#rdBackup')?.value ?? '',
+        practisedBy: $('#rdBy')?.value ?? '',
+        outcome: $('#rdOutcome')?.value ?? 'failed',
+        issuesFound: $('#rdIssues')?.value ?? '',
+      }));
+      renderRestoreDrills();
+    });
+    $('#rdFollowBtn')?.addEventListener('click', () => {
+      saveRestoreDrills(noteDrillFollowUp(loadRestoreDrills(), $('#rdFollowId')?.value ?? '', $('#rdFollowNote')?.value ?? ''));
+      renderRestoreDrills();
+    });
+    $('#rdRemoveBtn')?.addEventListener('click', () => {
+      saveRestoreDrills(removeDrill(loadRestoreDrills(), $('#rdRemoveId')?.value ?? ''));
+      renderRestoreDrills();
+    });
+    $('#rdFilter')?.addEventListener('input', () => { renderRestoreDrills(); });
   }
 }
 function renderOwnerDecision() {

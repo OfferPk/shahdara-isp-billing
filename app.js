@@ -315,6 +315,7 @@ import { OPEN_SUGGESTION_STATUSES, suggestionStatusLabel, normalizeSuggestionLis
 import { normalizePromoList, upsertPromo, removePromo, promoStatus, promoStatusLabel, filterPromos, normalizePromoApplicationList, recordPromoApplication, removePromoApplication, promoSummaryText, promoHtml, promoApplicationHtml, promoCsv, promoApplicationCsv, promoFilename } from './promo-offers.js';
 import { normalizeAssignmentList, upsertAssignment, removeAssignment, canonicalCollectorMohalla, collectorsList, unassignedMohallas, collectorPreview, assignmentSummaryText, assignmentHtml, assignmentCsv, assignmentFilename } from './collector-assignments.js';
 import { buildRecognitionList, filterRecognitionByMohalla, canonicalRecognitionMohalla, thankYouDraft, normalizeThankYouSendList, upsertThankYouSend, normalizeRestartList, upsertRestart, removeRestart, restartDateFor, recognitionSummaryText, recognitionHtml, recognitionCsv, recognitionFilename, normalizeMilestoneYears } from './loyalty-recognition.js';
+import { normalizeAdvanceAllocationList, upsertAdvanceAllocation, removeAdvanceAllocation, advanceWithAllocation, advancesForCustomer, advanceSummaryText, advanceHtml, advanceCsv, advanceFilename } from './advance-allocation.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13697,6 +13698,7 @@ function renderAnalytics() {
   renderPromoOffers();
   renderCollectorAssignments();
   renderLoyaltyRecognition();
+  renderAdvanceAllocations();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -19188,6 +19190,107 @@ function renderLoyaltyRecognition() {
     });
     $('#loyaltyRecognitionExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(recognitionFilename(), recognitionCsv(loyaltyRecognitionRows));
+    });
+  }
+}
+// Plan 101: advance payment allocation across future bills. The record
+// only says which future months money already paid covers: allocation
+// is recomputed fresh from the customer's own bills on every render,
+// oldest covered month first, never applied to an already-paid bill,
+// and a bill covered by an advance still exists in full — the covered
+// mark lives in this view only, never on the bill itself. Nothing here
+// changes any bill, payment, or total, and it never touches the
+// repayment arrangement from the earlier plan.
+const ADVANCE_ALLOCATIONS_KEY = 'shahdara_advance_allocations_v1';
+function loadAdvanceAllocations() {
+  try {
+    const raw = localStorage.getItem(ADVANCE_ALLOCATIONS_KEY);
+    if (!raw) return [];
+    return normalizeAdvanceAllocationList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveAdvanceAllocations(list) {
+  try { localStorage.setItem(ADVANCE_ALLOCATIONS_KEY, JSON.stringify(normalizeAdvanceAllocationList(list))); } catch { /* record only: a failed save leaves the previous advances in place */ }
+}
+function advanceAllocationBills(customer) {
+  return (Array.isArray(customer?.bills) ? customer.bills : []).map((bill) => {
+    const due = Number(bill?.dueAmount ?? 0);
+    const paidAmount = Number(bill?.paidAmount ?? 0);
+    return {
+      id: bill?.id ?? bill?.month ?? '',
+      month: bill?.month ?? '',
+      amountCents: Number.isFinite(due) && due > 0 ? Math.round(due * 100) : null,
+      paid: Number.isFinite(due) && due > 0 && paidAmount >= due,
+    };
+  });
+}
+let advanceAllocationsBound = false;
+function renderAdvanceAllocations() {
+  const bodyEl = $('#advanceAllocationBody');
+  if (!bodyEl) return;
+  const records = loadAdvanceAllocations();
+  const customers = (state.customers ?? []).filter((c) => c && c.id);
+  const customerEl = $('#advanceAllocationCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    const picked = customerEl.value ?? '';
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+    if (customers.some((c) => String(c.id) === picked)) customerEl.value = picked;
+  }
+  const filterEl = $('#advanceAllocationFilterCustomer');
+  if (filterEl && document.activeElement !== filterEl) {
+    const picked = filterEl.value ?? '';
+    filterEl.innerHTML = '<option value="">All customers</option>'
+      + customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('');
+    if (picked === '' || customers.some((c) => String(c.id) === picked)) filterEl.value = picked;
+  }
+  const pickEl = $('#advanceAllocationPick');
+  if (pickEl && document.activeElement !== pickEl) {
+    pickEl.innerHTML = records.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.id)} — ${escapeHtml(r.customerName || r.customer)}</option>`).join('')
+      || '<option value="">No advances yet</option>';
+  }
+  const dateInput = $('#advanceAllocationDate');
+  if (dateInput && !dateInput.value) dateInput.value = localDate();
+  const byCustomer = new Map(customers.map((c) => [String(c.id), c]));
+  const filterCustomer = filterEl?.value ?? '';
+  const shown = filterCustomer ? advancesForCustomer(records, filterCustomer) : records;
+  const views = shown.map((record) => {
+    const customer = byCustomer.get(String(record.customer));
+    return advanceWithAllocation(record, customer ? advanceAllocationBills(customer) : []);
+  }).filter(Boolean);
+  bodyEl.innerHTML = advanceHtml(views);
+  const summaryEl = $('#advanceAllocationSummary');
+  if (summaryEl) summaryEl.textContent = advanceSummaryText(views);
+  if (!advanceAllocationsBound) {
+    advanceAllocationsBound = true;
+    $('#advanceAllocationSaveBtn')?.addEventListener('click', () => {
+      const customer = $('#advanceAllocationCustomer')?.value ?? '';
+      const amountRs = Number($('#advanceAllocationAmount')?.value ?? 0);
+      const date = $('#advanceAllocationDate')?.value ?? '';
+      const months = $('#advanceAllocationMonths')?.value ?? '';
+      const name = customers.find((c) => String(c.id) === customer)?.name || customers.find((c) => String(c.id) === customer)?.customerName || '';
+      const before = loadAdvanceAllocations();
+      const next = upsertAdvanceAllocation(before, { id: `ADV-${Date.now()}`, customer, customerName: name, date, amount: amountRs, monthsCovered: months });
+      if (next.length === before.length) { toast('That advance is half-formed and was not recorded. Check the amount, date, and months covered.'); return; }
+      saveAdvanceAllocations(next);
+      toast('Advance recorded. It covers the listed future months, oldest first, and never an already-paid bill.');
+      renderAdvanceAllocations();
+    });
+    $('#advanceAllocationFilterCustomer')?.addEventListener('change', () => renderAdvanceAllocations());
+    $('#advanceAllocationRemoveBtn')?.addEventListener('click', () => {
+      const id = $('#advanceAllocationPick')?.value ?? '';
+      if (!id) { toast('Pick an advance first.'); return; }
+      saveAdvanceAllocations(removeAdvanceAllocation(loadAdvanceAllocations(), id));
+      toast('Advance removed. No bill, payment, or total was changed.');
+      renderAdvanceAllocations();
+    });
+    $('#advanceAllocationExportBtn')?.addEventListener('click', () => {
+      const liveByCustomer = new Map((state.customers ?? []).filter((c) => c && c.id).map((c) => [String(c.id), c]));
+      const all = loadAdvanceAllocations().map((record) => {
+        const customer = liveByCustomer.get(String(record.customer));
+        return advanceWithAllocation(record, customer ? advanceAllocationBills(customer) : []);
+      }).filter(Boolean);
+      downloadCsvFile(advanceFilename(), advanceCsv(all));
     });
   }
 }

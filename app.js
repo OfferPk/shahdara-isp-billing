@@ -354,6 +354,7 @@ import { normalizeRouteProofList, upsertRouteProof, removeRouteProof, routeProof
 import { normalizeSecondVisitList, upsertSecondVisit, removeSecondVisit, markSecondVisitOutcome, secondVisitSummaryText, secondVisitHtml, secondVisitOverdueHtml, secondVisitCsv, secondVisitFilename } from './second-visit.js';
 import { normalizeEscalationList, upsertEscalation, removeEscalation, recordEscalationStage, closeEscalation, escalationSummaryText as escalationTimerSummaryText, escalationHtml as escalationTimerHtml, escalationCsv as escalationTimerCsv, escalationFilename as escalationTimerFilename } from './escalation-timer.js';
 import { normalizeSegmentDiaryList, upsertSegmentDiaryEntry, removeSegmentDiaryEntry, segmentDiarySummaryText, segmentDiaryHtml, segmentDiaryCsv, segmentDiaryFilename } from './segment-diary.js';
+import { normalizeEquipmentCycleList, upsertEquipmentCycleRecord, removeEquipmentCycleRecord, recordEquipmentCycleCheck, equipmentCycleSummaryText, equipmentCycleDueHtml, equipmentCycleCsv, equipmentCycleFilename } from './equipment-cycle.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13891,6 +13892,7 @@ function renderAnalytics() {
   renderSecondVisits();
   renderEscalations();
   renderSegmentDiary();
+  renderEquipmentCycle();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -22509,6 +22511,58 @@ function renderSegmentDiary() {
       downloadCsvFile(segmentDiaryFilename(), segmentDiaryCsv(loadSegmentDiary()));
     });
     $('#diaryFilter')?.addEventListener('input', () => { renderSegmentDiary(); });
+  }
+}
+
+const EQUIPMENT_CYCLE_KEY = 'shahdara_equipment_cycle_v1';
+function loadEquipmentCycle() {
+  try { return normalizeEquipmentCycleList(JSON.parse(localStorage.getItem(EQUIPMENT_CYCLE_KEY) || '[]')); } catch { return []; }
+}
+function saveEquipmentCycle(list) {
+  try { localStorage.setItem(EQUIPMENT_CYCLE_KEY, JSON.stringify(normalizeEquipmentCycleList(list))); } catch { /* cycle only: a failed save leaves the previous records in place */ }
+}
+let equipmentCycleBound = false;
+function renderEquipmentCycle() {
+  const bodyEl = $('#cycleDueBody');
+  if (!bodyEl) return;
+  const records = loadEquipmentCycle();
+  bodyEl.innerHTML = equipmentCycleDueHtml(records, $('#cycleRefDate')?.value ?? '', Number($('#cycleWindow')?.value ?? 30) || 30);
+  const summaryEl = $('#cycleSummary');
+  if (summaryEl) summaryEl.textContent = equipmentCycleSummaryText(records);
+  if (!equipmentCycleBound) {
+    equipmentCycleBound = true;
+    $('#cycleSaveBtn')?.addEventListener('click', () => {
+      const before = loadEquipmentCycle();
+      const next = upsertEquipmentCycleRecord(before, {
+        id: `EQ-${Date.now()}`,
+        item: $('#cycleItem')?.value ?? '',
+        lastCheck: $('#cycleLastCheck')?.value ?? '',
+        cycleDays: $('#cycleDays')?.value ?? '',
+        note: $('#cycleNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Cycle record not recorded: give an item name, a real last-check date, and a positive whole number of cycle days. An item already has a cycle record.'); return; }
+      saveEquipmentCycle(next);
+      toast('Cycle record recorded. Its next due date is set by the cycle, never typed in.');
+      renderEquipmentCycle();
+    });
+    $('#cycleCheckBtn')?.addEventListener('click', () => {
+      const id = ($('#cycleCheckId')?.value ?? '').trim();
+      const date = $('#cycleCheckDate')?.value ?? '';
+      if (!id || !date) return;
+      saveEquipmentCycle(recordEquipmentCycleCheck(loadEquipmentCycle(), id, date));
+      renderEquipmentCycle();
+    });
+    $('#cycleRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#cycleRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveEquipmentCycle(removeEquipmentCycleRecord(loadEquipmentCycle(), id));
+      renderEquipmentCycle();
+    });
+    $('#cycleExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(equipmentCycleFilename(), equipmentCycleCsv(loadEquipmentCycle()));
+    });
+    $('#cycleRefDate')?.addEventListener('input', () => { renderEquipmentCycle(); });
+    $('#cycleWindow')?.addEventListener('input', () => { renderEquipmentCycle(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

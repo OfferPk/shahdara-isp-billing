@@ -377,6 +377,7 @@ import { normalizeVisitFeedbackList, upsertVisitFeedback, removeVisitFeedback, m
 import { normalizeGreetingDateList, upsertGreetingDate, removeGreetingDate, markGreetingSent, greetingAllHtml, greetingCustomerHtml, greetingUpcomingHtml, greetingSummaryText, greetingCsv, greetingFilename } from './greeting-date.js';
 import { normalizeDraftLanguageList, upsertDraftLanguage, removeDraftLanguage, preferenceFor, applyDraftLanguage, draftLanguageAllHtml, draftLanguageCustomerHtml, draftLanguageSummaryText, draftLanguageCsv, draftLanguageFilename } from './draft-language.js';
 import { normalizeInfoSheetList, upsertInfoSheet, removeInfoSheet, infoSheetForCustomer, infoSheetAllHtml, infoSheetCustomerHtml, infoSheetSummaryText, infoSheetCsv, infoSheetFilename } from './info-sheet.js';
+import { normalizeAnnouncementDraftList, upsertAnnouncementDraft, copyAnnouncementDraft, removeAnnouncementDraft, markAnnouncementSent, markAnnouncementUnsent, announcementDraftAllHtml, announcementDraftMohallaHtml, announcementDraftSummaryText, announcementDraftCsv, announcementDraftFilename } from './announcement-draft.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13937,6 +13938,7 @@ function renderAnalytics() {
   renderGreetingDates();
   renderDraftLanguages();
   renderInfoSheets();
+  renderAnnouncementDrafts();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23783,6 +23785,73 @@ function renderInfoSheets() {
       try { window.print(); } catch { /* printing unavailable: the sheet preview stays on screen */ }
     });
     $('#isFilter')?.addEventListener('input', () => { renderInfoSheets(); });
+  }
+}
+const ANNOUNCEMENT_DRAFT_KEY = 'shahdara_announcement_drafts_v1';
+function loadAnnouncementDrafts() {
+  try { return normalizeAnnouncementDraftList(JSON.parse(localStorage.getItem(ANNOUNCEMENT_DRAFT_KEY) || '[]')); } catch { return []; }
+}
+function saveAnnouncementDrafts(list) {
+  try { localStorage.setItem(ANNOUNCEMENT_DRAFT_KEY, JSON.stringify(normalizeAnnouncementDraftList(list))); } catch { /* announcement drafts only: a failed save leaves the previous list in place */ }
+}
+let announcementDraftsBound = false;
+function renderAnnouncementDrafts() {
+  const bodyEl = $('#adBody');
+  if (!bodyEl) return;
+  const list = loadAnnouncementDrafts();
+  bodyEl.innerHTML = announcementDraftAllHtml(list);
+  const mohallaEl = $('#adMohallaBody');
+  if (mohallaEl) {
+    const mohalla = $('#adFilter')?.value ?? '';
+    mohallaEl.innerHTML = mohalla ? announcementDraftMohallaHtml(list, mohalla) : '<p>Pick a mohalla to see its announcement drafts.</p>';
+  }
+  const summaryEl = $('#adSummary');
+  if (summaryEl) summaryEl.textContent = announcementDraftSummaryText(list);
+  if (!announcementDraftsBound) {
+    announcementDraftsBound = true;
+    $('#adSaveBtn')?.addEventListener('click', () => {
+      const before = loadAnnouncementDrafts();
+      const next = upsertAnnouncementDraft(before, {
+        id: `AD-${Date.now()}`,
+        packageName: $('#adPackage')?.value ?? '',
+        monthlyRate: $('#adRate')?.value ?? '',
+        description: $('#adDescription')?.value ?? '',
+        mohalla: $('#adMohalla')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Announcement draft not recorded: give a package, a monthly rate, a description, and a mohalla.'); return; }
+      saveAnnouncementDrafts(next); renderAnnouncementDrafts();
+    });
+    $('#adCopyBtn')?.addEventListener('click', () => {
+      const id = ($('#adCopyId')?.value ?? '').trim();
+      const mohalla = $('#adCopyMohalla')?.value ?? '';
+      if (!id) return;
+      const before = loadAnnouncementDrafts();
+      const next = copyAnnouncementDraft(before, id, mohalla, `AD-${Date.now()}`);
+      if (next.length === before.length) { toast('Copy not recorded: that package already has a draft for this mohalla, or the source id is missing.'); return; }
+      saveAnnouncementDrafts(next); renderAnnouncementDrafts();
+    });
+    $('#adMarkSentBtn')?.addEventListener('click', () => {
+      const id = ($('#adSentId')?.value ?? '').trim();
+      if (!id) return;
+      saveAnnouncementDrafts(markAnnouncementSent(loadAnnouncementDrafts(), id, $('#adSentDate')?.value ?? ''));
+      renderAnnouncementDrafts();
+    });
+    $('#adMarkUnsentBtn')?.addEventListener('click', () => {
+      const id = ($('#adSentId')?.value ?? '').trim();
+      if (!id) return;
+      saveAnnouncementDrafts(markAnnouncementUnsent(loadAnnouncementDrafts(), id));
+      renderAnnouncementDrafts();
+    });
+    $('#adRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#adRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveAnnouncementDrafts(removeAnnouncementDraft(loadAnnouncementDrafts(), id));
+      renderAnnouncementDrafts();
+    });
+    $('#adExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(announcementDraftFilename(), announcementDraftCsv(loadAnnouncementDrafts()));
+    });
+    $('#adFilter')?.addEventListener('input', () => { renderAnnouncementDrafts(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

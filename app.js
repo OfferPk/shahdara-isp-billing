@@ -369,6 +369,7 @@ import { normalizeOnCallList, upsertOnCallEntry, removeOnCallEntry, onCallLookup
 import { normalizeVisitTimeList, upsertVisitTime, removeVisitTime, routeDayHtml, visitTimeAllHtml, routeDayTotalsHtml, visitTimeSummaryText, visitTimeCsv, visitTimeFilename } from './visit-times.js';
 import { normalizeSiteAccessList, upsertSiteAccess, removeSiteAccess, siteAccessAllHtml, siteAccessHtml, flaggedAccessHtml, siteAccessSummaryText, siteAccessCsv, siteAccessFilename } from './site-access.js';
 import { normalizeSwapPairingList, upsertSwapPairing, removeSwapPairing, swapPairingAllHtml, swapPairingCustomerHtml, swapPairingSummaryText, swapPairingCsv, swapPairingFilename } from './swap-pairing.js';
+import { normalizeRecheckList, upsertRecheck, removeRecheck, recheckAllHtml, recheckTicketHtml, recheckFollowUpHtml, recheckSummaryText, recheckCsv, recheckFilename } from './recheck.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13921,6 +13922,7 @@ function renderAnalytics() {
   renderVisitTimes();
   renderSiteAccess();
   renderSwapPairings();
+  renderRechecks();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -23339,6 +23341,56 @@ function renderSwapPairings() {
       downloadCsvFile(swapPairingFilename(), swapPairingCsv(loadSwapPairings()));
     });
     $('#swapFilter')?.addEventListener('input', () => { renderSwapPairings(); });
+  }
+}
+const RECHECK_KEY = 'shahdara_rechecks_v1';
+function loadRechecks() {
+  try { return normalizeRecheckList(JSON.parse(localStorage.getItem(RECHECK_KEY) || '[]')); } catch { return []; }
+}
+function saveRechecks(list) {
+  try { localStorage.setItem(RECHECK_KEY, JSON.stringify(normalizeRecheckList(list))); } catch { /* re-check only: a failed save leaves the previous log in place */ }
+}
+let recheckBound = false;
+function renderRechecks() {
+  const bodyEl = $('#recheckBody');
+  if (!bodyEl) return;
+  const list = loadRechecks();
+  bodyEl.innerHTML = recheckAllHtml(list);
+  const followUpEl = $('#recheckFollowUpBody');
+  if (followUpEl) followUpEl.innerHTML = recheckFollowUpHtml(list);
+  const ticketEl = $('#recheckTicketBody');
+  if (ticketEl) {
+    const ticket = $('#recheckFilter')?.value ?? '';
+    ticketEl.innerHTML = ticket ? recheckTicketHtml(list, ticket) : '<p>Pick a ticket to see its re-checks, newest first.</p>';
+  }
+  const summaryEl = $('#recheckSummary');
+  if (summaryEl) summaryEl.textContent = recheckSummaryText(list);
+  if (!recheckBound) {
+    recheckBound = true;
+    $('#recheckSaveBtn')?.addEventListener('click', () => {
+      const before = loadRechecks();
+      const next = upsertRecheck(before, {
+        id: `RC-${Date.now()}`,
+        ticketId: $('#recheckTicket')?.value ?? '',
+        recheckDate: $('#recheckDate')?.value ?? '',
+        result: $('#recheckResult')?.value ?? '',
+        note: $('#recheckNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Re-check not recorded: give a ticket, a real date, and a result (holding or failed).'); return; }
+      saveRechecks(next);
+      toast('Fault re-check recorded. A failed re-check puts the ticket on the follow-up list.');
+      renderRechecks();
+    });
+    $('#recheckRemoveBtn')?.addEventListener('click', () => {
+      const id = ($('#recheckRemoveId')?.value ?? '').trim();
+      if (!id) return;
+      saveRechecks(removeRecheck(loadRechecks(), id));
+      renderRechecks();
+    });
+    $('#recheckExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(recheckFilename(), recheckCsv(loadRechecks()));
+    });
+    $('#recheckFilter')?.addEventListener('input', () => { renderRechecks(); });
   }
 }
 // Closed months for the guard: months closed on the month-end

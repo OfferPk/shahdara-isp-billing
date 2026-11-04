@@ -285,6 +285,7 @@ import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, 
 import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
 import { buildPrecloseSweep, precloseSweepSummaryText, precloseSweepHtml, precloseSweepCsv, precloseSweepFilename, validSweepMonth } from './preclose-sweep.js';
 import { validSnapshotMonth, normalizeSnapshotList, findSnapshot, takeSnapshot, removeSnapshot, snapshotSummaryText, snapshotHtml, snapshotCsv, snapshotFilename, compareSnapshots, compareSnapshotsSummaryText, compareSnapshotsHtml, compareSnapshotsCsv } from './month-snapshots.js';
+import { validAnnualYear, monthsOfYear, buildAnnualSummary, annualSummaryText, annualSummaryHtml, annualSummaryCsv, annualSummaryFilename } from './annual-summary.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -13247,6 +13248,7 @@ function renderAnalytics() {
   renderRollForward();
   renderPrecloseSweep();
   renderMonthSnapshots();
+  renderAnnualSummary();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -15800,6 +15802,70 @@ function renderMonthSnapshots() {
       saveMonthSnapshots(removeSnapshot(loadMonthSnapshots(), picked));
       toast(`Snapshot for ${picked} removed.`);
       renderMonthSnapshots();
+    });
+  }
+}
+// Plan 71: annual owner summary, composition only. One read-only year
+// view from the twelve monthly figures: collections and expenses from
+// each month's frozen snapshot (Plan 70) when one exists, new
+// activations, departures, and churn from that month's Plan 60 summary,
+// and a snapshot flag per month. A month with no frozen snapshot is
+// flagged incomplete, never estimated, and its money figures stay
+// unrecorded for that month; composing never changes any monthly pack
+// or live record.
+let annualSummaryBound = false;
+function renderAnnualSummary() {
+  const bodyEl = $('#annualSummaryBody');
+  if (!bodyEl) return;
+  const yearEl = $('#annualSummaryYear');
+  if (yearEl && !yearEl.value) yearEl.value = localDate().slice(0, 4);
+  const year = yearEl?.value ?? localDate().slice(0, 4);
+  const snapshots = loadMonthSnapshots();
+  const customers = churnSummaryCustomers();
+  const rows = monthsOfYear(year).map((month) => {
+    const snap = findSnapshot(snapshots, month);
+    const churn = buildMonthlyChurnSummary({ month, customers, atRisk: [] });
+    return {
+      month,
+      collections: snap ? snap.collectionsCents / 100 : null,
+      expenses: snap ? snap.expensesCents / 100 : null,
+      newCustomers: churn ? churn.newCustomers : null,
+      departed: churn ? churn.departed : null,
+      customersStart: churn ? churn.start : null,
+      customersEnd: churn ? churn.end : null,
+      churnRate: churn ? churn.churnRate : null,
+      snapshotClosed: !!snap,
+    };
+  });
+  const view = buildAnnualSummary({ year, months: rows });
+  bodyEl.innerHTML = view ? annualSummaryHtml(view) : '<p style="font-size: 12px;">Pick a valid year to see the annual summary.</p>';
+  const summaryEl = $('#annualSummarySummary');
+  if (summaryEl) summaryEl.textContent = view ? annualSummaryText(view) : '';
+  if (!annualSummaryBound) {
+    annualSummaryBound = true;
+    $('#annualSummaryYear')?.addEventListener('change', () => renderAnnualSummary());
+    $('#annualSummaryExportBtn')?.addEventListener('click', () => {
+      const currentYear = $('#annualSummaryYear')?.value ?? localDate().slice(0, 4);
+      if (!validAnnualYear(currentYear)) { toast('Pick a valid year first.'); return; }
+      const currentSnapshots = loadMonthSnapshots();
+      const currentCustomers = churnSummaryCustomers();
+      const currentRows = monthsOfYear(currentYear).map((month) => {
+        const snap = findSnapshot(currentSnapshots, month);
+        const churn = buildMonthlyChurnSummary({ month, customers: currentCustomers, atRisk: [] });
+        return {
+          month,
+          collections: snap ? snap.collectionsCents / 100 : null,
+          expenses: snap ? snap.expensesCents / 100 : null,
+          newCustomers: churn ? churn.newCustomers : null,
+          departed: churn ? churn.departed : null,
+          customersStart: churn ? churn.start : null,
+          customersEnd: churn ? churn.end : null,
+          churnRate: churn ? churn.churnRate : null,
+          snapshotClosed: !!snap,
+        };
+      });
+      const current = buildAnnualSummary({ year: currentYear, months: currentRows });
+      if (current) downloadCsvFile(annualSummaryFilename(current.year), annualSummaryCsv(current));
     });
   }
 }

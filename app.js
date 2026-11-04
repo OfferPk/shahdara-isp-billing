@@ -309,6 +309,7 @@ import { receiptNumberFromReference, isReceiptDeliveryStatus, buildGapAudit, fil
 import { buildStatusBoard, filterBoardRows, boardSummaryText, boardHtml, boardCsv, boardFilename } from './status-board.js';
 import { normalizeOutageCreditList, upsertOutageCredit, removeOutageCredit, markCreditApplied, reopenCredit, filterOutageCredits, buildOutageCreditSummary, outageCreditSummaryText, outageCreditHtml, outageCreditCsv, outageCreditFilename } from './outage-credits.js';
 import { normalizePriceNoticeList, upsertPriceNotice, removePriceNotice, buildNoticeDrafts, buildNoticeText, priceNoticeSummaryText, priceNoticeHtml, priceNoticeDraftHtml, priceNoticeCsv, priceNoticeFilename, normalizePriceNoticeSendList, logPriceNoticeSent } from './price-notices.js';
+import { TERMS_ACK_METHODS, TERMS_ACK_METHOD_LABELS, normalizeTermsAckList, upsertTermsAck, removeTermsAck, findTermsAck, customerTermsStatus, buildCustomerTermsRows, filterTermsAcks, termsAckSummaryText, termsAckHtml, termsAckStatusHtml, termsAckCsv, termsAckFilename } from './terms-ack.js';
 import { buildWinbackQueue, winbackDoNotRecontactList, markDoNotRecontact, unmarkDoNotRecontact, buildRecontactDraft, logWinbackSend, findWinbackSends, winbackSentText, buildWinbackSummary, winbackSummaryText, winbackHtml, winbackCsv, winbackFilename } from './winback-queue.js';
 import { WELCOME_PACK_VARIANTS, welcomePackFromCustomer, buildWelcomePackDraft, logWelcomePackSent, findWelcomePackSends, welcomePackSentText, welcomePackHtml } from './welcome-pack.js';
 import { STATEMENT_DRAFT_VARIANTS, buildMonthlyStatement, buildStatementDraftText, logStatementSent, findStatementSends, statementSentText, statementDraftHtml } from './statement-draft.js';
@@ -4614,6 +4615,14 @@ function renderCustomerProfileView(customer) {
   const statusReplySends = () => findStatusReplySends(loadStatusReplySentLog(), customer.id);
   const statusReplySendLabel = statusReplyPref && statusReplyPref.doNotMessage ? 'Do not message' : (statusReplySends().length > 0 ? 'Re-send status reply' : 'Send status reply');
   const statusReplySectionHtml = `<section class="profile-custody-section" aria-label="Open fault and request status reply"><h4>Open fault and request status reply</h4><p>When the customer chases an open fault or request, send one accurate status message instead of "ho jayega" — what was reported or requested, its current status, and the next step with a date where one is recorded. A customer with no open case gets a plain "no open case" wording, never an invented status. This is a draft only: sending opens WhatsApp with the text prefilled and logs the send; it changes no ticket or request record.</p><div><label>Draft language <select id="statusReplyVariant"><option value="${STATUS_REPLY_VARIANTS.ROMAN}" ${statusReplyVariant === STATUS_REPLY_VARIANTS.ROMAN ? 'selected' : ''}>Roman Urdu</option><option value="${STATUS_REPLY_VARIANTS.URDU}" ${statusReplyVariant === STATUS_REPLY_VARIANTS.URDU ? 'selected' : ''}>Urdu script</option></select></label> <button type="button" class="secondary-button" id="statusReplyShowBtn">Show reply</button></div><div id="statusReplyResult">${statusReplyCurrent ? statusReplyHtml(statusReplyCurrent, { draftText: statusReplyCurrent.text, sends: statusReplySends() }) : '<p class="empty-state">Status reply unavailable.</p>'}</div><button type="button" class="secondary-button" id="statusReplySendBtn" ${statusReplySendDisabled ? 'disabled' : ''}>${escapeHtml(statusReplySendLabel)}</button></section>`;
+  // Plan 95 (Plan 1-100) — Service terms acknowledgement record.
+  // Read-only on the profile: the current terms version and whether
+  // this customer has acknowledged it. Recording happens in the
+  // Analytics terms panel; this line changes no package, bill, or
+  // status, and it never assumes an acknowledgement for a new
+  // version from an old one.
+  const termsAckStatus = customerTermsStatus(loadTermsAck(), customer.id, loadTermsCurrentVersion());
+  const termsAckSectionHtml = `<section class="profile-custody-section" aria-label="Service terms acknowledgement"><h4>Service terms acknowledgement</h4><p>Which terms version this customer agreed to, and on what date — so a "nobody told me" dispute is answered from a dated record, not from memory. The record stores the version and the date only, never a copy of any identity document, and it changes no package, billing, or lifecycle rule. A new terms version shows this customer as not yet acknowledged until they actually acknowledge it.</p>${termsAckStatusHtml(termsAckStatus)}</section>`;
   // Plan 46 (Plan 1-100) — Package change preview on the profile.
   // The preview is built from this profile's own package and monthly
   // amount, and the proposed package's catalogue price; both prices
@@ -4650,7 +4659,7 @@ function renderCustomerProfileView(customer) {
   const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
   const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
   const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p>When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><div><label>Date <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
@@ -13558,6 +13567,7 @@ function renderAnalytics() {
   renderStatusBoard();
   renderOutageCredits();
   renderPriceNotices();
+  renderTermsAck();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -18472,6 +18482,116 @@ function renderPriceNotices() {
       if (!noticeId) { toast('Pick a notice first.'); return; }
       savePriceNotices(removePriceNotice(loadPriceNotices(), noticeId));
       renderPriceNotices();
+    });
+  }
+}
+const TERMS_ACK_KEY = 'shahdara_terms_ack_v1';
+const TERMS_CURRENT_VERSION_KEY = 'shahdara_terms_current_version_v1';
+function loadTermsAck() {
+  try {
+    const raw = localStorage.getItem(TERMS_ACK_KEY);
+    if (!raw) return [];
+    return normalizeTermsAckList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveTermsAck(list) {
+  try { localStorage.setItem(TERMS_ACK_KEY, JSON.stringify(normalizeTermsAckList(list))); } catch { /* record only: a failed save leaves the previous acknowledgements in place */ }
+}
+function loadTermsCurrentVersion() {
+  try {
+    const raw = localStorage.getItem(TERMS_CURRENT_VERSION_KEY);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw);
+    return typeof parsed === 'string' ? parsed.trim() : '';
+  } catch { return ''; }
+}
+function saveTermsCurrentVersion(version) {
+  try { localStorage.setItem(TERMS_CURRENT_VERSION_KEY, JSON.stringify(String(version ?? '').trim())); } catch { /* version only: a failed save leaves the previous version in place */ }
+}
+let termsAckBound = false;
+function renderTermsAck() {
+  const bodyEl = $('#termsAckBody');
+  if (!bodyEl) return;
+  const records = loadTermsAck();
+  const currentVersion = loadTermsCurrentVersion();
+  const customers = (state.customers ?? []).filter((c) => c && c.id);
+  const versionEl = $('#termsAckCurrentVersion');
+  if (versionEl && document.activeElement !== versionEl) versionEl.value = currentVersion;
+  const customerEl = $('#termsAckCustomer');
+  if (customerEl && document.activeElement !== customerEl) {
+    const picked = customerEl.value ?? '';
+    customerEl.innerHTML = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
+      || '<option value="">No customers yet</option>';
+    if (customers.some((c) => String(c.id) === picked)) customerEl.value = picked;
+  }
+  const versionInput = $('#termsAckVersion');
+  if (versionInput && document.activeElement !== versionInput && !versionInput.value) versionInput.value = currentVersion;
+  const dateInput = $('#termsAckDate');
+  if (dateInput && !dateInput.value) dateInput.value = localDate();
+  const filterVersionEl = $('#termsAckFilterVersion');
+  if (filterVersionEl && document.activeElement !== filterVersionEl) {
+    const picked = filterVersionEl.value ?? '';
+    const versions = [...new Set(records.map((r) => r.termsVersion))];
+    filterVersionEl.innerHTML = '<option value="">All versions</option>' + versions.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+    filterVersionEl.value = versions.includes(picked) ? picked : '';
+  }
+  const filtered = filterTermsAcks(records, {
+    version: $('#termsAckFilterVersion')?.value ?? '',
+    method: $('#termsAckFilterMethod')?.value ?? '',
+  });
+  bodyEl.innerHTML = termsAckHtml(filtered);
+  const summaryEl = $('#termsAckSummary');
+  if (summaryEl) summaryEl.textContent = termsAckSummaryText(records, currentVersion);
+  const rowsEl = $('#termsAckStatusBody');
+  if (rowsEl) {
+    const statusFilter = $('#termsAckFilterStatus')?.value ?? '';
+    let rows = buildCustomerTermsRows(records, customers, currentVersion);
+    if (statusFilter === 'acknowledged') rows = rows.filter((row) => row.acknowledged);
+    if (statusFilter === 'not-yet') rows = rows.filter((row) => !row.acknowledged && row.status === 'not-yet-acknowledged');
+    rowsEl.innerHTML = rows.length === 0 ? '<p class="chart-caption">No customers to show for this filter.</p>'
+      : `<table class="data-table"><thead><tr><th>Customer</th><th>Current version</th><th>Status</th></tr></thead><tbody>${rows.map((row) => `<tr><td>${escapeHtml(row.customerName)}</td><td>${escapeHtml(row.currentVersion || '—')}</td><td>${escapeHtml(row.acknowledged ? `Acknowledged${row.record ? ` on ${row.record.date}` : ''}` : (row.status === 'no-version-set' ? 'No version set' : 'Not yet acknowledged'))}</td></tr>`).join('')}</tbody></table>`;
+  }
+  const pickEl = $('#termsAckPick');
+  if (pickEl && document.activeElement !== pickEl) {
+    pickEl.innerHTML = records.map((r) => `<option value="${escapeHtml(r.id)}">${escapeHtml(r.id)} — ${escapeHtml(r.customerName || r.customer)} (${escapeHtml(r.termsVersion)}, ${escapeHtml(r.date)})</option>`).join('')
+      || '<option value="">No acknowledgements yet</option>';
+  }
+  if (!termsAckBound) {
+    termsAckBound = true;
+    $('#termsAckFilterVersion')?.addEventListener('change', () => renderTermsAck());
+    $('#termsAckFilterMethod')?.addEventListener('change', () => renderTermsAck());
+    $('#termsAckFilterStatus')?.addEventListener('change', () => renderTermsAck());
+    $('#termsAckExportBtn')?.addEventListener('click', () => {
+      downloadCsvFile(termsAckFilename(localDate()), termsAckCsv(loadTermsAck()));
+    });
+    $('#termsAckSaveVersionBtn')?.addEventListener('click', () => {
+      const version = ($('#termsAckCurrentVersion')?.value ?? '').trim();
+      saveTermsCurrentVersion(version);
+      toast(version ? `Current terms version set to ${version}. Customers without an acknowledgement for it now show as not yet acknowledged.` : 'Current terms version cleared.');
+      renderTermsAck();
+    });
+    $('#termsAckSaveBtn')?.addEventListener('click', () => {
+      const customerId = $('#termsAckCustomer')?.value ?? '';
+      const customer = (state.customers ?? []).find((c) => String(c.id) === customerId);
+      const version = ($('#termsAckVersion')?.value ?? '').trim();
+      const date = $('#termsAckDate')?.value ?? '';
+      const method = $('#termsAckMethod')?.value ?? '';
+      const recordedBy = ($('#termsAckRecordedBy')?.value ?? '').trim();
+      const id = `TA-${Date.now()}`;
+      const next = upsertTermsAck(loadTermsAck(), {
+        id, customer: customerId, customerName: customer ? (customer.name || customer.customerName || '') : '',
+        termsVersion: version, date, method, recordedBy,
+      });
+      if (!next.some((item) => item.id === id)) { toast('That acknowledgement is half-formed and was not saved — check the customer, version, date, and method.'); return; }
+      saveTermsAck(next);
+      toast('Terms acknowledgement recorded. It changes no package, bill, or status — it is only the dated record of what was agreed.');
+      renderTermsAck();
+    });
+    $('#termsAckRemoveBtn')?.addEventListener('click', () => {
+      const recordId = $('#termsAckPick')?.value ?? '';
+      if (!recordId) { toast('Pick an acknowledgement first.'); return; }
+      saveTermsAck(removeTermsAck(loadTermsAck(), recordId));
+      renderTermsAck();
     });
   }
 }

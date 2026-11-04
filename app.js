@@ -328,6 +328,7 @@ import { normalizeDowngradeCreditList, upsertDowngradeCredit, removeDowngradeCre
 import { normalizeDepositNoteList, upsertDepositNote, supersedeDepositNote, notesForCustomer, activeDepositNotes, depositBalance, depositBalanceText, depositNoteSummaryText, depositNoteHtml, depositNoteCsv, depositNoteFilename } from './deposit-notes.js';
 import { normalizeWriteOffList, upsertWriteOff, writeOffsForCustomer, reconcileDues, liveCollectionList, writeOffSummaryText, reconcileDuesText, writeOffHtml, writeOffCsv, writeOffFilename } from './arrears-writeoffs.js';
 import { normalizeRefundList, upsertRefund, refundsForCustomer, refundSummaryText, refundHtml, refundCsv, refundFilename } from './refund-records.js';
+import { normalizeFollowUp, normalizeFollowUpList, recordFollowUp, removeFollowUp, buildFollowUpQueue, escalationList, buildFollowUpSummary, followUpSummaryText, followUpHtml, followUpCsv, followUpFilename } from './dispute-followups.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -13839,6 +13840,7 @@ function renderAnalytics() {
   renderDepositNotes();
   renderWriteOffs();
   renderRefunds();
+  renderFollowUps();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -20847,6 +20849,73 @@ function renderRefunds() {
     $('#refundFilterCustomer')?.addEventListener('change', () => renderRefunds());
     $('#refundExportBtn')?.addEventListener('click', () => {
       downloadCsvFile(refundFilename(), refundCsv(loadRefunds()));
+    });
+  }
+}
+const FOLLOWUP_KEY = 'shahdara_dispute_followups_v1';
+function loadFollowUps() {
+  try {
+    const raw = localStorage.getItem(FOLLOWUP_KEY);
+    if (!raw) return [];
+    return normalizeFollowUpList(JSON.parse(raw));
+  } catch { return []; }
+}
+function saveFollowUps(list) {
+  try { localStorage.setItem(FOLLOWUP_KEY, JSON.stringify(normalizeFollowUpList(list))); } catch { /* record only: a failed save leaves the previous follow-ups in place */ }
+}
+let followUpsBound = false;
+function renderFollowUps() {
+  const bodyEl = $('#followUpBody');
+  if (!bodyEl) return;
+  // Open cases only: resolved cases are history and never queue.
+  // The case list is read here, never written — recording a
+  // follow-up updates only the follow-up record.
+  const cases = loadDisputeCases();
+  const today = $('#followUpToday')?.value || getTodayDateString();
+  const queue = buildFollowUpQueue(cases, loadFollowUps(), today);
+  const esc = escalationList(queue);
+  const names = {};
+  for (const c of state.customers ?? []) names[c.id] = c.name || c.customerName || c.id;
+  const caseEl = $('#followUpCase');
+  if (caseEl) {
+    const current = caseEl.value;
+    const open = cases.filter((c) => ['open', 'investigating', 'escalated'].includes(c.status));
+    caseEl.innerHTML = open.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.id)} — ${escapeHtml(names[c.customerId] || c.customerId)}</option>`).join('');
+    if (current) caseEl.value = current;
+  }
+  bodyEl.innerHTML = followUpHtml(queue);
+  const escEl = $('#followUpEscalationBody');
+  if (escEl) escEl.innerHTML = esc.length ? followUpHtml(esc) : '<p>No overdue cases — nothing to escalate.</p>';
+  const summaryEl = $('#followUpSummary');
+  if (summaryEl) summaryEl.textContent = followUpSummaryText(buildFollowUpSummary(queue));
+  if (!followUpsBound) {
+    followUpsBound = true;
+    $('#followUpSaveBtn')?.addEventListener('click', () => {
+      const caseId = $('#followUpCase')?.value ?? '';
+      const raw = {
+        id: `FU-${Date.now()}`,
+        caseId,
+        owner: $('#followUpOwner')?.value ?? '',
+        nextFollowUpDate: $('#followUpNextDate')?.value ?? '',
+        lastFollowUpDate: today,
+        escalationStep: $('#followUpStep')?.value ?? 'none',
+        note: $('#followUpNote')?.value ?? '',
+      };
+      if (!normalizeFollowUp(raw)) { toast('Follow-up not recorded: pick an open case, an owner, and a real next follow-up date.'); return; }
+      saveFollowUps(recordFollowUp(loadFollowUps(), raw));
+      toast('Follow-up recorded. The dispute case itself was not changed.');
+      renderFollowUps();
+    });
+    $('#followUpRemoveBtn')?.addEventListener('click', () => {
+      const caseId = $('#followUpCase')?.value ?? '';
+      saveFollowUps(removeFollowUp(loadFollowUps(), caseId));
+      toast('Follow-up removed. The dispute case itself was not changed.');
+      renderFollowUps();
+    });
+    $('#followUpToday')?.addEventListener('change', () => renderFollowUps());
+    $('#followUpExportBtn')?.addEventListener('click', () => {
+      const day = $('#followUpToday')?.value || getTodayDateString();
+      downloadCsvFile(followUpFilename(), followUpCsv(buildFollowUpQueue(loadDisputeCases(), loadFollowUps(), day)));
     });
   }
 }

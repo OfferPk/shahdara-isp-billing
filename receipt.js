@@ -16,6 +16,7 @@ import { remainderWaadaOf } from './waada-queue.js';
 import { evaluateStarTimelyPayer, starReceiptThankYouNote } from './star-subscribers.js';
 import { brandHeaderContentHtml, brandHeaderHtml, documentFooterHtml } from './document-branding.js';
 import { receiptCodeForReceipt, receiptVerificationCode, verificationStampText } from './receipt-verifier.js';
+import { applyReceiptScript } from './receipt-script.js';
 import { renderCustomWaTemplate } from './whatsapp-templates.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
@@ -597,7 +598,11 @@ export function generatePaymentReceiptHtml(receipt, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
   areaName = 'Shahdara, Islamabad',
-  receiptFooter = null
+  receiptFooter = null,
+  // Plan 168: print-time script choice. Anything other than 'urdu'
+  // renders exactly as before; 'urdu' re-labels the fields in Urdu
+  // script without touching any stored value.
+  script = 'roman'
 } = {}) {
   if (!receipt) return '';
 
@@ -647,7 +652,7 @@ export function generatePaymentReceiptHtml(receipt, {
     // title replaces the old Urdu-only "(58mm)" title, and the number
     // label is the same "Receipt #:" as thermal-80 (the width already
     // lives in data-receipt-format and the article class).
-    return `<article class="receipt-sheet thermal-receipt thermal-58" data-receipt-format="thermal-58">
+    return applyReceiptScript(`<article class="receipt-sheet thermal-receipt thermal-58" data-receipt-format="thermal-58">
   <header class="receipt-head">
     ${headerFor('Receipt #:', 'thermal')}
     ${voidStampHtml}
@@ -694,11 +699,11 @@ export function generatePaymentReceiptHtml(receipt, {
   <footer class="receipt-terms">
     ${footerFor('* شکریہ! Shahdara ISP *')}
   </footer>
-</article>`;
+</article>`, script);
   }
 
   if (format === 'thermal-80' || format === 'thermal') {
-    return `<article class="receipt-sheet thermal-receipt thermal-80" data-receipt-format="thermal-80">
+    return applyReceiptScript(`<article class="receipt-sheet thermal-receipt thermal-80" data-receipt-format="thermal-80">
   <header class="receipt-head">
     ${headerFor('Receipt #:', 'thermal')}
     ${voidStampHtml}
@@ -749,7 +754,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n', '<br>')}</p>
     ${footerFor('*** برائے مہربانی رسید سنبھال کر رکھیں۔ شکریہ! ***')}
   </footer>
-</article>`;
+</article>`, script);
   }
 
   // Default: A4 Layout
@@ -818,7 +823,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ['Balance Due After Payment / باقی واجبات', balanceLabel, statusClass]
   ];
 
-  return `<article class="receipt-sheet a4-receipt" data-receipt-format="a4">
+  return applyReceiptScript(`<article class="receipt-sheet a4-receipt" data-receipt-format="a4">
   <header class="receipt-head">
     ${headerFor('Permanent Receipt:', 'a4', { metaPrefix: 'Official Customer Record' })}
     <span class="receipt-mark ${statusClass}">${escapeHtml(status)}</span>
@@ -840,7 +845,7 @@ export function generatePaymentReceiptHtml(receipt, {
       <div class="receipt-sig-box"><span>مہر و دستخط ادارہ / Shahdara ISP</span></div>
     </div>${footerFor()}
   </footer>
-</article>`;
+</article>`, script);
 }
 
 // SISP-29: Down-Payment + Kist Schedule Receipt. The down payment itself

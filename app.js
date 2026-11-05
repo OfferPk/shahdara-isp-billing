@@ -469,6 +469,7 @@ import { validEducationSessionDate, normalizeEducationSessionList, recordEducati
 import { normalizeFeedbackTrendRows, feedbackTrendFor, feedbackTrendsByMohalla, feedbackTrendSummaryText, feedbackTrendHtml, feedbackTrendsHtml, feedbackTrendCsv, feedbackTrendFilename } from './feedback-trend.js';
 import { normalizePackageUptakeRows, packageUptakeFor, packageUptakesByMohalla, packageUptakeSummaryText, packageUptakeHtml, packageUptakesHtml, packageUptakeCsv, packageUptakeFilename } from './package-uptake.js';
 import { validOutageCommunicationDate, normalizeOutageCommunicationList, recordOutageCommunication, removeOutageCommunication, communicationsForIncident, outageCommunicationSummaryText, outageCommunicationAllHtml, outageCommunicationCsv, outageCommunicationFilename } from './outage-communication.js';
+import { validDifficultyNoteDate, normalizeDifficultyNoteList, recordDifficultyNote, removeDifficultyNote, difficultyNotesForCustomer, overdueDifficultyFollowups, difficultyNoteSummaryText, difficultyNoteAllHtml, difficultyNoteCsv, difficultyNoteFilename } from './payment-difficulty.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14182,6 +14183,7 @@ function renderAnalytics() {
   renderFeedbackTrend();
   renderPackageUptake();
   renderOutageCommunications();
+  renderPaymentDifficulty();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29643,6 +29645,68 @@ function renderOutageCommunications() {
     });
     $('#ocFilterBtn')?.addEventListener('click', () => { renderOutageCommunications(); });
     $('#ocFilterIncident')?.addEventListener('input', () => { renderOutageCommunications(); });
+  }
+}
+const PAYMENT_DIFFICULTY_KEY = 'shahdara_payment_difficulty_notes_v1';
+function loadPaymentDifficultyNotes() {
+  try { return normalizeDifficultyNoteList(JSON.parse(localStorage.getItem(PAYMENT_DIFFICULTY_KEY) || '[]')); } catch { return []; }
+}
+function savePaymentDifficultyNotes(list) {
+  try { localStorage.setItem(PAYMENT_DIFFICULTY_KEY, JSON.stringify(normalizeDifficultyNoteList(list))); } catch { /* difficulty notes only: a failed save leaves the previous list in place */ }
+}
+let paymentDifficultyBound = false;
+function renderPaymentDifficulty() {
+  const listEl = $('#pdList');
+  if (!listEl) return;
+  const all = loadPaymentDifficultyNotes();
+  listEl.innerHTML = all.length ? difficultyNoteAllHtml(all) : '<p>No payment difficulty notes recorded.</p>';
+  const summaryEl = $('#pdSummary');
+  if (summaryEl) summaryEl.textContent = `${difficultyNoteSummaryText(all)} Recording a note never changes any bill, payment, or plan, and never grants any discount or extension by itself.`;
+  const filterEl = $('#pdFilterBody');
+  if (filterEl) {
+    const customer = ($('#pdFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      filterEl.innerHTML = '<p>Give a customer to see their difficulty notes in date order.</p>';
+    } else {
+      const rows = difficultyNotesForCustomer(all, customer);
+      filterEl.innerHTML = rows.length
+        ? difficultyNoteAllHtml(rows)
+        : '<p>No difficulty note recorded for this customer.</p>';
+    }
+  }
+  const overdueEl = $('#pdOverdueBody');
+  if (overdueEl) {
+    const asOf = ($('#pdOverdueAsOf')?.value ?? '').trim() || new Date().toISOString().slice(0, 10);
+    const overdue = overdueDifficultyFollowups(all, asOf);
+    overdueEl.innerHTML = overdue.length
+      ? difficultyNoteAllHtml(overdue)
+      : '<p>No overdue follow-ups.</p>';
+  }
+  if (!paymentDifficultyBound) {
+    paymentDifficultyBound = true;
+    $('#pdExportBtn')?.addEventListener('click', () => { downloadCsvFile(difficultyNoteFilename(), difficultyNoteCsv(loadPaymentDifficultyNotes())); });
+    $('#pdRecordBtn')?.addEventListener('click', () => {
+      const before = loadPaymentDifficultyNotes();
+      const next = recordDifficultyNote(before, {
+        id: `PD-${Date.now()}`,
+        customer: $('#pdCustomer')?.value ?? '',
+        date: $('#pdDate')?.value ?? '',
+        difficulty: $('#pdDifficulty')?.value ?? '',
+        nextStep: $('#pdNextStep')?.value ?? '',
+        followUpDate: $('#pdFollowUp')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Payment difficulty note not recorded: give a customer, a real date, and the difficulty in plain words.'); return; }
+      savePaymentDifficultyNotes(next);
+      renderPaymentDifficulty();
+    });
+    $('#pdRemoveBtn')?.addEventListener('click', () => {
+      savePaymentDifficultyNotes(removeDifficultyNote(loadPaymentDifficultyNotes(), $('#pdRemoveId')?.value ?? ''));
+      renderPaymentDifficulty();
+    });
+    $('#pdFilterBtn')?.addEventListener('click', () => { renderPaymentDifficulty(); });
+    $('#pdFilterCustomer')?.addEventListener('input', () => { renderPaymentDifficulty(); });
+    $('#pdOverdueBtn')?.addEventListener('click', () => { renderPaymentDifficulty(); });
+    $('#pdOverdueAsOf')?.addEventListener('input', () => { renderPaymentDifficulty(); });
   }
 }
 let feedbackTrendBound = false;

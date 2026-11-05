@@ -10860,6 +10860,53 @@
 <div id="ocList"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="pdHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="pdHeading">Payment difficulty conversation note</h3>
+<p class="chart-caption">One conversation note per payment-difficulty talk: the customer, the date, the difficulty described in plain words, the next step agreed, and a follow-up date. A customer page lists difficulty notes in date order, and overdue follow-ups appear on one list. Recording a note never changes any bill, payment, or plan, and never grants any discount or extension by itself, and it is not an arrears repayment plan, a bill extension, or a retention offer.</p>
+<p id="pdSummary"></p>
+</div>
+<div>
+<button id="pdExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export payment difficulty notes CSV</button>
+</div>
+</div>
+<h4>Record a conversation note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="pdCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="pdDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Difficulty in plain words <input id="pdDifficulty" type="text" style="width: 260px;">
+</label>
+<label style="font-size: 12px;">Next step agreed <input id="pdNextStep" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="pdFollowUp" type="date" style="width: 140px;">
+</label>
+<button id="pdRecordBtn" class="secondary-button btn-sm" type="button">Record note</button>
+<label style="font-size: 12px;">Remove note id <input id="pdRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="pdRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Notes for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="pdFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="pdFilterBtn" class="secondary-button btn-sm" type="button">Show customer notes</button>
+</div>
+<div id="pdFilterBody"></div>
+<h4>Overdue follow-ups</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">As of <input id="pdOverdueAsOf" type="date" style="width: 140px;">
+</label>
+<button id="pdOverdueBtn" class="secondary-button btn-sm" type="button">Show overdue follow-ups</button>
+</div>
+<div id="pdOverdueBody"></div>
+<h4>All payment difficulty notes</h4>
+<div id="pdList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

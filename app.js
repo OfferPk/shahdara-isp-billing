@@ -498,6 +498,7 @@ import { normalizeDelegationNoteList, recordDelegationNote, removeDelegationNote
 import { normalizeCollectorMonthlyTargetList, recordCollectorMonthlyTarget, removeCollectorMonthlyTarget, collectorMonthlyTargetsForCollector, collectorMonthlyTargetsForMonth, collectorMonthlyTargetSummaryText, collectorMonthlyTargetAllHtml, collectorMonthlyTargetsForCollectorHtml, collectorMonthlyTargetsForMonthHtml, collectorMonthlyTargetCsv, collectorMonthlyTargetFilename } from './collector-monthly-target.js';
 import { normalizeStaffPerformanceNoteList, recordStaffPerformanceNote, removeStaffPerformanceNote, staffPerformanceNotesForStaff, staffPerformanceNoteSummaryText, staffPerformanceNoteAllHtml, staffPerformanceNotesForStaffHtml, staffPerformanceNoteCsv, staffPerformanceNoteFilename } from './staff-performance.js';
 import { normalizeShopMaintenanceNoteList, recordShopMaintenanceNote, removeShopMaintenanceNote, shopMaintenanceNotesForItem, shopMaintenanceNoteSummaryText, shopMaintenanceNoteAllHtml, shopMaintenanceNotesForItemHtml, shopMaintenanceNoteCsv, shopMaintenanceNoteFilename } from './shop-maintenance.js';
+import { normalizeCompetitorPriceNoteList, recordCompetitorPriceNote, removeCompetitorPriceNote, competitorPriceNotesForCompetitor, competitorPriceNoteSummaryText, competitorPriceNoteAllHtml, competitorPriceNotesForCompetitorHtml, competitorPriceNoteCsv, competitorPriceNoteFilename } from './competitor-price.js';
 import { normalizeSeenList, markReminderSeen, renewalReminderQueue, overdueReminders, renewalReminderSummaryText, renewalReminderQueueHtml, renewalReminderCsv, renewalReminderFilename } from './renewal-reminder.js';
 import { normalizeInsuranceClaimList, recordInsuranceClaim, removeInsuranceClaim, insuranceClaimsForAsset, insuranceClaimSummaryText, insuranceClaimAllHtml, insuranceClaimsForAssetHtml, insuranceClaimCsv, insuranceClaimFilename } from './insurance-claim.js';
 import { normalizePurchaseApprovalList, recordPurchaseApproval, removePurchaseApproval, purchaseApprovalsForItem, purchaseApprovalSummaryText, purchaseApprovalAllHtml, purchaseApprovalsForItemHtml, purchaseApprovalCsv, purchaseApprovalFilename } from './equipment-purchase-approval.js';
@@ -14246,6 +14247,7 @@ function renderAnalytics() {
   renderCollectorMonthlyTargets();
   renderStaffPerformanceNotes();
   renderShopMaintenanceNotes();
+  renderCompetitorPriceNotes();
   renderRenewalReminders();
   renderInsuranceClaims();
   renderPurchaseApprovals();
@@ -31499,6 +31501,59 @@ function renderShopMaintenanceNotes() {
     $('#smnRemoveBtn')?.addEventListener('click', () => {
       saveShopMaintenanceNotes(removeShopMaintenanceNote(loadShopMaintenanceNotes(), $('#smnRemoveId')?.value ?? ''));
       renderShopMaintenanceNotes();
+    });
+  }
+}
+
+// Competitor price note — one note per competitor package seen in
+// the area: competitor name, package in plain words, price in whole
+// rupees, date seen, source in plain words, and who recorded it.
+// Recording a note never changes any package price, bill, or
+// customer record by itself.
+const COMPETITOR_PRICE_KEY = 'shahdara_competitor_price_notes_v1';
+function loadCompetitorPriceNotes() {
+  try { return normalizeCompetitorPriceNoteList(JSON.parse(localStorage.getItem(COMPETITOR_PRICE_KEY) || '[]')); } catch { return []; }
+}
+function saveCompetitorPriceNotes(list) {
+  try { localStorage.setItem(COMPETITOR_PRICE_KEY, JSON.stringify(normalizeCompetitorPriceNoteList(list))); } catch { /* competitor price notes only: a failed save leaves the previous list in place */ }
+}
+let competitorPriceBound = false;
+function renderCompetitorPriceNotes() {
+  const listEl = $('#cpnBody');
+  if (!listEl) return;
+  const all = loadCompetitorPriceNotes();
+  listEl.innerHTML = all.length ? competitorPriceNoteAllHtml(all) : '<p>No competitor price notes recorded.</p>';
+  const summaryEl = $('#cpnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${competitorPriceNoteSummaryText(all)} Recording a note never changes any package price, bill, or customer record by itself.`;
+  }
+  const competitorEl = $('#cpnCompetitorBody');
+  if (competitorEl) {
+    const competitor = $('#cpnCompetitorInput')?.value ?? '';
+    competitorEl.innerHTML = competitorPriceNotesForCompetitorHtml(all, competitor);
+  }
+  if (!competitorPriceBound) {
+    competitorPriceBound = true;
+    $('#cpnExportBtn')?.addEventListener('click', () => { downloadCsvFile(competitorPriceNoteFilename(), competitorPriceNoteCsv(loadCompetitorPriceNotes())); });
+    $('#cpnCompetitorBtn')?.addEventListener('click', () => { renderCompetitorPriceNotes(); });
+    $('#cpnRecordBtn')?.addEventListener('click', () => {
+      const before = loadCompetitorPriceNotes();
+      const next = recordCompetitorPriceNote(before, {
+        id: `CPN-${Date.now()}`,
+        competitor: $('#cpnCompetitor')?.value ?? '',
+        package: $('#cpnPackage')?.value ?? '',
+        price: $('#cpnPrice')?.value ?? '',
+        dateSeen: $('#cpnDate')?.value ?? '',
+        source: $('#cpnSource')?.value ?? '',
+        recordedBy: $('#cpnRecordedBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Competitor price note not recorded: give the competitor, the package, a whole-rupee price of at least Rs 1, a real date seen, the source, and who recorded it.'); return; }
+      saveCompetitorPriceNotes(next);
+      renderCompetitorPriceNotes();
+    });
+    $('#cpnRemoveBtn')?.addEventListener('click', () => {
+      saveCompetitorPriceNotes(removeCompetitorPriceNote(loadCompetitorPriceNotes(), $('#cpnRemoveId')?.value ?? ''));
+      renderCompetitorPriceNotes();
     });
   }
 }

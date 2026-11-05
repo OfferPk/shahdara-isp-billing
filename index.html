@@ -9382,6 +9382,63 @@
 </label>
 <button id="sraExceptionsBtn" class="secondary-button btn-sm" type="button">Check unauthorised revisits</button>
 </div>
+</section><section class="chart-card" aria-labelledby="adHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="adHeading">Customer premises access difficulty note</h3>
+<p class="chart-caption">One difficulty note per customer premises: the customer, the difficulty type, the difficulty in plain words, what to do about it, the date noted, and who noted it. A premises with a difficulty note shows it on the visit view before the visit, so nobody is surprised twice by the same locked gate. A note is never edited, only followed by a dated update. Recording a difficulty never changes any bill, payment, customer, permission, or visit record by itself.</p>
+<p id="adSummary"></p>
+</div>
+<div>
+<button id="adExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export access difficulties CSV</button>
+</div>
+</div>
+<h4>Record a difficulty note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="adCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Difficulty type <select id="adType" style="width: 140px;"><option value="locked-gate">locked gate</option><option value="dog">dog</option><option value="narrow-lane">narrow lane</option><option value="restricted-hours">restricted hours</option><option value="other">other</option></select>
+</label>
+<label style="font-size: 12px;">Difficulty <input id="adDifficulty" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">What to do <input id="adWhatToDo" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Date noted <input id="adDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Noted by <input id="adNotedBy" type="text" style="width: 140px;">
+</label>
+<button id="adRecordBtn" class="secondary-button btn-sm" type="button">Record note</button>
+</div>
+<h4>Add a dated update / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="adUpdateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Update date <input id="adUpdateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Update <input id="adUpdateNote" type="text" style="width: 220px;">
+</label>
+<button id="adUpdateBtn" class="secondary-button btn-sm" type="button">Add update</button>
+<label style="font-size: 12px;">Remove note id <input id="adRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="adRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Notes before a visit</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="adFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="adVisitBtn" class="secondary-button btn-sm" type="button">Show notes</button>
+</div>
+<div id="adVisitBody"></div>
+<h4>Notes by difficulty type</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Difficulty type <select id="adFilterType" style="width: 140px;"><option value="locked-gate">locked gate</option><option value="dog">dog</option><option value="narrow-lane">narrow lane</option><option value="restricted-hours">restricted hours</option><option value="other">other</option></select>
+</label>
+<button id="adTypeBtn" class="secondary-button btn-sm" type="button">Show notes</button>
+</div>
+<div id="adTypeBody"></div>
+<h4>All difficulty notes</h4>
+<div id="adList"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

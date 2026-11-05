@@ -492,6 +492,7 @@ import { normalizeStaffTraining, recordStaffTraining, removeStaffTraining, staff
 import { normalizeWeeklyReviewList, recordWeeklyReview, removeWeeklyReview, weeklyReviewSummaryText, weeklyReviewActionsHtml, weeklyReviewAllHtml, weeklyReviewCsv, weeklyReviewFilename } from './weekly-review.js';
 import { normalizeSafeCountList, recordSafeCount, removeSafeCount, safeCountSummaryText, safeCountAllHtml, safeCountCsv, safeCountFilename } from './safe-count.js';
 import { validExpenseApprovalDate, foldExpenseApprovalStatus, normalizeExpenseApprovalList, recordExpenseApproval, removeExpenseApproval, expenseApprovalsForCategory, expenseApprovalCategories, expenseApprovalCategorySummaryHtml, expenseApprovalSummaryText, expenseApprovalAllHtml, expenseApprovalsForCategoryHtml, expenseApprovalCsv, expenseApprovalFilename } from './expense-approval.js';
+import { validVendorPaymentDueDate, normalizeVendorPaymentDueList, recordVendorPaymentDue, removeVendorPaymentDue, markVendorPaymentDueSeen, markVendorPaymentDueSettled, vendorPaymentDuesForVendor, vendorPaymentDueVendors, vendorPaymentDuesOverdueHtml, vendorPaymentDueSummaryText, vendorPaymentDueAllHtml, vendorPaymentDuesForVendorHtml, vendorPaymentDueCsv, vendorPaymentDueFilename } from './vendor-payment-due.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14230,6 +14231,7 @@ function renderAnalytics() {
   renderWeeklyReview();
   renderSafeCount();
   renderExpenseApproval();
+  renderVendorPaymentDue();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31115,6 +31117,81 @@ function renderExpenseApproval() {
     $('#eapRemoveBtn')?.addEventListener('click', () => {
       saveExpenseApprovals(removeExpenseApproval(loadExpenseApprovals(), $('#eapRemoveId')?.value ?? ''));
       renderExpenseApproval();
+    });
+  }
+}
+
+// Vendor payment due note (Plan 296): one dated reminder per
+// vendor payment — the vendor, the amount in whole rupees, the
+// due date, a schedule reference in plain words, and the status.
+// Marking a note seen or settled changes only the note's own
+// status, never any bill, payment, or schedule record, and the
+// payment itself goes through its own existing flow.
+const VENDOR_PAYMENT_DUE_KEY = 'shahdara_vendor_payment_dues_v1';
+function loadVendorPaymentDues() {
+  try { return normalizeVendorPaymentDueList(JSON.parse(localStorage.getItem(VENDOR_PAYMENT_DUE_KEY) || '[]')); } catch { return []; }
+}
+function saveVendorPaymentDues(list) {
+  try { localStorage.setItem(VENDOR_PAYMENT_DUE_KEY, JSON.stringify(normalizeVendorPaymentDueList(list))); } catch { /* vendor payment due only: a failed save leaves the previous list in place */ }
+}
+let vendorPaymentDueBound = false;
+function renderVendorPaymentDue() {
+  const listEl = $('#vpdBody');
+  if (!listEl) return;
+  const all = loadVendorPaymentDues();
+  listEl.innerHTML = all.length ? vendorPaymentDueAllHtml(all) : '<p>No vendor payment due notes recorded.</p>';
+  const asOf = localDate();
+  const summaryEl = $('#vpdSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${vendorPaymentDueSummaryText(all, asOf)} Marking a note seen or settled changes only the note, never any bill, payment, or schedule record.`;
+  }
+  const overdueEl = $('#vpdOverdueBody');
+  if (overdueEl) {
+    overdueEl.innerHTML = vendorPaymentDuesOverdueHtml(all, asOf);
+  }
+  const vendorSelect = $('#vpdVendorSelect');
+  if (vendorSelect) {
+    const vendors = vendorPaymentDueVendors(all);
+    const current = vendorSelect.value;
+    vendorSelect.innerHTML = vendors.map((vendor) => `<option value="${vendor}">${vendor}</option>`).join('');
+    if (vendors.includes(current)) vendorSelect.value = current;
+  }
+  const vendorEl = $('#vpdVendorBody');
+  if (vendorEl) {
+    const chosen = vendorSelect?.value ?? '';
+    vendorEl.innerHTML = chosen
+      ? vendorPaymentDuesForVendorHtml(all, chosen)
+      : '<p>Pick a vendor to see its due notes.</p>';
+  }
+  if (!vendorPaymentDueBound) {
+    vendorPaymentDueBound = true;
+    $('#vpdExportBtn')?.addEventListener('click', () => { downloadCsvFile(vendorPaymentDueFilename(), vendorPaymentDueCsv(loadVendorPaymentDues())); });
+    $('#vpdVendorSelect')?.addEventListener('change', () => { renderVendorPaymentDue(); });
+    $('#vpdRecordBtn')?.addEventListener('click', () => {
+      const before = loadVendorPaymentDues();
+      const next = recordVendorPaymentDue(before, {
+        id: `VD-${Date.now()}`,
+        vendor: $('#vpdVendor')?.value ?? '',
+        amount: $('#vpdAmount')?.value ?? '',
+        dueDate: $('#vpdDueDate')?.value ?? '',
+        scheduleRef: $('#vpdScheduleRef')?.value ?? '',
+        status: $('#vpdStatus')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Vendor payment due note not recorded: give the vendor, a whole-rupee amount, and a real due date.'); return; }
+      saveVendorPaymentDues(next);
+      renderVendorPaymentDue();
+    });
+    $('#vpdRemoveBtn')?.addEventListener('click', () => {
+      saveVendorPaymentDues(removeVendorPaymentDue(loadVendorPaymentDues(), $('#vpdRemoveId')?.value ?? ''));
+      renderVendorPaymentDue();
+    });
+    $('#vpdMarkSeenBtn')?.addEventListener('click', () => {
+      saveVendorPaymentDues(markVendorPaymentDueSeen(loadVendorPaymentDues(), $('#vpdMarkSeenId')?.value ?? ''));
+      renderVendorPaymentDue();
+    });
+    $('#vpdMarkSettledBtn')?.addEventListener('click', () => {
+      saveVendorPaymentDues(markVendorPaymentDueSettled(loadVendorPaymentDues(), $('#vpdMarkSettledId')?.value ?? ''));
+      renderVendorPaymentDue();
     });
   }
 }

@@ -425,6 +425,7 @@ import { normalizeBankReconExceptionList, recordBankReconException, removeBankRe
 import { normalizeReceiptBookList, recordReceiptBook, removeReceiptBook, returnReceiptBook, receiptBooksOutstanding, receiptBooksForHolder, receiptBookAgeDays, receiptBookAllHtml, receiptBookSummaryText, receiptBookCsv, receiptBookFilename } from './receipt-book.js';
 import { normalizeMohallaCollectionTargetList, recordMohallaCollectionTarget, removeMohallaCollectionTarget, targetsForMonth, targetsForMohalla, missingTargetText, checkActualAgainstLedger, mohallaCollectionTargetAllHtml, mohallaCollectionTargetSummaryText, mohallaCollectionTargetCsv, mohallaCollectionTargetFilename } from './mohalla-collection-target.js';
 import { normalizeOverdueWatchlistList, recordOverdueWatchlistEntry, removeOverdueWatchlistEntry, watchlistActive, watchlistHistory, watchlistForCustomer, watchlistForOwner, overdueWatchlistEntryHtml, overdueWatchlistSummaryText, overdueWatchlistCsv, overdueWatchlistFilename } from './overdue-watchlist.js';
+import { normalizeDisputeEvidenceList, recordDisputeEvidence, removeDisputeEvidence, disputeEvidenceSorted, evidenceForCase, evidenceForType, disputeEvidenceEntryHtml, disputeEvidenceSummaryText, disputeEvidenceCsv, disputeEvidenceFilename } from './dispute-evidence.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14092,6 +14093,7 @@ function renderAnalytics() {
   renderReceiptBooks();
   renderMohallaCollectionTargets();
   renderOverdueWatchlist();
+  renderDisputeEvidence();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26667,6 +26669,51 @@ function renderOverdueWatchlist() {
     $('#owCustomerFilter')?.addEventListener('input', () => { renderOverdueWatchlist(); });
     $('#owOwnerFilter')?.addEventListener('input', () => { renderOverdueWatchlist(); });
     $('#owAsOf')?.addEventListener('change', () => { renderOverdueWatchlist(); });
+  }
+}
+const DISPUTE_EVIDENCE_KEY = 'shahdara_dispute_evidence_v1';
+function loadDisputeEvidence() {
+  try { return normalizeDisputeEvidenceList(JSON.parse(localStorage.getItem(DISPUTE_EVIDENCE_KEY) || '[]')); } catch { return []; }
+}
+function saveDisputeEvidence(list) {
+  try { localStorage.setItem(DISPUTE_EVIDENCE_KEY, JSON.stringify(normalizeDisputeEvidenceList(list))); } catch { /* evidence only: a failed save leaves the previous list in place */ }
+}
+let disputeEvidenceBound = false;
+function renderDisputeEvidence() {
+  const bodyEl = $('#deBody');
+  if (!bodyEl) return;
+  const all = loadDisputeEvidence();
+  let shown = disputeEvidenceSorted(all);
+  const caseFilter = $('#deCaseFilter')?.value ?? '';
+  if (caseFilter) shown = evidenceForCase(all, caseFilter);
+  const typeFilter = $('#deTypeFilter')?.value ?? '';
+  if (typeFilter) shown = evidenceForType(shown, typeFilter);
+  bodyEl.innerHTML = shown.length ? shown.map((note) => disputeEvidenceEntryHtml(note)).join('') : '<p>No dispute evidence notes recorded.</p>';
+  const summaryEl = $('#deSummary');
+  if (summaryEl) summaryEl.textContent = `${disputeEvidenceSummaryText(all)} Evidence notes list what was checked only: recording a note never changes any bill, payment, receipt, or case outcome.`;
+  if (!disputeEvidenceBound) {
+    disputeEvidenceBound = true;
+    $('#deExportBtn')?.addEventListener('click', () => { downloadCsvFile(disputeEvidenceFilename(), disputeEvidenceCsv(all)); });
+    $('#deSaveBtn')?.addEventListener('click', () => {
+      const before = loadDisputeEvidence();
+      const next = recordDisputeEvidence(before, {
+        id: `DE-${Date.now()}`,
+        caseRef: $('#deCase')?.value ?? '',
+        evidenceType: $('#deType')?.value ?? '',
+        reference: $('#deReference')?.value ?? '',
+        dateChecked: $('#deDateChecked')?.value ?? '',
+        finding: $('#deFinding')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Evidence note not recorded: give a case reference, an evidence type, a reference, and a real date checked.'); return; }
+      saveDisputeEvidence(next);
+      renderDisputeEvidence();
+    });
+    $('#deRemoveBtn')?.addEventListener('click', () => {
+      saveDisputeEvidence(removeDisputeEvidence(loadDisputeEvidence(), $('#deRemoveId')?.value ?? ''));
+      renderDisputeEvidence();
+    });
+    $('#deCaseFilter')?.addEventListener('input', () => { renderDisputeEvidence(); });
+    $('#deTypeFilter')?.addEventListener('change', () => { renderDisputeEvidence(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

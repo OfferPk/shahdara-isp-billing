@@ -10846,6 +10846,38 @@
 <div id="scvBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="arlHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="arlHeading">Archive retrieval log</h3>
+<p class="chart-caption">One record per archive taken out: the archive reference, who retrieved it, the date out, the date returned, and the reason. Unreturned retrievals stay on the open list, oldest out first, until the item comes back. Logging a retrieval never changes any archived record, bill, or payment.</p>
+<p id="arlSummary"></p>
+</div>
+<div>
+<button id="arlExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export archive retrievals CSV</button>
+</div>
+</div>
+<h4>Record a retrieval</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Archive reference <input id="arlRef" type="text" style="width: 140px;" placeholder="e.g. ARCH-2024-014"></label>
+<label style="font-size: 12px;">Retrieved by <input id="arlBy" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Date out <input id="arlDateOut" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Reason <input id="arlReason" type="text" style="width: 200px;" placeholder="e.g. Customer asked about an old balance"></label>
+<button id="arlRecordBtn" class="secondary-button btn-sm" type="button">Record retrieval</button>
+<label style="font-size: 12px;">Remove id <input id="arlRemoveId" type="text" style="width: 120px;"></label>
+<button id="arlRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Mark an item returned</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Retrieval id <input id="arlReturnId" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Date returned <input id="arlDateReturned" type="date" style="width: 140px;"></label>
+<button id="arlReturnBtn" class="secondary-button btn-sm" type="button">Mark returned</button>
+<label style="font-size: 12px;">Ages as of <input id="arlAsOf" type="date" style="width: 140px;"></label>
+</div>
+<h4>Still out, oldest first</h4>
+<div id="arlBody"></div>
+<h4>All retrievals</h4>
+<div id="arlAllBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

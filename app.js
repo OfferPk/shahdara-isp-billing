@@ -487,6 +487,7 @@ import { birthdaysForMonth, birthdaysByMonth, birthdayMonthSummaryText, birthday
 import { normalizeReadinessScorecardList, recordReadinessScorecard, removeReadinessScorecard, readinessScorecardSummaryText, readinessScorecardAllHtml, readinessScorecardCsv, readinessScorecardFilename } from './readiness-scorecard.js';
 import { validPriceReviewDate, normalizePriceReviewList, recordPriceReviewWorksheet, removePriceReviewWorksheet, priceReviewsForPackage, priceReviewSummaryText, priceReviewAllHtml, priceReviewsForPackageHtml, priceReviewCsv, priceReviewFilename } from './price-review.js';
 import { validShopChecklistDate, foldShopChecklistShift, normalizeShopChecklist, recordShopChecklistStep, removeShopChecklistStep, shopChecklistForDay, shopChecklistDaySummaryText, shopChecklistSummaryText, shopChecklistDayHtml, shopChecklistAllHtml, shopChecklistCsv, shopChecklistFilename } from './shop-checklist.js';
+import { foldStaffLeaveStatus, normalizeStaffLeave, recordStaffLeave, removeStaffLeave, staffLeaveSummaryText, staffLeaveStaffHtml, staffLeaveMonthHtml, staffLeaveAllHtml, staffLeaveCsv, staffLeaveFilename } from './staff-leave.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14220,6 +14221,7 @@ function renderAnalytics() {
   renderSupplierPerformance();
   renderPriceReview();
   renderShopChecklist();
+  renderStaffLeave();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30823,6 +30825,71 @@ function renderShopChecklist() {
     });
     $('#socDayBtn')?.addEventListener('click', () => { renderShopChecklist(); });
     $('#socDayFilter')?.addEventListener('input', () => { renderShopChecklist(); });
+  }
+}
+
+// Staff leave record (Plan 291): one entry per leave — the staff
+// member, the leave dates, the leave type in plain words, the
+// approver, and the status. Recording leave never changes any bill,
+// payment, customer record, or duty roster by itself, and past
+// entries are read-only.
+const STAFF_LEAVE_KEY = 'shahdara_staff_leave_v1';
+function loadStaffLeave() {
+  try { return normalizeStaffLeave(JSON.parse(localStorage.getItem(STAFF_LEAVE_KEY) || '[]')); } catch { return []; }
+}
+function saveStaffLeave(list) {
+  try { localStorage.setItem(STAFF_LEAVE_KEY, JSON.stringify(normalizeStaffLeave(list))); } catch { /* staff leave only: a failed save leaves the previous list in place */ }
+}
+let staffLeaveBound = false;
+function renderStaffLeave() {
+  const listEl = $('#slvBody');
+  if (!listEl) return;
+  const all = loadStaffLeave();
+  const staff = ($('#slvStaffFilter')?.value ?? '').trim();
+  const month = ($('#slvMonthFilter')?.value ?? '').trim();
+  listEl.innerHTML = all.length ? staffLeaveAllHtml(all) : '<p>No staff leave recorded.</p>';
+  const staffEl = $('#slvStaffBody');
+  if (staffEl) {
+    staffEl.innerHTML = staff
+      ? staffLeaveStaffHtml(all, staff)
+      : '<p>Pick a staff member to see their leave.</p>';
+  }
+  const monthEl = $('#slvMonthBody');
+  if (monthEl) {
+    monthEl.innerHTML = month
+      ? staffLeaveMonthHtml(all, month)
+      : '<p>Pick a month to see the leave in it.</p>';
+  }
+  const summaryEl = $('#slvSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${staffLeaveSummaryText(all)} Recording leave never changes any bill, payment, customer record, or duty roster by itself.`;
+  }
+  if (!staffLeaveBound) {
+    staffLeaveBound = true;
+    $('#slvExportBtn')?.addEventListener('click', () => { downloadCsvFile(staffLeaveFilename(), staffLeaveCsv(loadStaffLeave())); });
+    $('#slvRecordBtn')?.addEventListener('click', () => {
+      const before = loadStaffLeave();
+      const next = recordStaffLeave(before, {
+        id: `LV-${Date.now()}`,
+        staffMember: $('#slvStaffMember')?.value ?? '',
+        startDate: $('#slvStartDate')?.value ?? '',
+        endDate: $('#slvEndDate')?.value ?? '',
+        leaveType: $('#slvLeaveType')?.value ?? '',
+        approver: $('#slvApprover')?.value ?? '',
+        status: foldStaffLeaveStatus($('#slvStatus')?.value ?? ''),
+      });
+      if (!next || next.length === before.length) { toast('Leave not recorded: give a staff member, real start and end dates, a leave type, and an approver.'); return; }
+      saveStaffLeave(next);
+      renderStaffLeave();
+    });
+    $('#slvRemoveBtn')?.addEventListener('click', () => {
+      saveStaffLeave(removeStaffLeave(loadStaffLeave(), $('#slvRemoveId')?.value ?? ''));
+      renderStaffLeave();
+    });
+    $('#slvStaffBtn')?.addEventListener('click', () => { renderStaffLeave(); });
+    $('#slvStaffFilter')?.addEventListener('input', () => { renderStaffLeave(); });
+    $('#slvMonthBtn')?.addEventListener('click', () => { renderStaffLeave(); });
+    $('#slvMonthFilter')?.addEventListener('input', () => { renderStaffLeave(); });
   }
 }
 

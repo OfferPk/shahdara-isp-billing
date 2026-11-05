@@ -486,6 +486,7 @@ import { validCommunityMeetingDate, normalizeCommunityMeetingList, recordCommuni
 import { birthdaysForMonth, birthdaysByMonth, birthdayMonthSummaryText, birthdayMonthHtml, birthdayMonthsHtml, birthdayMonthCsv, birthdayMonthsCsv, birthdayMonthFilename, birthdayMonthsFilename } from './birthday-month.js';
 import { normalizeReadinessScorecardList, recordReadinessScorecard, removeReadinessScorecard, readinessScorecardSummaryText, readinessScorecardAllHtml, readinessScorecardCsv, readinessScorecardFilename } from './readiness-scorecard.js';
 import { validPriceReviewDate, normalizePriceReviewList, recordPriceReviewWorksheet, removePriceReviewWorksheet, priceReviewsForPackage, priceReviewSummaryText, priceReviewAllHtml, priceReviewsForPackageHtml, priceReviewCsv, priceReviewFilename } from './price-review.js';
+import { validShopChecklistDate, foldShopChecklistShift, normalizeShopChecklist, recordShopChecklistStep, removeShopChecklistStep, shopChecklistForDay, shopChecklistDaySummaryText, shopChecklistSummaryText, shopChecklistDayHtml, shopChecklistAllHtml, shopChecklistCsv, shopChecklistFilename } from './shop-checklist.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14218,6 +14219,7 @@ function renderAnalytics() {
   renderReadinessScorecards();
   renderSupplierPerformance();
   renderPriceReview();
+  renderShopChecklist();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30763,6 +30765,64 @@ function renderPriceReview() {
     });
     $('#prwFilterBtn')?.addEventListener('click', () => { renderPriceReview(); });
     $('#prwFilter')?.addEventListener('input', () => { renderPriceReview(); });
+  }
+}
+
+// Shop opening and closing checklist (Plan 290): one step per
+// record — the date, the shift, the step, whether it was done,
+// who did it, and, when a step involves a key, the key id only.
+// Completing a checklist never changes any bill, payment, stock,
+// or access record by itself, and past steps are read-only.
+const SHOP_CHECKLIST_KEY = 'shahdara_shop_checklists_v1';
+function loadShopChecklistSteps() {
+  try { return normalizeShopChecklist(JSON.parse(localStorage.getItem(SHOP_CHECKLIST_KEY) || '[]')); } catch { return []; }
+}
+function saveShopChecklistSteps(list) {
+  try { localStorage.setItem(SHOP_CHECKLIST_KEY, JSON.stringify(normalizeShopChecklist(list))); } catch { /* shop checklist steps only: a failed save leaves the previous list in place */ }
+}
+let shopChecklistBound = false;
+function renderShopChecklist() {
+  const listEl = $('#socBody');
+  if (!listEl) return;
+  const all = loadShopChecklistSteps();
+  const day = ($('#socDayFilter')?.value ?? '').trim();
+  listEl.innerHTML = all.length ? shopChecklistAllHtml(all) : '<p>No shop checklist steps recorded.</p>';
+  const dayEl = $('#socDayBody');
+  if (dayEl) {
+    dayEl.innerHTML = day
+      ? shopChecklistDayHtml(all, day)
+      : '<p>Pick a date to see that day’s opening and closing checklists.</p>';
+  }
+  const summaryEl = $('#socSummary');
+  if (summaryEl) {
+    const daySummary = validShopChecklistDate(day) ? ` ${shopChecklistDaySummaryText(all, day)}` : '';
+    summaryEl.textContent = `${shopChecklistSummaryText(all)}${daySummary} Completing a checklist never changes any bill, payment, stock, or access record by itself.`;
+  }
+  if (!shopChecklistBound) {
+    shopChecklistBound = true;
+    $('#socExportBtn')?.addEventListener('click', () => { downloadCsvFile(shopChecklistFilename(), shopChecklistCsv(loadShopChecklistSteps())); });
+    $('#socRecordBtn')?.addEventListener('click', () => {
+      const before = loadShopChecklistSteps();
+      const shift = foldShopChecklistShift($('#socShift')?.value ?? '') ?? '';
+      const next = recordShopChecklistStep(before, {
+        id: `SC-${Date.now()}`,
+        date: $('#socDate')?.value ?? '',
+        shift,
+        step: $('#socStep')?.value ?? '',
+        done: $('#socDone')?.checked ?? false,
+        doneBy: $('#socDoneBy')?.value ?? '',
+        keyId: $('#socKeyId')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Checklist step not recorded: give a real date, an opening or closing shift, and a step.'); return; }
+      saveShopChecklistSteps(next);
+      renderShopChecklist();
+    });
+    $('#socRemoveBtn')?.addEventListener('click', () => {
+      saveShopChecklistSteps(removeShopChecklistStep(loadShopChecklistSteps(), $('#socRemoveId')?.value ?? ''));
+      renderShopChecklist();
+    });
+    $('#socDayBtn')?.addEventListener('click', () => { renderShopChecklist(); });
+    $('#socDayFilter')?.addEventListener('input', () => { renderShopChecklist(); });
   }
 }
 

@@ -490,6 +490,7 @@ import { validShopChecklistDate, foldShopChecklistShift, normalizeShopChecklist,
 import { foldStaffLeaveStatus, normalizeStaffLeave, recordStaffLeave, removeStaffLeave, staffLeaveSummaryText, staffLeaveStaffHtml, staffLeaveMonthHtml, staffLeaveAllHtml, staffLeaveCsv, staffLeaveFilename } from './staff-leave.js';
 import { normalizeStaffTraining, recordStaffTraining, removeStaffTraining, staffTrainingSummaryText, staffTrainingStaffHtml, staffTrainingAllHtml, staffTrainingCsv, staffTrainingFilename } from './staff-training.js';
 import { normalizeWeeklyReviewList, recordWeeklyReview, removeWeeklyReview, weeklyReviewSummaryText, weeklyReviewActionsHtml, weeklyReviewAllHtml, weeklyReviewCsv, weeklyReviewFilename } from './weekly-review.js';
+import { normalizeSafeCountList, recordSafeCount, removeSafeCount, safeCountSummaryText, safeCountAllHtml, safeCountCsv, safeCountFilename } from './safe-count.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14226,6 +14227,7 @@ function renderAnalytics() {
   renderStaffLeave();
   renderStaffTraining();
   renderWeeklyReview();
+  renderSafeCount();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30998,6 +31000,52 @@ function renderWeeklyReview() {
     $('#wkRemoveBtn')?.addEventListener('click', () => {
       saveWeeklyReviews(removeWeeklyReview(loadWeeklyReviews(), $('#wkRemoveId')?.value ?? ''));
       renderWeeklyReview();
+    });
+  }
+}
+
+// Cash safe count log (Plan 294): one dated count of the shop
+// safe — the date, who counted it, the amount counted, the
+// amount expected, and a variance note in plain words when the
+// two differ. Logging a count never changes any bill, payment,
+// or ledger total by itself, and past counts are read-only.
+const SAFE_COUNT_KEY = 'shahdara_safe_counts_v1';
+function loadSafeCounts() {
+  try { return normalizeSafeCountList(JSON.parse(localStorage.getItem(SAFE_COUNT_KEY) || '[]')); } catch { return []; }
+}
+function saveSafeCounts(list) {
+  try { localStorage.setItem(SAFE_COUNT_KEY, JSON.stringify(normalizeSafeCountList(list))); } catch { /* safe count only: a failed save leaves the previous list in place */ }
+}
+let safeCountBound = false;
+function renderSafeCount() {
+  const listEl = $('#sfcBody');
+  if (!listEl) return;
+  const all = loadSafeCounts();
+  listEl.innerHTML = all.length ? safeCountAllHtml(all) : '<p>No safe counts recorded.</p>';
+  const summaryEl = $('#sfcSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${safeCountSummaryText(all)} Logging a count never changes any bill, payment, or ledger total by itself.`;
+  }
+  if (!safeCountBound) {
+    safeCountBound = true;
+    $('#sfcExportBtn')?.addEventListener('click', () => { downloadCsvFile(safeCountFilename(), safeCountCsv(loadSafeCounts())); });
+    $('#sfcRecordBtn')?.addEventListener('click', () => {
+      const before = loadSafeCounts();
+      const next = recordSafeCount(before, {
+        id: `SC-${Date.now()}`,
+        date: $('#sfcDate')?.value ?? '',
+        countedBy: $('#sfcCountedBy')?.value ?? '',
+        countedAmount: $('#sfcCountedAmount')?.value ?? '',
+        expectedAmount: $('#sfcExpectedAmount')?.value ?? '',
+        varianceNote: $('#sfcVarianceNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Safe count not recorded: give a real date, a counter, and whole-rupee counted and expected amounts — and explain any variance in words.'); return; }
+      saveSafeCounts(next);
+      renderSafeCount();
+    });
+    $('#sfcRemoveBtn')?.addEventListener('click', () => {
+      saveSafeCounts(removeSafeCount(loadSafeCounts(), $('#sfcRemoveId')?.value ?? ''));
+      renderSafeCount();
     });
   }
 }

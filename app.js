@@ -503,6 +503,7 @@ import { normalizeSeenList, markReminderSeen, renewalReminderQueue, overdueRemin
 import { normalizeInsuranceClaimList, recordInsuranceClaim, removeInsuranceClaim, insuranceClaimsForAsset, insuranceClaimSummaryText, insuranceClaimAllHtml, insuranceClaimsForAssetHtml, insuranceClaimCsv, insuranceClaimFilename } from './insurance-claim.js';
 import { normalizePurchaseApprovalList, recordPurchaseApproval, removePurchaseApproval, purchaseApprovalsForItem, purchaseApprovalSummaryText, purchaseApprovalAllHtml, purchaseApprovalsForItemHtml, purchaseApprovalCsv, purchaseApprovalFilename } from './equipment-purchase-approval.js';
 import { validGrowthFundingDate, normalizeGrowthFundingList, recordGrowthFundingNote, removeGrowthFundingNote, growthFundingNotesForSource, growthFundingSources, growthFundingSummaryText, growthFundingAllHtml, growthFundingNotesForSourceHtml, growthFundingCsv, growthFundingFilename } from './growth-funding.js';
+import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMohallaCostEstimateSheet, removeMohallaCostEstimateSheet, mohallaCostEstimatesForMohalla, mohallaCostEstimateMohallas, mohallaCostEstimateSummaryText, mohallaCostEstimateAllHtml, mohallaCostEstimatesForMohallaHtml, mohallaCostEstimateCsv, mohallaCostEstimateFilename } from './mohalla-cost-estimate.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14332,6 +14333,7 @@ function renderAnalytics() {
   renderInsuranceClaims();
   renderPurchaseApprovals();
   renderGrowthFunding();
+  renderMohallaCostEstimate();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31871,6 +31873,75 @@ function renderGrowthFunding() {
     $('#gfuRemoveBtn')?.addEventListener('click', () => {
       saveGrowthFundingNotes(removeGrowthFundingNote(loadGrowthFundingNotes(), $('#gfuRemoveId')?.value ?? ''));
       renderGrowthFunding();
+    });
+  }
+}
+
+// Mohalla cost estimate sheet (Plan 307): one cost estimate
+// sheet per candidate mohalla — the mohalla, the line items
+// with estimated amounts, the total, the date, and the
+// estimator. Completing a sheet never changes any bill,
+// payment, or customer record by itself, and no expansion is
+// triggered by the sheet: the sheet only puts figures on
+// paper before a decision is made.
+const MOHALLA_COST_ESTIMATE_KEY = 'shahdara_mohalla_cost_estimates_v1';
+function loadMohallaCostEstimates() {
+  try { return normalizeMohallaCostEstimateList(JSON.parse(localStorage.getItem(MOHALLA_COST_ESTIMATE_KEY) || '[]')); } catch { return []; }
+}
+function saveMohallaCostEstimates(list) {
+  try { localStorage.setItem(MOHALLA_COST_ESTIMATE_KEY, JSON.stringify(normalizeMohallaCostEstimateList(list))); } catch { /* cost estimate only: a failed save leaves the previous list in place */ }
+}
+function mohallaCostEstimateItemsFromText(raw) {
+  return String(raw ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const pipe = line.indexOf('|');
+    if (pipe === -1) return { label: line, amount: '' };
+    return { label: line.slice(0, pipe).trim(), amount: line.slice(pipe + 1).trim() };
+  });
+}
+let mohallaCostEstimateBound = false;
+function renderMohallaCostEstimate() {
+  const listEl = $('#mceBody');
+  if (!listEl) return;
+  const all = loadMohallaCostEstimates();
+  listEl.innerHTML = all.length ? mohallaCostEstimateAllHtml(all) : '<p>No mohalla cost estimate sheets recorded.</p>';
+  const summaryEl = $('#mceSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${mohallaCostEstimateSummaryText(all)} Completing a sheet never changes any bill, payment, or customer record by itself, and no expansion is triggered by the sheet.`;
+  }
+  const mohallaSelect = $('#mceMohallaSelect');
+  if (mohallaSelect) {
+    const mohallas = mohallaCostEstimateMohallas(all);
+    const current = mohallaSelect.value;
+    mohallaSelect.innerHTML = mohallas.map((mohalla) => `<option value="${mohalla}">${mohalla}</option>`).join('');
+    if (mohallas.includes(current)) mohallaSelect.value = current;
+  }
+  const mohallaEl = $('#mceMohallaBody');
+  if (mohallaEl) {
+    const chosen = mohallaSelect?.value ?? '';
+    mohallaEl.innerHTML = chosen
+      ? mohallaCostEstimatesForMohallaHtml(all, chosen)
+      : '<p>Pick a mohalla to see its estimate sheets.</p>';
+  }
+  if (!mohallaCostEstimateBound) {
+    mohallaCostEstimateBound = true;
+    $('#mceExportBtn')?.addEventListener('click', () => { downloadCsvFile(mohallaCostEstimateFilename(), mohallaCostEstimateCsv(loadMohallaCostEstimates())); });
+    $('#mceMohallaSelect')?.addEventListener('change', () => { renderMohallaCostEstimate(); });
+    $('#mceRecordBtn')?.addEventListener('click', () => {
+      const before = loadMohallaCostEstimates();
+      const next = recordMohallaCostEstimateSheet(before, {
+        id: `MCE-${Date.now()}`,
+        mohalla: $('#mceMohalla')?.value ?? '',
+        date: $('#mceDate')?.value ?? '',
+        estimator: $('#mceEstimator')?.value ?? '',
+        items: mohallaCostEstimateItemsFromText($('#mceItems')?.value ?? ''),
+      });
+      if (!next || next.length === before.length) { toast('Cost estimate sheet not recorded: give a mohalla, a real date, an estimator, and at least one line item as "Label | amount" with a whole-rupee amount of at least Rs 1.'); return; }
+      saveMohallaCostEstimates(next);
+      renderMohallaCostEstimate();
+    });
+    $('#mceRemoveBtn')?.addEventListener('click', () => {
+      saveMohallaCostEstimates(removeMohallaCostEstimateSheet(loadMohallaCostEstimates(), $('#mceRemoveId')?.value ?? ''));
+      renderMohallaCostEstimate();
     });
   }
 }

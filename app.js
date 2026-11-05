@@ -465,6 +465,7 @@ import { validReferralOutcomeDate, normalizeReferralOutcomeList, recordReferralO
 import { validCarePlanDate, normalizeCarePlanList, recordCarePlan, removeCarePlan, addCarePlanNote, reviewCarePlan, carePlanSorted, carePlansForCustomer, overdueCarePlans, carePlanSummaryText, carePlanAllHtml, carePlanCsv, carePlanFilename } from './care-plan.js';
 import { validPreferenceChangeDate, normalizePreferenceChangeList, recordPreferenceChange, removePreferenceChange, addPreferenceChangeNote, preferenceChangeSorted, preferenceChangesForCustomer, preferenceChangeSummaryText, preferenceChangeAllHtml, preferenceChangeCsv, preferenceChangeFilename } from './preference-change.js';
 import { validComplaintReopenDate, normalizeComplaintReopenList, recordComplaintReopen, removeComplaintReopen, addComplaintReopenNote, complaintReopenSorted, reopenNotesForComplaint, complaintReopenSummaryText, complaintReopenAllHtml, complaintReopenCsv, complaintReopenFilename } from './complaint-reopen.js';
+import { validEducationSessionDate, normalizeEducationSessionList, recordEducationSession, removeEducationSession, addEducationSessionNote, educationSessionSorted, sessionsByTopic, sessionsByMohalla, educationSessionSummaryText, educationSessionAllHtml, educationSessionCsv, educationSessionFilename } from './education-session.js';
 import { normalizeFeedbackTrendRows, feedbackTrendFor, feedbackTrendsByMohalla, feedbackTrendSummaryText, feedbackTrendHtml, feedbackTrendsHtml, feedbackTrendCsv, feedbackTrendFilename } from './feedback-trend.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14175,6 +14176,7 @@ function renderAnalytics() {
   renderCarePlans();
   renderPreferenceChanges();
   renderComplaintReopens();
+  renderEducationSessions();
   renderFeedbackTrend();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
@@ -29478,6 +29480,70 @@ function renderComplaintReopens() {
     });
     $('#crFilterBtn')?.addEventListener('click', () => { renderComplaintReopens(); });
     $('#crFilterComplaint')?.addEventListener('input', () => { renderComplaintReopens(); });
+  }
+}
+const EDUCATION_SESSION_KEY = 'shahdara_education_sessions_v1';
+function loadEducationSessions() {
+  try { return normalizeEducationSessionList(JSON.parse(localStorage.getItem(EDUCATION_SESSION_KEY) || '[]')); } catch { return []; }
+}
+function saveEducationSessions(list) {
+  try { localStorage.setItem(EDUCATION_SESSION_KEY, JSON.stringify(normalizeEducationSessionList(list))); } catch { /* education sessions only: a failed save leaves the previous list in place */ }
+}
+let educationSessionsBound = false;
+function renderEducationSessions() {
+  const listEl = $('#esList');
+  if (!listEl) return;
+  const all = loadEducationSessions();
+  listEl.innerHTML = all.length ? educationSessionAllHtml(all) : '<p>No education sessions recorded.</p>';
+  const summaryEl = $('#esSummary');
+  if (summaryEl) summaryEl.textContent = `${educationSessionSummaryText(all)} A session is never edited, only followed by a dated note. Recording a session never changes any customer record, bill, or payment, and never sends any message.`;
+  const filterEl = $('#esFilterBody');
+  if (filterEl) {
+    const topic = ($('#esFilterTopic')?.value ?? '').trim();
+    const mohalla = ($('#esFilterMohalla')?.value ?? '').trim();
+    let rows = educationSessionSorted(all);
+    if (topic !== '') rows = rows.filter((item) => item.topic.toLowerCase() === topic.toLowerCase());
+    if (mohalla !== '') rows = rows.filter((item) => item.mohalla.toLowerCase() === mohalla.toLowerCase());
+    if (topic === '' && mohalla === '') {
+      filterEl.innerHTML = '<p>Give a topic or a mohalla to filter the sessions.</p>';
+    } else {
+      filterEl.innerHTML = rows.length
+        ? educationSessionAllHtml(rows)
+        : '<p>No education session matches this filter.</p>';
+    }
+  }
+  if (!educationSessionsBound) {
+    educationSessionsBound = true;
+    $('#esExportBtn')?.addEventListener('click', () => { downloadCsvFile(educationSessionFilename(), educationSessionCsv(loadEducationSessions())); });
+    $('#esRecordBtn')?.addEventListener('click', () => {
+      const before = loadEducationSessions();
+      const next = recordEducationSession(before, {
+        id: `ES-${Date.now()}`,
+        date: $('#esDate')?.value ?? '',
+        mohalla: $('#esMohalla')?.value ?? '',
+        customer: $('#esCustomer')?.value ?? '',
+        topic: $('#esTopic')?.value ?? '',
+        operator: $('#esOperator')?.value ?? '',
+        note: $('#esNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Education session not recorded: give a real date, a topic, and a mohalla or a customer.'); return; }
+      saveEducationSessions(next);
+      renderEducationSessions();
+    });
+    $('#esAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadEducationSessions();
+      const next = addEducationSessionNote(before, $('#esAnnotateId')?.value ?? '', $('#esAnnotateDate')?.value ?? '', $('#esAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Session note not added: give a known session id, a real date, and a note.'); return; }
+      saveEducationSessions(next);
+      renderEducationSessions();
+    });
+    $('#esRemoveBtn')?.addEventListener('click', () => {
+      saveEducationSessions(removeEducationSession(loadEducationSessions(), $('#esRemoveId')?.value ?? ''));
+      renderEducationSessions();
+    });
+    $('#esFilterBtn')?.addEventListener('click', () => { renderEducationSessions(); });
+    $('#esFilterTopic')?.addEventListener('input', () => { renderEducationSessions(); });
+    $('#esFilterMohalla')?.addEventListener('input', () => { renderEducationSessions(); });
   }
 }
 let feedbackTrendBound = false;

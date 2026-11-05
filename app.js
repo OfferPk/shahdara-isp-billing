@@ -505,6 +505,7 @@ import { normalizePurchaseApprovalList, recordPurchaseApproval, removePurchaseAp
 import { validGrowthFundingDate, normalizeGrowthFundingList, recordGrowthFundingNote, removeGrowthFundingNote, growthFundingNotesForSource, growthFundingSources, growthFundingSummaryText, growthFundingAllHtml, growthFundingNotesForSourceHtml, growthFundingCsv, growthFundingFilename } from './growth-funding.js';
 import { validPartnershipNoteDate, normalizePartnershipNoteList, recordPartnershipNote, removePartnershipNote, partnershipNotesForPartner, partnershipPartners, partnershipNoteSummaryText, partnershipNoteAllHtml, partnershipNotesForPartnerHtml, partnershipNoteCsv, partnershipNoteFilename } from './partnership-note.js';
 import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMohallaCostEstimateSheet, removeMohallaCostEstimateSheet, mohallaCostEstimatesForMohalla, mohallaCostEstimateMohallas, mohallaCostEstimateSummaryText, mohallaCostEstimateAllHtml, mohallaCostEstimatesForMohallaHtml, mohallaCostEstimateCsv, mohallaCostEstimateFilename } from './mohalla-cost-estimate.js';
+import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14336,6 +14337,7 @@ function renderAnalytics() {
   renderGrowthFunding();
   renderPartnershipNotes();
   renderMohallaCostEstimate();
+  renderAbsenceHandoverChecklist();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -32008,6 +32010,83 @@ function renderMohallaCostEstimate() {
       saveMohallaCostEstimates(removeMohallaCostEstimateSheet(loadMohallaCostEstimates(), $('#mceRemoveId')?.value ?? ''));
       renderMohallaCostEstimate();
     });
+  }
+}
+
+// Owner absence handover checklist (Plan 309): one handover
+// checklist per cover period — the cover dates, the covering
+// person, the checklist steps with done and not-done shown,
+// and notes. Creating a checklist never changes any bill,
+// payment, customer, or staff record by itself, and it grants
+// no new permissions: the checklist only lists work.
+const ABSENCE_HANDOVER_CHECKLIST_KEY = 'shahdara_absence_handover_checklists_v1';
+function loadAbsenceHandoverChecklists() {
+  try { return normalizeAbsenceHandoverChecklistList(JSON.parse(localStorage.getItem(ABSENCE_HANDOVER_CHECKLIST_KEY) || '[]')); } catch { return []; }
+}
+function saveAbsenceHandoverChecklists(list) {
+  try { localStorage.setItem(ABSENCE_HANDOVER_CHECKLIST_KEY, JSON.stringify(normalizeAbsenceHandoverChecklistList(list))); } catch { /* handover checklist only: a failed save leaves the previous list in place */ }
+}
+function absenceHandoverChecklistStepsFromText(raw) {
+  return String(raw ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const pipe = line.indexOf('|');
+    if (pipe === -1) return { label: line };
+    return { label: line.slice(0, pipe).trim(), note: line.slice(pipe + 1).trim() };
+  });
+}
+let absenceHandoverChecklistBound = false;
+function renderAbsenceHandoverChecklist() {
+  const listEl = $('#ahcBody');
+  if (!listEl) return;
+  const all = loadAbsenceHandoverChecklists();
+  listEl.innerHTML = all.length ? absenceHandoverChecklistAllHtml(all) : '<p>No owner absence handover checklists recorded.</p>';
+  const summaryEl = $('#ahcSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${absenceHandoverChecklistSummaryText(all)} Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.`;
+  }
+  const personSelect = $('#ahcPersonSelect');
+  if (personSelect) {
+    const people = absenceHandoverChecklistCoveringPeople(all);
+    const current = personSelect.value;
+    personSelect.innerHTML = people.map((person) => `<option value="${person}">${person}</option>`).join('');
+    if (people.includes(current)) personSelect.value = current;
+  }
+  const personEl = $('#ahcPersonBody');
+  if (personEl) {
+    const chosen = personSelect?.value ?? '';
+    personEl.innerHTML = chosen
+      ? absenceHandoverChecklistsForPersonHtml(all, chosen)
+      : '<p>Pick a covering person to see their handover checklists.</p>';
+  }
+  if (!absenceHandoverChecklistBound) {
+    absenceHandoverChecklistBound = true;
+    $('#ahcExportBtn')?.addEventListener('click', () => { downloadCsvFile(absenceHandoverChecklistFilename(), absenceHandoverChecklistCsv(loadAbsenceHandoverChecklists())); });
+    $('#ahcPersonSelect')?.addEventListener('change', () => { renderAbsenceHandoverChecklist(); });
+    $('#ahcRecordBtn')?.addEventListener('click', () => {
+      const before = loadAbsenceHandoverChecklists();
+      const next = recordAbsenceHandoverChecklist(before, {
+        id: ($('#ahcId')?.value ?? '').trim() || `AHC-${Date.now()}`,
+        coverFrom: $('#ahcCoverFrom')?.value ?? '',
+        coverTo: $('#ahcCoverTo')?.value ?? '',
+        coveringPerson: $('#ahcCoveringPerson')?.value ?? '',
+        steps: absenceHandoverChecklistStepsFromText($('#ahcSteps')?.value ?? ''),
+        notes: $('#ahcNotes')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Handover checklist not recorded: give a real cover-from date, a cover-to date on or after it, a covering person, and at least one step.'); return; }
+      saveAbsenceHandoverChecklists(next);
+      renderAbsenceHandoverChecklist();
+    });
+    $('#ahcRemoveBtn')?.addEventListener('click', () => {
+      saveAbsenceHandoverChecklists(removeAbsenceHandoverChecklist(loadAbsenceHandoverChecklists(), $('#ahcRemoveId')?.value ?? ''));
+      renderAbsenceHandoverChecklist();
+    });
+    const markStep = (done) => {
+      const stepNumber = Number($('#ahcMarkStep')?.value ?? '');
+      if (!Number.isInteger(stepNumber) || stepNumber < 1) { toast('Mark a step by its number in the checklist, starting at 1.'); return; }
+      saveAbsenceHandoverChecklists(setAbsenceHandoverChecklistStepDone(loadAbsenceHandoverChecklists(), $('#ahcMarkId')?.value ?? '', stepNumber - 1, done));
+      renderAbsenceHandoverChecklist();
+    };
+    $('#ahcMarkDoneBtn')?.addEventListener('click', () => { markStep(true); });
+    $('#ahcMarkTodoBtn')?.addEventListener('click', () => { markStep(false); });
   }
 }
 

@@ -508,6 +508,7 @@ import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMo
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
+import { normalizeComplaintEscalationOwnerNoteList, recordComplaintEscalationOwnerNote, removeComplaintEscalationOwnerNote, answerComplaintEscalationOwnerNote, complaintEscalationOwnerOpenNotes, complaintEscalationOwnerComplaintRefs, complaintEscalationOwnerSummaryText, complaintEscalationOwnerAllHtml, complaintEscalationOwnerNotesForComplaintHtml, complaintEscalationOwnerCsv, complaintEscalationOwnerFilename } from './complaint-escalation-owner.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14342,6 +14343,7 @@ function renderAnalytics() {
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
+  renderComplaintEscalationOwnerNotes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -32236,6 +32238,77 @@ function renderDutyRoster() {
     $('#dtrRemoveBtn')?.addEventListener('click', () => {
       saveDutyRosterEntries(removeDutyRosterEntry(loadDutyRosterEntries(), $('#dtrRemoveId')?.value ?? ''));
       renderDutyRoster();
+    });
+  }
+}
+
+// Complaint escalation to owner (Plan 312): one note per
+// stuck complaint — the complaint reference, who escalated
+// it, the date, the reason in plain words, the owner
+// response, and the outcome. Escalations are listed with
+// reason, owner response, and outcome visible. Recording
+// an escalation never changes any bill, payment, customer
+// record, or ticket by itself.
+const COMPLAINT_ESCALATION_OWNER_KEY = 'shahdara_complaint_escalations_v1';
+function loadComplaintEscalationOwnerNotes() {
+  try { return normalizeComplaintEscalationOwnerNoteList(JSON.parse(localStorage.getItem(COMPLAINT_ESCALATION_OWNER_KEY) || '[]')); } catch { return []; }
+}
+function saveComplaintEscalationOwnerNotes(list) {
+  try { localStorage.setItem(COMPLAINT_ESCALATION_OWNER_KEY, JSON.stringify(normalizeComplaintEscalationOwnerNoteList(list))); } catch { /* complaint escalations only: a failed save leaves the previous list in place */ }
+}
+let complaintEscalationOwnerBound = false;
+function renderComplaintEscalationOwnerNotes() {
+  const bodyEl = $('#ceoBody');
+  if (!bodyEl) return;
+  const all = loadComplaintEscalationOwnerNotes();
+  bodyEl.innerHTML = complaintEscalationOwnerAllHtml(all);
+  const summaryEl = $('#ceoSummary');
+  if (summaryEl) {
+    const open = complaintEscalationOwnerOpenNotes(all);
+    summaryEl.textContent = `${complaintEscalationOwnerSummaryText(all)} Recording an escalation never changes any bill, payment, customer record, or ticket by itself.${open.length ? ` ${open.length} still waiting on the owner.` : ''}`;
+  }
+  const refSelect = $('#ceoRefSelect');
+  if (refSelect) {
+    const refs = complaintEscalationOwnerComplaintRefs(all);
+    const current = refSelect.value;
+    refSelect.innerHTML = refs.map((ref) => `<option value="${ref}">${ref}</option>`).join('');
+    if (refs.includes(current)) refSelect.value = current;
+  }
+  const refEl = $('#ceoRefBody');
+  if (refEl) {
+    const chosen = refSelect?.value ?? '';
+    refEl.innerHTML = chosen
+      ? complaintEscalationOwnerNotesForComplaintHtml(all, chosen)
+      : '<p>Pick a complaint reference to see its escalations.</p>';
+  }
+  if (!complaintEscalationOwnerBound) {
+    complaintEscalationOwnerBound = true;
+    $('#ceoExportBtn')?.addEventListener('click', () => { downloadCsvFile(complaintEscalationOwnerFilename(), complaintEscalationOwnerCsv(loadComplaintEscalationOwnerNotes())); });
+    $('#ceoRefSelect')?.addEventListener('change', () => { renderComplaintEscalationOwnerNotes(); });
+    $('#ceoRecordBtn')?.addEventListener('click', () => {
+      const before = loadComplaintEscalationOwnerNotes();
+      const next = recordComplaintEscalationOwnerNote(before, {
+        id: ($('#ceoId')?.value ?? '').trim() || `CE-${Date.now()}`,
+        complaintRef: ($('#ceoComplaintRef')?.value ?? ''),
+        escalatedBy: ($('#ceoEscalatedBy')?.value ?? ''),
+        date: ($('#ceoDate')?.value ?? ''),
+        reason: ($('#ceoReason')?.value ?? ''),
+      });
+      if (!next || next.length === before.length) { toast('Escalation not recorded: give a complaint reference, who escalated it, a real date, and the reason in plain words.'); return; }
+      saveComplaintEscalationOwnerNotes(next);
+      renderComplaintEscalationOwnerNotes();
+    });
+    $('#ceoAnswerBtn')?.addEventListener('click', () => {
+      const before = loadComplaintEscalationOwnerNotes();
+      const beforeJson = JSON.stringify(before);
+      const next = answerComplaintEscalationOwnerNote(before, ($('#ceoAnswerId')?.value ?? ''), ($('#ceoOwnerResponse')?.value ?? ''), ($('#ceoOutcome')?.value ?? 'open'));
+      if (JSON.stringify(next) === beforeJson) { toast('Owner answer not saved: give the escalation id, the owner response in plain words, and a known outcome.'); return; }
+      saveComplaintEscalationOwnerNotes(next);
+      renderComplaintEscalationOwnerNotes();
+    });
+    $('#ceoRemoveBtn')?.addEventListener('click', () => {
+      saveComplaintEscalationOwnerNotes(removeComplaintEscalationOwnerNote(loadComplaintEscalationOwnerNotes(), $('#ceoRemoveId')?.value ?? ''));
+      renderComplaintEscalationOwnerNotes();
     });
   }
 }

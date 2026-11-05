@@ -10907,6 +10907,38 @@
 <div id="pdList"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="cctHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="cctHeading">Customer complaint category trend</h3>
+<p class="chart-caption">One category trend view per period, composed from complaint rows only: a category, a count, and the change from the previous period. Category counts for a period sum to that period's complaints, and a category with no complaints shows zero. Viewing a trend never changes any complaint, bill, or payment record, and it covers all complaints, not only billing disputes and not fault root causes.</p>
+<p id="cctSummary"></p>
+</div>
+<div>
+<button id="cctExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export complaint category trends CSV</button>
+</div>
+</div>
+<h4>Complaint rows for the period</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Category <input id="cctCategory" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period from <input id="cctPeriodFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period to <input id="cctPeriodTo" type="date" style="width: 140px;">
+</label>
+<button id="cctShowBtn" class="secondary-button btn-sm" type="button">Show trend</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Complaint rows, one per line: category | date <textarea id="cctRows" rows="4" style="width: 520px;" placeholder="Billing | 2026-11-02"></textarea>
+</label>
+</div>
+<h4>Trend for one category</h4>
+<div id="cctTrendBody"></div>
+<h4>Trend for all categories</h4>
+<div id="cctAllBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

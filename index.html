@@ -7998,6 +7998,46 @@
 </div>
 <p id="cpCountsBody"></p>
 <div id="cpBody"></div>
+</section><section class="chart-card" aria-labelledby="pfHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="pfHeading">Payment channel failure note</h3>
+<p class="chart-caption">One note per failed Easypaisa or JazzCash attempt: customer, channel, date, amount attempted, plain-words reason as reported, and a reference if one was given. This log records failures only: it creates no payment, it never retries anything, and a failed attempt never settles a bill or appears in collections — so a customer who tried and failed is never shown as simply not having paid.</p>
+<p id="pfSummary"></p>
+</div>
+<div>
+<button id="pfExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export failure notes CSV</button>
+</div>
+</div>
+<h4>Record a failed attempt</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="pfCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Channel <input id="pfChannel" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date <input id="pfDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Amount attempted <input id="pfAmount" type="number" min="0.01" step="0.01" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Reason as reported <input id="pfReason" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Reference if given <input id="pfReference" type="text" style="width: 140px;">
+</label>
+<button id="pfSaveBtn" class="secondary-button btn-sm" type="button">Record failure</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove failure note id <input id="pfRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="pfRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Failed attempts</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="pfCustomerFilter" type="text" style="width: 160px;">
+</label>
+</div>
+<p id="pfCountsBody"></p>
+<div id="pfBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

@@ -9657,6 +9657,63 @@
 <div id="ppFlaggedBody"></div>
 <h4>All pole notes</h4>
 <div id="ppList"></div>
+</section><section class="chart-card" aria-labelledby="ckHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ckHeading">Field cabinet key access note</h3>
+<p class="chart-caption">One access note per field cabinet opening: the cabinet reference, the date, who opened it, the reason, and whether it was confirmed locked again. Openings list by cabinet and by date, and openings without a locked-again confirmation are flagged. A note is never edited, only annotated. Recording access never changes any bill, payment, customer, cabinet, or staff record by itself, and it does not replace the shop keys register.</p>
+<p id="ckSummary"></p>
+</div>
+<div>
+<button id="ckExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export cabinet access CSV</button>
+</div>
+</div>
+<h4>Record a cabinet opening</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Cabinet reference <input id="ckCabinet" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="ckDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Opened by <input id="ckOpenedBy" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason <input id="ckReason" type="text" style="width: 200px;">
+</label>
+<label style="font-size: 12px;">Locked again <select id="ckLockedAgain" style="width: 110px;"><option value="yes">yes</option><option value="no">no</option></select>
+</label>
+<button id="ckRecordBtn" class="secondary-button btn-sm" type="button">Record opening</button>
+</div>
+<h4>Dated annotation / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="ckAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Annotation date <input id="ckAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Annotation <input id="ckAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="ckAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated annotation</button>
+<label style="font-size: 12px;">Remove note id <input id="ckRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="ckRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Openings for one cabinet</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Cabinet reference <input id="ckFilterCabinet" type="text" style="width: 140px;">
+</label>
+<button id="ckCabinetBtn" class="secondary-button btn-sm" type="button">Show openings</button>
+</div>
+<div id="ckCabinetBody"></div>
+<h4>Openings on one date</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="ckDateInput" type="date" style="width: 140px;">
+</label>
+<button id="ckDateBtn" class="secondary-button btn-sm" type="button">Show openings</button>
+</div>
+<div id="ckDateBody"></div>
+<h4>Flagged: openings without a locked-again confirmation</h4>
+<div id="ckFlaggedBody"></div>
+<h4>All cabinet access notes</h4>
+<div id="ckList"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

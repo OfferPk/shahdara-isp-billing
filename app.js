@@ -473,6 +473,7 @@ import { validDifficultyNoteDate, normalizeDifficultyNoteList, recordDifficultyN
 import { normalizeComplaintCategoryTrendRows, complaintCategoryTrend, complaintCategoryTrendFor, complaintCategoryTrendCategoryText, complaintCategoryTrendCategoryHtml, complaintCategoryTrendSummaryText, complaintCategoryTrendHtml, complaintCategoryTrendCsv, complaintCategoryTrendFilename } from './complaint-category-trend.js';
 import { validWelcomeVisitOutcomeDate, foldWelcomeVisitOutcome, normalizeWelcomeVisitOutcomeList, recordWelcomeVisitOutcome, removeWelcomeVisitOutcome, addWelcomeVisitOpenQuestion, answerWelcomeVisitQuestion, welcomeVisitOutcomeSorted, outcomesForCustomer, notesWithOpenQuestions, welcomeVisitOutcomeSummaryText, welcomeVisitOutcomeAllHtml, welcomeVisitOutcomeCsv, welcomeVisitOutcomeFilename } from './welcome-visit-outcome.js';
 import { validReactivationNoteDate, normalizeReactivationNoteList, recordReactivationNote, removeReactivationNote, addReactivationNoteFollowup, reactivationNoteSorted, reactivationNotesForCustomer, stillDormantCustomers, reactivationNoteSummaryText, reactivationNoteAllHtml, reactivationNoteCsv, reactivationNoteFilename } from './reactivation-note.js';
+import { validCallbackQueueDate, validCallbackQueueTime, normalizeCallbackQueueList, recordCallback, removeCallback, markCallbackDone, markCallbackMissed, rebookCallback, callbackQueueSorted, pendingCallbackQueue, missedCallbacks, overdueCallbacks, callbacksForCustomer, callbackQueueSummaryText, callbackQueueAllHtml, callbackQueueCsv, callbackQueueFilename } from './callback-queue.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14190,6 +14191,7 @@ function renderAnalytics() {
   renderComplaintCategoryTrend();
   renderWelcomeVisitOutcomes();
   renderReactivationNotes();
+  renderCallbacks();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29896,6 +29898,100 @@ function renderReactivationNotes() {
     $('#rnFilterCustomer')?.addEventListener('input', () => { renderReactivationNotes(); });
     $('#rnDormantBtn')?.addEventListener('click', () => { renderReactivationNotes(); });
     $('#rnDormantNames')?.addEventListener('input', () => { renderReactivationNotes(); });
+  }
+}
+const CALLBACK_QUEUE_KEY = 'shahdara_callback_queue_v1';
+function loadCallbacks() {
+  try { return normalizeCallbackQueueList(JSON.parse(localStorage.getItem(CALLBACK_QUEUE_KEY) || '[]')); } catch { return []; }
+}
+function saveCallbacks(list) {
+  try { localStorage.setItem(CALLBACK_QUEUE_KEY, JSON.stringify(normalizeCallbackQueueList(list))); } catch { /* callback queue only: a failed save leaves the previous list in place */ }
+}
+let callbacksBound = false;
+function renderCallbacks() {
+  const listEl = $('#cbList');
+  if (!listEl) return;
+  const all = loadCallbacks();
+  listEl.innerHTML = all.length ? callbackQueueAllHtml(all) : '<p>No callbacks queued.</p>';
+  const summaryEl = $('#cbSummary');
+  if (summaryEl) summaryEl.textContent = `${callbackQueueSummaryText(all)} Queueing a callback never sends any message and never changes any customer, bill, or payment record.`;
+  const pendingEl = $('#cbPendingBody');
+  if (pendingEl) {
+    const pending = pendingCallbackQueue(all);
+    pendingEl.innerHTML = pending.length ? callbackQueueAllHtml(pending) : '<p>No pending callbacks. The queue is clear.</p>';
+  }
+  const missedEl = $('#cbMissedBody');
+  if (missedEl) {
+    const missed = missedCallbacks(all);
+    missedEl.innerHTML = missed.length ? callbackQueueAllHtml(missed) : '<p>No missed callbacks.</p>';
+  }
+  const overdueEl = $('#cbOverdueBody');
+  if (overdueEl) {
+    const asOfDate = $('#cbAsOfDate')?.value ?? '';
+    const asOfTime = $('#cbAsOfTime')?.value ?? '';
+    if (!validCallbackQueueDate(asOfDate) || !validCallbackQueueTime(asOfTime)) {
+      overdueEl.innerHTML = '<p>Give an as-of date and time to see overdue callbacks.</p>';
+    } else {
+      const overdue = overdueCallbacks(all, asOfDate, asOfTime);
+      overdueEl.innerHTML = overdue.length ? callbackQueueAllHtml(overdue) : '<p>No overdue callbacks at that time.</p>';
+    }
+  }
+  const customerEl = $('#cbCustomerBody');
+  if (customerEl) {
+    const customer = ($('#cbFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their callbacks.</p>';
+    } else {
+      const rows = callbacksForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? callbackQueueAllHtml(rows)
+        : '<p>No callback queued for this customer.</p>';
+    }
+  }
+  if (!callbacksBound) {
+    callbacksBound = true;
+    $('#cbExportBtn')?.addEventListener('click', () => { downloadCsvFile(callbackQueueFilename(), callbackQueueCsv(loadCallbacks())); });
+    $('#cbRecordBtn')?.addEventListener('click', () => {
+      const before = loadCallbacks();
+      const next = recordCallback(before, {
+        id: `CB-${Date.now()}`,
+        customer: $('#cbCustomer')?.value ?? '',
+        requestedDate: $('#cbDate')?.value ?? '',
+        requestedTime: $('#cbTime')?.value ?? '',
+        reason: $('#cbReason')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Callback not queued: give a customer, a real requested date and time, and the reason.'); return; }
+      saveCallbacks(next);
+      renderCallbacks();
+    });
+    $('#cbDoneBtn')?.addEventListener('click', () => {
+      const before = loadCallbacks();
+      const next = markCallbackDone(before, $('#cbDoneId')?.value ?? '');
+      if (next === before) { toast('Callback not marked done: give a known callback id.'); return; }
+      saveCallbacks(next);
+      renderCallbacks();
+    });
+    $('#cbMissedBtn')?.addEventListener('click', () => {
+      const before = loadCallbacks();
+      const next = markCallbackMissed(before, $('#cbMissedId')?.value ?? '');
+      if (next === before) { toast('Callback not marked missed: give a known callback id.'); return; }
+      saveCallbacks(next);
+      renderCallbacks();
+    });
+    $('#cbRebookBtn')?.addEventListener('click', () => {
+      const before = loadCallbacks();
+      const next = rebookCallback(before, $('#cbRebookId')?.value ?? '', $('#cbRebookDate')?.value ?? '', $('#cbRebookTime')?.value ?? '');
+      if (next === before) { toast('Callback not rebooked: give a known callback id and a real new date and time.'); return; }
+      saveCallbacks(next);
+      renderCallbacks();
+    });
+    $('#cbRemoveBtn')?.addEventListener('click', () => {
+      saveCallbacks(removeCallback(loadCallbacks(), $('#cbRemoveId')?.value ?? ''));
+      renderCallbacks();
+    });
+    $('#cbOverdueBtn')?.addEventListener('click', () => { renderCallbacks(); });
+    $('#cbFilterBtn')?.addEventListener('click', () => { renderCallbacks(); });
+    $('#cbFilterCustomer')?.addEventListener('input', () => { renderCallbacks(); });
   }
 }
 let feedbackTrendBound = false;

@@ -8090,6 +8090,45 @@
 <span id="prBillCountResult" style="font-size: 12px;"></span>
 </div>
 <p class="chart-caption">Filtering by customer lists that customer's reminders in date order, with channel and bill. The count above is an exact bill match, so a bill never inherits another bill's reminders.</p>
+</section><section class="chart-card" aria-labelledby="chHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="chHeading">Cash handling safety record</h3>
+<p class="chart-caption">One record per cash count: date, amount, who counted, who witnessed, and the safe or till where the cash was kept — so a count questioned later has a witness and a location to point to. This records the count and custody only: it counts no denominations itself (Plan 4), sets no cash-in-hand limit (Plan 90), and settles nothing (Plan 129). A count with only one person is recorded but flagged, never hidden. Recording a count never changes any payment, handover, or settlement figure.</p>
+<p id="chSummary"></p>
+</div>
+<div><button id="chExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export cash-handling CSV</button></div>
+</div>
+<h4>Record a count</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="chDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Amount (Rs.) <input id="chAmount" type="number" min="0" step="0.01" style="width: 120px;"></label>
+<label style="font-size: 12px;">Counted by <input id="chCounter" type="text" style="width: 140px;"></label>
+<label style="font-size: 12px;">Witnessed by <input id="chWitness" type="text" style="width: 140px;"></label>
+<label style="font-size: 12px;">Safe or till location <input id="chLocation" type="text" style="width: 160px;" placeholder="e.g. Shop safe"></label>
+<label style="font-size: 12px;">Note <input id="chNote" type="text" style="width: 160px;"></label>
+<button id="chSaveBtn" class="secondary-button btn-sm" type="button">Record count</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove count id <input id="chRemoveId" type="text" style="width: 140px;"></label>
+<button id="chRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Counts</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by counter <input id="chCounterFilter" type="text" style="width: 140px;"></label>
+<label style="font-size: 12px;">Filter by location <input id="chLocationFilter" type="text" style="width: 140px;"></label>
+</div>
+<div id="chBody"></div>
+<h4>Flagged counts</h4>
+<div id="chFlaggedBody"></div>
+<h4>Compare a count against its day sheet figure</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Count id <input id="chDaySheetId" type="text" style="width: 140px;"></label>
+<label style="font-size: 12px;">Day sheet amount (Rs.) <input id="chDaySheetAmount" type="number" min="0" step="0.01" style="width: 140px;"></label>
+<button id="chDaySheetBtn" class="secondary-button btn-sm" type="button">Compare</button>
+</div>
+<div id="chDaySheetBody"></div>
 </section><section class="chart-card" aria-labelledby="spHeading">
 <div class="table-heading">
 <div>

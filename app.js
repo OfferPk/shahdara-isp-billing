@@ -416,6 +416,7 @@ import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsS
 import { normalizeAppliedPriceList, recordAppliedPrice, removeAppliedPrice, appliedPricesForCustomer, appliedPricesForBill, flaggedAppliedPrices, appliedPriceHtml, appliedPriceSummaryText, appliedPriceCsv, appliedPriceFilename } from './applied-price.js';
 import { normalizeBillDeliveryList, recordBillDelivery, removeBillDelivery, billDeliveriesForCustomer, billDeliveriesForBill, billDeliveryHtml, billDeliverySummaryText, undeliveredBillsBeforeDue, billDeliveryCsv, billDeliveryFilename } from './bill-delivery.js';
 import { normalizeReminderList, recordReminder, removeReminder, remindersForCustomer, remindersForBill, remindersForChannel, reminderCountForBill, reminderHtml, reminderSummaryText, reminderCsv, reminderFilename } from './reminder-log.js';
+import { normalizeCashHandlingList, recordCashHandling, removeCashHandling, cashHandlingSorted, cashHandlingForCounter, cashHandlingForLocation, cashHandlingFlagged, compareCashHandlingToDaySheet, cashHandlingDaySheetText, cashHandlingAllHtml, cashHandlingSummaryText, cashHandlingCsv, cashHandlingFilename } from './cash-handling.js';
 import { normalizeSeasonalPatternList, recordSeasonalPattern, removeSeasonalPattern, seasonalPatternsForMohalla, seasonalPatternsForMonth, seasonalPatternAllHtml, seasonalPatternSummaryText, seasonalPatternCsv, seasonalPatternFilename } from './seasonal-pattern.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
@@ -14020,6 +14021,7 @@ function renderAnalytics() {
   renderAppliedPrices();
   renderBillDeliveries();
   renderPaymentReminders();
+  renderCashHandling();
   renderSeasonalPatterns();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
@@ -26090,6 +26092,63 @@ function renderPaymentReminders() {
     $('#prCustomerFilter')?.addEventListener('input', () => { renderPaymentReminders(); });
     $('#prBillFilter')?.addEventListener('input', () => { renderPaymentReminders(); });
     $('#prChannelFilter')?.addEventListener('change', () => { renderPaymentReminders(); });
+  }
+}
+const CASH_HANDLING_KEY = 'shahdara_cash_handling_v1';
+function loadCashHandling() {
+  try { return normalizeCashHandlingList(JSON.parse(localStorage.getItem(CASH_HANDLING_KEY) || '[]')); } catch { return []; }
+}
+function saveCashHandling(list) {
+  try { localStorage.setItem(CASH_HANDLING_KEY, JSON.stringify(normalizeCashHandlingList(list))); } catch { /* cash-handling records only: a failed save leaves the previous list in place */ }
+}
+let cashHandlingBound = false;
+function renderCashHandling() {
+  const bodyEl = $('#chBody');
+  if (!bodyEl) return;
+  const counterQuery = ($('#chCounterFilter')?.value ?? '').trim();
+  const locationQuery = ($('#chLocationFilter')?.value ?? '').trim();
+  let shown = cashHandlingSorted(loadCashHandling());
+  if (counterQuery) shown = cashHandlingForCounter(shown, counterQuery);
+  if (locationQuery) shown = cashHandlingForLocation(shown, locationQuery);
+  bodyEl.innerHTML = shown.length ? cashHandlingAllHtml(shown) : '<p>No cash-handling counts recorded.</p>';
+  const summaryEl = $('#chSummary');
+  if (summaryEl) summaryEl.textContent = cashHandlingSummaryText(loadCashHandling());
+  const flaggedEl = $('#chFlaggedBody');
+  if (flaggedEl) {
+    const flagged = cashHandlingFlagged(loadCashHandling());
+    flaggedEl.innerHTML = flagged.length ? cashHandlingAllHtml(flagged) : '<p>No counts flagged.</p>';
+  }
+  if (!cashHandlingBound) {
+    cashHandlingBound = true;
+    $('#chExportBtn')?.addEventListener('click', () => { downloadCsvFile(cashHandlingFilename(), cashHandlingCsv(loadCashHandling())); });
+    $('#chSaveBtn')?.addEventListener('click', () => {
+      const before = loadCashHandling();
+      const next = recordCashHandling(before, {
+        id: `CH-${Date.now()}`,
+        date: $('#chDate')?.value ?? '',
+        amount: $('#chAmount')?.value ?? '',
+        countedBy: $('#chCounter')?.value ?? '',
+        witnessedBy: $('#chWitness')?.value ?? '',
+        location: $('#chLocation')?.value ?? '',
+        note: $('#chNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Cash-handling count not recorded: give a real date, an amount, and the person who counted. A witness and a location are strongly expected — a count without them is recorded but flagged.'); return; }
+      saveCashHandling(next);
+      renderCashHandling();
+    });
+    $('#chRemoveBtn')?.addEventListener('click', () => {
+      saveCashHandling(removeCashHandling(loadCashHandling(), $('#chRemoveId')?.value ?? ''));
+      renderCashHandling();
+    });
+    $('#chCounterFilter')?.addEventListener('input', () => { renderCashHandling(); });
+    $('#chLocationFilter')?.addEventListener('input', () => { renderCashHandling(); });
+    $('#chDaySheetBtn')?.addEventListener('click', () => {
+      const body = $('#chDaySheetBody');
+      if (!body) return;
+      const id = ($('#chDaySheetId')?.value ?? '').trim();
+      const record = loadCashHandling().find((r) => r.id === id);
+      body.textContent = !record ? 'Give a count id to compare against its day sheet figure.' : cashHandlingDaySheetText(record, $('#chDaySheetAmount')?.value ?? '');
+    });
   }
 }
 const SEASONAL_PATTERN_KEY = 'shahdara_seasonal_patterns_v1';

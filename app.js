@@ -416,6 +416,7 @@ import { normalizeBusinessContactList, recordBusinessContact, removeBusinessCont
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
 import { normalizeBillReissueList, recordBillReissue, removeBillReissue, billReissuesSorted, billReissuesForCustomer, billReissueSummaryText, billReissueAllHtml, billReissueCsv, billReissueFilename } from './bill-reissue.js';
 import { normalizeBehaviourBillList, recordBehaviourBill, removeBehaviourBill, behaviourSummaries, behaviourSummaryText, behaviourAllHtml, behaviourCsv, behaviourFilename } from './payment-behaviour.js';
+import { normalizeDiscountExpiryList, recordDiscountExpiry, removeDiscountExpiry, discountExpiriesSorted, discountExpiriesWithinWindow, discountExpiryAllHtml, discountExpiryCsv, discountExpiryFilename } from './discount-expiry.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14074,6 +14075,7 @@ function renderAnalytics() {
   renderPaymentFailures();
   renderBillReissues();
   renderPaymentBehaviour();
+  renderDiscountExpiries();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26163,6 +26165,53 @@ function renderPaymentBehaviour() {
       renderPaymentBehaviour();
     });
     $('#pbCustomerFilter')?.addEventListener('input', () => { renderPaymentBehaviour(); });
+  }
+}
+const DISCOUNT_EXPIRY_KEY = 'shahdara_discount_expiry_v1';
+function loadDiscountExpiries() {
+  try { return normalizeDiscountExpiryList(JSON.parse(localStorage.getItem(DISCOUNT_EXPIRY_KEY) || '[]')); } catch { return []; }
+}
+function saveDiscountExpiries(list) {
+  try { localStorage.setItem(DISCOUNT_EXPIRY_KEY, JSON.stringify(normalizeDiscountExpiryList(list))); } catch { /* expiry note only: a failed save leaves the previous notes in place */ }
+}
+let discountExpiriesBound = false;
+function renderDiscountExpiries() {
+  const bodyEl = $('#deBody');
+  if (!bodyEl) return;
+  const all = loadDiscountExpiries();
+  const from = ($('#deWindowFrom')?.value ?? '').trim();
+  const to = ($('#deWindowTo')?.value ?? '').trim();
+  const shown = (from && to) ? discountExpiriesWithinWindow(all, from, to) : discountExpiriesSorted(all);
+  bodyEl.innerHTML = discountExpiryAllHtml(shown);
+  const summaryEl = $('#deSummary');
+  if (summaryEl) {
+    summaryEl.textContent = (from && to)
+      ? `${shown.length} discount(s) expiring ${from} to ${to}.`
+      : `${all.length} discount expiry note(s) recorded. Set a window to list only those expiring inside it.`;
+  }
+  if (!discountExpiriesBound) {
+    discountExpiriesBound = true;
+    $('#deExportBtn')?.addEventListener('click', () => { downloadCsvFile(discountExpiryFilename(), discountExpiryCsv(shown)); });
+    $('#deSaveBtn')?.addEventListener('click', () => {
+      const before = loadDiscountExpiries();
+      const next = recordDiscountExpiry(before, {
+        id: `DE-${Date.now()}`,
+        discountRef: $('#deDiscountRef')?.value ?? '',
+        expiryDate: $('#deExpiryDate')?.value ?? '',
+        affected: $('#deAffected')?.value ?? '',
+        lastDiscountedBill: $('#deLastBill')?.value ?? '',
+        noticeDraft: $('#deNoticeDraft')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Expiry note not recorded: give a discount, a real expiry date, the customer or mohalla affected, and the last discounted bill.'); return; }
+      saveDiscountExpiries(next);
+      renderDiscountExpiries();
+    });
+    $('#deRemoveBtn')?.addEventListener('click', () => {
+      saveDiscountExpiries(removeDiscountExpiry(loadDiscountExpiries(), $('#deRemoveId')?.value ?? ''));
+      renderDiscountExpiries();
+    });
+    $('#deWindowFrom')?.addEventListener('change', () => { renderDiscountExpiries(); });
+    $('#deWindowTo')?.addEventListener('change', () => { renderDiscountExpiries(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

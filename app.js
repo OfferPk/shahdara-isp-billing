@@ -493,6 +493,7 @@ import { normalizeWeeklyReviewList, recordWeeklyReview, removeWeeklyReview, week
 import { normalizeSafeCountList, recordSafeCount, removeSafeCount, safeCountSummaryText, safeCountAllHtml, safeCountCsv, safeCountFilename } from './safe-count.js';
 import { validExpenseApprovalDate, foldExpenseApprovalStatus, normalizeExpenseApprovalList, recordExpenseApproval, removeExpenseApproval, expenseApprovalsForCategory, expenseApprovalCategories, expenseApprovalCategorySummaryHtml, expenseApprovalSummaryText, expenseApprovalAllHtml, expenseApprovalsForCategoryHtml, expenseApprovalCsv, expenseApprovalFilename } from './expense-approval.js';
 import { validVendorPaymentDueDate, normalizeVendorPaymentDueList, recordVendorPaymentDue, removeVendorPaymentDue, markVendorPaymentDueSeen, markVendorPaymentDueSettled, vendorPaymentDuesForVendor, vendorPaymentDueVendors, vendorPaymentDuesOverdueHtml, vendorPaymentDueSummaryText, vendorPaymentDueAllHtml, vendorPaymentDuesForVendorHtml, vendorPaymentDueCsv, vendorPaymentDueFilename } from './vendor-payment-due.js';
+import { normalizeVisitorLogList, recordVisitorLog, removeVisitorLog, visitorLogForDate, visitorLogSearch, visitorLogSummaryText, visitorLogAllHtml, visitorLogSearchHtml, visitorLogCsv, visitorLogFilename } from './visitor-log.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14232,6 +14233,7 @@ function renderAnalytics() {
   renderSafeCount();
   renderExpenseApproval();
   renderVendorPaymentDue();
+  renderVisitorLog();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31192,6 +31194,68 @@ function renderVendorPaymentDue() {
     $('#vpdMarkSettledBtn')?.addEventListener('click', () => {
       saveVendorPaymentDues(markVendorPaymentDueSettled(loadVendorPaymentDues(), $('#vpdMarkSettledId')?.value ?? ''));
       renderVendorPaymentDue();
+    });
+  }
+}
+
+// Shop visitor log — the date, the visitor name, the purpose in plain
+// words, the person met, and the time in and out. Logging a visit
+// creates no customer, staff, or appointment record and never changes
+// any bill, payment, customer, or staff record by itself.
+const VISITOR_LOG_KEY = 'shahdara_visitor_log_v1';
+function loadVisitorLog() {
+  try { return normalizeVisitorLogList(JSON.parse(localStorage.getItem(VISITOR_LOG_KEY) || '[]')); } catch { return []; }
+}
+function saveVisitorLog(list) {
+  try { localStorage.setItem(VISITOR_LOG_KEY, JSON.stringify(normalizeVisitorLogList(list))); } catch { /* visitor log only: a failed save leaves the previous list in place */ }
+}
+let visitorLogBound = false;
+function renderVisitorLog() {
+  const listEl = $('#vsBody');
+  if (!listEl) return;
+  const all = loadVisitorLog();
+  listEl.innerHTML = all.length ? visitorLogAllHtml(all) : '<p>No shop visits recorded.</p>';
+  const summaryEl = $('#vsSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${visitorLogSummaryText(all)} Logging a visit never changes any bill, payment, customer, or staff record.`;
+  }
+  const searchEl = $('#vsSearchBody');
+  if (searchEl) {
+    const query = $('#vsSearch')?.value ?? '';
+    searchEl.innerHTML = query ? visitorLogSearchHtml(all, query) : '<p>Type a visitor name to search.</p>';
+  }
+  const dateEl = $('#vsDateBody');
+  if (dateEl) {
+    const date = $('#vsDateInput')?.value ?? '';
+    dateEl.innerHTML = date
+      ? (visitorLogForDate(all, date).length
+        ? visitorLogAllHtml(visitorLogForDate(all, date))
+        : '<p>No shop visits on that date.</p>')
+      : '<p>Pick a date to see its visits.</p>';
+  }
+  if (!visitorLogBound) {
+    visitorLogBound = true;
+    $('#vsExportBtn')?.addEventListener('click', () => { downloadCsvFile(visitorLogFilename(), visitorLogCsv(loadVisitorLog())); });
+    $('#vsSearchBtn')?.addEventListener('click', () => { renderVisitorLog(); });
+    $('#vsDateBtn')?.addEventListener('click', () => { renderVisitorLog(); });
+    $('#vsRecordBtn')?.addEventListener('click', () => {
+      const before = loadVisitorLog();
+      const next = recordVisitorLog(before, {
+        id: `SV-${Date.now()}`,
+        date: $('#vsDate')?.value ?? '',
+        visitorName: $('#vsVisitorName')?.value ?? '',
+        purpose: $('#vsPurpose')?.value ?? '',
+        personMet: $('#vsPersonMet')?.value ?? '',
+        timeIn: $('#vsTimeIn')?.value ?? '',
+        timeOut: $('#vsTimeOut')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Shop visit not recorded: give a real date, the visitor name, and the purpose.'); return; }
+      saveVisitorLog(next);
+      renderVisitorLog();
+    });
+    $('#vsRemoveBtn')?.addEventListener('click', () => {
+      saveVisitorLog(removeVisitorLog(loadVisitorLog(), $('#vsRemoveId')?.value ?? ''));
+      renderVisitorLog();
     });
   }
 }

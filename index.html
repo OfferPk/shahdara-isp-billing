@@ -10379,6 +10379,43 @@
 <div id="vpdBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="vsHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="vsHeading">Shop visitor log</h3>
+<p class="chart-caption">One dated entry per shop visit: the date, the visitor name, the purpose in plain words, the person met, and the time in and out. Visits are listed by date and searchable by visitor name. Logging a visit creates no customer, staff, or appointment record and never changes any bill, payment, customer, or staff record by itself.</p>
+<p id="vsSummary"></p>
+</div>
+<div>
+<button id="vsExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export visitor log CSV</button>
+</div>
+</div>
+<h4>Record a shop visit</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="vsDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Visitor name <input id="vsVisitorName" type="text" style="width: 160px;" placeholder="e.g. Ahmed Raza"></label>
+<label style="font-size: 12px;">Purpose <input id="vsPurpose" type="text" style="width: 180px;" placeholder="e.g. Supplier delivery"></label>
+<label style="font-size: 12px;">Person met <input id="vsPersonMet" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Time in <input id="vsTimeIn" type="time" style="width: 110px;"></label>
+<label style="font-size: 12px;">Time out <input id="vsTimeOut" type="time" style="width: 110px;"></label>
+<button id="vsRecordBtn" class="secondary-button btn-sm" type="button">Record visit</button>
+<label style="font-size: 12px;">Remove id <input id="vsRemoveId" type="text" style="width: 120px;"></label>
+<button id="vsRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Search by visitor name</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Visitor name <input id="vsSearch" type="text" style="width: 180px;" placeholder="e.g. Ahmed"></label>
+<button id="vsSearchBtn" class="secondary-button btn-sm" type="button">Search</button>
+</div>
+<div id="vsSearchBody"></div>
+<h4>Visits on one date</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="vsDateInput" type="date" style="width: 140px;"></label>
+<button id="vsDateBtn" class="secondary-button btn-sm" type="button">Show visits</button>
+</div>
+<div id="vsDateBody"></div>
+<h4>All shop visits</h4>
+<div id="vsBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

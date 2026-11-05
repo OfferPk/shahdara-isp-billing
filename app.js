@@ -413,6 +413,7 @@ import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirm
 import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEntriesSorted, archiveByYear, archiveByKind, archiveAllHtml, archiveSummaryText, archiveCsv, archiveFilename } from './archive-index.js';
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
+import { normalizeSeasonalPatternList, recordSeasonalPattern, removeSeasonalPattern, seasonalPatternsForMohalla, seasonalPatternsForMonth, seasonalPatternAllHtml, seasonalPatternSummaryText, seasonalPatternCsv, seasonalPatternFilename } from './seasonal-pattern.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -14013,6 +14014,7 @@ function renderAnalytics() {
   renderArchiveIndex();
   renderBusinessContacts();
   renderAbsenceCover();
+  renderSeasonalPatterns();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
 // view divides one month's recurring expenses across active
@@ -25903,6 +25905,51 @@ function renderAbsenceCover() {
       const gapsEl = $('#acGapsBody');
       if (gapsEl) gapsEl.textContent = coverGapsText(loadAbsenceCover(), $('#acRangeStart')?.value ?? '', $('#acRangeEnd')?.value ?? '') || 'Give real start and end dates to check for cover gaps.';
     });
+  }
+}
+const SEASONAL_PATTERN_KEY = 'shahdara_seasonal_patterns_v1';
+function loadSeasonalPatterns() {
+  try { return normalizeSeasonalPatternList(JSON.parse(localStorage.getItem(SEASONAL_PATTERN_KEY) || '[]')); } catch { return []; }
+}
+function saveSeasonalPatterns(list) {
+  try { localStorage.setItem(SEASONAL_PATTERN_KEY, JSON.stringify(normalizeSeasonalPatternList(list))); } catch { /* planning notes only: a failed save leaves the previous list in place */ }
+}
+let seasonalPatternsBound = false;
+function renderSeasonalPatterns() {
+  const bodyEl = $('#spBody');
+  if (!bodyEl) return;
+  const mohallaQuery = ($('#spMohallaFilter')?.value ?? '').trim();
+  const monthValue = Number($('#spMonthFilter')?.value ?? '');
+  let shown = loadSeasonalPatterns();
+  if (mohallaQuery) shown = seasonalPatternsForMohalla(shown, mohallaQuery);
+  if (Number.isInteger(monthValue) && monthValue >= 1 && monthValue <= 12) shown = seasonalPatternsForMonth(shown, monthValue);
+  bodyEl.innerHTML = shown.length ? seasonalPatternAllHtml(shown) : '<p>No seasonal collection pattern notes recorded.</p>';
+  const summaryEl = $('#spSummary');
+  if (summaryEl) summaryEl.textContent = seasonalPatternSummaryText(loadSeasonalPatterns());
+  if (!seasonalPatternsBound) {
+    seasonalPatternsBound = true;
+    $('#spExportBtn')?.addEventListener('click', () => { downloadCsvFile(seasonalPatternFilename(), seasonalPatternCsv(loadSeasonalPatterns())); });
+    $('#spSaveBtn')?.addEventListener('click', () => {
+      const before = loadSeasonalPatterns();
+      const months = ($('#spMonths')?.value ?? '').split(',').map((part) => Number(part.trim())).filter((n) => Number.isInteger(n));
+      const next = recordSeasonalPattern(before, {
+        id: `SP-${Date.now()}`,
+        mohalla: $('#spMohalla')?.value ?? '',
+        season: $('#spSeason')?.value ?? '',
+        pattern: $('#spPattern')?.value ?? '',
+        reason: $('#spReason')?.value ?? '',
+        months,
+      });
+      if (next.length === before.length) { toast('Seasonal pattern note not recorded: give a mohalla, a season, slow or busy, a reason, and at least one month (1-12); one note per mohalla per season.'); return; }
+      saveSeasonalPatterns(next);
+      renderSeasonalPatterns();
+    });
+    $('#spRemoveBtn')?.addEventListener('click', () => {
+      saveSeasonalPatterns(removeSeasonalPattern(loadSeasonalPatterns(), $('#spRemoveId')?.value ?? ''));
+      renderSeasonalPatterns();
+    });
+    $('#spMohallaFilter')?.addEventListener('input', () => { renderSeasonalPatterns(); });
+    $('#spMonthFilter')?.addEventListener('change', () => { renderSeasonalPatterns(); });
   }
 }
 function renderOwnerDecision() {

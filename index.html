@@ -10161,6 +10161,36 @@
 <div id="prwBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="socHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="socHeading">Shop opening and closing checklist</h3>
+<p class="chart-caption">One step per record: the date, the shift (opening or closing), the step in plain words, whether it was done, who did it, and, when a step involves a key, the key id only. Each day shows its opening and closing checklists with done and missed steps visible. Completing a checklist never changes any bill, payment, stock, or access record by itself, and past steps are never silently edited.</p>
+<p id="socSummary"></p>
+</div>
+<div>
+<button id="socExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export shop checklists CSV</button>
+</div>
+</div>
+<h4>Record a checklist step</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="socDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Shift <select id="socShift" style="width: 120px;"><option value="opening">Opening</option><option value="closing">Closing</option></select></label>
+<label style="font-size: 12px;">Step <input id="socStep" type="text" style="width: 180px;" placeholder="e.g. Open the shutter"></label>
+<label style="font-size: 12px;"><input id="socDone" type="checkbox"> Done</label>
+<label style="font-size: 12px;">Done by <input id="socDoneBy" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Key id <input id="socKeyId" type="text" style="width: 90px;" placeholder="e.g. K-1"></label>
+<button id="socRecordBtn" class="secondary-button btn-sm" type="button">Record step</button>
+<label style="font-size: 12px;">Remove id <input id="socRemoveId" type="text" style="width: 120px;"></label>
+<button id="socRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Checklists for one day</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="socDayFilter" type="date" style="width: 140px;"></label>
+<button id="socDayBtn" class="secondary-button btn-sm" type="button">Show day checklists</button>
+</div>
+<div id="socDayBody"></div>
+<h4>All shop checklist steps</h4>
+<div id="socBody"></div>
+</section>
 
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">

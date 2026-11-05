@@ -512,6 +512,7 @@ import { normalizeComplaintEscalationOwnerNoteList, recordComplaintEscalationOwn
 import { validAnnualLeavePlanDay, foldAnnualLeavePlanYear, parseAnnualLeavePlanBlocks, normalizeAnnualLeavePlanList, recordAnnualLeavePlan, removeAnnualLeavePlan, setAnnualLeavePlanStatus, annualLeavePlanPlansForYear, annualLeavePlanPlansForStaff, annualLeavePlanStaffMembers, annualLeavePlanYears, annualLeavePlanClashes, annualLeavePlanSummaryText, annualLeavePlanYearHtml, annualLeavePlanAllHtml, annualLeavePlanCsv, annualLeavePlanFilename } from './annual-leave-plan.js';
 import { validStaffRecognitionDay, normalizeStaffRecognitionNoteList, recordStaffRecognitionNote, removeStaffRecognitionNote, staffRecognitionNotesForStaff, staffRecognitionStaffMembers, staffRecognitionSummaryText, staffRecognitionAllHtml, staffRecognitionNotesForStaffHtml, staffRecognitionCsv, staffRecognitionFilename } from './staff-recognition.js';
 import { validExportVerificationDay, foldExportVerificationResult, normalizeExportVerificationChecklistList, recordExportVerificationChecklist, removeExportVerificationChecklist, exportVerificationChecklistsForExport, exportVerificationExportRefs, exportVerificationSummaryText, exportVerificationAllHtml, exportVerificationChecklistsForExportHtml, uncheckedExportVerificationChecklistsHtml, exportVerificationCsv, exportVerificationFilename } from './export-verification.js';
+import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14350,6 +14351,7 @@ function renderAnalytics() {
   renderAnnualLeavePlans();
   renderStaffRecognitionNotes();
   renderExportVerificationChecklists();
+  renderDeviceBackupSchedules();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -32528,6 +32530,86 @@ function renderExportVerificationChecklists() {
     $('#evcRemoveBtn')?.addEventListener('click', () => {
       saveExportVerificationChecklists(removeExportVerificationChecklist(loadExportVerificationChecklists(), $('#evcRemoveId')?.value ?? ''));
       renderExportVerificationChecklists();
+    });
+  }
+}
+
+const DEVICE_BACKUP_SCHEDULE_KEY = 'shahdara_device_backup_schedules_v1';
+function loadDeviceBackupSchedules() {
+  try { return normalizeDeviceBackupScheduleList(JSON.parse(localStorage.getItem(DEVICE_BACKUP_SCHEDULE_KEY) || '[]')); } catch { return []; }
+}
+function saveDeviceBackupSchedules(list) {
+  try { localStorage.setItem(DEVICE_BACKUP_SCHEDULE_KEY, JSON.stringify(normalizeDeviceBackupScheduleList(list))); } catch { /* backup schedules only: a failed save leaves the previous list in place */ }
+}
+let deviceBackupScheduleBound = false;
+function renderDeviceBackupSchedules() {
+  const bodyEl = $('#dbsBody');
+  if (!bodyEl) return;
+  const all = loadDeviceBackupSchedules();
+  const today = new Date().toISOString().slice(0, 10);
+  bodyEl.innerHTML = deviceBackupScheduleAllHtml(all, today);
+  const summaryEl = $('#dbsSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${deviceBackupScheduleSummaryText(all, today)} A schedule only says when a backup is due; recording one never changes any backup file, bill, payment, or customer record by itself.`;
+  }
+  const deviceSelect = $('#dbsDeviceSelect');
+  if (deviceSelect) {
+    const devices = deviceBackupScheduleDevices(all);
+    const current = deviceSelect.value;
+    deviceSelect.innerHTML = devices.map((device) => `<option value="${escapeHtml(device)}">${escapeHtml(device)}</option>`).join('');
+    if (devices.includes(current)) deviceSelect.value = current;
+  }
+  const deviceEl = $('#dbsDeviceBody');
+  if (deviceEl) {
+    const chosen = deviceSelect?.value ?? '';
+    deviceEl.innerHTML = chosen
+      ? deviceBackupScheduleAllHtml(deviceBackupSchedulesForDevice(all, chosen), today)
+      : '<p>Pick a device to see its backup schedule.</p>';
+  }
+  const overdueEl = $('#dbsOverdueBody');
+  if (overdueEl) {
+    overdueEl.innerHTML = overdueDeviceBackupSchedulesHtml(all, today);
+  }
+  if (!deviceBackupScheduleBound) {
+    deviceBackupScheduleBound = true;
+    $('#dbsExportBtn')?.addEventListener('click', () => { downloadCsvFile(deviceBackupScheduleFilename(), deviceBackupScheduleCsv(loadDeviceBackupSchedules())); });
+    $('#dbsDeviceSelect')?.addEventListener('change', () => { renderDeviceBackupSchedules(); });
+    $('#dbsRecordBtn')?.addEventListener('click', () => {
+      const before = loadDeviceBackupSchedules();
+      const device = ($('#dbsDevice')?.value ?? '').trim();
+      const frequency = foldDeviceBackupScheduleFrequency($('#dbsFrequency')?.value ?? '');
+      const lastBackupDate = ($('#dbsLastBackup')?.value ?? '').trim();
+      const nextBackupDue = ($('#dbsNextDue')?.value ?? '').trim();
+      if (!device) { toast('Backup schedule not recorded: give the device name.'); return; }
+      if (!frequency) { toast('Backup schedule not recorded: pick a backup frequency.'); return; }
+      if (lastBackupDate && !validDeviceBackupScheduleDay(lastBackupDate)) { toast('Backup schedule not recorded: give a real last backup date like 2026-11-04, or leave it blank.'); return; }
+      if (nextBackupDue && !validDeviceBackupScheduleDay(nextBackupDue)) { toast('Backup schedule not recorded: give a real next due date like 2026-11-05, or leave it blank.'); return; }
+      if (lastBackupDate && nextBackupDue && nextBackupDue < lastBackupDate) { toast('Backup schedule not recorded: the next due date cannot be before the last backup date.'); return; }
+      const next = recordDeviceBackupSchedule(before, {
+        id: ($('#dbsId')?.value ?? '').trim() || `DBS-${Date.now()}`,
+        device,
+        frequency,
+        lastBackupDate,
+        nextBackupDue,
+        owner: ($('#dbsOwner')?.value ?? ''),
+      });
+      if (!next || next.length === before.length) { toast('Backup schedule not recorded: that device already has a schedule, or the details are incomplete.'); return; }
+      saveDeviceBackupSchedules(next);
+      renderDeviceBackupSchedules();
+    });
+    $('#dbsBackupBtn')?.addEventListener('click', () => {
+      const before = loadDeviceBackupSchedules();
+      const backupId = ($('#dbsBackupId')?.value ?? '').trim();
+      const backupDate = ($('#dbsBackupDate')?.value ?? '').trim();
+      if (!validDeviceBackupScheduleDay(backupDate)) { toast('Backup not recorded: give a real backup date like 2026-11-05.'); return; }
+      const next = recordDeviceBackup(before, backupId, backupDate);
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Backup not recorded: check the schedule id and that the date is not before the last backup.'); return; }
+      saveDeviceBackupSchedules(next);
+      renderDeviceBackupSchedules();
+    });
+    $('#dbsRemoveBtn')?.addEventListener('click', () => {
+      saveDeviceBackupSchedules(removeDeviceBackupSchedule(loadDeviceBackupSchedules(), $('#dbsRemoveId')?.value ?? ''));
+      renderDeviceBackupSchedules();
     });
   }
 }

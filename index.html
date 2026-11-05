@@ -10520,6 +10520,37 @@
 <div id="spnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="smnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="smnHeading">Shop maintenance note</h3>
+<p class="chart-caption">One note per repair on the shop premises and shop equipment: date, item or area, fault in plain words, action taken, a cost note, and who did it. It is not the shop inventory audit cycle, which counts stock. Recording a note never changes any bill, payment, or stock record by itself.</p>
+<p id="smnSummary"></p>
+</div>
+<div>
+<button id="smnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export maintenance notes CSV</button>
+</div>
+</div>
+<h4>Record a maintenance note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="smnDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Item or area <input id="smnItem" type="text" style="width: 140px;" placeholder="e.g. Ceiling fan"></label>
+<label style="font-size: 12px;">Fault <input id="smnFault" type="text" style="width: 220px;" placeholder="e.g. Fan wobbles and makes a loud noise"></label>
+<label style="font-size: 12px;">Action taken <input id="smnAction" type="text" style="width: 220px;" placeholder="e.g. Tightened the mounting"></label>
+<label style="font-size: 12px;">Cost note <input id="smnCost" type="text" style="width: 120px;" placeholder="e.g. Rs 450"></label>
+<label style="font-size: 12px;">Done by <input id="smnDoneBy" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<button id="smnRecordBtn" class="secondary-button btn-sm" type="button">Record note</button>
+<label style="font-size: 12px;">Remove id <input id="smnRemoveId" type="text" style="width: 120px;"></label>
+<button id="smnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Notes for one item</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Item or area <input id="smnItemInput" type="text" style="width: 160px;" placeholder="e.g. Ceiling fan"></label>
+<button id="smnItemBtn" class="secondary-button btn-sm" type="button">Show notes</button>
+</div>
+<div id="smnItemBody"></div>
+<h4>All maintenance notes</h4>
+<div id="smnBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

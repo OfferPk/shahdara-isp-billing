@@ -8859,6 +8859,62 @@
 <p id="kpStaleOut" style="font-size: 12px;"></p>
 <h4>Kit power entries</h4>
 <div id="kpBody"></div>
+</section><section class="chart-card" aria-labelledby="vfHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="vfHeading">Vehicle and fuel log for field visits</h3>
+<p class="chart-caption">One log entry per vehicle per refuelling or trip — the vehicle, the date, the fuel amount and cost as entered, the odometer reading if known, and the visits covered — so the owner can see what a month of field visits actually cost in fuel and which vehicle did the most work. This records vehicle and fuel only: it does not replace the field visit time and travel log, which records visit time, and an entry is never edited, only corrected by a dated follow-up note. Recording fuel never changes any bill, payment, customer, visit, or expense total by itself.</p>
+<p id="vfSummary"></p>
+</div>
+<div>
+<button id="vfExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export vehicle fuel CSV</button>
+</div>
+</div>
+<h4>Record a fuel entry</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Vehicle <input id="vfVehicle" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date <input id="vfDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Fuel (litres) <input id="vfFuel" type="number" min="0" step="0.01" style="width: 100px;">
+</label>
+<label style="font-size: 12px;">Cost (Rs.) <input id="vfCost" type="number" min="0" step="1" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Odometer (if known) <input id="vfOdometer" type="number" min="0" step="1" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Visits covered (comma-separated) <input id="vfVisits" type="text" style="width: 170px;">
+</label>
+<button id="vfSaveBtn" class="secondary-button btn-sm" type="button">Record fuel entry</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove entry id <input id="vfRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="vfRemoveBtn" class="secondary-button btn-sm" type="button">Remove entry</button>
+<label style="font-size: 12px;">Filter by vehicle <input id="vfFilter" type="text" style="width: 120px;">
+</label>
+</div>
+<h4>Dated follow-up correction</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="vfFollowId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="vfFollowDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Correction note <input id="vfFollowNote" type="text" style="width: 200px;">
+</label>
+<button id="vfFollowBtn" class="secondary-button btn-sm" type="button">Add follow-up</button>
+</div>
+<h4>Monthly total</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month <input id="vfMonth" type="month" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">Vehicle (blank for all) <input id="vfMonthVehicle" type="text" style="width: 120px;">
+</label>
+<button id="vfMonthBtn" class="secondary-button btn-sm" type="button">Show monthly total</button>
+</div>
+<p id="vfMonthOut" style="font-size: 12px;"></p>
+<h4>Vehicle fuel entries</h4>
+<div id="vfBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

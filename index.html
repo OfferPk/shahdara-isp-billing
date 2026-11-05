@@ -8108,6 +8108,45 @@
 </label>
 </div>
 <div id="pbBody"></div>
+</section><section class="chart-card" aria-labelledby="deHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="deHeading">Discount expiry note</h3>
+<p class="chart-caption">One expiry note per discount: the discount reference, the expiry date, the customer or mohalla affected, the last discounted bill, and a notice draft for the operator to send. It warns only: it ends nothing by itself and changes no offer, bill, or payment, so the customer hears about the end of a discount before the bill arrives.</p>
+<p id="deSummary"></p>
+</div>
+<div>
+<button id="deExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export discount expiry CSV</button>
+</div>
+</div>
+<h4>Record an expiry note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Discount reference <input id="deDiscountRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Expiry date <input id="deExpiryDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Customer or mohalla affected <input id="deAffected" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Last discounted bill <input id="deLastBill" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Notice draft <input id="deNoticeDraft" type="text" style="width: 220px;">
+</label>
+<button id="deSaveBtn" class="secondary-button btn-sm" type="button">Record note</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove expiry note id <input id="deRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="deRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Expiry list</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Window from <input id="deWindowFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Window to <input id="deWindowTo" type="date" style="width: 140px;">
+</label>
+</div>
+<div id="deBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

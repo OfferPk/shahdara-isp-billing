@@ -10750,6 +10750,43 @@
 <div id="mceBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ahcHeading">Owner absence handover checklist</h3>
+<p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>
+<p id="ahcSummary"></p>
+</div>
+<div>
+<button id="ahcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export handover checklists CSV</button>
+</div>
+</div>
+<h4>Record a handover checklist</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Checklist id <input id="ahcId" type="text" style="width: 120px;" placeholder="auto if left blank"></label>
+<label style="font-size: 12px;">Cover from <input id="ahcCoverFrom" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Cover to <input id="ahcCoverTo" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Covering person <input id="ahcCoveringPerson" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Steps, one per line as "Step" or "Step | note" <textarea id="ahcSteps" rows="3" style="width: 260px;" placeholder="e.g. Collect pending bills&#10;Open shop on time"></textarea></label>
+<label style="font-size: 12px;">Notes <input id="ahcNotes" type="text" style="width: 200px;" placeholder="e.g. Owner away for a family visit"></label>
+<button id="ahcRecordBtn" class="secondary-button btn-sm" type="button">Record handover checklist</button>
+<label style="font-size: 12px;">Remove id <input id="ahcRemoveId" type="text" style="width: 120px;"></label>
+<button id="ahcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Mark a step done or not done</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Checklist id <input id="ahcMarkId" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Step number <input id="ahcMarkStep" type="number" min="1" step="1" style="width: 80px;"></label>
+<button id="ahcMarkDoneBtn" class="secondary-button btn-sm" type="button">Mark step done</button>
+<button id="ahcMarkTodoBtn" class="secondary-button btn-sm" type="button">Mark step not done</button>
+</div>
+<h4>Handover checklists for one covering person</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Covering person <select id="ahcPersonSelect" style="width: 160px;"></select></label>
+</div>
+<div id="ahcPersonBody"></div>
+<h4>All handover checklists</h4>
+<div id="ahcBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

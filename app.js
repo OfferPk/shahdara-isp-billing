@@ -450,6 +450,7 @@ import { validSplitterOccupancyDate, normalizeSplitterOccupancyList, recordSplit
 import { validPolePermissionDate, normalizePolePermissionList, recordPolePermission, removePolePermission, updatePolePermission, polePermissionsSorted, polesByPermission, polesWithoutPermission, polePermissionSummaryText, polePermissionHtml, polePermissionCsv, polePermissionFilename } from './pole-permission.js';
 import { validCabinetAccessDate, normalizeCabinetAccessList, recordCabinetAccess, removeCabinetAccess, annotateCabinetAccess, cabinetAccessSorted, cabinetAccessByCabinet, cabinetAccessByDate, unconfirmedCabinetAccess, cabinetAccessSummaryText, cabinetAccessHtml, cabinetAccessCsv, cabinetAccessFilename } from './cabinet-access.js';
 import { validFieldTrainingDate, normalizeFieldTrainingList, recordFieldTraining, removeFieldTraining, annotateFieldTraining, fieldTrainingSorted, fieldTrainingForTechnician, fieldTrainingSkillsForTechnician, technicianSkillStatus, fieldTrainingSummaryText, fieldTrainingHtml, fieldTrainingCsv, fieldTrainingFilename } from './field-training.js';
+import { validJobDelayDate, normalizeJobDelayList, recordJobDelay, removeJobDelay, annotateJobDelay, jobDelaySorted, jobDelaysForReason, jobDelayReasons, jobDelaysInPeriod, jobDelayReasonCounts, jobDelaySummaryText, jobDelayHtml, jobDelayCsv, jobDelayFilename } from './job-delay.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14142,6 +14143,7 @@ function renderAnalytics() {
   renderPolePermissions();
   renderCabinetAccess();
   renderFieldTraining();
+  renderJobDelays();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28218,6 +28220,93 @@ function renderFieldTraining() {
     $('#ftTechBtn')?.addEventListener('click', () => { renderFieldTraining(); });
     $('#ftFilterTechnician')?.addEventListener('input', () => { renderFieldTraining(); });
     $('#ftSkillCheckBtn')?.addEventListener('click', () => { renderFieldTraining(); });
+  }
+}
+const JOB_DELAY_KEY = 'shahdara_job_delays_v1';
+function loadJobDelays() {
+  try { return normalizeJobDelayList(JSON.parse(localStorage.getItem(JOB_DELAY_KEY) || '[]')); } catch { return []; }
+}
+function saveJobDelays(list) {
+  try { localStorage.setItem(JOB_DELAY_KEY, JSON.stringify(normalizeJobDelayList(list))); } catch { /* delay log only: a failed save leaves the previous list in place */ }
+}
+let jobDelaysBound = false;
+function renderJobDelays() {
+  const listEl = $('#jdList');
+  if (!listEl) return;
+  const all = loadJobDelays();
+  listEl.innerHTML = all.length ? jobDelayHtml(jobDelaySorted(all)) : '<p>No delayed jobs recorded.</p>';
+  const summaryEl = $('#jdSummary');
+  if (summaryEl) summaryEl.textContent = `${jobDelaySummaryText(all)} It logs reasons only: it assigns no blame and changes no schedule by itself, and recording a delay never changes any bill, payment, customer, job, or visit record by itself.`;
+  const reasonEl = $('#jdReasonBody');
+  if (reasonEl) {
+    const reason = ($('#jdFilterReason')?.value ?? '').trim();
+    if (reason === '') {
+      reasonEl.innerHTML = '<p>Give a delay reason to list its delayed jobs.</p>';
+    } else {
+      const rows = jobDelaysForReason(all, reason);
+      reasonEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>Job ${entry.jobRef} — planned ${entry.plannedDate}, done ${entry.actualDate}, ${entry.daysDelayed} day${entry.daysDelayed === 1 ? '' : 's'} late.</li>`).join('')}</ul>`
+        : `<p>No delayed jobs recorded for reason “${reason}”.</p>`;
+    }
+  }
+  const countsEl = $('#jdCountsBody');
+  if (countsEl) {
+    const counts = jobDelayReasonCounts(all);
+    countsEl.innerHTML = counts.rows.length
+      ? `<ul>${counts.rows.map((row) => `<li>${row.reason} — ${row.count} delayed job${row.count === 1 ? '' : 's'}.</li>`).join('')}</ul><p>Total delayed jobs: ${counts.total}.</p>`
+      : '<p>No delayed jobs recorded.</p>';
+  }
+  const periodEl = $('#jdPeriodBody');
+  if (periodEl) {
+    const from = ($('#jdPeriodFrom')?.value ?? '').trim();
+    const to = ($('#jdPeriodTo')?.value ?? '').trim();
+    if (from === '' && to === '') {
+      periodEl.innerHTML = '<p>Give a period to list its delayed jobs.</p>';
+    } else {
+      const rows = jobDelaysInPeriod(all, from || undefined, to || undefined);
+      if (rows === null) {
+        periodEl.innerHTML = '<p>Give real dates for the period.</p>';
+      } else {
+        const counts = jobDelayReasonCounts(all, from || undefined, to || undefined);
+        periodEl.innerHTML = rows.length
+          ? `<ul>${rows.map((entry) => `<li>Job ${entry.jobRef} — ${entry.reason}, ${entry.daysDelayed} day${entry.daysDelayed === 1 ? '' : 's'} late.</li>`).join('')}</ul><p>${rows.length} delayed job${rows.length === 1 ? '' : 's'} in this period; reason counts sum to ${counts.total}.</p>`
+          : '<p>No delayed jobs in this period.</p>';
+      }
+    }
+  }
+  if (!jobDelaysBound) {
+    jobDelaysBound = true;
+    $('#jdExportBtn')?.addEventListener('click', () => { downloadCsvFile(jobDelayFilename(), jobDelayCsv(loadJobDelays())); });
+    $('#jdRecordBtn')?.addEventListener('click', () => {
+      const before = loadJobDelays();
+      const next = recordJobDelay(before, {
+        id: `JD-${Date.now()}`,
+        jobRef: $('#jdJobRef')?.value ?? '',
+        plannedDate: $('#jdPlannedDate')?.value ?? '',
+        actualDate: $('#jdActualDate')?.value ?? '',
+        reason: $('#jdReason')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Delay not recorded: give a job reference, a planned date, an actual date after the planned date, and a reason in plain words.'); return; }
+      saveJobDelays(next);
+      renderJobDelays();
+    });
+    $('#jdAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadJobDelays();
+      const next = annotateJobDelay(before, $('#jdAnnotateId')?.value ?? '', {
+        date: $('#jdAnnotateDate')?.value ?? '',
+        note: $('#jdAnnotateNote')?.value ?? '',
+      });
+      if (next === before) { toast('Follow-up note not added: give a known entry id, a real date, and a note.'); return; }
+      saveJobDelays(next);
+      renderJobDelays();
+    });
+    $('#jdRemoveBtn')?.addEventListener('click', () => {
+      saveJobDelays(removeJobDelay(loadJobDelays(), $('#jdRemoveId')?.value ?? ''));
+      renderJobDelays();
+    });
+    $('#jdReasonBtn')?.addEventListener('click', () => { renderJobDelays(); });
+    $('#jdFilterReason')?.addEventListener('input', () => { renderJobDelays(); });
+    $('#jdPeriodBtn')?.addEventListener('click', () => { renderJobDelays(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

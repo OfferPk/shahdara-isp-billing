@@ -8372,6 +8372,52 @@
 </div>
 <p id="breReconcileResult"></p>
 <div id="breBody"></div>
+</section><section class="chart-card" aria-labelledby="rbHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rbHeading">Receipt book issue log per collector</h3>
+<p class="chart-caption">One issue record per physical receipt book: the book identifier, the holder it was issued to, the date issued, the date returned, and the condition on return. A book issue tracks custody only: it assigns no numbers and changes no receipt, payment, or series record. Returning a book clears it from the outstanding list while keeping its return date, and a book issued to two holders at once is flagged.</p>
+<p id="rbSummary"></p>
+</div>
+<div>
+<button id="rbExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export receipt books CSV</button>
+</div>
+</div>
+<h4>Issue a receipt book</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Book id <input id="rbBookId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Issued to <input id="rbHolder" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date issued <input id="rbDateIssued" type="date" style="width: 140px;">
+</label>
+<button id="rbSaveBtn" class="secondary-button btn-sm" type="button">Record issue</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove book record id <input id="rbRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="rbRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Return a receipt book</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Book record id <input id="rbReturnId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date returned <input id="rbReturnDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Condition on return <input id="rbReturnCondition" type="text" style="width: 160px;">
+</label>
+<button id="rbReturnBtn" class="secondary-button btn-sm" type="button">Mark returned</button>
+</div>
+<h4>Outstanding books — by holder and age</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by holder <input id="rbHolderFilter" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Age as of date <input id="rbAsOf" type="date" style="width: 140px;">
+</label>
+</div>
+<div id="rbOpenBody"></div>
+<div id="rbBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

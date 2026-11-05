@@ -508,6 +508,7 @@ import { validPartnershipNoteDate, normalizePartnershipNoteList, recordPartnersh
 import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMohallaCostEstimateSheet, removeMohallaCostEstimateSheet, mohallaCostEstimatesForMohalla, mohallaCostEstimateMohallas, mohallaCostEstimateSummaryText, mohallaCostEstimateAllHtml, mohallaCostEstimatesForMohallaHtml, mohallaCostEstimateCsv, mohallaCostEstimateFilename } from './mohalla-cost-estimate.js';
 import { monthlyKpiMonthLabel, normalizeMonthlyKpiSheetList, recordMonthlyKpiSheet, removeMonthlyKpiSheet, monthlyKpiSheetMonths, monthlyKpiSheetSummaryText, monthlyKpiSheetEntryHtml, monthlyKpiSheetAllHtml, monthlyKpiSheetCsv, monthlyKpiSheetFilename } from './monthly-kpi-sheet.js';
 import { normalizeMohallaYearFigureRecordList, recordMohallaYearFigure, removeMohallaYearFigure, mohallaYearFigureMohallas, normalizeShopWideYearFigureList, recordShopWideYearFigure, removeShopWideYearFigure, buildMohallaYearComparison, mohallaYearComparisonSummaryText, mohallaYearComparisonForMohallaHtml, mohallaYearComparisonAllHtml, mohallaYearComparisonCsv, mohallaYearComparisonFilename } from './mohalla-year-comparison.js';
+import { normalizeSeasonalMonthlyFigureRecordList, recordSeasonalMonthlyFigure, removeSeasonalMonthlyFigure, buildSeasonalComparison, seasonalComparisonSummaryText, seasonalComparisonAllHtml, seasonalComparisonCsv, seasonalComparisonFilename } from './seasonal-comparison.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14386,6 +14387,7 @@ function renderAnalytics() {
   renderMohallaCostEstimate();
   renderMonthlyKpiSheet();
   renderMohallaYearComparison();
+  renderSeasonalComparison();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32225,6 +32227,57 @@ function renderMohallaYearComparison() {
     $('#myrRemoveBtn')?.addEventListener('click', () => {
       saveMohallaYearFigures(removeMohallaYearFigure(loadMohallaYearFigures(), $('#myrRemoveId')?.value ?? ''));
       renderMohallaYearComparison();
+    });
+  }
+}
+
+// Seasonal comparison view (Plan 320): collections, faults, and
+// exits grouped by season or quarter across years, composed from
+// monthly figures the operator records from the monthly reports.
+// A season with missing months is marked incomplete and the missing
+// months are named. Composing the view never changes any bill,
+// payment, or customer record, and it makes no forecast.
+const SEASONAL_MONTHLY_FIGURE_KEY = 'shahdara_seasonal_monthly_figures_v1';
+function loadSeasonalMonthlyFigures() {
+  try { return normalizeSeasonalMonthlyFigureRecordList(JSON.parse(localStorage.getItem(SEASONAL_MONTHLY_FIGURE_KEY) || '[]')); } catch { return []; }
+}
+function saveSeasonalMonthlyFigures(list) {
+  try { localStorage.setItem(SEASONAL_MONTHLY_FIGURE_KEY, JSON.stringify(normalizeSeasonalMonthlyFigureRecordList(list))); } catch { /* Seasonal monthly figures only: a failed save leaves the previous list in place */ }
+}
+let seasonalComparisonBound = false;
+function renderSeasonalComparison() {
+  const listEl = $('#scvBody');
+  if (!listEl) return;
+  const grouping = $('#scvGrouping')?.value === 'quarter' ? 'quarter' : 'season';
+  const view = buildSeasonalComparison(loadSeasonalMonthlyFigures(), grouping);
+  listEl.innerHTML = view.groups.length ? seasonalComparisonAllHtml(view) : '<p>No seasonal monthly figures recorded.</p>';
+  const summaryEl = $('#scvSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${seasonalComparisonSummaryText(view)} Composing the view never changes any bill, payment, or customer record, and it makes no forecast.`;
+  }
+  if (!seasonalComparisonBound) {
+    seasonalComparisonBound = true;
+    $('#scvExportBtn')?.addEventListener('click', () => { downloadCsvFile(seasonalComparisonFilename(), seasonalComparisonCsv(buildSeasonalComparison(loadSeasonalMonthlyFigures(), $('#scvGrouping')?.value === 'quarter' ? 'quarter' : 'season'))); });
+    $('#scvGrouping')?.addEventListener('change', () => { renderSeasonalComparison(); });
+    $('#scvRecordBtn')?.addEventListener('click', () => {
+      const before = loadSeasonalMonthlyFigures();
+      const month = $('#scvMonth')?.value ?? '';
+      const next = recordSeasonalMonthlyFigure(before, {
+        id: `SC-${month}`,
+        month,
+        figures: {
+          collections: $('#scvCollections')?.value ?? '',
+          faults: $('#scvFaults')?.value ?? '',
+          exits: $('#scvExits')?.value ?? '',
+        },
+      });
+      if (next.length === before.length) { toast('Seasonal monthly figure not recorded: give a month and whole-number collections, faults, and exits copied from the monthly report. A month already recorded is kept as it is.'); return; }
+      saveSeasonalMonthlyFigures(next);
+      renderSeasonalComparison();
+    });
+    $('#scvRemoveBtn')?.addEventListener('click', () => {
+      saveSeasonalMonthlyFigures(removeSeasonalMonthlyFigure(loadSeasonalMonthlyFigures(), $('#scvRemoveId')?.value ?? ''));
+      renderSeasonalComparison();
     });
   }
 }

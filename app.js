@@ -467,6 +467,7 @@ import { validPreferenceChangeDate, normalizePreferenceChangeList, recordPrefere
 import { validComplaintReopenDate, normalizeComplaintReopenList, recordComplaintReopen, removeComplaintReopen, addComplaintReopenNote, complaintReopenSorted, reopenNotesForComplaint, complaintReopenSummaryText, complaintReopenAllHtml, complaintReopenCsv, complaintReopenFilename } from './complaint-reopen.js';
 import { validEducationSessionDate, normalizeEducationSessionList, recordEducationSession, removeEducationSession, addEducationSessionNote, educationSessionSorted, sessionsByTopic, sessionsByMohalla, educationSessionSummaryText, educationSessionAllHtml, educationSessionCsv, educationSessionFilename } from './education-session.js';
 import { normalizeFeedbackTrendRows, feedbackTrendFor, feedbackTrendsByMohalla, feedbackTrendSummaryText, feedbackTrendHtml, feedbackTrendsHtml, feedbackTrendCsv, feedbackTrendFilename } from './feedback-trend.js';
+import { normalizePackageUptakeRows, packageUptakeFor, packageUptakesByMohalla, packageUptakeSummaryText, packageUptakeHtml, packageUptakesHtml, packageUptakeCsv, packageUptakeFilename } from './package-uptake.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14178,6 +14179,7 @@ function renderAnalytics() {
   renderComplaintReopens();
   renderEducationSessions();
   renderFeedbackTrend();
+  renderPackageUptake();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29544,6 +29546,48 @@ function renderEducationSessions() {
     $('#esFilterBtn')?.addEventListener('click', () => { renderEducationSessions(); });
     $('#esFilterTopic')?.addEventListener('input', () => { renderEducationSessions(); });
     $('#esFilterMohalla')?.addEventListener('input', () => { renderEducationSessions(); });
+  }
+}
+let packageUptakeBound = false;
+function packageUptakeRows() {
+  const raw = ($('#puRows')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  return normalizePackageUptakeRows(raw.map((line) => {
+    const parts = line.split('|').map((part) => part.trim());
+    return { mohalla: parts[0] ?? '', package: parts[1] ?? '', customer: parts[2] ?? '', moved: parts[3] ?? '', date: parts[4] ?? '' };
+  }));
+}
+function renderPackageUptake() {
+  const uptakeEl = $('#puUptakeBody');
+  if (!uptakeEl) return;
+  const rows = packageUptakeRows();
+  const pkg = ($('#puPackage')?.value ?? '').trim();
+  const from = $('#puPeriodFrom')?.value ?? '';
+  const to = $('#puPeriodTo')?.value ?? '';
+  const mohalla = ($('#puMohalla')?.value ?? '').trim();
+  const uptake = packageUptakeFor(rows, pkg, mohalla, from, to);
+  uptakeEl.innerHTML = uptake
+    ? packageUptakeHtml(uptake)
+    : '<p>Give a package, a mohalla, and a real period to see its uptake.</p>';
+  const allEl = $('#puAllBody');
+  if (allEl) {
+    const uptakes = packageUptakesByMohalla(rows, pkg, from, to);
+    allEl.innerHTML = uptakes.length ? packageUptakesHtml(uptakes) : '<p>No package uptake to show for this period.</p>';
+  }
+  const summaryEl = $('#puSummary');
+  if (summaryEl) summaryEl.textContent = `${packageUptakeSummaryText(rows, pkg, from, to)} Viewing uptake never changes any package, bill, or payment record by itself.`;
+  if (!packageUptakeBound) {
+    packageUptakeBound = true;
+    $('#puShowBtn')?.addEventListener('click', () => { renderPackageUptake(); });
+    $('#puPackage')?.addEventListener('input', () => { renderPackageUptake(); });
+    $('#puMohalla')?.addEventListener('input', () => { renderPackageUptake(); });
+    $('#puRows')?.addEventListener('input', () => { renderPackageUptake(); });
+    $('#puExportBtn')?.addEventListener('click', () => {
+      const exportRows = packageUptakeRows();
+      const exportPkg = ($('#puPackage')?.value ?? '').trim();
+      const exportFrom = $('#puPeriodFrom')?.value ?? '';
+      const exportTo = $('#puPeriodTo')?.value ?? '';
+      downloadCsvFile(packageUptakeFilename(), packageUptakeCsv(packageUptakesByMohalla(exportRows, exportPkg, exportFrom, exportTo)));
+    });
   }
 }
 let feedbackTrendBound = false;

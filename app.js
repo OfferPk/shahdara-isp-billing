@@ -437,6 +437,7 @@ import { validVehicleFuelDate, normalizeVehicleFuelList, recordVehicleFuel, remo
 import { validWeatherDisruptionDate, normalizeWeatherDisruptionList, recordWeatherDisruption, removeWeatherDisruption, findWeatherDisruption, weatherDisruptionsSorted, weatherDisruptionsForMohalla, weatherDisruptionMohallas, addWeatherDisruptionAnnotation, weatherDisruptionSummaryText, weatherDisruptionText, weatherDisruptionHtml, weatherDisruptionCsv, weatherDisruptionFilename } from './weather-disruption.js';
 import { validContractorVisitDate, normalizeContractorVisitList, recordContractorVisit, removeContractorVisit, findContractorVisit, contractorVisitsSorted, contractorVisitsForContractor, contractorVisitsOnDate, addContractorVisitCorrection, contractorVisitSummaryText, contractorVisitText, contractorVisitHtml, contractorVisitCsv, contractorVisitFilename } from './contractor-visit.js';
 import { validPhotoRegisterDate, normalizePhotoRegisterList, recordPhotoRegister, removePhotoRegister, findPhotoRegister, addPhotoRegisterAnnotation, photoRegisterSorted, photoRegisterForVisit, photoRegisterOnDate, photoRegisterVisitRefs, photoRegisterSummaryText, photoRegisterText, photoRegisterHtml, photoRegisterCsv, photoRegisterFilename } from './photo-register.js';
+import { validDrumUsageDate, normalizeDrumUsageList, recordDrumUsage, removeDrumUsage, findDrumUsage, addDrumUsageFollowup, drumUsageSorted, drumUsageForJob, drumUsageForDrum, drumUsageDrums, drumUsageSummaryText, drumUsageReconciliationText, drumUsageText, drumUsageHtml, drumUsageCsv, drumUsageFilename } from './drum-usage.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14116,6 +14117,7 @@ function renderAnalytics() {
   renderWeatherDisruptions();
   renderContractorVisits();
   renderPhotoRegister();
+  renderDrumUsage();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27323,6 +27325,64 @@ function renderPhotoRegister() {
       if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Annotation not added: give a known photo id, a real date, and a note.'); return; }
       savePhotoRegister(next);
       renderPhotoRegister();
+    });
+  }
+}
+const DRUM_USAGE_KEY = 'shahdara_drum_usage_v1';
+function loadDrumUsage() {
+  try { return normalizeDrumUsageList(JSON.parse(localStorage.getItem(DRUM_USAGE_KEY) || '[]')); } catch { return []; }
+}
+function saveDrumUsage(list) {
+  try { localStorage.setItem(DRUM_USAGE_KEY, JSON.stringify(normalizeDrumUsageList(list))); } catch { /* drum usage only: a failed save leaves the previous list in place */ }
+}
+let drumUsageBound = false;
+function renderDrumUsage() {
+  const bodyEl = $('#duBody');
+  if (!bodyEl) return;
+  const all = loadDrumUsage();
+  const jobFilter = $('#duFilter')?.value ?? '';
+  const drumFilter = $('#duDrumFilter')?.value ?? '';
+  let scoped = drumUsageSorted(all);
+  if (jobFilter) scoped = drumUsageForJob(all, jobFilter);
+  if (drumFilter) scoped = drumUsageForDrum(scoped, drumFilter);
+  bodyEl.innerHTML = scoped.length ? scoped.map((entry) => drumUsageHtml(entry)).join('') : '<p>No drum usage recorded.</p>';
+  const summaryEl = $('#duSummary');
+  if (summaryEl) summaryEl.textContent = `${drumUsageSummaryText(all)} An entry is never edited, only corrected by a dated follow-up note. Recording usage never changes any bill, payment, customer, or stock total by itself.`;
+  if (!drumUsageBound) {
+    drumUsageBound = true;
+    $('#duExportBtn')?.addEventListener('click', () => { downloadCsvFile(drumUsageFilename(), drumUsageCsv(loadDrumUsage())); });
+    $('#duSaveBtn')?.addEventListener('click', () => {
+      const before = loadDrumUsage();
+      const next = recordDrumUsage(before, {
+        id: `DU-${Date.now()}`,
+        jobRef: $('#duJob')?.value ?? '',
+        drum: $('#duDrum')?.value ?? '',
+        quantityUsed: Number($('#duUsed')?.value ?? ''),
+        quantityRemaining: Number($('#duRemaining')?.value ?? ''),
+        date: $('#duDate')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Usage not recorded: give a job reference, a drum or consumable, a positive quantity used, a remaining quantity, and a real date.'); return; }
+      saveDrumUsage(next);
+      renderDrumUsage();
+    });
+    $('#duRemoveBtn')?.addEventListener('click', () => {
+      saveDrumUsage(removeDrumUsage(loadDrumUsage(), $('#duRemoveId')?.value ?? ''));
+      renderDrumUsage();
+    });
+    $('#duFilter')?.addEventListener('input', () => { renderDrumUsage(); });
+    $('#duDrumFilter')?.addEventListener('input', () => { renderDrumUsage(); });
+    $('#duCheckBtn')?.addEventListener('click', () => {
+      const drum = $('#duDrumFilter')?.value ?? '';
+      const entries = drum ? drumUsageForDrum(loadDrumUsage(), drum) : [];
+      const resultEl = $('#duCheckResult');
+      if (resultEl) resultEl.textContent = drumUsageReconciliationText(Number($('#duIssued')?.value ?? ''), entries);
+    });
+    $('#duCorrectBtn')?.addEventListener('click', () => {
+      const before = loadDrumUsage();
+      const next = addDrumUsageFollowup(before, $('#duCorrectId')?.value ?? '', $('#duCorrectDate')?.value ?? '', $('#duCorrectNote')?.value ?? '');
+      if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Correction not added: give a known usage id, a real date, and a note.'); return; }
+      saveDrumUsage(next);
+      renderDrumUsage();
     });
   }
 }

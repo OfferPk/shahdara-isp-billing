@@ -9060,6 +9060,60 @@
 </div>
 <h4>Registered photos</h4>
 <div id="prBody"></div>
+</section><section class="chart-card" aria-labelledby="duHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="duHeading">Cable drum and consumable usage per job</h3>
+<p class="chart-caption">One usage entry per job — the job reference, the drum or consumable, the quantity used, the quantity remaining on the drum, and the date — so nobody has to guess how much drum cable a job actually used or when a drum will run out. This records per-job usage only: it does not replace the stock register, the fault parts-used log, or the reorder flow. An entry is never edited, only corrected by a dated follow-up note. Recording usage never changes any bill, payment, customer, or stock total by itself.</p>
+<p id="duSummary"></p>
+</div>
+<div>
+<button id="duExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export drum usage CSV</button>
+</div>
+</div>
+<h4>Record drum usage</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Job reference <input id="duJob" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Drum or consumable <input id="duDrum" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Quantity used <input id="duUsed" type="number" min="0" step="any" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Quantity remaining <input id="duRemaining" type="number" min="0" step="any" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Date <input id="duDate" type="date" style="width: 140px;">
+</label>
+<button id="duSaveBtn" class="secondary-button btn-sm" type="button">Record usage</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove usage id <input id="duRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="duRemoveBtn" class="secondary-button btn-sm" type="button">Remove usage</button>
+<label style="font-size: 12px;">Filter by job <input id="duFilter" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Filter by drum <input id="duDrumFilter" type="text" style="width: 120px;">
+</label>
+</div>
+<h4>Drum reconciliation check</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Issued quantity <input id="duIssued" type="number" min="0" step="any" style="width: 110px;">
+</label>
+<button id="duCheckBtn" class="secondary-button btn-sm" type="button">Check drum (uses drum filter above)</button>
+<span id="duCheckResult" style="font-size: 12px;"></span>
+</div>
+<h4>Dated follow-up correction</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Usage id <input id="duCorrectId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Correction date <input id="duCorrectDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Correction note <input id="duCorrectNote" type="text" style="width: 200px;">
+</label>
+<button id="duCorrectBtn" class="secondary-button btn-sm" type="button">Add correction</button>
+</div>
+<h4>Drum usage entries</h4>
+<div id="duBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

@@ -415,6 +415,7 @@ import { normalizeBusinessContactList, recordBusinessContact, removeBusinessCont
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
 import { normalizeAppliedPriceList, recordAppliedPrice, removeAppliedPrice, appliedPricesForCustomer, appliedPricesForBill, flaggedAppliedPrices, appliedPriceHtml, appliedPriceSummaryText, appliedPriceCsv, appliedPriceFilename } from './applied-price.js';
 import { normalizeBillDeliveryList, recordBillDelivery, removeBillDelivery, billDeliveriesForCustomer, billDeliveriesForBill, billDeliveryHtml, billDeliverySummaryText, undeliveredBillsBeforeDue, billDeliveryCsv, billDeliveryFilename } from './bill-delivery.js';
+import { normalizeReminderList, recordReminder, removeReminder, remindersForCustomer, remindersForBill, remindersForChannel, reminderCountForBill, reminderHtml, reminderSummaryText, reminderCsv, reminderFilename } from './reminder-log.js';
 import { normalizeSeasonalPatternList, recordSeasonalPattern, removeSeasonalPattern, seasonalPatternsForMohalla, seasonalPatternsForMonth, seasonalPatternAllHtml, seasonalPatternSummaryText, seasonalPatternCsv, seasonalPatternFilename } from './seasonal-pattern.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
@@ -14018,6 +14019,7 @@ function renderAnalytics() {
   renderAbsenceCover();
   renderAppliedPrices();
   renderBillDeliveries();
+  renderPaymentReminders();
   renderSeasonalPatterns();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
@@ -26036,6 +26038,58 @@ function renderBillDeliveries() {
     $('#bdCustomerFilter')?.addEventListener('input', () => { renderBillDeliveries(); });
     $('#bdBillFilter')?.addEventListener('input', () => { renderBillDeliveries(); });
     $('#bdReferenceDate')?.addEventListener('input', () => { renderBillDeliveries(); });
+  }
+}
+const REMINDER_LOG_KEY = 'shahdara_reminder_log_v1';
+function loadPaymentReminders() {
+  try { return normalizeReminderList(JSON.parse(localStorage.getItem(REMINDER_LOG_KEY) || '[]')); } catch { return []; }
+}
+function savePaymentReminders(list) {
+  try { localStorage.setItem(REMINDER_LOG_KEY, JSON.stringify(normalizeReminderList(list))); } catch { /* reminder records only: a failed save leaves the previous list in place */ }
+}
+let paymentRemindersBound = false;
+function renderPaymentReminders() {
+  const bodyEl = $('#prBody');
+  if (!bodyEl) return;
+  const customerQuery = ($('#prCustomerFilter')?.value ?? '').trim();
+  const billQuery = ($('#prBillFilter')?.value ?? '').trim();
+  const channelQuery = ($('#prChannelFilter')?.value ?? '').trim();
+  let shown = loadPaymentReminders();
+  if (customerQuery) shown = remindersForCustomer(shown, customerQuery);
+  if (billQuery) shown = remindersForBill(shown, billQuery);
+  if (channelQuery) shown = remindersForChannel(shown, channelQuery);
+  bodyEl.innerHTML = shown.length ? reminderHtml(shown) : '<p>No payment reminders recorded.</p>';
+  const summaryEl = $('#prSummary');
+  if (summaryEl) summaryEl.textContent = reminderSummaryText(loadPaymentReminders());
+  if (!paymentRemindersBound) {
+    paymentRemindersBound = true;
+    $('#prExportBtn')?.addEventListener('click', () => { downloadCsvFile(reminderFilename(), reminderCsv(loadPaymentReminders())); });
+    $('#prSaveBtn')?.addEventListener('click', () => {
+      const before = loadPaymentReminders();
+      const next = recordReminder(before, {
+        id: `PR-${Date.now()}`,
+        customerId: $('#prCustomer')?.value ?? '',
+        billId: $('#prBill')?.value ?? '',
+        date: $('#prDate')?.value ?? '',
+        channel: $('#prChannel')?.value ?? '',
+        draftRef: $('#prDraft')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Payment reminder not recorded: give a customer, a bill, a real date, and a channel (WhatsApp, SMS, in person, or phone call).'); return; }
+      savePaymentReminders(next);
+      renderPaymentReminders();
+    });
+    $('#prRemoveBtn')?.addEventListener('click', () => {
+      savePaymentReminders(removeReminder(loadPaymentReminders(), $('#prRemoveId')?.value ?? ''));
+      renderPaymentReminders();
+    });
+    $('#prBillCountBtn')?.addEventListener('click', () => {
+      const bill = ($('#prBillCount')?.value ?? '').trim();
+      const countEl = $('#prBillCountResult');
+      if (countEl) countEl.textContent = !bill ? 'Give a bill to count its reminders.' : `Bill ${bill} has had ${reminderCountForBill(loadPaymentReminders(), bill)} reminder${reminderCountForBill(loadPaymentReminders(), bill) === 1 ? '' : 's'}.`;
+    });
+    $('#prCustomerFilter')?.addEventListener('input', () => { renderPaymentReminders(); });
+    $('#prBillFilter')?.addEventListener('input', () => { renderPaymentReminders(); });
+    $('#prChannelFilter')?.addEventListener('change', () => { renderPaymentReminders(); });
   }
 }
 const SEASONAL_PATTERN_KEY = 'shahdara_seasonal_patterns_v1';

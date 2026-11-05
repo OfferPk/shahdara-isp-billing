@@ -10692,6 +10692,34 @@
 <div id="gfuBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="mceHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="mceHeading">New-mohalla cost estimate sheet</h3>
+<p class="chart-caption">One cost estimate sheet per candidate mohalla: the mohalla, the line items with estimated amounts, the total, the date, and the estimator. Each sheet shows its line items and a total that sums exactly to them. Completing a sheet never changes any bill, payment, or customer record by itself, and no expansion is triggered by the sheet.</p>
+<p id="mceSummary"></p>
+</div>
+<div>
+<button id="mceExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export cost estimates CSV</button>
+</div>
+</div>
+<h4>Record a cost estimate sheet</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <input id="mceMohalla" type="text" style="width: 140px;" placeholder="e.g. Mohalla A"></label>
+<label style="font-size: 12px;">Date <input id="mceDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Estimator <input id="mceEstimator" type="text" style="width: 120px;" placeholder="e.g. Owner"></label>
+<label style="font-size: 12px;">Line items, one per line as "Label | amount" <textarea id="mceItems" rows="3" style="width: 260px;" placeholder="e.g. Cable | 45000&#10;Labour | 12000"></textarea></label>
+<button id="mceRecordBtn" class="secondary-button btn-sm" type="button">Record estimate sheet</button>
+<label style="font-size: 12px;">Remove id <input id="mceRemoveId" type="text" style="width: 120px;"></label>
+<button id="mceRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Estimate sheets for one mohalla</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <select id="mceMohallaSelect" style="width: 160px;"></select></label>
+</div>
+<div id="mceMohallaBody"></div>
+<h4>All cost estimate sheets</h4>
+<div id="mceBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

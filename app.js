@@ -413,6 +413,7 @@ import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirm
 import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEntriesSorted, archiveByYear, archiveByKind, archiveAllHtml, archiveSummaryText, archiveCsv, archiveFilename } from './archive-index.js';
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
+import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
 import { normalizeExpiryList, recordExpiryNote, removeExpiryNote, expiryNotesSorted, expiryNotesForAdvance, expiryReviewText, expiryAllHtml, expirySummaryText, expiryCsv, expiryFilename } from './advance-expiry.js';
 import { normalizeConnectionCreditList, normalizeConnectionCreditTransferList, recordConnectionCreditTransfer, removeConnectionCreditTransfer, connectionCreditTransfersSorted, connectionCreditTransfersForCustomer, applyConnectionCreditTransfers, connectionCreditTransferSummaryText, connectionCreditTransfersHtml, connectionCreditTransferCsv, connectionCreditTransferFilename } from './connection-credit-transfer.js';
 import { normalizeAppliedPriceList, recordAppliedPrice, removeAppliedPrice, appliedPricesForCustomer, appliedPricesForBill, flaggedAppliedPrices, appliedPriceHtml, appliedPriceSummaryText, appliedPriceCsv, appliedPriceFilename } from './applied-price.js';
@@ -14021,6 +14022,7 @@ function renderAnalytics() {
   renderArchiveIndex();
   renderBusinessContacts();
   renderAbsenceCover();
+  renderCorrectionApprovals();
   renderAdvanceExpiry();
   renderConnectionCreditTransfers();
   renderRouteLoad();
@@ -25919,6 +25921,63 @@ function renderAbsenceCover() {
       const gapsEl = $('#acGapsBody');
       if (gapsEl) gapsEl.textContent = coverGapsText(loadAbsenceCover(), $('#acRangeStart')?.value ?? '', $('#acRangeEnd')?.value ?? '') || 'Give real start and end dates to check for cover gaps.';
     });
+  }
+}
+const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';
+function loadCorrectionApprovals() {
+  try { return normalizeCorrectionApprovalList(JSON.parse(localStorage.getItem(CORRECTION_APPROVAL_KEY) || '[]')); } catch { return []; }
+}
+function saveCorrectionApprovals(list) {
+  try { localStorage.setItem(CORRECTION_APPROVAL_KEY, JSON.stringify(normalizeCorrectionApprovalList(list))); } catch { /* approval trail only: a failed save leaves the previous list in place */ }
+}
+function correctionApprovalTierLimitCents() {
+  const raw = ($('#caTierLimit')?.value ?? '').trim();
+  if (raw === '') return null;
+  const num = Number(raw);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.round(num * 100);
+}
+let correctionApprovalsBound = false;
+function renderCorrectionApprovals() {
+  const bodyEl = $('#caBody');
+  if (!bodyEl) return;
+  const limit = correctionApprovalTierLimitCents();
+  const from = $('#caPeriodFrom')?.value ?? '';
+  const to = $('#caPeriodTo')?.value ?? '';
+  const shown = (from || to) ? approvalsForPeriod(loadCorrectionApprovals(), { from, to }) : approvalsSorted(loadCorrectionApprovals());
+  bodyEl.innerHTML = shown.length ? correctionApprovalAllHtml(shown, limit) : '<p>No correction approvals recorded.</p>';
+  const summaryEl = $('#caSummary');
+  if (summaryEl) summaryEl.textContent = correctionApprovalSummaryText(loadCorrectionApprovals(), limit);
+  const flaggedEl = $('#caFlaggedBody');
+  if (flaggedEl) {
+    const flagged = limit === null ? [] : approvalsMissingSecondApprover(loadCorrectionApprovals(), limit);
+    flaggedEl.innerHTML = limit === null ? '<p>Give an operator tier limit to check for flagged approvals.</p>' : (flagged.length ? correctionApprovalAllHtml(flagged, limit) : '<p>No approvals flagged.</p>');
+  }
+  if (!correctionApprovalsBound) {
+    correctionApprovalsBound = true;
+    $('#caExportBtn')?.addEventListener('click', () => { downloadCsvFile(correctionApprovalFilename(), correctionApprovalCsv(loadCorrectionApprovals())); });
+    $('#caSaveBtn')?.addEventListener('click', () => {
+      const before = loadCorrectionApprovals();
+      const amountRaw = ($('#caAmount')?.value ?? '').trim();
+      const next = recordCorrectionApproval(before, {
+        id: `CA-${Date.now()}`,
+        correctionRef: $('#caCorrectionRef')?.value ?? '',
+        approver: $('#caApprover')?.value ?? '',
+        secondApprover: $('#caSecondApprover')?.value ?? '',
+        date: $('#caDate')?.value ?? '',
+        amount: amountRaw === '' ? undefined : Number(amountRaw),
+      });
+      if (!next || next.length === before.length) { toast('Correction approval not recorded: give a correction reference, an approver, and a real date.'); return; }
+      saveCorrectionApprovals(next);
+      renderCorrectionApprovals();
+    });
+    $('#caRemoveBtn')?.addEventListener('click', () => {
+      saveCorrectionApprovals(removeCorrectionApproval(loadCorrectionApprovals(), $('#caRemoveId')?.value ?? ''));
+      renderCorrectionApprovals();
+    });
+    $('#caPeriodFrom')?.addEventListener('change', () => { renderCorrectionApprovals(); });
+    $('#caPeriodTo')?.addEventListener('change', () => { renderCorrectionApprovals(); });
+    $('#caTierLimit')?.addEventListener('change', () => { renderCorrectionApprovals(); });
   }
 }
 const ADVANCE_EXPIRY_KEY = 'shahdara_advance_expiry_v1';

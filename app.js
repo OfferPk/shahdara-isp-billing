@@ -440,6 +440,7 @@ import { validPhotoRegisterDate, normalizePhotoRegisterList, recordPhotoRegister
 import { validDrumUsageDate, normalizeDrumUsageList, recordDrumUsage, removeDrumUsage, findDrumUsage, addDrumUsageFollowup, drumUsageSorted, drumUsageForJob, drumUsageForDrum, drumUsageDrums, drumUsageSummaryText, drumUsageReconciliationText, drumUsageText, drumUsageHtml, drumUsageCsv, drumUsageFilename } from './drum-usage.js';
 import { validFaultRevisitDate, normalizeFaultRevisitList, faultRevisitInPeriod, faultRevisitPattern, faultRevisitPatterns, faultRevisitRepeats, faultRevisitSegments, faultRevisitPatternText, faultRevisitSummaryText, faultRevisitHtml, faultRevisitCsv, faultRevisitFilename } from './fault-revisit.js';
 import { validOutageNoticeDate, normalizeOutageNoticeList, recordOutageNotice, removeOutageNotice, findOutageNotice, addOutageNoticeStep, addOutageNoticeUnreached, annotateOutageNotice, outageNoticeIsComplete, outageNoticeSorted, outageNoticeForOutage, outageNoticeSummaryText, outageNoticeHtml, outageNoticeCsv, outageNoticeFilename } from './outage-notice.js';
+import { validEmergencyKitChecklistDate, normalizeEmergencyKitChecklistList, recordEmergencyKitChecklist, removeEmergencyKitChecklist, findEmergencyKitChecklist, addEmergencyKitChecklistAnnotation, emergencyKitChecklistSorted, emergencyKitChecklistsForVehicle, latestEmergencyKitChecklistForVehicle, emergencyKitChecklistVehicles, emergencyKitChecklistMissingItems, emergencyKitChecklistMissingCritical, emergencyKitChecklistHasMissingCritical, emergencyKitChecklistVehiclesWithMissingCritical, emergencyKitChecklistSummaryText, emergencyKitChecklistText, emergencyKitChecklistHtml, emergencyKitChecklistCsv, emergencyKitChecklistFilename } from './emergency-kit-checklist.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14122,6 +14123,7 @@ function renderAnalytics() {
   renderDrumUsage();
   renderFaultRevisit();
   renderOutageNotice();
+  renderEmergencyKitChecklist();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27492,6 +27494,68 @@ function renderOutageNotice() {
       if (next === before) { toast('Annotation not added: give a known checklist id, a real date, and a note.'); return; }
       saveOutageNotices(next);
       renderOutageNotice();
+    });
+  }
+}
+const EMERGENCY_KIT_CHECKLIST_KEY = 'shahdara_emergency_kit_checklists_v1';
+function loadEmergencyKitChecklists() {
+  try { return normalizeEmergencyKitChecklistList(JSON.parse(localStorage.getItem(EMERGENCY_KIT_CHECKLIST_KEY) || '[]')); } catch { return []; }
+}
+function saveEmergencyKitChecklists(list) {
+  try { localStorage.setItem(EMERGENCY_KIT_CHECKLIST_KEY, JSON.stringify(normalizeEmergencyKitChecklistList(list))); } catch { /* kit checklist only: a failed save leaves the previous list in place */ }
+}
+let emergencyKitChecklistBound = false;
+function renderEmergencyKitChecklist() {
+  const listEl = $('#ekcList');
+  if (!listEl) return;
+  const all = loadEmergencyKitChecklists();
+  const vehicleFilter = ($('#ekcFilterVehicle')?.value ?? '').trim();
+  let scoped = emergencyKitChecklistSorted(all);
+  if (vehicleFilter) scoped = emergencyKitChecklistsForVehicle(scoped, vehicleFilter);
+  listEl.innerHTML = scoped.length ? emergencyKitChecklistHtml(scoped) : '<p>No emergency kit checklists recorded.</p>';
+  const summaryEl = $('#ekcSummary');
+  if (summaryEl) summaryEl.textContent = `${emergencyKitChecklistSummaryText(all)} A past checklist is never edited, only annotated. Recording a checklist never changes any bill, payment, customer, visit, or stock record by itself, and it does not replace the field tool kit issue log.`;
+  const flaggedEl = $('#ekcFlagged');
+  if (flaggedEl) {
+    const flagged = emergencyKitChecklistVehiclesWithMissingCritical(all);
+    flaggedEl.textContent = flagged.length
+      ? `Vehicles missing critical kit: ${flagged.join(', ')}.`
+      : 'No vehicle is missing critical kit on its latest checklist.';
+  }
+  if (!emergencyKitChecklistBound) {
+    emergencyKitChecklistBound = true;
+    $('#ekcExportBtn')?.addEventListener('click', () => { downloadCsvFile(emergencyKitChecklistFilename(), emergencyKitChecklistCsv(loadEmergencyKitChecklists())); });
+    $('#ekcRecordBtn')?.addEventListener('click', () => {
+      const before = loadEmergencyKitChecklists();
+      const lines = (value) => (value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+      const next = recordEmergencyKitChecklist(before, {
+        id: `EK-${Date.now()}`,
+        vehicle: $('#ekcVehicle')?.value ?? '',
+        expected: lines($('#ekcExpected')?.value),
+        present: lines($('#ekcPresent')?.value),
+        critical: lines($('#ekcCritical')?.value),
+        date: $('#ekcDate')?.value ?? '',
+        checker: $('#ekcChecker')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Checklist not recorded: give a vehicle, at least one expected kit item, a real check date, and a checker.'); return; }
+      saveEmergencyKitChecklists(next);
+      renderEmergencyKitChecklist();
+    });
+    $('#ekcRemoveBtn')?.addEventListener('click', () => {
+      saveEmergencyKitChecklists(removeEmergencyKitChecklist(loadEmergencyKitChecklists(), $('#ekcRemoveId')?.value ?? ''));
+      renderEmergencyKitChecklist();
+    });
+    $('#ekcFilterBtn')?.addEventListener('click', () => { renderEmergencyKitChecklist(); });
+    $('#ekcFilterVehicle')?.addEventListener('input', () => { renderEmergencyKitChecklist(); });
+    $('#ekcAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadEmergencyKitChecklists();
+      const next = addEmergencyKitChecklistAnnotation(before, $('#ekcAnnotateId')?.value ?? '', {
+        date: $('#ekcAnnotateDate')?.value ?? '',
+        note: $('#ekcAnnotateNote')?.value ?? '',
+      });
+      if (next === before) { toast('Annotation not added: give a known checklist id, a real date, and a note.'); return; }
+      saveEmergencyKitChecklists(next);
+      renderEmergencyKitChecklist();
     });
   }
 }

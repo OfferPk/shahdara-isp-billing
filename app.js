@@ -513,6 +513,7 @@ import { normalizeArchiveRetrievalList, recordArchiveRetrieval, removeArchiveRet
 import { normalizeAppFeedbackList, recordAppFeedback, removeAppFeedback, closeAppFeedback, appFeedbackOpenByScreen, appFeedbackSummaryText, appFeedbackOpenHtml, appFeedbackAllHtml, appFeedbackCsv, appFeedbackFilename } from './app-feedback-inbox.js';
 import { normalizeAccessibilityNoteList, recordAccessibilityNote, removeAccessibilityNote, accessibilityNotesByScreen, accessibilityNoteScreensWithNotes, accessibilityNoteSummaryText, accessibilityNotesByScreenHtml, accessibilityNoteScreenStatusHtml, accessibilityNoteCsv, accessibilityNoteFilename } from './accessibility-note.js';
 import { normalizePrintTemplateList, recordPrintTemplate, supersedePrintTemplate, printTemplateCurrentVersion, printTemplatesByNameHtml, printTemplateSummaryText, printTemplateCsv, printTemplateFilename } from './print-template-register.js';
+import { validDataEntryErrorDay, foldDataEntryErrorType, normalizeDataEntryErrorList, recordDataEntryError, removeDataEntryError, dataEntryErrorsForType, dataEntryErrorTypes, dataEntryErrorCountsByType, dataEntryErrorSummaryText, dataEntryErrorsByTypeHtml, dataEntryErrorCsv, dataEntryErrorFilename } from './data-entry-error-log.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14396,6 +14397,7 @@ function renderAnalytics() {
   renderAppFeedbackInbox();
   renderAccessibilityNote();
   renderPrintTemplateRegister();
+  renderDataEntryErrorLog();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32528,6 +32530,72 @@ function renderPrintTemplateRegister() {
       if (JSON.stringify(next) === JSON.stringify(before)) { toast('Nothing superseded: give the id of a current entry.'); return; }
       savePrintTemplates(next);
       renderPrintTemplateRegister();
+    });
+  }
+}
+
+// Data entry error log (Plan 325): one error record per
+// data entry error — the record affected, the error type,
+// the date found, and the correction reference it links
+// to. Errors list by type with counts over a period, and
+// each error links to its correction. Logging an error
+// never changes any bill, payment, or customer record by
+// itself: the log only lists errors and corrections.
+const DATA_ENTRY_ERROR_KEY = 'shahdara_data_entry_errors_v1';
+function loadDataEntryErrors() {
+  try { return normalizeDataEntryErrorList(JSON.parse(localStorage.getItem(DATA_ENTRY_ERROR_KEY) || '[]')); } catch { return []; }
+}
+function saveDataEntryErrors(list) {
+  try { localStorage.setItem(DATA_ENTRY_ERROR_KEY, JSON.stringify(normalizeDataEntryErrorList(list))); } catch { /* data entry errors only: a failed save leaves the previous list in place */ }
+}
+let dataEntryErrorBound = false;
+function renderDataEntryErrorLog() {
+  const listEl = $('#deeBody');
+  if (!listEl) return;
+  const all = loadDataEntryErrors();
+  listEl.innerHTML = all.length ? dataEntryErrorsByTypeHtml(all) : '<p>No data entry errors logged.</p>';
+  const summaryEl = $('#deeSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${dataEntryErrorSummaryText(all)} Logging an error never changes any bill, payment, or customer record by itself.`;
+  }
+  const countsEl = $('#deeCountsBody');
+  if (countsEl) {
+    const from = $('#deeFrom')?.value ?? '';
+    const to = $('#deeTo')?.value ?? '';
+    const counts = from && to
+      ? dataEntryErrorCountsByType(all, from, to)
+      : dataEntryErrorCountsByType(all, '0001-01-01', '9999-12-31');
+    countsEl.innerHTML = counts === null
+      ? '<p>Give a real start and end date, with the start on or before the end.</p>'
+      : counts.length
+        ? `<ul>${counts.map((row) => `<li>${row.count} ${row.errorType}</li>`).join('')}</ul>`
+        : '<p>No data entry errors in this period.</p>';
+  }
+  if (!dataEntryErrorBound) {
+    dataEntryErrorBound = true;
+    $('#deeExportBtn')?.addEventListener('click', () => { downloadCsvFile(dataEntryErrorFilename(), dataEntryErrorCsv(loadDataEntryErrors())); });
+    $('#deeCountsBtn')?.addEventListener('click', () => { renderDataEntryErrorLog(); });
+    $('#deeRecordBtn')?.addEventListener('click', () => {
+      const before = loadDataEntryErrors();
+      const next = recordDataEntryError(before, {
+        id: `DEE-${Date.now()}`,
+        recordAffected: $('#deeRecord')?.value ?? '',
+        errorType: foldDataEntryErrorType($('#deeType')?.value ?? ''),
+        dateFound: $('#deeDate')?.value ?? '',
+        correctionRef: $('#deeCorrection')?.value ?? '',
+        foundBy: $('#deeFoundBy')?.value ?? '',
+        note: $('#deeNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Data entry error not recorded: give the record affected, a real date found, and a correction reference.'); return; }
+      saveDataEntryErrors(next);
+      renderDataEntryErrorLog();
+    });
+    $('#deeRemoveBtn')?.addEventListener('click', () => {
+      const before = loadDataEntryErrors();
+      const next = removeDataEntryError(before, $('#deeRemoveId')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Nothing removed: give the id of a logged error.'); return; }
+      saveDataEntryErrors(next);
+      renderDataEntryErrorLog();
     });
   }
 }

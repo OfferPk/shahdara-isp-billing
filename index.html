@@ -7995,6 +7995,52 @@
 <div id="apBody"></div>
 <h4>Flagged: applied price disagrees with price history</h4>
 <div id="apFlaggedBody"></div>
+</section><section class="chart-card" aria-labelledby="bdHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">BILLING &amp; COLLECTIONS</p>
+<h3 id="bdHeading">Bill delivery confirmation log</h3>
+<p class="chart-caption">One delivery record per bill: how it reached the customer, by whom, and on which date — so a missed-bill claim can be answered from a record, and bills still undelivered before their due date can be chased before they become overdue. This is the bill-delivery record only, not receipt delivery (Plan 5) and not a statement draft (Plan 39). Recording a delivery never changes any bill, payment, or customer record.</p>
+<p id="bdSummary"></p>
+</div>
+<div>
+<button id="bdExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export bill deliveries CSV</button>
+</div>
+</div>
+<h4>Record a bill delivery</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Bill <input id="bdBill" type="text" style="width: 140px;" placeholder="bill id, as in the list below">
+</label>
+<label style="font-size: 12px;">Customer id <input id="bdCustomer" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Method <select id="bdMethod" style="width: 160px;"><option value="in-person">Handed in person</option><option value="message">By message</option><option value="paper">Paper left at premises</option></select>
+</label>
+<label style="font-size: 12px;">Delivered by <input id="bdDeliverer" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date <input id="bdDate" type="date" style="width: 140px;">
+</label>
+<button id="bdSaveBtn" class="secondary-button btn-sm" type="button">Record delivery</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove record id <input id="bdRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="bdRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Bill deliveries</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="bdCustomerFilter" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Filter by bill <input id="bdBillFilter" type="text" style="width: 140px;">
+</label>
+</div>
+<div id="bdBody"></div>
+<h4>Undelivered bills before their due date</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Reference date <input id="bdReferenceDate" type="date" style="width: 140px;">
+</label>
+</div>
+<p class="chart-caption">The list below is built from the saved bills. A delivery record matches a bill by its bill reference, typed as shown in the list. A bill with no delivery record and a due date after the reference date is listed here for chasing; a bill with no due date cannot be placed before its due date, so it stays out of this list.</p>
+<div id="bdUndeliveredBody"></div>
 </section><section class="chart-card" aria-labelledby="spHeading">
 <div class="table-heading">
 <div>

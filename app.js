@@ -483,6 +483,7 @@ import { validFarewellNoteDate, normalizeFarewellNoteList, recordFarewellNote, r
 import { validServiceTrialDate, normalizeServiceTrialList, recordServiceTrial, removeServiceTrial, serviceTrialSorted, serviceTrialsForCustomer, overlappingServiceTrials, serviceTrialSummaryText, serviceTrialAllHtml, serviceTrialCsv, serviceTrialFilename } from './service-trial.js';
 import { validDocumentReceiptDate, normalizeDocumentReceiptList, recordDocumentReceipt, removeDocumentReceipt, documentReceiptSorted, documentReceiptsForCustomer, documentReceiptSummaryText, documentReceiptAllHtml, documentReceiptCsv, documentReceiptFilename } from './document-receipt.js';
 import { validCommunityMeetingDate, normalizeCommunityMeetingList, recordCommunityMeeting, removeCommunityMeeting, communityMeetingSorted, communityMeetingsForMohalla, communityMeetingSummaryText, communityMeetingAllHtml, communityMeetingsForMohallaHtml, communityMeetingCsv, communityMeetingFilename } from './community-meeting.js';
+import { birthdaysForMonth, birthdaysByMonth, birthdayMonthSummaryText, birthdayMonthHtml, birthdayMonthsHtml, birthdayMonthCsv, birthdayMonthsCsv, birthdayMonthFilename, birthdayMonthsFilename } from './birthday-month.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14210,6 +14211,7 @@ function renderAnalytics() {
   renderServiceTrials();
   renderDocumentReceipts();
   renderCommunityMeetings();
+  renderBirthdayMonth();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30549,6 +30551,54 @@ function renderCommunityMeetings() {
     });
     $('#cmFilterBtn')?.addEventListener('click', () => { renderCommunityMeetings(); });
     $('#cmFilterMohalla')?.addEventListener('input', () => { renderCommunityMeetings(); });
+  }
+}
+
+// Plan 286: birthday-month list view. Birth-date rows are composed
+// from the existing birthday greeting records (kind birthday only),
+// with each customer's mohalla looked up from the customer list.
+// The view only reads those rows: it stores, changes, or sends
+// nothing, and it never touches the greeting draft record itself.
+function birthdayMonthRows() {
+  const customers = Array.isArray(state?.customers) ? state.customers : [];
+  const mohallaByName = new Map();
+  for (const entry of customers) {
+    const key = String(entry?.name ?? '').trim().toLowerCase();
+    if (key && !mohallaByName.has(key)) mohallaByName.set(key, (entry.mohalla || entry.area || '').trim());
+  }
+  return loadGreetingDates()
+    .filter((record) => record.kind === 'birthday')
+    .map((record) => ({
+      customer: record.customer,
+      date: record.date,
+      kind: 'birthday',
+      mohalla: mohallaByName.get(record.customer.toLowerCase()) || '',
+    }));
+}
+let birthdayMonthBound = false;
+function renderBirthdayMonth() {
+  const bodyEl = $('#bmBody');
+  if (!bodyEl) return;
+  const rows = birthdayMonthRows();
+  const month = Number($('#bmMonth')?.value || (new Date().getMonth() + 1));
+  const view = birthdaysForMonth(rows, month);
+  bodyEl.innerHTML = view ? birthdayMonthHtml(view) : '<p>Pick a month to see its birthdays.</p>';
+  const yearEl = $('#bmYearBody');
+  if (yearEl) yearEl.innerHTML = birthdayMonthsHtml(birthdaysByMonth(rows));
+  const summaryEl = $('#bmSummary');
+  if (summaryEl) summaryEl.textContent = `${birthdayMonthSummaryText(rows)} Viewing the list never changes any customer record, bill, or payment, and never sends any message.`;
+  if (!birthdayMonthBound) {
+    birthdayMonthBound = true;
+    const monthEl = $('#bmMonth');
+    if (monthEl) monthEl.value = String(new Date().getMonth() + 1);
+    $('#bmShowBtn')?.addEventListener('click', () => { renderBirthdayMonth(); });
+    $('#bmMonth')?.addEventListener('change', () => { renderBirthdayMonth(); });
+    $('#bmExportBtn')?.addEventListener('click', () => {
+      const exportMonth = Number($('#bmMonth')?.value || (new Date().getMonth() + 1));
+      const exportView = birthdaysForMonth(birthdayMonthRows(), exportMonth);
+      if (exportView) downloadCsvFile(birthdayMonthFilename(exportMonth), birthdayMonthCsv(exportView));
+    });
+    $('#bmExportYearBtn')?.addEventListener('click', () => { downloadCsvFile(birthdayMonthsFilename(), birthdayMonthsCsv(birthdayMonthRows())); });
   }
 }
 

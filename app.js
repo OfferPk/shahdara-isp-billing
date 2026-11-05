@@ -414,6 +414,7 @@ import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEn
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
+import { normalizePartPaymentReceiptNoteList, recordPartPaymentReceiptNote, removePartPaymentReceiptNote, findPartPaymentReceiptNote, receiptNotesForCustomer, receiptNotesSorted, receiptNoteAllHtml, receiptNoteSummaryText, receiptNoteCsv, receiptNoteFilename, receiptsMissingReceiptNotes, reconcileReceiptNote } from './part-payment-receipt-note.js';
 import { normalizeExpiryList, recordExpiryNote, removeExpiryNote, expiryNotesSorted, expiryNotesForAdvance, expiryReviewText, expiryAllHtml, expirySummaryText, expiryCsv, expiryFilename } from './advance-expiry.js';
 import { normalizeConnectionCreditList, normalizeConnectionCreditTransferList, recordConnectionCreditTransfer, removeConnectionCreditTransfer, connectionCreditTransfersSorted, connectionCreditTransfersForCustomer, applyConnectionCreditTransfers, connectionCreditTransferSummaryText, connectionCreditTransfersHtml, connectionCreditTransferCsv, connectionCreditTransferFilename } from './connection-credit-transfer.js';
 import { normalizeAppliedPriceList, recordAppliedPrice, removeAppliedPrice, appliedPricesForCustomer, appliedPricesForBill, flaggedAppliedPrices, appliedPriceHtml, appliedPriceSummaryText, appliedPriceCsv, appliedPriceFilename } from './applied-price.js';
@@ -14023,6 +14024,7 @@ function renderAnalytics() {
   renderBusinessContacts();
   renderAbsenceCover();
   renderCorrectionApprovals();
+  renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
   renderConnectionCreditTransfers();
   renderRouteLoad();
@@ -25978,6 +25980,75 @@ function renderCorrectionApprovals() {
     $('#caPeriodFrom')?.addEventListener('change', () => { renderCorrectionApprovals(); });
     $('#caPeriodTo')?.addEventListener('change', () => { renderCorrectionApprovals(); });
     $('#caTierLimit')?.addEventListener('change', () => { renderCorrectionApprovals(); });
+  }
+}
+const PART_PAYMENT_RECEIPT_NOTE_KEY = 'shahdara_part_payment_receipt_notes_v1';
+function loadPartPaymentReceiptNotes() {
+  try { return normalizePartPaymentReceiptNoteList(JSON.parse(localStorage.getItem(PART_PAYMENT_RECEIPT_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function savePartPaymentReceiptNotes(list) {
+  try { localStorage.setItem(PART_PAYMENT_RECEIPT_NOTE_KEY, JSON.stringify(normalizePartPaymentReceiptNoteList(list))); } catch { /* receipt notes only: a failed save leaves the previous list in place */ }
+}
+function parsePpnBillLines(text) {
+  return (text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const parts = line.split(',').map((part) => part.trim());
+    const due = parts[1] === undefined || parts[1] === '' ? undefined : Number(parts[1]);
+    const paid = parts[2] === undefined || parts[2] === '' ? undefined : Number(parts[2]);
+    return { billRef: parts[0] || '', due, paid, month: parts[3] || '' };
+  });
+}
+function parsePpnDuesLines(text) {
+  return (text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const parts = line.split(',').map((part) => part.trim());
+    return { billRef: parts[0] || '', due: parts[1] === undefined || parts[1] === '' ? undefined : Number(parts[1]) };
+  });
+}
+let partPaymentReceiptNotesBound = false;
+function renderPartPaymentReceiptNotes() {
+  const bodyEl = $('#ppnBody');
+  if (!bodyEl) return;
+  const filter = ($('#ppnCustomerFilter')?.value ?? '').trim();
+  const shown = filter ? receiptNotesForCustomer(loadPartPaymentReceiptNotes(), filter) : receiptNotesSorted(loadPartPaymentReceiptNotes());
+  bodyEl.innerHTML = shown.length ? receiptNoteAllHtml(shown) : '<p>No part-payment receipt notes recorded.</p>';
+  const summaryEl = $('#ppnSummary');
+  if (summaryEl) summaryEl.textContent = receiptNoteSummaryText(loadPartPaymentReceiptNotes());
+  if (!partPaymentReceiptNotesBound) {
+    partPaymentReceiptNotesBound = true;
+    $('#ppnExportBtn')?.addEventListener('click', () => { downloadCsvFile(receiptNoteFilename(), receiptNoteCsv(loadPartPaymentReceiptNotes())); });
+    $('#ppnSaveBtn')?.addEventListener('click', () => {
+      const before = loadPartPaymentReceiptNotes();
+      const unallocatedRaw = ($('#ppnUnallocated')?.value ?? '').trim();
+      const next = recordPartPaymentReceiptNote(before, {
+        id: `PPN-${Date.now()}`,
+        receiptNo: $('#ppnReceiptNo')?.value ?? '',
+        customer: $('#ppnCustomer')?.value ?? '',
+        date: $('#ppnDate')?.value ?? '',
+        bills: parsePpnBillLines($('#ppnBillLines')?.value ?? ''),
+        unallocatedCents: unallocatedRaw === '' ? 0 : Math.round(Number(unallocatedRaw) * 100),
+      });
+      if (!next || next.length === before.length) { toast('Receipt note not recorded: give a receipt number, a customer, a real date, and at least one valid bill line (reference, due, paid, with paid not beyond due).'); return; }
+      savePartPaymentReceiptNotes(next);
+      renderPartPaymentReceiptNotes();
+    });
+    $('#ppnRemoveBtn')?.addEventListener('click', () => {
+      savePartPaymentReceiptNotes(removePartPaymentReceiptNote(loadPartPaymentReceiptNotes(), $('#ppnRemoveId')?.value ?? ''));
+      renderPartPaymentReceiptNotes();
+    });
+    $('#ppnCustomerFilter')?.addEventListener('input', () => { renderPartPaymentReceiptNotes(); });
+    $('#ppnCheckBtn')?.addEventListener('click', () => {
+      const flaggedEl = $('#ppnFlaggedBody');
+      if (!flaggedEl) return;
+      const missing = receiptsMissingReceiptNotes(($('#ppnCheckReceipts')?.value ?? '').split(','), loadPartPaymentReceiptNotes());
+      flaggedEl.innerHTML = missing.length ? `<p>Receipts with no note, so no remaining balance shown: ${missing.map((receiptNo) => receiptNo.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join(', ')}.</p>` : '<p>Every checked receipt has a note.</p>';
+    });
+    $('#ppnReconcileBtn')?.addEventListener('click', () => {
+      const reconcileEl = $('#ppnReconcileBody');
+      if (!reconcileEl) return;
+      const note = findPartPaymentReceiptNote(loadPartPaymentReceiptNotes(), $('#ppnReconcileId')?.value ?? '');
+      if (!note) { reconcileEl.innerHTML = '<p>No note with that id.</p>'; return; }
+      const result = reconcileReceiptNote(note, parsePpnDuesLines($('#ppnDuesLines')?.value ?? ''));
+      reconcileEl.innerHTML = result.ok ? '<p>Reconciles: paid plus remaining equals the customer dues on every bill line.</p>' : `<p>${result.problems.map((problem) => problem.replace(/&/g, '&amp;').replace(/</g, '&lt;')).join(' ')}</p>`;
+    });
   }
 }
 const ADVANCE_EXPIRY_KEY = 'shahdara_advance_expiry_v1';

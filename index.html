@@ -9714,7 +9714,66 @@
 <div id="ckFlaggedBody"></div>
 <h4>All cabinet access notes</h4>
 <div id="ckList"></div>
-</section><section class="chart-card" aria-labelledby="caHeading">
+</section>
+<section class="chart-card" aria-labelledby="ftHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ftHeading">Field training note per technician</h3>
+<p class="chart-caption">One training note per technician per field skill: the technician, the skill in plain words, the date practised or observed, who observed it, and a note. Skills list per technician with dates, and a skill with no note is plainly shown as unrecorded, never as trained. A note is never edited, only followed by newer notes. Recording training never changes any bill, payment, customer, visit, or staff record by itself, and it does not replace the new collector onboarding checklist.</p>
+<p id="ftSummary"></p>
+</div>
+<div>
+<button id="ftExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export field training CSV</button>
+</div>
+</div>
+<h4>Record a training note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Technician <input id="ftTechnician" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Field skill <input id="ftSkill" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Date practised or observed <input id="ftDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Observed by <input id="ftObservedBy" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="ftNote" type="text" style="width: 200px;">
+</label>
+<button id="ftRecordBtn" class="secondary-button btn-sm" type="button">Record training note</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="ftAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="ftAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="ftAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="ftAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove note id <input id="ftRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="ftRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Skills for one technician</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Technician <input id="ftFilterTechnician" type="text" style="width: 140px;">
+</label>
+<button id="ftTechBtn" class="secondary-button btn-sm" type="button">Show skills</button>
+</div>
+<div id="ftTechBody"></div>
+<h4>Check one skill for one technician</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Technician <input id="ftSkillCheckTechnician" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Field skill <input id="ftSkillCheckSkill" type="text" style="width: 160px;">
+</label>
+<button id="ftSkillCheckBtn" class="secondary-button btn-sm" type="button">Check skill</button>
+</div>
+<div id="ftSkillCheckBody"></div>
+<h4>All field training notes</h4>
+<div id="ftList"></div>
+</section>
+<section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>
 <p class="eyebrow">SHOP &amp; OWNER</p>

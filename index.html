@@ -10911,6 +10911,33 @@
 <div id="afiAllBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="acnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="acnHeading">Accessibility note per screen</h3>
+<p class="chart-caption">One note per screen that is hard to use: the screen name, the issue in plain words, a workaround, and the date it was noted. A note never changes any screen, bill, payment, or customer record by itself.</p>
+<p id="acnSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="acnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export accessibility notes CSV</button>
+</div></div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Screen <input id="acnScreen" type="text" style="width: 140px;" placeholder="e.g. Customers"></label>
+<label style="font-size: 12px;">Issue <input id="acnIssue" type="text" style="width: 220px;" placeholder="e.g. Small text is hard to read"></label>
+<label style="font-size: 12px;">Workaround <input id="acnWorkaround" type="text" style="width: 200px;" placeholder="e.g. Zoom in before reading"></label>
+<label style="font-size: 12px;">Date <input id="acnDate" type="date" style="width: 140px;"></label>
+<button id="acnRecordBtn" class="secondary-button btn-sm" type="button">Record note</button>
+<label style="font-size: 12px;">Remove id <input id="acnRemoveId" type="text" style="width: 120px;"></label>
+<button id="acnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Screens to check <input id="acnScreens" type="text" style="width: 260px;" placeholder="e.g. Customers, Billing, Payments"></label>
+<button id="acnCheckBtn" class="secondary-button btn-sm" type="button">Check screens</button>
+</div>
+<h4>Screens: notes or clear</h4>
+<div id="acnStatusBody"></div>
+<h4>Notes, by screen</h4>
+<div id="acnBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

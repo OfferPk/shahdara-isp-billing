@@ -439,6 +439,7 @@ import { validContractorVisitDate, normalizeContractorVisitList, recordContracto
 import { validPhotoRegisterDate, normalizePhotoRegisterList, recordPhotoRegister, removePhotoRegister, findPhotoRegister, addPhotoRegisterAnnotation, photoRegisterSorted, photoRegisterForVisit, photoRegisterOnDate, photoRegisterVisitRefs, photoRegisterSummaryText, photoRegisterText, photoRegisterHtml, photoRegisterCsv, photoRegisterFilename } from './photo-register.js';
 import { validDrumUsageDate, normalizeDrumUsageList, recordDrumUsage, removeDrumUsage, findDrumUsage, addDrumUsageFollowup, drumUsageSorted, drumUsageForJob, drumUsageForDrum, drumUsageDrums, drumUsageSummaryText, drumUsageReconciliationText, drumUsageText, drumUsageHtml, drumUsageCsv, drumUsageFilename } from './drum-usage.js';
 import { validFaultRevisitDate, normalizeFaultRevisitList, faultRevisitInPeriod, faultRevisitPattern, faultRevisitPatterns, faultRevisitRepeats, faultRevisitSegments, faultRevisitPatternText, faultRevisitSummaryText, faultRevisitHtml, faultRevisitCsv, faultRevisitFilename } from './fault-revisit.js';
+import { validOutageNoticeDate, normalizeOutageNoticeList, recordOutageNotice, removeOutageNotice, findOutageNotice, addOutageNoticeStep, addOutageNoticeUnreached, annotateOutageNotice, outageNoticeIsComplete, outageNoticeSorted, outageNoticeForOutage, outageNoticeSummaryText, outageNoticeHtml, outageNoticeCsv, outageNoticeFilename } from './outage-notice.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14120,6 +14121,7 @@ function renderAnalytics() {
   renderPhotoRegister();
   renderDrumUsage();
   renderFaultRevisit();
+  renderOutageNotice();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27420,6 +27422,76 @@ function renderFaultRevisit() {
       const exportFrom = $('#frFrom')?.value ?? '';
       const exportTo = $('#frTo')?.value ?? '';
       downloadCsvFile(faultRevisitFilename(), faultRevisitCsv(faultRevisitPatterns(exportRows, exportFrom, exportTo)));
+    });
+  }
+}
+const OUTAGE_NOTICE_KEY = 'shahdara_outage_notices_v1';
+function loadOutageNotices() {
+  try { return normalizeOutageNoticeList(JSON.parse(localStorage.getItem(OUTAGE_NOTICE_KEY) || '[]')); } catch { return []; }
+}
+function saveOutageNotices(list) {
+  try { localStorage.setItem(OUTAGE_NOTICE_KEY, JSON.stringify(normalizeOutageNoticeList(list))); } catch { /* outage notice only: a failed save leaves the previous list in place */ }
+}
+let outageNoticeBound = false;
+function renderOutageNotice() {
+  const bodyEl = $('#onBody');
+  if (!bodyEl) return;
+  const all = loadOutageNotices();
+  const refFilter = ($('#onFilter')?.value ?? '').trim();
+  const incompleteOnly = $('#onIncompleteOnly')?.checked ?? false;
+  let scoped = outageNoticeSorted(all);
+  if (refFilter) scoped = outageNoticeForOutage(scoped, refFilter);
+  if (incompleteOnly) scoped = scoped.filter((row) => !outageNoticeIsComplete(row));
+  bodyEl.innerHTML = scoped.length ? scoped.map((row) => outageNoticeHtml(row)).join('') : '<p>No outage notice checklists recorded.</p>';
+  const summaryEl = $('#onSummary');
+  if (summaryEl) summaryEl.textContent = `${outageNoticeSummaryText(all)} A completed checklist is never edited, only annotated. Recording notice steps never changes any bill, payment, customer, or outage record by itself, and it never sends any message automatically.`;
+  if (!outageNoticeBound) {
+    outageNoticeBound = true;
+    $('#onExportBtn')?.addEventListener('click', () => { downloadCsvFile(outageNoticeFilename(), outageNoticeCsv(loadOutageNotices())); });
+    $('#onSaveBtn')?.addEventListener('click', () => {
+      const before = loadOutageNotices();
+      const mohallas = ($('#onMohallas')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+      const unreached = ($('#onUnreached')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+      const next = recordOutageNotice(before, {
+        id: `ON-${Date.now()}`,
+        outageRef: $('#onOutageRef')?.value ?? '',
+        mohallas,
+        unreached,
+      });
+      if (!next || next.length === before.length) { toast('Checklist not recorded: give an outage reference and at least one affected mohalla.'); return; }
+      saveOutageNotices(next);
+      renderOutageNotice();
+    });
+    $('#onRemoveBtn')?.addEventListener('click', () => {
+      saveOutageNotices(removeOutageNotice(loadOutageNotices(), $('#onRemoveId')?.value ?? ''));
+      renderOutageNotice();
+    });
+    $('#onFilter')?.addEventListener('input', () => { renderOutageNotice(); });
+    $('#onIncompleteOnly')?.addEventListener('change', () => { renderOutageNotice(); });
+    $('#onStepBtn')?.addEventListener('click', () => {
+      const before = loadOutageNotices();
+      const next = addOutageNoticeStep(before, $('#onStepId')?.value ?? '', $('#onStepMohalla')?.value ?? '', {
+        method: $('#onStepMethod')?.value ?? '',
+        date: $('#onStepDate')?.value ?? '',
+        operator: $('#onStepOperator')?.value ?? '',
+      });
+      if (next === before) { toast('Notice step not added: give a known checklist id, a mohalla with no notice yet, a method, a real date, and an operator.'); return; }
+      saveOutageNotices(next);
+      renderOutageNotice();
+    });
+    $('#onAddUnreachedBtn')?.addEventListener('click', () => {
+      const before = loadOutageNotices();
+      const next = addOutageNoticeUnreached(before, $('#onAddUnreachedId')?.value ?? '', $('#onAddUnreachedName')?.value ?? '');
+      if (next === before) { toast('Customer not added: give a known checklist id and a customer name.'); return; }
+      saveOutageNotices(next);
+      renderOutageNotice();
+    });
+    $('#onNoteBtn')?.addEventListener('click', () => {
+      const before = loadOutageNotices();
+      const next = annotateOutageNotice(before, $('#onNoteId')?.value ?? '', $('#onNoteDate')?.value ?? '', $('#onNoteText')?.value ?? '');
+      if (next === before) { toast('Annotation not added: give a known checklist id, a real date, and a note.'); return; }
+      saveOutageNotices(next);
+      renderOutageNotice();
     });
   }
 }

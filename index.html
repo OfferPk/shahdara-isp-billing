@@ -10008,6 +10008,70 @@
 <h4>All restoration records</h4>
 <div id="rtList"></div>
 </section>
+<section class="chart-card" aria-labelledby="rvHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rvHeading">Repeat-visit customer note</h3>
+<p class="chart-caption">One note per customer flagged for repeat visits: the customer, the visits counted in the period, the reasons seen, the suggested next step in plain words, and the date noted. It is a note on the customer, not a rule, and it does not replace the second-visit rule for unresolved tickets. Flagged customers are counted from the visit records for the same period. A note is never edited, only followed by a dated update. Recording a note never changes any bill, payment, customer status, ticket, or visit record by itself.</p>
+<p id="rvSummary"></p>
+</div>
+<div>
+<button id="rvExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export repeat-visit notes CSV</button>
+</div>
+</div>
+<h4>Record a repeat-visit note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="rvCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period from <input id="rvPeriodFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period to <input id="rvPeriodTo" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Visits counted <input id="rvVisitsCounted" type="number" min="2" step="1" style="width: 90px;">
+</label>
+<label style="font-size: 12px;">Reasons seen, one per line <textarea id="rvReasons" rows="2" style="width: 200px;"></textarea>
+</label>
+<label style="font-size: 12px;">Suggested next step <input id="rvNextStep" type="text" style="width: 200px;">
+</label>
+<label style="font-size: 12px;">Date noted <input id="rvDateNoted" type="date" style="width: 140px;">
+</label>
+<button id="rvRecordBtn" class="secondary-button btn-sm" type="button">Record repeat-visit note</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="rvAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="rvAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="rvAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="rvAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="rvRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="rvRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Notes for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="rvFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="rvCustomerBtn" class="secondary-button btn-sm" type="button">Show notes</button>
+</div>
+<div id="rvCustomerBody"></div>
+<h4>Customers flagged for repeat visits</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Period from <input id="rvFlaggedFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period to <input id="rvFlaggedTo" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Visit rows, one per line as customer, date <textarea id="rvFlaggedInput" rows="3" style="width: 200px;"></textarea>
+</label>
+<button id="rvFlaggedBtn" class="secondary-button btn-sm" type="button">List flagged customers</button>
+</div>
+<div id="rvFlaggedBody"></div>
+<h4>All repeat-visit notes</h4>
+<div id="rvList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

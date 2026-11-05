@@ -418,6 +418,7 @@ import { normalizeBillReissueList, recordBillReissue, removeBillReissue, billRei
 import { normalizeBehaviourBillList, recordBehaviourBill, removeBehaviourBill, behaviourSummaries, behaviourSummaryText, behaviourAllHtml, behaviourCsv, behaviourFilename } from './payment-behaviour.js';
 import { normalizeDiscountExpiryList, recordDiscountExpiry, removeDiscountExpiry, discountExpiriesSorted, discountExpiriesWithinWindow, discountExpiryAllHtml, discountExpiryCsv, discountExpiryFilename } from './discount-expiry.js';
 import { normalizeWaiverReasonList, recordWaiverReason, removeWaiverReason, waiverReasonsForCategory, waiverReasonAllHtml, waiverReasonCsv, waiverReasonFilename } from './waiver-reason.js';
+import { normalizeInstalmentDefaultList, recordInstalmentDefault, removeInstalmentDefault, markInstalmentPaidLate, instalmentDefaultsSorted, instalmentDefaultsOpen, instalmentDefaultsForSchedule, instalmentDefaultSummaryText, instalmentDefaultAllHtml, instalmentDefaultCsv, instalmentDefaultFilename } from './instalment-default.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14078,6 +14079,7 @@ function renderAnalytics() {
   renderPaymentBehaviour();
   renderDiscountExpiries();
   renderWaiverReasons();
+  renderInstalmentDefaults();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26256,6 +26258,57 @@ function renderWaiverReasons() {
       renderWaiverReasons();
     });
     $('#wrCategoryFilter')?.addEventListener('input', () => { renderWaiverReasons(); });
+  }
+}
+const INSTALMENT_DEFAULT_KEY = 'shahdara_instalment_defaults_v1';
+function loadInstalmentDefaults() {
+  try { return normalizeInstalmentDefaultList(JSON.parse(localStorage.getItem(INSTALMENT_DEFAULT_KEY) || '[]')); } catch { return []; }
+}
+function saveInstalmentDefaults(list) {
+  try { localStorage.setItem(INSTALMENT_DEFAULT_KEY, JSON.stringify(normalizeInstalmentDefaultList(list))); } catch { /* note only: a failed save leaves the previous notes in place */ }
+}
+let instalmentDefaultsBound = false;
+function renderInstalmentDefaults() {
+  const bodyEl = $('#idBody');
+  if (!bodyEl) return;
+  const all = loadInstalmentDefaults();
+  const scheduleQuery = ($('#idScheduleFilter')?.value ?? '').trim();
+  const shown = scheduleQuery ? instalmentDefaultsForSchedule(all, scheduleQuery) : instalmentDefaultsSorted(all);
+  const open = instalmentDefaultsOpen(all);
+  bodyEl.innerHTML = instalmentDefaultAllHtml(shown);
+  const summaryEl = $('#idSummary');
+  if (summaryEl) {
+    summaryEl.textContent = scheduleQuery
+      ? `${shown.length} note(s) for schedule \"${scheduleQuery}\" (${open.length} open overall).`
+      : `${instalmentDefaultSummaryText(all)} A note changes no schedule and charges no penalty by itself.`;
+  }
+  if (!instalmentDefaultsBound) {
+    instalmentDefaultsBound = true;
+    $('#idExportBtn')?.addEventListener('click', () => { downloadCsvFile(instalmentDefaultFilename(), instalmentDefaultCsv(shown)); });
+    $('#idSaveBtn')?.addEventListener('click', () => {
+      const before = loadInstalmentDefaults();
+      const next = recordInstalmentDefault(before, {
+        id: `ID-${Date.now()}`,
+        scheduleRef: $('#idScheduleRef')?.value ?? '',
+        customer: $('#idCustomer')?.value ?? '',
+        dueDate: $('#idDueDate')?.value ?? '',
+        amountMissed: Number($('#idAmount')?.value ?? ''),
+        dateNoted: $('#idDateNoted')?.value ?? '',
+        nextStep: $('#idNextStep')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Default note not recorded: give a schedule reference, a real due date, a positive amount missed, a real date noted, and a next step.'); return; }
+      saveInstalmentDefaults(next);
+      renderInstalmentDefaults();
+    });
+    $('#idRemoveBtn')?.addEventListener('click', () => {
+      saveInstalmentDefaults(removeInstalmentDefault(loadInstalmentDefaults(), $('#idRemoveId')?.value ?? ''));
+      renderInstalmentDefaults();
+    });
+    $('#idPaidLateBtn')?.addEventListener('click', () => {
+      saveInstalmentDefaults(markInstalmentPaidLate(loadInstalmentDefaults(), $('#idPaidLateId')?.value ?? '', $('#idPaidLateDate')?.value ?? ''));
+      renderInstalmentDefaults();
+    });
+    $('#idScheduleFilter')?.addEventListener('input', () => { renderInstalmentDefaults(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

@@ -415,6 +415,7 @@ import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEn
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
 import { normalizeBillReissueList, recordBillReissue, removeBillReissue, billReissuesSorted, billReissuesForCustomer, billReissueSummaryText, billReissueAllHtml, billReissueCsv, billReissueFilename } from './bill-reissue.js';
+import { normalizeBehaviourBillList, recordBehaviourBill, removeBehaviourBill, behaviourSummaries, behaviourSummaryText, behaviourAllHtml, behaviourCsv, behaviourFilename } from './payment-behaviour.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14072,6 +14073,7 @@ function renderAnalytics() {
   renderCollectionPromises();
   renderPaymentFailures();
   renderBillReissues();
+  renderPaymentBehaviour();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26118,6 +26120,49 @@ function renderBillReissues() {
       renderBillReissues();
     });
     $('#brCustomerFilter')?.addEventListener('input', () => { renderBillReissues(); });
+  }
+}
+const PAYMENT_BEHAVIOUR_KEY = 'shahdara_payment_behaviour_bills_v1';
+function loadBehaviourBills() {
+  try { return normalizeBehaviourBillList(JSON.parse(localStorage.getItem(PAYMENT_BEHAVIOUR_KEY) || '[]')); } catch { return []; }
+}
+function saveBehaviourBills(list) {
+  try { localStorage.setItem(PAYMENT_BEHAVIOUR_KEY, JSON.stringify(normalizeBehaviourBillList(list))); } catch { /* behaviour note only: a failed save leaves the previous notes in place */ }
+}
+let paymentBehaviourBound = false;
+function renderPaymentBehaviour() {
+  const bodyEl = $('#pbBody');
+  if (!bodyEl) return;
+  const customerQuery = ($('#pbCustomerFilter')?.value ?? '').trim();
+  const all = loadBehaviourBills();
+  const summaries = behaviourSummaries(all);
+  const shown = customerQuery ? summaries.filter((summary) => summary.customer.toLowerCase().includes(customerQuery.toLowerCase())) : summaries;
+  bodyEl.innerHTML = behaviourAllHtml(shown);
+  const summaryEl = $('#pbSummary');
+  if (summaryEl) {
+    const detail = customerQuery && shown.length === 1 ? behaviourSummaryText(shown[0]) : `${summaries.length} customers summarised.`;
+    summaryEl.textContent = detail;
+  }
+  if (!paymentBehaviourBound) {
+    paymentBehaviourBound = true;
+    $('#pbExportBtn')?.addEventListener('click', () => { downloadCsvFile(behaviourFilename(), behaviourCsv(summaries)); });
+    $('#pbSaveBtn')?.addEventListener('click', () => {
+      const before = loadBehaviourBills();
+      const next = recordBehaviourBill(before, {
+        id: `PB-${Date.now()}`,
+        customer: $('#pbCustomer')?.value ?? '',
+        dueDate: $('#pbDueDate')?.value ?? '',
+        paidDate: $('#pbPaidDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Behaviour note not recorded: give a customer and a real due date, and a real paid date if paid.'); return; }
+      saveBehaviourBills(next);
+      renderPaymentBehaviour();
+    });
+    $('#pbRemoveBtn')?.addEventListener('click', () => {
+      saveBehaviourBills(removeBehaviourBill(loadBehaviourBills(), $('#pbRemoveId')?.value ?? ''));
+      renderPaymentBehaviour();
+    });
+    $('#pbCustomerFilter')?.addEventListener('input', () => { renderPaymentBehaviour(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

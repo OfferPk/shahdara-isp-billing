@@ -510,6 +510,7 @@ import { monthlyKpiMonthLabel, normalizeMonthlyKpiSheetList, recordMonthlyKpiShe
 import { normalizeMohallaYearFigureRecordList, recordMohallaYearFigure, removeMohallaYearFigure, mohallaYearFigureMohallas, normalizeShopWideYearFigureList, recordShopWideYearFigure, removeShopWideYearFigure, buildMohallaYearComparison, mohallaYearComparisonSummaryText, mohallaYearComparisonForMohallaHtml, mohallaYearComparisonAllHtml, mohallaYearComparisonCsv, mohallaYearComparisonFilename } from './mohalla-year-comparison.js';
 import { normalizeSeasonalMonthlyFigureRecordList, recordSeasonalMonthlyFigure, removeSeasonalMonthlyFigure, buildSeasonalComparison, seasonalComparisonSummaryText, seasonalComparisonAllHtml, seasonalComparisonCsv, seasonalComparisonFilename } from './seasonal-comparison.js';
 import { normalizeArchiveRetrievalList, recordArchiveRetrieval, removeArchiveRetrieval, returnArchiveItem, archiveRetrievalOpen, archiveRetrievalSummaryText, archiveRetrievalOpenHtml, archiveRetrievalAllHtml, archiveRetrievalCsv, archiveRetrievalFilename } from './archive-retrieval.js';
+import { normalizeAppFeedbackList, recordAppFeedback, removeAppFeedback, closeAppFeedback, appFeedbackOpenByScreen, appFeedbackSummaryText, appFeedbackOpenHtml, appFeedbackAllHtml, appFeedbackCsv, appFeedbackFilename } from './app-feedback-inbox.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14390,6 +14391,7 @@ function renderAnalytics() {
   renderMohallaYearComparison();
   renderSeasonalComparison();
   renderArchiveRetrieval();
+  renderAppFeedbackInbox();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32341,6 +32343,70 @@ function renderArchiveRetrieval() {
     $('#arlRemoveBtn')?.addEventListener('click', () => {
       saveArchiveRetrievals(removeArchiveRetrieval(loadArchiveRetrievals(), $('#arlRemoveId')?.value ?? ''));
       renderArchiveRetrieval();
+    });
+  }
+}
+
+// App feedback inbox (Plan 322): one entry per app issue —
+// the screen, the problem in plain words, the date, who
+// reported it, and a status of noted, fixed, or declined.
+// Open feedback lists by screen. Recording feedback, or
+// marking an item fixed or declined, never changes any
+// customer, bill, payment, or app behaviour by itself.
+const APP_FEEDBACK_KEY = 'shahdara_app_feedback_v1';
+function loadAppFeedback() {
+  try { return normalizeAppFeedbackList(JSON.parse(localStorage.getItem(APP_FEEDBACK_KEY) || '[]')); } catch { return []; }
+}
+function saveAppFeedback(list) {
+  try { localStorage.setItem(APP_FEEDBACK_KEY, JSON.stringify(normalizeAppFeedbackList(list))); } catch { /* feedback inbox only: a failed save leaves the previous list in place */ }
+}
+let appFeedbackBound = false;
+function renderAppFeedbackInbox() {
+  const listEl = $('#afiBody');
+  if (!listEl) return;
+  const all = loadAppFeedback();
+  const openGroups = appFeedbackOpenByScreen(all);
+  listEl.innerHTML = openGroups.length ? appFeedbackOpenHtml(all) : '<p>No open app feedback.</p>';
+  const summaryEl = $('#afiSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${appFeedbackSummaryText(all)} Recording feedback never changes any customer, bill, payment, or app behaviour.`;
+  }
+  const allEl = $('#afiAllBody');
+  if (allEl) {
+    allEl.innerHTML = all.length ? appFeedbackAllHtml(all) : '<p>No app feedback recorded.</p>';
+  }
+  if (!appFeedbackBound) {
+    appFeedbackBound = true;
+    $('#afiExportBtn')?.addEventListener('click', () => { downloadCsvFile(appFeedbackFilename(), appFeedbackCsv(loadAppFeedback())); });
+    $('#afiRecordBtn')?.addEventListener('click', () => {
+      const before = loadAppFeedback();
+      const next = recordAppFeedback(before, {
+        id: `AF-${Date.now()}`,
+        screen: $('#afiScreen')?.value ?? '',
+        problem: $('#afiProblem')?.value ?? '',
+        date: $('#afiDate')?.value ?? '',
+        reporter: $('#afiReporter')?.value ?? '',
+        status: 'noted',
+        resolutionNote: '',
+        resolutionDate: '',
+      });
+      if (next.length === before.length) { toast('App feedback not recorded: give a screen, the problem in plain words, a real date, and a reporter.'); return; }
+      saveAppFeedback(next);
+      renderAppFeedbackInbox();
+    });
+    $('#afiCloseBtn')?.addEventListener('click', () => {
+      const before = loadAppFeedback();
+      const next = closeAppFeedback(before, $('#afiCloseId')?.value ?? '', $('#afiCloseStatus')?.value ?? '', {
+        note: $('#afiCloseNote')?.value ?? '',
+        date: $('#afiCloseDate')?.value ?? '',
+      });
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Feedback not closed: give a recorded feedback id, fixed or declined, a note, and a real resolution date on or after the reported date. An already-closed item stays as it is.'); return; }
+      saveAppFeedback(next);
+      renderAppFeedbackInbox();
+    });
+    $('#afiRemoveBtn')?.addEventListener('click', () => {
+      saveAppFeedback(removeAppFeedback(loadAppFeedback(), $('#afiRemoveId')?.value ?? ''));
+      renderAppFeedbackInbox();
     });
   }
 }

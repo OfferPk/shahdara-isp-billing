@@ -519,6 +519,7 @@ import { customerCompletenessFields, customerCompletenessFieldPresent, scoreCust
 import { validReportPackMonth, validReportPackDay, normalizeReportPackChecklistList, recordReportPackChecklist, removeReportPackChecklist, markReportPackReport, completeReportPackChecklist, reportPackChecklistSummaryText, reportPackChecklistsHtml, incompleteReportPackChecklistsHtml, reportPackChecklistCsv, reportPackChecklistFilename } from './report-pack-checklist.js';
 import { validQuarterlySnapshotMonth, normalizeQuarterlyMonthlyFigureList, recordQuarterlyMonthlyFigure, removeQuarterlyMonthlyFigure, buildQuarterlySnapshots, quarterlySnapshotsSummaryText, quarterlySnapshotAllHtml, quarterlySnapshotCsv, quarterlySnapshotFilename } from './quarterly-snapshot.js';
 import { validRetentionReviewDay, normalizeRetentionReviewList, recordRetentionReview, removeRetentionReview, retentionReviewSummaryText, retentionReviewsHtml, overdueRetentionReviewsHtml, retentionReviewCsv, retentionReviewFilename } from './retention-review.js';
+import { validBackupMediaDay, normalizeBackupMediaList, recordBackupMedium, removeBackupMedium, setBackupMediumCondition, addBackupToMedium, backupMediaSummaryText, backupMediaHtml, retiredBackupMedia, watchBackupMedia, backupMediaCsv, backupMediaFilename } from './backup-media-register.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14408,6 +14409,7 @@ function renderAnalytics() {
   renderReportPackChecklist();
   renderQuarterlySnapshot();
   renderRetentionReview();
+  renderBackupMediaRegister();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32828,6 +32830,84 @@ function renderRetentionReview() {
     $('#rrlRemoveBtn')?.addEventListener('click', () => {
       saveRetentionReviews(removeRetentionReview(loadRetentionReviews(), $('#rrlRemoveId')?.value ?? ''));
       renderRetentionReview();
+    });
+  }
+}
+let backupMediaRegisterBound = false;
+const BACKUP_MEDIA_KEY = 'shahdara_backup_media_v1';
+function loadBackupMedia() {
+  try { return normalizeBackupMediaList(JSON.parse(localStorage.getItem(BACKUP_MEDIA_KEY) || '[]')); } catch { return []; }
+}
+function saveBackupMedia(list) {
+  try { localStorage.setItem(BACKUP_MEDIA_KEY, JSON.stringify(normalizeBackupMediaList(list))); } catch { /* Backup media only: a failed save leaves the previous list in place */ }
+}
+
+// Backup media register (Plan 331): one entry per backup medium —
+// the label, the type, a capacity note, the first use date, the
+// backups it holds, and a condition of good, watch, or retired.
+// Retired media stay listed as retired, never deleted. Registering
+// a medium never changes any backup file, bill, or payment.
+function renderBackupMediaRegister() {
+  const listEl = $('#bmrBody');
+  if (!listEl) return;
+  const all = loadBackupMedia();
+  listEl.innerHTML = all.length ? backupMediaHtml(all) : '<p>No backup media registered.</p>';
+  const summaryEl = $('#bmrSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${backupMediaSummaryText(all)} Registering a medium never changes any backup file, bill, or payment.`;
+  }
+  const retiredEl = $('#bmrRetiredBody');
+  if (retiredEl) {
+    const retired = retiredBackupMedia(all);
+    retiredEl.innerHTML = retired.length
+      ? `<ul>${retired.map((entry) => `<li>${escapeHtml(entry.label)} — holds ${entry.backupsHeld.length ? entry.backupsHeld.map((name) => escapeHtml(name)).join(', ') : 'no backup yet'}</li>`).join('')}</ul>`
+      : '<p>No retired media.</p>';
+  }
+  const watchEl = $('#bmrWatchBody');
+  if (watchEl) {
+    const watch = watchBackupMedia(all);
+    watchEl.innerHTML = watch.length
+      ? `<ul>${watch.map((entry) => `<li>${escapeHtml(entry.label)} — check this drive</li>`).join('')}</ul>`
+      : '<p>No media flagged watch.</p>';
+  }
+  if (!backupMediaRegisterBound) {
+    backupMediaRegisterBound = true;
+    $('#bmrExportBtn')?.addEventListener('click', () => { downloadCsvFile(backupMediaFilename(), backupMediaCsv(loadBackupMedia())); });
+    $('#bmrRecordBtn')?.addEventListener('click', () => {
+      const before = loadBackupMedia();
+      const next = recordBackupMedium(before, {
+        id: `BMR-${Date.now()}`,
+        label: $('#bmrLabel')?.value ?? '',
+        type: $('#bmrType')?.value ?? '',
+        capacity: $('#bmrCapacity')?.value ?? '',
+        firstUseDate: $('#bmrFirstUse')?.value ?? '',
+        backupsHeld: $('#bmrBackups')?.value ?? '',
+        condition: $('#bmrCondition')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Medium not recorded: give the medium a label.'); return; }
+      saveBackupMedia(next);
+      renderBackupMediaRegister();
+    });
+    $('#bmrAddBackupBtn')?.addEventListener('click', () => {
+      const before = loadBackupMedia();
+      const next = addBackupToMedium(before, $('#bmrAddId')?.value ?? '', $('#bmrAddBackup')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Backup not added: give a medium id and a backup name that it does not already hold.'); return; }
+      saveBackupMedia(next);
+      renderBackupMediaRegister();
+    });
+    $('#bmrConditionBtn')?.addEventListener('click', () => {
+      const before = loadBackupMedia();
+      const next = setBackupMediumCondition(before, $('#bmrConditionId')?.value ?? '', $('#bmrNewCondition')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Condition not changed: give a medium id and a condition of good, watch, or retired.'); return; }
+      saveBackupMedia(next);
+      renderBackupMediaRegister();
+    });
+    $('#bmrRemoveBtn')?.addEventListener('click', () => {
+      const before = loadBackupMedia();
+      const next = removeBackupMedium(before, $('#bmrRemoveId')?.value ?? '');
+      if (next.length === before.length) { toast('Medium not removed: retired media stay listed, and the id must match a medium.'); return; }
+      saveBackupMedia(next);
+      renderBackupMediaRegister();
     });
   }
 }

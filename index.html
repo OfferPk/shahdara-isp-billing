@@ -11134,6 +11134,46 @@
 <div id="rrlBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="bmrHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="bmrHeading">Backup media register</h3>
+<p class="chart-caption">One entry per backup medium: the label, the type, a capacity note, the first use date, the backups it holds, and a condition of good, watch, or retired. Retired media stay listed as retired, never deleted. Registering a medium never changes any backup file, bill, or payment.</p>
+<p id="bmrSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="bmrExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export backup media CSV</button>
+</div></div>
+<h4>Register a medium</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Label <input id="bmrLabel" type="text" style="width: 140px;" placeholder="e.g. Shop USB 1"></label>
+<label style="font-size: 12px;">Type <input id="bmrType" type="text" style="width: 120px;" placeholder="e.g. USB drive"></label>
+<label style="font-size: 12px;">Capacity <input id="bmrCapacity" type="text" style="width: 100px;" placeholder="e.g. 64 GB"></label>
+<label style="font-size: 12px;">First used <input id="bmrFirstUse" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Backups held <input id="bmrBackups" type="text" style="width: 220px;" placeholder="e.g. backup-2026-01-05, backup-2026-02-01"></label>
+<label style="font-size: 12px;">Condition <select id="bmrCondition" style="width: 120px;"><option value="good">Good</option><option value="watch">Watch</option><option value="retired">Retired</option><option value="not recorded">Not recorded</option></select></label>
+<button id="bmrRecordBtn" class="secondary-button btn-sm" type="button">Register medium</button>
+</div>
+<h4>Add a backup to a medium</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Medium id <input id="bmrAddId" type="text" style="width: 140px;" placeholder="e.g. BMR-1762380000000"></label>
+<label style="font-size: 12px;">Backup name <input id="bmrAddBackup" type="text" style="width: 220px;" placeholder="e.g. backup-2026-03-01"></label>
+<button id="bmrAddBackupBtn" class="secondary-button btn-sm" type="button">Add backup</button>
+</div>
+<h4>Change a condition</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Medium id <input id="bmrConditionId" type="text" style="width: 140px;"></label>
+<label style="font-size: 12px;">New condition <select id="bmrNewCondition" style="width: 120px;"><option value="good">Good</option><option value="watch">Watch</option><option value="retired">Retired</option></select></label>
+<button id="bmrConditionBtn" class="secondary-button btn-sm" type="button">Set condition</button>
+<label style="font-size: 12px;">Remove id <input id="bmrRemoveId" type="text" style="width: 140px;"></label>
+<button id="bmrRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Media flagged watch</h4>
+<div id="bmrWatchBody"></div>
+<h4>Retired media</h4>
+<div id="bmrRetiredBody"></div>
+<h4>All media, label A-Z</h4>
+<div id="bmrBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

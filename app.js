@@ -456,6 +456,7 @@ import { validFieldExpenseDate, normalizeFieldExpenseList, recordFieldExpense, r
 import { validRestorationTimeDatetime, normalizeRestorationTimeList, recordRestorationTime, removeRestorationTime, addRestorationTimeFollowup, restorationTimeSorted, restorationTimesForTicket, restorationDurationText, ticketsWithoutRestorationTime, restorationTimeSummaryText, restorationTimeHtml, restorationTimeAllHtml, restorationTimeCsv, restorationTimeFilename } from './restoration-time.js';
 import { validRepeatVisitDate, normalizeRepeatVisitList, recordRepeatVisitNote, removeRepeatVisitNote, addRepeatVisitFollowup, repeatVisitSorted, repeatVisitNotesForCustomer, flaggedRepeatVisitCustomers, repeatVisitSummaryText, repeatVisitHtml, repeatVisitAllHtml, repeatVisitCsv, repeatVisitFilename } from './repeat-visit.js';
 import { validVisitAcknowledgementDate, normalizeVisitAcknowledgementList, recordVisitAcknowledgement, removeVisitAcknowledgement, addVisitAcknowledgementFollowup, visitAcknowledgementSorted, visitAcknowledgementsForCustomer, visitAcknowledgementStatus, visitsWithoutAcknowledgement, visitAcknowledgementSummaryText, visitAcknowledgementAllHtml, visitAcknowledgementCsv, visitAcknowledgementFilename } from './visit-acknowledgement.js';
+import { validComplaintFollowupDate, normalizeComplaintFollowupList, recordComplaintFollowup, removeComplaintFollowup, addComplaintFollowupNote, completeComplaintFollowup, complaintFollowupSorted, followupsForComplaint, complaintFollowupDue, openComplaintFollowups, complaintFollowupSummaryText, complaintFollowupAllHtml, complaintFollowupCsv, complaintFollowupFilename } from './complaint-followup.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14156,6 +14157,7 @@ function renderAnalytics() {
   renderRepeatVisitNotes();
   renderVisitAcknowledgements();
   renderWarrantyClaimLinks();
+  renderComplaintFollowups();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28816,6 +28818,93 @@ function renderWarrantyClaimLinks() {
     $('#wcExceptionsBtn')?.addEventListener('click', () => { renderWarrantyClaimLinks(); });
     $('#wcClaimBtn')?.addEventListener('click', () => { renderWarrantyClaimLinks(); });
     $('#wcClaimRefCheck')?.addEventListener('input', () => { renderWarrantyClaimLinks(); });
+  }
+}
+const COMPLAINT_FOLLOWUP_KEY = 'shahdara_complaint_followups_v1';
+function loadComplaintFollowups() {
+  try { return normalizeComplaintFollowupList(JSON.parse(localStorage.getItem(COMPLAINT_FOLLOWUP_KEY) || '[]')); } catch { return []; }
+}
+function saveComplaintFollowups(list) {
+  try { localStorage.setItem(COMPLAINT_FOLLOWUP_KEY, JSON.stringify(normalizeComplaintFollowupList(list))); } catch { /* complaint follow-ups only: a failed save leaves the previous list in place */ }
+}
+let complaintFollowupsBound = false;
+function renderComplaintFollowups() {
+  const listEl = $('#cfList');
+  if (!listEl) return;
+  const all = loadComplaintFollowups();
+  listEl.innerHTML = all.length ? complaintFollowupAllHtml(all) : '<p>No complaint follow-ups recorded.</p>';
+  const summaryEl = $('#cfSummary');
+  if (summaryEl) summaryEl.textContent = `${complaintFollowupSummaryText(all)} A follow-up is never edited, only completed once and then annotated. A "not satisfied" follow-up reopens the follow-up list, never the complaint itself. Recording a follow-up never changes the complaint record, any bill, or any payment by itself.`;
+  const dueEl = $('#cfDueBody');
+  if (dueEl) {
+    const complaintRef = ($('#cfDueRef')?.value ?? '').trim();
+    if (complaintRef === '') {
+      dueEl.innerHTML = '<p>Give a complaint reference to show its open follow-up due date.</p>';
+    } else {
+      const found = complaintFollowupDue(all, complaintRef);
+      dueEl.innerHTML = found
+        ? `<p>Complaint ${found.complaintRef}: open follow-up due ${found.dueDate}.</p>`
+        : '<p>No open follow-up due for that complaint.</p>';
+    }
+  }
+  const openEl = $('#cfOpenBody');
+  if (openEl) {
+    const open = openComplaintFollowups(all);
+    openEl.innerHTML = open.length
+      ? `<ul>${open.map((entry) => `<li>Complaint ${entry.complaintRef} (due ${entry.dueDate}): ${entry.stillSatisfied === null ? 'open' : 'not satisfied'} — ${entry.note}.</li>`).join('')}</ul>`
+      : '<p>No open complaint follow-ups. Every follow-up is done and satisfied.</p>';
+  }
+  const filterEl = $('#cfFilterBody');
+  if (filterEl) {
+    const complaintRef = ($('#cfFilterComplaint')?.value ?? '').trim();
+    if (complaintRef === '') {
+      filterEl.innerHTML = '<p>Give a complaint reference to show its follow-up.</p>';
+    } else {
+      const rows = followupsForComplaint(all, complaintRef);
+      filterEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>Complaint ${entry.complaintRef} (due ${entry.dueDate}): ${entry.stillSatisfied === null ? 'open' : entry.stillSatisfied ? 'still satisfied' : 'not satisfied'} — ${entry.note}.</li>`).join('')}</ul>`
+        : `<p>No complaint follow-up recorded for complaint \u201c${complaintRef}\u201d.</p>`;
+    }
+  }
+  if (!complaintFollowupsBound) {
+    complaintFollowupsBound = true;
+    $('#cfExportBtn')?.addEventListener('click', () => { downloadCsvFile(complaintFollowupFilename(), complaintFollowupCsv(loadComplaintFollowups())); });
+    $('#cfRecordBtn')?.addEventListener('click', () => {
+      const before = loadComplaintFollowups();
+      const next = recordComplaintFollowup(before, {
+        id: `CF-${Date.now()}`,
+        complaintRef: $('#cfComplaintRef')?.value ?? '',
+        dueDate: $('#cfDueDate')?.value ?? '',
+        stillSatisfied: null,
+        note: $('#cfNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Complaint follow-up not recorded: give a complaint reference, a real due date, and a note. One follow-up per closed complaint.'); return; }
+      saveComplaintFollowups(next);
+      renderComplaintFollowups();
+    });
+    $('#cfCompleteBtn')?.addEventListener('click', () => {
+      const before = loadComplaintFollowups();
+      const next = completeComplaintFollowup(before, $('#cfCompleteId')?.value ?? '', $('#cfCompleteAnswer')?.value ?? '', $('#cfCompleteDate')?.value ?? '', $('#cfCompleteNote')?.value ?? '');
+      if (next === before) { toast('Follow-up not completed: give a known open entry id, a clear yes or no, a real date, and a note.'); return; }
+      saveComplaintFollowups(next);
+      renderComplaintFollowups();
+    });
+    $('#cfAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadComplaintFollowups();
+      const next = addComplaintFollowupNote(before, $('#cfAnnotateId')?.value ?? '', $('#cfAnnotateDate')?.value ?? '', $('#cfAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Follow-up note not added: give a known entry id, a real date, and a note.'); return; }
+      saveComplaintFollowups(next);
+      renderComplaintFollowups();
+    });
+    $('#cfRemoveBtn')?.addEventListener('click', () => {
+      saveComplaintFollowups(removeComplaintFollowup(loadComplaintFollowups(), $('#cfRemoveId')?.value ?? ''));
+      renderComplaintFollowups();
+    });
+    $('#cfDueBtn')?.addEventListener('click', () => { renderComplaintFollowups(); });
+    $('#cfDueRef')?.addEventListener('input', () => { renderComplaintFollowups(); });
+    $('#cfOpenBtn')?.addEventListener('click', () => { renderComplaintFollowups(); });
+    $('#cfFilterBtn')?.addEventListener('click', () => { renderComplaintFollowups(); });
+    $('#cfFilterComplaint')?.addEventListener('input', () => { renderComplaintFollowups(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

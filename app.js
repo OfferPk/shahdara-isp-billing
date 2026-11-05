@@ -413,6 +413,7 @@ import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirm
 import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEntriesSorted, archiveByYear, archiveByKind, archiveAllHtml, archiveSummaryText, archiveCsv, archiveFilename } from './archive-index.js';
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
+import { normalizeAppliedPriceList, recordAppliedPrice, removeAppliedPrice, appliedPricesForCustomer, appliedPricesForBill, flaggedAppliedPrices, appliedPriceHtml, appliedPriceSummaryText, appliedPriceCsv, appliedPriceFilename } from './applied-price.js';
 import { normalizeSeasonalPatternList, recordSeasonalPattern, removeSeasonalPattern, seasonalPatternsForMohalla, seasonalPatternsForMonth, seasonalPatternAllHtml, seasonalPatternSummaryText, seasonalPatternCsv, seasonalPatternFilename } from './seasonal-pattern.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
@@ -14014,6 +14015,7 @@ function renderAnalytics() {
   renderArchiveIndex();
   renderBusinessContacts();
   renderAbsenceCover();
+  renderAppliedPrices();
   renderSeasonalPatterns();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
@@ -25905,6 +25907,68 @@ function renderAbsenceCover() {
       const gapsEl = $('#acGapsBody');
       if (gapsEl) gapsEl.textContent = coverGapsText(loadAbsenceCover(), $('#acRangeStart')?.value ?? '', $('#acRangeEnd')?.value ?? '') || 'Give real start and end dates to check for cover gaps.';
     });
+  }
+}
+const APPLIED_PRICE_KEY = 'shahdara_applied_prices_v1';
+function loadAppliedPrices() {
+  try { return normalizeAppliedPriceList(JSON.parse(localStorage.getItem(APPLIED_PRICE_KEY) || '[]')); } catch { return []; }
+}
+function saveAppliedPrices(list) {
+  try { localStorage.setItem(APPLIED_PRICE_KEY, JSON.stringify(normalizeAppliedPriceList(list))); } catch { /* applied-price records only: a failed save leaves the previous list in place */ }
+}
+function appliedPriceBaselines() {
+  const baselines = {};
+  try {
+    for (const plan of BILL_PACKAGES) {
+      if (plan?.id !== undefined && plan?.price !== undefined) baselines[plan.id] = plan.price;
+      if (plan?.label) baselines[plan.label] = plan.price;
+    }
+  } catch { /* catalogue unavailable: history-only checks still run */ }
+  return baselines;
+}
+let appliedPricesBound = false;
+function renderAppliedPrices() {
+  const bodyEl = $('#apBody');
+  if (!bodyEl) return;
+  const customerQuery = ($('#apCustomerFilter')?.value ?? '').trim();
+  const billQuery = ($('#apBillFilter')?.value ?? '').trim();
+  let shown = loadAppliedPrices();
+  if (customerQuery) shown = appliedPricesForCustomer(shown, customerQuery);
+  if (billQuery) shown = appliedPricesForBill(shown, billQuery);
+  const history = loadPriceHistory();
+  const baselines = appliedPriceBaselines();
+  bodyEl.innerHTML = shown.length ? appliedPriceHtml(shown, history, baselines) : '<p>No applied prices recorded.</p>';
+  const summaryEl = $('#apSummary');
+  if (summaryEl) summaryEl.textContent = appliedPriceSummaryText(loadAppliedPrices());
+  const flaggedEl = $('#apFlaggedBody');
+  if (flaggedEl) {
+    const flagged = flaggedAppliedPrices(loadAppliedPrices(), history, baselines);
+    flaggedEl.innerHTML = flagged.length ? appliedPriceHtml(flagged, history, baselines) : '<p>No applied prices disagree with the price history.</p>';
+  }
+  if (!appliedPricesBound) {
+    appliedPricesBound = true;
+    $('#apExportBtn')?.addEventListener('click', () => { downloadCsvFile(appliedPriceFilename(), appliedPriceCsv(loadAppliedPrices())); });
+    $('#apSaveBtn')?.addEventListener('click', () => {
+      const before = loadAppliedPrices();
+      const next = recordAppliedPrice(before, {
+        id: `AP-${Date.now()}`,
+        customerId: $('#apCustomer')?.value ?? '',
+        billId: $('#apBill')?.value ?? '',
+        packageKey: $('#apPackage')?.value ?? '',
+        priceApplied: $('#apPrice')?.value ?? '',
+        effectiveDate: $('#apEffective')?.value ?? '',
+        billDate: $('#apBillDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Applied price not recorded: give a customer, a bill, a package, a price, a real effective date, and a bill date or month.'); return; }
+      saveAppliedPrices(next);
+      renderAppliedPrices();
+    });
+    $('#apRemoveBtn')?.addEventListener('click', () => {
+      saveAppliedPrices(removeAppliedPrice(loadAppliedPrices(), $('#apRemoveId')?.value ?? ''));
+      renderAppliedPrices();
+    });
+    $('#apCustomerFilter')?.addEventListener('input', () => { renderAppliedPrices(); });
+    $('#apBillFilter')?.addEventListener('input', () => { renderAppliedPrices(); });
   }
 }
 const SEASONAL_PATTERN_KEY = 'shahdara_seasonal_patterns_v1';

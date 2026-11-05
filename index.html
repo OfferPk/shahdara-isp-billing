@@ -9773,6 +9773,64 @@
 <h4>All field training notes</h4>
 <div id="ftList"></div>
 </section>
+<section class="chart-card" aria-labelledby="jdHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="jdHeading">Job delay reason log</h3>
+<p class="chart-caption">One log entry per delayed job: the job reference, the planned date, the actual date, the delay reason in plain words, and the days delayed counted from the two dates. Delayed jobs list by reason, and the reason counts sum to the total delayed jobs in the same period. An entry is never edited, only corrected by a dated follow-up note. It logs reasons only: it assigns no blame and changes no schedule by itself, and recording a delay never changes any bill, payment, customer, job, or visit record by itself.</p>
+<p id="jdSummary"></p>
+</div>
+<div>
+<button id="jdExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export job delay CSV</button>
+</div>
+</div>
+<h4>Record a delayed job</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Job reference <input id="jdJobRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Planned date <input id="jdPlannedDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Actual date <input id="jdActualDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Delay reason <input id="jdReason" type="text" style="width: 200px;">
+</label>
+<button id="jdRecordBtn" class="secondary-button btn-sm" type="button">Record delayed job</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="jdAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="jdAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="jdAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="jdAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="jdRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="jdRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Delayed jobs by reason</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Delay reason <input id="jdFilterReason" type="text" style="width: 200px;">
+</label>
+<button id="jdReasonBtn" class="secondary-button btn-sm" type="button">Show delayed jobs</button>
+</div>
+<div id="jdReasonBody"></div>
+<h4>Reason counts</h4>
+<div id="jdCountsBody"></div>
+<h4>Delayed jobs in a period</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">From <input id="jdPeriodFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">To <input id="jdPeriodTo" type="date" style="width: 140px;">
+</label>
+<button id="jdPeriodBtn" class="secondary-button btn-sm" type="button">Show delayed jobs</button>
+</div>
+<div id="jdPeriodBody"></div>
+<h4>All delayed jobs</h4>
+<div id="jdList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

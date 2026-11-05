@@ -10602,6 +10602,36 @@
 <h4>All insurance claims</h4>
 <div id="icBody"></div>
 </section>
+<section class="analytics-panel" aria-labelledby="epaHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="epaHeading">Equipment purchase approval note</h3>
+<p class="chart-caption">One note per equipment purchase approval: item, reason, amount in whole rupees, approver, date, and status in plain words. An approval never changes any bill, payment, or stock record by itself, and the purchase itself goes through its own existing flow.</p>
+<p id="epaSummary"></p>
+</div>
+<div>
+<button id="epaExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export purchase approvals CSV</button>
+</div>
+</div>
+<h4>Record a purchase approval</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Item <input id="epaItem" type="text" style="width: 140px;" placeholder="e.g. Second OLT"></label>
+<label style="font-size: 12px;">Reason <input id="epaReason" type="text" style="width: 200px;" placeholder="e.g. First OLT nearing capacity"></label>
+<label style="font-size: 12px;">Amount (Rs) <input id="epaAmount" type="text" style="width: 120px;" placeholder="e.g. 250000"></label>
+<label style="font-size: 12px;">Approver <input id="epaApprover" type="text" style="width: 120px;" placeholder="e.g. Owner"></label>
+<label style="font-size: 12px;">Date <input id="epaDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Status <input id="epaStatus" type="text" style="width: 120px;" placeholder="e.g. pending"></label>
+<button id="epaRecordBtn" class="secondary-button btn-sm" type="button">Record approval</button>
+<label style="font-size: 12px;">Remove id <input id="epaRemoveId" type="text" style="width: 120px;"></label>
+<button id="epaRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Approvals for one item</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Item <input id="epaItemInput" type="text" style="width: 160px;" placeholder="e.g. Second OLT"></label>
+<button id="epaItemBtn" class="secondary-button btn-sm" type="button">Show approvals</button>
+</div>
+<div id="epaItemBody"></div>
+<h4>All purchase approvals</h4>
+<div id="epaBody"></div>
+</section>
 
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">

@@ -499,6 +499,7 @@ import { normalizeCollectorMonthlyTargetList, recordCollectorMonthlyTarget, remo
 import { normalizeStaffPerformanceNoteList, recordStaffPerformanceNote, removeStaffPerformanceNote, staffPerformanceNotesForStaff, staffPerformanceNoteSummaryText, staffPerformanceNoteAllHtml, staffPerformanceNotesForStaffHtml, staffPerformanceNoteCsv, staffPerformanceNoteFilename } from './staff-performance.js';
 import { normalizeShopMaintenanceNoteList, recordShopMaintenanceNote, removeShopMaintenanceNote, shopMaintenanceNotesForItem, shopMaintenanceNoteSummaryText, shopMaintenanceNoteAllHtml, shopMaintenanceNotesForItemHtml, shopMaintenanceNoteCsv, shopMaintenanceNoteFilename } from './shop-maintenance.js';
 import { normalizeSeenList, markReminderSeen, renewalReminderQueue, overdueReminders, renewalReminderSummaryText, renewalReminderQueueHtml, renewalReminderCsv, renewalReminderFilename } from './renewal-reminder.js';
+import { normalizeInsuranceClaimList, recordInsuranceClaim, removeInsuranceClaim, insuranceClaimsForAsset, insuranceClaimSummaryText, insuranceClaimAllHtml, insuranceClaimsForAssetHtml, insuranceClaimCsv, insuranceClaimFilename } from './insurance-claim.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14244,6 +14245,7 @@ function renderAnalytics() {
   renderStaffPerformanceNotes();
   renderShopMaintenanceNotes();
   renderRenewalReminders();
+  renderInsuranceClaims();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31544,6 +31546,61 @@ function renderRenewalReminders() {
     $('#rrAllBtn')?.addEventListener('click', () => {
       renewalReminderShowOverdueOnly = false;
       renderRenewalReminders();
+    });
+  }
+}
+
+// Plan 303 (Plan 203-350) — Insurance claim note: one note per
+// claim on an insured shop asset — asset reference, incident date,
+// claim date, amount claimed in whole rupees, status in plain
+// words, and amount settled in whole rupees. A claim links to the
+// shop insurance and asset register by reference only and never
+// changes it; recording a claim never changes any bill, payment,
+// asset, or register record by itself.
+const INSURANCE_CLAIM_KEY = 'shahdara_insurance_claims_v1';
+function loadInsuranceClaims() {
+  try { return normalizeInsuranceClaimList(JSON.parse(localStorage.getItem(INSURANCE_CLAIM_KEY) || '[]')); } catch { return []; }
+}
+function saveInsuranceClaims(list) {
+  try { localStorage.setItem(INSURANCE_CLAIM_KEY, JSON.stringify(normalizeInsuranceClaimList(list))); } catch { /* insurance claims only: a failed save leaves the previous list in place */ }
+}
+let insuranceClaimBound = false;
+function renderInsuranceClaims() {
+  const listEl = $('#icBody');
+  if (!listEl) return;
+  const all = loadInsuranceClaims();
+  listEl.innerHTML = all.length ? insuranceClaimAllHtml(all) : '<p>No insurance claims recorded.</p>';
+  const summaryEl = $('#icSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${insuranceClaimSummaryText(all)} Recording a claim never changes any bill, payment, asset, or register record by itself.`;
+  }
+  const assetEl = $('#icAssetBody');
+  if (assetEl) {
+    const assetRef = $('#icAssetInput')?.value ?? '';
+    assetEl.innerHTML = insuranceClaimsForAssetHtml(all, assetRef);
+  }
+  if (!insuranceClaimBound) {
+    insuranceClaimBound = true;
+    $('#icExportBtn')?.addEventListener('click', () => { downloadCsvFile(insuranceClaimFilename(), insuranceClaimCsv(loadInsuranceClaims())); });
+    $('#icAssetBtn')?.addEventListener('click', () => { renderInsuranceClaims(); });
+    $('#icRecordBtn')?.addEventListener('click', () => {
+      const before = loadInsuranceClaims();
+      const next = recordInsuranceClaim(before, {
+        id: `IC-${Date.now()}`,
+        assetRef: $('#icAssetRef')?.value ?? '',
+        incidentDate: $('#icIncidentDate')?.value ?? '',
+        claimDate: $('#icClaimDate')?.value ?? '',
+        amountClaimed: $('#icAmountClaimed')?.value ?? '',
+        status: $('#icStatus')?.value ?? '',
+        amountSettled: $('#icAmountSettled')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Insurance claim not recorded: give the asset, real incident and claim dates, an amount claimed of at least Rs 1, and a status. The claim date cannot fall before the incident date.'); return; }
+      saveInsuranceClaims(next);
+      renderInsuranceClaims();
+    });
+    $('#icRemoveBtn')?.addEventListener('click', () => {
+      saveInsuranceClaims(removeInsuranceClaim(loadInsuranceClaims(), $('#icRemoveId')?.value ?? ''));
+      renderInsuranceClaims();
     });
   }
 }

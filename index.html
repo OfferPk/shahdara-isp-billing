@@ -10405,6 +10405,55 @@
 <h4>All launch checklists</h4>
 <div id="lcList"></div>
 </section>
+<section class="chart-card" aria-labelledby="amHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="amHeading">Customer anniversary milestone record</h3>
+<p class="chart-caption">One dated milestone entry per customer per anniversary reached: customer, years reached, date reached, acknowledged yes or no. It is a dated ledger of milestones actually reached — not the long-standing recognition list and not the greeting draft. A customer page lists milestone entries in date order with no duplicate entry for the same year. A milestone entry is never edited, only annotated. Recording a milestone never changes any customer record, bill, or payment by itself.</p>
+<p id="amSummary"></p>
+</div>
+<div>
+<button id="amExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export anniversary milestones CSV</button>
+</div>
+</div>
+<h4>Record an anniversary milestone</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="amCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Years reached <input id="amYears" type="number" min="1" step="1" style="width: 80px;">
+</label>
+<label style="font-size: 12px;">Date reached <input id="amDateReached" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Acknowledged <select id="amAcknowledged" style="width: 100px;"><option value="">Choose</option><option value="yes">Yes</option><option value="no">No</option></select>
+</label>
+<label style="font-size: 12px;">Note <input id="amNote" type="text" style="width: 200px;">
+</label>
+<button id="amRecordBtn" class="secondary-button btn-sm" type="button">Record milestone</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="amAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="amAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="amAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="amAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="amRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="amRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Milestone entries for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="amFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="amFilterBtn" class="secondary-button btn-sm" type="button">Show milestones</button>
+</div>
+<div id="amFilterBody"></div>
+<h4>All anniversary milestones</h4>
+<div id="amList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

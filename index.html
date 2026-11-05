@@ -10730,6 +10730,37 @@
 <h4>All complaint reopen notes</h4>
 <div id="crList"></div>
 </section>
+<section class="chart-card" aria-labelledby="ftHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ftHeading">Service visit feedback trend per mohalla</h3>
+<p class="chart-caption">One trend view per mohalla per period, composed from visit feedback rows only: how many feedback, the satisfied / partly satisfied / not satisfied split, and the common note themes in plain words. Counts in a trend always sum to that mohalla's feedback for the period, and a mohalla with no feedback says so plainly. Viewing a trend never changes any feedback, visit, bill, or payment record, and it never replaces the per-visit feedback record.</p>
+<p id="ftSummary"></p>
+</div>
+<div>
+<button id="ftExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export feedback trends CSV</button>
+</div>
+</div>
+<h4>Feedback rows for the period</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <input id="ftMohalla" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period from <input id="ftPeriodFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period to <input id="ftPeriodTo" type="date" style="width: 140px;">
+</label>
+<button id="ftShowBtn" class="secondary-button btn-sm" type="button">Show trend</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Feedback rows, one per line: mohalla | date | rating | comment <textarea id="ftRows" rows="4" style="width: 520px;" placeholder="Mohalla North | 2026-11-02 | satisfied | Line fixed quickly"></textarea>
+</label>
+</div>
+<h4>Trend for one mohalla</h4>
+<div id="ftTrendBody"></div>
+<h4>Trends for all mohallas</h4>
+<div id="ftAllBody"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

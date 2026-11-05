@@ -8465,6 +8465,51 @@
 <button id="mctCheckBtn" class="secondary-button btn-sm" type="button">Check</button>
 </div>
 <div id="mctCheckBody"></div>
+</section><section class="chart-card" aria-labelledby="owHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="owHeading">Overdue account watchlist</h3>
+<p class="chart-caption">One operator-curated entry per overdue account, with a review date for each. The watchlist never suspends or disconnects anyone by itself, and adding or removing an entry never changes any bill, payment, or customer status. Removed entries stay in a dated history.</p>
+<p id="owSummary"></p>
+</div>
+<div>
+<button id="owExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export watchlist CSV</button>
+</div>
+</div>
+<h4>Record a watch entry</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="owCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Amount overdue (Rs) <input id="owAmount" type="number" min="0" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Reason for watching <input id="owReason" type="text" style="width: 180px;">
+</label>
+<label style="font-size: 12px;">Review date <input id="owReviewDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Owner <input id="owOwner" type="text" style="width: 120px;">
+</label>
+<button id="owSaveBtn" class="secondary-button btn-sm" type="button">Record watch entry</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove watch entry id <input id="owRemoveId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date removed <input id="owRemoveDate" type="date" style="width: 140px;">
+</label>
+<button id="owRemoveBtn" class="secondary-button btn-sm" type="button">Remove (kept in history)</button>
+</div>
+<h4>Watchlist</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="owCustomerFilter" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Filter by owner <input id="owOwnerFilter" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Overdue reviews as of <input id="owAsOf" type="date" style="width: 140px;">
+</label>
+</div>
+<div id="owBody"></div>
+<h4>Removed entries (history)</h4>
+<div id="owHistoryBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

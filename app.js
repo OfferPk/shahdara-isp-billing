@@ -424,6 +424,7 @@ import { normalizeRefundApprovalList, recordRefundApproval, removeRefundApproval
 import { normalizeBankReconExceptionList, recordBankReconException, removeBankReconException, explainBankReconException, exceptionsSorted, exceptionsOpen, exceptionsForPeriod, reconcileToPeriodDifference, bankReconExceptionAllHtml, bankReconExceptionSummaryText, bankReconExceptionCsv, bankReconExceptionFilename, exceptionAgeDays } from './bank-reconciliation-exception.js';
 import { normalizeReceiptBookList, recordReceiptBook, removeReceiptBook, returnReceiptBook, receiptBooksOutstanding, receiptBooksForHolder, receiptBookAgeDays, receiptBookAllHtml, receiptBookSummaryText, receiptBookCsv, receiptBookFilename } from './receipt-book.js';
 import { normalizeMohallaCollectionTargetList, recordMohallaCollectionTarget, removeMohallaCollectionTarget, targetsForMonth, targetsForMohalla, missingTargetText, checkActualAgainstLedger, mohallaCollectionTargetAllHtml, mohallaCollectionTargetSummaryText, mohallaCollectionTargetCsv, mohallaCollectionTargetFilename } from './mohalla-collection-target.js';
+import { normalizeOverdueWatchlistList, recordOverdueWatchlistEntry, removeOverdueWatchlistEntry, watchlistActive, watchlistHistory, watchlistForCustomer, watchlistForOwner, overdueWatchlistEntryHtml, overdueWatchlistSummaryText, overdueWatchlistCsv, overdueWatchlistFilename } from './overdue-watchlist.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14090,6 +14091,7 @@ function renderAnalytics() {
   renderBankReconExceptions();
   renderReceiptBooks();
   renderMohallaCollectionTargets();
+  renderOverdueWatchlist();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26612,6 +26614,59 @@ function renderMohallaCollectionTargets() {
     });
     $('#mctMonthFilter')?.addEventListener('change', () => { renderMohallaCollectionTargets(); });
     $('#mctCheckBtn')?.addEventListener('click', () => { renderMohallaCollectionTargets(); });
+  }
+}
+const OVERDUE_WATCHLIST_KEY = 'shahdara_overdue_watchlist_v1';
+function loadOverdueWatchlist() {
+  try { return normalizeOverdueWatchlistList(JSON.parse(localStorage.getItem(OVERDUE_WATCHLIST_KEY) || '[]')); } catch { return []; }
+}
+function saveOverdueWatchlist(list) {
+  try { localStorage.setItem(OVERDUE_WATCHLIST_KEY, JSON.stringify(normalizeOverdueWatchlistList(list))); } catch { /* watchlist only: a failed save leaves the previous list in place */ }
+}
+let overdueWatchlistBound = false;
+function renderOverdueWatchlist() {
+  const bodyEl = $('#owBody');
+  if (!bodyEl) return;
+  const all = loadOverdueWatchlist();
+  const asOf = $('#owAsOf')?.value ?? '';
+  let shown = watchlistActive(all);
+  const customerFilter = $('#owCustomerFilter')?.value ?? '';
+  if (customerFilter) shown = watchlistForCustomer(all, customerFilter);
+  const ownerFilter = $('#owOwnerFilter')?.value ?? '';
+  if (ownerFilter) shown = watchlistForOwner(shown, ownerFilter);
+  bodyEl.innerHTML = shown.length ? shown.map((entry) => overdueWatchlistEntryHtml(entry, asOf)).join('') : '<p>No accounts on the watchlist.</p>';
+  const historyEl = $('#owHistoryBody');
+  if (historyEl) {
+    const history = watchlistHistory(all);
+    historyEl.innerHTML = history.length ? history.map((entry) => overdueWatchlistEntryHtml(entry, '')).join('') : '<p>No removed watch entries kept in history yet.</p>';
+  }
+  const summaryEl = $('#owSummary');
+  if (summaryEl) summaryEl.textContent = `${overdueWatchlistSummaryText(all, asOf)} The watchlist never suspends or disconnects anyone by itself, and adding or removing an entry never changes any bill, payment, or customer status.`;
+  if (!overdueWatchlistBound) {
+    overdueWatchlistBound = true;
+    $('#owExportBtn')?.addEventListener('click', () => { downloadCsvFile(overdueWatchlistFilename(), overdueWatchlistCsv(all)); });
+    $('#owSaveBtn')?.addEventListener('click', () => {
+      const before = loadOverdueWatchlist();
+      const amountRaw = ($('#owAmount')?.value ?? '').trim();
+      const next = recordOverdueWatchlistEntry(before, {
+        id: `OW-${Date.now()}`,
+        customer: $('#owCustomer')?.value ?? '',
+        amountOverdue: amountRaw === '' ? undefined : Number(amountRaw),
+        reason: $('#owReason')?.value ?? '',
+        reviewDate: $('#owReviewDate')?.value ?? '',
+        owner: $('#owOwner')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Watch entry not recorded: give a customer, a positive amount overdue, and a real review date. One active entry per customer.'); return; }
+      saveOverdueWatchlist(next);
+      renderOverdueWatchlist();
+    });
+    $('#owRemoveBtn')?.addEventListener('click', () => {
+      saveOverdueWatchlist(removeOverdueWatchlistEntry(loadOverdueWatchlist(), $('#owRemoveId')?.value ?? '', $('#owRemoveDate')?.value ?? ''));
+      renderOverdueWatchlist();
+    });
+    $('#owCustomerFilter')?.addEventListener('input', () => { renderOverdueWatchlist(); });
+    $('#owOwnerFilter')?.addEventListener('input', () => { renderOverdueWatchlist(); });
+    $('#owAsOf')?.addEventListener('change', () => { renderOverdueWatchlist(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

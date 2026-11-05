@@ -500,6 +500,7 @@ import { normalizeStaffPerformanceNoteList, recordStaffPerformanceNote, removeSt
 import { normalizeShopMaintenanceNoteList, recordShopMaintenanceNote, removeShopMaintenanceNote, shopMaintenanceNotesForItem, shopMaintenanceNoteSummaryText, shopMaintenanceNoteAllHtml, shopMaintenanceNotesForItemHtml, shopMaintenanceNoteCsv, shopMaintenanceNoteFilename } from './shop-maintenance.js';
 import { normalizeSeenList, markReminderSeen, renewalReminderQueue, overdueReminders, renewalReminderSummaryText, renewalReminderQueueHtml, renewalReminderCsv, renewalReminderFilename } from './renewal-reminder.js';
 import { normalizeInsuranceClaimList, recordInsuranceClaim, removeInsuranceClaim, insuranceClaimsForAsset, insuranceClaimSummaryText, insuranceClaimAllHtml, insuranceClaimsForAssetHtml, insuranceClaimCsv, insuranceClaimFilename } from './insurance-claim.js';
+import { normalizePurchaseApprovalList, recordPurchaseApproval, removePurchaseApproval, purchaseApprovalsForItem, purchaseApprovalSummaryText, purchaseApprovalAllHtml, purchaseApprovalsForItemHtml, purchaseApprovalCsv, purchaseApprovalFilename } from './equipment-purchase-approval.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14246,6 +14247,7 @@ function renderAnalytics() {
   renderShopMaintenanceNotes();
   renderRenewalReminders();
   renderInsuranceClaims();
+  renderPurchaseApprovals();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31601,6 +31603,61 @@ function renderInsuranceClaims() {
     $('#icRemoveBtn')?.addEventListener('click', () => {
       saveInsuranceClaims(removeInsuranceClaim(loadInsuranceClaims(), $('#icRemoveId')?.value ?? ''));
       renderInsuranceClaims();
+    });
+  }
+}
+
+// Plan 304 (Plan 203-350) — Equipment purchase approval note: one
+// note per purchase — item, reason, amount in whole rupees,
+// approver, date, and status in plain words. An approval links
+// to no stock, reorder, or reserve record and never changes one;
+// recording an approval never changes any bill, payment, or stock
+// record by itself, and the purchase itself goes through its own
+// existing flow.
+const PURCHASE_APPROVAL_KEY = 'shahdara_purchase_approvals_v1';
+function loadPurchaseApprovals() {
+  try { return normalizePurchaseApprovalList(JSON.parse(localStorage.getItem(PURCHASE_APPROVAL_KEY) || '[]')); } catch { return []; }
+}
+function savePurchaseApprovals(list) {
+  try { localStorage.setItem(PURCHASE_APPROVAL_KEY, JSON.stringify(normalizePurchaseApprovalList(list))); } catch { /* purchase approvals only: a failed save leaves the previous list in place */ }
+}
+let purchaseApprovalBound = false;
+function renderPurchaseApprovals() {
+  const listEl = $('#epaBody');
+  if (!listEl) return;
+  const all = loadPurchaseApprovals();
+  listEl.innerHTML = all.length ? purchaseApprovalAllHtml(all) : '<p>No purchase approvals recorded.</p>';
+  const summaryEl = $('#epaSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${purchaseApprovalSummaryText(all)} Recording an approval never changes any bill, payment, or stock record by itself.`;
+  }
+  const itemEl = $('#epaItemBody');
+  if (itemEl) {
+    const item = $('#epaItemInput')?.value ?? '';
+    itemEl.innerHTML = purchaseApprovalsForItemHtml(all, item);
+  }
+  if (!purchaseApprovalBound) {
+    purchaseApprovalBound = true;
+    $('#epaExportBtn')?.addEventListener('click', () => { downloadCsvFile(purchaseApprovalFilename(), purchaseApprovalCsv(loadPurchaseApprovals())); });
+    $('#epaItemBtn')?.addEventListener('click', () => { renderPurchaseApprovals(); });
+    $('#epaRecordBtn')?.addEventListener('click', () => {
+      const before = loadPurchaseApprovals();
+      const next = recordPurchaseApproval(before, {
+        id: `PA-${Date.now()}`,
+        item: $('#epaItem')?.value ?? '',
+        reason: $('#epaReason')?.value ?? '',
+        amount: $('#epaAmount')?.value ?? '',
+        approver: $('#epaApprover')?.value ?? '',
+        date: $('#epaDate')?.value ?? '',
+        status: $('#epaStatus')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Purchase approval not recorded: give the item, reason, an amount of at least Rs 1, an approver, and a real date.'); return; }
+      savePurchaseApprovals(next);
+      renderPurchaseApprovals();
+    });
+    $('#epaRemoveBtn')?.addEventListener('click', () => {
+      savePurchaseApprovals(removePurchaseApproval(loadPurchaseApprovals(), $('#epaRemoveId')?.value ?? ''));
+      renderPurchaseApprovals();
     });
   }
 }

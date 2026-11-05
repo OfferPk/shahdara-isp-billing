@@ -438,6 +438,7 @@ import { validWeatherDisruptionDate, normalizeWeatherDisruptionList, recordWeath
 import { validContractorVisitDate, normalizeContractorVisitList, recordContractorVisit, removeContractorVisit, findContractorVisit, contractorVisitsSorted, contractorVisitsForContractor, contractorVisitsOnDate, addContractorVisitCorrection, contractorVisitSummaryText, contractorVisitText, contractorVisitHtml, contractorVisitCsv, contractorVisitFilename } from './contractor-visit.js';
 import { validPhotoRegisterDate, normalizePhotoRegisterList, recordPhotoRegister, removePhotoRegister, findPhotoRegister, addPhotoRegisterAnnotation, photoRegisterSorted, photoRegisterForVisit, photoRegisterOnDate, photoRegisterVisitRefs, photoRegisterSummaryText, photoRegisterText, photoRegisterHtml, photoRegisterCsv, photoRegisterFilename } from './photo-register.js';
 import { validDrumUsageDate, normalizeDrumUsageList, recordDrumUsage, removeDrumUsage, findDrumUsage, addDrumUsageFollowup, drumUsageSorted, drumUsageForJob, drumUsageForDrum, drumUsageDrums, drumUsageSummaryText, drumUsageReconciliationText, drumUsageText, drumUsageHtml, drumUsageCsv, drumUsageFilename } from './drum-usage.js';
+import { validFaultRevisitDate, normalizeFaultRevisitList, faultRevisitInPeriod, faultRevisitPattern, faultRevisitPatterns, faultRevisitRepeats, faultRevisitSegments, faultRevisitPatternText, faultRevisitSummaryText, faultRevisitHtml, faultRevisitCsv, faultRevisitFilename } from './fault-revisit.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14118,6 +14119,7 @@ function renderAnalytics() {
   renderContractorVisits();
   renderPhotoRegister();
   renderDrumUsage();
+  renderFaultRevisit();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27383,6 +27385,41 @@ function renderDrumUsage() {
       if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Correction not added: give a known usage id, a real date, and a note.'); return; }
       saveDrumUsage(next);
       renderDrumUsage();
+    });
+  }
+}
+let faultRevisitBound = false;
+function faultRevisitRows() {
+  const raw = ($('#frLines')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  return normalizeFaultRevisitList(raw.map((line, index) => {
+    const parts = line.split('|').map((part) => part.trim());
+    return { id: `FR-${index + 1}`, segment: parts[0] ?? '', date: parts[1] ?? '', customer: parts[2] ?? '' };
+  }));
+}
+function renderFaultRevisit() {
+  const bodyEl = $('#frBody');
+  if (!bodyEl) return;
+  const rows = faultRevisitRows();
+  const from = $('#frFrom')?.value ?? '';
+  const to = $('#frTo')?.value ?? '';
+  const segmentFilter = ($('#frSegmentFilter')?.value ?? '').trim();
+  const repeatsOnly = $('#frRepeatsOnly')?.checked ?? false;
+  let patterns = faultRevisitPatterns(rows, from, to);
+  if (repeatsOnly) patterns = patterns.filter((pattern) => pattern.repeat);
+  if (segmentFilter) patterns = patterns.filter((pattern) => pattern.segment.toLowerCase().includes(segmentFilter.toLowerCase()));
+  bodyEl.innerHTML = patterns.length
+    ? patterns.map((pattern) => faultRevisitHtml(pattern)).join('')
+    : '<p>Type one fault line per segment to see the revisit pattern — the view itself is never edited and changes no fault record.</p>';
+  const summaryEl = $('#frSummary');
+  if (summaryEl) summaryEl.textContent = `${faultRevisitSummaryText(rows, from, to)} Viewing a pattern never changes any bill, payment, customer, or fault record by itself.`;
+  if (!faultRevisitBound) {
+    faultRevisitBound = true;
+    $('#frShowBtn')?.addEventListener('click', () => { renderFaultRevisit(); });
+    $('#frExportBtn')?.addEventListener('click', () => {
+      const exportRows = faultRevisitRows();
+      const exportFrom = $('#frFrom')?.value ?? '';
+      const exportTo = $('#frTo')?.value ?? '';
+      downloadCsvFile(faultRevisitFilename(), faultRevisitCsv(faultRevisitPatterns(exportRows, exportFrom, exportTo)));
     });
   }
 }

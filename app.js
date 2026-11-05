@@ -251,6 +251,7 @@ import { normalizeReferral, upsertReferral, deriveReferralStatuses, buildReferra
 import { EXPANSION_STEP_IDS, buildExpansionChecklist, findExpansionChecklist, tickExpansionStep, untickExpansionStep, upsertExpansionChecklist, expansionSummaryText, expansionChecklistHtml, expansionChecklistCsv, expansionChecklistFilename } from './expansion-checklist.js';
 import { buildCampaign, findCampaign, upsertCampaign, removeCampaign, buildCampaignSummary, campaignSummaryText, campaignHtml, campaignCsv, campaignFilename } from './campaign-planner.js';
 import { AUDIT_ACTIONS, appendAuditEntry, normalizeAuditLog, filterAuditEntries, auditSummary, auditSummaryText, auditHtml, auditCsv, auditFilename } from './audit-log.js';
+import { validMonthlyAuditSummaryMonth, monthlyAuditSummaryMonthLabel, monthlyAuditMonths, monthlyAuditSummary, monthlyAuditSummaryText, monthlyAuditSummaryHtml, monthlyAuditSummaryCsv, monthlyAuditSummaryFilename } from './monthly-audit-summary.js';
 import { buildExportPack, exportPackSummaryText, exportPackHtml, exportPackCsv, exportPackJson, exportPackFilename } from './export-pack.js';
 import { normalizeOperatorMode, canPerformAction, viewAccess, requestModeSwitch, applyModeSwitch, operatorModeSummaryText, operatorModeHtml, operatorModeToggleLabel } from './operator-modes.js';
 import { normalizePriceRevision, normalizePriceHistory, recordPriceRevision, priceHistoryForPackage, priceOnDate, priceHistorySummaryText, priceHistoryHtml, priceHistoryCsv, priceHistoryFilename } from './package-price-history.js';
@@ -13336,6 +13337,42 @@ function renderAuditLog() {
     });
   }
 }
+// Plan 317: monthly audit trail summary view. A monthly summary
+// composed from the operator action audit log only — counts by
+// action type and by operator for the chosen month. It shows no
+// action detail beyond counts and operator names, and composing
+// it never adds, edits, or removes a log entry, and never changes
+// any bill, payment, or staff record. It is not the monthly KPI
+// record sheet (Plan 318), which is a different plan.
+let monthlyAuditSummaryBound = false;
+let monthlyAuditSummaryMonth = '';
+function renderMonthlyAuditSummary() {
+  const bodyEl = $('#masBody');
+  if (!bodyEl) return;
+  const months = monthlyAuditMonths(loadAuditLog());
+  const selectEl = $('#masMonthSelect');
+  if (selectEl) {
+    const current = monthlyAuditSummaryMonth || selectEl.value;
+    selectEl.innerHTML = months.map((month) => `<option value="${escapeHtml(month)}">${escapeHtml(monthlyAuditSummaryMonthLabel(month))}</option>`).join('');
+    monthlyAuditSummaryMonth = months.includes(current) ? current : (months[months.length - 1] ?? '');
+    selectEl.value = monthlyAuditSummaryMonth;
+  }
+  const summary = monthlyAuditSummaryMonth ? monthlyAuditSummary(loadAuditLog(), monthlyAuditSummaryMonth) : null;
+  const summaryEl = $('#masSummary');
+  if (summaryEl) summaryEl.textContent = monthlyAuditSummaryText(summary);
+  bodyEl.innerHTML = monthlyAuditSummaryHtml(summary);
+  if (!monthlyAuditSummaryBound) {
+    monthlyAuditSummaryBound = true;
+    $('#masMonthSelect')?.addEventListener('change', (event) => {
+      monthlyAuditSummaryMonth = event.target.value || '';
+      renderMonthlyAuditSummary();
+    });
+    $('#masExportBtn')?.addEventListener('click', () => {
+      if (!monthlyAuditSummaryMonth) { toast('Pick a month to export its audit summary.'); return; }
+      downloadCsvFile(monthlyAuditSummaryFilename(monthlyAuditSummaryMonth), monthlyAuditSummaryCsv(monthlyAuditSummary(loadAuditLog(), monthlyAuditSummaryMonth)));
+    });
+  }
+}
 // Plan 32: accountant and portability data export pack. A data export
 // only: it builds the pack from the records already on this device
 // and downloads it — it never writes, edits, or voids any record,
@@ -14087,6 +14124,7 @@ function renderAnalytics() {
   renderExpansionChecklist();
   renderCampaignPlanner();
   renderAuditLog();
+  renderMonthlyAuditSummary();
   renderExportPack();
   renderOperatorModes();
   renderOltOnuRegister();

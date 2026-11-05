@@ -463,6 +463,7 @@ import { validWinbackOutcomeDate, normalizeWinbackOutcomeList, recordWinbackOutc
 import { validAnniversaryMilestoneDate, normalizeAnniversaryMilestoneList, recordAnniversaryMilestone, removeAnniversaryMilestone, addAnniversaryMilestoneNote, milestonesForCustomer, anniversaryMilestoneSummaryText, anniversaryMilestoneAllHtml, anniversaryMilestoneCsv, anniversaryMilestoneFilename } from './anniversary-milestone.js';
 import { validReferralOutcomeDate, normalizeReferralOutcomeList, recordReferralOutcome, removeReferralOutcome, addReferralOutcomeNote, referralOutcomesForReferrer, referralOutcomeCounts, referralOutcomeSummaryText, referralOutcomeAllHtml, referralOutcomeCsv, referralOutcomeFilename } from './referral-outcome.js';
 import { validCarePlanDate, normalizeCarePlanList, recordCarePlan, removeCarePlan, addCarePlanNote, reviewCarePlan, carePlanSorted, carePlansForCustomer, overdueCarePlans, carePlanSummaryText, carePlanAllHtml, carePlanCsv, carePlanFilename } from './care-plan.js';
+import { validPreferenceChangeDate, normalizePreferenceChangeList, recordPreferenceChange, removePreferenceChange, addPreferenceChangeNote, preferenceChangeSorted, preferenceChangesForCustomer, preferenceChangeSummaryText, preferenceChangeAllHtml, preferenceChangeCsv, preferenceChangeFilename } from './preference-change.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14170,6 +14171,7 @@ function renderAnalytics() {
   renderAnniversaryMilestones();
   renderReferralOutcomes();
   renderCarePlans();
+  renderPreferenceChanges();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29353,6 +29355,67 @@ function renderCarePlans() {
     $('#cpOverdueBtn')?.addEventListener('click', () => { renderCarePlans(); });
     $('#cpFilterBtn')?.addEventListener('click', () => { renderCarePlans(); });
     $('#cpFilterCustomer')?.addEventListener('input', () => { renderCarePlans(); });
+  }
+}
+const PREFERENCE_CHANGE_KEY = 'shahdara_preference_changes_v1';
+function loadPreferenceChanges() {
+  try { return normalizePreferenceChangeList(JSON.parse(localStorage.getItem(PREFERENCE_CHANGE_KEY) || '[]')); } catch { return []; }
+}
+function savePreferenceChanges(list) {
+  try { localStorage.setItem(PREFERENCE_CHANGE_KEY, JSON.stringify(normalizePreferenceChangeList(list))); } catch { /* preference changes only: a failed save leaves the previous list in place */ }
+}
+let preferenceChangesBound = false;
+function renderPreferenceChanges() {
+  const listEl = $('#pcList');
+  if (!listEl) return;
+  const all = loadPreferenceChanges();
+  listEl.innerHTML = all.length ? preferenceChangeAllHtml(all) : '<p>No preference changes recorded.</p>';
+  const summaryEl = $('#pcSummary');
+  if (summaryEl) summaryEl.textContent = `${preferenceChangeSummaryText(all)} A change entry is never edited, only followed by a later entry. Logging a change never alters any bill, payment, or other customer record by itself.`;
+  const filterEl = $('#pcFilterBody');
+  if (filterEl) {
+    const customer = ($('#pcFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      filterEl.innerHTML = '<p>Give a customer name to show their preference changes, newest first.</p>';
+    } else {
+      const rows = preferenceChangesForCustomer(all, customer);
+      filterEl.innerHTML = rows.length
+        ? preferenceChangeAllHtml(rows)
+        : `<p>No preference change recorded for customer \u201c${customer}\u201d.</p>`;
+    }
+  }
+  if (!preferenceChangesBound) {
+    preferenceChangesBound = true;
+    $('#pcExportBtn')?.addEventListener('click', () => { downloadCsvFile(preferenceChangeFilename(), preferenceChangeCsv(loadPreferenceChanges())); });
+    $('#pcRecordBtn')?.addEventListener('click', () => {
+      const before = loadPreferenceChanges();
+      const next = recordPreferenceChange(before, {
+        id: `PC-${Date.now()}`,
+        customer: $('#pcCustomer')?.value ?? '',
+        preference: $('#pcPreference')?.value ?? '',
+        oldValue: $('#pcOldValue')?.value ?? '',
+        newValue: $('#pcNewValue')?.value ?? '',
+        date: $('#pcDate')?.value ?? '',
+        operator: $('#pcOperator')?.value ?? '',
+        note: $('#pcNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Preference change not recorded: give a customer, the preference changed, the old and new values, a real date, and the operator.'); return; }
+      savePreferenceChanges(next);
+      renderPreferenceChanges();
+    });
+    $('#pcAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadPreferenceChanges();
+      const next = addPreferenceChangeNote(before, $('#pcAnnotateId')?.value ?? '', $('#pcAnnotateDate')?.value ?? '', $('#pcAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Preference change note not added: give a known entry id, a real date, and a note.'); return; }
+      savePreferenceChanges(next);
+      renderPreferenceChanges();
+    });
+    $('#pcRemoveBtn')?.addEventListener('click', () => {
+      savePreferenceChanges(removePreferenceChange(loadPreferenceChanges(), $('#pcRemoveId')?.value ?? ''));
+      renderPreferenceChanges();
+    });
+    $('#pcFilterBtn')?.addEventListener('click', () => { renderPreferenceChanges(); });
+    $('#pcFilterCustomer')?.addEventListener('input', () => { renderPreferenceChanges(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

@@ -427,6 +427,7 @@ import { normalizeMohallaCollectionTargetList, recordMohallaCollectionTarget, re
 import { normalizeOverdueWatchlistList, recordOverdueWatchlistEntry, removeOverdueWatchlistEntry, watchlistActive, watchlistHistory, watchlistForCustomer, watchlistForOwner, overdueWatchlistEntryHtml, overdueWatchlistSummaryText, overdueWatchlistCsv, overdueWatchlistFilename } from './overdue-watchlist.js';
 import { normalizeDisputeEvidenceList, recordDisputeEvidence, removeDisputeEvidence, disputeEvidenceSorted, evidenceForCase, evidenceForType, disputeEvidenceEntryHtml, disputeEvidenceSummaryText, disputeEvidenceCsv, disputeEvidenceFilename } from './dispute-evidence.js';
 import { normalizeFormatVersionList, recordFormatVersion, removeFormatVersion, formatVersionsSorted, normalizeBillFormatStampList, stampBillFormat, removeBillFormatStamp, billFormatStampsSorted, flaggedBillFormatStamps, billFormatStampText, formatVersionEntryHtml, billFormatStampHtml, formatVersionSummaryText, formatVersionCsv, formatVersionFilename } from './bill-format-version.js';
+import { normalizeBillingAddressList, recordBillingAddress, removeBillingAddress, findBillingAddress, billingAddressesSorted, billingAddressesForCustomer, deliveryAddressFor, billingAddressDiffers, billingAddressSideBySideText, billingAddressSummaryText, billingAddressEntryHtml, billingAddressCsv, billingAddressFilename } from './billing-address.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14096,6 +14097,7 @@ function renderAnalytics() {
   renderOverdueWatchlist();
   renderDisputeEvidence();
   renderBillFormatVersion();
+  renderBillingAddresses();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26781,6 +26783,59 @@ function renderBillFormatVersion() {
     $('#bfvRemoveStampBtn')?.addEventListener('click', () => {
       saveBillFormatStamps(removeBillFormatStamp(loadBillFormatStamps(), $('#bfvRemoveStampId')?.value ?? ''));
       renderBillFormatVersion();
+    });
+  }
+}
+const BILLING_ADDRESS_KEY = 'shahdara_billing_addresses_v1';
+function loadBillingAddresses() {
+  try { return normalizeBillingAddressList(JSON.parse(localStorage.getItem(BILLING_ADDRESS_KEY) || '[]')); } catch { return []; }
+}
+function saveBillingAddresses(list) {
+  try { localStorage.setItem(BILLING_ADDRESS_KEY, JSON.stringify(normalizeBillingAddressList(list))); } catch { /* billing addresses only: a failed save leaves the previous list in place */ }
+}
+let billingAddressesBound = false;
+function renderBillingAddresses() {
+  const bodyEl = $('#baBody');
+  if (!bodyEl) return;
+  const all = loadBillingAddresses();
+  let shown = billingAddressesSorted(all);
+  const customerFilter = $('#baCustomerFilter')?.value ?? '';
+  if (customerFilter) shown = billingAddressesForCustomer(all, customerFilter);
+  bodyEl.innerHTML = shown.length ? shown.map((record) => billingAddressEntryHtml(record, '')).join('') : '<p>No billing addresses recorded.</p>';
+  const summaryEl = $('#baSummary');
+  if (summaryEl) summaryEl.textContent = `${billingAddressSummaryText(all)} Recording a billing address never changes any bill, payment, or service record by itself.`;
+  if (!billingAddressesBound) {
+    billingAddressesBound = true;
+    $('#baExportBtn')?.addEventListener('click', () => { downloadCsvFile(billingAddressFilename(), billingAddressCsv(loadBillingAddresses())); });
+    $('#baSaveBtn')?.addEventListener('click', () => {
+      const before = loadBillingAddresses();
+      const next = recordBillingAddress(before, {
+        id: `BA-${Date.now()}`,
+        customer: $('#baCustomer')?.value ?? '',
+        billingAddress: $('#baAddress')?.value ?? '',
+        dateEffective: $('#baDateEffective')?.value ?? '',
+        note: $('#baNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Billing address not recorded: give a customer, a billing address, and a real effective date. One billing address per customer.'); return; }
+      saveBillingAddresses(next);
+      renderBillingAddresses();
+    });
+    $('#baRemoveBtn')?.addEventListener('click', () => {
+      saveBillingAddresses(removeBillingAddress(loadBillingAddresses(), $('#baRemoveId')?.value ?? ''));
+      renderBillingAddresses();
+    });
+    $('#baCustomerFilter')?.addEventListener('input', () => { renderBillingAddresses(); });
+    $('#baShowBtn')?.addEventListener('click', () => {
+      const allNow = loadBillingAddresses();
+      const customer = $('#baCheckCustomer')?.value ?? '';
+      const service = $('#baServiceAddress')?.value ?? '';
+      const sideElNow = $('#baSideBySide');
+      if (sideElNow) {
+        if (!customer) { sideElNow.textContent = 'Give a customer name to see the side-by-side view.'; return; }
+        sideElNow.textContent = billingAddressSideBySideText(service, findBillingAddress(allNow, customer));
+        const delivery = deliveryAddressFor(allNow, customer, service);
+        sideElNow.textContent += ` Bills for this customer go to: ${delivery}.`;
+      }
     });
   }
 }

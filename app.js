@@ -421,6 +421,7 @@ import { normalizeWaiverReasonList, recordWaiverReason, removeWaiverReason, waiv
 import { normalizeInstalmentDefaultList, recordInstalmentDefault, removeInstalmentDefault, markInstalmentPaidLate, instalmentDefaultsSorted, instalmentDefaultsOpen, instalmentDefaultsForSchedule, instalmentDefaultSummaryText, instalmentDefaultAllHtml, instalmentDefaultCsv, instalmentDefaultFilename } from './instalment-default.js';
 import { normalizeDepositTopUpList, recordDepositTopUp, removeDepositTopUp, depositTopUpsSorted, depositTopUpsForDeposit, depositTopUpSummaryText, depositTopUpAllHtml, depositTopUpCsv, depositTopUpFilename } from './deposit-topup.js';
 import { normalizeRefundApprovalList, recordRefundApproval, removeRefundApproval, approvalsSorted as refundApprovalsSorted, approvalsForPeriod as refundApprovalsForPeriod, refundApprovalStatus, refundApprovalAllHtml, refundApprovalSummaryText, refundApprovalCsv, refundApprovalFilename } from './refund-approval.js';
+import { normalizeBankReconExceptionList, recordBankReconException, removeBankReconException, explainBankReconException, exceptionsSorted, exceptionsOpen, exceptionsForPeriod, reconcileToPeriodDifference, bankReconExceptionAllHtml, bankReconExceptionSummaryText, bankReconExceptionCsv, bankReconExceptionFilename, exceptionAgeDays } from './bank-reconciliation-exception.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14084,6 +14085,7 @@ function renderAnalytics() {
   renderInstalmentDefaults();
   renderDepositTopUps();
   renderRefundApprovals();
+  renderBankReconExceptions();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26423,6 +26425,72 @@ function renderRefundApprovals() {
         : status === 'approved' ? 'Approved: a prior approval for this refund reference is on record.'
         : status === 'missing-approval' ? 'Flagged: this refund is above the operator tier and has no prior approval on record.'
         : 'Cannot judge: give a refund reference, a positive amount, and a valid operator tier limit.';
+    });
+  }
+}
+const BANK_RECON_EXCEPTION_KEY = 'shahdara_bank_recon_exceptions_v1';
+function loadBankReconExceptions() {
+  try { return normalizeBankReconExceptionList(JSON.parse(localStorage.getItem(BANK_RECON_EXCEPTION_KEY) || '[]')); } catch { return []; }
+}
+function saveBankReconExceptions(list) {
+  try { localStorage.setItem(BANK_RECON_EXCEPTION_KEY, JSON.stringify(normalizeBankReconExceptionList(list))); } catch { /* exception notes only: a failed save leaves the previous list in place */ }
+}
+let bankReconExceptionsBound = false;
+function renderBankReconExceptions() {
+  const bodyEl = $('#breBody');
+  if (!bodyEl) return;
+  const all = loadBankReconExceptions();
+  const from = $('#brePeriodFrom')?.value ?? '';
+  const to = $('#brePeriodTo')?.value ?? '';
+  const shown = (from || to) ? exceptionsForPeriod(all, { from, to }) : exceptionsSorted(all);
+  bodyEl.innerHTML = bankReconExceptionAllHtml(shown);
+  const openEl = $('#breOpenBody');
+  if (openEl) {
+    const asOf = $('#breAsOf')?.value ?? '';
+    const open = exceptionsOpen(all);
+    openEl.innerHTML = open.length ? open.map((row) => {
+      const age = asOf ? exceptionAgeDays(row, asOf) : null;
+      return `<p>${row.date} — ${row.method} — ${row.amountCents} cents${age === null ? '' : ` — ${age} day(s) old`}</p>`;
+    }).join('') : '<p>No open bank reconciliation exceptions.</p>';
+  }
+  const summaryEl = $('#breSummary');
+  if (summaryEl) summaryEl.textContent = `${bankReconExceptionSummaryText(all)} A note explains a difference only; it never edits any payment, bank, slip, or credit record.`;
+  if (!bankReconExceptionsBound) {
+    bankReconExceptionsBound = true;
+    $('#breExportBtn')?.addEventListener('click', () => { downloadCsvFile(bankReconExceptionFilename(), bankReconExceptionCsv(shown)); });
+    $('#breSaveBtn')?.addEventListener('click', () => {
+      const before = loadBankReconExceptions();
+      const next = recordBankReconException(before, {
+        id: `BRE-${Date.now()}`,
+        date: $('#breDate')?.value ?? '',
+        amount: Number($('#breAmount')?.value ?? ''),
+        method: $('#breMethod')?.value ?? '',
+        linkedSlip: $('#breSlip')?.value ?? '',
+        linkedCredit: $('#breCredit')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Bank reconciliation exception not recorded: give a real date, a non-zero amount, and a method.'); return; }
+      saveBankReconExceptions(next);
+      renderBankReconExceptions();
+    });
+    $('#breRemoveBtn')?.addEventListener('click', () => {
+      saveBankReconExceptions(removeBankReconException(loadBankReconExceptions(), $('#breRemoveId')?.value ?? ''));
+      renderBankReconExceptions();
+    });
+    $('#breExplainBtn')?.addEventListener('click', () => {
+      saveBankReconExceptions(explainBankReconException(loadBankReconExceptions(), $('#breExplainId')?.value ?? '', $('#breExplanation')?.value ?? '', $('#breExplainedDate')?.value ?? ''));
+      renderBankReconExceptions();
+    });
+    $('#brePeriodFrom')?.addEventListener('change', () => { renderBankReconExceptions(); });
+    $('#brePeriodTo')?.addEventListener('change', () => { renderBankReconExceptions(); });
+    $('#breAsOf')?.addEventListener('change', () => { renderBankReconExceptions(); });
+    $('#breReconcileBtn')?.addEventListener('click', () => {
+      const resultEl = $('#breReconcileResult');
+      if (!resultEl) return;
+      const raw = ($('#brePeriodDifference')?.value ?? '').trim();
+      const result = reconcileToPeriodDifference(loadBankReconExceptions(), raw === '' ? null : { amountCents: Math.round(Number(raw) * 100) });
+      resultEl.textContent = result === null ? 'Cannot judge: give the period bank difference in rupees.'
+        : result.matches ? `Reconciled: open plus explained (${result.totalCents} cents) equals the period bank difference.`
+        : `Not reconciled: open plus explained is ${result.totalCents} cents against a period bank difference of ${result.periodDifferenceCents} cents (${result.remainingCents} cents remaining).`;
     });
   }
 }

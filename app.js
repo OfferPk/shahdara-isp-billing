@@ -459,6 +459,7 @@ import { validVisitAcknowledgementDate, normalizeVisitAcknowledgementList, recor
 import { validComplaintFollowupDate, normalizeComplaintFollowupList, recordComplaintFollowup, removeComplaintFollowup, addComplaintFollowupNote, completeComplaintFollowup, complaintFollowupSorted, followupsForComplaint, complaintFollowupDue, openComplaintFollowups, complaintFollowupSummaryText, complaintFollowupAllHtml, complaintFollowupCsv, complaintFollowupFilename } from './complaint-followup.js';
 import { validPromiseDeliveryCheckDate, normalizePromiseDeliveryCheckList, recordPromiseDeliveryCheck, removePromiseDeliveryCheck, addPromiseDeliveryCheckNote, promiseDeliveryCheckSorted, checksForPromise, missedPromiseDeliveryChecks, promiseDeliveryCheckSummaryText, promiseDeliveryCheckAllHtml, promiseDeliveryCheckCsv, promiseDeliveryCheckFilename } from './promise-delivery-check.js';
 import { validLaunchChecklistDate, normalizeLaunchChecklistList, recordLaunchChecklist, removeLaunchChecklist, addLaunchChecklistNote, tickLaunchChecklistStep, completeLaunchChecklist, launchesForMohalla, launchChecklistSummaryText, launchChecklistAllHtml, launchChecklistCsv, launchChecklistFilename } from './launch-checklist.js';
+import { validAnniversaryMilestoneDate, normalizeAnniversaryMilestoneList, recordAnniversaryMilestone, removeAnniversaryMilestone, addAnniversaryMilestoneNote, milestonesForCustomer, anniversaryMilestoneSummaryText, anniversaryMilestoneAllHtml, anniversaryMilestoneCsv, anniversaryMilestoneFilename } from './anniversary-milestone.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14162,6 +14163,7 @@ function renderAnalytics() {
   renderComplaintFollowups();
   renderPromiseDeliveryChecks();
   renderLaunchChecklists();
+  renderAnniversaryMilestones();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29056,6 +29058,65 @@ function renderLaunchChecklists() {
     });
     $('#lcFilterBtn')?.addEventListener('click', () => { renderLaunchChecklists(); });
     $('#lcFilterMohalla')?.addEventListener('input', () => { renderLaunchChecklists(); });
+  }
+}
+const ANNIVERSARY_MILESTONE_KEY = 'shahdara_anniversary_milestones_v1';
+function loadAnniversaryMilestones() {
+  try { return normalizeAnniversaryMilestoneList(JSON.parse(localStorage.getItem(ANNIVERSARY_MILESTONE_KEY) || '[]')); } catch { return []; }
+}
+function saveAnniversaryMilestones(list) {
+  try { localStorage.setItem(ANNIVERSARY_MILESTONE_KEY, JSON.stringify(normalizeAnniversaryMilestoneList(list))); } catch { /* anniversary milestones only: a failed save leaves the previous list in place */ }
+}
+let anniversaryMilestonesBound = false;
+function renderAnniversaryMilestones() {
+  const listEl = $('#amList');
+  if (!listEl) return;
+  const all = loadAnniversaryMilestones();
+  listEl.innerHTML = all.length ? anniversaryMilestoneAllHtml(all) : '<p>No anniversary milestones recorded.</p>';
+  const summaryEl = $('#amSummary');
+  if (summaryEl) summaryEl.textContent = `${anniversaryMilestoneSummaryText(all)} A milestone entry is never edited, only annotated. Recording a milestone never changes any customer record, bill, or payment by itself.`;
+  const filterEl = $('#amFilterBody');
+  if (filterEl) {
+    const customer = ($('#amFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      filterEl.innerHTML = '<p>Give a customer name to show their milestone entries.</p>';
+    } else {
+      const rows = milestonesForCustomer(all, customer);
+      filterEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>${entry.customer} — ${entry.yearsReached === 1 ? '1 year' : `${entry.yearsReached} years`} reached ${entry.dateReached}, ${entry.acknowledged ? 'acknowledged' : 'not yet acknowledged'}.</li>`).join('')}</ul>`
+        : `<p>No anniversary milestone recorded for customer \u201c${customer}\u201d.</p>`;
+    }
+  }
+  if (!anniversaryMilestonesBound) {
+    anniversaryMilestonesBound = true;
+    $('#amExportBtn')?.addEventListener('click', () => { downloadCsvFile(anniversaryMilestoneFilename(), anniversaryMilestoneCsv(loadAnniversaryMilestones())); });
+    $('#amRecordBtn')?.addEventListener('click', () => {
+      const before = loadAnniversaryMilestones();
+      const next = recordAnniversaryMilestone(before, {
+        id: `AM-${Date.now()}`,
+        customer: $('#amCustomer')?.value ?? '',
+        yearsReached: Number($('#amYears')?.value ?? ''),
+        dateReached: $('#amDateReached')?.value ?? '',
+        acknowledged: $('#amAcknowledged')?.value ?? '',
+        note: $('#amNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Milestone not recorded: give a customer, whole years of at least 1, a real date reached, and a clear yes or no for acknowledgement. One entry per customer per anniversary year.'); return; }
+      saveAnniversaryMilestones(next);
+      renderAnniversaryMilestones();
+    });
+    $('#amAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadAnniversaryMilestones();
+      const next = addAnniversaryMilestoneNote(before, $('#amAnnotateId')?.value ?? '', $('#amAnnotateDate')?.value ?? '', $('#amAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Milestone note not added: give a known entry id, a real date, and a note.'); return; }
+      saveAnniversaryMilestones(next);
+      renderAnniversaryMilestones();
+    });
+    $('#amRemoveBtn')?.addEventListener('click', () => {
+      saveAnniversaryMilestones(removeAnniversaryMilestone(loadAnniversaryMilestones(), $('#amRemoveId')?.value ?? ''));
+      renderAnniversaryMilestones();
+    });
+    $('#amFilterBtn')?.addEventListener('click', () => { renderAnniversaryMilestones(); });
+    $('#amFilterCustomer')?.addEventListener('input', () => { renderAnniversaryMilestones(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

@@ -447,6 +447,7 @@ import { validAccessDifficultyDate, normalizeAccessDifficultyType, normalizeAcce
 import { validDropCableHistoryDate, normalizeDropCableHistoryList, recordDropCableReplacement, removeDropCableReplacement, addDropCableHistoryFollowUp, dropCableHistorySorted, dropCableReplacementsForCustomer, flaggedDropCableCustomers, dropCableHistorySummaryText, dropCableHistoryHtml, dropCableHistoryCsv, dropCableHistoryFilename } from './drop-cable-history.js';
 import { validOnuReplacementDate, normalizeOnuReplacementList, recordOnuReplacement, removeOnuReplacement, addOnuReplacementFollowUp, onuReplacementSorted, onuReplacementsForCustomer, onuReplacementsForReason, repeatedOnuReplacementReasons, onuReplacementSummaryText, onuReplacementHtml, onuReplacementCsv, onuReplacementFilename } from './onu-replacement.js';
 import { validSplitterOccupancyDate, normalizeSplitterOccupancyList, recordSplitterPort, removeSplitterPort, updateSplitterPort, splitterOccupancySorted, splitterPortsForSplitter, splitterOccupancyCounts, splitterOccupancySummaries, fullyOccupiedSplitters, splitterOccupancySummaryText, splitterOccupancyHtml, splitterOccupancyCsv, splitterOccupancyFilename } from './splitter-occupancy.js';
+import { validPolePermissionDate, normalizePolePermissionList, recordPolePermission, removePolePermission, updatePolePermission, polePermissionsSorted, polesByPermission, polesWithoutPermission, polePermissionSummaryText, polePermissionHtml, polePermissionCsv, polePermissionFilename } from './pole-permission.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14136,6 +14137,7 @@ function renderAnalytics() {
   renderDropCableHistories();
   renderOnuReplacements();
   renderSplitterOccupancy();
+  renderPolePermissions();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27994,6 +27996,73 @@ function renderSplitterOccupancy() {
     });
     $('#soSplitterBtn')?.addEventListener('click', () => { renderSplitterOccupancy(); });
     $('#soFilterSplitter')?.addEventListener('input', () => { renderSplitterOccupancy(); });
+  }
+}
+const POLE_PERMISSION_KEY = 'shahdara_pole_permissions_v1';
+function loadPolePermissions() {
+  try { return normalizePolePermissionList(JSON.parse(localStorage.getItem(POLE_PERMISSION_KEY) || '[]')); } catch { return []; }
+}
+function savePolePermissions(list) {
+  try { localStorage.setItem(POLE_PERMISSION_KEY, JSON.stringify(normalizePolePermissionList(list))); } catch { /* permission note only: a failed save leaves the previous list in place */ }
+}
+let polePermissionsBound = false;
+function renderPolePermissions() {
+  const listEl = $('#ppList');
+  if (!listEl) return;
+  const all = loadPolePermissions();
+  listEl.innerHTML = all.length ? polePermissionHtml(polePermissionsSorted(all)) : '<p>No pole permission notes recorded.</p>';
+  const summaryEl = $('#ppSummary');
+  if (summaryEl) summaryEl.textContent = `${polePermissionSummaryText(all)} A note is never edited, only followed by a dated update. Recording a note never changes any bill, payment, customer, route, or inspection record by itself, and it does not replace the inspection round.`;
+  const statusEl = $('#ppStatusBody');
+  if (statusEl) {
+    const status = ($('#ppFilterStatus')?.value ?? '').trim();
+    const shown = status === '' ? polePermissionsSorted(all) : polesByPermission(all, status);
+    statusEl.innerHTML = status === ''
+      ? '<p>Pick a permission status to list its poles.</p>'
+      : (shown.length ? polePermissionHtml(shown) : '<p>No poles with this permission status.</p>');
+  }
+  const flaggedEl = $('#ppFlaggedBody');
+  if (flaggedEl) {
+    const flagged = polesWithoutPermission(all);
+    flaggedEl.innerHTML = flagged.length
+      ? `<ul>${flagged.map((entry) => `<li>${entry.pole} (${entry.segment}) — owned by ${entry.owner}. Confirm the permission before a crew is sent to this pole.</li>`).join('')}</ul>`
+      : '<p>No pole is missing a recorded permission.</p>';
+  }
+  if (!polePermissionsBound) {
+    polePermissionsBound = true;
+    $('#ppExportBtn')?.addEventListener('click', () => { downloadCsvFile(polePermissionFilename(), polePermissionCsv(loadPolePermissions())); });
+    $('#ppRecordBtn')?.addEventListener('click', () => {
+      const before = loadPolePermissions();
+      const next = recordPolePermission(before, {
+        id: `PP-${Date.now()}`,
+        pole: $('#ppPole')?.value ?? '',
+        segment: $('#ppSegment')?.value ?? '',
+        owner: $('#ppOwner')?.value ?? '',
+        permission: $('#ppPermission')?.value ?? '',
+        date: $('#ppDate')?.value ?? '',
+        note: $('#ppNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Pole note not recorded: give a pole reference, a route segment, an owner or authority, a real date, and a note.'); return; }
+      savePolePermissions(next);
+      renderPolePermissions();
+    });
+    $('#ppUpdateBtn')?.addEventListener('click', () => {
+      const before = loadPolePermissions();
+      const next = updatePolePermission(before, $('#ppUpdateId')?.value ?? '', {
+        date: $('#ppUpdateDate')?.value ?? '',
+        permission: $('#ppUpdatePermission')?.value ?? '',
+        note: $('#ppUpdateNote')?.value ?? '',
+      });
+      if (next === before) { toast('Permission not updated: give a known note id and a real date.'); return; }
+      savePolePermissions(next);
+      renderPolePermissions();
+    });
+    $('#ppRemoveBtn')?.addEventListener('click', () => {
+      savePolePermissions(removePolePermission(loadPolePermissions(), $('#ppRemoveId')?.value ?? ''));
+      renderPolePermissions();
+    });
+    $('#ppStatusBtn')?.addEventListener('click', () => { renderPolePermissions(); });
+    $('#ppFilterStatus')?.addEventListener('change', () => { renderPolePermissions(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

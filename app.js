@@ -497,6 +497,7 @@ import { normalizeVisitorLogList, recordVisitorLog, removeVisitorLog, visitorLog
 import { normalizeDelegationNoteList, recordDelegationNote, removeDelegationNote, markDelegationNoteAcknowledged, delegationNotesForStaff, delegationNotesOverdue, delegationNoteSummaryText, delegationNoteAllHtml, delegationNotesForStaffHtml, delegationNotesOverdueHtml, delegationNoteCsv, delegationNoteFilename } from './delegation-note.js';
 import { normalizeCollectorMonthlyTargetList, recordCollectorMonthlyTarget, removeCollectorMonthlyTarget, collectorMonthlyTargetsForCollector, collectorMonthlyTargetsForMonth, collectorMonthlyTargetSummaryText, collectorMonthlyTargetAllHtml, collectorMonthlyTargetsForCollectorHtml, collectorMonthlyTargetsForMonthHtml, collectorMonthlyTargetCsv, collectorMonthlyTargetFilename } from './collector-monthly-target.js';
 import { normalizeStaffPerformanceNoteList, recordStaffPerformanceNote, removeStaffPerformanceNote, staffPerformanceNotesForStaff, staffPerformanceNoteSummaryText, staffPerformanceNoteAllHtml, staffPerformanceNotesForStaffHtml, staffPerformanceNoteCsv, staffPerformanceNoteFilename } from './staff-performance.js';
+import { normalizeShopMaintenanceNoteList, recordShopMaintenanceNote, removeShopMaintenanceNote, shopMaintenanceNotesForItem, shopMaintenanceNoteSummaryText, shopMaintenanceNoteAllHtml, shopMaintenanceNotesForItemHtml, shopMaintenanceNoteCsv, shopMaintenanceNoteFilename } from './shop-maintenance.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14240,6 +14241,7 @@ function renderAnalytics() {
   renderDelegationNote();
   renderCollectorMonthlyTargets();
   renderStaffPerformanceNotes();
+  renderShopMaintenanceNotes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31436,6 +31438,59 @@ function renderStaffPerformanceNotes() {
     $('#spnRemoveBtn')?.addEventListener('click', () => {
       saveStaffPerformanceNotes(removeStaffPerformanceNote(loadStaffPerformanceNotes(), $('#spnRemoveId')?.value ?? ''));
       renderStaffPerformanceNotes();
+    });
+  }
+}
+
+// Shop maintenance note — one note per repair on the shop premises
+// and shop equipment: date, item or area, fault in plain words,
+// action taken, a cost note in plain words, and who did it.
+// Recording a note never changes any bill, payment, or stock
+// record by itself.
+const SHOP_MAINTENANCE_KEY = 'shahdara_shop_maintenance_v1';
+function loadShopMaintenanceNotes() {
+  try { return normalizeShopMaintenanceNoteList(JSON.parse(localStorage.getItem(SHOP_MAINTENANCE_KEY) || '[]')); } catch { return []; }
+}
+function saveShopMaintenanceNotes(list) {
+  try { localStorage.setItem(SHOP_MAINTENANCE_KEY, JSON.stringify(normalizeShopMaintenanceNoteList(list))); } catch { /* maintenance notes only: a failed save leaves the previous list in place */ }
+}
+let shopMaintenanceBound = false;
+function renderShopMaintenanceNotes() {
+  const listEl = $('#smnBody');
+  if (!listEl) return;
+  const all = loadShopMaintenanceNotes();
+  listEl.innerHTML = all.length ? shopMaintenanceNoteAllHtml(all) : '<p>No shop maintenance notes recorded.</p>';
+  const summaryEl = $('#smnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${shopMaintenanceNoteSummaryText(all)} Recording a note never changes any bill, payment, or stock record by itself.`;
+  }
+  const itemEl = $('#smnItemBody');
+  if (itemEl) {
+    const item = $('#smnItemInput')?.value ?? '';
+    itemEl.innerHTML = shopMaintenanceNotesForItemHtml(all, item);
+  }
+  if (!shopMaintenanceBound) {
+    shopMaintenanceBound = true;
+    $('#smnExportBtn')?.addEventListener('click', () => { downloadCsvFile(shopMaintenanceNoteFilename(), shopMaintenanceNoteCsv(loadShopMaintenanceNotes())); });
+    $('#smnItemBtn')?.addEventListener('click', () => { renderShopMaintenanceNotes(); });
+    $('#smnRecordBtn')?.addEventListener('click', () => {
+      const before = loadShopMaintenanceNotes();
+      const next = recordShopMaintenanceNote(before, {
+        id: `SMN-${Date.now()}`,
+        date: $('#smnDate')?.value ?? '',
+        item: $('#smnItem')?.value ?? '',
+        fault: $('#smnFault')?.value ?? '',
+        action: $('#smnAction')?.value ?? '',
+        cost: $('#smnCost')?.value ?? '',
+        doneBy: $('#smnDoneBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Maintenance note not recorded: give a real date, the item, the fault, the action taken, and who did it.'); return; }
+      saveShopMaintenanceNotes(next);
+      renderShopMaintenanceNotes();
+    });
+    $('#smnRemoveBtn')?.addEventListener('click', () => {
+      saveShopMaintenanceNotes(removeShopMaintenanceNote(loadShopMaintenanceNotes(), $('#smnRemoveId')?.value ?? ''));
+      renderShopMaintenanceNotes();
     });
   }
 }

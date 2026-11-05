@@ -8510,6 +8510,45 @@
 <div id="owBody"></div>
 <h4>Removed entries (history)</h4>
 <div id="owHistoryBody"></div>
+</section><section class="chart-card" aria-labelledby="deHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="deHeading">Payment dispute evidence note</h3>
+<p class="chart-caption">One evidence note per item checked for a dispute: the case reference, the evidence type (receipt, slip, message, or ledger entry), the reference, the date checked, and a plain-words finding. Evidence notes list what was checked only: recording a note never changes any bill, payment, receipt, or case outcome.</p>
+<p id="deSummary"></p>
+</div>
+<div>
+<button id="deExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export evidence CSV</button>
+</div>
+</div>
+<h4>Record an evidence note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Case reference <input id="deCase" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Evidence type <select id="deType" style="width: 130px;"><option value="receipt">Receipt</option><option value="slip">Slip</option><option value="message">Message</option><option value="ledger_entry">Ledger entry</option></select>
+</label>
+<label style="font-size: 12px;">Reference <input id="deReference" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date checked <input id="deDateChecked" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Finding <input id="deFinding" type="text" style="width: 200px;">
+</label>
+<button id="deSaveBtn" class="secondary-button btn-sm" type="button">Record evidence note</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove evidence note id <input id="deRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="deRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Evidence notes</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by case <input id="deCaseFilter" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Filter by type <select id="deTypeFilter" style="width: 130px;"><option value="">All types</option><option value="receipt">Receipt</option><option value="slip">Slip</option><option value="message">Message</option><option value="ledger_entry">Ledger entry</option></select>
+</label>
+</div>
+<div id="deBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

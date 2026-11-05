@@ -10259,6 +10259,32 @@
 <div id="tnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="wkHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="wkHeading">Owner weekly review note</h3>
+<p class="chart-caption">One short note per week: the week, a collections note, a faults note, the decisions taken, and the actions for next week. Notes are listed newest first, with the actions for next week visible. Writing a note never changes any bill, payment, customer, or staff record by itself, and past notes are never silently edited.</p>
+<p id="wkSummary"></p>
+</div>
+<div>
+<button id="wkExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export weekly reviews CSV</button>
+</div>
+</div>
+<h4>Record a weekly review</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Week (date) <input id="wkWeek" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Collections note <input id="wkCollections" type="text" style="width: 200px;" placeholder="e.g. Collections steady"></label>
+<label style="font-size: 12px;">Faults note <input id="wkFaults" type="text" style="width: 200px;" placeholder="e.g. Two faults fixed"></label>
+<label style="font-size: 12px;">Decisions taken <input id="wkDecisions" type="text" style="width: 200px;" placeholder="e.g. Keep the 5th as due date"></label>
+<label style="font-size: 12px;">Actions for next week <input id="wkActions" type="text" style="width: 200px;" placeholder="e.g. Visit overdue customers"></label>
+<button id="wkRecordBtn" class="secondary-button btn-sm" type="button">Record weekly review</button>
+<label style="font-size: 12px;">Remove id <input id="wkRemoveId" type="text" style="width: 120px;"></label>
+<button id="wkRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Actions for next week</h4>
+<div id="wkActionsBody"></div>
+<h4>All weekly reviews</h4>
+<div id="wkBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

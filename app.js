@@ -489,6 +489,7 @@ import { validPriceReviewDate, normalizePriceReviewList, recordPriceReviewWorksh
 import { validShopChecklistDate, foldShopChecklistShift, normalizeShopChecklist, recordShopChecklistStep, removeShopChecklistStep, shopChecklistForDay, shopChecklistDaySummaryText, shopChecklistSummaryText, shopChecklistDayHtml, shopChecklistAllHtml, shopChecklistCsv, shopChecklistFilename } from './shop-checklist.js';
 import { foldStaffLeaveStatus, normalizeStaffLeave, recordStaffLeave, removeStaffLeave, staffLeaveSummaryText, staffLeaveStaffHtml, staffLeaveMonthHtml, staffLeaveAllHtml, staffLeaveCsv, staffLeaveFilename } from './staff-leave.js';
 import { normalizeStaffTraining, recordStaffTraining, removeStaffTraining, staffTrainingSummaryText, staffTrainingStaffHtml, staffTrainingAllHtml, staffTrainingCsv, staffTrainingFilename } from './staff-training.js';
+import { normalizeWeeklyReviewList, recordWeeklyReview, removeWeeklyReview, weeklyReviewSummaryText, weeklyReviewActionsHtml, weeklyReviewAllHtml, weeklyReviewCsv, weeklyReviewFilename } from './weekly-review.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14224,6 +14225,7 @@ function renderAnalytics() {
   renderShopChecklist();
   renderStaffLeave();
   renderStaffTraining();
+  renderWeeklyReview();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30947,6 +30949,56 @@ function renderStaffTraining() {
     });
     $('#tnStaffBtn')?.addEventListener('click', () => { renderStaffTraining(); });
     $('#tnStaffFilter')?.addEventListener('input', () => { renderStaffTraining(); });
+  }
+}
+
+// Owner weekly review note (Plan 293): one short note per week —
+// the week, a collections note, a faults note, the decisions
+// taken, and the actions for next week. Writing a note never
+// changes any bill, payment, customer, or staff record by itself,
+// and past notes are read-only.
+const WEEKLY_REVIEW_KEY = 'shahdara_weekly_reviews_v1';
+function loadWeeklyReviews() {
+  try { return normalizeWeeklyReviewList(JSON.parse(localStorage.getItem(WEEKLY_REVIEW_KEY) || '[]')); } catch { return []; }
+}
+function saveWeeklyReviews(list) {
+  try { localStorage.setItem(WEEKLY_REVIEW_KEY, JSON.stringify(normalizeWeeklyReviewList(list))); } catch { /* weekly review only: a failed save leaves the previous list in place */ }
+}
+let weeklyReviewBound = false;
+function renderWeeklyReview() {
+  const listEl = $('#wkBody');
+  if (!listEl) return;
+  const all = loadWeeklyReviews();
+  listEl.innerHTML = all.length ? weeklyReviewAllHtml(all) : '<p>No weekly review notes recorded.</p>';
+  const actionsEl = $('#wkActionsBody');
+  if (actionsEl) {
+    actionsEl.innerHTML = weeklyReviewActionsHtml(all);
+  }
+  const summaryEl = $('#wkSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${weeklyReviewSummaryText(all)} Writing a note never changes any bill, payment, customer, or staff record by itself.`;
+  }
+  if (!weeklyReviewBound) {
+    weeklyReviewBound = true;
+    $('#wkExportBtn')?.addEventListener('click', () => { downloadCsvFile(weeklyReviewFilename(), weeklyReviewCsv(loadWeeklyReviews())); });
+    $('#wkRecordBtn')?.addEventListener('click', () => {
+      const before = loadWeeklyReviews();
+      const next = recordWeeklyReview(before, {
+        id: `WR-${Date.now()}`,
+        week: $('#wkWeek')?.value ?? '',
+        collectionsNote: $('#wkCollections')?.value ?? '',
+        faultsNote: $('#wkFaults')?.value ?? '',
+        decisions: $('#wkDecisions')?.value ?? '',
+        actions: $('#wkActions')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Weekly review not recorded: give a real week date and write at least one note, and one note per week only.'); return; }
+      saveWeeklyReviews(next);
+      renderWeeklyReview();
+    });
+    $('#wkRemoveBtn')?.addEventListener('click', () => {
+      saveWeeklyReviews(removeWeeklyReview(loadWeeklyReviews(), $('#wkRemoveId')?.value ?? ''));
+      renderWeeklyReview();
+    });
   }
 }
 

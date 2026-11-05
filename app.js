@@ -448,6 +448,7 @@ import { validDropCableHistoryDate, normalizeDropCableHistoryList, recordDropCab
 import { validOnuReplacementDate, normalizeOnuReplacementList, recordOnuReplacement, removeOnuReplacement, addOnuReplacementFollowUp, onuReplacementSorted, onuReplacementsForCustomer, onuReplacementsForReason, repeatedOnuReplacementReasons, onuReplacementSummaryText, onuReplacementHtml, onuReplacementCsv, onuReplacementFilename } from './onu-replacement.js';
 import { validSplitterOccupancyDate, normalizeSplitterOccupancyList, recordSplitterPort, removeSplitterPort, updateSplitterPort, splitterOccupancySorted, splitterPortsForSplitter, splitterOccupancyCounts, splitterOccupancySummaries, fullyOccupiedSplitters, splitterOccupancySummaryText, splitterOccupancyHtml, splitterOccupancyCsv, splitterOccupancyFilename } from './splitter-occupancy.js';
 import { validPolePermissionDate, normalizePolePermissionList, recordPolePermission, removePolePermission, updatePolePermission, polePermissionsSorted, polesByPermission, polesWithoutPermission, polePermissionSummaryText, polePermissionHtml, polePermissionCsv, polePermissionFilename } from './pole-permission.js';
+import { validCabinetAccessDate, normalizeCabinetAccessList, recordCabinetAccess, removeCabinetAccess, annotateCabinetAccess, cabinetAccessSorted, cabinetAccessByCabinet, cabinetAccessByDate, unconfirmedCabinetAccess, cabinetAccessSummaryText, cabinetAccessHtml, cabinetAccessCsv, cabinetAccessFilename } from './cabinet-access.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14138,6 +14139,7 @@ function renderAnalytics() {
   renderOnuReplacements();
   renderSplitterOccupancy();
   renderPolePermissions();
+  renderCabinetAccess();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28063,6 +28065,81 @@ function renderPolePermissions() {
     });
     $('#ppStatusBtn')?.addEventListener('click', () => { renderPolePermissions(); });
     $('#ppFilterStatus')?.addEventListener('change', () => { renderPolePermissions(); });
+  }
+}
+const CABINET_ACCESS_KEY = 'shahdara_cabinet_access_v1';
+function loadCabinetAccess() {
+  try { return normalizeCabinetAccessList(JSON.parse(localStorage.getItem(CABINET_ACCESS_KEY) || '[]')); } catch { return []; }
+}
+function saveCabinetAccess(list) {
+  try { localStorage.setItem(CABINET_ACCESS_KEY, JSON.stringify(normalizeCabinetAccessList(list))); } catch { /* access note only: a failed save leaves the previous list in place */ }
+}
+let cabinetAccessBound = false;
+function renderCabinetAccess() {
+  const listEl = $('#ckList');
+  if (!listEl) return;
+  const all = loadCabinetAccess();
+  listEl.innerHTML = all.length ? cabinetAccessHtml(cabinetAccessSorted(all)) : '<p>No cabinet access notes recorded.</p>';
+  const summaryEl = $('#ckSummary');
+  if (summaryEl) summaryEl.textContent = `${cabinetAccessSummaryText(all)} A note is never edited, only annotated. Recording access never changes any bill, payment, customer, cabinet, or staff record by itself, and it does not replace the shop keys register.`;
+  const cabinetEl = $('#ckCabinetBody');
+  if (cabinetEl) {
+    const cabinet = ($('#ckFilterCabinet')?.value ?? '').trim();
+    const shown = cabinet === '' ? [] : cabinetAccessByCabinet(all, cabinet);
+    cabinetEl.innerHTML = cabinet === ''
+      ? '<p>Give a cabinet reference to list its openings.</p>'
+      : (shown.length ? cabinetAccessHtml(shown) : '<p>No openings recorded for this cabinet.</p>');
+  }
+  const dateEl = $('#ckDateBody');
+  if (dateEl) {
+    const date = ($('#ckDateInput')?.value ?? '').trim();
+    const shown = date === '' ? [] : cabinetAccessByDate(all, date);
+    dateEl.innerHTML = date === ''
+      ? '<p>Pick a date to list its openings.</p>'
+      : (shown.length ? cabinetAccessHtml(shown) : '<p>No openings recorded on this date.</p>');
+  }
+  const flaggedEl = $('#ckFlaggedBody');
+  if (flaggedEl) {
+    const flagged = unconfirmedCabinetAccess(all);
+    flaggedEl.innerHTML = flagged.length
+      ? `<ul>${flagged.map((entry) => `<li>${entry.cabinet} opened by ${entry.openedBy} on ${entry.date} for ${entry.reason} — not confirmed locked again. Check the cabinet before the next visit.</li>`).join('')}</ul>`
+      : '<p>No opening is missing a locked-again confirmation.</p>';
+  }
+  if (!cabinetAccessBound) {
+    cabinetAccessBound = true;
+    $('#ckExportBtn')?.addEventListener('click', () => { downloadCsvFile(cabinetAccessFilename(), cabinetAccessCsv(loadCabinetAccess())); });
+    $('#ckRecordBtn')?.addEventListener('click', () => {
+      const before = loadCabinetAccess();
+      const next = recordCabinetAccess(before, {
+        id: `CK-${Date.now()}`,
+        cabinet: $('#ckCabinet')?.value ?? '',
+        date: $('#ckDate')?.value ?? '',
+        openedBy: $('#ckOpenedBy')?.value ?? '',
+        reason: $('#ckReason')?.value ?? '',
+        lockedAgain: $('#ckLockedAgain')?.value ?? 'no',
+      });
+      if (!next || next.length === before.length) { toast('Cabinet access not recorded: give a cabinet reference, a real date, who opened it, and a reason.'); return; }
+      saveCabinetAccess(next);
+      renderCabinetAccess();
+    });
+    $('#ckAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadCabinetAccess();
+      const next = annotateCabinetAccess(before, $('#ckAnnotateId')?.value ?? '', {
+        date: $('#ckAnnotateDate')?.value ?? '',
+        note: $('#ckAnnotateNote')?.value ?? '',
+      });
+      if (next === before) { toast('Annotation not added: give a known note id, a real date, and a note.'); return; }
+      saveCabinetAccess(next);
+      renderCabinetAccess();
+    });
+    $('#ckRemoveBtn')?.addEventListener('click', () => {
+      saveCabinetAccess(removeCabinetAccess(loadCabinetAccess(), $('#ckRemoveId')?.value ?? ''));
+      renderCabinetAccess();
+    });
+    $('#ckCabinetBtn')?.addEventListener('click', () => { renderCabinetAccess(); });
+    $('#ckFilterCabinet')?.addEventListener('input', () => { renderCabinetAccess(); });
+    $('#ckDateBtn')?.addEventListener('click', () => { renderCabinetAccess(); });
+    $('#ckDateInput')?.addEventListener('change', () => { renderCabinetAccess(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

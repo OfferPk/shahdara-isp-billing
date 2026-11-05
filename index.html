@@ -10787,6 +10787,34 @@
 <div id="ahcBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="sdyHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="sdyHeading">Daily shop diary</h3>
+<p class="chart-caption">One diary entry per day: the date, the day's lines in plain words, and who entered them. Entries list newest first, and a past entry is never silently edited — a wrong entry is removed and recorded again. Writing a diary entry never changes any bill, payment, customer, or staff record by itself.</p>
+<p id="sdySummary"></p>
+</div>
+<div>
+<button id="sdyExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export shop diary CSV</button>
+</div>
+</div>
+<h4>Record a diary entry</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="sdyId" type="text" style="width: 120px;" placeholder="auto if left blank"></label>
+<label style="font-size: 12px;">Date <input id="sdyDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Entered by <input id="sdyEnteredBy" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Lines, one per line <textarea id="sdyEntries" rows="3" style="width: 260px;" placeholder="e.g. Two visitors asked about the 3000 package&#10;Generator fuel topped up"></textarea></label>
+<button id="sdyRecordBtn" class="secondary-button btn-sm" type="button">Record diary entry</button>
+<label style="font-size: 12px;">Remove id <input id="sdyRemoveId" type="text" style="width: 120px;"></label>
+<button id="sdyRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Diary entries by one person</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entered by <select id="sdyPersonSelect" style="width: 160px;"></select></label>
+</div>
+<div id="sdyPersonBody"></div>
+<h4>All diary entries</h4>
+<div id="sdyBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

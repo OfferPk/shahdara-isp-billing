@@ -10781,6 +10781,45 @@
 <div id="mksBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="myrHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="myrHeading">Per-mohalla year comparison view</h3>
+<p class="chart-caption">Customers, collections, and dues outstanding per mohalla per year, composed from yearly figures copied from the yearly reports and reconciled against the shop-wide yearly figure. A mohalla with no figure for a year says so plainly instead of being filled by guesswork. Composing the view never changes any bill, payment, or customer record.</p>
+<p id="myrSummary"></p>
+</div>
+<div>
+<button id="myrExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export per-mohalla comparison CSV</button>
+</div>
+</div>
+<h4>Record a shop-wide yearly figure</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Year <input id="myrShopYear" type="number" min="1900" max="2100" step="1" style="width: 90px;" placeholder="e.g. 2025"></label>
+<label style="font-size: 12px;">Customers <input id="myrShopCustomers" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Collections, Rs <input id="myrShopCollections" type="number" min="0" step="1" style="width: 120px;" placeholder="e.g. 310000"></label>
+<label style="font-size: 12px;">Dues outstanding, Rs <input id="myrShopDues" type="number" min="0" step="1" style="width: 120px;" placeholder="e.g. 12000"></label>
+<button id="myrShopRecordBtn" class="secondary-button btn-sm" type="button">Record shop-wide figure</button>
+<label style="font-size: 12px;">Remove year <input id="myrShopRemoveYear" type="number" min="1900" max="2100" step="1" style="width: 90px;"></label>
+<button id="myrShopRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Record a per-mohalla yearly figure</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <input id="myrMohalla" type="text" style="width: 160px;" placeholder="e.g. Shahdara Village"></label>
+<label style="font-size: 12px;">Year <input id="myrYear" type="number" min="1900" max="2100" step="1" style="width: 90px;" placeholder="e.g. 2025"></label>
+<label style="font-size: 12px;">Customers <input id="myrCustomers" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Collections, Rs <input id="myrCollections" type="number" min="0" step="1" style="width: 120px;" placeholder="e.g. 170000"></label>
+<label style="font-size: 12px;">Dues outstanding, Rs <input id="myrDues" type="number" min="0" step="1" style="width: 120px;" placeholder="e.g. 6000"></label>
+<button id="myrRecordBtn" class="secondary-button btn-sm" type="button">Record mohalla figure</button>
+<label style="font-size: 12px;">Remove id <input id="myrRemoveId" type="text" style="width: 140px;"></label>
+<button id="myrRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Year comparison for one mohalla</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <select id="myrMohallaSelect" style="width: 180px;"></select></label>
+</div>
+<div id="myrMohallaBody"></div>
+<h4>All mohallas, year by year</h4>
+<div id="myrBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

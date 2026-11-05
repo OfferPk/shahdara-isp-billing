@@ -426,6 +426,7 @@ import { normalizeReceiptBookList, recordReceiptBook, removeReceiptBook, returnR
 import { normalizeMohallaCollectionTargetList, recordMohallaCollectionTarget, removeMohallaCollectionTarget, targetsForMonth, targetsForMohalla, missingTargetText, checkActualAgainstLedger, mohallaCollectionTargetAllHtml, mohallaCollectionTargetSummaryText, mohallaCollectionTargetCsv, mohallaCollectionTargetFilename } from './mohalla-collection-target.js';
 import { normalizeOverdueWatchlistList, recordOverdueWatchlistEntry, removeOverdueWatchlistEntry, watchlistActive, watchlistHistory, watchlistForCustomer, watchlistForOwner, overdueWatchlistEntryHtml, overdueWatchlistSummaryText, overdueWatchlistCsv, overdueWatchlistFilename } from './overdue-watchlist.js';
 import { normalizeDisputeEvidenceList, recordDisputeEvidence, removeDisputeEvidence, disputeEvidenceSorted, evidenceForCase, evidenceForType, disputeEvidenceEntryHtml, disputeEvidenceSummaryText, disputeEvidenceCsv, disputeEvidenceFilename } from './dispute-evidence.js';
+import { normalizeFormatVersionList, recordFormatVersion, removeFormatVersion, formatVersionsSorted, normalizeBillFormatStampList, stampBillFormat, removeBillFormatStamp, billFormatStampsSorted, flaggedBillFormatStamps, billFormatStampText, formatVersionEntryHtml, billFormatStampHtml, formatVersionSummaryText, formatVersionCsv, formatVersionFilename } from './bill-format-version.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14094,6 +14095,7 @@ function renderAnalytics() {
   renderMohallaCollectionTargets();
   renderOverdueWatchlist();
   renderDisputeEvidence();
+  renderBillFormatVersion();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26714,6 +26716,72 @@ function renderDisputeEvidence() {
     });
     $('#deCaseFilter')?.addEventListener('input', () => { renderDisputeEvidence(); });
     $('#deTypeFilter')?.addEventListener('change', () => { renderDisputeEvidence(); });
+  }
+}
+const BFV_VERSIONS_KEY = 'shahdara_bill_format_versions_v1';
+const BFV_STAMPS_KEY = 'shahdara_bill_format_stamps_v1';
+function loadFormatVersions() {
+  try { return normalizeFormatVersionList(JSON.parse(localStorage.getItem(BFV_VERSIONS_KEY) || '[]')); } catch { return []; }
+}
+function saveFormatVersions(list) {
+  try { localStorage.setItem(BFV_VERSIONS_KEY, JSON.stringify(normalizeFormatVersionList(list))); } catch { /* format notes only: a failed save leaves the previous list in place */ }
+}
+function loadBillFormatStamps() {
+  try { return normalizeBillFormatStampList(JSON.parse(localStorage.getItem(BFV_STAMPS_KEY) || '[]')); } catch { return []; }
+}
+function saveBillFormatStamps(list) {
+  try { localStorage.setItem(BFV_STAMPS_KEY, JSON.stringify(normalizeBillFormatStampList(list))); } catch { /* format notes only: a failed save leaves the previous list in place */ }
+}
+let billFormatVersionBound = false;
+function renderBillFormatVersion() {
+  const bodyEl = $('#bfvBody');
+  if (!bodyEl) return;
+  const versions = loadFormatVersions();
+  const stamps = loadBillFormatStamps();
+  const sortedVersions = formatVersionsSorted(versions);
+  bodyEl.innerHTML = sortedVersions.length ? sortedVersions.map((version) => formatVersionEntryHtml(version)).join('') : '<p>No bill format versions recorded.</p>';
+  const stampBodyEl = $('#bfvStampBody');
+  if (stampBodyEl) {
+    const sortedStamps = billFormatStampsSorted(stamps);
+    stampBodyEl.innerHTML = sortedStamps.length ? sortedStamps.map((stamp) => billFormatStampHtml(stamp, versions)).join('') : '<p>No bills stamped with a format version.</p>';
+  }
+  const summaryEl = $('#bfvSummary');
+  if (summaryEl) summaryEl.textContent = `${formatVersionSummaryText(versions, stamps)} Stamping a version never changes any bill, payment, or customer record by itself.`;
+  if (!billFormatVersionBound) {
+    billFormatVersionBound = true;
+    $('#bfvExportBtn')?.addEventListener('click', () => { downloadCsvFile(formatVersionFilename(), formatVersionCsv(loadFormatVersions(), loadBillFormatStamps())); });
+    $('#bfvSaveBtn')?.addEventListener('click', () => {
+      const before = loadFormatVersions();
+      const next = recordFormatVersion(before, {
+        id: `BFV-${Date.now()}`,
+        version: $('#bfvVersion')?.value ?? '',
+        dateEffective: $('#bfvDateEffective')?.value ?? '',
+        description: $('#bfvDescription')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Format version not recorded: give a version, a real effective date, and a plain-words description of what changed.'); return; }
+      saveFormatVersions(next);
+      renderBillFormatVersion();
+    });
+    $('#bfvRemoveBtn')?.addEventListener('click', () => {
+      saveFormatVersions(removeFormatVersion(loadFormatVersions(), $('#bfvRemoveId')?.value ?? ''));
+      renderBillFormatVersion();
+    });
+    $('#bfvStampBtn')?.addEventListener('click', () => {
+      const before = loadBillFormatStamps();
+      const next = stampBillFormat(before, {
+        id: `BFS-${Date.now()}`,
+        billRef: $('#bfvBillRef')?.value ?? '',
+        version: $('#bfvBillVersion')?.value ?? '',
+        dateStamped: $('#bfvDateStamped')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Bill not stamped: give a bill reference, a version, and a real stamped date. A bill carries only one stamp.'); return; }
+      saveBillFormatStamps(next);
+      renderBillFormatVersion();
+    });
+    $('#bfvRemoveStampBtn')?.addEventListener('click', () => {
+      saveBillFormatStamps(removeBillFormatStamp(loadBillFormatStamps(), $('#bfvRemoveStampId')?.value ?? ''));
+      renderBillFormatVersion();
+    });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

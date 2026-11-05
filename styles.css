@@ -13558,3 +13558,26 @@ dialog::backdrop {
   .topbar #languageToggleBtn { min-width: 0; padding: 0 6px; gap: 0; }
   .topbar #languageToggleBtn .language-toggle-label { display: none; }
 }
+
+/* Profile polish #5 — top-of-profile Wada banner + search result actions. */
+.profile-wada-banner{margin:0 0 14px;border:1px solid #e7efeb;border-radius:13px;background:#f7faf8;padding:13px 14px}
+.profile-wada-banner h4{margin:0 0 9px;font:700 14px Manrope,sans-serif;color:var(--ink)}
+.wada-banner-none{margin:0 0 8px;font-size:11px;color:var(--muted)}
+.wada-banner-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border-radius:9px;padding:9px 11px;margin:0 0 7px;font-size:12px;font-weight:600}
+.wada-banner-on-track{background:#e8f5ed;color:#19704e}
+.wada-banner-overdue{background:#fdeceb;color:#a3433a}
+.wada-banner-actions{display:flex;gap:6px;flex:0 0 auto}
+.wada-banner-actions button{border:1px solid rgba(0,0,0,.14);background:#fff;border-radius:7px;padding:6px 9px;font:600 11px 'DM Sans',sans-serif;cursor:pointer;color:var(--ink)}
+.wada-quick-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:8px;align-items:end;margin-top:10px}
+.wada-quick-form label{display:flex;flex-direction:column;gap:4px;font-size:10px;font-weight:700;color:#4b6259;min-width:0}
+.wada-quick-form input{height:38px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
+.wada-quick-form input:focus{outline:3px solid #cce9dd;border-color:#60a68d}
+.wada-health{font-size:11px;color:#526a61;margin:10px 0 0}
+.wada-history{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px;font-size:11px;line-height:1.5;color:#526a61}
+.wada-history li{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wada-history-remove{border:1px solid #f0dbd8;background:#fff;color:#a3433a;border-radius:7px;padding:5px 8px;font:600 10px 'DM Sans',sans-serif;cursor:pointer;flex:0 0 auto}
+.global-result-item{border-radius:8px}
+.global-result-actions{display:flex;gap:6px;padding:2px 10px 8px 12px}
+.global-result-action{border:1px solid #dce6e1;background:#fff;color:#426459;border-radius:7px;padding:7px 10px;font:600 11px 'DM Sans',sans-serif;cursor:pointer}
+.global-result-action:hover{background:#f2f8f5}
+@media(max-width:620px){.wada-quick-form{grid-template-columns:1fr 1fr}.wada-banner-row{flex-wrap:wrap}}

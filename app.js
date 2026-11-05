@@ -506,6 +506,7 @@ import { validGrowthFundingDate, normalizeGrowthFundingList, recordGrowthFunding
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
+import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
 import { normalizePartPaymentReceiptNoteList, recordPartPaymentReceiptNote, removePartPaymentReceiptNote, findPartPaymentReceiptNote, receiptNotesForCustomer, receiptNotesSorted, receiptNoteAllHtml, receiptNoteSummaryText, receiptNoteCsv, receiptNoteFilename, receiptsMissingReceiptNotes, reconcileReceiptNote } from './part-payment-receipt-note.js';
@@ -3322,7 +3323,7 @@ function renderGlobalSearch() {
   const shown = matches.slice(0, 12);
   options.innerHTML = shown.map(({customer,billing,receipts,receiptCount}) => {
     const receiptText = receipts.length ? `Recent receipts: ${receipts.map(row => `${humanDate(row.date)} · ${formatAmount(row.amount)} · ${row.method} · ${monthName(row.month)}`).join('  |  ')}${receiptCount > receipts.length ? ` · ${receiptCount - receipts.length} more saved` : ''}` : 'No payment receipts saved.';
-    return `<button class="global-result-option" type="button" role="option" aria-selected="false" data-global-customer="${escapeHtml(customer.id)}"><span class="global-result-number">#${customer.customerNumber}${customer.archived ? ' · Archived' : ''}</span><span class="global-result-copy"><span class="global-result-name">${escapeHtml(customer.name)}</span><span class="global-result-ledger">${escapeHtml(monthName(billing.month))} · <strong class="customer-billing-badge ${escapeHtml(billing.statusClassName)}">${escapeHtml(billing.statusLabel)}</strong> · Bill ${escapeHtml(billing.billAmountLabel)} · Received ${escapeHtml(billing.receivedAmountLabel)} · Balance ${escapeHtml(billing.balanceDueLabel)}</span><span class="global-result-receipt">${escapeHtml(receiptText)}</span></span></button>`;
+    return `<div class="global-result-item"><button class="global-result-option" type="button" role="option" aria-selected="false" data-global-customer="${escapeHtml(customer.id)}"><span class="global-result-number">#${customer.customerNumber}${customer.archived ? ' · Archived' : ''}</span><span class="global-result-copy"><span class="global-result-name">${escapeHtml(customer.name)}</span><span class="global-result-ledger">${escapeHtml(monthName(billing.month))} · <strong class="customer-billing-badge ${escapeHtml(billing.statusClassName)}">${escapeHtml(billing.statusLabel)}</strong> · Bill ${escapeHtml(billing.billAmountLabel)} · Received ${escapeHtml(billing.receivedAmountLabel)} · Balance ${escapeHtml(billing.balanceDueLabel)}</span><span class="global-result-receipt">${escapeHtml(receiptText)}</span></span></button><div class="global-result-actions"><button type="button" class="secondary-button global-result-action" data-global-add-payment="${escapeHtml(customer.id)}">Add Payment</button><button type="button" class="secondary-button global-result-action" data-global-add-wada="${escapeHtml(customer.id)}">Add Wada</button></div></div>`;
   }).join('') || '<div class="global-result-no-match" role="option" aria-disabled="true">No customer, bill, or receipt matches.</div>';
   $('#globalSearchResultCount').textContent = matches.length ? `Showing ${shown.length} of ${matches.length} customers with matching saved history. Service and billing filters affect the customer list only.` : 'Search includes saved customer details, bill status and amounts, and payment date, method, and amount.';
   box.hidden = false;
@@ -3332,6 +3333,24 @@ function renderGlobalSearch() {
     const customerId = button.dataset.globalCustomer;
     box.hidden = true;
     input.setAttribute('aria-expanded', 'false');
+    selectCustomer(customerId);
+  }));
+  // Profile polish #5: every search result carries two actions. Add
+  // Payment opens the existing Quick Collect flow pre-filled for that
+  // customer (no second payment flow); Add Wada opens the profile
+  // with the wada quick-add focused for that customer.
+  options.querySelectorAll('[data-global-add-payment]').forEach(button => button.addEventListener('click', () => {
+    const customerId = button.dataset.globalAddPayment;
+    box.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    if (window.quickCollectModalController?.selectAndOpen) window.quickCollectModalController.selectAndOpen(customerId);
+    else selectCustomer(customerId);
+  }));
+  options.querySelectorAll('[data-global-add-wada]').forEach(button => button.addEventListener('click', () => {
+    const customerId = button.dataset.globalAddWada;
+    box.hidden = true;
+    input.setAttribute('aria-expanded', 'false');
+    pendingWadaQuickAddCustomerId = customerId;
     selectCustomer(customerId);
   }));
 }
@@ -4879,7 +4898,7 @@ function renderCustomerProfileView(customer) {
   const qualityPackageSpeed = qualityPackagePlan ? qualityPackagePlan.speedMbps : (() => { const match = String(customer.packageSpeed || '').match(/(\d+(?:\.\d+)?)\s*Mbps/i); return match ? Number(match[1]) : null; })();
   const qualityEntries = entriesForCustomer(loadQualityLog(), customer.id);
   const qualityLogSectionHtml = `<section class="profile-custody-section" aria-label="Speed and service-quality log"><h4>Speed and service-quality log</h4><p>When a customer says "my internet is slow", record what was actually measured at that house and when — date, download/upload, and where it was measured — so the next visit argues from facts, not memory. This is a record only, not a live speed test and not a billing or package input; logging never changes any charge, bill, payment, or ticket.</p><p id="qualityLogSummary">${escapeHtml(qualityLogSummaryText(qualityEntries, qualityPackageSpeed))}</p><div><label>Date <input id="qualityLogDate" type="date" value="${escapeHtml(localDate())}"></label> <label>Download (Mbps) <input id="qualityLogDownload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Upload (Mbps) <input id="qualityLogUpload" type="number" min="0" step="0.01" inputmode="decimal"></label> <label>Where measured <select id="qualityLogLocation"><option value="Near router">Near the router</option><option value="Far room">Far room</option></select></label> <label>Other location <input id="qualityLogOtherLocation" type="text" maxlength="80" placeholder="Optional, e.g. bedroom corner"></label> <label>Note <input id="qualityLogNote" type="text" maxlength="200" placeholder="Optional"></label> <label>Linked ticket id <input id="qualityLogTicket" type="text" maxlength="64" placeholder="Optional"></label> <button type="button" class="secondary-button" id="qualityLogAddBtn">Record measurement</button></div><p id="qualityLogMessage"></p><div id="qualityLogList">${qualityLogHtml(qualityEntries, qualityPackageSpeed)}</div></section>`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
@@ -5294,6 +5313,51 @@ function renderCustomerProfileView(customer) {
     waadaSection.querySelector('#profileWaadaClearBtn')?.addEventListener('click', () => {
       applyProfileWaada(clearCustomerWaada(customer), 'Waada promise cleared.');
     });
+  }
+  // Profile polish #5: wire the top-of-profile Wada banner — quick-add
+  // form, Poora hua / Wada toota / Remove buttons. Closing a wada
+  // changes only that wada's own status; recording one never touches
+  // any bill, payment, or customer record.
+  const wadaBanner = $('#customerProfileView').querySelector('.profile-wada-banner');
+  if (wadaBanner) {
+    wadaBanner.querySelector('#wadaQuickForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const before = loadWadaRecords();
+      const next = recordWadaRecord(before, {
+        id: `WD-${Date.now()}`,
+        customer: customer.id,
+        promisedDate: wadaBanner.querySelector('#wadaQuickDate')?.value ?? '',
+        amountPromised: wadaBanner.querySelector('#wadaQuickAmount')?.value ?? '',
+        note: wadaBanner.querySelector('#wadaQuickNote')?.value ?? '',
+        status: 'pending',
+        closedDate: ''
+      });
+      if (next.length === before.length) { toast('Wada not recorded: give a real promised date, and a whole-rupee amount when you enter one.'); return; }
+      saveWadaRecords(next);
+      renderDetail();
+      toast('Wada recorded.');
+    });
+    wadaBanner.querySelectorAll('[data-wada-kept]').forEach(btn => btn.addEventListener('click', () => {
+      saveWadaRecords(markWadaRecordKept(loadWadaRecords(), btn.getAttribute('data-wada-kept'), getWaadaTodayString()));
+      renderDetail();
+      toast('Wada marked kept.');
+    }));
+    wadaBanner.querySelectorAll('[data-wada-broken]').forEach(btn => btn.addEventListener('click', () => {
+      saveWadaRecords(markWadaRecordBroken(loadWadaRecords(), btn.getAttribute('data-wada-broken'), getWaadaTodayString()));
+      renderDetail();
+      toast('Wada marked broken.');
+    }));
+    wadaBanner.querySelectorAll('[data-wada-remove]').forEach(btn => btn.addEventListener('click', () => {
+      saveWadaRecords(removeWadaRecord(loadWadaRecords(), btn.getAttribute('data-wada-remove')));
+      renderDetail();
+      toast('Wada removed.');
+    }));
+    if (pendingWadaQuickAddCustomerId === customer.id) {
+      pendingWadaQuickAddCustomerId = null;
+      const dateInput = wadaBanner.querySelector('#wadaQuickDate');
+      dateInput?.focus();
+      dateInput?.scrollIntoView?.({ block: 'nearest' });
+    }
   }
   // SISP-15: profile button opens the register pre-filtered to this customer.
   const profileComplaintBtn = $('#customerProfileView').querySelector('#profileOpenComplaintRegisterBtn');
@@ -5846,6 +5910,22 @@ async function removeManualBaqayaEntryFlow(customerId, entryId) {
   } catch (error) {
     toast(error.message, { type: 'error' });
   }
+}
+
+// Profile polish #5 — top-of-profile Wada banner: the customer's
+// still-open wadas first (green when on track, red when overdue),
+// then the quick-add form, then wada health and the closed-wada
+// history. The banner never changes any bill, payment, or customer
+// record; it only reads the wada store.
+function wadaProfileBannerHtml(customer) {
+  const today = getWaadaTodayString();
+  const all = loadWadaRecords();
+  const active = activeWadaRecordsForCustomer(all, customer.id);
+  const mine = wadaRecordsForCustomer(all, customer.id);
+  const banner = wadaBannerHtml(active, today);
+  const health = wadaHealthText(all, customer.id);
+  const history = wadaHistoryHtml(mine, today);
+  return `<section class="profile-wada-banner" aria-label="Wada promises"><h4>Wada — promises to pay</h4>${banner || '<p class="wada-banner-none">No open wada for this customer.</p>'}<form class="wada-quick-form" id="wadaQuickForm"><label for="wadaQuickDate">Promised date<input id="wadaQuickDate" type="date" required></label><label for="wadaQuickAmount">Amount promised (Rs, optional)<input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 100"></label><label for="wadaQuickNote">Note (optional)<input id="wadaQuickNote" type="text" maxlength="140" placeholder="e.g. in next bill"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">Add Wada</button></form><p class="wada-health">${escapeHtml(health)}</p>${history}</section>`;
 }
 
 function renderDetail() {
@@ -31290,6 +31370,21 @@ function loadDelegationNotes() {
 function saveDelegationNotes(list) {
   try { localStorage.setItem(DELEGATION_NOTE_KEY, JSON.stringify(normalizeDelegationNoteList(list))); } catch { /* delegation notes only: a failed save leaves the previous list in place */ }
 }
+
+// Profile polish #5 — Wada records: one promise per customer promise,
+// with an explicit outcome when it closes (kept, kept late, broken).
+// This store is separate from the single live promise on the customer
+// record and from the promise-history store: it is the only place
+// where a wada's health is counted. Closing a wada changes only that
+// wada's own status and never any bill, payment, or customer record.
+const WADA_RECORD_KEY = 'shahdara_wada_records_v1';
+function loadWadaRecords() {
+  try { return normalizeWadaRecordList(JSON.parse(localStorage.getItem(WADA_RECORD_KEY) || '[]')); } catch { return []; }
+}
+function saveWadaRecords(list) {
+  try { localStorage.setItem(WADA_RECORD_KEY, JSON.stringify(normalizeWadaRecordList(list))); } catch { /* wada records only: a failed save leaves the previous list in place */ }
+}
+let pendingWadaQuickAddCustomerId = null;
 let delegationNoteBound = false;
 function renderDelegationNote() {
   const listEl = $('#dgBody');

@@ -375,7 +375,9 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
     customerName: firstReceipt.customerName,
     customerNameUrdu: firstReceipt.customerNameUrdu,
     phone: customer.phone || '',
-    area: customer.area || 'Unassigned',
+    // Polish 4: same display alignment as the ordinary receipt — the
+    // profile area (mohalla) first, the legacy area field as fallback.
+    area: customer.mohalla || customer.area || 'Unassigned',
     month: entries[0].bill.month,
     date: legs[0]?.date || '',
     package: firstReceipt.package,

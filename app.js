@@ -414,6 +414,7 @@ import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEn
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
 import { normalizeExpiryList, recordExpiryNote, removeExpiryNote, expiryNotesSorted, expiryNotesForAdvance, expiryReviewText, expiryAllHtml, expirySummaryText, expiryCsv, expiryFilename } from './advance-expiry.js';
+import { normalizeConnectionCreditList, normalizeConnectionCreditTransferList, recordConnectionCreditTransfer, removeConnectionCreditTransfer, connectionCreditTransfersSorted, connectionCreditTransfersForCustomer, applyConnectionCreditTransfers, connectionCreditTransferSummaryText, connectionCreditTransfersHtml, connectionCreditTransferCsv, connectionCreditTransferFilename } from './connection-credit-transfer.js';
 import { normalizeAppliedPriceList, recordAppliedPrice, removeAppliedPrice, appliedPricesForCustomer, appliedPricesForBill, flaggedAppliedPrices, appliedPriceHtml, appliedPriceSummaryText, appliedPriceCsv, appliedPriceFilename } from './applied-price.js';
 import { normalizeBillDeliveryList, recordBillDelivery, removeBillDelivery, billDeliveriesForCustomer, billDeliveriesForBill, billDeliveryHtml, billDeliverySummaryText, undeliveredBillsBeforeDue, billDeliveryCsv, billDeliveryFilename } from './bill-delivery.js';
 import { normalizeReminderList, recordReminder, removeReminder, remindersForCustomer, remindersForBill, remindersForChannel, reminderCountForBill, reminderHtml, reminderSummaryText, reminderCsv, reminderFilename } from './reminder-log.js';
@@ -14021,6 +14022,7 @@ function renderAnalytics() {
   renderBusinessContacts();
   renderAbsenceCover();
   renderAdvanceExpiry();
+  renderConnectionCreditTransfers();
   renderRouteLoad();
   renderAppliedPrices();
   renderBillDeliveries();
@@ -25960,6 +25962,64 @@ function renderAdvanceExpiry() {
     $('#aeReviewBtn')?.addEventListener('click', () => {
       const reviewEl = $('#aeReviewBody');
       if (reviewEl) reviewEl.textContent = expiryReviewText(loadAdvanceExpiry(), $('#aeReviewDate')?.value ?? '', 30) || 'Give a real review date to check for advances nearing their term.';
+    });
+  }
+}
+const CONNECTION_CREDIT_TRANSFER_KEY = 'shahdara_connection_credit_transfers_v1';
+function loadConnectionCreditTransfers() {
+  try { return normalizeConnectionCreditTransferList(JSON.parse(localStorage.getItem(CONNECTION_CREDIT_TRANSFER_KEY) || '[]')); } catch { return []; }
+}
+function saveConnectionCreditTransfers(list) {
+  try { localStorage.setItem(CONNECTION_CREDIT_TRANSFER_KEY, JSON.stringify(normalizeConnectionCreditTransferList(list))); } catch { /* connection credit transfers only: a failed save leaves the previous list in place */ }
+}
+let connectionCreditTransfersBound = false;
+function renderConnectionCreditTransfers() {
+  const bodyEl = $('#cctBody');
+  if (!bodyEl) return;
+  const customerQuery = ($('#cctFilter')?.value ?? '').trim();
+  let shown = connectionCreditTransfersSorted(loadConnectionCreditTransfers());
+  if (customerQuery) shown = connectionCreditTransfersForCustomer(shown, customerQuery);
+  bodyEl.innerHTML = shown.length ? connectionCreditTransfersHtml(shown) : '<p>No connection credit transfers recorded.</p>';
+  const summaryEl = $('#cctSummary');
+  if (summaryEl) summaryEl.textContent = connectionCreditTransferSummaryText(loadConnectionCreditTransfers());
+  if (!connectionCreditTransfersBound) {
+    connectionCreditTransfersBound = true;
+    $('#cctExportBtn')?.addEventListener('click', () => { downloadCsvFile(connectionCreditTransferFilename(), connectionCreditTransferCsv(loadConnectionCreditTransfers())); });
+    $('#cctSaveBtn')?.addEventListener('click', () => {
+      const before = loadConnectionCreditTransfers();
+      const next = recordConnectionCreditTransfer(before, {
+        id: `CCT-${Date.now()}`,
+        customer: $('#cctCustomer')?.value ?? '',
+        fromConnection: $('#cctFrom')?.value ?? '',
+        toConnection: $('#cctTo')?.value ?? '',
+        amount: $('#cctAmount')?.value ?? '',
+        date: $('#cctDate')?.value ?? '',
+        operator: $('#cctOperator')?.value ?? '',
+        note: $('#cctNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Credit transfer not recorded: give a customer, two different connections, a positive amount, a real date, and an operator.'); return; }
+      saveConnectionCreditTransfers(next);
+      renderConnectionCreditTransfers();
+    });
+    $('#cctRemoveBtn')?.addEventListener('click', () => {
+      saveConnectionCreditTransfers(removeConnectionCreditTransfer(loadConnectionCreditTransfers(), $('#cctRemoveId')?.value ?? ''));
+      renderConnectionCreditTransfers();
+    });
+    $('#cctFilter')?.addEventListener('input', () => { renderConnectionCreditTransfers(); });
+    $('#cctCheckBtn')?.addEventListener('click', () => {
+      const checkEl = $('#cctCheckBody');
+      if (!checkEl) return;
+      const customer = ($('#cctCheckCustomer')?.value ?? '').trim();
+      const rows = normalizeConnectionCreditList([
+        { id: ($('#cctCheckFrom')?.value ?? '').trim(), customer, creditCents: Math.round(Number($('#cctCheckFromCredit')?.value ?? '') * 100) },
+        { id: ($('#cctCheckTo')?.value ?? '').trim(), customer, creditCents: Math.round(Number($('#cctCheckToCredit')?.value ?? '') * 100) },
+      ]);
+      if (!customer || rows.length !== 2) { checkEl.textContent = 'Give a customer and two different connections with credits to check.'; return; }
+      const result = applyConnectionCreditTransfers(rows, connectionCreditTransfersForCustomer(loadConnectionCreditTransfers(), customer));
+      const before = rows.map((row) => `${row.id}: Rs. ${(row.creditCents / 100).toFixed(2)}`).join(' · ');
+      const after = result.connections.map((row) => `${row.id}: Rs. ${(row.creditCents / 100).toFixed(2)}`).join(' · ');
+      const refused = result.refused.length ? ` Refused: ${result.refused.map((entry) => `${entry.transfer.id} (${entry.reason})`).join(', ')}.` : '';
+      checkEl.textContent = `Before: ${before}. After recorded transfers: ${after}. Customer total unchanged.${refused}`;
     });
   }
 }

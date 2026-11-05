@@ -491,6 +491,7 @@ import { foldStaffLeaveStatus, normalizeStaffLeave, recordStaffLeave, removeStaf
 import { normalizeStaffTraining, recordStaffTraining, removeStaffTraining, staffTrainingSummaryText, staffTrainingStaffHtml, staffTrainingAllHtml, staffTrainingCsv, staffTrainingFilename } from './staff-training.js';
 import { normalizeWeeklyReviewList, recordWeeklyReview, removeWeeklyReview, weeklyReviewSummaryText, weeklyReviewActionsHtml, weeklyReviewAllHtml, weeklyReviewCsv, weeklyReviewFilename } from './weekly-review.js';
 import { normalizeSafeCountList, recordSafeCount, removeSafeCount, safeCountSummaryText, safeCountAllHtml, safeCountCsv, safeCountFilename } from './safe-count.js';
+import { validExpenseApprovalDate, foldExpenseApprovalStatus, normalizeExpenseApprovalList, recordExpenseApproval, removeExpenseApproval, expenseApprovalsForCategory, expenseApprovalCategories, expenseApprovalCategorySummaryHtml, expenseApprovalSummaryText, expenseApprovalAllHtml, expenseApprovalsForCategoryHtml, expenseApprovalCsv, expenseApprovalFilename } from './expense-approval.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14228,6 +14229,7 @@ function renderAnalytics() {
   renderStaffTraining();
   renderWeeklyReview();
   renderSafeCount();
+  renderExpenseApproval();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31046,6 +31048,73 @@ function renderSafeCount() {
     $('#sfcRemoveBtn')?.addEventListener('click', () => {
       saveSafeCounts(removeSafeCount(loadSafeCounts(), $('#sfcRemoveId')?.value ?? ''));
       renderSafeCount();
+    });
+  }
+}
+
+// Expense approval note (Plan 295): one dated approval per
+// spend — the expense in plain words, the amount in whole
+// rupees, the expense category, the approver, the date, and
+// the status. Recording an approval never changes any bill,
+// payment, or budget record by itself, and past notes are
+// read-only.
+const EXPENSE_APPROVAL_KEY = 'shahdara_expense_approvals_v1';
+function loadExpenseApprovals() {
+  try { return normalizeExpenseApprovalList(JSON.parse(localStorage.getItem(EXPENSE_APPROVAL_KEY) || '[]')); } catch { return []; }
+}
+function saveExpenseApprovals(list) {
+  try { localStorage.setItem(EXPENSE_APPROVAL_KEY, JSON.stringify(normalizeExpenseApprovalList(list))); } catch { /* expense approval only: a failed save leaves the previous list in place */ }
+}
+let expenseApprovalBound = false;
+function renderExpenseApproval() {
+  const listEl = $('#eapBody');
+  if (!listEl) return;
+  const all = loadExpenseApprovals();
+  listEl.innerHTML = all.length ? expenseApprovalAllHtml(all) : '<p>No expense approvals recorded.</p>';
+  const summaryEl = $('#eapSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${expenseApprovalSummaryText(all)} Recording an approval never changes any bill, payment, or budget record by itself.`;
+  }
+  const categorySelect = $('#eapCategorySelect');
+  if (categorySelect) {
+    const categories = expenseApprovalCategories(all);
+    const current = categorySelect.value;
+    categorySelect.innerHTML = categories.map((category) => `<option value="${category}">${category}</option>`).join('');
+    if (categories.includes(current)) categorySelect.value = current;
+  }
+  const categoryEl = $('#eapCategoryBody');
+  if (categoryEl) {
+    const chosen = categorySelect?.value ?? '';
+    categoryEl.innerHTML = chosen
+      ? expenseApprovalsForCategoryHtml(all, chosen)
+      : '<p>Pick a category to see its approvals.</p>';
+  }
+  const categorySummaryEl = $('#eapCategorySummary');
+  if (categorySummaryEl) {
+    categorySummaryEl.innerHTML = expenseApprovalCategorySummaryHtml(all);
+  }
+  if (!expenseApprovalBound) {
+    expenseApprovalBound = true;
+    $('#eapExportBtn')?.addEventListener('click', () => { downloadCsvFile(expenseApprovalFilename(), expenseApprovalCsv(loadExpenseApprovals())); });
+    $('#eapCategorySelect')?.addEventListener('change', () => { renderExpenseApproval(); });
+    $('#eapRecordBtn')?.addEventListener('click', () => {
+      const before = loadExpenseApprovals();
+      const next = recordExpenseApproval(before, {
+        id: `EA-${Date.now()}`,
+        expense: $('#eapExpense')?.value ?? '',
+        category: $('#eapCategory')?.value ?? '',
+        amount: $('#eapAmount')?.value ?? '',
+        approver: $('#eapApprover')?.value ?? '',
+        date: $('#eapDate')?.value ?? '',
+        status: $('#eapStatus')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Expense approval not recorded: give the expense, category, a whole-rupee amount, an approver, and a real date.'); return; }
+      saveExpenseApprovals(next);
+      renderExpenseApproval();
+    });
+    $('#eapRemoveBtn')?.addEventListener('click', () => {
+      saveExpenseApprovals(removeExpenseApproval(loadExpenseApprovals(), $('#eapRemoveId')?.value ?? ''));
+      renderExpenseApproval();
     });
   }
 }

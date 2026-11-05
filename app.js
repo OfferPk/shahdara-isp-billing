@@ -518,6 +518,7 @@ import { validDuplicationCheckDay, foldDuplicationCheckRecordType, normalizeDupl
 import { customerCompletenessFields, customerCompletenessFieldPresent, scoreCustomerCompleteness, scoreCustomerCompletenessList, customerCompletenessIncomplete, customerCompletenessSummaryText, customerCompletenessScoreHtml, customerCompletenessAllHtml, customerCompletenessCsv, customerCompletenessFilename } from './customer-completeness.js';
 import { validReportPackMonth, validReportPackDay, normalizeReportPackChecklistList, recordReportPackChecklist, removeReportPackChecklist, markReportPackReport, completeReportPackChecklist, reportPackChecklistSummaryText, reportPackChecklistsHtml, incompleteReportPackChecklistsHtml, reportPackChecklistCsv, reportPackChecklistFilename } from './report-pack-checklist.js';
 import { validQuarterlySnapshotMonth, normalizeQuarterlyMonthlyFigureList, recordQuarterlyMonthlyFigure, removeQuarterlyMonthlyFigure, buildQuarterlySnapshots, quarterlySnapshotsSummaryText, quarterlySnapshotAllHtml, quarterlySnapshotCsv, quarterlySnapshotFilename } from './quarterly-snapshot.js';
+import { validRetentionReviewDay, normalizeRetentionReviewList, recordRetentionReview, removeRetentionReview, retentionReviewSummaryText, retentionReviewsHtml, overdueRetentionReviewsHtml, retentionReviewCsv, retentionReviewFilename } from './retention-review.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14406,6 +14407,7 @@ function renderAnalytics() {
   renderCustomerCompleteness();
   renderReportPackChecklist();
   renderQuarterlySnapshot();
+  renderRetentionReview();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32764,6 +32766,68 @@ function renderQuarterlySnapshot() {
     $('#qbsRemoveBtn')?.addEventListener('click', () => {
       saveQuarterlyMonthlyFigures(removeQuarterlyMonthlyFigure(loadQuarterlyMonthlyFigures(), $('#qbsRemoveId')?.value ?? ''));
       renderQuarterlySnapshot();
+    });
+  }
+}
+let retentionReviewBound = false;
+const RETENTION_REVIEW_KEY = 'shahdara_retention_reviews_v1';
+function loadRetentionReviews() {
+  try { return normalizeRetentionReviewList(JSON.parse(localStorage.getItem(RETENTION_REVIEW_KEY) || '[]')); } catch { return []; }
+}
+function saveRetentionReviews(list) {
+  try { localStorage.setItem(RETENTION_REVIEW_KEY, JSON.stringify(normalizeRetentionReviewList(list))); } catch { /* Retention reviews only: a failed save leaves the previous list in place */ }
+}
+
+// Data retention review log (Plan 330): one review record per
+// retention review — the review date, the reviewer, the policy
+// sections checked, the findings with dated follow-ups, and a
+// follow-up note. A review whose next review date has passed
+// appears on the open list. Logging a review never changes any
+// record, bill, payment, or the policy text by itself.
+function renderRetentionReview() {
+  const listEl = $('#rrlBody');
+  if (!listEl) return;
+  const all = loadRetentionReviews();
+  listEl.innerHTML = all.length ? retentionReviewsHtml(all) : '<p>No retention reviews logged.</p>';
+  const summaryEl = $('#rrlSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${retentionReviewSummaryText(all)} Logging a review never changes any record, bill, payment, or the policy text by itself.`;
+  }
+  const overdueEl = $('#rrlOverdueBody');
+  if (overdueEl) {
+    const asOf = $('#rrlAsOf')?.value || new Date().toISOString().slice(0, 10);
+    overdueEl.innerHTML = overdueRetentionReviewsHtml(all, asOf);
+  }
+  if (!retentionReviewBound) {
+    retentionReviewBound = true;
+    $('#rrlExportBtn')?.addEventListener('click', () => { downloadCsvFile(retentionReviewFilename(), retentionReviewCsv(loadRetentionReviews())); });
+    $('#rrlCheckBtn')?.addEventListener('click', () => { renderRetentionReview(); });
+    $('#rrlRecordBtn')?.addEventListener('click', () => {
+      const before = loadRetentionReviews();
+      const reviewDate = $('#rrlDate')?.value ?? '';
+      const reviewer = $('#rrlReviewer')?.value ?? '';
+      const sections = $('#rrlSections')?.value ?? '';
+      const findingSection = $('#rrlFindingSection')?.value ?? '';
+      const finding = $('#rrlFinding')?.value ?? '';
+      const followUpDate = $('#rrlFollowUpDate')?.value ?? '';
+      const findingTouched = findingSection.trim() || finding.trim() || followUpDate.trim();
+      if (findingTouched && !(findingSection.trim() && finding.trim() && followUpDate.trim())) { toast('Review not recorded: a finding needs its section, the finding in plain words, and a follow-up date.'); return; }
+      const next = recordRetentionReview(before, {
+        id: `RR-${Date.now()}`,
+        reviewDate,
+        reviewer,
+        sectionsChecked: sections,
+        findings: findingTouched ? [{ section: findingSection, finding, followUpDate }] : [],
+        followUpNote: $('#rrlFollowUpNote')?.value ?? '',
+        nextReviewDate: $('#rrlNextDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Review not recorded: give a real review date, the reviewer, and at least one policy section checked.'); return; }
+      saveRetentionReviews(next);
+      renderRetentionReview();
+    });
+    $('#rrlRemoveBtn')?.addEventListener('click', () => {
+      saveRetentionReviews(removeRetentionReview(loadRetentionReviews(), $('#rrlRemoveId')?.value ?? ''));
+      renderRetentionReview();
     });
   }
 }

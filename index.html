@@ -9992,6 +9992,48 @@
 <h4>All document receipts</h4>
 <div id="docList"></div>
 </section>
+<section class="chart-card" aria-labelledby="cmHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="cmHeading">Community meeting note per mohalla</h3>
+<p class="chart-caption">One meeting note per community meeting: the mohalla, the date, the topics discussed, the agreed actions, and a note. Community agreements survive from one meeting to the next instead of restarting each time. Recording a note never changes any customer record, bill, or payment, and never sends any message.</p>
+<p id="cmSummary"></p>
+</div>
+<div>
+<button id="cmExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export community meetings CSV</button>
+</div>
+</div>
+<h4>Record a community meeting note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <input id="cmMohalla" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Date <input id="cmDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Topics discussed, one per line <textarea id="cmTopics" style="width: 200px; height: 56px;"></textarea>
+</label>
+<label style="font-size: 12px;">Agreed actions, one per line <textarea id="cmActions" style="width: 200px; height: 56px;"></textarea>
+</label>
+<label style="font-size: 12px;">Note <input id="cmNote" type="text" style="width: 200px;">
+</label>
+<button id="cmRecordBtn" class="secondary-button btn-sm" type="button">Record meeting note</button>
+</div>
+<h4>Remove a community meeting note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove note id <input id="cmRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="cmRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Meeting notes for one mohalla</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <input id="cmFilterMohalla" type="text" style="width: 160px;">
+</label>
+<button id="cmFilterBtn" class="secondary-button btn-sm" type="button">Show mohalla notes</button>
+</div>
+<div id="cmMohallaBody"></div>
+<h4>All community meeting notes</h4>
+<div id="cmList"></div>
+</section>
 
 
 <section class="chart-card" aria-labelledby="ftHeading">

@@ -10878,6 +10878,39 @@
 <div id="arlAllBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="afiHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="afiHeading">App feedback inbox</h3>
+<p class="chart-caption">One entry per app issue: the screen, the problem in plain words, the date, and who reported it. Open feedback lists by screen. Marking an item fixed or declined needs a dated note. Recording feedback never changes any customer, bill, payment, or app behaviour.</p>
+<p id="afiSummary"></p>
+</div>
+<div>
+<button id="afiExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export app feedback CSV</button>
+</div>
+</div>
+<h4>Record app feedback</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Screen <input id="afiScreen" type="text" style="width: 140px;" placeholder="e.g. Customers"></label>
+<label style="font-size: 12px;">Problem <input id="afiProblem" type="text" style="width: 220px;" placeholder="e.g. List loads slowly"></label>
+<label style="font-size: 12px;">Date <input id="afiDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Reporter <input id="afiReporter" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<button id="afiRecordBtn" class="secondary-button btn-sm" type="button">Record feedback</button>
+<label style="font-size: 12px;">Remove id <input id="afiRemoveId" type="text" style="width: 120px;"></label>
+<button id="afiRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Mark an item fixed or declined</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Feedback id <input id="afiCloseId" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Outcome <select id="afiCloseStatus"><option value="fixed">Fixed</option><option value="declined">Declined</option></select></label>
+<label style="font-size: 12px;">Note <input id="afiCloseNote" type="text" style="width: 200px;" placeholder="e.g. List loads in under a second now"></label>
+<label style="font-size: 12px;">Resolution date <input id="afiCloseDate" type="date" style="width: 140px;"></label>
+<button id="afiCloseBtn" class="secondary-button btn-sm" type="button">Mark closed</button>
+</div>
+<h4>Open feedback, by screen</h4>
+<div id="afiBody"></div>
+<h4>All app feedback</h4>
+<div id="afiAllBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

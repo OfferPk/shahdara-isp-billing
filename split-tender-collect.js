@@ -479,9 +479,12 @@ export function splitBadgeMarkup(payment) {
  * same qc-receipt-* classes as renderQuickCollectReceiptCardHtml, so
  * the existing styles (and print behaviour) apply unchanged. Shows the
  * total received, BOTH legs with their real receipt numbers, and the
- * remaining balance.
+ * remaining balance. When the caller passes the Area select markup
+ * (polish 6, part B — the same select the ordinary card uses), the
+ * Area row shows that select instead of plain text; without it the
+ * row stays plain text, exactly as before.
  */
-export function renderSplitReceiptCardHtml(combined) {
+export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '') {
   if (!combined) return '';
   const remaining = combined.balanceDueCents / 100;
   const isSettled = combined.status === 'PAID';
@@ -511,7 +514,7 @@ export function renderSplitReceiptCardHtml(combined) {
         </div>
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Area / Location</span>
-          <strong class="qc-meta-val">${escapeHtml(combined.area)}</strong>
+          ${areaSelectHtml ? areaSelectHtml : `<strong class="qc-meta-val">${escapeHtml(combined.area)}</strong>`}
         </div>
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Remaining Balance</span>

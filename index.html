@@ -10849,6 +10849,42 @@
 <div id="dtrStaffBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="ceoHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ceoHeading">Complaint escalation to owner</h3>
+<p class="chart-caption">One note per stuck complaint: the complaint reference, who escalated it, the date, the reason in plain words, the owner response, and the outcome. Escalations are listed with reason, owner response, and outcome visible. Recording an escalation never changes any bill, payment, customer record, or ticket by itself.</p>
+<p id="ceoSummary"></p>
+</div>
+<div>
+<button id="ceoExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export escalations CSV</button>
+</div>
+</div>
+<h4>Record an escalation</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Escalation id <input id="ceoId" type="text" style="width: 120px;" placeholder="auto if left blank"></label>
+<label style="font-size: 12px;">Complaint reference <input id="ceoComplaintRef" type="text" style="width: 120px;" placeholder="e.g. CMP-41"></label>
+<label style="font-size: 12px;">Escalated by <input id="ceoEscalatedBy" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Date <input id="ceoDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Reason <input id="ceoReason" type="text" style="width: 260px;" placeholder="e.g. Line drops every evening, visits did not fix it"></label>
+<button id="ceoRecordBtn" class="secondary-button btn-sm" type="button">Record escalation</button>
+<label style="font-size: 12px;">Remove id <input id="ceoRemoveId" type="text" style="width: 120px;"></label>
+<button id="ceoRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Owner answer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Escalation id <input id="ceoAnswerId" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Owner response <input id="ceoOwnerResponse" type="text" style="width: 260px;" placeholder="e.g. Will visit the customer myself tomorrow"></label>
+<label style="font-size: 12px;">Outcome <select id="ceoOutcome" style="width: 140px;"><option>open</option><option>resolved</option><option>closed</option><option>referred back</option></select></label>
+<button id="ceoAnswerBtn" class="secondary-button btn-sm" type="button">Save owner answer</button>
+</div>
+<h4>All escalations</h4>
+<div id="ceoBody"></div>
+<h4>Escalations for one complaint</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Complaint reference <select id="ceoRefSelect" style="width: 160px;"></select></label>
+</div>
+<div id="ceoRefBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

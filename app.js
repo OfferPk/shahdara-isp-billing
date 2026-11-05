@@ -515,6 +515,7 @@ import { normalizeAccessibilityNoteList, recordAccessibilityNote, removeAccessib
 import { normalizePrintTemplateList, recordPrintTemplate, supersedePrintTemplate, printTemplateCurrentVersion, printTemplatesByNameHtml, printTemplateSummaryText, printTemplateCsv, printTemplateFilename } from './print-template-register.js';
 import { validDataEntryErrorDay, foldDataEntryErrorType, normalizeDataEntryErrorList, recordDataEntryError, removeDataEntryError, dataEntryErrorsForType, dataEntryErrorTypes, dataEntryErrorCountsByType, dataEntryErrorSummaryText, dataEntryErrorsByTypeHtml, dataEntryErrorCsv, dataEntryErrorFilename } from './data-entry-error-log.js';
 import { validDuplicationCheckDay, foldDuplicationCheckRecordType, normalizeDuplicationCheckList, recordDuplicationCheck, removeDuplicationCheck, duplicationCheckOpenPairs, decideDuplicationPair, findSuspectedDuplicatePairs, duplicationChecksSummaryText, duplicationCheckPairText, duplicationCheckAllHtml, duplicationCheckCsv, duplicationCheckFilename } from './duplication-check.js';
+import { customerCompletenessFields, customerCompletenessFieldPresent, scoreCustomerCompleteness, scoreCustomerCompletenessList, customerCompletenessIncomplete, customerCompletenessSummaryText, customerCompletenessScoreHtml, customerCompletenessAllHtml, customerCompletenessCsv, customerCompletenessFilename } from './customer-completeness.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14400,6 +14401,7 @@ function renderAnalytics() {
   renderPrintTemplateRegister();
   renderDataEntryErrorLog();
   renderDuplicationCheck();
+  renderCustomerCompleteness();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32614,6 +32616,28 @@ function loadDuplicationChecks() {
 }
 function saveDuplicationChecks(list) {
   try { localStorage.setItem(DUPLICATION_CHECK_KEY, JSON.stringify(normalizeDuplicationCheckList(list))); } catch { /* duplication checks only: a failed save leaves the previous list in place */ }
+}
+let customerCompletenessBound = false;
+function renderCustomerCompleteness() {
+  const listEl = $('#dcsBody');
+  if (!listEl) return;
+  const scored = scoreCustomerCompletenessList(state.customers ?? []);
+  listEl.innerHTML = scored.length ? customerCompletenessAllHtml(scored) : '<p>No customer records scored.</p>';
+  const summaryEl = $('#dcsSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${customerCompletenessSummaryText(scored)} Scoring never changes any customer record by itself.`;
+  }
+  const incompleteEl = $('#dcsIncompleteBody');
+  if (incompleteEl) {
+    const incomplete = customerCompletenessIncomplete(scored);
+    incompleteEl.innerHTML = incomplete.length
+      ? `<ul>${incomplete.map((item) => customerCompletenessScoreHtml(item)).join('')}</ul>`
+      : '<p>Every customer record is complete.</p>';
+  }
+  if (!customerCompletenessBound) {
+    customerCompletenessBound = true;
+    $('#dcsExportBtn')?.addEventListener('click', () => { downloadCsvFile(customerCompletenessFilename(), customerCompletenessCsv(scoreCustomerCompletenessList(state.customers ?? []))); });
+  }
 }
 let duplicationCheckBound = false;
 function renderDuplicationCheck() {

@@ -10285,6 +10285,30 @@
 <div id="wkBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="sfcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="sfcHeading">Cash safe count log</h3>
+<p class="chart-caption">One dated count of the shop safe: the date, who counted it, the amount counted, the amount expected, and a variance note in plain words when the two differ. Logging a count never changes any bill, payment, or ledger total by itself, and past counts are never silently edited.</p>
+<p id="sfcSummary"></p>
+</div>
+<div>
+<button id="sfcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export safe counts CSV</button>
+</div>
+</div>
+<h4>Record a safe count</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="sfcDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Counted by <input id="sfcCountedBy" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Counted amount (Rs) <input id="sfcCountedAmount" type="number" min="0" step="1" style="width: 130px;" placeholder="e.g. 45200"></label>
+<label style="font-size: 12px;">Expected amount (Rs) <input id="sfcExpectedAmount" type="number" min="0" step="1" style="width: 130px;" placeholder="e.g. 45200"></label>
+<label style="font-size: 12px;">Variance note <input id="sfcVarianceNote" type="text" style="width: 220px;" placeholder="e.g. Rs 550 paid out for emergency cable"></label>
+<button id="sfcRecordBtn" class="secondary-button btn-sm" type="button">Record safe count</button>
+<label style="font-size: 12px;">Remove id <input id="sfcRemoveId" type="text" style="width: 120px;"></label>
+<button id="sfcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>All safe counts</h4>
+<div id="sfcBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

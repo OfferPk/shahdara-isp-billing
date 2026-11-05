@@ -454,6 +454,7 @@ import { validJobDelayDate, normalizeJobDelayList, recordJobDelay, removeJobDela
 import { validMaterialReturnDate, normalizeMaterialReturnList, recordMaterialReturn, removeMaterialReturn, addMaterialReturnFollowup, materialReturnSorted, materialReturnsForJob, materialReturnsForItem, materialReturnTotalForItem, materialReturnSummaryText, materialReturnReconciliationText, materialReturnHtml, materialReturnAllHtml, materialReturnCsv, materialReturnFilename } from './material-return.js';
 import { validFieldExpenseDate, normalizeFieldExpenseList, recordFieldExpense, removeFieldExpense, addFieldExpenseFollowup, fieldExpenseSorted, fieldExpensesForVisit, fieldExpenseTotalForVisit, fieldExpensesForMonth, fieldExpenseTotalForMonth, fieldExpenseSummaryText, fieldExpenseHtml, fieldExpenseAllHtml, fieldExpenseCsv, fieldExpenseFilename } from './field-expense.js';
 import { validRestorationTimeDatetime, normalizeRestorationTimeList, recordRestorationTime, removeRestorationTime, addRestorationTimeFollowup, restorationTimeSorted, restorationTimesForTicket, restorationDurationText, ticketsWithoutRestorationTime, restorationTimeSummaryText, restorationTimeHtml, restorationTimeAllHtml, restorationTimeCsv, restorationTimeFilename } from './restoration-time.js';
+import { validRepeatVisitDate, normalizeRepeatVisitList, recordRepeatVisitNote, removeRepeatVisitNote, addRepeatVisitFollowup, repeatVisitSorted, repeatVisitNotesForCustomer, flaggedRepeatVisitCustomers, repeatVisitSummaryText, repeatVisitHtml, repeatVisitAllHtml, repeatVisitCsv, repeatVisitFilename } from './repeat-visit.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14150,6 +14151,7 @@ function renderAnalytics() {
   renderMaterialReturns();
   renderFieldExpenses();
   renderRestorationTimes();
+  renderRepeatVisitNotes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28549,6 +28551,86 @@ function renderRestorationTimes() {
     $('#rtTicketBtn')?.addEventListener('click', () => { renderRestorationTimes(); });
     $('#rtFilterTicket')?.addEventListener('input', () => { renderRestorationTimes(); });
     $('#rtExceptionsBtn')?.addEventListener('click', () => { renderRestorationTimes(); });
+  }
+}
+const REPEAT_VISIT_KEY = 'shahdara_repeat_visit_notes_v1';
+function loadRepeatVisitNotes() {
+  try { return normalizeRepeatVisitList(JSON.parse(localStorage.getItem(REPEAT_VISIT_KEY) || '[]')); } catch { return []; }
+}
+function saveRepeatVisitNotes(list) {
+  try { localStorage.setItem(REPEAT_VISIT_KEY, JSON.stringify(normalizeRepeatVisitList(list))); } catch { /* repeat-visit notes only: a failed save leaves the previous list in place */ }
+}
+let repeatVisitNotesBound = false;
+function renderRepeatVisitNotes() {
+  const listEl = $('#rvList');
+  if (!listEl) return;
+  const all = loadRepeatVisitNotes();
+  listEl.innerHTML = all.length ? repeatVisitAllHtml(all) : '<p>No repeat-visit customer notes recorded.</p>';
+  const summaryEl = $('#rvSummary');
+  if (summaryEl) summaryEl.textContent = `${repeatVisitSummaryText(all)} A note is never edited, only followed by a dated update. Recording a note never changes any bill, payment, customer status, ticket, or visit record by itself.`;
+  const customerEl = $('#rvCustomerBody');
+  if (customerEl) {
+    const customer = ($('#rvFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to show their repeat-visit notes.</p>';
+    } else {
+      const rows = repeatVisitNotesForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>${entry.customer}: ${entry.visitsCounted} visits from ${entry.periodFrom} to ${entry.periodTo}. Reasons seen: ${entry.reasons.join('; ')}. Suggested next step: ${entry.nextStep}.</li>`).join('')}</ul>`
+        : `<p>No repeat-visit note recorded for customer \u201c${customer}\u201d.</p>`;
+    }
+  }
+  const flaggedEl = $('#rvFlaggedBody');
+  if (flaggedEl) {
+    const raw = ($('#rvFlaggedInput')?.value ?? '').trim();
+    const periodFrom = ($('#rvFlaggedFrom')?.value ?? '').trim();
+    const periodTo = ($('#rvFlaggedTo')?.value ?? '').trim();
+    if (raw === '' || !validRepeatVisitDate(periodFrom) || !validRepeatVisitDate(periodTo)) {
+      flaggedEl.innerHTML = '<p>Give visit rows, one per line as customer, date, and a real period from and to, to list the customers flagged for repeat visits.</p>';
+    } else {
+      const rows = raw.split('\n').map((line) => {
+        const parts = line.split(',');
+        return { customer: (parts[0] ?? '').trim(), date: (parts[1] ?? '').trim() };
+      }).filter((row) => row.customer && row.date);
+      const flagged = flaggedRepeatVisitCustomers(rows, periodFrom, periodTo);
+      flaggedEl.innerHTML = flagged.length
+        ? `<ul>${flagged.map((item) => `<li>${item.customer}: ${item.count} visits from ${periodFrom} to ${periodTo}.</li>`).join('')}</ul>`
+        : '<p>No customer had two or more visits in this period.</p>';
+    }
+  }
+  if (!repeatVisitNotesBound) {
+    repeatVisitNotesBound = true;
+    $('#rvExportBtn')?.addEventListener('click', () => { downloadCsvFile(repeatVisitFilename(), repeatVisitCsv(loadRepeatVisitNotes())); });
+    $('#rvRecordBtn')?.addEventListener('click', () => {
+      const before = loadRepeatVisitNotes();
+      const next = recordRepeatVisitNote(before, {
+        id: `RV-${Date.now()}`,
+        customer: $('#rvCustomer')?.value ?? '',
+        periodFrom: $('#rvPeriodFrom')?.value ?? '',
+        periodTo: $('#rvPeriodTo')?.value ?? '',
+        visitsCounted: Number($('#rvVisitsCounted')?.value ?? ''),
+        reasons: ($('#rvReasons')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean),
+        nextStep: $('#rvNextStep')?.value ?? '',
+        dateNoted: $('#rvDateNoted')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Repeat-visit note not recorded: give a customer, a real period, at least 2 visits counted, at least one reason seen, a suggested next step, and the date noted. One note per customer per period.'); return; }
+      saveRepeatVisitNotes(next);
+      renderRepeatVisitNotes();
+    });
+    $('#rvAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadRepeatVisitNotes();
+      const next = addRepeatVisitFollowup(before, $('#rvAnnotateId')?.value ?? '', $('#rvAnnotateDate')?.value ?? '', $('#rvAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Follow-up note not added: give a known entry id, a real date, and a note.'); return; }
+      saveRepeatVisitNotes(next);
+      renderRepeatVisitNotes();
+    });
+    $('#rvRemoveBtn')?.addEventListener('click', () => {
+      saveRepeatVisitNotes(removeRepeatVisitNote(loadRepeatVisitNotes(), $('#rvRemoveId')?.value ?? ''));
+      renderRepeatVisitNotes();
+    });
+    $('#rvCustomerBtn')?.addEventListener('click', () => { renderRepeatVisitNotes(); });
+    $('#rvFilterCustomer')?.addEventListener('input', () => { renderRepeatVisitNotes(); });
+    $('#rvFlaggedBtn')?.addEventListener('click', () => { renderRepeatVisitNotes(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

@@ -7758,6 +7758,13 @@ html, body {
   color: var(--text-main, #0f172a);
 }
 
+/* Polish 4: the success screen's Area / Location select reads like the
+   receipt values around it. */
+.qc-area-select {
+  font-weight: 600;
+  padding: 6px 8px;
+}
+
 .qc-amount-input {
   font-size: 1.3rem;
   font-weight: 700;

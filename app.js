@@ -510,6 +510,7 @@ import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
 import { normalizeComplaintEscalationOwnerNoteList, recordComplaintEscalationOwnerNote, removeComplaintEscalationOwnerNote, answerComplaintEscalationOwnerNote, complaintEscalationOwnerOpenNotes, complaintEscalationOwnerComplaintRefs, complaintEscalationOwnerSummaryText, complaintEscalationOwnerAllHtml, complaintEscalationOwnerNotesForComplaintHtml, complaintEscalationOwnerCsv, complaintEscalationOwnerFilename } from './complaint-escalation-owner.js';
 import { validAnnualLeavePlanDay, foldAnnualLeavePlanYear, parseAnnualLeavePlanBlocks, normalizeAnnualLeavePlanList, recordAnnualLeavePlan, removeAnnualLeavePlan, setAnnualLeavePlanStatus, annualLeavePlanPlansForYear, annualLeavePlanPlansForStaff, annualLeavePlanStaffMembers, annualLeavePlanYears, annualLeavePlanClashes, annualLeavePlanSummaryText, annualLeavePlanYearHtml, annualLeavePlanAllHtml, annualLeavePlanCsv, annualLeavePlanFilename } from './annual-leave-plan.js';
+import { validStaffRecognitionDay, normalizeStaffRecognitionNoteList, recordStaffRecognitionNote, removeStaffRecognitionNote, staffRecognitionNotesForStaff, staffRecognitionStaffMembers, staffRecognitionSummaryText, staffRecognitionAllHtml, staffRecognitionNotesForStaffHtml, staffRecognitionCsv, staffRecognitionFilename } from './staff-recognition.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14346,6 +14347,7 @@ function renderAnalytics() {
   renderDutyRoster();
   renderComplaintEscalationOwnerNotes();
   renderAnnualLeavePlans();
+  renderStaffRecognitionNotes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -32401,6 +32403,63 @@ function renderAnnualLeavePlans() {
     $('#alpRemoveBtn')?.addEventListener('click', () => {
       saveAnnualLeavePlans(removeAnnualLeavePlan(loadAnnualLeavePlans(), $('#alpRemoveId')?.value ?? ''));
       renderAnnualLeavePlans();
+    });
+  }
+}
+
+const STAFF_RECOGNITION_KEY = 'shahdara_staff_recognition_notes_v1';
+function loadStaffRecognitionNotes() {
+  try { return normalizeStaffRecognitionNoteList(JSON.parse(localStorage.getItem(STAFF_RECOGNITION_KEY) || '[]')); } catch { return []; }
+}
+function saveStaffRecognitionNotes(list) {
+  try { localStorage.setItem(STAFF_RECOGNITION_KEY, JSON.stringify(normalizeStaffRecognitionNoteList(list))); } catch { /* recognition notes only: a failed save leaves the previous list in place */ }
+}
+let staffRecognitionBound = false;
+function renderStaffRecognitionNotes() {
+  const bodyEl = $('#srnBody');
+  if (!bodyEl) return;
+  const all = loadStaffRecognitionNotes();
+  bodyEl.innerHTML = staffRecognitionAllHtml(all);
+  const summaryEl = $('#srnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${staffRecognitionSummaryText(all)} Recording a note never changes any bill, payment, customer record, or staff record by itself, and it grants no payment or bonus on its own.`;
+  }
+  const staffSelect = $('#srnStaffSelect');
+  if (staffSelect) {
+    const staff = staffRecognitionStaffMembers(all);
+    const current = staffSelect.value;
+    staffSelect.innerHTML = staff.map((name) => `<option value="${name}">${name}</option>`).join('');
+    if (staff.includes(current)) staffSelect.value = current;
+  }
+  const staffEl = $('#srnStaffBody');
+  if (staffEl) {
+    const chosen = staffSelect?.value ?? '';
+    staffEl.innerHTML = chosen
+      ? staffRecognitionNotesForStaffHtml(all, chosen)
+      : '<p>Pick a staff member to see their recognition notes.</p>';
+  }
+  if (!staffRecognitionBound) {
+    staffRecognitionBound = true;
+    $('#srnExportBtn')?.addEventListener('click', () => { downloadCsvFile(staffRecognitionFilename(), staffRecognitionCsv(loadStaffRecognitionNotes())); });
+    $('#srnStaffSelect')?.addEventListener('change', () => { renderStaffRecognitionNotes(); });
+    $('#srnRecordBtn')?.addEventListener('click', () => {
+      const before = loadStaffRecognitionNotes();
+      const date = ($('#srnDate')?.value ?? '').trim();
+      if (!validStaffRecognitionDay(date)) { toast('Recognition note not recorded: give a real date like 2026-11-04.'); return; }
+      const next = recordStaffRecognitionNote(before, {
+        id: ($('#srnId')?.value ?? '').trim() || `SRN-${Date.now()}`,
+        staffMember: ($('#srnStaff')?.value ?? ''),
+        achievement: ($('#srnAchievement')?.value ?? ''),
+        date,
+        recognisedBy: ($('#srnRecognisedBy')?.value ?? ''),
+      });
+      if (!next || next.length === before.length) { toast('Recognition note not recorded: give a staff member, an achievement in plain words, a real date, and who recognised them.'); return; }
+      saveStaffRecognitionNotes(next);
+      renderStaffRecognitionNotes();
+    });
+    $('#srnRemoveBtn')?.addEventListener('click', () => {
+      saveStaffRecognitionNotes(removeStaffRecognitionNote(loadStaffRecognitionNotes(), $('#srnRemoveId')?.value ?? ''));
+      renderStaffRecognitionNotes();
     });
   }
 }

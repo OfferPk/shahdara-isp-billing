@@ -474,6 +474,7 @@ import { normalizeComplaintCategoryTrendRows, complaintCategoryTrend, complaintC
 import { validWelcomeVisitOutcomeDate, foldWelcomeVisitOutcome, normalizeWelcomeVisitOutcomeList, recordWelcomeVisitOutcome, removeWelcomeVisitOutcome, addWelcomeVisitOpenQuestion, answerWelcomeVisitQuestion, welcomeVisitOutcomeSorted, outcomesForCustomer, notesWithOpenQuestions, welcomeVisitOutcomeSummaryText, welcomeVisitOutcomeAllHtml, welcomeVisitOutcomeCsv, welcomeVisitOutcomeFilename } from './welcome-visit-outcome.js';
 import { validReactivationNoteDate, normalizeReactivationNoteList, recordReactivationNote, removeReactivationNote, addReactivationNoteFollowup, reactivationNoteSorted, reactivationNotesForCustomer, stillDormantCustomers, reactivationNoteSummaryText, reactivationNoteAllHtml, reactivationNoteCsv, reactivationNoteFilename } from './reactivation-note.js';
 import { validCallbackQueueDate, validCallbackQueueTime, normalizeCallbackQueueList, recordCallback, removeCallback, markCallbackDone, markCallbackMissed, rebookCallback, callbackQueueSorted, pendingCallbackQueue, missedCallbacks, overdueCallbacks, callbacksForCustomer, callbackQueueSummaryText, callbackQueueAllHtml, callbackQueueCsv, callbackQueueFilename } from './callback-queue.js';
+import { validDowngradeConversationDate, normalizeDowngradeConversationList, recordDowngradeConversation, removeDowngradeConversation, downgradeConversationSorted, downgradeConversationsForCustomer, downgradedConversations, keptPackageConversations, downgradeConversationSummaryText, downgradeConversationAllHtml, downgradeConversationCsv, downgradeConversationFilename } from './downgrade-conversation.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14192,6 +14193,7 @@ function renderAnalytics() {
   renderWelcomeVisitOutcomes();
   renderReactivationNotes();
   renderCallbacks();
+  renderDowngradeConversations();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29992,6 +29994,68 @@ function renderCallbacks() {
     $('#cbOverdueBtn')?.addEventListener('click', () => { renderCallbacks(); });
     $('#cbFilterBtn')?.addEventListener('click', () => { renderCallbacks(); });
     $('#cbFilterCustomer')?.addEventListener('input', () => { renderCallbacks(); });
+  }
+}
+const DOWNGRADE_CONVERSATION_KEY = 'shahdara_downgrade_conversations_v1';
+function loadDowngradeConversations() {
+  try { return normalizeDowngradeConversationList(JSON.parse(localStorage.getItem(DOWNGRADE_CONVERSATION_KEY) || '[]')); } catch { return []; }
+}
+function saveDowngradeConversations(list) {
+  try { localStorage.setItem(DOWNGRADE_CONVERSATION_KEY, JSON.stringify(normalizeDowngradeConversationList(list))); } catch { /* downgrade conversations only: a failed save leaves the previous list in place */ }
+}
+let downgradeConversationsBound = false;
+function renderDowngradeConversations() {
+  const listEl = $('#dcList');
+  if (!listEl) return;
+  const all = loadDowngradeConversations();
+  listEl.innerHTML = all.length ? downgradeConversationAllHtml(all) : '<p>No downgrade conversations recorded.</p>';
+  const summaryEl = $('#dcSummary');
+  if (summaryEl) summaryEl.textContent = `${downgradeConversationSummaryText(all)} Recording a conversation never changes any package, bill, payment, or credit record.`;
+  const downgradedEl = $('#dcDowngradedBody');
+  if (downgradedEl) {
+    const rows = downgradedConversations(all);
+    downgradedEl.innerHTML = rows.length ? downgradeConversationAllHtml(rows) : '<p>No conversation ended in a downgrade yet.</p>';
+  }
+  const keptEl = $('#dcKeptBody');
+  if (keptEl) {
+    const rows = keptPackageConversations(all);
+    keptEl.innerHTML = rows.length ? downgradeConversationAllHtml(rows) : '<p>No conversation ended with the package kept yet.</p>';
+  }
+  const customerEl = $('#dcCustomerBody');
+  if (customerEl) {
+    const customer = ($('#dcFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their downgrade conversations.</p>';
+    } else {
+      const rows = downgradeConversationsForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? downgradeConversationAllHtml(rows)
+        : '<p>No downgrade conversation recorded for this customer.</p>';
+    }
+  }
+  if (!downgradeConversationsBound) {
+    downgradeConversationsBound = true;
+    $('#dcExportBtn')?.addEventListener('click', () => { downloadCsvFile(downgradeConversationFilename(), downgradeConversationCsv(loadDowngradeConversations())); });
+    $('#dcRecordBtn')?.addEventListener('click', () => {
+      const before = loadDowngradeConversations();
+      const next = recordDowngradeConversation(before, {
+        id: `DC-${Date.now()}`,
+        customer: $('#dcCustomer')?.value ?? '',
+        date: $('#dcDate')?.value ?? '',
+        reason: $('#dcReason')?.value ?? '',
+        outcome: $('#dcOutcome')?.value ?? '',
+        note: $('#dcNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Conversation not recorded: give a customer, a real date, and the reason.'); return; }
+      saveDowngradeConversations(next);
+      renderDowngradeConversations();
+    });
+    $('#dcRemoveBtn')?.addEventListener('click', () => {
+      saveDowngradeConversations(removeDowngradeConversation(loadDowngradeConversations(), $('#dcRemoveId')?.value ?? ''));
+      renderDowngradeConversations();
+    });
+    $('#dcFilterBtn')?.addEventListener('click', () => { renderDowngradeConversations(); });
+    $('#dcFilterCustomer')?.addEventListener('input', () => { renderDowngradeConversations(); });
   }
 }
 let feedbackTrendBound = false;

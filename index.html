@@ -8313,6 +8313,65 @@
 </div>
 <p id="raCheckResult"></p>
 <div id="raBody"></div>
+</section><section class="chart-card" aria-labelledby="breHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="breHeading">Bank reconciliation exception note</h3>
+<p class="chart-caption">One exception note per unexplained bank difference: the date, the amount, the method, a linked slip or credit if any, and the explanation once found. A note explains a difference only: it never edits any payment, bank record, deposit slip, or bank credit, and recording a note never moves money. Open exceptions list oldest first; explained exceptions keep their explanation and date.</p>
+<p id="breSummary"></p>
+</div>
+<div>
+<button id="breExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export bank exceptions CSV</button>
+</div>
+</div>
+<h4>Record a bank difference</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="breDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Amount (Rs., negative = ledger higher) <input id="breAmount" type="number" step="0.01" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Method <input id="breMethod" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Linked slip (optional) <input id="breSlip" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Linked credit (optional) <input id="breCredit" type="text" style="width: 120px;">
+</label>
+<button id="breSaveBtn" class="secondary-button btn-sm" type="button">Record exception</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove exception id <input id="breRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="breRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Explain an open exception</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Exception id <input id="breExplainId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Explanation <input id="breExplanation" type="text" style="width: 260px;">
+</label>
+<label style="font-size: 12px;">Date explained <input id="breExplainedDate" type="date" style="width: 140px;">
+</label>
+<button id="breExplainBtn" class="secondary-button btn-sm" type="button">Mark explained</button>
+</div>
+<h4>Open exceptions — oldest first</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Age as of date <input id="breAsOf" type="date" style="width: 140px;">
+</label>
+</div>
+<div id="breOpenBody"></div>
+<h4>Review exceptions</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Period from <input id="brePeriodFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period to <input id="brePeriodTo" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period bank difference (Rs.) <input id="brePeriodDifference" type="number" step="0.01" style="width: 130px;">
+</label>
+<button id="breReconcileBtn" class="secondary-button btn-sm" type="button">Check reconciliation</button>
+</div>
+<p id="breReconcileResult"></p>
+<div id="breBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

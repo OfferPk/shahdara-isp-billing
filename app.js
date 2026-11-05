@@ -457,6 +457,7 @@ import { validRestorationTimeDatetime, normalizeRestorationTimeList, recordResto
 import { validRepeatVisitDate, normalizeRepeatVisitList, recordRepeatVisitNote, removeRepeatVisitNote, addRepeatVisitFollowup, repeatVisitSorted, repeatVisitNotesForCustomer, flaggedRepeatVisitCustomers, repeatVisitSummaryText, repeatVisitHtml, repeatVisitAllHtml, repeatVisitCsv, repeatVisitFilename } from './repeat-visit.js';
 import { validVisitAcknowledgementDate, normalizeVisitAcknowledgementList, recordVisitAcknowledgement, removeVisitAcknowledgement, addVisitAcknowledgementFollowup, visitAcknowledgementSorted, visitAcknowledgementsForCustomer, visitAcknowledgementStatus, visitsWithoutAcknowledgement, visitAcknowledgementSummaryText, visitAcknowledgementAllHtml, visitAcknowledgementCsv, visitAcknowledgementFilename } from './visit-acknowledgement.js';
 import { validComplaintFollowupDate, normalizeComplaintFollowupList, recordComplaintFollowup, removeComplaintFollowup, addComplaintFollowupNote, completeComplaintFollowup, complaintFollowupSorted, followupsForComplaint, complaintFollowupDue, openComplaintFollowups, complaintFollowupSummaryText, complaintFollowupAllHtml, complaintFollowupCsv, complaintFollowupFilename } from './complaint-followup.js';
+import { validPromiseDeliveryCheckDate, normalizePromiseDeliveryCheckList, recordPromiseDeliveryCheck, removePromiseDeliveryCheck, addPromiseDeliveryCheckNote, promiseDeliveryCheckSorted, checksForPromise, missedPromiseDeliveryChecks, promiseDeliveryCheckSummaryText, promiseDeliveryCheckAllHtml, promiseDeliveryCheckCsv, promiseDeliveryCheckFilename } from './promise-delivery-check.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14158,6 +14159,7 @@ function renderAnalytics() {
   renderVisitAcknowledgements();
   renderWarrantyClaimLinks();
   renderComplaintFollowups();
+  renderPromiseDeliveryChecks();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28905,6 +28907,76 @@ function renderComplaintFollowups() {
     $('#cfOpenBtn')?.addEventListener('click', () => { renderComplaintFollowups(); });
     $('#cfFilterBtn')?.addEventListener('click', () => { renderComplaintFollowups(); });
     $('#cfFilterComplaint')?.addEventListener('input', () => { renderComplaintFollowups(); });
+  }
+}
+const PROMISE_DELIVERY_CHECK_KEY = 'shahdara_promise_delivery_checks_v1';
+function loadPromiseDeliveryChecks() {
+  try { return normalizePromiseDeliveryCheckList(JSON.parse(localStorage.getItem(PROMISE_DELIVERY_CHECK_KEY) || '[]')); } catch { return []; }
+}
+function savePromiseDeliveryChecks(list) {
+  try { localStorage.setItem(PROMISE_DELIVERY_CHECK_KEY, JSON.stringify(normalizePromiseDeliveryCheckList(list))); } catch { /* promise delivery checks only: a failed save leaves the previous list in place */ }
+}
+let promiseDeliveryChecksBound = false;
+function renderPromiseDeliveryChecks() {
+  const listEl = $('#pdcList');
+  if (!listEl) return;
+  const all = loadPromiseDeliveryChecks();
+  listEl.innerHTML = all.length ? promiseDeliveryCheckAllHtml(all) : '<p>No promise delivery checks recorded.</p>';
+  const summaryEl = $('#pdcSummary');
+  if (summaryEl) summaryEl.textContent = `${promiseDeliveryCheckSummaryText(all)} A check is never edited, only annotated. Recording a check never changes the promise record, any customer record, any bill, or any payment by itself.`;
+  const missedEl = $('#pdcMissedBody');
+  if (missedEl) {
+    const missed = missedPromiseDeliveryChecks(all);
+    missedEl.innerHTML = missed.length
+      ? `<ul>${missed.map((entry) => `<li>Promise ${entry.promiseRef} for ${entry.customer} (promised ${entry.promiseDate}): promised \u201c${entry.promised}\u201d — delivered \u201c${entry.delivered}\u201d on ${entry.deliveredDate}: missed. ${entry.note}.</li>`).join('')}</ul>`
+      : '<p>No missed promises. Every checked promise was met or partly met.</p>';
+  }
+  const filterEl = $('#pdcFilterBody');
+  if (filterEl) {
+    const promiseRef = ($('#pdcFilterPromise')?.value ?? '').trim();
+    if (promiseRef === '') {
+      filterEl.innerHTML = '<p>Give a promise reference to show its delivery check.</p>';
+    } else {
+      const rows = checksForPromise(all, promiseRef);
+      filterEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>Promise ${entry.promiseRef} for ${entry.customer} (promised ${entry.promiseDate}): promised \u201c${entry.promised}\u201d — delivered \u201c${entry.delivered}\u201d on ${entry.deliveredDate}: ${entry.outcome}. ${entry.note}.</li>`).join('')}</ul>`
+        : `<p>No delivery check recorded for promise \u201c${promiseRef}\u201d.</p>`;
+    }
+  }
+  if (!promiseDeliveryChecksBound) {
+    promiseDeliveryChecksBound = true;
+    $('#pdcExportBtn')?.addEventListener('click', () => { downloadCsvFile(promiseDeliveryCheckFilename(), promiseDeliveryCheckCsv(loadPromiseDeliveryChecks())); });
+    $('#pdcRecordBtn')?.addEventListener('click', () => {
+      const before = loadPromiseDeliveryChecks();
+      const next = recordPromiseDeliveryCheck(before, {
+        id: `PDC-${Date.now()}`,
+        promiseRef: $('#pdcPromiseRef')?.value ?? '',
+        customer: $('#pdcCustomer')?.value ?? '',
+        promiseDate: $('#pdcPromiseDate')?.value ?? '',
+        promised: $('#pdcPromised')?.value ?? '',
+        delivered: $('#pdcDelivered')?.value ?? '',
+        deliveredDate: $('#pdcDeliveredDate')?.value ?? '',
+        outcome: $('#pdcOutcome')?.value ?? '',
+        note: $('#pdcNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Promise delivery check not recorded: give a promise reference, customer, real promise and delivered dates, what was promised and delivered, a clear outcome, and a note. One check per promise.'); return; }
+      savePromiseDeliveryChecks(next);
+      renderPromiseDeliveryChecks();
+    });
+    $('#pdcAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadPromiseDeliveryChecks();
+      const next = addPromiseDeliveryCheckNote(before, $('#pdcAnnotateId')?.value ?? '', $('#pdcAnnotateDate')?.value ?? '', $('#pdcAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Delivery check note not added: give a known entry id, a real date, and a note.'); return; }
+      savePromiseDeliveryChecks(next);
+      renderPromiseDeliveryChecks();
+    });
+    $('#pdcRemoveBtn')?.addEventListener('click', () => {
+      savePromiseDeliveryChecks(removePromiseDeliveryCheck(loadPromiseDeliveryChecks(), $('#pdcRemoveId')?.value ?? ''));
+      renderPromiseDeliveryChecks();
+    });
+    $('#pdcMissedBtn')?.addEventListener('click', () => { renderPromiseDeliveryChecks(); });
+    $('#pdcFilterBtn')?.addEventListener('click', () => { renderPromiseDeliveryChecks(); });
+    $('#pdcFilterPromise')?.addEventListener('input', () => { renderPromiseDeliveryChecks(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

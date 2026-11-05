@@ -507,6 +507,7 @@ import { validPartnershipNoteDate, normalizePartnershipNoteList, recordPartnersh
 import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMohallaCostEstimateSheet, removeMohallaCostEstimateSheet, mohallaCostEstimatesForMohalla, mohallaCostEstimateMohallas, mohallaCostEstimateSummaryText, mohallaCostEstimateAllHtml, mohallaCostEstimatesForMohallaHtml, mohallaCostEstimateCsv, mohallaCostEstimateFilename } from './mohalla-cost-estimate.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
+import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14340,6 +14341,7 @@ function renderAnalytics() {
   renderMohallaCostEstimate();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
+  renderDutyRoster();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -32151,6 +32153,89 @@ function renderShopDiary() {
     $('#sdyRemoveBtn')?.addEventListener('click', () => {
       saveShopDiaryEntries(removeShopDiaryEntry(loadShopDiaryEntries(), $('#sdyRemoveId')?.value ?? ''));
       renderShopDiary();
+    });
+  }
+}
+
+// Staff duty roster (Plan 311): one posted entry per day of
+// a week — the week, the day, the staff member on duty, the
+// duty in plain words, and who posted it. Each week shows
+// its days with the staff member on duty visible, and a day
+// with nobody posted is named as a gap. Posting a roster
+// never changes any bill, payment, customer record, or leave
+// record by itself.
+const DUTY_ROSTER_KEY = 'shahdara_duty_roster_v1';
+function loadDutyRosterEntries() {
+  try { return normalizeDutyRosterEntryList(JSON.parse(localStorage.getItem(DUTY_ROSTER_KEY) || '[]')); } catch { return []; }
+}
+function saveDutyRosterEntries(list) {
+  try { localStorage.setItem(DUTY_ROSTER_KEY, JSON.stringify(normalizeDutyRosterEntryList(list))); } catch { /* duty roster only: a failed save leaves the previous list in place */ }
+}
+let dutyRosterBound = false;
+function renderDutyRoster() {
+  const weekEl = $('#dtrBody');
+  if (!weekEl) return;
+  const all = loadDutyRosterEntries();
+  const weekSelect = $('#dtrWeekSelect');
+  if (weekSelect) {
+    const weeks = dutyRosterWeeks(all);
+    const current = weekSelect.value;
+    weekSelect.innerHTML = weeks.map((week) => `<option value="${week}">${week}</option>`).join('');
+    if (weeks.includes(current)) weekSelect.value = current;
+  }
+  const chosenWeek = weekSelect?.value ?? dutyRosterWeeks(all)[dutyRosterWeeks(all).length - 1] ?? '';
+  weekEl.innerHTML = chosenWeek ? dutyRosterWeekHtml(all, chosenWeek) : '<p>No staff duty roster entries recorded.</p>';
+  const summaryEl = $('#dtrSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${dutyRosterSummaryText(all)} Posting a roster never changes any bill, payment, customer record, or leave record by itself.`;
+  }
+  const coverageEl = $('#dtrCoverage');
+  if (coverageEl) {
+    if (!chosenWeek) {
+      coverageEl.textContent = '';
+    } else {
+      const coverage = dutyRosterWeekCoverage(all, chosenWeek);
+      coverageEl.textContent = coverage.missing.length
+        ? `Week of ${chosenWeek}: ${coverage.missing.length} day${coverage.missing.length === 1 ? '' : 's'} still uncovered — ${coverage.missing.join(', ')}.`
+        : `Week of ${chosenWeek}: every day covered.`;
+    }
+  }
+  const staffSelect = $('#dtrStaffSelect');
+  if (staffSelect) {
+    const people = dutyRosterStaff(all);
+    const current = staffSelect.value;
+    staffSelect.innerHTML = people.map((person) => `<option value="${person}">${person}</option>`).join('');
+    if (people.includes(current)) staffSelect.value = current;
+  }
+  const staffEl = $('#dtrStaffBody');
+  if (staffEl) {
+    const chosen = staffSelect?.value ?? '';
+    staffEl.innerHTML = chosen
+      ? dutyRosterEntriesForStaffHtml(all, chosen)
+      : '<p>Pick a staff member to see the roster entries for them.</p>';
+  }
+  if (!dutyRosterBound) {
+    dutyRosterBound = true;
+    $('#dtrExportBtn')?.addEventListener('click', () => { downloadCsvFile(dutyRosterFilename(), dutyRosterCsv(loadDutyRosterEntries())); });
+    $('#dtrWeekSelect')?.addEventListener('change', () => { renderDutyRoster(); });
+    $('#dtrStaffSelect')?.addEventListener('change', () => { renderDutyRoster(); });
+    $('#dtrRecordBtn')?.addEventListener('click', () => {
+      const before = loadDutyRosterEntries();
+      const next = recordDutyRosterEntry(before, {
+        id: ($('#dtrId')?.value ?? '').trim() || `DR-${Date.now()}`,
+        week: ($('#dtrWeek')?.value ?? ''),
+        day: ($('#dtrDay')?.value ?? ''),
+        staff: ($('#dtrStaff')?.value ?? ''),
+        duty: ($('#dtrDuty')?.value ?? ''),
+        postedBy: ($('#dtrPostedBy')?.value ?? ''),
+      });
+      if (!next || next.length === before.length) { toast('Roster entry not recorded: give a real week date, a weekday, a staff member, the duty in plain words, and who posted it. One entry per week and day — a day that already has an entry stays as it is.'); return; }
+      saveDutyRosterEntries(next);
+      renderDutyRoster();
+    });
+    $('#dtrRemoveBtn')?.addEventListener('click', () => {
+      saveDutyRosterEntries(removeDutyRosterEntry(loadDutyRosterEntries(), $('#dtrRemoveId')?.value ?? ''));
+      renderDutyRoster();
     });
   }
 }

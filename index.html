@@ -9952,6 +9952,62 @@
 <h4>All field expenses</h4>
 <div id="feList"></div>
 </section>
+<section class="chart-card" aria-labelledby="rtHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rtHeading">Service restoration time record per ticket</h3>
+<p class="chart-caption">One restoration record per ticket: the ticket reference, the fault reported time, the service restored time, who restored it, and a note. The restoration time is always after the reported time, and the outage length is counted from those two times. Closed tickets without a restoration record are listed as exceptions. A record is never edited, only corrected by a dated follow-up note. It records times only: it never changes any bill, payment, customer, or ticket record by itself.</p>
+<p id="rtSummary"></p>
+</div>
+<div>
+<button id="rtExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export restoration times CSV</button>
+</div>
+</div>
+<h4>Record a restoration time</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Ticket reference <input id="rtTicketRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Fault reported <input id="rtReportedAt" type="datetime-local" style="width: 180px;">
+</label>
+<label style="font-size: 12px;">Service restored <input id="rtRestoredAt" type="datetime-local" style="width: 180px;">
+</label>
+<label style="font-size: 12px;">Restored by <input id="rtRestoredBy" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="rtNote" type="text" style="width: 200px;">
+</label>
+<button id="rtRecordBtn" class="secondary-button btn-sm" type="button">Record restoration time</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="rtAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="rtAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="rtAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="rtAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="rtRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="rtRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Restoration time by ticket</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Ticket reference <input id="rtFilterTicket" type="text" style="width: 140px;">
+</label>
+<button id="rtTicketBtn" class="secondary-button btn-sm" type="button">Show restoration time</button>
+</div>
+<div id="rtTicketBody"></div>
+<h4>Closed tickets without a restoration record</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Closed ticket references, one per line <textarea id="rtExceptionsInput" rows="3" style="width: 200px;"></textarea>
+</label>
+<button id="rtExceptionsBtn" class="secondary-button btn-sm" type="button">List exceptions</button>
+</div>
+<div id="rtExceptionsBody"></div>
+<h4>All restoration records</h4>
+<div id="rtList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

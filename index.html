@@ -9204,6 +9204,55 @@
 <button id="onRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
 </div>
 <div id="onBody"></div>
+</section><section class="chart-card" aria-labelledby="ekcHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ekcHeading">Emergency fault kit checklist per vehicle</h3>
+<p class="chart-caption">One readiness checklist per vehicle: the vehicle, the kit items expected, the items present, the critical items, the check date, and the checker. The latest checklist shows present versus missing items side by side, and a vehicle with missing critical items is flagged. Past checklists stay read-only: they are never edited, only annotated. This is a readiness check only and does not replace the field tool kit issue log, which records tools issued and returned. Recording a checklist never changes any bill, payment, customer, visit, or stock record by itself.</p>
+<p id="ekcSummary"></p>
+<p id="ekcFlagged"></p>
+</div>
+<div>
+<button id="ekcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export kit checklists CSV</button>
+</div>
+</div>
+<h4>Record a kit checklist</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Vehicle <input id="ekcVehicle" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Kit items expected, one per line <textarea id="ekcExpected" rows="3" style="width: 180px;"></textarea>
+</label>
+<label style="font-size: 12px;">Items present, one per line <textarea id="ekcPresent" rows="3" style="width: 180px;"></textarea>
+</label>
+<label style="font-size: 12px;">Critical items, one per line <textarea id="ekcCritical" rows="3" style="width: 180px;"></textarea>
+</label>
+<label style="font-size: 12px;">Check date <input id="ekcDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Checker <input id="ekcChecker" type="text" style="width: 140px;">
+</label>
+<button id="ekcRecordBtn" class="secondary-button btn-sm" type="button">Record checklist</button>
+</div>
+<h4>Annotate / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Checklist id <input id="ekcAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="ekcAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Annotation <input id="ekcAnnotateNote" type="text" style="width: 220px;">
+</label>
+<button id="ekcAnnotateBtn" class="secondary-button btn-sm" type="button">Add annotation</button>
+<label style="font-size: 12px;">Remove checklist id <input id="ekcRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="ekcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Checklists</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by vehicle <input id="ekcFilterVehicle" type="text" style="width: 140px;">
+</label>
+<button id="ekcFilterBtn" class="secondary-button btn-sm" type="button">Filter</button>
+</div>
+<div id="ekcList"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

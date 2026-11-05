@@ -512,6 +512,7 @@ import { normalizeSeasonalMonthlyFigureRecordList, recordSeasonalMonthlyFigure, 
 import { normalizeArchiveRetrievalList, recordArchiveRetrieval, removeArchiveRetrieval, returnArchiveItem, archiveRetrievalOpen, archiveRetrievalSummaryText, archiveRetrievalOpenHtml, archiveRetrievalAllHtml, archiveRetrievalCsv, archiveRetrievalFilename } from './archive-retrieval.js';
 import { normalizeAppFeedbackList, recordAppFeedback, removeAppFeedback, closeAppFeedback, appFeedbackOpenByScreen, appFeedbackSummaryText, appFeedbackOpenHtml, appFeedbackAllHtml, appFeedbackCsv, appFeedbackFilename } from './app-feedback-inbox.js';
 import { normalizeAccessibilityNoteList, recordAccessibilityNote, removeAccessibilityNote, accessibilityNotesByScreen, accessibilityNoteScreensWithNotes, accessibilityNoteSummaryText, accessibilityNotesByScreenHtml, accessibilityNoteScreenStatusHtml, accessibilityNoteCsv, accessibilityNoteFilename } from './accessibility-note.js';
+import { normalizePrintTemplateList, recordPrintTemplate, supersedePrintTemplate, printTemplateCurrentVersion, printTemplatesByNameHtml, printTemplateSummaryText, printTemplateCsv, printTemplateFilename } from './print-template-register.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14394,6 +14395,7 @@ function renderAnalytics() {
   renderArchiveRetrieval();
   renderAppFeedbackInbox();
   renderAccessibilityNote();
+  renderPrintTemplateRegister();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32463,6 +32465,69 @@ function renderAccessibilityNote() {
     $('#acnRemoveBtn')?.addEventListener('click', () => {
       saveAccessibilityNotes(removeAccessibilityNote(loadAccessibilityNotes(), $('#acnRemoveId')?.value ?? ''));
       renderAccessibilityNote();
+    });
+  }
+}
+
+// Print template register (Plan 324): one register entry per
+// print template — the template name, its purpose, its
+// version, the date it was adopted, and the screens or
+// printed sheets it serves. Each template shows its current
+// version and adoption date; superseded versions stay listed
+// as superseded, never deleted. Registering a template never
+// changes any printed sheet, bill, payment, or customer
+// record by itself: the register only lists versions.
+const PRINT_TEMPLATE_KEY = 'shahdara_print_templates_v1';
+function loadPrintTemplates() {
+  try { return normalizePrintTemplateList(JSON.parse(localStorage.getItem(PRINT_TEMPLATE_KEY) || '[]')); } catch { return []; }
+}
+function savePrintTemplates(list) {
+  try { localStorage.setItem(PRINT_TEMPLATE_KEY, JSON.stringify(normalizePrintTemplateList(list))); } catch { /* print templates only: a failed save leaves the previous list in place */ }
+}
+let printTemplateBound = false;
+function renderPrintTemplateRegister() {
+  const listEl = $('#ptrBody');
+  if (!listEl) return;
+  const all = loadPrintTemplates();
+  listEl.innerHTML = all.length ? printTemplatesByNameHtml(all) : '<p>No print templates registered.</p>';
+  const summaryEl = $('#ptrSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${printTemplateSummaryText(all)} Registering a template never changes any printed sheet, bill, payment, or customer record by itself.`;
+  }
+  const currentEl = $('#ptrCurrentBody');
+  if (currentEl) {
+    const name = $('#ptrCurrentName')?.value ?? '';
+    const version = name ? printTemplateCurrentVersion(all, name) : null;
+    currentEl.innerHTML = !name
+      ? '<p>Type a template name to see its current version.</p>'
+      : version
+        ? `<p>Current version of ${name}: ${version}.</p>`
+        : `<p>No current version recorded for ${name}.</p>`;
+  }
+  if (!printTemplateBound) {
+    printTemplateBound = true;
+    $('#ptrExportBtn')?.addEventListener('click', () => { downloadCsvFile(printTemplateFilename(), printTemplateCsv(loadPrintTemplates())); });
+    $('#ptrCheckBtn')?.addEventListener('click', () => { renderPrintTemplateRegister(); });
+    $('#ptrRecordBtn')?.addEventListener('click', () => {
+      const before = loadPrintTemplates();
+      const next = recordPrintTemplate(before, {
+        id: `PT-${Date.now()}`,
+        name: $('#ptrName')?.value ?? '',
+        purpose: $('#ptrPurpose')?.value ?? '',
+        version: $('#ptrVersion')?.value ?? '',
+        date: $('#ptrDate')?.value ?? '',
+        serves: $('#ptrServes')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Print template not recorded: give a name, purpose, version, and a real adoption date.'); return; }
+      savePrintTemplates(next);
+      renderPrintTemplateRegister();
+    });
+    $('#ptrSupersedeBtn')?.addEventListener('click', () => {
+      const before = loadPrintTemplates();
+      const next = supersedePrintTemplate(before, $('#ptrSupersedeId')?.value ?? '', $('#ptrSupersedeBy')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Nothing superseded: give the id of a current entry.'); return; }
+      savePrintTemplates(next);
+      renderPrintTemplateRegister();
     });
   }
 }

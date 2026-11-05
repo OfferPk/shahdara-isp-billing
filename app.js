@@ -432,6 +432,7 @@ import { normalizeBillingLinkList, recordBillingLink, unlinkBillingLink, findBil
 import { normalizeFibreRouteList, recordFibreRoute, removeFibreRoute, addFibreRouteFollowup, fibreRoutesSorted, fibreRoutesForMohalla, fibreRouteSummaryText, fibreRouteHtml, fibreRouteCsv, fibreRouteFilename } from './fibre-route.js';
 import { validSpliceLossDate, normalizeSpliceLossList, recordSpliceLoss, removeSpliceLoss, findSpliceLoss, spliceLossSorted, spliceLossForJoint, spliceLossLatest, spliceLossSummaryText, spliceLossText, spliceLossJointText, spliceLossHtml, spliceLossCsv, spliceLossFilename } from './splice-loss.js';
 import { normalizeOltPortPlanList, recordOltPortPlan, removeOltPortPlan, convertOltPortPlanToUsed, oltPortPlansSorted, oltPortPlansForUnit, oltPortPlanSummaryText, oltPortPlanHtml, oltPortPlanCsv, oltPortPlanFilename } from './port-plan.js';
+import { validKitPowerDate, normalizeKitPowerList, recordKitPower, removeKitPower, findKitPower, kitPowerSorted, kitPowerForItem, kitPowerItems, kitPowerLastCharge, kitPowerVisits, kitPowerStale, kitPowerSummaryText, kitPowerText, kitPowerItemText, kitPowerHtml, kitPowerCsv, kitPowerFilename } from './kit-power.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14106,6 +14107,7 @@ function renderAnalytics() {
   renderFibreRoutes();
   renderSpliceLoss();
   renderOltPortPlans();
+  renderKitPower();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27051,6 +27053,58 @@ function renderOltPortPlans() {
       if (!next) { toast('Port not converted: give a planned port record id and the customer connected.'); return; }
       saveOltPortPlans(next);
       renderOltPortPlans();
+    });
+  }
+}
+const KIT_POWER_KEY = 'shahdara_kit_power_v1';
+function loadKitPower() {
+  try { return normalizeKitPowerList(JSON.parse(localStorage.getItem(KIT_POWER_KEY) || '[]')); } catch { return []; }
+}
+function saveKitPower(list) {
+  try { localStorage.setItem(KIT_POWER_KEY, JSON.stringify(normalizeKitPowerList(list))); } catch { /* kit power only: a failed save leaves the previous list in place */ }
+}
+let kitPowerBound = false;
+function renderKitPower() {
+  const bodyEl = $('#kpBody');
+  if (!bodyEl) return;
+  const all = loadKitPower();
+  const itemFilter = $('#kpFilter')?.value ?? '';
+  const scoped = itemFilter ? kitPowerForItem(all, itemFilter) : kitPowerSorted(all);
+  bodyEl.innerHTML = scoped.length ? scoped.map((entry) => kitPowerHtml(entry)).join('') : '<p>No kit power entries recorded.</p>';
+  const summaryEl = $('#kpSummary');
+  if (summaryEl) summaryEl.textContent = `${kitPowerSummaryText(all)} A charge entry is never edited, only followed by a newer entry. Recording a charge never changes any bill, payment, customer, visit, or staff record by itself.`;
+  if (!kitPowerBound) {
+    kitPowerBound = true;
+    $('#kpExportBtn')?.addEventListener('click', () => { downloadCsvFile(kitPowerFilename(), kitPowerCsv(loadKitPower())); });
+    $('#kpSaveBtn')?.addEventListener('click', () => {
+      const before = loadKitPower();
+      const next = recordKitPower(before, {
+        id: `KP-${Date.now()}`,
+        item: $('#kpItem')?.value ?? '',
+        kit: $('#kpKit')?.value ?? '',
+        dateCharged: $('#kpDate')?.value ?? '',
+        visit: $('#kpVisit')?.value ?? '',
+        condition: $('#kpCondition')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Kit power entry not recorded: give an item, its kit, and a real charge date.'); return; }
+      saveKitPower(next);
+      renderKitPower();
+    });
+    $('#kpRemoveBtn')?.addEventListener('click', () => {
+      saveKitPower(removeKitPower(loadKitPower(), $('#kpRemoveId')?.value ?? ''));
+      renderKitPower();
+    });
+    $('#kpFilter')?.addEventListener('input', () => { renderKitPower(); });
+    $('#kpCheckBtn')?.addEventListener('click', () => {
+      const outEl = $('#kpCheckOut');
+      if (outEl) outEl.textContent = kitPowerItemText(loadKitPower(), $('#kpCheckItem')?.value ?? '');
+    });
+    $('#kpStaleBtn')?.addEventListener('click', () => {
+      const outEl = $('#kpStaleOut');
+      if (outEl) {
+        const stale = kitPowerStale(loadKitPower(), $('#kpAsOf')?.value ?? '', $('#kpInterval')?.value ?? '');
+        outEl.textContent = stale.length ? `Not charged within the interval: ${stale.join(', ')}.` : 'No kit item is overdue for charging.';
+      }
     });
   }
 }

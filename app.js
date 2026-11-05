@@ -460,6 +460,7 @@ import { validComplaintFollowupDate, normalizeComplaintFollowupList, recordCompl
 import { validPromiseDeliveryCheckDate, normalizePromiseDeliveryCheckList, recordPromiseDeliveryCheck, removePromiseDeliveryCheck, addPromiseDeliveryCheckNote, promiseDeliveryCheckSorted, checksForPromise, missedPromiseDeliveryChecks, promiseDeliveryCheckSummaryText, promiseDeliveryCheckAllHtml, promiseDeliveryCheckCsv, promiseDeliveryCheckFilename } from './promise-delivery-check.js';
 import { validLaunchChecklistDate, normalizeLaunchChecklistList, recordLaunchChecklist, removeLaunchChecklist, addLaunchChecklistNote, tickLaunchChecklistStep, completeLaunchChecklist, launchesForMohalla, launchChecklistSummaryText, launchChecklistAllHtml, launchChecklistCsv, launchChecklistFilename } from './launch-checklist.js';
 import { validAnniversaryMilestoneDate, normalizeAnniversaryMilestoneList, recordAnniversaryMilestone, removeAnniversaryMilestone, addAnniversaryMilestoneNote, milestonesForCustomer, anniversaryMilestoneSummaryText, anniversaryMilestoneAllHtml, anniversaryMilestoneCsv, anniversaryMilestoneFilename } from './anniversary-milestone.js';
+import { validReferralOutcomeDate, normalizeReferralOutcomeList, recordReferralOutcome, removeReferralOutcome, addReferralOutcomeNote, referralOutcomesForReferrer, referralOutcomeCounts, referralOutcomeSummaryText, referralOutcomeAllHtml, referralOutcomeCsv, referralOutcomeFilename } from './referral-outcome.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14164,6 +14165,7 @@ function renderAnalytics() {
   renderPromiseDeliveryChecks();
   renderLaunchChecklists();
   renderAnniversaryMilestones();
+  renderReferralOutcomes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29117,6 +29119,73 @@ function renderAnniversaryMilestones() {
     });
     $('#amFilterBtn')?.addEventListener('click', () => { renderAnniversaryMilestones(); });
     $('#amFilterCustomer')?.addEventListener('input', () => { renderAnniversaryMilestones(); });
+  }
+}
+const REFERRAL_OUTCOME_KEY = 'shahdara_referral_outcomes_v1';
+function loadReferralOutcomes() {
+  try { return normalizeReferralOutcomeList(JSON.parse(localStorage.getItem(REFERRAL_OUTCOME_KEY) || '[]')); } catch { return []; }
+}
+function saveReferralOutcomes(list) {
+  try { localStorage.setItem(REFERRAL_OUTCOME_KEY, JSON.stringify(normalizeReferralOutcomeList(list))); } catch { /* referral outcomes only: a failed save leaves the previous list in place */ }
+}
+let referralOutcomesBound = false;
+function renderReferralOutcomes() {
+  const listEl = $('#roList');
+  if (!listEl) return;
+  const all = loadReferralOutcomes();
+  listEl.innerHTML = all.length ? referralOutcomeAllHtml(all) : '<p>No referral outcomes recorded.</p>';
+  const summaryEl = $('#roSummary');
+  if (summaryEl) summaryEl.textContent = `${referralOutcomeSummaryText(all)} An outcome entry is never edited, only annotated. Recording an outcome never changes any referral record, customer record, bill, or payment by itself, and never grants any credit.`;
+  const filterEl = $('#roFilterBody');
+  if (filterEl) {
+    const referrer = ($('#roFilterReferrer')?.value ?? '').trim();
+    const referred = ($('#roFilterReferred')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+    if (referrer === '') {
+      filterEl.innerHTML = '<p>Give a referrer name to show their referred customers with the latest outcome.</p>';
+    } else {
+      const page = referralOutcomesForReferrer(all, referrer);
+      const counts = referred.length
+        ? referralOutcomeCounts(all, referrer, referred)
+        : null;
+      const countsLine = counts
+        ? `<p>${counts.joined} joined, ${counts.stayed} stayed, ${counts.left} left, ${counts.noOutcome} with no outcome recorded — ${counts.total} referral${counts.total === 1 ? '' : 's'} in total.</p>`
+        : '<p>List the referred customers (one per line) to see counts that sum to the referrals recorded.</p>';
+      filterEl.innerHTML = page.length
+        ? `${countsLine}<ul>${page.map((row) => `<li>${row.referredCustomer} — ${row.outcome} on ${row.date}${row.note ? `. ${row.note}` : ''}.</li>`).join('')}</ul>`
+        : `${countsLine}<p>No referral outcome recorded for referrer \u201c${referrer}\u201d.</p>`;
+    }
+  }
+  if (!referralOutcomesBound) {
+    referralOutcomesBound = true;
+    $('#roExportBtn')?.addEventListener('click', () => { downloadCsvFile(referralOutcomeFilename(), referralOutcomeCsv(loadReferralOutcomes())); });
+    $('#roRecordBtn')?.addEventListener('click', () => {
+      const before = loadReferralOutcomes();
+      const next = recordReferralOutcome(before, {
+        id: `RO-${Date.now()}`,
+        referrer: $('#roReferrer')?.value ?? '',
+        referredCustomer: $('#roReferred')?.value ?? '',
+        outcome: $('#roOutcome')?.value ?? '',
+        date: $('#roDate')?.value ?? '',
+        note: $('#roNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Outcome not recorded: give a referrer, a referred customer, a clear outcome (joined, stayed, or left), and a real date. One entry per referred customer per date.'); return; }
+      saveReferralOutcomes(next);
+      renderReferralOutcomes();
+    });
+    $('#roAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadReferralOutcomes();
+      const next = addReferralOutcomeNote(before, $('#roAnnotateId')?.value ?? '', $('#roAnnotateDate')?.value ?? '', $('#roAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Outcome note not added: give a known entry id, a real date, and a note.'); return; }
+      saveReferralOutcomes(next);
+      renderReferralOutcomes();
+    });
+    $('#roRemoveBtn')?.addEventListener('click', () => {
+      saveReferralOutcomes(removeReferralOutcome(loadReferralOutcomes(), $('#roRemoveId')?.value ?? ''));
+      renderReferralOutcomes();
+    });
+    $('#roFilterBtn')?.addEventListener('click', () => { renderReferralOutcomes(); });
+    $('#roFilterReferrer')?.addEventListener('input', () => { renderReferralOutcomes(); });
+    $('#roFilterReferred')?.addEventListener('input', () => { renderReferralOutcomes(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

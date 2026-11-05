@@ -10820,6 +10820,32 @@
 <div id="myrBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="scvHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="scvHeading">Seasonal comparison view</h3>
+<p class="chart-caption">Collections, faults, and exits grouped by season or quarter across years, composed from monthly figures copied from the monthly reports. A season with missing months is marked incomplete and the missing months are named. Composing the view never changes any bill, payment, or customer record, and it makes no forecast.</p>
+<p id="scvSummary"></p>
+</div>
+<div>
+<button id="scvExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export seasonal comparison CSV</button>
+</div>
+</div>
+<h4>Group by</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Grouping <select id="scvGrouping" style="width: 160px;"><option value="season">Season</option><option value="quarter">Quarter</option></select></label>
+</div>
+<h4>Record a monthly figure</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month <input id="scvMonth" type="month" style="width: 140px;"></label>
+<label style="font-size: 12px;">Collections, Rs <input id="scvCollections" type="number" min="0" step="1" style="width: 120px;" placeholder="e.g. 310000"></label>
+<label style="font-size: 12px;">Faults <input id="scvFaults" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Exits <input id="scvExits" type="number" min="0" step="1" style="width: 90px;"></label>
+<button id="scvRecordBtn" class="secondary-button btn-sm" type="button">Record monthly figure</button>
+<label style="font-size: 12px;">Remove id <input id="scvRemoveId" type="text" style="width: 140px;" placeholder="e.g. SC-2026-01"></label>
+<button id="scvRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<div id="scvBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

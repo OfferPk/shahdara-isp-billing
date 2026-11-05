@@ -481,6 +481,7 @@ import { validVisitLanguageDate, normalizeVisitLanguageList, recordVisitLanguage
 import { validNoShowNoteDate, normalizeNoShowNoteList, recordNoShowNote, removeNoShowNote, noShowNoteSorted, noShowNotesForCustomer, noShowNotesInPeriod, noShowNoteSummaryText, noShowNoteAllHtml, noShowNoteCsv, noShowNoteFilename } from './no-show-note.js';
 import { validFarewellNoteDate, normalizeFarewellNoteList, recordFarewellNote, removeFarewellNote, farewellNoteSorted, farewellNotesForCustomer, farewellNoteSummaryText, farewellNoteAllHtml, farewellNoteCsv, farewellNoteFilename } from './farewell-note.js';
 import { validServiceTrialDate, normalizeServiceTrialList, recordServiceTrial, removeServiceTrial, serviceTrialSorted, serviceTrialsForCustomer, overlappingServiceTrials, serviceTrialSummaryText, serviceTrialAllHtml, serviceTrialCsv, serviceTrialFilename } from './service-trial.js';
+import { validDocumentReceiptDate, normalizeDocumentReceiptList, recordDocumentReceipt, removeDocumentReceipt, documentReceiptSorted, documentReceiptsForCustomer, documentReceiptSummaryText, documentReceiptAllHtml, documentReceiptCsv, documentReceiptFilename } from './document-receipt.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14206,6 +14207,7 @@ function renderAnalytics() {
   renderNoShowNotes();
   renderFarewellNotes();
   renderServiceTrials();
+  renderDocumentReceipts();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30443,6 +30445,58 @@ function renderServiceTrials() {
     });
     $('#svFilterBtn')?.addEventListener('click', () => { renderServiceTrials(); });
     $('#svFilterCustomer')?.addEventListener('input', () => { renderServiceTrials(); });
+  }
+}
+
+const DOCUMENT_RECEIPT_KEY = 'shahdara_document_receipts_v1';
+function loadDocumentReceipts() {
+  try { return normalizeDocumentReceiptList(JSON.parse(localStorage.getItem(DOCUMENT_RECEIPT_KEY) || '[]')); } catch { return []; }
+}
+function saveDocumentReceipts(list) {
+  try { localStorage.setItem(DOCUMENT_RECEIPT_KEY, JSON.stringify(normalizeDocumentReceiptList(list))); } catch { /* document receipts only: a failed save leaves the previous list in place */ }
+}
+let documentReceiptsBound = false;
+function renderDocumentReceipts() {
+  const listEl = $('#docList');
+  if (!listEl) return;
+  const all = loadDocumentReceipts();
+  listEl.innerHTML = all.length ? documentReceiptAllHtml(all) : '<p>No document receipts recorded.</p>';
+  const summaryEl = $('#docSummary');
+  if (summaryEl) summaryEl.textContent = `${documentReceiptSummaryText(all)} Recording a receipt never changes any customer record, bill, or payment, and never uploads or stores any document.`;
+  const customerEl = $('#docCustomerBody');
+  if (customerEl) {
+    const customer = ($('#docFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their document receipts.</p>';
+    } else {
+      const rows = documentReceiptsForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? documentReceiptAllHtml(rows)
+        : '<p>No document receipts recorded for this customer.</p>';
+    }
+  }
+  if (!documentReceiptsBound) {
+    documentReceiptsBound = true;
+    $('#docExportBtn')?.addEventListener('click', () => { downloadCsvFile(documentReceiptFilename(), documentReceiptCsv(loadDocumentReceipts())); });
+    $('#docRecordBtn')?.addEventListener('click', () => {
+      const before = loadDocumentReceipts();
+      const next = recordDocumentReceipt(before, {
+        id: `DR-${Date.now()}`,
+        customer: $('#docCustomer')?.value ?? '',
+        documentType: $('#docType')?.value ?? '',
+        dateReceived: $('#docDate')?.value ?? '',
+        receivedBy: $('#docReceivedBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Document receipt not recorded: give a customer, a document type, a real date received, and who received it.'); return; }
+      saveDocumentReceipts(next);
+      renderDocumentReceipts();
+    });
+    $('#docRemoveBtn')?.addEventListener('click', () => {
+      saveDocumentReceipts(removeDocumentReceipt(loadDocumentReceipts(), $('#docRemoveId')?.value ?? ''));
+      renderDocumentReceipts();
+    });
+    $('#docFilterBtn')?.addEventListener('click', () => { renderDocumentReceipts(); });
+    $('#docFilterCustomer')?.addEventListener('input', () => { renderDocumentReceipts(); });
   }
 }
 

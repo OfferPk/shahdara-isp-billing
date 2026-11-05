@@ -9952,6 +9952,46 @@
 <h4>All service trials</h4>
 <div id="svList"></div>
 </section>
+<section class="chart-card" aria-labelledby="docHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="docHeading">Customer document receipt note</h3>
+<p class="chart-caption">One receipt note per document received: the customer, the document type in plain words, the date received, and who received it. A customer who hands over a CNIC copy gets a provable receipt. Recording a receipt never changes any customer record, bill, or payment, and never uploads or stores any document.</p>
+<p id="docSummary"></p>
+</div>
+<div>
+<button id="docExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export document receipts CSV</button>
+</div>
+</div>
+<h4>Record a document receipt</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="docCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Document type <input id="docType" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Date received <input id="docDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Received by <input id="docReceivedBy" type="text" style="width: 140px;">
+</label>
+<button id="docRecordBtn" class="secondary-button btn-sm" type="button">Record document receipt</button>
+</div>
+<h4>Remove a document receipt</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove receipt id <input id="docRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="docRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Document receipts for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="docFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="docFilterBtn" class="secondary-button btn-sm" type="button">Show customer receipts</button>
+</div>
+<div id="docCustomerBody"></div>
+<h4>All document receipts</h4>
+<div id="docList"></div>
+</section>
 
 
 <section class="chart-card" aria-labelledby="ftHeading">

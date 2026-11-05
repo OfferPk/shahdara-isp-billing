@@ -9814,6 +9814,58 @@
 <h4>All visit language notes</h4>
 <div id="vgList"></div>
 </section>
+<section class="chart-card" aria-labelledby="nsHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="nsHeading">Appointment no-show note</h3>
+<p class="chart-caption">One no-show note per missed appointment: the appointment link, the date, the reason if known, and the next step agreed. No-shows list per customer and per period, with reasons where known. Recording a note never changes any visit outcome, bill, or payment record.</p>
+<p id="nsSummary"></p>
+</div>
+<div>
+<button id="nsExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export no-show notes CSV</button>
+</div>
+</div>
+<h4>Record a no-show note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Appointment link <input id="nsAppointment" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Customer <input id="nsCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Date <input id="nsDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason if known <input id="nsReason" type="text" style="width: 180px;">
+</label>
+<label style="font-size: 12px;">Next step agreed <input id="nsNextStep" type="text" style="width: 180px;">
+</label>
+<button id="nsRecordBtn" class="secondary-button btn-sm" type="button">Record no-show note</button>
+</div>
+<h4>Remove a no-show note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove note id <input id="nsRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="nsRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>No-show notes for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="nsFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="nsFilterBtn" class="secondary-button btn-sm" type="button">Show customer notes</button>
+</div>
+<div id="nsCustomerBody"></div>
+<h4>No-show notes for a period</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">From <input id="nsFilterFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">To <input id="nsFilterTo" type="date" style="width: 140px;">
+</label>
+<button id="nsPeriodBtn" class="secondary-button btn-sm" type="button">Show period notes</button>
+</div>
+<div id="nsPeriodBody"></div>
+<h4>All no-show notes</h4>
+<div id="nsList"></div>
+</section>
+
 
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">

@@ -478,6 +478,7 @@ import { validDowngradeConversationDate, normalizeDowngradeConversationList, rec
 import { validPraiseLogDate, normalizePraiseLogList, recordPraiseLog, removePraiseLog, praiseLogSorted, praiseLogsForCustomer, praiseLogsForSubject, praiseLogSummaryText, praiseLogAllHtml, praiseLogCsv, praiseLogFilename } from './praise-log.js';
 import { validReferralEligibilityDate, normalizeReferralEligibilityList, recordReferralEligibility, removeReferralEligibility, referralEligibilityForReferrer, latestReferralEligibility, referralEligibilitySummaryText, referralEligibilityAllHtml, referralEligibilityCsv, referralEligibilityFilename } from './referral-eligibility.js';
 import { validVisitLanguageDate, normalizeVisitLanguageList, recordVisitLanguage, removeVisitLanguage, visitLanguagesForCustomer, latestVisitLanguage, visitLanguageSummaryText, visitLanguageAllHtml, visitLanguageCsv, visitLanguageFilename } from './visit-language.js';
+import { validNoShowNoteDate, normalizeNoShowNoteList, recordNoShowNote, removeNoShowNote, noShowNoteSorted, noShowNotesForCustomer, noShowNotesInPeriod, noShowNoteSummaryText, noShowNoteAllHtml, noShowNoteCsv, noShowNoteFilename } from './no-show-note.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14200,6 +14201,7 @@ function renderAnalytics() {
   renderPraiseLog();
   renderReferralEligibility();
   renderVisitLanguages();
+  renderNoShowNotes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30261,6 +30263,73 @@ function renderVisitLanguages() {
     $('#vgLatestCustomer')?.addEventListener('input', () => { renderVisitLanguages(); });
   }
 }
+const NO_SHOW_NOTE_KEY = 'shahdara_no_show_notes_v1';
+function loadNoShowNotes() {
+  try { return normalizeNoShowNoteList(JSON.parse(localStorage.getItem(NO_SHOW_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveNoShowNotes(list) {
+  try { localStorage.setItem(NO_SHOW_NOTE_KEY, JSON.stringify(normalizeNoShowNoteList(list))); } catch { /* no-show notes only: a failed save leaves the previous list in place */ }
+}
+let noShowNotesBound = false;
+function renderNoShowNotes() {
+  const listEl = $('#nsList');
+  if (!listEl) return;
+  const all = loadNoShowNotes();
+  listEl.innerHTML = all.length ? noShowNoteAllHtml(all) : '<p>No appointment no-show notes recorded.</p>';
+  const summaryEl = $('#nsSummary');
+  if (summaryEl) summaryEl.textContent = `${noShowNoteSummaryText(all)} Recording a note never changes any visit outcome, bill, or payment record by itself.`;
+  const customerEl = $('#nsCustomerBody');
+  if (customerEl) {
+    const customer = ($('#nsFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their no-show notes.</p>';
+    } else {
+      const rows = noShowNotesForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? noShowNoteAllHtml(rows)
+        : '<p>No no-show notes recorded for this customer.</p>';
+    }
+  }
+  const periodEl = $('#nsPeriodBody');
+  if (periodEl) {
+    const from = $('#nsFilterFrom')?.value ?? '';
+    const to = $('#nsFilterTo')?.value ?? '';
+    if (from === '' || to === '') {
+      periodEl.innerHTML = '<p>Give a from and to date to see no-shows for a period.</p>';
+    } else {
+      const rows = noShowNotesInPeriod(all, from, to);
+      periodEl.innerHTML = rows.length
+        ? noShowNoteAllHtml(rows)
+        : '<p>No no-shows recorded in this period.</p>';
+    }
+  }
+  if (!noShowNotesBound) {
+    noShowNotesBound = true;
+    $('#nsExportBtn')?.addEventListener('click', () => { downloadCsvFile(noShowNoteFilename(), noShowNoteCsv(loadNoShowNotes())); });
+    $('#nsRecordBtn')?.addEventListener('click', () => {
+      const before = loadNoShowNotes();
+      const next = recordNoShowNote(before, {
+        id: `NS-${Date.now()}`,
+        appointmentId: $('#nsAppointment')?.value ?? '',
+        customer: $('#nsCustomer')?.value ?? '',
+        date: $('#nsDate')?.value ?? '',
+        reason: $('#nsReason')?.value ?? '',
+        nextStep: $('#nsNextStep')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('No-show note not recorded: give an appointment link and a real date.'); return; }
+      saveNoShowNotes(next);
+      renderNoShowNotes();
+    });
+    $('#nsRemoveBtn')?.addEventListener('click', () => {
+      saveNoShowNotes(removeNoShowNote(loadNoShowNotes(), $('#nsRemoveId')?.value ?? ''));
+      renderNoShowNotes();
+    });
+    $('#nsFilterBtn')?.addEventListener('click', () => { renderNoShowNotes(); });
+    $('#nsFilterCustomer')?.addEventListener('input', () => { renderNoShowNotes(); });
+    $('#nsPeriodBtn')?.addEventListener('click', () => { renderNoShowNotes(); });
+  }
+}
+
 let feedbackTrendBound = false;
 function feedbackTrendRows() {
   const raw = ($('#ftRows')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);

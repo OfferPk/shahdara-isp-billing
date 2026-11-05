@@ -417,6 +417,7 @@ import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsS
 import { normalizeBillReissueList, recordBillReissue, removeBillReissue, billReissuesSorted, billReissuesForCustomer, billReissueSummaryText, billReissueAllHtml, billReissueCsv, billReissueFilename } from './bill-reissue.js';
 import { normalizeBehaviourBillList, recordBehaviourBill, removeBehaviourBill, behaviourSummaries, behaviourSummaryText, behaviourAllHtml, behaviourCsv, behaviourFilename } from './payment-behaviour.js';
 import { normalizeDiscountExpiryList, recordDiscountExpiry, removeDiscountExpiry, discountExpiriesSorted, discountExpiriesWithinWindow, discountExpiryAllHtml, discountExpiryCsv, discountExpiryFilename } from './discount-expiry.js';
+import { normalizeWaiverReasonList, recordWaiverReason, removeWaiverReason, waiverReasonsForCategory, waiverReasonAllHtml, waiverReasonCsv, waiverReasonFilename } from './waiver-reason.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14076,6 +14077,7 @@ function renderAnalytics() {
   renderBillReissues();
   renderPaymentBehaviour();
   renderDiscountExpiries();
+  renderWaiverReasons();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26212,6 +26214,48 @@ function renderDiscountExpiries() {
     });
     $('#deWindowFrom')?.addEventListener('change', () => { renderDiscountExpiries(); });
     $('#deWindowTo')?.addEventListener('change', () => { renderDiscountExpiries(); });
+  }
+}
+const WAIVER_REASON_KEY = 'shahdara_waiver_reasons_v1';
+function loadWaiverReasons() {
+  try { return normalizeWaiverReasonList(JSON.parse(localStorage.getItem(WAIVER_REASON_KEY) || '[]')); } catch { return []; }
+}
+function saveWaiverReasons(list) {
+  try { localStorage.setItem(WAIVER_REASON_KEY, JSON.stringify(normalizeWaiverReasonList(list))); } catch { /* catalogue only: a failed save leaves the previous reasons in place */ }
+}
+let waiverReasonsBound = false;
+function renderWaiverReasons() {
+  const bodyEl = $('#wrBody');
+  if (!bodyEl) return;
+  const all = loadWaiverReasons();
+  const categoryQuery = ($('#wrCategoryFilter')?.value ?? '').trim();
+  const shown = categoryQuery ? waiverReasonsForCategory(all, categoryQuery) : all;
+  bodyEl.innerHTML = waiverReasonAllHtml(shown);
+  const summaryEl = $('#wrSummary');
+  if (summaryEl) {
+    summaryEl.textContent = categoryQuery
+      ? `${shown.length} reason(s) in category matching "${categoryQuery}".`
+      : `${all.length} waiver reason(s) in the catalogue. Operators pick a reason from here when recording a waiver; the catalogue grants no waiver by itself.`;
+  }
+  if (!waiverReasonsBound) {
+    waiverReasonsBound = true;
+    $('#wrExportBtn')?.addEventListener('click', () => { downloadCsvFile(waiverReasonFilename(), waiverReasonCsv(shown)); });
+    $('#wrSaveBtn')?.addEventListener('click', () => {
+      const before = loadWaiverReasons();
+      const next = recordWaiverReason(before, {
+        code: $('#wrCode')?.value ?? '',
+        meaning: $('#wrMeaning')?.value ?? '',
+        category: $('#wrCategory')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Reason not recorded: give a short code, a plain-words meaning, and a category. A code already in the catalogue is never rewritten.'); return; }
+      saveWaiverReasons(next);
+      renderWaiverReasons();
+    });
+    $('#wrRemoveBtn')?.addEventListener('click', () => {
+      saveWaiverReasons(removeWaiverReason(loadWaiverReasons(), $('#wrRemoveId')?.value ?? ''));
+      renderWaiverReasons();
+    });
+    $('#wrCategoryFilter')?.addEventListener('input', () => { renderWaiverReasons(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

@@ -8549,6 +8549,52 @@
 </label>
 </div>
 <div id="deBody"></div>
+</section><section class="chart-card" aria-labelledby="bfvHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="bfvHeading">Bill format version note</h3>
+<p class="chart-caption">One format-version record per format change: the version number, the date it became effective, and a plain-words description of what changed — plus the version stamped on each bill issued under it. This describes formats only: it changes no bill amount or content, and stamping a version never changes any bill, payment, or customer record by itself. A bill whose version has no record is flagged.</p>
+<p id="bfvSummary"></p>
+</div>
+<div>
+<button id="bfvExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export format versions CSV</button>
+</div>
+</div>
+<h4>Record a format version</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Version <input id="bfvVersion" type="text" style="width: 80px;">
+</label>
+<label style="font-size: 12px;">Date effective <input id="bfvDateEffective" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">What changed <input id="bfvDescription" type="text" style="width: 260px;">
+</label>
+<button id="bfvSaveBtn" class="secondary-button btn-sm" type="button">Record version</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove version id <input id="bfvRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="bfvRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Format versions (effective date order)</h4>
+<div id="bfvBody"></div>
+<h4>Stamp a bill with its format version</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Bill reference <input id="bfvBillRef" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Version <input id="bfvBillVersion" type="text" style="width: 80px;">
+</label>
+<label style="font-size: 12px;">Date stamped <input id="bfvDateStamped" type="date" style="width: 140px;">
+</label>
+<button id="bfvStampBtn" class="secondary-button btn-sm" type="button">Stamp bill</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove stamp id <input id="bfvRemoveStampId" type="text" style="width: 120px;">
+</label>
+<button id="bfvRemoveStampBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Stamped bills</h4>
+<div id="bfvStampBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

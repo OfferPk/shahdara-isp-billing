@@ -10281,6 +10281,70 @@
 <h4>All complaint follow-ups</h4>
 <div id="cfList"></div>
 </section>
+<section class="chart-card" aria-labelledby="pdcHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="pdcHeading">Service promise delivery check</h3>
+<p class="chart-caption">One delivery check per promise: the promise link, what was promised, what was delivered, the delivered date, and met / partly met / missed. It verifies delivery only and does not replace the operator promise tracker, which records commitments. Each checked promise shows promised versus delivered side by side, and missed promises appear on one list sorted by promise date. A check is never edited, only annotated. Recording a check never changes the promise record, any customer record, any bill, or any payment by itself.</p>
+<p id="pdcSummary"></p>
+</div>
+<div>
+<button id="pdcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export promise delivery checks CSV</button>
+</div>
+</div>
+<h4>Record a delivery check</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Promise reference <input id="pdcPromiseRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Customer <input id="pdcCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Promise date <input id="pdcPromiseDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">What was promised <input id="pdcPromised" type="text" style="width: 260px;">
+</label>
+<label style="font-size: 12px;">What was delivered <input id="pdcDelivered" type="text" style="width: 260px;">
+</label>
+<label style="font-size: 12px;">Delivered date <input id="pdcDeliveredDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Outcome <select id="pdcOutcome" style="width: 120px;">
+<option value="met">Met</option>
+<option value="partly met">Partly met</option>
+<option value="missed">Missed</option>
+</select>
+</label>
+<label style="font-size: 12px;">Note <input id="pdcNote" type="text" style="width: 260px;">
+</label>
+<button id="pdcRecordBtn" class="secondary-button btn-sm" type="button">Record delivery check</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="pdcAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="pdcAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="pdcAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="pdcAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="pdcRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="pdcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Missed promises</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<button id="pdcMissedBtn" class="secondary-button btn-sm" type="button">List missed promises</button>
+</div>
+<div id="pdcMissedBody"></div>
+<h4>Delivery check for one promise</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Promise reference <input id="pdcFilterPromise" type="text" style="width: 140px;">
+</label>
+<button id="pdcFilterBtn" class="secondary-button btn-sm" type="button">Show delivery check</button>
+</div>
+<div id="pdcFilterBody"></div>
+<h4>All promise delivery checks</h4>
+<div id="pdcList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

@@ -10955,6 +10955,40 @@
 <div id="srnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="evcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="evcHeading">Data export verification checklist</h3>
+<p class="chart-caption">One verification checklist per export: the export reference, the record counts expected and found, the date range covered, the checker, and the result. A verified export shows expected versus found counts that match, or a named mismatch; an unverified export is flagged as unchecked. A checklist only checks an export made under the export pack — it never makes an export, and recording one never changes any bill, payment, customer, or staff record by itself.</p>
+<p id="evcSummary"></p>
+</div>
+<div>
+<button id="evcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export checklists CSV</button>
+</div>
+</div>
+<h4>Record a verification checklist</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Checklist id <input id="evcId" type="text" style="width: 120px;" placeholder="auto if left blank"></label>
+<label style="font-size: 12px;">Export reference <input id="evcExportRef" type="text" style="width: 150px;" placeholder="e.g. EXP-2026-11-01"></label>
+<label style="font-size: 12px;">Expected records <input id="evcExpected" type="text" style="width: 100px;" placeholder="e.g. 100"></label>
+<label style="font-size: 12px;">Found records <input id="evcFound" type="text" style="width: 100px;" placeholder="e.g. 100"></label>
+<label style="font-size: 12px;">Covered from <input id="evcDateFrom" type="text" style="width: 120px;" placeholder="e.g. 2026-11-01"></label>
+<label style="font-size: 12px;">Covered to <input id="evcDateTo" type="text" style="width: 120px;" placeholder="e.g. 2026-11-05"></label>
+<label style="font-size: 12px;">Checker <input id="evcChecker" type="text" style="width: 140px;" placeholder="e.g. Owner"></label>
+<label style="font-size: 12px;">Result <select id="evcResult" style="width: 120px;"><option value="unchecked">Unchecked</option><option value="match">Match</option><option value="mismatch">Mismatch</option></select></label>
+<button id="evcRecordBtn" class="secondary-button btn-sm" type="button">Record checklist</button>
+<label style="font-size: 12px;">Remove id <input id="evcRemoveId" type="text" style="width: 120px;"></label>
+<button id="evcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Checklists for one export</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Export <select id="evcRefSelect" style="width: 160px;"></select></label>
+</div>
+<div id="evcRefBody"></div>
+<h4>Unchecked exports</h4>
+<div id="evcUncheckedBody"></div>
+<h4>All verification checklists</h4>
+<div id="evcBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

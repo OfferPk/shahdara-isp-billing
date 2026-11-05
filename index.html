@@ -11045,6 +11045,37 @@
 <div id="dcsBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="rpcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rpcHeading">Monthly report pack assembly checklist</h3>
+<p class="chart-caption">One assembly checklist per month: the reports required for that month's pack, each report's status included or missing, the assembler, and the date completed. The checklist only tracks assembly — it assembles nothing itself and never changes any bill, payment, or source report by itself.</p>
+<p id="rpcSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="rpcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export pack checklists CSV</button>
+</div></div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month <input id="rpcMonth" type="month" style="width: 140px;"></label>
+<label style="font-size: 12px;">Reports required (comma-separated) <input id="rpcReports" type="text" style="width: 260px;" placeholder="e.g. Annual summary, Business review, Tax figures pack"></label>
+<label style="font-size: 12px;">Assembler <input id="rpcAssembler" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<button id="rpcRecordBtn" class="secondary-button btn-sm" type="button">Record checklist</button>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Checklist id <input id="rpcMarkId" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Report <input id="rpcMarkReport" type="text" style="width: 180px;"></label>
+<label style="font-size: 12px;">Status <select id="rpcMarkStatus" style="width: 110px;"><option value="included">included</option><option value="missing">missing</option></select></label>
+<button id="rpcMarkBtn" class="secondary-button btn-sm" type="button">Mark report</button>
+<label style="font-size: 12px;">Complete id <input id="rpcCompleteId" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Date completed <input id="rpcCompleteDate" type="date" style="width: 140px;"></label>
+<button id="rpcCompleteBtn" class="secondary-button btn-sm" type="button">Mark complete</button>
+<label style="font-size: 12px;">Remove id <input id="rpcRemoveId" type="text" style="width: 120px;"></label>
+<button id="rpcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Incomplete packs</h4>
+<div id="rpcIncompleteBody"></div>
+<h4>All packs, newest month first</h4>
+<div id="rpcBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

@@ -8595,6 +8595,48 @@
 </div>
 <h4>Stamped bills</h4>
 <div id="bfvStampBody"></div>
+</section><section class="chart-card" aria-labelledby="baHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="baHeading">Customer billing address note</h3>
+<p class="chart-caption">One billing address per customer: where the bill should go when it differs from the service address — a shop, a relative's house, a different street — with the date it became effective and a note saying where it differs. This records where bills go only: it never moves the service and never changes the service address, and recording it never changes any bill, payment, or service record by itself. Bill delivery uses the billing address where one is set, otherwise the service address.</p>
+<p id="baSummary"></p>
+</div>
+<div>
+<button id="baExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export billing addresses CSV</button>
+</div>
+</div>
+<h4>Record a billing address</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="baCustomer" type="text" style="width: 150px;">
+</label>
+<label style="font-size: 12px;">Billing address <input id="baAddress" type="text" style="width: 260px;">
+</label>
+<label style="font-size: 12px;">Date effective <input id="baDateEffective" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note where it differs <input id="baNote" type="text" style="width: 260px;">
+</label>
+<button id="baSaveBtn" class="secondary-button btn-sm" type="button">Record billing address</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove record id <input id="baRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="baRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+<label style="font-size: 12px;">Filter customer <input id="baCustomerFilter" type="text" style="width: 150px;">
+</label>
+</div>
+<h4>Billing addresses</h4>
+<div id="baBody"></div>
+<h4>Service address and billing address side by side</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="baCheckCustomer" type="text" style="width: 150px;">
+</label>
+<label style="font-size: 12px;">Service address <input id="baServiceAddress" type="text" style="width: 260px;">
+</label>
+<button id="baShowBtn" class="secondary-button btn-sm" type="button">Show side by side</button>
+</div>
+<p id="baSideBySide" style="font-size: 12px;"></p>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

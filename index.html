@@ -10784,6 +10784,40 @@
 <div id="esList"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="puHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="puHeading">New-package uptake per mohalla</h3>
+<p class="chart-caption">One uptake view per mohalla per package, composed from package-change rows only: how many customers were offered the package, how many moved to it, and the uptake count. Uptake counts per mohalla sum to the total package moves for that package, and a mohalla with no uptake shows zero, not a blank. Viewing uptake never changes any package, bill, or payment record, and it never replaces the new-package announcement draft.</p>
+<p id="puSummary"></p>
+</div>
+<div>
+<button id="puExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export package uptakes CSV</button>
+</div>
+</div>
+<h4>Package-change rows for the period</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Package <input id="puPackage" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Mohalla <input id="puMohalla" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period from <input id="puPeriodFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period to <input id="puPeriodTo" type="date" style="width: 140px;">
+</label>
+<button id="puShowBtn" class="secondary-button btn-sm" type="button">Show uptake</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Package-change rows, one per line: mohalla | package | customer | moved or offered | date <textarea id="puRows" rows="4" style="width: 520px;" placeholder="Mohalla North | 5 Mbps | Ayesha | moved | 2026-11-02"></textarea>
+</label>
+</div>
+<h4>Uptake for one mohalla</h4>
+<div id="puUptakeBody"></div>
+<h4>Uptake for all mohallas</h4>
+<div id="puAllBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

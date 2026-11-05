@@ -10209,6 +10209,78 @@
 <h4>All warranty claim links</h4>
 <div id="wcList"></div>
 </section>
+<section class="chart-card" aria-labelledby="cfHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="cfHeading">Complaint satisfaction follow-up after closure</h3>
+<p class="chart-caption">One follow-up record per closed complaint: the complaint link, the follow-up due date, whether the customer is still satisfied, and a note in plain words. It is a second check after closure, not the note recorded at closure and not visit feedback. A "not satisfied" follow-up reopens the follow-up list, never the complaint itself. A follow-up is never edited, only completed once and then annotated. Recording a follow-up never changes the complaint record, any bill, or any payment by itself.</p>
+<p id="cfSummary"></p>
+</div>
+<div>
+<button id="cfExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export complaint follow-ups CSV</button>
+</div>
+</div>
+<h4>Record a complaint follow-up</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Complaint reference <input id="cfComplaintRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up due date <input id="cfDueDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="cfNote" type="text" style="width: 260px;">
+</label>
+<button id="cfRecordBtn" class="secondary-button btn-sm" type="button">Record follow-up</button>
+</div>
+<h4>Complete a follow-up</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="cfCompleteId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Still satisfied <select id="cfCompleteAnswer" style="width: 90px;">
+<option value="yes">Yes</option>
+<option value="no">No</option>
+</select>
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="cfCompleteDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">What the customer said <input id="cfCompleteNote" type="text" style="width: 200px;">
+</label>
+<button id="cfCompleteBtn" class="secondary-button btn-sm" type="button">Complete follow-up</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="cfAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="cfAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="cfAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="cfAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="cfRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="cfRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Open follow-up due date for one complaint</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Complaint reference <input id="cfDueRef" type="text" style="width: 140px;">
+</label>
+<button id="cfDueBtn" class="secondary-button btn-sm" type="button">Show open due date</button>
+</div>
+<div id="cfDueBody"></div>
+<h4>Open follow-up list</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<button id="cfOpenBtn" class="secondary-button btn-sm" type="button">List open follow-ups</button>
+</div>
+<div id="cfOpenBody"></div>
+<h4>Follow-up for one complaint</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Complaint reference <input id="cfFilterComplaint" type="text" style="width: 140px;">
+</label>
+<button id="cfFilterBtn" class="secondary-button btn-sm" type="button">Show follow-up</button>
+</div>
+<div id="cfFilterBody"></div>
+<h4>All complaint follow-ups</h4>
+<div id="cfList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

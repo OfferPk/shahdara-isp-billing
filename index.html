@@ -10309,6 +10309,38 @@
 <div id="sfcBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="eapHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="eapHeading">Expense approval note</h3>
+<p class="chart-caption">One dated approval per spend: the expense in plain words, the amount in whole rupees, the expense category, the approver, the date, and the status. Recording an approval never changes any bill, payment, or budget record by itself, and past notes are never silently edited.</p>
+<p id="eapSummary"></p>
+</div>
+<div>
+<button id="eapExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export expense approvals CSV</button>
+</div>
+</div>
+<h4>Record an expense approval</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Expense <input id="eapExpense" type="text" style="width: 180px;" placeholder="e.g. Emergency fibre cable roll"></label>
+<label style="font-size: 12px;">Category <input id="eapCategory" type="text" style="width: 140px;" placeholder="e.g. Field material"></label>
+<label style="font-size: 12px;">Amount (Rs) <input id="eapAmount" type="number" min="1" step="1" style="width: 120px;" placeholder="e.g. 12500"></label>
+<label style="font-size: 12px;">Approver <input id="eapApprover" type="text" style="width: 120px;" placeholder="e.g. Aqib"></label>
+<label style="font-size: 12px;">Date <input id="eapDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Status <select id="eapStatus" style="width: 120px;"><option value="pending">Pending</option><option value="approved">Approved</option><option value="declined">Declined</option></select></label>
+<button id="eapRecordBtn" class="secondary-button btn-sm" type="button">Record expense approval</button>
+<label style="font-size: 12px;">Remove id <input id="eapRemoveId" type="text" style="width: 120px;"></label>
+<button id="eapRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Where the money goes</h4>
+<div id="eapCategorySummary"></div>
+<h4>Approvals in one category</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Category <select id="eapCategorySelect" style="width: 160px;"></select></label>
+</div>
+<div id="eapCategoryBody"></div>
+<h4>All expense approvals</h4>
+<div id="eapBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

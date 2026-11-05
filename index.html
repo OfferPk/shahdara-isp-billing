@@ -10229,6 +10229,36 @@
 <div id="slvBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="tnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="tnHeading">Training record per staff member</h3>
+<p class="chart-caption">One record per training session: the staff member, the topic, the date, the trainer, and the outcome in plain words. Training is listed per staff member with topic, date, and trainer visible. Recording training never changes any bill, payment, customer record, or staff record by itself, and past entries are never silently edited.</p>
+<p id="tnSummary"></p>
+</div>
+<div>
+<button id="tnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export staff training CSV</button>
+</div>
+</div>
+<h4>Record staff training</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <input id="tnStaffMember" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Topic <input id="tnTopic" type="text" style="width: 140px;" placeholder="e.g. New ONU setup"></label>
+<label style="font-size: 12px;">Date <input id="tnDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Trainer <input id="tnTrainer" type="text" style="width: 120px;" placeholder="e.g. Aqib"></label>
+<label style="font-size: 12px;">Outcome <input id="tnOutcome" type="text" style="width: 140px;" placeholder="e.g. Completed"></label>
+<button id="tnRecordBtn" class="secondary-button btn-sm" type="button">Record training</button>
+<label style="font-size: 12px;">Remove id <input id="tnRemoveId" type="text" style="width: 120px;"></label>
+<button id="tnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Training for one staff member</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <input id="tnStaffFilter" type="text" style="width: 120px;"></label>
+<button id="tnStaffBtn" class="secondary-button btn-sm" type="button">Show staff training</button>
+</div>
+<div id="tnStaffBody"></div>
+<h4>All staff training</h4>
+<div id="tnBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

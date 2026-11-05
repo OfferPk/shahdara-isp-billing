@@ -488,6 +488,7 @@ import { normalizeReadinessScorecardList, recordReadinessScorecard, removeReadin
 import { validPriceReviewDate, normalizePriceReviewList, recordPriceReviewWorksheet, removePriceReviewWorksheet, priceReviewsForPackage, priceReviewSummaryText, priceReviewAllHtml, priceReviewsForPackageHtml, priceReviewCsv, priceReviewFilename } from './price-review.js';
 import { validShopChecklistDate, foldShopChecklistShift, normalizeShopChecklist, recordShopChecklistStep, removeShopChecklistStep, shopChecklistForDay, shopChecklistDaySummaryText, shopChecklistSummaryText, shopChecklistDayHtml, shopChecklistAllHtml, shopChecklistCsv, shopChecklistFilename } from './shop-checklist.js';
 import { foldStaffLeaveStatus, normalizeStaffLeave, recordStaffLeave, removeStaffLeave, staffLeaveSummaryText, staffLeaveStaffHtml, staffLeaveMonthHtml, staffLeaveAllHtml, staffLeaveCsv, staffLeaveFilename } from './staff-leave.js';
+import { normalizeStaffTraining, recordStaffTraining, removeStaffTraining, staffTrainingSummaryText, staffTrainingStaffHtml, staffTrainingAllHtml, staffTrainingCsv, staffTrainingFilename } from './staff-training.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14222,6 +14223,7 @@ function renderAnalytics() {
   renderPriceReview();
   renderShopChecklist();
   renderStaffLeave();
+  renderStaffTraining();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30890,6 +30892,61 @@ function renderStaffLeave() {
     $('#slvStaffFilter')?.addEventListener('input', () => { renderStaffLeave(); });
     $('#slvMonthBtn')?.addEventListener('click', () => { renderStaffLeave(); });
     $('#slvMonthFilter')?.addEventListener('input', () => { renderStaffLeave(); });
+  }
+}
+
+// Staff training record (Plan 292): one record per training session —
+// the staff member, the topic, the date, the trainer, and the outcome
+// in plain words. Recording training never changes any bill, payment,
+// customer record, or staff record by itself, and past entries are
+// read-only.
+const STAFF_TRAINING_KEY = 'shahdara_staff_training_v1';
+function loadStaffTraining() {
+  try { return normalizeStaffTraining(JSON.parse(localStorage.getItem(STAFF_TRAINING_KEY) || '[]')); } catch { return []; }
+}
+function saveStaffTraining(list) {
+  try { localStorage.setItem(STAFF_TRAINING_KEY, JSON.stringify(normalizeStaffTraining(list))); } catch { /* staff training only: a failed save leaves the previous list in place */ }
+}
+let staffTrainingBound = false;
+function renderStaffTraining() {
+  const listEl = $('#tnBody');
+  if (!listEl) return;
+  const all = loadStaffTraining();
+  const staff = ($('#tnStaffFilter')?.value ?? '').trim();
+  listEl.innerHTML = all.length ? staffTrainingAllHtml(all) : '<p>No staff training recorded.</p>';
+  const staffEl = $('#tnStaffBody');
+  if (staffEl) {
+    staffEl.innerHTML = staff
+      ? staffTrainingStaffHtml(all, staff)
+      : '<p>Pick a staff member to see their training.</p>';
+  }
+  const summaryEl = $('#tnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${staffTrainingSummaryText(all)} Recording training never changes any bill, payment, customer record, or staff record by itself.`;
+  }
+  if (!staffTrainingBound) {
+    staffTrainingBound = true;
+    $('#tnExportBtn')?.addEventListener('click', () => { downloadCsvFile(staffTrainingFilename(), staffTrainingCsv(loadStaffTraining())); });
+    $('#tnRecordBtn')?.addEventListener('click', () => {
+      const before = loadStaffTraining();
+      const next = recordStaffTraining(before, {
+        id: `TR-${Date.now()}`,
+        staffMember: $('#tnStaffMember')?.value ?? '',
+        topic: $('#tnTopic')?.value ?? '',
+        date: $('#tnDate')?.value ?? '',
+        trainer: $('#tnTrainer')?.value ?? '',
+        outcome: $('#tnOutcome')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Training not recorded: give a staff member, a topic, a real date, and a trainer.'); return; }
+      saveStaffTraining(next);
+      renderStaffTraining();
+    });
+    $('#tnRemoveBtn')?.addEventListener('click', () => {
+      saveStaffTraining(removeStaffTraining(loadStaffTraining(), $('#tnRemoveId')?.value ?? ''));
+      renderStaffTraining();
+    });
+    $('#tnStaffBtn')?.addEventListener('click', () => { renderStaffTraining(); });
+    $('#tnStaffFilter')?.addEventListener('input', () => { renderStaffTraining(); });
   }
 }
 

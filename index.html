@@ -9141,6 +9141,69 @@
 <button id="frShowBtn" class="secondary-button btn-sm" type="button">Show pattern</button>
 </div>
 <div id="frBody"></div>
+</section><section class="chart-card" aria-labelledby="onHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="onHeading">Planned outage customer notice checklist</h3>
+<p class="chart-caption">One checklist per planned outage: the outage reference, the mohallas affected, the notice method per mohalla, the date noticed, the operator who gave notice, and the customers not yet reached. A checklist is complete only when every affected mohalla has a notice method and date recorded, and unreached customers are listed, not hidden. A completed checklist is never edited, only annotated. Recording notice steps never changes any bill, payment, customer, or outage record by itself, and it never sends any message automatically; it does not replace the maintenance calendar, the planned versus unplanned outage distinction, or the maintenance notice draft.</p>
+<p id="onSummary"></p>
+</div>
+<div>
+<button id="onExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export notice checklists CSV</button>
+</div>
+</div>
+<h4>Record a notice checklist</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Outage reference <input id="onOutageRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Mohallas affected, one per line <textarea id="onMohallas" rows="3" style="width: 180px;"></textarea>
+</label>
+<label style="font-size: 12px;">Customers not yet reached, one per line <textarea id="onUnreached" rows="3" style="width: 180px;"></textarea>
+</label>
+<button id="onSaveBtn" class="secondary-button btn-sm" type="button">Record checklist</button>
+</div>
+<h4>Add a notice step</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Checklist id <input id="onStepId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Mohalla <input id="onStepMohalla" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Notice method <input id="onStepMethod" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date noticed <input id="onStepDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Operator <input id="onStepOperator" type="text" style="width: 140px;">
+</label>
+<button id="onStepBtn" class="secondary-button btn-sm" type="button">Add notice step</button>
+</div>
+<h4>Add an unreached customer / annotate</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Checklist id <input id="onAddUnreachedId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Customer not yet reached <input id="onAddUnreachedName" type="text" style="width: 160px;">
+</label>
+<button id="onAddUnreachedBtn" class="secondary-button btn-sm" type="button">Add unreached customer</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Checklist id <input id="onNoteId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="onNoteDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Annotation <input id="onNoteText" type="text" style="width: 220px;">
+</label>
+<button id="onNoteBtn" class="secondary-button btn-sm" type="button">Add annotation</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by outage reference <input id="onFilter" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;"><input id="onIncompleteOnly" type="checkbox"> Incomplete checklists only
+</label>
+<label style="font-size: 12px;">Remove checklist id <input id="onRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="onRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<div id="onBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

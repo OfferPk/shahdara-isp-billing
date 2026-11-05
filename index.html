@@ -9866,6 +9866,47 @@
 <div id="nsList"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="fwHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="fwHeading">Customer move-out farewell note</h3>
+<p class="chart-caption">One farewell note per move-out: the customer, the move-out date, the farewell message summary in plain words, and whether a return was invited. Farewell notes list by date, and a moved-out customer shows their farewell note with date. Recording a note never changes any exit, equipment, bill, or payment record.</p>
+<p id="fwSummary"></p>
+</div>
+<div>
+<button id="fwExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export farewell notes CSV</button>
+</div>
+</div>
+<h4>Record a farewell note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="fwCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Move-out date <input id="fwDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Farewell message <input id="fwMessage" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Return invited <select id="fwReturnInvited"><option value="yes">Yes — return invited</option><option value="no">No — return not invited</option></select>
+</label>
+<button id="fwRecordBtn" class="secondary-button btn-sm" type="button">Record farewell note</button>
+</div>
+<h4>Remove a farewell note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove note id <input id="fwRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="fwRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Farewell notes for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="fwFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="fwFilterBtn" class="secondary-button btn-sm" type="button">Show customer notes</button>
+</div>
+<div id="fwCustomerBody"></div>
+<h4>All farewell notes</h4>
+<div id="fwList"></div>
+</section>
+
 
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">

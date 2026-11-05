@@ -10989,6 +10989,44 @@
 <div id="evcBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="dbsHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="dbsHeading">Device backup schedule</h3>
+<p class="chart-caption">One backup schedule per device: the device, the backup frequency, the last backup date, the next backup due date, and the owner. Overdue devices appear on the dated due list below, and recording a backup moves the next due date forward by the schedule. A schedule only says when a backup is due — it never makes, copies, or changes any backup file, and recording one never changes any bill, payment, or customer record by itself.</p>
+<p id="dbsSummary"></p>
+</div>
+<div>
+<button id="dbsExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export schedules CSV</button>
+</div>
+</div>
+<h4>Record a backup schedule</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Schedule id <input id="dbsId" type="text" style="width: 120px;" placeholder="auto if left blank"></label>
+<label style="font-size: 12px;">Device <input id="dbsDevice" type="text" style="width: 150px;" placeholder="e.g. Shop laptop"></label>
+<label style="font-size: 12px;">Frequency <select id="dbsFrequency" style="width: 120px;"><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
+<label style="font-size: 12px;">Last backup <input id="dbsLastBackup" type="text" style="width: 120px;" placeholder="e.g. 2026-11-04"></label>
+<label style="font-size: 12px;">Next due <input id="dbsNextDue" type="text" style="width: 120px;" placeholder="auto if left blank"></label>
+<label style="font-size: 12px;">Owner <input id="dbsOwner" type="text" style="width: 140px;" placeholder="e.g. Owner"></label>
+<button id="dbsRecordBtn" class="secondary-button btn-sm" type="button">Record schedule</button>
+<label style="font-size: 12px;">Remove id <input id="dbsRemoveId" type="text" style="width: 120px;"></label>
+<button id="dbsRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Record a backup</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Schedule id <input id="dbsBackupId" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Backup date <input id="dbsBackupDate" type="text" style="width: 120px;" placeholder="e.g. 2026-11-05"></label>
+<button id="dbsBackupBtn" class="secondary-button btn-sm" type="button">Record backup</button>
+</div>
+<h4>Overdue for backup</h4>
+<div id="dbsOverdueBody"></div>
+<h4>Schedule for one device</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Device <select id="dbsDeviceSelect" style="width: 160px;"></select></label>
+</div>
+<div id="dbsDeviceBody"></div>
+<h4>All backup schedules</h4>
+<div id="dbsBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

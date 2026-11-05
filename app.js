@@ -503,6 +503,7 @@ import { normalizeSeenList, markReminderSeen, renewalReminderQueue, overdueRemin
 import { normalizeInsuranceClaimList, recordInsuranceClaim, removeInsuranceClaim, insuranceClaimsForAsset, insuranceClaimSummaryText, insuranceClaimAllHtml, insuranceClaimsForAssetHtml, insuranceClaimCsv, insuranceClaimFilename } from './insurance-claim.js';
 import { normalizePurchaseApprovalList, recordPurchaseApproval, removePurchaseApproval, purchaseApprovalsForItem, purchaseApprovalSummaryText, purchaseApprovalAllHtml, purchaseApprovalsForItemHtml, purchaseApprovalCsv, purchaseApprovalFilename } from './equipment-purchase-approval.js';
 import { validGrowthFundingDate, normalizeGrowthFundingList, recordGrowthFundingNote, removeGrowthFundingNote, growthFundingNotesForSource, growthFundingSources, growthFundingSummaryText, growthFundingAllHtml, growthFundingNotesForSourceHtml, growthFundingCsv, growthFundingFilename } from './growth-funding.js';
+import { validPartnershipNoteDate, normalizePartnershipNoteList, recordPartnershipNote, removePartnershipNote, partnershipNotesForPartner, partnershipPartners, partnershipNoteSummaryText, partnershipNoteAllHtml, partnershipNotesForPartnerHtml, partnershipNoteCsv, partnershipNoteFilename } from './partnership-note.js';
 import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMohallaCostEstimateSheet, removeMohallaCostEstimateSheet, mohallaCostEstimatesForMohalla, mohallaCostEstimateMohallas, mohallaCostEstimateSummaryText, mohallaCostEstimateAllHtml, mohallaCostEstimatesForMohallaHtml, mohallaCostEstimateCsv, mohallaCostEstimateFilename } from './mohalla-cost-estimate.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14333,6 +14334,7 @@ function renderAnalytics() {
   renderInsuranceClaims();
   renderPurchaseApprovals();
   renderGrowthFunding();
+  renderPartnershipNotes();
   renderMohallaCostEstimate();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
@@ -31873,6 +31875,69 @@ function renderGrowthFunding() {
     $('#gfuRemoveBtn')?.addEventListener('click', () => {
       saveGrowthFundingNotes(removeGrowthFundingNote(loadGrowthFundingNotes(), $('#gfuRemoveId')?.value ?? ''));
       renderGrowthFunding();
+    });
+  }
+}
+
+// Partnership note (Plan 308): one note per partnership — the
+// partner, the type in plain words, the terms agreed, the start
+// date, a contact, and who recorded it. Recording a note never
+// changes any bill, payment, customer, or staff record by itself,
+// and it creates no payment or commission record: the agreement
+// is only written down so it cannot be disputed later.
+const PARTNERSHIP_NOTE_KEY = 'shahdara_partnership_notes_v1';
+function loadPartnershipNotes() {
+  try { return normalizePartnershipNoteList(JSON.parse(localStorage.getItem(PARTNERSHIP_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function savePartnershipNotes(list) {
+  try { localStorage.setItem(PARTNERSHIP_NOTE_KEY, JSON.stringify(normalizePartnershipNoteList(list))); } catch { /* partnership note only: a failed save leaves the previous list in place */ }
+}
+let partnershipNotesBound = false;
+function renderPartnershipNotes() {
+  const listEl = $('#ptnBody');
+  if (!listEl) return;
+  const all = loadPartnershipNotes();
+  listEl.innerHTML = all.length ? partnershipNoteAllHtml(all) : '<p>No partnership notes recorded.</p>';
+  const summaryEl = $('#ptnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${partnershipNoteSummaryText(all)} Recording a note never changes any bill, payment, customer, or staff record by itself.`;
+  }
+  const partnerSelect = $('#ptnPartnerSelect');
+  if (partnerSelect) {
+    const partners = partnershipPartners(all);
+    const current = partnerSelect.value;
+    partnerSelect.innerHTML = partners.map((partner) => `<option value="${partner}">${partner}</option>`).join('');
+    if (partners.includes(current)) partnerSelect.value = current;
+  }
+  const partnerEl = $('#ptnPartnerBody');
+  if (partnerEl) {
+    const chosen = partnerSelect?.value ?? '';
+    partnerEl.innerHTML = chosen
+      ? partnershipNotesForPartnerHtml(all, chosen)
+      : '<p>Pick a partner to see its notes.</p>';
+  }
+  if (!partnershipNotesBound) {
+    partnershipNotesBound = true;
+    $('#ptnExportBtn')?.addEventListener('click', () => { downloadCsvFile(partnershipNoteFilename(), partnershipNoteCsv(loadPartnershipNotes())); });
+    $('#ptnPartnerSelect')?.addEventListener('change', () => { renderPartnershipNotes(); });
+    $('#ptnRecordBtn')?.addEventListener('click', () => {
+      const before = loadPartnershipNotes();
+      const next = recordPartnershipNote(before, {
+        id: `PN-${Date.now()}`,
+        partner: $('#ptnPartner')?.value ?? '',
+        type: $('#ptnType')?.value ?? '',
+        terms: $('#ptnTerms')?.value ?? '',
+        startDate: $('#ptnStartDate')?.value ?? '',
+        contact: $('#ptnContact')?.value ?? '',
+        recordedBy: $('#ptnRecordedBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Partnership note not recorded: give a partner, a type, the terms agreed, a real start date, a contact, and who recorded it.'); return; }
+      savePartnershipNotes(next);
+      renderPartnershipNotes();
+    });
+    $('#ptnRemoveBtn')?.addEventListener('click', () => {
+      savePartnershipNotes(removePartnershipNote(loadPartnershipNotes(), $('#ptnRemoveId')?.value ?? ''));
+      renderPartnershipNotes();
     });
   }
 }

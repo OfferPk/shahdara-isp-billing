@@ -479,6 +479,7 @@ import { validPraiseLogDate, normalizePraiseLogList, recordPraiseLog, removePrai
 import { validReferralEligibilityDate, normalizeReferralEligibilityList, recordReferralEligibility, removeReferralEligibility, referralEligibilityForReferrer, latestReferralEligibility, referralEligibilitySummaryText, referralEligibilityAllHtml, referralEligibilityCsv, referralEligibilityFilename } from './referral-eligibility.js';
 import { validVisitLanguageDate, normalizeVisitLanguageList, recordVisitLanguage, removeVisitLanguage, visitLanguagesForCustomer, latestVisitLanguage, visitLanguageSummaryText, visitLanguageAllHtml, visitLanguageCsv, visitLanguageFilename } from './visit-language.js';
 import { validNoShowNoteDate, normalizeNoShowNoteList, recordNoShowNote, removeNoShowNote, noShowNoteSorted, noShowNotesForCustomer, noShowNotesInPeriod, noShowNoteSummaryText, noShowNoteAllHtml, noShowNoteCsv, noShowNoteFilename } from './no-show-note.js';
+import { validFarewellNoteDate, normalizeFarewellNoteList, recordFarewellNote, removeFarewellNote, farewellNoteSorted, farewellNotesForCustomer, farewellNoteSummaryText, farewellNoteAllHtml, farewellNoteCsv, farewellNoteFilename } from './farewell-note.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14202,6 +14203,7 @@ function renderAnalytics() {
   renderReferralEligibility();
   renderVisitLanguages();
   renderNoShowNotes();
+  renderFarewellNotes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30327,6 +30329,57 @@ function renderNoShowNotes() {
     $('#nsFilterBtn')?.addEventListener('click', () => { renderNoShowNotes(); });
     $('#nsFilterCustomer')?.addEventListener('input', () => { renderNoShowNotes(); });
     $('#nsPeriodBtn')?.addEventListener('click', () => { renderNoShowNotes(); });
+  }
+}
+const FAREWELL_NOTE_KEY = 'shahdara_farewell_notes_v1';
+function loadFarewellNotes() {
+  try { return normalizeFarewellNoteList(JSON.parse(localStorage.getItem(FAREWELL_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveFarewellNotes(list) {
+  try { localStorage.setItem(FAREWELL_NOTE_KEY, JSON.stringify(normalizeFarewellNoteList(list))); } catch { /* farewell notes only: a failed save leaves the previous list in place */ }
+}
+let farewellNotesBound = false;
+function renderFarewellNotes() {
+  const listEl = $('#fwList');
+  if (!listEl) return;
+  const all = loadFarewellNotes();
+  listEl.innerHTML = all.length ? farewellNoteAllHtml(all) : '<p>No move-out farewell notes recorded.</p>';
+  const summaryEl = $('#fwSummary');
+  if (summaryEl) summaryEl.textContent = `${farewellNoteSummaryText(all)} Recording a note never changes any exit, equipment, bill, or payment record by itself.`;
+  const customerEl = $('#fwCustomerBody');
+  if (customerEl) {
+    const customer = ($('#fwFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their farewell notes.</p>';
+    } else {
+      const rows = farewellNotesForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? farewellNoteAllHtml(rows)
+        : '<p>No farewell notes recorded for this customer.</p>';
+    }
+  }
+  if (!farewellNotesBound) {
+    farewellNotesBound = true;
+    $('#fwExportBtn')?.addEventListener('click', () => { downloadCsvFile(farewellNoteFilename(), farewellNoteCsv(loadFarewellNotes())); });
+    $('#fwRecordBtn')?.addEventListener('click', () => {
+      const before = loadFarewellNotes();
+      const next = recordFarewellNote(before, {
+        id: `FW-${Date.now()}`,
+        customer: $('#fwCustomer')?.value ?? '',
+        date: $('#fwDate')?.value ?? '',
+        message: $('#fwMessage')?.value ?? '',
+        returnInvited: $('#fwReturnInvited')?.value ?? 'yes',
+      });
+      if (!next || next.length === before.length) { toast('Farewell note not recorded: give a customer, a real move-out date, and a farewell message.'); return; }
+      saveFarewellNotes(next);
+      renderFarewellNotes();
+    });
+    $('#fwRemoveBtn')?.addEventListener('click', () => {
+      saveFarewellNotes(removeFarewellNote(loadFarewellNotes(), $('#fwRemoveId')?.value ?? ''));
+      renderFarewellNotes();
+    });
+    $('#fwFilterBtn')?.addEventListener('click', () => { renderFarewellNotes(); });
+    $('#fwFilterCustomer')?.addEventListener('input', () => { renderFarewellNotes(); });
   }
 }
 

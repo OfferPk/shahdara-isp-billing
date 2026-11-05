@@ -10996,6 +10996,41 @@
 <div id="deeBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="dpcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="dpcHeading">Record duplication check</h3>
+<p class="chart-caption">A periodic check listing suspected duplicate records: each pair with its matching fields, the date checked, and the operator decision. Checking never merges, deletes, or changes any customer, bill, or payment record.</p>
+<p id="dpcSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="dpcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export duplication checks CSV</button>
+</div></div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date checked <input id="dpcDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Checked by <input id="dpcCheckedBy" type="text" style="width: 110px;" placeholder="e.g. Saad"></label>
+<button id="dpcRunBtn" class="secondary-button btn-sm" type="button">Run check over customers</button>
+<label style="font-size: 12px;">Remove check id <input id="dpcRemoveId" type="text" style="width: 120px;"></label>
+<button id="dpcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Record type <select id="dpcType" style="width: 120px;"><option value="customer">Customer</option><option value="bill">Bill</option><option value="payment">Payment</option></select></label>
+<label style="font-size: 12px;">Record A <input id="dpcRecordA" type="text" style="width: 120px;" placeholder="e.g. CUST-1"></label>
+<label style="font-size: 12px;">Record B <input id="dpcRecordB" type="text" style="width: 120px;" placeholder="e.g. CUST-2"></label>
+<label style="font-size: 12px;">Matching fields <input id="dpcFields" type="text" style="width: 160px;" placeholder="e.g. name, phone"></label>
+<button id="dpcPairBtn" class="secondary-button btn-sm" type="button">Record suspected pair</button>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Dismiss: check id <input id="dpcDismissCheck" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Pair id <input id="dpcDismissPair" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Reason <input id="dpcDismissReason" type="text" style="width: 200px;" placeholder="e.g. Two brothers, not one customer"></label>
+<label style="font-size: 12px;">Decided by <input id="dpcDismissBy" type="text" style="width: 110px;"></label>
+<button id="dpcDismissBtn" class="secondary-button btn-sm" type="button">Dismiss pair</button>
+</div>
+<h4>Open suspected pairs</h4>
+<div id="dpcOpenBody"></div>
+<h4>All checks</h4>
+<div id="dpcBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

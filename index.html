@@ -7994,6 +7994,62 @@
 <button id="aeReviewBtn" class="secondary-button btn-sm" type="button">Check review list</button>
 </div>
 <p id="aeReviewBody"></p>
+</section><section class="chart-card" aria-labelledby="cctHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">BILLING &amp; COLLECTION</p>
+<h3 id="cctHeading">Credit transfer between connections</h3>
+<p class="chart-caption">One credit-transfer record per transfer: the customer, the from-connection, the to-connection, the amount, the date, and the operator — so a household with a house and a shop connection can use its own credit where it is needed. This moves credit only between connections of the same customer, never between customers, and it is not the combined dues view itself; recording a transfer never changes any bill or payment.</p>
+<p id="cctSummary"></p>
+</div>
+<div>
+<button id="cctExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export credit transfers CSV</button>
+</div>
+</div>
+<h4>Record a credit transfer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="cctCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">From connection <input id="cctFrom" type="text" style="width: 140px;" placeholder="e.g. House">
+</label>
+<label style="font-size: 12px;">To connection <input id="cctTo" type="text" style="width: 140px;" placeholder="e.g. Shop">
+</label>
+<label style="font-size: 12px;">Amount (Rs) <input id="cctAmount" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date <input id="cctDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Operator <input id="cctOperator" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="cctNote" type="text" style="width: 180px;">
+</label>
+<button id="cctSaveBtn" class="secondary-button btn-sm" type="button">Record transfer</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove transfer id <input id="cctRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="cctRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Credit transfers</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="cctFilter" type="text" style="width: 160px;">
+</label>
+</div>
+<div id="cctBody"></div>
+<h4>Credit check: credits after recorded transfers</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="cctCheckCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">From connection <input id="cctCheckFrom" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">From credit (Rs) <input id="cctCheckFromCredit" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">To connection <input id="cctCheckTo" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">To credit (Rs) <input id="cctCheckToCredit" type="text" style="width: 120px;">
+</label>
+<button id="cctCheckBtn" class="secondary-button btn-sm" type="button">Check credits</button>
+</div>
+<p id="cctCheckBody"></p>
 </section><section class="chart-card" aria-labelledby="rbHeading">
 <div class="table-heading">
 <div>

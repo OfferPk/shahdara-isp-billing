@@ -9549,6 +9549,60 @@
 <div id="orRepeatBody"></div>
 <h4>All replacements</h4>
 <div id="orList"></div>
+</section><section class="chart-card" aria-labelledby="soHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="soHeading">Splitter port occupancy record</h3>
+<p class="chart-caption">One occupancy record per splitter port: the splitter reference, the segment, the port number, the status free or occupied, the customer if occupied, and the date it was last updated. Each splitter shows free versus occupied ports as counts that sum to its total ports, and no port shows two customers at once. Occupancy updates are kept as dated entries, never silent overwrites. Recording occupancy never changes any bill, payment, customer, or fault record by itself.</p>
+<p id="soSummary"></p>
+</div>
+<div>
+<button id="soExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export splitter occupancy CSV</button>
+</div>
+</div>
+<h4>Record a port</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Splitter <input id="soSplitter" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Segment <input id="soSegment" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Port number <input id="soPort" type="number" min="1" style="width: 90px;">
+</label>
+<label style="font-size: 12px;">Status <select id="soStatus" style="width: 110px;"><option value="free">free</option><option value="occupied">occupied</option></select>
+</label>
+<label style="font-size: 12px;">Customer (when occupied) <input id="soCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date updated <input id="soDate" type="date" style="width: 140px;">
+</label>
+<button id="soRecordBtn" class="secondary-button btn-sm" type="button">Record port</button>
+</div>
+<h4>Update occupancy / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Port record id <input id="soUpdateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Update date <input id="soUpdateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">New status <select id="soUpdateStatus" style="width: 110px;"><option value="free">free</option><option value="occupied">occupied</option></select>
+</label>
+<label style="font-size: 12px;">Customer (when occupied) <input id="soUpdateCustomer" type="text" style="width: 140px;">
+</label>
+<button id="soUpdateBtn" class="secondary-button btn-sm" type="button">Update occupancy</button>
+<label style="font-size: 12px;">Remove record id <input id="soRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="soRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Ports for one splitter</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Splitter <input id="soFilterSplitter" type="text" style="width: 140px;">
+</label>
+<button id="soSplitterBtn" class="secondary-button btn-sm" type="button">Show ports</button>
+</div>
+<div id="soSplitterBody"></div>
+<h4>Full splitters (no free port)</h4>
+<div id="soFullBody"></div>
+<h4>All ports</h4>
+<div id="soList"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

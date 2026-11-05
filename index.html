@@ -9767,6 +9767,54 @@
 <div id="rgList"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="vgHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="vgHeading">Customer language and dialect note per visit</h3>
+<p class="chart-caption">One language note per visit: the customer, the visit date, the language or dialect observed at the door, and a note. A customer page shows notes newest first, and the latest note is surfaced here so the next visit starts in the right language. Recording a note never changes any language preference, customer record, bill, or payment.</p>
+<p id="vgSummary"></p>
+</div>
+<div>
+<button id="vgExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export visit language notes CSV</button>
+</div>
+</div>
+<h4>Record a visit language note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="vgCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Visit date <input id="vgDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Language or dialect observed <input id="vgLanguage" type="text" style="width: 180px;">
+</label>
+<label style="font-size: 12px;">Note <input id="vgNote" type="text" style="width: 200px;">
+</label>
+<button id="vgRecordBtn" class="secondary-button btn-sm" type="button">Record visit language note</button>
+</div>
+<h4>Remove a visit language note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove note id <input id="vgRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="vgRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Visit language notes for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="vgFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="vgFilterBtn" class="secondary-button btn-sm" type="button">Show customer notes</button>
+</div>
+<div id="vgCustomerBody"></div>
+<h4>Language heard on the latest visit</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="vgLatestCustomer" type="text" style="width: 160px;">
+</label>
+<button id="vgLatestBtn" class="secondary-button btn-sm" type="button">Show latest note</button>
+</div>
+<div id="vgLatestBody"></div>
+<h4>All visit language notes</h4>
+<div id="vgList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

@@ -11049,6 +11049,74 @@
 <div id="rnList"></div>
 </section>
 
+
+<section class="chart-card" aria-labelledby="cbHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="cbHeading">Customer-requested callback queue</h3>
+<p class="chart-caption">One callback entry per customer request: the customer, the requested date and time, the reason in plain words, and the status pending, done, or missed. The queue sorts pending callbacks by requested time, and a missed callback stays visible until it is done or rebooked. A callback entry with no customer or no requested time is refused. Queueing a callback never sends any message and never changes any customer, bill, or payment record, and it does not replace the inbound enquiry log.</p>
+<p id="cbSummary"></p>
+</div>
+<div>
+<button id="cbExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export callback queue CSV</button>
+</div>
+</div>
+<h4>Record a callback request</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="cbCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Requested date <input id="cbDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Requested time <input id="cbTime" type="time" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Reason <input id="cbReason" type="text" style="width: 240px;">
+</label>
+<button id="cbRecordBtn" class="secondary-button btn-sm" type="button">Queue callback</button>
+</div>
+<h4>Mark done / missed / rebook / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Done callback id <input id="cbDoneId" type="text" style="width: 120px;">
+</label>
+<button id="cbDoneBtn" class="secondary-button btn-sm" type="button">Mark done</button>
+<label style="font-size: 12px;">Missed callback id <input id="cbMissedId" type="text" style="width: 120px;">
+</label>
+<button id="cbMissedBtn" class="secondary-button btn-sm" type="button">Mark missed</button>
+<label style="font-size: 12px;">Rebook callback id <input id="cbRebookId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">New date <input id="cbRebookDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">New time <input id="cbRebookTime" type="time" style="width: 110px;">
+</label>
+<button id="cbRebookBtn" class="secondary-button btn-sm" type="button">Rebook</button>
+<label style="font-size: 12px;">Remove callback id <input id="cbRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="cbRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Pending callback queue</h4>
+<div id="cbPendingBody"></div>
+<h4>Missed callbacks</h4>
+<div id="cbMissedBody"></div>
+<h4>Overdue callbacks</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">As of date <input id="cbAsOfDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">As of time <input id="cbAsOfTime" type="time" style="width: 110px;">
+</label>
+<button id="cbOverdueBtn" class="secondary-button btn-sm" type="button">Show overdue</button>
+</div>
+<div id="cbOverdueBody"></div>
+<h4>Callbacks for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="cbFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="cbFilterBtn" class="secondary-button btn-sm" type="button">Show customer callbacks</button>
+</div>
+<div id="cbCustomerBody"></div>
+<h4>All callbacks</h4>
+<div id="cbList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

@@ -468,6 +468,7 @@ import { validComplaintReopenDate, normalizeComplaintReopenList, recordComplaint
 import { validEducationSessionDate, normalizeEducationSessionList, recordEducationSession, removeEducationSession, addEducationSessionNote, educationSessionSorted, sessionsByTopic, sessionsByMohalla, educationSessionSummaryText, educationSessionAllHtml, educationSessionCsv, educationSessionFilename } from './education-session.js';
 import { normalizeFeedbackTrendRows, feedbackTrendFor, feedbackTrendsByMohalla, feedbackTrendSummaryText, feedbackTrendHtml, feedbackTrendsHtml, feedbackTrendCsv, feedbackTrendFilename } from './feedback-trend.js';
 import { normalizePackageUptakeRows, packageUptakeFor, packageUptakesByMohalla, packageUptakeSummaryText, packageUptakeHtml, packageUptakesHtml, packageUptakeCsv, packageUptakeFilename } from './package-uptake.js';
+import { validOutageCommunicationDate, normalizeOutageCommunicationList, recordOutageCommunication, removeOutageCommunication, communicationsForIncident, outageCommunicationSummaryText, outageCommunicationAllHtml, outageCommunicationCsv, outageCommunicationFilename } from './outage-communication.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14180,6 +14181,7 @@ function renderAnalytics() {
   renderEducationSessions();
   renderFeedbackTrend();
   renderPackageUptake();
+  renderOutageCommunications();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29588,6 +29590,59 @@ function renderPackageUptake() {
       const exportTo = $('#puPeriodTo')?.value ?? '';
       downloadCsvFile(packageUptakeFilename(), packageUptakeCsv(packageUptakesByMohalla(exportRows, exportPkg, exportFrom, exportTo)));
     });
+  }
+}
+const OUTAGE_COMMUNICATION_KEY = 'shahdara_outage_communications_v1';
+function loadOutageCommunications() {
+  try { return normalizeOutageCommunicationList(JSON.parse(localStorage.getItem(OUTAGE_COMMUNICATION_KEY) || '[]')); } catch { return []; }
+}
+function saveOutageCommunications(list) {
+  try { localStorage.setItem(OUTAGE_COMMUNICATION_KEY, JSON.stringify(normalizeOutageCommunicationList(list))); } catch { /* outage communications only: a failed save leaves the previous list in place */ }
+}
+let outageCommunicationsBound = false;
+function renderOutageCommunications() {
+  const listEl = $('#ocList');
+  if (!listEl) return;
+  const all = loadOutageCommunications();
+  listEl.innerHTML = all.length ? outageCommunicationAllHtml(all) : '<p>No outage communications recorded.</p>';
+  const summaryEl = $('#ocSummary');
+  if (summaryEl) summaryEl.textContent = `${outageCommunicationSummaryText(all)} Logging a communication never sends a message and never changes any outage, bill, or payment record.`;
+  const filterEl = $('#ocFilterBody');
+  if (filterEl) {
+    const incident = ($('#ocFilterIncident')?.value ?? '').trim();
+    if (incident === '') {
+      filterEl.innerHTML = '<p>Give an incident id to see its communications in time order.</p>';
+    } else {
+      const rows = communicationsForIncident(all, incident);
+      filterEl.innerHTML = rows.length
+        ? outageCommunicationAllHtml(rows)
+        : '<p>No communication recorded for this incident.</p>';
+    }
+  }
+  if (!outageCommunicationsBound) {
+    outageCommunicationsBound = true;
+    $('#ocExportBtn')?.addEventListener('click', () => { downloadCsvFile(outageCommunicationFilename(), outageCommunicationCsv(loadOutageCommunications())); });
+    $('#ocRecordBtn')?.addEventListener('click', () => {
+      const before = loadOutageCommunications();
+      const next = recordOutageCommunication(before, {
+        id: `OC-${Date.now()}`,
+        incidentId: $('#ocIncidentId')?.value ?? '',
+        date: $('#ocDate')?.value ?? '',
+        time: $('#ocTime')?.value ?? '',
+        mohallas: $('#ocMohallas')?.value ?? '',
+        message: $('#ocMessage')?.value ?? '',
+        channel: $('#ocChannel')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Outage communication not recorded: give an incident id, a real date and time, and at least one mohalla.'); return; }
+      saveOutageCommunications(next);
+      renderOutageCommunications();
+    });
+    $('#ocRemoveBtn')?.addEventListener('click', () => {
+      saveOutageCommunications(removeOutageCommunication(loadOutageCommunications(), $('#ocRemoveId')?.value ?? ''));
+      renderOutageCommunications();
+    });
+    $('#ocFilterBtn')?.addEventListener('click', () => { renderOutageCommunications(); });
+    $('#ocFilterIncident')?.addEventListener('input', () => { renderOutageCommunications(); });
   }
 }
 let feedbackTrendBound = false;

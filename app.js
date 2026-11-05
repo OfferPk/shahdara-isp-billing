@@ -446,6 +446,7 @@ import { validRevisitAuthorisationDate, normalizeRevisitAuthorisationList, recor
 import { validAccessDifficultyDate, normalizeAccessDifficultyType, normalizeAccessDifficultyList, recordAccessDifficulty, removeAccessDifficulty, addAccessDifficultyUpdate, accessDifficultySorted, accessDifficultiesForCustomer, accessDifficultiesByType, accessDifficultySummaryText, accessDifficultyHtml, accessDifficultyCsv, accessDifficultyFilename } from './access-difficulty.js';
 import { validDropCableHistoryDate, normalizeDropCableHistoryList, recordDropCableReplacement, removeDropCableReplacement, addDropCableHistoryFollowUp, dropCableHistorySorted, dropCableReplacementsForCustomer, flaggedDropCableCustomers, dropCableHistorySummaryText, dropCableHistoryHtml, dropCableHistoryCsv, dropCableHistoryFilename } from './drop-cable-history.js';
 import { validOnuReplacementDate, normalizeOnuReplacementList, recordOnuReplacement, removeOnuReplacement, addOnuReplacementFollowUp, onuReplacementSorted, onuReplacementsForCustomer, onuReplacementsForReason, repeatedOnuReplacementReasons, onuReplacementSummaryText, onuReplacementHtml, onuReplacementCsv, onuReplacementFilename } from './onu-replacement.js';
+import { validSplitterOccupancyDate, normalizeSplitterOccupancyList, recordSplitterPort, removeSplitterPort, updateSplitterPort, splitterOccupancySorted, splitterPortsForSplitter, splitterOccupancyCounts, splitterOccupancySummaries, fullyOccupiedSplitters, splitterOccupancySummaryText, splitterOccupancyHtml, splitterOccupancyCsv, splitterOccupancyFilename } from './splitter-occupancy.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14134,6 +14135,7 @@ function renderAnalytics() {
   renderAccessDifficulties();
   renderDropCableHistories();
   renderOnuReplacements();
+  renderSplitterOccupancy();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27923,6 +27925,75 @@ function renderOnuReplacements() {
     $('#orFilterCustomer')?.addEventListener('input', () => { renderOnuReplacements(); });
     $('#orReasonBtn')?.addEventListener('click', () => { renderOnuReplacements(); });
     $('#orFilterReason')?.addEventListener('input', () => { renderOnuReplacements(); });
+  }
+}
+const SPLITTER_OCCUPANCY_KEY = 'shahdara_splitter_occupancy_v1';
+function loadSplitterOccupancy() {
+  try { return normalizeSplitterOccupancyList(JSON.parse(localStorage.getItem(SPLITTER_OCCUPANCY_KEY) || '[]')); } catch { return []; }
+}
+function saveSplitterOccupancy(list) {
+  try { localStorage.setItem(SPLITTER_OCCUPANCY_KEY, JSON.stringify(normalizeSplitterOccupancyList(list))); } catch { /* occupancy record only: a failed save leaves the previous list in place */ }
+}
+let splitterOccupancyBound = false;
+function renderSplitterOccupancy() {
+  const listEl = $('#soList');
+  if (!listEl) return;
+  const all = loadSplitterOccupancy();
+  listEl.innerHTML = all.length ? splitterOccupancyHtml(splitterOccupancySorted(all)) : '<p>No splitter ports recorded.</p>';
+  const summaryEl = $('#soSummary');
+  if (summaryEl) summaryEl.textContent = `${splitterOccupancySummaryText(all)} Each splitter shows free versus occupied ports as counts that sum to its total ports, and no port shows two customers at once. Occupancy updates are kept as dated entries, never silent overwrites. Recording occupancy never changes any bill, payment, customer, or fault record by itself, and it does not replace the segment fault history, the optical splitter map, or the splitter port swap and dead-port lockout.`;
+  const splitterEl = $('#soSplitterBody');
+  if (splitterEl) {
+    const splitter = ($('#soFilterSplitter')?.value ?? '').trim();
+    const counts = splitter === '' ? null : splitterOccupancyCounts(all, splitter);
+    splitterEl.innerHTML = splitter === ''
+      ? '<p>Give a splitter reference to see its free versus occupied ports.</p>'
+      : (counts === null
+        ? '<p>No ports recorded for this splitter.</p>'
+        : `<p>Splitter ${counts.splitter}: ${counts.free} free, ${counts.occupied} occupied, ${counts.total} ports in total.</p>${splitterOccupancyHtml(splitterPortsForSplitter(all, splitter))}`);
+  }
+  const fullEl = $('#soFullBody');
+  if (fullEl) {
+    const full = fullyOccupiedSplitters(all);
+    fullEl.innerHTML = full.length
+      ? `<ul>${full.map((entry) => `<li>${entry.splitter} — ${entry.total} ports, all occupied. Do not plan a new connection against this splitter.</li>`).join('')}</ul>`
+      : '<p>No splitter is full.</p>';
+  }
+  if (!splitterOccupancyBound) {
+    splitterOccupancyBound = true;
+    $('#soExportBtn')?.addEventListener('click', () => { downloadCsvFile(splitterOccupancyFilename(), splitterOccupancyCsv(loadSplitterOccupancy())); });
+    $('#soRecordBtn')?.addEventListener('click', () => {
+      const before = loadSplitterOccupancy();
+      const next = recordSplitterPort(before, {
+        id: `SP-${Date.now()}`,
+        splitter: $('#soSplitter')?.value ?? '',
+        segment: $('#soSegment')?.value ?? '',
+        port: $('#soPort')?.value ?? '',
+        status: $('#soStatus')?.value ?? '',
+        customer: $('#soCustomer')?.value ?? '',
+        date: $('#soDate')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Port not recorded: give a splitter, a segment, a port number, free or occupied, a customer when occupied, and a real date.'); return; }
+      saveSplitterOccupancy(next);
+      renderSplitterOccupancy();
+    });
+    $('#soUpdateBtn')?.addEventListener('click', () => {
+      const before = loadSplitterOccupancy();
+      const next = updateSplitterPort(before, $('#soUpdateId')?.value ?? '', {
+        date: $('#soUpdateDate')?.value ?? '',
+        status: $('#soUpdateStatus')?.value ?? '',
+        customer: $('#soUpdateCustomer')?.value ?? '',
+      });
+      if (next === before) { toast('Occupancy not updated: give a known port id, a real date, free or occupied, and a customer when occupied.'); return; }
+      saveSplitterOccupancy(next);
+      renderSplitterOccupancy();
+    });
+    $('#soRemoveBtn')?.addEventListener('click', () => {
+      saveSplitterOccupancy(removeSplitterPort(loadSplitterOccupancy(), $('#soRemoveId')?.value ?? ''));
+      renderSplitterOccupancy();
+    });
+    $('#soSplitterBtn')?.addEventListener('click', () => { renderSplitterOccupancy(); });
+    $('#soFilterSplitter')?.addEventListener('input', () => { renderSplitterOccupancy(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

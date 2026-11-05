@@ -10818,6 +10818,48 @@
 <div id="puAllBody"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="ocHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ocHeading">Outage communication log per incident</h3>
+<p class="chart-caption">One communication entry per outage incident: the incident it belongs to, the date and time, the mohallas told, a message summary in plain words, and the channel used. An incident page lists its communications in time order. An entry with no incident link or no mohalla is refused. Logging a communication never sends a message and never changes any outage, bill, or payment record, and it never replaces the broadcast draft, the service-status board, or the maintenance notice draft.</p>
+<p id="ocSummary"></p>
+</div>
+<div>
+<button id="ocExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export outage communications CSV</button>
+</div>
+</div>
+<h4>Record a communication</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Incident id <input id="ocIncidentId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="ocDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Time <input id="ocTime" type="time" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Mohallas told (comma-separated) <input id="ocMohallas" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Message summary <input id="ocMessage" type="text" style="width: 260px;">
+</label>
+<label style="font-size: 12px;">Channel <input id="ocChannel" type="text" style="width: 140px;" placeholder="e.g. WhatsApp">
+</label>
+<button id="ocRecordBtn" class="secondary-button btn-sm" type="button">Record communication</button>
+<label style="font-size: 12px;">Remove entry id <input id="ocRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="ocRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Communications for one incident</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Incident id <input id="ocFilterIncident" type="text" style="width: 140px;">
+</label>
+<button id="ocFilterBtn" class="secondary-button btn-sm" type="button">Show incident communications</button>
+</div>
+<div id="ocFilterBody"></div>
+<h4>All outage communications</h4>
+<div id="ocList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

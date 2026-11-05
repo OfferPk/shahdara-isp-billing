@@ -8733,6 +8733,45 @@
 </div>
 <h4>Route segments</h4>
 <div id="frBody"></div>
+</section><section class="chart-card" aria-labelledby="slHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="slHeading">Splice loss note per joint</h3>
+<p class="chart-caption">One loss note per reading for a joint — joint reference, date, loss reading exactly as the technician entered it, instrument note if any, and technician — so a marginal joint shows a trend instead of being reworked blindly. A note is never edited, only followed by a newer note, and recording a loss note never changes any bill, payment, customer, fault, or repair record by itself.</p>
+<p id="slSummary"></p>
+</div>
+<div>
+<button id="slExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export splice loss notes CSV</button>
+</div>
+</div>
+<h4>Record a loss note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Joint reference <input id="slJoint" type="text" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">Date <input id="slDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Loss reading <input id="slLoss" type="text" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">Instrument note <input id="slInstrument" type="text" style="width: 150px;">
+</label>
+<label style="font-size: 12px;">Technician <input id="slTechnician" type="text" style="width: 130px;">
+</label>
+<button id="slSaveBtn" class="secondary-button btn-sm" type="button">Record loss note</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove note id <input id="slRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="slRemoveBtn" class="secondary-button btn-sm" type="button">Remove note</button>
+<label style="font-size: 12px;">Filter by joint <input id="slFilter" type="text" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">Joint history <input id="slCheckJoint" type="text" style="width: 130px;">
+</label>
+<button id="slCheckBtn" class="secondary-button btn-sm" type="button">Show latest and earlier readings</button>
+</div>
+<p id="slCheckOut" style="font-size: 12px;"></p>
+<h4>Loss notes</h4>
+<div id="slBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

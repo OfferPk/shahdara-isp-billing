@@ -517,6 +517,7 @@ import { validDataEntryErrorDay, foldDataEntryErrorType, normalizeDataEntryError
 import { validDuplicationCheckDay, foldDuplicationCheckRecordType, normalizeDuplicationCheckList, recordDuplicationCheck, removeDuplicationCheck, duplicationCheckOpenPairs, decideDuplicationPair, findSuspectedDuplicatePairs, duplicationChecksSummaryText, duplicationCheckPairText, duplicationCheckAllHtml, duplicationCheckCsv, duplicationCheckFilename } from './duplication-check.js';
 import { customerCompletenessFields, customerCompletenessFieldPresent, scoreCustomerCompleteness, scoreCustomerCompletenessList, customerCompletenessIncomplete, customerCompletenessSummaryText, customerCompletenessScoreHtml, customerCompletenessAllHtml, customerCompletenessCsv, customerCompletenessFilename } from './customer-completeness.js';
 import { validReportPackMonth, validReportPackDay, normalizeReportPackChecklistList, recordReportPackChecklist, removeReportPackChecklist, markReportPackReport, completeReportPackChecklist, reportPackChecklistSummaryText, reportPackChecklistsHtml, incompleteReportPackChecklistsHtml, reportPackChecklistCsv, reportPackChecklistFilename } from './report-pack-checklist.js';
+import { validQuarterlySnapshotMonth, normalizeQuarterlyMonthlyFigureList, recordQuarterlyMonthlyFigure, removeQuarterlyMonthlyFigure, buildQuarterlySnapshots, quarterlySnapshotsSummaryText, quarterlySnapshotAllHtml, quarterlySnapshotCsv, quarterlySnapshotFilename } from './quarterly-snapshot.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14404,6 +14405,7 @@ function renderAnalytics() {
   renderDuplicationCheck();
   renderCustomerCompleteness();
   renderReportPackChecklist();
+  renderQuarterlySnapshot();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32709,6 +32711,59 @@ function renderReportPackChecklist() {
       if (JSON.stringify(next) === JSON.stringify(before)) { toast('Nothing removed: give the id of a tracked pack.'); return; }
       saveReportPackChecklists(next);
       renderReportPackChecklist();
+    });
+  }
+}
+let quarterlySnapshotBound = false;
+const QUARTERLY_MONTHLY_FIGURE_KEY = 'shahdara_quarterly_monthly_figures_v1';
+function loadQuarterlyMonthlyFigures() {
+  try { return normalizeQuarterlyMonthlyFigureList(JSON.parse(localStorage.getItem(QUARTERLY_MONTHLY_FIGURE_KEY) || '[]')); } catch { return []; }
+}
+function saveQuarterlyMonthlyFigures(list) {
+  try { localStorage.setItem(QUARTERLY_MONTHLY_FIGURE_KEY, JSON.stringify(normalizeQuarterlyMonthlyFigureList(list))); } catch { /* Quarterly monthly figures only: a failed save leaves the previous list in place */ }
+}
+
+// Quarterly business snapshot (Plan 329): one snapshot per quarter
+// composed from the monthly figures the operator copies from the
+// monthly reports — collections, customers gained and lost, open
+// faults, and dues outstanding. Quarterly figures reconcile exactly
+// to the three monthly figures they compose; a quarter with a
+// missing month is marked incomplete. The snapshot never changes
+// any bill, payment, customer, or monthly figure.
+function renderQuarterlySnapshot() {
+  const listEl = $('#qbsBody');
+  if (!listEl) return;
+  const snapshots = buildQuarterlySnapshots(loadQuarterlyMonthlyFigures());
+  listEl.innerHTML = snapshots.length ? quarterlySnapshotAllHtml(snapshots) : '<p>No quarterly monthly figures recorded.</p>';
+  const summaryEl = $('#qbsSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${quarterlySnapshotsSummaryText(snapshots)} The snapshot never changes any bill, payment, customer, or monthly figure by itself.`;
+  }
+  if (!quarterlySnapshotBound) {
+    quarterlySnapshotBound = true;
+    $('#qbsExportBtn')?.addEventListener('click', () => { downloadCsvFile(quarterlySnapshotFilename(), quarterlySnapshotCsv(buildQuarterlySnapshots(loadQuarterlyMonthlyFigures()))); });
+    $('#qbsRecordBtn')?.addEventListener('click', () => {
+      const month = $('#qbsMonth')?.value ?? '';
+      if (!validQuarterlySnapshotMonth(month)) { toast('Quarterly monthly figure not recorded: give a real month (YYYY-MM).'); return; }
+      const before = loadQuarterlyMonthlyFigures();
+      const next = recordQuarterlyMonthlyFigure(before, {
+        id: `QS-${month}`,
+        month,
+        figures: {
+          collections: $('#qbsCollections')?.value ?? '',
+          gained: $('#qbsGained')?.value ?? '',
+          lost: $('#qbsLost')?.value ?? '',
+          openFaults: $('#qbsOpenFaults')?.value ?? '',
+          dues: $('#qbsDues')?.value ?? '',
+        },
+      });
+      if (next.length === before.length) { toast('Quarterly monthly figure not recorded: give whole-number collections, gained, lost, open faults, and dues copied from the monthly report. A month already recorded is kept as it is.'); return; }
+      saveQuarterlyMonthlyFigures(next);
+      renderQuarterlySnapshot();
+    });
+    $('#qbsRemoveBtn')?.addEventListener('click', () => {
+      saveQuarterlyMonthlyFigures(removeQuarterlyMonthlyFigure(loadQuarterlyMonthlyFigures(), $('#qbsRemoveId')?.value ?? ''));
+      renderQuarterlySnapshot();
     });
   }
 }

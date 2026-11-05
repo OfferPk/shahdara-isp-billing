@@ -449,6 +449,7 @@ import { validOnuReplacementDate, normalizeOnuReplacementList, recordOnuReplacem
 import { validSplitterOccupancyDate, normalizeSplitterOccupancyList, recordSplitterPort, removeSplitterPort, updateSplitterPort, splitterOccupancySorted, splitterPortsForSplitter, splitterOccupancyCounts, splitterOccupancySummaries, fullyOccupiedSplitters, splitterOccupancySummaryText, splitterOccupancyHtml, splitterOccupancyCsv, splitterOccupancyFilename } from './splitter-occupancy.js';
 import { validPolePermissionDate, normalizePolePermissionList, recordPolePermission, removePolePermission, updatePolePermission, polePermissionsSorted, polesByPermission, polesWithoutPermission, polePermissionSummaryText, polePermissionHtml, polePermissionCsv, polePermissionFilename } from './pole-permission.js';
 import { validCabinetAccessDate, normalizeCabinetAccessList, recordCabinetAccess, removeCabinetAccess, annotateCabinetAccess, cabinetAccessSorted, cabinetAccessByCabinet, cabinetAccessByDate, unconfirmedCabinetAccess, cabinetAccessSummaryText, cabinetAccessHtml, cabinetAccessCsv, cabinetAccessFilename } from './cabinet-access.js';
+import { validFieldTrainingDate, normalizeFieldTrainingList, recordFieldTraining, removeFieldTraining, annotateFieldTraining, fieldTrainingSorted, fieldTrainingForTechnician, fieldTrainingSkillsForTechnician, technicianSkillStatus, fieldTrainingSummaryText, fieldTrainingHtml, fieldTrainingCsv, fieldTrainingFilename } from './field-training.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14140,6 +14141,7 @@ function renderAnalytics() {
   renderSplitterOccupancy();
   renderPolePermissions();
   renderCabinetAccess();
+  renderFieldTraining();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28140,6 +28142,82 @@ function renderCabinetAccess() {
     $('#ckFilterCabinet')?.addEventListener('input', () => { renderCabinetAccess(); });
     $('#ckDateBtn')?.addEventListener('click', () => { renderCabinetAccess(); });
     $('#ckDateInput')?.addEventListener('change', () => { renderCabinetAccess(); });
+  }
+}
+const FIELD_TRAINING_KEY = 'shahdara_field_training_v1';
+function loadFieldTraining() {
+  try { return normalizeFieldTrainingList(JSON.parse(localStorage.getItem(FIELD_TRAINING_KEY) || '[]')); } catch { return []; }
+}
+function saveFieldTraining(list) {
+  try { localStorage.setItem(FIELD_TRAINING_KEY, JSON.stringify(normalizeFieldTrainingList(list))); } catch { /* training note only: a failed save leaves the previous list in place */ }
+}
+let fieldTrainingBound = false;
+function renderFieldTraining() {
+  const listEl = $('#ftList');
+  if (!listEl) return;
+  const all = loadFieldTraining();
+  listEl.innerHTML = all.length ? fieldTrainingHtml(fieldTrainingSorted(all)) : '<p>No field training notes recorded.</p>';
+  const summaryEl = $('#ftSummary');
+  if (summaryEl) summaryEl.textContent = `${fieldTrainingSummaryText(all)} A note is never edited, only followed by newer notes. Recording training never changes any bill, payment, customer, visit, or staff record by itself, and it does not replace the new collector onboarding checklist.`;
+  const techEl = $('#ftTechBody');
+  if (techEl) {
+    const technician = ($('#ftFilterTechnician')?.value ?? '').trim();
+    if (technician === '') {
+      techEl.innerHTML = '<p>Give a technician name to list their skills.</p>';
+    } else {
+      const skills = fieldTrainingSkillsForTechnician(all, technician);
+      techEl.innerHTML = skills.length
+        ? `<ul>${skills.map((entry) => `<li>${entry.skill} — practised or observed ${entry.date}, observed by ${entry.observedBy}.</li>`).join('')}</ul>`
+        : `<p>No field training notes recorded for ${technician}.</p>`;
+    }
+  }
+  const checkEl = $('#ftSkillCheckBody');
+  if (checkEl) {
+    const technician = ($('#ftSkillCheckTechnician')?.value ?? '').trim();
+    const skill = ($('#ftSkillCheckSkill')?.value ?? '').trim();
+    if (technician === '' || skill === '') {
+      checkEl.innerHTML = '<p>Give a technician name and a field skill to check it.</p>';
+    } else {
+      const status = technicianSkillStatus(all, technician, skill);
+      checkEl.innerHTML = status.status === 'recorded'
+        ? `<p>${technician} has a note for ${skill}: practised or observed ${status.date}, observed by ${status.observedBy}.</p>`
+        : `<p>${technician} is unrecorded for ${skill} — no training note, never shown as trained.</p>`;
+    }
+  }
+  if (!fieldTrainingBound) {
+    fieldTrainingBound = true;
+    $('#ftExportBtn')?.addEventListener('click', () => { downloadCsvFile(fieldTrainingFilename(), fieldTrainingCsv(loadFieldTraining())); });
+    $('#ftRecordBtn')?.addEventListener('click', () => {
+      const before = loadFieldTraining();
+      const next = recordFieldTraining(before, {
+        id: `FT-${Date.now()}`,
+        technician: $('#ftTechnician')?.value ?? '',
+        skill: $('#ftSkill')?.value ?? '',
+        date: $('#ftDate')?.value ?? '',
+        observedBy: $('#ftObservedBy')?.value ?? '',
+        note: $('#ftNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Training note not recorded: give a technician, a field skill, a real date, who observed it, and a note. One note per technician per skill.'); return; }
+      saveFieldTraining(next);
+      renderFieldTraining();
+    });
+    $('#ftAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadFieldTraining();
+      const next = annotateFieldTraining(before, $('#ftAnnotateId')?.value ?? '', {
+        date: $('#ftAnnotateDate')?.value ?? '',
+        note: $('#ftAnnotateNote')?.value ?? '',
+      });
+      if (next === before) { toast('Follow-up note not added: give a known note id, a real date, and a note.'); return; }
+      saveFieldTraining(next);
+      renderFieldTraining();
+    });
+    $('#ftRemoveBtn')?.addEventListener('click', () => {
+      saveFieldTraining(removeFieldTraining(loadFieldTraining(), $('#ftRemoveId')?.value ?? ''));
+      renderFieldTraining();
+    });
+    $('#ftTechBtn')?.addEventListener('click', () => { renderFieldTraining(); });
+    $('#ftFilterTechnician')?.addEventListener('input', () => { renderFieldTraining(); });
+    $('#ftSkillCheckBtn')?.addEventListener('click', () => { renderFieldTraining(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

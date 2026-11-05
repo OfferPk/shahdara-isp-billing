@@ -445,6 +445,7 @@ import { validNightVisitPairDate, validNightVisitPairReturnTime, normalizeNightV
 import { validRevisitAuthorisationDate, normalizeRevisitAuthorisationList, recordRevisitAuthorisation, removeRevisitAuthorisation, supersedeRevisitAuthorisation, revisitAuthorisationSorted, revisitAuthorisationsForJob, unauthorisedRevisits, revisitAuthorisationSummaryText, unauthorisedRevisitSummaryText, revisitAuthorisationHtml, revisitAuthorisationCsv, revisitAuthorisationFilename } from './revisit-authorisation.js';
 import { validAccessDifficultyDate, normalizeAccessDifficultyType, normalizeAccessDifficultyList, recordAccessDifficulty, removeAccessDifficulty, addAccessDifficultyUpdate, accessDifficultySorted, accessDifficultiesForCustomer, accessDifficultiesByType, accessDifficultySummaryText, accessDifficultyHtml, accessDifficultyCsv, accessDifficultyFilename } from './access-difficulty.js';
 import { validDropCableHistoryDate, normalizeDropCableHistoryList, recordDropCableReplacement, removeDropCableReplacement, addDropCableHistoryFollowUp, dropCableHistorySorted, dropCableReplacementsForCustomer, flaggedDropCableCustomers, dropCableHistorySummaryText, dropCableHistoryHtml, dropCableHistoryCsv, dropCableHistoryFilename } from './drop-cable-history.js';
+import { validOnuReplacementDate, normalizeOnuReplacementList, recordOnuReplacement, removeOnuReplacement, addOnuReplacementFollowUp, onuReplacementSorted, onuReplacementsForCustomer, onuReplacementsForReason, repeatedOnuReplacementReasons, onuReplacementSummaryText, onuReplacementHtml, onuReplacementCsv, onuReplacementFilename } from './onu-replacement.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14132,6 +14133,7 @@ function renderAnalytics() {
   renderRevisitAuthorisations();
   renderAccessDifficulties();
   renderDropCableHistories();
+  renderOnuReplacements();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27845,6 +27847,82 @@ function renderDropCableHistories() {
     });
     $('#dchCustomerBtn')?.addEventListener('click', () => { renderDropCableHistories(); });
     $('#dchFilterCustomer')?.addEventListener('input', () => { renderDropCableHistories(); });
+  }
+}
+const ONU_REPLACEMENT_KEY = 'shahdara_onu_replacements_v1';
+function loadOnuReplacements() {
+  try { return normalizeOnuReplacementList(JSON.parse(localStorage.getItem(ONU_REPLACEMENT_KEY) || '[]')); } catch { return []; }
+}
+function saveOnuReplacements(list) {
+  try { localStorage.setItem(ONU_REPLACEMENT_KEY, JSON.stringify(normalizeOnuReplacementList(list))); } catch { /* reason log only: a failed save leaves the previous list in place */ }
+}
+let onuReplacementsBound = false;
+function renderOnuReplacements() {
+  const listEl = $('#orList');
+  if (!listEl) return;
+  const all = loadOnuReplacements();
+  listEl.innerHTML = all.length ? onuReplacementHtml(onuReplacementSorted(all)) : '<p>No ONU replacements recorded.</p>';
+  const summaryEl = $('#orSummary');
+  if (summaryEl) summaryEl.textContent = `${onuReplacementSummaryText(all)} An entry is never edited, only corrected by a dated follow-up note. Recording a reason never changes any bill, payment, customer, or equipment record by itself, and it does not replace the premises equipment check or the equipment swap pairing record.`;
+  const customerEl = $('#orCustomerBody');
+  if (customerEl) {
+    const customer = ($('#orFilterCustomer')?.value ?? '').trim();
+    const rows = onuReplacementsForCustomer(all, customer);
+    customerEl.innerHTML = customer === ''
+      ? '<p>Give a customer to see their ONU replacements in date order.</p>'
+      : (rows.length ? onuReplacementHtml(rows) : '<p>No ONU replacements recorded for this customer.</p>');
+  }
+  const reasonEl = $('#orReasonBody');
+  if (reasonEl) {
+    const reason = ($('#orFilterReason')?.value ?? '').trim();
+    const rows = onuReplacementsForReason(all, reason);
+    reasonEl.innerHTML = reason === ''
+      ? '<p>Give a reason to see the replacements with that reason in date order.</p>'
+      : (rows.length ? onuReplacementHtml(rows) : '<p>No ONU replacements recorded with this reason.</p>');
+  }
+  const repeatEl = $('#orRepeatBody');
+  if (repeatEl) {
+    const repeated = repeatedOnuReplacementReasons(all);
+    repeatEl.innerHTML = repeated.length
+      ? `<ul>${repeated.map((entry) => `<li>${entry.reason} — ${entry.count} replacements. A repeated reason points to a fixable cause.</li>`).join('')}</ul>`
+      : '<p>No reason repeats.</p>';
+  }
+  if (!onuReplacementsBound) {
+    onuReplacementsBound = true;
+    $('#orExportBtn')?.addEventListener('click', () => { downloadCsvFile(onuReplacementFilename(), onuReplacementCsv(loadOnuReplacements())); });
+    $('#orRecordBtn')?.addEventListener('click', () => {
+      const before = loadOnuReplacements();
+      const next = recordOnuReplacement(before, {
+        id: `ONU-${Date.now()}`,
+        customer: $('#orCustomer')?.value ?? '',
+        oldUnit: $('#orOldUnit')?.value ?? '',
+        newUnit: $('#orNewUnit')?.value ?? '',
+        reason: $('#orReason')?.value ?? '',
+        date: $('#orDate')?.value ?? '',
+        replacedBy: $('#orReplacedBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Replacement not recorded: give a customer, both unit references, a reason, a real date, and who replaced it.'); return; }
+      saveOnuReplacements(next);
+      renderOnuReplacements();
+    });
+    $('#orFollowUpBtn')?.addEventListener('click', () => {
+      const before = loadOnuReplacements();
+      const next = addOnuReplacementFollowUp(before, $('#orFollowUpId')?.value ?? '', {
+        date: $('#orFollowUpDate')?.value ?? '',
+        note: $('#orFollowUpNote')?.value ?? '',
+      });
+      if (next === before) { toast('Follow-up not added: give a known entry id, a real date, and a follow-up note.'); return; }
+      saveOnuReplacements(next);
+      renderOnuReplacements();
+    });
+    $('#orRemoveBtn')?.addEventListener('click', () => {
+      saveOnuReplacements(removeOnuReplacement(loadOnuReplacements(), $('#orRemoveId')?.value ?? ''));
+      renderOnuReplacements();
+    });
+    $('#orCustomerBtn')?.addEventListener('click', () => { renderOnuReplacements(); });
+    $('#orFilterCustomer')?.addEventListener('input', () => { renderOnuReplacements(); });
+    $('#orReasonBtn')?.addEventListener('click', () => { renderOnuReplacements(); });
+    $('#orFilterReason')?.addEventListener('input', () => { renderOnuReplacements(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

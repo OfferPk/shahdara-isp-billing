@@ -496,6 +496,7 @@ import { validVendorPaymentDueDate, normalizeVendorPaymentDueList, recordVendorP
 import { normalizeVisitorLogList, recordVisitorLog, removeVisitorLog, visitorLogForDate, visitorLogSearch, visitorLogSummaryText, visitorLogAllHtml, visitorLogSearchHtml, visitorLogCsv, visitorLogFilename } from './visitor-log.js';
 import { normalizeDelegationNoteList, recordDelegationNote, removeDelegationNote, markDelegationNoteAcknowledged, delegationNotesForStaff, delegationNotesOverdue, delegationNoteSummaryText, delegationNoteAllHtml, delegationNotesForStaffHtml, delegationNotesOverdueHtml, delegationNoteCsv, delegationNoteFilename } from './delegation-note.js';
 import { normalizeCollectorMonthlyTargetList, recordCollectorMonthlyTarget, removeCollectorMonthlyTarget, collectorMonthlyTargetsForCollector, collectorMonthlyTargetsForMonth, collectorMonthlyTargetSummaryText, collectorMonthlyTargetAllHtml, collectorMonthlyTargetsForCollectorHtml, collectorMonthlyTargetsForMonthHtml, collectorMonthlyTargetCsv, collectorMonthlyTargetFilename } from './collector-monthly-target.js';
+import { normalizeStaffPerformanceNoteList, recordStaffPerformanceNote, removeStaffPerformanceNote, staffPerformanceNotesForStaff, staffPerformanceNoteSummaryText, staffPerformanceNoteAllHtml, staffPerformanceNotesForStaffHtml, staffPerformanceNoteCsv, staffPerformanceNoteFilename } from './staff-performance.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14238,6 +14239,7 @@ function renderAnalytics() {
   renderVisitorLog();
   renderDelegationNote();
   renderCollectorMonthlyTargets();
+  renderStaffPerformanceNotes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31383,6 +31385,57 @@ function renderCollectorMonthlyTargets() {
     $('#cmtRemoveBtn')?.addEventListener('click', () => {
       saveCollectorMonthlyTargets(removeCollectorMonthlyTarget(loadCollectorMonthlyTargets(), $('#cmtRemoveId')?.value ?? ''));
       renderCollectorMonthlyTargets();
+    });
+  }
+}
+
+// Staff performance note — one qualitative note per staff member per
+// period: strengths, areas to improve, and the reviewer, all in plain
+// words. Recording a note never changes any bill, payment, customer
+// record, or staff record by itself.
+const STAFF_PERFORMANCE_KEY = 'shahdara_staff_performance_v1';
+function loadStaffPerformanceNotes() {
+  try { return normalizeStaffPerformanceNoteList(JSON.parse(localStorage.getItem(STAFF_PERFORMANCE_KEY) || '[]')); } catch { return []; }
+}
+function saveStaffPerformanceNotes(list) {
+  try { localStorage.setItem(STAFF_PERFORMANCE_KEY, JSON.stringify(normalizeStaffPerformanceNoteList(list))); } catch { /* performance notes only: a failed save leaves the previous list in place */ }
+}
+let staffPerformanceBound = false;
+function renderStaffPerformanceNotes() {
+  const listEl = $('#spnBody');
+  if (!listEl) return;
+  const all = loadStaffPerformanceNotes();
+  listEl.innerHTML = all.length ? staffPerformanceNoteAllHtml(all) : '<p>No staff performance notes recorded.</p>';
+  const summaryEl = $('#spnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${staffPerformanceNoteSummaryText(all)} Recording a note never changes any bill, payment, customer record, or staff record by itself.`;
+  }
+  const staffEl = $('#spnStaffBody');
+  if (staffEl) {
+    const staff = $('#spnStaffInput')?.value ?? '';
+    staffEl.innerHTML = staffPerformanceNotesForStaffHtml(all, staff);
+  }
+  if (!staffPerformanceBound) {
+    staffPerformanceBound = true;
+    $('#spnExportBtn')?.addEventListener('click', () => { downloadCsvFile(staffPerformanceNoteFilename(), staffPerformanceNoteCsv(loadStaffPerformanceNotes())); });
+    $('#spnStaffBtn')?.addEventListener('click', () => { renderStaffPerformanceNotes(); });
+    $('#spnRecordBtn')?.addEventListener('click', () => {
+      const before = loadStaffPerformanceNotes();
+      const next = recordStaffPerformanceNote(before, {
+        id: `SPN-${Date.now()}`,
+        staff: $('#spnStaff')?.value ?? '',
+        period: $('#spnPeriod')?.value ?? '',
+        strengths: $('#spnStrengths')?.value ?? '',
+        areasToImprove: $('#spnAreas')?.value ?? '',
+        reviewer: $('#spnReviewer')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Performance note not recorded: give the staff member, the period, strengths, areas to improve, and the reviewer.'); return; }
+      saveStaffPerformanceNotes(next);
+      renderStaffPerformanceNotes();
+    });
+    $('#spnRemoveBtn')?.addEventListener('click', () => {
+      saveStaffPerformanceNotes(removeStaffPerformanceNote(loadStaffPerformanceNotes(), $('#spnRemoveId')?.value ?? ''));
+      renderStaffPerformanceNotes();
     });
   }
 }

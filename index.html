@@ -10730,6 +10730,60 @@
 <h4>All complaint reopen notes</h4>
 <div id="crList"></div>
 </section>
+<section class="chart-card" aria-labelledby="esHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="esHeading">Customer education session log</h3>
+<p class="chart-caption">One session record per education session held: the date, the mohalla or the customer, the topic taught, the operator, and a note. A session list filters by topic and by mohalla. A session with no date or no topic is refused. Recording a session never changes any customer record, bill, or payment, and never sends any message. It records sessions held, not the education notes shared as drafts.</p>
+<p id="esSummary"></p>
+</div>
+<div>
+<button id="esExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export education sessions CSV</button>
+</div>
+</div>
+<h4>Record an education session</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="esDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Mohalla <input id="esMohalla" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Customer <input id="esCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Topic taught <input id="esTopic" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Operator <input id="esOperator" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="esNote" type="text" style="width: 220px;">
+</label>
+<button id="esRecordBtn" class="secondary-button btn-sm" type="button">Record session</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Session id <input id="esAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="esAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="esAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="esAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove session id <input id="esRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="esRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Filter sessions by topic or mohalla</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Topic <input id="esFilterTopic" type="text" style="width: 200px;">
+</label>
+<label style="font-size: 12px;">Mohalla <input id="esFilterMohalla" type="text" style="width: 140px;">
+</label>
+<button id="esFilterBtn" class="secondary-button btn-sm" type="button">Filter sessions</button>
+</div>
+<div id="esFilterBody"></div>
+<h4>All education sessions</h4>
+<div id="esList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

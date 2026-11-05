@@ -477,6 +477,7 @@ import { validCallbackQueueDate, validCallbackQueueTime, normalizeCallbackQueueL
 import { validDowngradeConversationDate, normalizeDowngradeConversationList, recordDowngradeConversation, removeDowngradeConversation, downgradeConversationSorted, downgradeConversationsForCustomer, downgradedConversations, keptPackageConversations, downgradeConversationSummaryText, downgradeConversationAllHtml, downgradeConversationCsv, downgradeConversationFilename } from './downgrade-conversation.js';
 import { validPraiseLogDate, normalizePraiseLogList, recordPraiseLog, removePraiseLog, praiseLogSorted, praiseLogsForCustomer, praiseLogsForSubject, praiseLogSummaryText, praiseLogAllHtml, praiseLogCsv, praiseLogFilename } from './praise-log.js';
 import { validReferralEligibilityDate, normalizeReferralEligibilityList, recordReferralEligibility, removeReferralEligibility, referralEligibilityForReferrer, latestReferralEligibility, referralEligibilitySummaryText, referralEligibilityAllHtml, referralEligibilityCsv, referralEligibilityFilename } from './referral-eligibility.js';
+import { validVisitLanguageDate, normalizeVisitLanguageList, recordVisitLanguage, removeVisitLanguage, visitLanguagesForCustomer, latestVisitLanguage, visitLanguageSummaryText, visitLanguageAllHtml, visitLanguageCsv, visitLanguageFilename } from './visit-language.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14198,6 +14199,7 @@ function renderAnalytics() {
   renderDowngradeConversations();
   renderPraiseLog();
   renderReferralEligibility();
+  renderVisitLanguages();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30192,6 +30194,71 @@ function renderReferralEligibility() {
     $('#rgFilterReferrer')?.addEventListener('input', () => { renderReferralEligibility(); });
     $('#rgLatestBtn')?.addEventListener('click', () => { renderReferralEligibility(); });
     $('#rgLatestReferral')?.addEventListener('input', () => { renderReferralEligibility(); });
+  }
+}
+const VISIT_LANGUAGE_KEY = 'shahdara_visit_languages_v1';
+function loadVisitLanguages() {
+  try { return normalizeVisitLanguageList(JSON.parse(localStorage.getItem(VISIT_LANGUAGE_KEY) || '[]')); } catch { return []; }
+}
+function saveVisitLanguages(list) {
+  try { localStorage.setItem(VISIT_LANGUAGE_KEY, JSON.stringify(normalizeVisitLanguageList(list))); } catch { /* visit language only: a failed save leaves the previous list in place */ }
+}
+let visitLanguagesBound = false;
+function renderVisitLanguages() {
+  const listEl = $('#vgList');
+  if (!listEl) return;
+  const all = loadVisitLanguages();
+  listEl.innerHTML = all.length ? visitLanguageAllHtml(all) : '<p>No visit language notes recorded.</p>';
+  const summaryEl = $('#vgSummary');
+  if (summaryEl) summaryEl.textContent = `${visitLanguageSummaryText(all)} A visit language note never changes any language preference, customer record, bill, or payment.`;
+  const customerEl = $('#vgCustomerBody');
+  if (customerEl) {
+    const customer = ($('#vgFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their visit language notes, newest first.</p>';
+    } else {
+      const rows = visitLanguagesForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? visitLanguageAllHtml(rows)
+        : '<p>No visit language notes recorded for this customer.</p>';
+    }
+  }
+  const latestEl = $('#vgLatestBody');
+  if (latestEl) {
+    const customer = ($('#vgLatestCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      latestEl.innerHTML = '<p>Give a customer to see the language heard on their latest visit.</p>';
+    } else {
+      const latest = latestVisitLanguage(all, customer);
+      latestEl.innerHTML = latest
+        ? visitLanguageAllHtml([latest])
+        : '<p>No visit language note recorded for this customer.</p>';
+    }
+  }
+  if (!visitLanguagesBound) {
+    visitLanguagesBound = true;
+    $('#vgExportBtn')?.addEventListener('click', () => { downloadCsvFile(visitLanguageFilename(), visitLanguageCsv(loadVisitLanguages())); });
+    $('#vgRecordBtn')?.addEventListener('click', () => {
+      const before = loadVisitLanguages();
+      const next = recordVisitLanguage(before, {
+        id: `VG-${Date.now()}`,
+        customer: $('#vgCustomer')?.value ?? '',
+        visitDate: $('#vgDate')?.value ?? '',
+        language: $('#vgLanguage')?.value ?? '',
+        note: $('#vgNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Visit language note not recorded: give a customer, a real visit date, and the language observed.'); return; }
+      saveVisitLanguages(next);
+      renderVisitLanguages();
+    });
+    $('#vgRemoveBtn')?.addEventListener('click', () => {
+      saveVisitLanguages(removeVisitLanguage(loadVisitLanguages(), $('#vgRemoveId')?.value ?? ''));
+      renderVisitLanguages();
+    });
+    $('#vgFilterBtn')?.addEventListener('click', () => { renderVisitLanguages(); });
+    $('#vgFilterCustomer')?.addEventListener('input', () => { renderVisitLanguages(); });
+    $('#vgLatestBtn')?.addEventListener('click', () => { renderVisitLanguages(); });
+    $('#vgLatestCustomer')?.addEventListener('input', () => { renderVisitLanguages(); });
   }
 }
 let feedbackTrendBound = false;

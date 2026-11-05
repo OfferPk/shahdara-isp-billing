@@ -7952,6 +7952,49 @@
 <button id="acGapsBtn" class="secondary-button btn-sm" type="button">Check gaps</button>
 </div>
 <p id="acGapsBody"></p>
+</section><section class="chart-card" aria-labelledby="caHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="caHeading">Bill correction approval trail</h3>
+<p class="chart-caption">One approval record per bill correction: the correction reference, the approver, a second approver where the amount tier requires it, and the date. This trail approves only: it never corrects any bill itself, grants no discount, and recording an approval never changes any bill, payment, or correction. A correction above the operator tier with no second approver is flagged.</p>
+<p id="caSummary"></p>
+</div>
+<div>
+<button id="caExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export correction approvals CSV</button>
+</div>
+</div>
+<h4>Record a correction approval</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Correction reference <input id="caCorrectionRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Approver <input id="caApprover" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Second approver (if required) <input id="caSecondApprover" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="caDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Correction amount (Rs., optional) <input id="caAmount" type="number" min="0" step="1" style="width: 110px;">
+</label>
+<button id="caSaveBtn" class="secondary-button btn-sm" type="button">Record approval</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove approval id <input id="caRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="caRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Review by period</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">From <input id="caPeriodFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">To <input id="caPeriodTo" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Operator tier limit (Rs.) <input id="caTierLimit" type="number" min="0" step="1" style="width: 110px;" value="10000">
+</label>
+</div>
+<div id="caBody"></div>
+<h4>Flagged: above the operator tier with no second approver</h4>
+<div id="caFlaggedBody"></div>
 </section><section class="chart-card" aria-labelledby="aeHeading">
 <div class="table-heading">
 <div>

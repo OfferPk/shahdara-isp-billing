@@ -465,6 +465,7 @@ import { validReferralOutcomeDate, normalizeReferralOutcomeList, recordReferralO
 import { validCarePlanDate, normalizeCarePlanList, recordCarePlan, removeCarePlan, addCarePlanNote, reviewCarePlan, carePlanSorted, carePlansForCustomer, overdueCarePlans, carePlanSummaryText, carePlanAllHtml, carePlanCsv, carePlanFilename } from './care-plan.js';
 import { validPreferenceChangeDate, normalizePreferenceChangeList, recordPreferenceChange, removePreferenceChange, addPreferenceChangeNote, preferenceChangeSorted, preferenceChangesForCustomer, preferenceChangeSummaryText, preferenceChangeAllHtml, preferenceChangeCsv, preferenceChangeFilename } from './preference-change.js';
 import { validComplaintReopenDate, normalizeComplaintReopenList, recordComplaintReopen, removeComplaintReopen, addComplaintReopenNote, complaintReopenSorted, reopenNotesForComplaint, complaintReopenSummaryText, complaintReopenAllHtml, complaintReopenCsv, complaintReopenFilename } from './complaint-reopen.js';
+import { normalizeFeedbackTrendRows, feedbackTrendFor, feedbackTrendsByMohalla, feedbackTrendSummaryText, feedbackTrendHtml, feedbackTrendsHtml, feedbackTrendCsv, feedbackTrendFilename } from './feedback-trend.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14174,6 +14175,7 @@ function renderAnalytics() {
   renderCarePlans();
   renderPreferenceChanges();
   renderComplaintReopens();
+  renderFeedbackTrend();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29476,6 +29478,45 @@ function renderComplaintReopens() {
     });
     $('#crFilterBtn')?.addEventListener('click', () => { renderComplaintReopens(); });
     $('#crFilterComplaint')?.addEventListener('input', () => { renderComplaintReopens(); });
+  }
+}
+let feedbackTrendBound = false;
+function feedbackTrendRows() {
+  const raw = ($('#ftRows')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  return normalizeFeedbackTrendRows(raw.map((line) => {
+    const parts = line.split('|').map((part) => part.trim());
+    return { mohalla: parts[0] ?? '', date: parts[1] ?? '', rating: parts[2] ?? '', comment: parts.slice(3).join('|').trim() };
+  }));
+}
+function renderFeedbackTrend() {
+  const trendEl = $('#ftTrendBody');
+  if (!trendEl) return;
+  const rows = feedbackTrendRows();
+  const from = $('#ftPeriodFrom')?.value ?? '';
+  const to = $('#ftPeriodTo')?.value ?? '';
+  const mohalla = ($('#ftMohalla')?.value ?? '').trim();
+  const trend = feedbackTrendFor(rows, mohalla, from, to);
+  trendEl.innerHTML = trend
+    ? feedbackTrendHtml(trend)
+    : '<p>Give a mohalla and a real period to see its feedback trend.</p>';
+  const allEl = $('#ftAllBody');
+  if (allEl) {
+    const trends = feedbackTrendsByMohalla(rows, from, to);
+    allEl.innerHTML = trends.length ? feedbackTrendsHtml(trends) : '<p>No feedback trends to show for this period.</p>';
+  }
+  const summaryEl = $('#ftSummary');
+  if (summaryEl) summaryEl.textContent = `${feedbackTrendSummaryText(rows, from, to)} Viewing a trend never changes any feedback, visit, bill, or payment record by itself.`;
+  if (!feedbackTrendBound) {
+    feedbackTrendBound = true;
+    $('#ftShowBtn')?.addEventListener('click', () => { renderFeedbackTrend(); });
+    $('#ftMohalla')?.addEventListener('input', () => { renderFeedbackTrend(); });
+    $('#ftRows')?.addEventListener('input', () => { renderFeedbackTrend(); });
+    $('#ftExportBtn')?.addEventListener('click', () => {
+      const exportRows = feedbackTrendRows();
+      const exportFrom = $('#ftPeriodFrom')?.value ?? '';
+      const exportTo = $('#ftPeriodTo')?.value ?? '';
+      downloadCsvFile(feedbackTrendFilename(), feedbackTrendCsv(feedbackTrendsByMohalla(exportRows, exportFrom, exportTo)));
+    });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

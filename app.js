@@ -443,6 +443,7 @@ import { validOutageNoticeDate, normalizeOutageNoticeList, recordOutageNotice, r
 import { validEmergencyKitChecklistDate, normalizeEmergencyKitChecklistList, recordEmergencyKitChecklist, removeEmergencyKitChecklist, findEmergencyKitChecklist, addEmergencyKitChecklistAnnotation, emergencyKitChecklistSorted, emergencyKitChecklistsForVehicle, latestEmergencyKitChecklistForVehicle, emergencyKitChecklistVehicles, emergencyKitChecklistMissingItems, emergencyKitChecklistMissingCritical, emergencyKitChecklistHasMissingCritical, emergencyKitChecklistVehiclesWithMissingCritical, emergencyKitChecklistSummaryText, emergencyKitChecklistText, emergencyKitChecklistHtml, emergencyKitChecklistCsv, emergencyKitChecklistFilename } from './emergency-kit-checklist.js';
 import { validNightVisitPairDate, validNightVisitPairReturnTime, normalizeNightVisitPairList, recordNightVisitPair, removeNightVisitPair, findNightVisitPair, addNightVisitPairAnnotation, recordNightVisitReturn, nightVisitPairSorted, nightVisitPairsInPeriod, nightVisitPairsForArea, nightVisitPairAreas, unpairedNightVisits, nightVisitPairSummaryText, unpairedNightVisitSummaryText, nightVisitPairText, nightVisitPairHtml, nightVisitPairCsv, nightVisitPairFilename } from './night-visit-pair.js';
 import { validRevisitAuthorisationDate, normalizeRevisitAuthorisationList, recordRevisitAuthorisation, removeRevisitAuthorisation, supersedeRevisitAuthorisation, revisitAuthorisationSorted, revisitAuthorisationsForJob, unauthorisedRevisits, revisitAuthorisationSummaryText, unauthorisedRevisitSummaryText, revisitAuthorisationHtml, revisitAuthorisationCsv, revisitAuthorisationFilename } from './revisit-authorisation.js';
+import { validAccessDifficultyDate, normalizeAccessDifficultyType, normalizeAccessDifficultyList, recordAccessDifficulty, removeAccessDifficulty, addAccessDifficultyUpdate, accessDifficultySorted, accessDifficultiesForCustomer, accessDifficultiesByType, accessDifficultySummaryText, accessDifficultyHtml, accessDifficultyCsv, accessDifficultyFilename } from './access-difficulty.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14128,6 +14129,7 @@ function renderAnalytics() {
   renderEmergencyKitChecklist();
   renderNightVisitPairs();
   renderRevisitAuthorisations();
+  renderAccessDifficulties();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27710,6 +27712,72 @@ function renderRevisitAuthorisations() {
     $('#sraFilterBtn')?.addEventListener('click', () => { renderRevisitAuthorisations(); });
     $('#sraFilterJob')?.addEventListener('input', () => { renderRevisitAuthorisations(); });
     $('#sraExceptionsBtn')?.addEventListener('click', () => { renderRevisitAuthorisations(); });
+  }
+}
+const ACCESS_DIFFICULTY_KEY = 'shahdara_access_difficulties_v1';
+function loadAccessDifficulties() {
+  try { return normalizeAccessDifficultyList(JSON.parse(localStorage.getItem(ACCESS_DIFFICULTY_KEY) || '[]')); } catch { return []; }
+}
+function saveAccessDifficulties(list) {
+  try { localStorage.setItem(ACCESS_DIFFICULTY_KEY, JSON.stringify(normalizeAccessDifficultyList(list))); } catch { /* difficulty notes only: a failed save leaves the previous list in place */ }
+}
+let accessDifficultiesBound = false;
+function renderAccessDifficulties() {
+  const listEl = $('#adList');
+  if (!listEl) return;
+  const all = loadAccessDifficulties();
+  listEl.innerHTML = all.length ? accessDifficultyHtml(accessDifficultySorted(all)) : '<p>No access difficulty notes.</p>';
+  const summaryEl = $('#adSummary');
+  if (summaryEl) summaryEl.textContent = `${accessDifficultySummaryText(all)} A note is never edited, only followed by a dated update. Recording a difficulty never changes any bill, payment, customer, permission, or visit record by itself, and it does not replace the site access permission record.`;
+  const visitEl = $('#adVisitBody');
+  if (visitEl) {
+    const customer = ($('#adFilterCustomer')?.value ?? '').trim();
+    const notes = accessDifficultiesForCustomer(all, customer);
+    visitEl.innerHTML = customer === ''
+      ? '<p>Give a customer to see their difficulty notes before a visit.</p>'
+      : (notes.length ? accessDifficultyHtml(notes) : '<p>No difficulty notes for this customer.</p>');
+  }
+  const typeEl = $('#adTypeBody');
+  if (typeEl) {
+    const type = normalizeAccessDifficultyType($('#adFilterType')?.value ?? 'other');
+    const notes = accessDifficultiesByType(all, type);
+    typeEl.innerHTML = notes.length ? accessDifficultyHtml(notes) : '<p>No difficulty notes of this type.</p>';
+  }
+  if (!accessDifficultiesBound) {
+    accessDifficultiesBound = true;
+    $('#adExportBtn')?.addEventListener('click', () => { downloadCsvFile(accessDifficultyFilename(), accessDifficultyCsv(loadAccessDifficulties())); });
+    $('#adRecordBtn')?.addEventListener('click', () => {
+      const before = loadAccessDifficulties();
+      const next = recordAccessDifficulty(before, {
+        id: `AD-${Date.now()}`,
+        customer: $('#adCustomer')?.value ?? '',
+        type: $('#adType')?.value ?? 'other',
+        difficulty: $('#adDifficulty')?.value ?? '',
+        whatToDo: $('#adWhatToDo')?.value ?? '',
+        date: $('#adDate')?.value ?? '',
+        notedBy: $('#adNotedBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Difficulty note not recorded: give a customer, a difficulty, what to do about it, a real date, and who noted it.'); return; }
+      saveAccessDifficulties(next);
+      renderAccessDifficulties();
+    });
+    $('#adUpdateBtn')?.addEventListener('click', () => {
+      const before = loadAccessDifficulties();
+      const next = addAccessDifficultyUpdate(before, $('#adUpdateId')?.value ?? '', {
+        date: $('#adUpdateDate')?.value ?? '',
+        note: $('#adUpdateNote')?.value ?? '',
+      });
+      if (next === before) { toast('Update not added: give a known note id, a real date, and an update note.'); return; }
+      saveAccessDifficulties(next);
+      renderAccessDifficulties();
+    });
+    $('#adRemoveBtn')?.addEventListener('click', () => {
+      saveAccessDifficulties(removeAccessDifficulty(loadAccessDifficulties(), $('#adRemoveId')?.value ?? ''));
+      renderAccessDifficulties();
+    });
+    $('#adVisitBtn')?.addEventListener('click', () => { renderAccessDifficulties(); });
+    $('#adFilterCustomer')?.addEventListener('input', () => { renderAccessDifficulties(); });
+    $('#adTypeBtn')?.addEventListener('click', () => { renderAccessDifficulties(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

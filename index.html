@@ -11174,6 +11174,40 @@
 <div id="bmrBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="rvnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rvnHeading">Restore verification note</h3>
+<p class="chart-caption">One verification note per restore: the restore date, the source, the record counts before and after shown side by side, and the verifier. Counts must match, or the mismatch is named; a restore whose check is still pending stays flagged as unverified. A note never changes any restored record, bill, or payment by itself.</p>
+<p id="rvnSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="rvnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export restore verifications CSV</button>
+</div></div>
+<h4>Record a verification</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Restore date <input id="rvnDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Source <input id="rvnSource" type="text" style="width: 160px;" placeholder="e.g. Shop USB 1"></label>
+<label style="font-size: 12px;">Customers before <input id="rvnBeforeCustomers" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Bills before <input id="rvnBeforeBills" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Payments before <input id="rvnBeforePayments" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Customers after <input id="rvnAfterCustomers" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Bills after <input id="rvnAfterBills" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Payments after <input id="rvnAfterPayments" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Verifier <input id="rvnVerifier" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<button id="rvnRecordBtn" class="secondary-button btn-sm" type="button">Record verification</button>
+</div>
+<h4>Mark a restore verified</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="rvnVerifyId" type="text" style="width: 160px;"></label>
+<button id="rvnVerifyBtn" class="secondary-button btn-sm" type="button">Mark verified</button>
+<label style="font-size: 12px;">Remove id <input id="rvnRemoveId" type="text" style="width: 160px;"></label>
+<button id="rvnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Unverified restores</h4>
+<div id="rvnUnverifiedBody"></div>
+<h4>All verifications, newest first</h4>
+<div id="rvnBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

@@ -10129,6 +10129,38 @@
 <div id="spfBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="prwHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="prwHeading">Price review worksheet</h3>
+<p class="chart-caption">One worksheet per price review: the package, its current price, the figure it was compared against, a cost or margin note in plain words, the review date, who reviewed it, and a conclusion in plain words. A worksheet never changes any package price, bill, or customer record by itself, and past worksheets are never silently edited.</p>
+<p id="prwSummary"></p>
+</div>
+<div>
+<button id="prwExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export price reviews CSV</button>
+</div>
+</div>
+<h4>Record a price review worksheet</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Package <input id="prwPackage" type="text" style="width: 140px;" placeholder="e.g. 5 Mbps 150 GB"></label>
+<label style="font-size: 12px;">Current price (Rs) <input id="prwCurrentPrice" type="number" min="1" step="1" style="width: 110px;"></label>
+<label style="font-size: 12px;">Compared figure (Rs) <input id="prwComparedFigure" type="number" min="0" step="1" style="width: 110px;"></label>
+<label style="font-size: 12px;">Cost or margin note <input id="prwCostNote" type="text" style="width: 180px;" placeholder="e.g. Margin still healthy"></label>
+<label style="font-size: 12px;">Review date <input id="prwReviewDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Reviewer <input id="prwReviewer" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Conclusion <input id="prwConclusion" type="text" style="width: 180px;" placeholder="e.g. Keep the price for now"></label>
+<button id="prwRecordBtn" class="secondary-button btn-sm" type="button">Record worksheet</button>
+<label style="font-size: 12px;">Remove id <input id="prwRemoveId" type="text" style="width: 120px;"></label>
+<button id="prwRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Worksheets for one package</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by package <input id="prwFilter" type="text" style="width: 140px;"></label>
+<button id="prwFilterBtn" class="secondary-button btn-sm" type="button">Show package worksheets</button>
+</div>
+<div id="prwPackageBody"></div>
+<h4>All price review worksheets</h4>
+<div id="prwBody"></div>
+</section>
+
 
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">

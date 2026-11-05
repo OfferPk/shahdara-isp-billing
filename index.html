@@ -8038,6 +8038,43 @@
 </div>
 <p id="pfCountsBody"></p>
 <div id="pfBody"></div>
+</section><section class="chart-card" aria-labelledby="brHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="brHeading">Bill reissue note</h3>
+<p class="chart-caption">One note per reissued bill: customer, original bill reference, reissue date, reason, and who reissued it. Every reissued bill carries a REISSUE mark with the original bill reference and date, so a reissued copy is never mistaken for a new charge. This marks a copy only: it creates no new bill, no charge, and no total, and it never alters the original bill. It is separate from receipt reprint control, which covers receipts.</p>
+<p id="brSummary"></p>
+</div>
+<div>
+<button id="brExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export bill reissues CSV</button>
+</div>
+</div>
+<h4>Record a bill reissue</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="brCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Original bill reference <input id="brOriginalBill" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Reissue date <input id="brReissueDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason <input id="brReason" type="text" style="width: 160px;" placeholder="e.g. Lost copy">
+</label>
+<label style="font-size: 12px;">Reissued by <input id="brReissuedBy" type="text" style="width: 140px;">
+</label>
+<button id="brSaveBtn" class="secondary-button btn-sm" type="button">Record reissue</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove reissue note id <input id="brRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="brRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Reissued bills</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="brCustomerFilter" type="text" style="width: 160px;">
+</label>
+</div>
+<div id="brBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

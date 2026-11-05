@@ -414,6 +414,7 @@ import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirm
 import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEntriesSorted, archiveByYear, archiveByKind, archiveAllHtml, archiveSummaryText, archiveCsv, archiveFilename } from './archive-index.js';
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
+import { normalizeBillReissueList, recordBillReissue, removeBillReissue, billReissuesSorted, billReissuesForCustomer, billReissueSummaryText, billReissueAllHtml, billReissueCsv, billReissueFilename } from './bill-reissue.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14070,6 +14071,7 @@ function renderAnalytics() {
   renderAbsenceCover();
   renderCollectionPromises();
   renderPaymentFailures();
+  renderBillReissues();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26075,6 +26077,47 @@ function renderPaymentFailures() {
       renderPaymentFailures();
     });
     $('#pfCustomerFilter')?.addEventListener('input', () => { renderPaymentFailures(); });
+  }
+}
+const BILL_REISSUE_KEY = 'shahdara_bill_reissues_v1';
+function loadBillReissues() {
+  try { return normalizeBillReissueList(JSON.parse(localStorage.getItem(BILL_REISSUE_KEY) || '[]')); } catch { return []; }
+}
+function saveBillReissues(list) {
+  try { localStorage.setItem(BILL_REISSUE_KEY, JSON.stringify(normalizeBillReissueList(list))); } catch { /* reissue note only: a failed save leaves the previous notes in place */ }
+}
+let billReissuesBound = false;
+function renderBillReissues() {
+  const bodyEl = $('#brBody');
+  if (!bodyEl) return;
+  const customerQuery = ($('#brCustomerFilter')?.value ?? '').trim();
+  let shown = billReissuesSorted(loadBillReissues());
+  if (customerQuery) shown = billReissuesForCustomer(shown, customerQuery);
+  bodyEl.innerHTML = shown.length ? billReissueAllHtml(shown) : '<p>No bill reissues recorded.</p>';
+  const summaryEl = $('#brSummary');
+  if (summaryEl) summaryEl.textContent = billReissueSummaryText(loadBillReissues());
+  if (!billReissuesBound) {
+    billReissuesBound = true;
+    $('#brExportBtn')?.addEventListener('click', () => { downloadCsvFile(billReissueFilename(), billReissueCsv(loadBillReissues())); });
+    $('#brSaveBtn')?.addEventListener('click', () => {
+      const before = loadBillReissues();
+      const next = recordBillReissue(before, {
+        id: `BR-${Date.now()}`,
+        customer: $('#brCustomer')?.value ?? '',
+        originalBillRef: $('#brOriginalBill')?.value ?? '',
+        reissueDate: $('#brReissueDate')?.value ?? '',
+        reason: $('#brReason')?.value ?? '',
+        reissuedBy: $('#brReissuedBy')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Reissue note not recorded: give a customer, the original bill reference, and a real reissue date.'); return; }
+      saveBillReissues(next);
+      renderBillReissues();
+    });
+    $('#brRemoveBtn')?.addEventListener('click', () => {
+      saveBillReissues(removeBillReissue(loadBillReissues(), $('#brRemoveId')?.value ?? ''));
+      renderBillReissues();
+    });
+    $('#brCustomerFilter')?.addEventListener('input', () => { renderBillReissues(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

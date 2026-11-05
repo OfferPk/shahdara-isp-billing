@@ -9012,6 +9012,54 @@
 </div>
 <h4>Contractor visits</h4>
 <div id="cvBody"></div>
+</section><section class="chart-card" aria-labelledby="prHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="prHeading">Field visit photo register</h3>
+<p class="chart-caption">One register entry per photo — the date, the visit reference, the subject in plain words, the purpose, and the phone or folder where the photo is kept — so a photo of a pole, cabinet, or drop cable can be found when the fault returns instead of scrolling through a phone gallery. This stores a dated log with purpose, not the photo itself, and it does not replace the field photo and note attachment record, which is attachment metadata on a record. An entry is never edited, only annotated. Keeping the register never changes any bill, payment, customer, fault, or attachment record by itself.</p>
+<p id="prSummary"></p>
+</div>
+<div>
+<button id="prExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export photo register CSV</button>
+</div>
+</div>
+<h4>Register a photo</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="prDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Visit reference <input id="prVisit" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Subject <input id="prSubject" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Purpose <input id="prPurpose" type="text" style="width: 200px;">
+</label>
+<label style="font-size: 12px;">Kept on (phone or folder) <input id="prKeptOn" type="text" style="width: 160px;">
+</label>
+<button id="prSaveBtn" class="secondary-button btn-sm" type="button">Register photo</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove photo id <input id="prRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="prRemoveBtn" class="secondary-button btn-sm" type="button">Remove photo</button>
+<label style="font-size: 12px;">Filter by visit <input id="prFilter" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Photos for visit <input id="prVisitFilter" type="text" style="width: 120px;">
+</label>
+<button id="prVisitBtn" class="secondary-button btn-sm" type="button">Show visit photos</button>
+</div>
+<h4>Dated annotation</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Photo id <input id="prAnnotateId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Annotation date <input id="prAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Annotation note <input id="prAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="prAnnotateBtn" class="secondary-button btn-sm" type="button">Add annotation</button>
+</div>
+<h4>Registered photos</h4>
+<div id="prBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

@@ -436,6 +436,7 @@ import { validKitPowerDate, normalizeKitPowerList, recordKitPower, removeKitPowe
 import { validVehicleFuelDate, normalizeVehicleFuelList, recordVehicleFuel, removeVehicleFuel, findVehicleFuel, vehicleFuelSorted, vehicleFuelForVehicle, vehicleFuelVehicles, vehicleFuelMonthlyEntries, vehicleFuelMonthlyTotal, vehicleFuelMonthlySummaryText, addVehicleFuelFollowUp, vehicleFuelSummaryText, vehicleFuelText, vehicleFuelHtml, vehicleFuelCsv, vehicleFuelFilename } from './vehicle-fuel.js';
 import { validWeatherDisruptionDate, normalizeWeatherDisruptionList, recordWeatherDisruption, removeWeatherDisruption, findWeatherDisruption, weatherDisruptionsSorted, weatherDisruptionsForMohalla, weatherDisruptionMohallas, addWeatherDisruptionAnnotation, weatherDisruptionSummaryText, weatherDisruptionText, weatherDisruptionHtml, weatherDisruptionCsv, weatherDisruptionFilename } from './weather-disruption.js';
 import { validContractorVisitDate, normalizeContractorVisitList, recordContractorVisit, removeContractorVisit, findContractorVisit, contractorVisitsSorted, contractorVisitsForContractor, contractorVisitsOnDate, addContractorVisitCorrection, contractorVisitSummaryText, contractorVisitText, contractorVisitHtml, contractorVisitCsv, contractorVisitFilename } from './contractor-visit.js';
+import { validPhotoRegisterDate, normalizePhotoRegisterList, recordPhotoRegister, removePhotoRegister, findPhotoRegister, addPhotoRegisterAnnotation, photoRegisterSorted, photoRegisterForVisit, photoRegisterOnDate, photoRegisterVisitRefs, photoRegisterSummaryText, photoRegisterText, photoRegisterHtml, photoRegisterCsv, photoRegisterFilename } from './photo-register.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14114,6 +14115,7 @@ function renderAnalytics() {
   renderVehicleFuel();
   renderWeatherDisruptions();
   renderContractorVisits();
+  renderPhotoRegister();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27268,6 +27270,59 @@ function renderContractorVisits() {
       if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Correction not added: give a known visit id, a real date, and a note.'); return; }
       saveContractorVisits(next);
       renderContractorVisits();
+    });
+  }
+}
+const PHOTO_REGISTER_KEY = 'shahdara_photo_register_v1';
+function loadPhotoRegister() {
+  try { return normalizePhotoRegisterList(JSON.parse(localStorage.getItem(PHOTO_REGISTER_KEY) || '[]')); } catch { return []; }
+}
+function savePhotoRegister(list) {
+  try { localStorage.setItem(PHOTO_REGISTER_KEY, JSON.stringify(normalizePhotoRegisterList(list))); } catch { /* photo register only: a failed save leaves the previous list in place */ }
+}
+let photoRegisterBound = false;
+function renderPhotoRegister() {
+  const bodyEl = $('#prBody');
+  if (!bodyEl) return;
+  const all = loadPhotoRegister();
+  const visitFilter = $('#prFilter')?.value ?? '';
+  const scoped = visitFilter ? photoRegisterForVisit(all, visitFilter) : photoRegisterSorted(all);
+  bodyEl.innerHTML = scoped.length ? scoped.map((entry) => photoRegisterHtml(entry)).join('') : '<p>No visit photos registered.</p>';
+  const summaryEl = $('#prSummary');
+  if (summaryEl) summaryEl.textContent = `${photoRegisterSummaryText(all)} An entry is never edited, only annotated. Keeping the register never changes any bill, payment, customer, fault, or attachment record by itself.`;
+  if (!photoRegisterBound) {
+    photoRegisterBound = true;
+    $('#prExportBtn')?.addEventListener('click', () => { downloadCsvFile(photoRegisterFilename(), photoRegisterCsv(loadPhotoRegister())); });
+    $('#prSaveBtn')?.addEventListener('click', () => {
+      const before = loadPhotoRegister();
+      const next = recordPhotoRegister(before, {
+        id: `PR-${Date.now()}`,
+        date: $('#prDate')?.value ?? '',
+        visitRef: $('#prVisit')?.value ?? '',
+        subject: $('#prSubject')?.value ?? '',
+        purpose: $('#prPurpose')?.value ?? '',
+        keptOn: $('#prKeptOn')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Photo not registered: give a real date, a visit reference, a subject, a purpose, and where the photo is kept.'); return; }
+      savePhotoRegister(next);
+      renderPhotoRegister();
+    });
+    $('#prRemoveBtn')?.addEventListener('click', () => {
+      savePhotoRegister(removePhotoRegister(loadPhotoRegister(), $('#prRemoveId')?.value ?? ''));
+      renderPhotoRegister();
+    });
+    $('#prFilter')?.addEventListener('input', () => { renderPhotoRegister(); });
+    $('#prVisitBtn')?.addEventListener('click', () => {
+      const visitRef = $('#prVisitFilter')?.value ?? '';
+      const scoped = photoRegisterForVisit(loadPhotoRegister(), visitRef);
+      bodyEl.innerHTML = scoped.length ? scoped.map((entry) => photoRegisterHtml(entry)).join('') : '<p>No photos for that visit.</p>';
+    });
+    $('#prAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadPhotoRegister();
+      const next = addPhotoRegisterAnnotation(before, $('#prAnnotateId')?.value ?? '', $('#prAnnotateDate')?.value ?? '', $('#prAnnotateNote')?.value ?? '');
+      if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Annotation not added: give a known photo id, a real date, and a note.'); return; }
+      savePhotoRegister(next);
+      renderPhotoRegister();
     });
   }
 }

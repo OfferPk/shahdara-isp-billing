@@ -7952,6 +7952,49 @@
 <button id="acGapsBtn" class="secondary-button btn-sm" type="button">Check gaps</button>
 </div>
 <p id="acGapsBody"></p>
+</section><section class="chart-card" aria-labelledby="apHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">BILLING &amp; COLLECTIONS</p>
+<h3 id="apHeading">Tariff change history per customer — applied-price record</h3>
+<p class="chart-caption">One record per customer per bill: the package, the price actually applied, the date that price took effect, and the bill it appears on — so a customer who questions a new figure can be shown the exact price and date. This records what was applied only: it sets no price, it never re-prices a bill, and recording it never changes any bill, payment, or customer record. A record whose price disagrees with the global price history (Plan 34) for its bill date is flagged below.</p>
+<p id="apSummary"></p>
+</div>
+<div>
+<button id="apExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export applied prices CSV</button>
+</div>
+</div>
+<h4>Record an applied price</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer id <input id="apCustomer" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Bill <input id="apBill" type="text" style="width: 120px;" placeholder="e.g. 2026-11">
+</label>
+<label style="font-size: 12px;">Package <input id="apPackage" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Price applied <input id="apPrice" type="number" min="0" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Effective date <input id="apEffective" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Bill date or month <input id="apBillDate" type="text" style="width: 130px;" placeholder="e.g. 2026-11-01">
+</label>
+<button id="apSaveBtn" class="secondary-button btn-sm" type="button">Record applied price</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove record id <input id="apRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="apRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Applied prices</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="apCustomerFilter" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Filter by bill <input id="apBillFilter" type="text" style="width: 140px;">
+</label>
+</div>
+<div id="apBody"></div>
+<h4>Flagged: applied price disagrees with price history</h4>
+<div id="apFlaggedBody"></div>
 </section><section class="chart-card" aria-labelledby="spHeading">
 <div class="table-heading">
 <div>

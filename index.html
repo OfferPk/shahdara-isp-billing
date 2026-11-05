@@ -10551,6 +10551,37 @@
 <div id="smnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="cpnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="cpnHeading">Competitor price note</h3>
+<p class="chart-caption">One note per competitor package seen in the area: competitor name, package in plain words, price in whole rupees, date seen, source in plain words, and who recorded it. It is not a Shahdara price change. Recording a note never changes any package price, bill, or customer record by itself.</p>
+<p id="cpnSummary"></p>
+</div>
+<div>
+<button id="cpnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export competitor price notes CSV</button>
+</div>
+</div>
+<h4>Record a competitor price note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date seen <input id="cpnDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Competitor <input id="cpnCompetitor" type="text" style="width: 140px;" placeholder="e.g. CityNet"></label>
+<label style="font-size: 12px;">Package seen <input id="cpnPackage" type="text" style="width: 200px;" placeholder="e.g. 10 Mbps, 200 GB"></label>
+<label style="font-size: 12px;">Price (Rs) <input id="cpnPrice" type="number" min="1" step="1" style="width: 110px;" placeholder="e.g. 1800"></label>
+<label style="font-size: 12px;">Source <input id="cpnSource" type="text" style="width: 160px;" placeholder="e.g. Poster at the bazaar"></label>
+<label style="font-size: 12px;">Recorded by <input id="cpnRecordedBy" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<button id="cpnRecordBtn" class="secondary-button btn-sm" type="button">Record note</button>
+<label style="font-size: 12px;">Remove id <input id="cpnRemoveId" type="text" style="width: 120px;"></label>
+<button id="cpnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Notes for one competitor</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Competitor <input id="cpnCompetitorInput" type="text" style="width: 160px;" placeholder="e.g. CityNet"></label>
+<button id="cpnCompetitorBtn" class="secondary-button btn-sm" type="button">Show notes</button>
+</div>
+<div id="cpnCompetitorBody"></div>
+<h4>All competitor price notes</h4>
+<div id="cpnBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="rrHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="rrHeading">Licence renewal reminder queue</h3>
 <p class="chart-caption">A queue built from the licence and subscription tracker: tracker entries listed by renewal date with a reminder status, so an upcoming renewal is seen early instead of missed. It adds no licence fields of its own — the tracker remains the record of record. Marking a reminder seen never changes any licence, subscription, bill, or payment record by itself.</p>

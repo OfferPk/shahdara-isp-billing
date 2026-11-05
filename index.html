@@ -9317,6 +9317,71 @@
 </label>
 <button id="nvpExceptionsBtn" class="secondary-button btn-sm" type="button">Check unpaired visits</button>
 </div>
+</section><section class="chart-card" aria-labelledby="sraHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="sraHeading">Site revisit authorisation note</h3>
+<p class="chart-caption">One authorisation note per site revisit: the original job reference, the reason for the revisit, who authorised it, the date authorised, and the work allowed. A revisit names its authorisation note, and revisits without one are listed as exceptions. An authorisation note is never edited, only superseded by a dated newer note. This authorises the revisit only and grants no payment, discount, or scope change. Recording authorisation never changes any bill, payment, customer, fault, or job record by itself.</p>
+<p id="sraSummary"></p>
+<p id="sraExceptions"></p>
+</div>
+<div>
+<button id="sraExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export authorisation notes CSV</button>
+</div>
+</div>
+<h4>Record an authorisation note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Original job reference <input id="sraJobRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason for revisit <input id="sraReason" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Authorised by <input id="sraAuthorisedBy" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date authorised <input id="sraDateAuthorised" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Work allowed <input id="sraWorkAllowed" type="text" style="width: 220px;">
+</label>
+<button id="sraRecordBtn" class="secondary-button btn-sm" type="button">Record authorisation</button>
+</div>
+<h4>Supersede a note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Old note id <input id="sraSupersedeId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">New note id <input id="sraNewId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Job reference <input id="sraNewJobRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason for revisit <input id="sraNewReason" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Authorised by <input id="sraNewAuthorisedBy" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date authorised <input id="sraNewDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Work allowed <input id="sraNewWorkAllowed" type="text" style="width: 220px;">
+</label>
+<button id="sraSupersedeBtn" class="secondary-button btn-sm" type="button">Supersede note</button>
+<label style="font-size: 12px;">Remove note id <input id="sraRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="sraRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Authorisation notes</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by job reference <input id="sraFilterJob" type="text" style="width: 140px;">
+</label>
+<button id="sraFilterBtn" class="secondary-button btn-sm" type="button">Filter</button>
+</div>
+<div id="sraList"></div>
+<h4>Revisits without an authorisation note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Revisits, one per line (job reference, date) <textarea id="sraRevisitList" rows="3" style="width: 220px;"></textarea>
+</label>
+<label style="font-size: 12px;">Period from <input id="sraPeriodFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period to <input id="sraPeriodTo" type="date" style="width: 140px;">
+</label>
+<button id="sraExceptionsBtn" class="secondary-button btn-sm" type="button">Check unauthorised revisits</button>
+</div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

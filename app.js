@@ -442,6 +442,7 @@ import { validFaultRevisitDate, normalizeFaultRevisitList, faultRevisitInPeriod,
 import { validOutageNoticeDate, normalizeOutageNoticeList, recordOutageNotice, removeOutageNotice, findOutageNotice, addOutageNoticeStep, addOutageNoticeUnreached, annotateOutageNotice, outageNoticeIsComplete, outageNoticeSorted, outageNoticeForOutage, outageNoticeSummaryText, outageNoticeHtml, outageNoticeCsv, outageNoticeFilename } from './outage-notice.js';
 import { validEmergencyKitChecklistDate, normalizeEmergencyKitChecklistList, recordEmergencyKitChecklist, removeEmergencyKitChecklist, findEmergencyKitChecklist, addEmergencyKitChecklistAnnotation, emergencyKitChecklistSorted, emergencyKitChecklistsForVehicle, latestEmergencyKitChecklistForVehicle, emergencyKitChecklistVehicles, emergencyKitChecklistMissingItems, emergencyKitChecklistMissingCritical, emergencyKitChecklistHasMissingCritical, emergencyKitChecklistVehiclesWithMissingCritical, emergencyKitChecklistSummaryText, emergencyKitChecklistText, emergencyKitChecklistHtml, emergencyKitChecklistCsv, emergencyKitChecklistFilename } from './emergency-kit-checklist.js';
 import { validNightVisitPairDate, validNightVisitPairReturnTime, normalizeNightVisitPairList, recordNightVisitPair, removeNightVisitPair, findNightVisitPair, addNightVisitPairAnnotation, recordNightVisitReturn, nightVisitPairSorted, nightVisitPairsInPeriod, nightVisitPairsForArea, nightVisitPairAreas, unpairedNightVisits, nightVisitPairSummaryText, unpairedNightVisitSummaryText, nightVisitPairText, nightVisitPairHtml, nightVisitPairCsv, nightVisitPairFilename } from './night-visit-pair.js';
+import { validRevisitAuthorisationDate, normalizeRevisitAuthorisationList, recordRevisitAuthorisation, removeRevisitAuthorisation, supersedeRevisitAuthorisation, revisitAuthorisationSorted, revisitAuthorisationsForJob, unauthorisedRevisits, revisitAuthorisationSummaryText, unauthorisedRevisitSummaryText, revisitAuthorisationHtml, revisitAuthorisationCsv, revisitAuthorisationFilename } from './revisit-authorisation.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14126,6 +14127,7 @@ function renderAnalytics() {
   renderOutageNotice();
   renderEmergencyKitChecklist();
   renderNightVisitPairs();
+  renderRevisitAuthorisations();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27635,6 +27637,79 @@ function renderNightVisitPairs() {
     $('#nvpFilterBtn')?.addEventListener('click', () => { renderNightVisitPairs(); });
     $('#nvpFilterArea')?.addEventListener('input', () => { renderNightVisitPairs(); });
     $('#nvpExceptionsBtn')?.addEventListener('click', () => { renderNightVisitPairs(); });
+  }
+}
+const REVISIT_AUTHORISATION_KEY = 'shahdara_revisit_authorisations_v1';
+function loadRevisitAuthorisations() {
+  try { return normalizeRevisitAuthorisationList(JSON.parse(localStorage.getItem(REVISIT_AUTHORISATION_KEY) || '[]')); } catch { return []; }
+}
+function saveRevisitAuthorisations(list) {
+  try { localStorage.setItem(REVISIT_AUTHORISATION_KEY, JSON.stringify(normalizeRevisitAuthorisationList(list))); } catch { /* authorisation notes only: a failed save leaves the previous list in place */ }
+}
+let revisitAuthorisationsBound = false;
+function parseSraRevisitLines(text) {
+  return (text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const parts = line.split(',').map((part) => part.trim());
+    return { jobRef: parts[0] || '', date: parts[1] || '' };
+  });
+}
+function renderRevisitAuthorisations() {
+  const listEl = $('#sraList');
+  if (!listEl) return;
+  const all = loadRevisitAuthorisations();
+  const jobFilter = ($('#sraFilterJob')?.value ?? '').trim();
+  let scoped = revisitAuthorisationSorted(all);
+  if (jobFilter) scoped = revisitAuthorisationsForJob(scoped, jobFilter);
+  listEl.innerHTML = scoped.length ? revisitAuthorisationHtml(scoped) : '<p>No site revisit authorisation notes.</p>';
+  const summaryEl = $('#sraSummary');
+  if (summaryEl) summaryEl.textContent = `${revisitAuthorisationSummaryText(all)} An authorisation note is never edited, only superseded by a dated newer note. Recording authorisation never changes any bill, payment, customer, fault, or job record by itself, and it grants no payment, discount, or scope change.`;
+  const exceptionsEl = $('#sraExceptions');
+  if (exceptionsEl) {
+    const revisits = parseSraRevisitLines($('#sraRevisitList')?.value ?? '');
+    const from = $('#sraPeriodFrom')?.value ?? '';
+    const to = $('#sraPeriodTo')?.value ?? '';
+    exceptionsEl.textContent = revisits.length === 0
+      ? 'Type revisits (one per line, job reference, date) to check for revisits without an authorisation note.'
+      : unauthorisedRevisitSummaryText(revisits, all, from, to);
+  }
+  if (!revisitAuthorisationsBound) {
+    revisitAuthorisationsBound = true;
+    $('#sraExportBtn')?.addEventListener('click', () => { downloadCsvFile(revisitAuthorisationFilename(), revisitAuthorisationCsv(loadRevisitAuthorisations())); });
+    $('#sraRecordBtn')?.addEventListener('click', () => {
+      const before = loadRevisitAuthorisations();
+      const next = recordRevisitAuthorisation(before, {
+        id: `RA-${Date.now()}`,
+        jobRef: $('#sraJobRef')?.value ?? '',
+        reason: $('#sraReason')?.value ?? '',
+        authorisedBy: $('#sraAuthorisedBy')?.value ?? '',
+        dateAuthorised: $('#sraDateAuthorised')?.value ?? '',
+        workAllowed: $('#sraWorkAllowed')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Authorisation note not recorded: give an original job reference, a reason, who authorised it, a real date, and the work allowed.'); return; }
+      saveRevisitAuthorisations(next);
+      renderRevisitAuthorisations();
+    });
+    $('#sraSupersedeBtn')?.addEventListener('click', () => {
+      const before = loadRevisitAuthorisations();
+      const next = supersedeRevisitAuthorisation(before, $('#sraSupersedeId')?.value ?? '', {
+        id: $('#sraNewId')?.value ?? `RA-${Date.now()}`,
+        jobRef: $('#sraNewJobRef')?.value ?? '',
+        reason: $('#sraNewReason')?.value ?? '',
+        authorisedBy: $('#sraNewAuthorisedBy')?.value ?? '',
+        dateAuthorised: $('#sraNewDate')?.value ?? '',
+        workAllowed: $('#sraNewWorkAllowed')?.value ?? '',
+      }, $('#sraNewDate')?.value ?? '');
+      if (next === before) { toast('Note not superseded: give a known note id, a newer note for the same job with a real date, and a new note id.'); return; }
+      saveRevisitAuthorisations(next);
+      renderRevisitAuthorisations();
+    });
+    $('#sraRemoveBtn')?.addEventListener('click', () => {
+      saveRevisitAuthorisations(removeRevisitAuthorisation(loadRevisitAuthorisations(), $('#sraRemoveId')?.value ?? ''));
+      renderRevisitAuthorisations();
+    });
+    $('#sraFilterBtn')?.addEventListener('click', () => { renderRevisitAuthorisations(); });
+    $('#sraFilterJob')?.addEventListener('input', () => { renderRevisitAuthorisations(); });
+    $('#sraExceptionsBtn')?.addEventListener('click', () => { renderRevisitAuthorisations(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

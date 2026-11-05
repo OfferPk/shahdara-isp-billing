@@ -430,6 +430,7 @@ import { normalizeFormatVersionList, recordFormatVersion, removeFormatVersion, f
 import { normalizeBillingAddressList, recordBillingAddress, removeBillingAddress, findBillingAddress, billingAddressesSorted, billingAddressesForCustomer, deliveryAddressFor, billingAddressDiffers, billingAddressSideBySideText, billingAddressSummaryText, billingAddressEntryHtml, billingAddressCsv, billingAddressFilename } from './billing-address.js';
 import { normalizeBillingLinkList, recordBillingLink, unlinkBillingLink, findBillingLink, billingLinksActive, billingLinksHistory, billingLinksForCustomer, billingLinkCombinedDues, billingLinkSummaryText, billingLinkEntryHtml, billingLinkCsv, billingLinkFilename } from './billing-link.js';
 import { normalizeFibreRouteList, recordFibreRoute, removeFibreRoute, addFibreRouteFollowup, fibreRoutesSorted, fibreRoutesForMohalla, fibreRouteSummaryText, fibreRouteHtml, fibreRouteCsv, fibreRouteFilename } from './fibre-route.js';
+import { validSpliceLossDate, normalizeSpliceLossList, recordSpliceLoss, removeSpliceLoss, findSpliceLoss, spliceLossSorted, spliceLossForJoint, spliceLossLatest, spliceLossSummaryText, spliceLossText, spliceLossJointText, spliceLossHtml, spliceLossCsv, spliceLossFilename } from './splice-loss.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14102,6 +14103,7 @@ function renderAnalytics() {
   renderBillingAddresses();
   renderBillingLinks();
   renderFibreRoutes();
+  renderSpliceLoss();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26951,6 +26953,51 @@ function renderFibreRoutes() {
       renderFibreRoutes();
     });
     $('#frFilter')?.addEventListener('input', () => { renderFibreRoutes(); });
+  }
+}
+const SPLICE_LOSS_KEY = 'shahdara_splice_losses_v1';
+function loadSpliceLoss() {
+  try { return normalizeSpliceLossList(JSON.parse(localStorage.getItem(SPLICE_LOSS_KEY) || '[]')); } catch { return []; }
+}
+function saveSpliceLoss(list) {
+  try { localStorage.setItem(SPLICE_LOSS_KEY, JSON.stringify(normalizeSpliceLossList(list))); } catch { /* loss notes only: a failed save leaves the previous list in place */ }
+}
+let spliceLossBound = false;
+function renderSpliceLoss() {
+  const bodyEl = $('#slBody');
+  if (!bodyEl) return;
+  const all = loadSpliceLoss();
+  const jointFilter = $('#slFilter')?.value ?? '';
+  const shown = jointFilter ? spliceLossForJoint(all, jointFilter) : spliceLossSorted(all);
+  bodyEl.innerHTML = shown.length ? shown.map((note) => spliceLossHtml(note)).join('') : '<p>No splice loss notes recorded.</p>';
+  const summaryEl = $('#slSummary');
+  if (summaryEl) summaryEl.textContent = `${spliceLossSummaryText(all)} A note is never edited, only followed by a newer note. Recording a loss note never changes any bill, payment, customer, fault, or repair record by itself.`;
+  if (!spliceLossBound) {
+    spliceLossBound = true;
+    $('#slExportBtn')?.addEventListener('click', () => { downloadCsvFile(spliceLossFilename(), spliceLossCsv(loadSpliceLoss())); });
+    $('#slSaveBtn')?.addEventListener('click', () => {
+      const before = loadSpliceLoss();
+      const next = recordSpliceLoss(before, {
+        id: `SL-${Date.now()}`,
+        jointRef: $('#slJoint')?.value ?? '',
+        date: $('#slDate')?.value ?? '',
+        loss: $('#slLoss')?.value ?? '',
+        instrument: $('#slInstrument')?.value ?? '',
+        technician: $('#slTechnician')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Splice loss note not recorded: give a joint reference, a real date, and a loss reading.'); return; }
+      saveSpliceLoss(next);
+      renderSpliceLoss();
+    });
+    $('#slRemoveBtn')?.addEventListener('click', () => {
+      saveSpliceLoss(removeSpliceLoss(loadSpliceLoss(), $('#slRemoveId')?.value ?? ''));
+      renderSpliceLoss();
+    });
+    $('#slFilter')?.addEventListener('input', () => { renderSpliceLoss(); });
+    $('#slCheckBtn')?.addEventListener('click', () => {
+      const outEl = $('#slCheckOut');
+      if (outEl) outEl.textContent = spliceLossJointText(loadSpliceLoss(), $('#slCheckJoint')?.value ?? '');
+    });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

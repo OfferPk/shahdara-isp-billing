@@ -482,6 +482,7 @@ import { validNoShowNoteDate, normalizeNoShowNoteList, recordNoShowNote, removeN
 import { validFarewellNoteDate, normalizeFarewellNoteList, recordFarewellNote, removeFarewellNote, farewellNoteSorted, farewellNotesForCustomer, farewellNoteSummaryText, farewellNoteAllHtml, farewellNoteCsv, farewellNoteFilename } from './farewell-note.js';
 import { validServiceTrialDate, normalizeServiceTrialList, recordServiceTrial, removeServiceTrial, serviceTrialSorted, serviceTrialsForCustomer, overlappingServiceTrials, serviceTrialSummaryText, serviceTrialAllHtml, serviceTrialCsv, serviceTrialFilename } from './service-trial.js';
 import { validDocumentReceiptDate, normalizeDocumentReceiptList, recordDocumentReceipt, removeDocumentReceipt, documentReceiptSorted, documentReceiptsForCustomer, documentReceiptSummaryText, documentReceiptAllHtml, documentReceiptCsv, documentReceiptFilename } from './document-receipt.js';
+import { validCommunityMeetingDate, normalizeCommunityMeetingList, recordCommunityMeeting, removeCommunityMeeting, communityMeetingSorted, communityMeetingsForMohalla, communityMeetingSummaryText, communityMeetingAllHtml, communityMeetingsForMohallaHtml, communityMeetingCsv, communityMeetingFilename } from './community-meeting.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14208,6 +14209,7 @@ function renderAnalytics() {
   renderFarewellNotes();
   renderServiceTrials();
   renderDocumentReceipts();
+  renderCommunityMeetings();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30497,6 +30499,56 @@ function renderDocumentReceipts() {
     });
     $('#docFilterBtn')?.addEventListener('click', () => { renderDocumentReceipts(); });
     $('#docFilterCustomer')?.addEventListener('input', () => { renderDocumentReceipts(); });
+  }
+}
+
+const COMMUNITY_MEETING_KEY = 'shahdara_community_meetings_v1';
+function loadCommunityMeetings() {
+  try { return normalizeCommunityMeetingList(JSON.parse(localStorage.getItem(COMMUNITY_MEETING_KEY) || '[]')); } catch { return []; }
+}
+function saveCommunityMeetings(list) {
+  try { localStorage.setItem(COMMUNITY_MEETING_KEY, JSON.stringify(normalizeCommunityMeetingList(list))); } catch { /* meeting notes only: a failed save leaves the previous list in place */ }
+}
+let communityMeetingsBound = false;
+function renderCommunityMeetings() {
+  const listEl = $('#cmList');
+  if (!listEl) return;
+  const all = loadCommunityMeetings();
+  listEl.innerHTML = all.length ? communityMeetingAllHtml(all) : '<p>No community meeting notes recorded.</p>';
+  const summaryEl = $('#cmSummary');
+  if (summaryEl) summaryEl.textContent = `${communityMeetingSummaryText(all)} Recording a note never changes any customer record, bill, or payment, and never sends any message.`;
+  const mohallaEl = $('#cmMohallaBody');
+  if (mohallaEl) {
+    const mohalla = ($('#cmFilterMohalla')?.value ?? '').trim();
+    if (mohalla === '') {
+      mohallaEl.innerHTML = '<p>Give a mohalla to see its meeting notes, newest first.</p>';
+    } else {
+      mohallaEl.innerHTML = communityMeetingsForMohallaHtml(all, mohalla);
+    }
+  }
+  if (!communityMeetingsBound) {
+    communityMeetingsBound = true;
+    $('#cmExportBtn')?.addEventListener('click', () => { downloadCsvFile(communityMeetingFilename(), communityMeetingCsv(loadCommunityMeetings())); });
+    $('#cmRecordBtn')?.addEventListener('click', () => {
+      const before = loadCommunityMeetings();
+      const next = recordCommunityMeeting(before, {
+        id: `CM-${Date.now()}`,
+        mohalla: $('#cmMohalla')?.value ?? '',
+        date: $('#cmDate')?.value ?? '',
+        topics: $('#cmTopics')?.value ?? '',
+        agreedActions: $('#cmActions')?.value ?? '',
+        note: $('#cmNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Meeting note not recorded: give a mohalla and a real date.'); return; }
+      saveCommunityMeetings(next);
+      renderCommunityMeetings();
+    });
+    $('#cmRemoveBtn')?.addEventListener('click', () => {
+      saveCommunityMeetings(removeCommunityMeeting(loadCommunityMeetings(), $('#cmRemoveId')?.value ?? ''));
+      renderCommunityMeetings();
+    });
+    $('#cmFilterBtn')?.addEventListener('click', () => { renderCommunityMeetings(); });
+    $('#cmFilterMohalla')?.addEventListener('input', () => { renderCommunityMeetings(); });
   }
 }
 

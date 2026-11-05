@@ -419,6 +419,7 @@ import { normalizeBehaviourBillList, recordBehaviourBill, removeBehaviourBill, b
 import { normalizeDiscountExpiryList, recordDiscountExpiry, removeDiscountExpiry, discountExpiriesSorted, discountExpiriesWithinWindow, discountExpiryAllHtml, discountExpiryCsv, discountExpiryFilename } from './discount-expiry.js';
 import { normalizeWaiverReasonList, recordWaiverReason, removeWaiverReason, waiverReasonsForCategory, waiverReasonAllHtml, waiverReasonCsv, waiverReasonFilename } from './waiver-reason.js';
 import { normalizeInstalmentDefaultList, recordInstalmentDefault, removeInstalmentDefault, markInstalmentPaidLate, instalmentDefaultsSorted, instalmentDefaultsOpen, instalmentDefaultsForSchedule, instalmentDefaultSummaryText, instalmentDefaultAllHtml, instalmentDefaultCsv, instalmentDefaultFilename } from './instalment-default.js';
+import { normalizeDepositTopUpList, recordDepositTopUp, removeDepositTopUp, depositTopUpsSorted, depositTopUpsForDeposit, depositTopUpSummaryText, depositTopUpAllHtml, depositTopUpCsv, depositTopUpFilename } from './deposit-topup.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14080,6 +14081,7 @@ function renderAnalytics() {
   renderDiscountExpiries();
   renderWaiverReasons();
   renderInstalmentDefaults();
+  renderDepositTopUps();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26309,6 +26311,52 @@ function renderInstalmentDefaults() {
       renderInstalmentDefaults();
     });
     $('#idScheduleFilter')?.addEventListener('input', () => { renderInstalmentDefaults(); });
+  }
+}
+const DEPOSIT_TOPUP_KEY = 'shahdara_deposit_topups_v1';
+function loadDepositTopUps() {
+  try { return normalizeDepositTopUpList(JSON.parse(localStorage.getItem(DEPOSIT_TOPUP_KEY) || '[]')); } catch { return []; }
+}
+function saveDepositTopUps(list) {
+  try { localStorage.setItem(DEPOSIT_TOPUP_KEY, JSON.stringify(normalizeDepositTopUpList(list))); } catch { /* top-up note only: a failed save leaves the previous notes in place */ }
+}
+let depositTopUpsBound = false;
+function renderDepositTopUps() {
+  const bodyEl = $('#dtBody');
+  if (!bodyEl) return;
+  const all = loadDepositTopUps();
+  const depositQuery = ($('#dtDepositFilter')?.value ?? '').trim();
+  const shown = depositQuery ? depositTopUpsForDeposit(all, depositQuery) : depositTopUpsSorted(all);
+  bodyEl.innerHTML = depositTopUpAllHtml(shown);
+  const summaryEl = $('#dtSummary');
+  if (summaryEl) {
+    summaryEl.textContent = depositQuery
+      ? `${shown.length} top-up(s) for deposit \"${depositQuery}\".`
+      : `${depositTopUpSummaryText(all)} A top-up records an increase only; it never rewrites the deposit register itself.`;
+  }
+  if (!depositTopUpsBound) {
+    depositTopUpsBound = true;
+    $('#dtExportBtn')?.addEventListener('click', () => { downloadCsvFile(depositTopUpFilename(), depositTopUpCsv(shown)); });
+    $('#dtSaveBtn')?.addEventListener('click', () => {
+      const before = loadDepositTopUps();
+      const next = recordDepositTopUp(before, {
+        id: `TU-${Date.now()}`,
+        depositRef: $('#dtDepositRef')?.value ?? '',
+        customer: $('#dtCustomer')?.value ?? '',
+        amountAdded: Number($('#dtAmount')?.value ?? ''),
+        date: $('#dtDate')?.value ?? '',
+        reason: $('#dtReason')?.value ?? '',
+        source: $('#dtSource')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Deposit top-up not recorded: give a deposit reference, a positive amount added, a real date, a reason, and a source.'); return; }
+      saveDepositTopUps(next);
+      renderDepositTopUps();
+    });
+    $('#dtRemoveBtn')?.addEventListener('click', () => {
+      saveDepositTopUps(removeDepositTopUp(loadDepositTopUps(), $('#dtRemoveId')?.value ?? ''));
+      renderDepositTopUps();
+    });
+    $('#dtDepositFilter')?.addEventListener('input', () => { renderDepositTopUps(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

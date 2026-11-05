@@ -10630,6 +10630,59 @@
 <h4>All care plans</h4>
 <div id="cpList"></div>
 </section>
+<section class="chart-card" aria-labelledby="pcHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="pcHeading">Customer preference change log</h3>
+<p class="chart-caption">One change entry per preference change: customer, the preference changed, the old value, the new value, the date, and the operator. A customer page lists preference changes newest first, each naming the old and the new value. A change entry is never edited, only followed by a later entry. Logging a change never alters any bill, payment, or other customer record by itself, and it does not replace the contact preferences record or the language preference per draft type.</p>
+<p id="pcSummary"></p>
+</div>
+<div>
+<button id="pcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export preference changes CSV</button>
+</div>
+</div>
+<h4>Record a preference change</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="pcCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Preference changed <input id="pcPreference" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Old value <input id="pcOldValue" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">New value <input id="pcNewValue" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="pcDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Operator <input id="pcOperator" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Note <input id="pcNote" type="text" style="width: 200px;">
+</label>
+<button id="pcRecordBtn" class="secondary-button btn-sm" type="button">Record change</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="pcAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="pcAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="pcAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="pcAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="pcRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="pcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Preference changes for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="pcFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="pcFilterBtn" class="secondary-button btn-sm" type="button">Show changes</button>
+</div>
+<div id="pcFilterBody"></div>
+<h4>All preference changes</h4>
+<div id="pcList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

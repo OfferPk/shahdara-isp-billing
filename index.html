@@ -8637,6 +8637,56 @@
 <button id="baShowBtn" class="secondary-button btn-sm" type="button">Show side by side</button>
 </div>
 <p id="baSideBySide" style="font-size: 12px;"></p>
+</section><section class="chart-card" aria-labelledby="blHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="blHeading">Second-connection billing link</h3>
+<p class="chart-caption">One billing link per customer with two connections — a house and a shop, for example — saying those connections bill together, so a joint statement or a single-visit collection is on record instead of in memory. This links for billing presentation and collection only: it merges no customer records and changes no bill, payment, or connection record by itself. Unlinking keeps a dated history of the link.</p>
+<p id="blSummary"></p>
+</div>
+<div>
+<button id="blExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export billing links CSV</button>
+</div>
+</div>
+<h4>Record a billing link</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="blCustomer" type="text" style="width: 150px;">
+</label>
+<label style="font-size: 12px;">Primary connection <input id="blPrimary" type="text" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">Linked connection <input id="blLinked" type="text" style="width: 130px;">
+</label>
+<label style="font-size: 12px;">Link date <input id="blDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Link note <input id="blNote" type="text" style="width: 260px;">
+</label>
+<button id="blSaveBtn" class="secondary-button btn-sm" type="button">Record billing link</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Unlink id <input id="blUnlinkId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date unlinked <input id="blUnlinkDate" type="date" style="width: 140px;">
+</label>
+<button id="blUnlinkBtn" class="secondary-button btn-sm" type="button">Unlink (keeps history)</button>
+<label style="font-size: 12px;">Filter customer <input id="blFilter" type="text" style="width: 150px;">
+</label>
+</div>
+<h4>Active billing links</h4>
+<div id="blBody"></div>
+<h4>Unlinked link history</h4>
+<div id="blHistoryBody"></div>
+<h4>Combined dues for a linked customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="blCheckCustomer" type="text" style="width: 150px;">
+</label>
+<label style="font-size: 12px;">Primary connection dues (Rs.) <input id="blPrimaryDues" type="number" min="0" step="1" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Linked connection dues (Rs.) <input id="blLinkedDues" type="number" min="0" step="1" style="width: 110px;">
+</label>
+<button id="blDuesBtn" class="secondary-button btn-sm" type="button">Show combined dues</button>
+</div>
+<p id="blDuesOut" style="font-size: 12px;"></p>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

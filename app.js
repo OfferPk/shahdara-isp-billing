@@ -507,6 +507,7 @@ import { validGrowthFundingDate, normalizeGrowthFundingList, recordGrowthFunding
 import { validPartnershipNoteDate, normalizePartnershipNoteList, recordPartnershipNote, removePartnershipNote, partnershipNotesForPartner, partnershipPartners, partnershipNoteSummaryText, partnershipNoteAllHtml, partnershipNotesForPartnerHtml, partnershipNoteCsv, partnershipNoteFilename } from './partnership-note.js';
 import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMohallaCostEstimateSheet, removeMohallaCostEstimateSheet, mohallaCostEstimatesForMohalla, mohallaCostEstimateMohallas, mohallaCostEstimateSummaryText, mohallaCostEstimateAllHtml, mohallaCostEstimatesForMohallaHtml, mohallaCostEstimateCsv, mohallaCostEstimateFilename } from './mohalla-cost-estimate.js';
 import { monthlyKpiMonthLabel, normalizeMonthlyKpiSheetList, recordMonthlyKpiSheet, removeMonthlyKpiSheet, monthlyKpiSheetMonths, monthlyKpiSheetSummaryText, monthlyKpiSheetEntryHtml, monthlyKpiSheetAllHtml, monthlyKpiSheetCsv, monthlyKpiSheetFilename } from './monthly-kpi-sheet.js';
+import { normalizeMohallaYearFigureRecordList, recordMohallaYearFigure, removeMohallaYearFigure, mohallaYearFigureMohallas, normalizeShopWideYearFigureList, recordShopWideYearFigure, removeShopWideYearFigure, buildMohallaYearComparison, mohallaYearComparisonSummaryText, mohallaYearComparisonForMohallaHtml, mohallaYearComparisonAllHtml, mohallaYearComparisonCsv, mohallaYearComparisonFilename } from './mohalla-year-comparison.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14384,6 +14385,7 @@ function renderAnalytics() {
   renderPartnershipNotes();
   renderMohallaCostEstimate();
   renderMonthlyKpiSheet();
+  renderMohallaYearComparison();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32131,6 +32133,98 @@ function renderMonthlyKpiSheet() {
     $('#mksRemoveBtn')?.addEventListener('click', () => {
       saveMonthlyKpiSheets(removeMonthlyKpiSheet(loadMonthlyKpiSheets(), $('#mksRemoveId')?.value ?? ''));
       renderMonthlyKpiSheet();
+    });
+  }
+}
+
+// Per-mohalla year comparison view (Plan 319): customers,
+// collections, and dues outstanding per mohalla per year, composed
+// from yearly figures copied from the yearly reports and reconciled
+// against the shop-wide yearly figure. A mohalla with no figure for
+// a year says so plainly instead of being filled by guesswork.
+// Composing the view never changes any bill, payment, or customer
+// record.
+const MOHALLA_YEAR_FIGURE_KEY = 'shahdara_mohalla_year_figures_v1';
+function loadMohallaYearFigures() {
+  try { return normalizeMohallaYearFigureRecordList(JSON.parse(localStorage.getItem(MOHALLA_YEAR_FIGURE_KEY) || '[]')); } catch { return []; }
+}
+function saveMohallaYearFigures(list) {
+  try { localStorage.setItem(MOHALLA_YEAR_FIGURE_KEY, JSON.stringify(normalizeMohallaYearFigureRecordList(list))); } catch { /* Per-mohalla yearly figures only: a failed save leaves the previous list in place */ }
+}
+const SHOP_WIDE_YEAR_FIGURE_KEY = 'shahdara_shop_wide_year_figures_v1';
+function loadShopWideYearFigures() {
+  try { return normalizeShopWideYearFigureList(JSON.parse(localStorage.getItem(SHOP_WIDE_YEAR_FIGURE_KEY) || '[]')); } catch { return []; }
+}
+function saveShopWideYearFigures(list) {
+  try { localStorage.setItem(SHOP_WIDE_YEAR_FIGURE_KEY, JSON.stringify(normalizeShopWideYearFigureList(list))); } catch { /* Shop-wide yearly figures only: a failed save leaves the previous list in place */ }
+}
+let mohallaYearComparisonBound = false;
+function renderMohallaYearComparison() {
+  const listEl = $('#myrBody');
+  if (!listEl) return;
+  const view = buildMohallaYearComparison(loadMohallaYearFigures(), loadShopWideYearFigures());
+  listEl.innerHTML = view.mohallas.length ? mohallaYearComparisonAllHtml(view) : '<p>No per-mohalla yearly figures recorded.</p>';
+  const summaryEl = $('#myrSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${mohallaYearComparisonSummaryText(view)} Composing the view never changes any bill, payment, or customer record.`;
+  }
+  const mohallaSelect = $('#myrMohallaSelect');
+  if (mohallaSelect) {
+    const names = mohallaYearFigureMohallas(loadMohallaYearFigures());
+    const current = mohallaSelect.value;
+    mohallaSelect.innerHTML = names.map((name) => `<option value="${name}">${name}</option>`).join('');
+    if (names.includes(current)) mohallaSelect.value = current;
+  }
+  const mohallaEl = $('#myrMohallaBody');
+  if (mohallaEl) {
+    const chosen = mohallaSelect?.value ?? '';
+    mohallaEl.innerHTML = chosen
+      ? mohallaYearComparisonForMohallaHtml(view, chosen)
+      : '<p>Pick a mohalla to see its year comparison.</p>';
+  }
+  if (!mohallaYearComparisonBound) {
+    mohallaYearComparisonBound = true;
+    $('#myrExportBtn')?.addEventListener('click', () => { downloadCsvFile(mohallaYearComparisonFilename(), mohallaYearComparisonCsv(buildMohallaYearComparison(loadMohallaYearFigures(), loadShopWideYearFigures()))); });
+    $('#myrMohallaSelect')?.addEventListener('change', () => { renderMohallaYearComparison(); });
+    $('#myrShopRecordBtn')?.addEventListener('click', () => {
+      const before = loadShopWideYearFigures();
+      const next = recordShopWideYearFigure(before, {
+        year: $('#myrShopYear')?.value ?? '',
+        figures: {
+          customers: $('#myrShopCustomers')?.value ?? '',
+          collections: $('#myrShopCollections')?.value ?? '',
+          dues: $('#myrShopDues')?.value ?? '',
+        },
+      });
+      if (next.length === before.length) { toast('Shop-wide yearly figure not recorded: give a year from 1900 to 2100 and at least one whole-number figure copied from the yearly report. A year already recorded is kept as it is.'); return; }
+      saveShopWideYearFigures(next);
+      renderMohallaYearComparison();
+    });
+    $('#myrShopRemoveBtn')?.addEventListener('click', () => {
+      saveShopWideYearFigures(removeShopWideYearFigure(loadShopWideYearFigures(), $('#myrShopRemoveYear')?.value ?? ''));
+      renderMohallaYearComparison();
+    });
+    $('#myrRecordBtn')?.addEventListener('click', () => {
+      const before = loadMohallaYearFigures();
+      const mohalla = $('#myrMohalla')?.value ?? '';
+      const year = $('#myrYear')?.value ?? '';
+      const next = recordMohallaYearFigure(before, {
+        id: `MY-${year}-${mohalla}`,
+        mohalla,
+        year,
+        figures: {
+          customers: $('#myrCustomers')?.value ?? '',
+          collections: $('#myrCollections')?.value ?? '',
+          dues: $('#myrDues')?.value ?? '',
+        },
+      });
+      if (next.length === before.length) { toast('Per-mohalla yearly figure not recorded: give a mohalla, a year from 1900 to 2100, and at least one whole-number figure copied from the yearly report. A mohalla and year already recorded is kept as it is.'); return; }
+      saveMohallaYearFigures(next);
+      renderMohallaYearComparison();
+    });
+    $('#myrRemoveBtn')?.addEventListener('click', () => {
+      saveMohallaYearFigures(removeMohallaYearFigure(loadMohallaYearFigures(), $('#myrRemoveId')?.value ?? ''));
+      renderMohallaYearComparison();
     });
   }
 }

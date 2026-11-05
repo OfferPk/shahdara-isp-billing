@@ -451,6 +451,7 @@ import { validPolePermissionDate, normalizePolePermissionList, recordPolePermiss
 import { validCabinetAccessDate, normalizeCabinetAccessList, recordCabinetAccess, removeCabinetAccess, annotateCabinetAccess, cabinetAccessSorted, cabinetAccessByCabinet, cabinetAccessByDate, unconfirmedCabinetAccess, cabinetAccessSummaryText, cabinetAccessHtml, cabinetAccessCsv, cabinetAccessFilename } from './cabinet-access.js';
 import { validFieldTrainingDate, normalizeFieldTrainingList, recordFieldTraining, removeFieldTraining, annotateFieldTraining, fieldTrainingSorted, fieldTrainingForTechnician, fieldTrainingSkillsForTechnician, technicianSkillStatus, fieldTrainingSummaryText, fieldTrainingHtml, fieldTrainingCsv, fieldTrainingFilename } from './field-training.js';
 import { validJobDelayDate, normalizeJobDelayList, recordJobDelay, removeJobDelay, annotateJobDelay, jobDelaySorted, jobDelaysForReason, jobDelayReasons, jobDelaysInPeriod, jobDelayReasonCounts, jobDelaySummaryText, jobDelayHtml, jobDelayCsv, jobDelayFilename } from './job-delay.js';
+import { validMaterialReturnDate, normalizeMaterialReturnList, recordMaterialReturn, removeMaterialReturn, addMaterialReturnFollowup, materialReturnSorted, materialReturnsForJob, materialReturnsForItem, materialReturnTotalForItem, materialReturnSummaryText, materialReturnReconciliationText, materialReturnHtml, materialReturnAllHtml, materialReturnCsv, materialReturnFilename } from './material-return.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14144,6 +14145,7 @@ function renderAnalytics() {
   renderCabinetAccess();
   renderFieldTraining();
   renderJobDelays();
+  renderMaterialReturns();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28307,6 +28309,93 @@ function renderJobDelays() {
     $('#jdReasonBtn')?.addEventListener('click', () => { renderJobDelays(); });
     $('#jdFilterReason')?.addEventListener('input', () => { renderJobDelays(); });
     $('#jdPeriodBtn')?.addEventListener('click', () => { renderJobDelays(); });
+  }
+}
+const MATERIAL_RETURN_KEY = 'shahdara_material_returns_v1';
+function loadMaterialReturns() {
+  try { return normalizeMaterialReturnList(JSON.parse(localStorage.getItem(MATERIAL_RETURN_KEY) || '[]')); } catch { return []; }
+}
+function saveMaterialReturns(list) {
+  try { localStorage.setItem(MATERIAL_RETURN_KEY, JSON.stringify(normalizeMaterialReturnList(list))); } catch { /* return log only: a failed save leaves the previous list in place */ }
+}
+let materialReturnsBound = false;
+function renderMaterialReturns() {
+  const listEl = $('#mrList');
+  if (!listEl) return;
+  const all = loadMaterialReturns();
+  listEl.innerHTML = all.length ? materialReturnAllHtml(all) : '<p>No material returns recorded.</p>';
+  const summaryEl = $('#mrSummary');
+  if (summaryEl) summaryEl.textContent = `${materialReturnSummaryText(all)} Returned quantities are shown separately from issued quantities so the two reconcile, and recording a return never changes any bill, payment, customer, or stock total by itself.`;
+  const jobEl = $('#mrJobBody');
+  if (jobEl) {
+    const job = ($('#mrFilterJob')?.value ?? '').trim();
+    if (job === '') {
+      jobEl.innerHTML = '<p>Give a job reference to list its material returns.</p>';
+    } else {
+      const rows = materialReturnsForJob(all, job);
+      jobEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>${entry.quantityReturned} ${entry.item} returned on ${entry.dateReturned} (${entry.condition}).</li>`).join('')}</ul>`
+        : `<p>No material returns recorded for job \u201c${job}\u201d.</p>`;
+    }
+  }
+  const itemEl = $('#mrItemBody');
+  if (itemEl) {
+    const item = ($('#mrFilterItem')?.value ?? '').trim();
+    if (item === '') {
+      itemEl.innerHTML = '<p>Give an item to list its material returns.</p>';
+    } else {
+      const rows = materialReturnsForItem(all, item);
+      const total = materialReturnTotalForItem(all, item);
+      itemEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>Job ${entry.jobRef} returned ${entry.quantityReturned} on ${entry.dateReturned}.</li>`).join('')}</ul><p>Total returned for this item: ${total}.</p>`
+        : `<p>No material returns recorded for item \u201c${item}\u201d.</p>`;
+    }
+  }
+  const reconEl = $('#mrReconcileBody');
+  if (reconEl) {
+    const item = ($('#mrFilterItem')?.value ?? '').trim();
+    const issuedRaw = ($('#mrIssuedQty')?.value ?? '').trim();
+    if (item === '' || issuedRaw === '') {
+      reconEl.innerHTML = '<p>Give an item and the quantity issued to reconcile returns against issued.</p>';
+    } else {
+      reconEl.innerHTML = `<p>${materialReturnReconciliationText(Number(issuedRaw), materialReturnsForItem(all, item))}</p>`;
+    }
+  }
+  if (!materialReturnsBound) {
+    materialReturnsBound = true;
+    $('#mrExportBtn')?.addEventListener('click', () => { downloadCsvFile(materialReturnFilename(), materialReturnCsv(loadMaterialReturns())); });
+    $('#mrRecordBtn')?.addEventListener('click', () => {
+      const before = loadMaterialReturns();
+      const qtyRaw = ($('#mrQuantity')?.value ?? '').trim();
+      const next = recordMaterialReturn(before, {
+        id: `MR-${Date.now()}`,
+        jobRef: $('#mrJobRef')?.value ?? '',
+        item: $('#mrItem')?.value ?? '',
+        quantityReturned: qtyRaw === '' ? undefined : Number(qtyRaw),
+        condition: $('#mrCondition')?.value ?? '',
+        dateReturned: $('#mrDate')?.value ?? '',
+        receivedBy: $('#mrReceivedBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Return not recorded: give a job reference, an item, a positive quantity returned, a condition note, a real return date, and who received it.'); return; }
+      saveMaterialReturns(next);
+      renderMaterialReturns();
+    });
+    $('#mrAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadMaterialReturns();
+      const next = addMaterialReturnFollowup(before, $('#mrAnnotateId')?.value ?? '', $('#mrAnnotateDate')?.value ?? '', $('#mrAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Follow-up note not added: give a known entry id, a real date, and a note.'); return; }
+      saveMaterialReturns(next);
+      renderMaterialReturns();
+    });
+    $('#mrRemoveBtn')?.addEventListener('click', () => {
+      saveMaterialReturns(removeMaterialReturn(loadMaterialReturns(), $('#mrRemoveId')?.value ?? ''));
+      renderMaterialReturns();
+    });
+    $('#mrJobBtn')?.addEventListener('click', () => { renderMaterialReturns(); });
+    $('#mrFilterJob')?.addEventListener('input', () => { renderMaterialReturns(); });
+    $('#mrItemBtn')?.addEventListener('click', () => { renderMaterialReturns(); });
+    $('#mrFilterItem')?.addEventListener('input', () => { renderMaterialReturns(); });
+    $('#mrReconcileBtn')?.addEventListener('click', () => { renderMaterialReturns(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

@@ -9831,6 +9831,71 @@
 <h4>All delayed jobs</h4>
 <div id="jdList"></div>
 </section>
+<section class="chart-card" aria-labelledby="mrHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="mrHeading">Material return-to-shop log</h3>
+<p class="chart-caption">One log entry per return: the job reference, the item, the quantity returned, a condition note, the date returned, and who received it. Returns list by job and by item, and returned quantities are shown separately from issued quantities so the two reconcile. An entry is never edited, only corrected by a dated follow-up note. It logs returns only: it never changes any bill, payment, customer, or stock total by itself.</p>
+<p id="mrSummary"></p>
+</div>
+<div>
+<button id="mrExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export material returns CSV</button>
+</div>
+</div>
+<h4>Record a material return</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Job reference <input id="mrJobRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Item <input id="mrItem" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Quantity returned <input id="mrQuantity" type="number" min="0" step="any" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Condition note <input id="mrCondition" type="text" style="width: 180px;">
+</label>
+<label style="font-size: 12px;">Date returned <input id="mrDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Received by <input id="mrReceivedBy" type="text" style="width: 140px;">
+</label>
+<button id="mrRecordBtn" class="secondary-button btn-sm" type="button">Record return</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="mrAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="mrAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="mrAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="mrAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="mrRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="mrRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Returns by job</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Job reference <input id="mrFilterJob" type="text" style="width: 140px;">
+</label>
+<button id="mrJobBtn" class="secondary-button btn-sm" type="button">Show returns</button>
+</div>
+<div id="mrJobBody"></div>
+<h4>Returns by item</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Item <input id="mrFilterItem" type="text" style="width: 160px;">
+</label>
+<button id="mrItemBtn" class="secondary-button btn-sm" type="button">Show returns</button>
+</div>
+<div id="mrItemBody"></div>
+<h4>Reconcile returns against issued</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Quantity issued <input id="mrIssuedQty" type="number" min="0" step="any" style="width: 110px;">
+</label>
+<button id="mrReconcileBtn" class="secondary-button btn-sm" type="button">Reconcile</button>
+</div>
+<div id="mrReconcileBody"></div>
+<h4>All material returns</h4>
+<div id="mrList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

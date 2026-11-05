@@ -8075,6 +8075,39 @@
 </label>
 </div>
 <div id="brBody"></div>
+</section><section class="chart-card" aria-labelledby="pbHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="pbHeading">Customer payment behaviour note</h3>
+<p class="chart-caption">A read-only summary per customer: bills counted, and how many were paid early, on time, or late, plus how many are still unpaid, in plain bands — usually early, usually on time, usually late, mixed pattern, or too few bills to judge. It summarises due and paid dates only: it scores nobody and sets no penalty, and recording a note never changes any bill, payment, or customer record.</p>
+<p id="pbSummary"></p>
+</div>
+<div>
+<button id="pbExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export payment behaviour CSV</button>
+</div>
+</div>
+<h4>Record a behaviour note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="pbCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Due date <input id="pbDueDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Paid date (leave blank if unpaid) <input id="pbPaidDate" type="date" style="width: 140px;">
+</label>
+<button id="pbSaveBtn" class="secondary-button btn-sm" type="button">Record note</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove behaviour note id <input id="pbRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="pbRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Behaviour summaries</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="pbCustomerFilter" type="text" style="width: 160px;">
+</label>
+</div>
+<div id="pbBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

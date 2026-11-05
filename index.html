@@ -10926,6 +10926,35 @@
 <div id="alpBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="srnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="srnHeading">Staff recognition note</h3>
+<p class="chart-caption">One recognition note per staff member: the staff member, the achievement in plain words, the date, and who recognised them. Notes list per staff member by date with the achievement and the recogniser visible. Recording a note never changes any bill, payment, customer record, or staff record by itself, and it grants no payment or bonus on its own. Staff only — customers are recognised on the long-standing customer recognition list, not here.</p>
+<p id="srnSummary"></p>
+</div>
+<div>
+<button id="srnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export recognition notes CSV</button>
+</div>
+</div>
+<h4>Record a recognition note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="srnId" type="text" style="width: 120px;" placeholder="auto if left blank"></label>
+<label style="font-size: 12px;">Staff member <input id="srnStaff" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Achievement <input id="srnAchievement" type="text" style="width: 260px;" placeholder="e.g. Stayed late to fix the fibre cut"></label>
+<label style="font-size: 12px;">Date <input id="srnDate" type="text" style="width: 120px;" placeholder="e.g. 2026-11-04"></label>
+<label style="font-size: 12px;">Recognised by <input id="srnRecognisedBy" type="text" style="width: 140px;" placeholder="e.g. Owner"></label>
+<button id="srnRecordBtn" class="secondary-button btn-sm" type="button">Record note</button>
+<label style="font-size: 12px;">Remove id <input id="srnRemoveId" type="text" style="width: 120px;"></label>
+<button id="srnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Notes for one staff member</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <select id="srnStaffSelect" style="width: 160px;"></select></label>
+</div>
+<div id="srnStaffBody"></div>
+<h4>All recognition notes</h4>
+<div id="srnBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

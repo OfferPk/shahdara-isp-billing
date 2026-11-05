@@ -472,6 +472,7 @@ import { validOutageCommunicationDate, normalizeOutageCommunicationList, recordO
 import { validDifficultyNoteDate, normalizeDifficultyNoteList, recordDifficultyNote, removeDifficultyNote, difficultyNotesForCustomer, overdueDifficultyFollowups, difficultyNoteSummaryText, difficultyNoteAllHtml, difficultyNoteCsv, difficultyNoteFilename } from './payment-difficulty.js';
 import { normalizeComplaintCategoryTrendRows, complaintCategoryTrend, complaintCategoryTrendFor, complaintCategoryTrendCategoryText, complaintCategoryTrendCategoryHtml, complaintCategoryTrendSummaryText, complaintCategoryTrendHtml, complaintCategoryTrendCsv, complaintCategoryTrendFilename } from './complaint-category-trend.js';
 import { validWelcomeVisitOutcomeDate, foldWelcomeVisitOutcome, normalizeWelcomeVisitOutcomeList, recordWelcomeVisitOutcome, removeWelcomeVisitOutcome, addWelcomeVisitOpenQuestion, answerWelcomeVisitQuestion, welcomeVisitOutcomeSorted, outcomesForCustomer, notesWithOpenQuestions, welcomeVisitOutcomeSummaryText, welcomeVisitOutcomeAllHtml, welcomeVisitOutcomeCsv, welcomeVisitOutcomeFilename } from './welcome-visit-outcome.js';
+import { validReactivationNoteDate, normalizeReactivationNoteList, recordReactivationNote, removeReactivationNote, addReactivationNoteFollowup, reactivationNoteSorted, reactivationNotesForCustomer, stillDormantCustomers, reactivationNoteSummaryText, reactivationNoteAllHtml, reactivationNoteCsv, reactivationNoteFilename } from './reactivation-note.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14188,6 +14189,7 @@ function renderAnalytics() {
   renderPaymentDifficulty();
   renderComplaintCategoryTrend();
   renderWelcomeVisitOutcomes();
+  renderReactivationNotes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29822,6 +29824,78 @@ function renderWelcomeVisitOutcomes() {
     });
     $('#wvFilterBtn')?.addEventListener('click', () => { renderWelcomeVisitOutcomes(); });
     $('#wvFilterCustomer')?.addEventListener('input', () => { renderWelcomeVisitOutcomes(); });
+  }
+}
+const REACTIVATION_NOTE_KEY = 'shahdara_reactivation_notes_v1';
+function loadReactivationNotes() {
+  try { return normalizeReactivationNoteList(JSON.parse(localStorage.getItem(REACTIVATION_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveReactivationNotes(list) {
+  try { localStorage.setItem(REACTIVATION_NOTE_KEY, JSON.stringify(normalizeReactivationNoteList(list))); } catch { /* reactivation notes only: a failed save leaves the previous list in place */ }
+}
+let reactivationNotesBound = false;
+function renderReactivationNotes() {
+  const listEl = $('#rnList');
+  if (!listEl) return;
+  const all = loadReactivationNotes();
+  listEl.innerHTML = all.length ? reactivationNoteAllHtml(all) : '<p>No reactivation notes recorded.</p>';
+  const summaryEl = $('#rnSummary');
+  if (summaryEl) summaryEl.textContent = `${reactivationNoteSummaryText(all)} A note is never edited, only annotated. Recording a note never changes any customer, bill, or payment record, and a reactivated customer simply leaves the dormant list shown here.`;
+  const customerEl = $('#rnCustomerBody');
+  if (customerEl) {
+    const customer = ($('#rnFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their reactivation notes.</p>';
+    } else {
+      const rows = reactivationNotesForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? reactivationNoteAllHtml(rows)
+        : '<p>No reactivation note recorded for this customer.</p>';
+    }
+  }
+  const dormantEl = $('#rnDormantBody');
+  if (dormantEl) {
+    const names = ($('#rnDormantNames')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+    if (!names.length) {
+      dormantEl.innerHTML = '<p>List dormant customer names, one per line, to see who is still dormant.</p>';
+    } else {
+      const still = stillDormantCustomers(all, names);
+      dormantEl.innerHTML = still.length
+        ? `<ul>${still.map((name) => `<li>${name.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</li>`).join('')}</ul>`
+        : '<p>Every listed dormant customer has a reactivation note.</p>';
+    }
+  }
+  if (!reactivationNotesBound) {
+    reactivationNotesBound = true;
+    $('#rnExportBtn')?.addEventListener('click', () => { downloadCsvFile(reactivationNoteFilename(), reactivationNoteCsv(loadReactivationNotes())); });
+    $('#rnRecordBtn')?.addEventListener('click', () => {
+      const before = loadReactivationNotes();
+      const next = recordReactivationNote(before, {
+        id: `RN-${Date.now()}`,
+        customer: $('#rnCustomer')?.value ?? '',
+        returnDate: $('#rnDate')?.value ?? '',
+        reason: $('#rnReason')?.value ?? '',
+        packageResumed: $('#rnPackage')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Reactivation note not recorded: give a customer, a real return date, and the reason for the return.'); return; }
+      saveReactivationNotes(next);
+      renderReactivationNotes();
+    });
+    $('#rnAddBtn')?.addEventListener('click', () => {
+      const before = loadReactivationNotes();
+      const next = addReactivationNoteFollowup(before, $('#rnAddId')?.value ?? '', $('#rnAddDate')?.value ?? '', $('#rnAddNote')?.value ?? '');
+      if (next === before) { toast('Follow-up not added: give a known note id, a real date, and a note.'); return; }
+      saveReactivationNotes(next);
+      renderReactivationNotes();
+    });
+    $('#rnRemoveBtn')?.addEventListener('click', () => {
+      saveReactivationNotes(removeReactivationNote(loadReactivationNotes(), $('#rnRemoveId')?.value ?? ''));
+      renderReactivationNotes();
+    });
+    $('#rnFilterBtn')?.addEventListener('click', () => { renderReactivationNotes(); });
+    $('#rnFilterCustomer')?.addEventListener('input', () => { renderReactivationNotes(); });
+    $('#rnDormantBtn')?.addEventListener('click', () => { renderReactivationNotes(); });
+    $('#rnDormantNames')?.addEventListener('input', () => { renderReactivationNotes(); });
   }
 }
 let feedbackTrendBound = false;

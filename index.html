@@ -10994,6 +10994,61 @@
 <div id="wvList"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="rnHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rnHeading">Dormant customer reactivation note</h3>
+<p class="chart-caption">One reactivation note per dormant customer who returns: the customer, the return date, the reason for the return in plain words, and the package resumed. A reactivated customer leaves the dormant list. A note with no customer, no return date, or no reason is refused. Recording a note never changes any customer, bill, or payment record, and it does not replace the dormant-but-paid check-in list or the winback queue.</p>
+<p id="rnSummary"></p>
+</div>
+<div>
+<button id="rnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export reactivation notes CSV</button>
+</div>
+</div>
+<h4>Record a reactivation note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="rnCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Return date <input id="rnDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason for return <input id="rnReason" type="text" style="width: 240px;">
+</label>
+<label style="font-size: 12px;">Package resumed <input id="rnPackage" type="text" style="width: 160px;">
+</label>
+<button id="rnRecordBtn" class="secondary-button btn-sm" type="button">Record return</button>
+</div>
+<h4>Add a dated follow-up / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="rnAddId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="rnAddDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="rnAddNote" type="text" style="width: 220px;">
+</label>
+<button id="rnAddBtn" class="secondary-button btn-sm" type="button">Add follow-up</button>
+<label style="font-size: 12px;">Remove note id <input id="rnRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="rnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Reactivation notes for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="rnFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="rnFilterBtn" class="secondary-button btn-sm" type="button">Show customer notes</button>
+</div>
+<div id="rnCustomerBody"></div>
+<h4>Still dormant customers</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Dormant customer names, one per line <textarea id="rnDormantNames" rows="3" style="width: 240px;"></textarea>
+</label>
+<button id="rnDormantBtn" class="secondary-button btn-sm" type="button">Show still dormant</button>
+</div>
+<div id="rnDormantBody"></div>
+<h4>All reactivation notes</h4>
+<div id="rnList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

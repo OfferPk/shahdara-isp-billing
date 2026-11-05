@@ -10490,6 +10490,36 @@
 <div id="cmtBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="spnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="spnHeading">Staff performance note</h3>
+<p class="chart-caption">One qualitative note per staff member per period: strengths, areas to improve, and the reviewer, all in plain words. It is not the measured performance view, which shows visits, promises kept, and cash. Recording a note never changes any bill, payment, customer record, or staff record by itself.</p>
+<p id="spnSummary"></p>
+</div>
+<div>
+<button id="spnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export performance notes CSV</button>
+</div>
+</div>
+<h4>Record a performance note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <input id="spnStaff" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Period <input id="spnPeriod" type="text" style="width: 120px;" placeholder="e.g. 2026-11"></label>
+<label style="font-size: 12px;">Strengths <input id="spnStrengths" type="text" style="width: 220px;" placeholder="e.g. Knows every street, trusted by customers"></label>
+<label style="font-size: 12px;">Areas to improve <input id="spnAreas" type="text" style="width: 220px;" placeholder="e.g. Write the collection note the same day"></label>
+<label style="font-size: 12px;">Reviewer <input id="spnReviewer" type="text" style="width: 140px;" placeholder="e.g. Owner"></label>
+<button id="spnRecordBtn" class="secondary-button btn-sm" type="button">Record note</button>
+<label style="font-size: 12px;">Remove id <input id="spnRemoveId" type="text" style="width: 120px;"></label>
+<button id="spnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Notes for one staff member</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <input id="spnStaffInput" type="text" style="width: 160px;" placeholder="e.g. Saad"></label>
+<button id="spnStaffBtn" class="secondary-button btn-sm" type="button">Show notes</button>
+</div>
+<div id="spnStaffBody"></div>
+<h4>All performance notes</h4>
+<div id="spnBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

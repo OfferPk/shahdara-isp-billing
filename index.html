@@ -9603,6 +9603,60 @@
 <div id="soFullBody"></div>
 <h4>All ports</h4>
 <div id="soList"></div>
+</section><section class="chart-card" aria-labelledby="ppHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ppHeading">Pole ownership and permission note</h3>
+<p class="chart-caption">One note per pole: the pole reference, the route segment, the owner or authority as entered, the permission status, the date noted, and a note in plain words. Poles list by permission status, and poles without a recorded permission are flagged. A note is never edited, only followed by a dated update. Recording a note never changes any bill, payment, customer, route, or inspection record by itself.</p>
+<p id="ppSummary"></p>
+</div>
+<div>
+<button id="ppExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export pole permissions CSV</button>
+</div>
+</div>
+<h4>Record a pole note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Pole reference <input id="ppPole" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Route segment <input id="ppSegment" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Owner or authority <input id="ppOwner" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Permission <select id="ppPermission" style="width: 130px;"><option value="granted">granted</option><option value="pending">pending</option><option value="refused">refused</option><option value="not recorded">not recorded</option></select>
+</label>
+<label style="font-size: 12px;">Date noted <input id="ppDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="ppNote" type="text" style="width: 200px;">
+</label>
+<button id="ppRecordBtn" class="secondary-button btn-sm" type="button">Record pole note</button>
+</div>
+<h4>Dated update / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="ppUpdateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Update date <input id="ppUpdateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">New permission <select id="ppUpdatePermission" style="width: 130px;"><option value="granted">granted</option><option value="pending">pending</option><option value="refused">refused</option><option value="not recorded">not recorded</option></select>
+</label>
+<label style="font-size: 12px;">Update note <input id="ppUpdateNote" type="text" style="width: 200px;">
+</label>
+<button id="ppUpdateBtn" class="secondary-button btn-sm" type="button">Add dated update</button>
+<label style="font-size: 12px;">Remove note id <input id="ppRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="ppRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Poles by permission status</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Permission status <select id="ppFilterStatus" style="width: 130px;"><option value="">pick a status</option><option value="granted">granted</option><option value="pending">pending</option><option value="refused">refused</option><option value="not recorded">not recorded</option></select>
+</label>
+<button id="ppStatusBtn" class="secondary-button btn-sm" type="button">Show poles</button>
+</div>
+<div id="ppStatusBody"></div>
+<h4>Flagged: poles without a recorded permission</h4>
+<div id="ppFlaggedBody"></div>
+<h4>All pole notes</h4>
+<div id="ppList"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

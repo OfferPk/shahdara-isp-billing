@@ -413,6 +413,7 @@ import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirm
 import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEntriesSorted, archiveByYear, archiveByKind, archiveAllHtml, archiveSummaryText, archiveCsv, archiveFilename } from './archive-index.js';
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
+import { normalizeExpiryList, recordExpiryNote, removeExpiryNote, expiryNotesSorted, expiryNotesForAdvance, expiryReviewText, expiryAllHtml, expirySummaryText, expiryCsv, expiryFilename } from './advance-expiry.js';
 import { normalizeAppliedPriceList, recordAppliedPrice, removeAppliedPrice, appliedPricesForCustomer, appliedPricesForBill, flaggedAppliedPrices, appliedPriceHtml, appliedPriceSummaryText, appliedPriceCsv, appliedPriceFilename } from './applied-price.js';
 import { normalizeBillDeliveryList, recordBillDelivery, removeBillDelivery, billDeliveriesForCustomer, billDeliveriesForBill, billDeliveryHtml, billDeliverySummaryText, undeliveredBillsBeforeDue, billDeliveryCsv, billDeliveryFilename } from './bill-delivery.js';
 import { normalizeReminderList, recordReminder, removeReminder, remindersForCustomer, remindersForBill, remindersForChannel, reminderCountForBill, reminderHtml, reminderSummaryText, reminderCsv, reminderFilename } from './reminder-log.js';
@@ -14019,6 +14020,7 @@ function renderAnalytics() {
   renderArchiveIndex();
   renderBusinessContacts();
   renderAbsenceCover();
+  renderAdvanceExpiry();
   renderRouteLoad();
   renderAppliedPrices();
   renderBillDeliveries();
@@ -25914,6 +25916,50 @@ function renderAbsenceCover() {
     $('#acGapsBtn')?.addEventListener('click', () => {
       const gapsEl = $('#acGapsBody');
       if (gapsEl) gapsEl.textContent = coverGapsText(loadAbsenceCover(), $('#acRangeStart')?.value ?? '', $('#acRangeEnd')?.value ?? '') || 'Give real start and end dates to check for cover gaps.';
+    });
+  }
+}
+const ADVANCE_EXPIRY_KEY = 'shahdara_advance_expiry_v1';
+function loadAdvanceExpiry() {
+  try { return normalizeExpiryList(JSON.parse(localStorage.getItem(ADVANCE_EXPIRY_KEY) || '[]')); } catch { return []; }
+}
+function saveAdvanceExpiry(list) {
+  try { localStorage.setItem(ADVANCE_EXPIRY_KEY, JSON.stringify(normalizeExpiryList(list))); } catch { /* expiry notes only: a failed save leaves the previous list in place */ }
+}
+let advanceExpiryBound = false;
+function renderAdvanceExpiry() {
+  const bodyEl = $('#aeBody');
+  if (!bodyEl) return;
+  const refQuery = ($('#aeRefFilter')?.value ?? '').trim();
+  let shown = expiryNotesSorted(loadAdvanceExpiry());
+  if (refQuery) shown = expiryNotesForAdvance(shown, refQuery);
+  bodyEl.innerHTML = shown.length ? expiryAllHtml(shown) : '<p>No advance expiry notes recorded.</p>';
+  const summaryEl = $('#aeSummary');
+  if (summaryEl) summaryEl.textContent = expirySummaryText(loadAdvanceExpiry());
+  if (!advanceExpiryBound) {
+    advanceExpiryBound = true;
+    $('#aeExportBtn')?.addEventListener('click', () => { downloadCsvFile(expiryFilename(), expiryCsv(loadAdvanceExpiry())); });
+    $('#aeSaveBtn')?.addEventListener('click', () => {
+      const before = loadAdvanceExpiry();
+      const next = recordExpiryNote(before, {
+        id: `AE-${Date.now()}`,
+        advanceRef: $('#aeRef')?.value ?? '',
+        remainingAmount: $('#aeAmount')?.value ?? '',
+        termDate: $('#aeTerm')?.value ?? '',
+        note: $('#aeNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Expiry note not recorded: give an advance reference, a remaining amount, and a real term date.'); return; }
+      saveAdvanceExpiry(next);
+      renderAdvanceExpiry();
+    });
+    $('#aeRemoveBtn')?.addEventListener('click', () => {
+      saveAdvanceExpiry(removeExpiryNote(loadAdvanceExpiry(), $('#aeRemoveId')?.value ?? ''));
+      renderAdvanceExpiry();
+    });
+    $('#aeRefFilter')?.addEventListener('input', () => { renderAdvanceExpiry(); });
+    $('#aeReviewBtn')?.addEventListener('click', () => {
+      const reviewEl = $('#aeReviewBody');
+      if (reviewEl) reviewEl.textContent = expiryReviewText(loadAdvanceExpiry(), $('#aeReviewDate')?.value ?? '', 30) || 'Give a real review date to check for advances nearing their term.';
     });
   }
 }

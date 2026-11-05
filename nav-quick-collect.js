@@ -34,6 +34,8 @@ import {
 } from './core.js';
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
+import { packageSuccessMessageOrDefault } from './package-success-message.js';
+import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { isBillingPaused } from './pause-billing.js';
@@ -942,7 +944,10 @@ export function executeQuickCollection(state, {
     customerNumber: customer.customerNumber,
     customerName: customer.name,
     phone: customer.phone || '',
-    area: customer.area || 'Unassigned',
+    // Polish 4: the receipt shows the profile area — the mohalla first,
+    // the legacy area field only as a fallback — so an area saved from
+    // the success screen shows here on the next collection too.
+    area: customer.mohalla || customer.area || 'Unassigned',
     month: targetMonth,
     date: pDate,
     amount: numAmount,
@@ -1412,6 +1417,38 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
 }
 
 /**
+ * Polish 4: the Area / Location select for the success screen receipt.
+ * Options are the app's own mohalla list (owner-provided standard
+ * spellings), shown with their readable labels; the receipt's current
+ * area is kept as an option when it is not one of them, so the current
+ * value is never lost, and 'Unassigned' is the placeholder option.
+ *
+ * @param {string} currentArea
+ * @param {string[]} [areaOptions]
+ * @returns {string}
+ */
+export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MOHALLAS) {
+  const seen = new Set();
+  const options = [{ value: '', label: 'Unassigned' }];
+  const push = (value, label) => {
+    const key = String(value ?? '').trim().toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    options.push({ value: String(value).trim(), label });
+  };
+  const current = String(currentArea ?? '').trim();
+  const currentCanon = current && current.toLowerCase() !== 'unassigned' ? canonicalMohalla(current) : null;
+  if (currentCanon) push(currentCanon.stored, currentCanon.label);
+  for (const name of (Array.isArray(areaOptions) ? areaOptions : [])) {
+    const canon = canonicalMohalla(name);
+    if (canon) push(canon.stored, canon.label);
+  }
+  const selectedValue = currentCanon ? currentCanon.stored : '';
+  const selectedKey = selectedValue.toLowerCase();
+  return `<select id="quickCollectAreaSelect" class="qc-input qc-area-select" data-qc-area-select aria-label="Area / Location">${options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value.toLowerCase() === selectedKey ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select>`;
+}
+
+/**
  * Generates receipt confirmation card markup for the success screen.
  *
  * @param {Object} receipt
@@ -1468,7 +1505,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
         </div>
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Area / Location</span>
-          <strong class="qc-meta-val">${escapeHtml(receipt.area)}</strong>
+          ${quickCollectAreaSelectHtml(receipt.area)}
         </div>
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Remaining Balance</span>
@@ -1740,6 +1777,9 @@ export function setupQuickCollectModal({
   let activeCustomerId = null;
   let activeDefaults = null;
   let activeReceipt = null;
+  // Polish 4: true once the success card's area-select change listener
+  // has been wired (setup runs once, but the flag keeps a re-run safe).
+  let areaSelectWired = false;
   let activeUndoContext = null;
   const UNDO_WINDOW_MS = 5000;
   let undoTimeoutId = null;
@@ -2865,6 +2905,41 @@ export function setupQuickCollectModal({
       : renderQuickCollectReceiptCardHtml(activeReceipt);
   }
 
+  // Polish 4: the success line under the heading names the package that
+  // the amount just collected pays for, or keeps the existing English
+  // line when the amount matches no package.
+  function applyPackageSuccessMessage(amount) {
+    const messageEl = document.getElementById('quickCollectSuccessMessage');
+    if (messageEl) messageEl.textContent = packageSuccessMessageOrDefault(amount);
+  }
+
+  // Polish 4: the success screen's Area / Location is a select. Choosing
+  // an area saves it to the customer's profile (mohalla, canonical
+  // spelling) through updateCustomerProfile and shows it on this receipt.
+  // Picking 'Unassigned' changes nothing — the profile area is never
+  // wiped from here. (A closure flag, not a dataset marker, so mock-DOM
+  // elements without dataset still set up cleanly.)
+  if (receiptCardContainer && !areaSelectWired) {
+    areaSelectWired = true;
+    receiptCardContainer.addEventListener('change', (event) => {
+      const select = event.target?.closest?.('[data-qc-area-select]');
+      if (!select || !activeReceipt || !activeCustomerId) return;
+      const raw = String(select.value ?? '').trim();
+      if (!raw) { renderActiveReceiptCard(); return; }
+      const stored = canonicalMohalla(raw)?.stored ?? raw;
+      try {
+        const nextState = updateCustomerProfile(getState(), activeCustomerId, { mohalla: stored });
+        if (typeof onSaveState === 'function') onSaveState(nextState);
+        activeReceipt = { ...activeReceipt, area: stored };
+        renderActiveReceiptCard();
+        if (typeof onToast === 'function') onToast(`Area updated to ${stored}.`, { type: 'success', title: 'Area updated' });
+      } catch (err) {
+        if (typeof onToast === 'function') onToast(err.message || 'Area could not be updated.', { type: 'error' });
+        renderActiveReceiptCard();
+      }
+    });
+  }
+
   function executeUndo() {
     if (!activeUndoContext) return;
     const { customerId, month, paymentId, amount, customerName, ticketCharges, addonCharges } = activeUndoContext;
@@ -3227,6 +3302,7 @@ export function setupQuickCollectModal({
             });
           }
           renderActiveReceiptCard();
+          applyPackageSuccessMessage(totalCollected);
           showStep('success');
           updateCounts();
           announcePaymentSuccess(activeReceipt);
@@ -3339,6 +3415,7 @@ export function setupQuickCollectModal({
 
       // Render success screen
       renderActiveReceiptCard();
+      applyPackageSuccessMessage(receipt.amount);
 
       showStep('success');
       updateCounts();

@@ -429,6 +429,7 @@ import { normalizeDisputeEvidenceList, recordDisputeEvidence, removeDisputeEvide
 import { normalizeFormatVersionList, recordFormatVersion, removeFormatVersion, formatVersionsSorted, normalizeBillFormatStampList, stampBillFormat, removeBillFormatStamp, billFormatStampsSorted, flaggedBillFormatStamps, billFormatStampText, formatVersionEntryHtml, billFormatStampHtml, formatVersionSummaryText, formatVersionCsv, formatVersionFilename } from './bill-format-version.js';
 import { normalizeBillingAddressList, recordBillingAddress, removeBillingAddress, findBillingAddress, billingAddressesSorted, billingAddressesForCustomer, deliveryAddressFor, billingAddressDiffers, billingAddressSideBySideText, billingAddressSummaryText, billingAddressEntryHtml, billingAddressCsv, billingAddressFilename } from './billing-address.js';
 import { normalizeBillingLinkList, recordBillingLink, unlinkBillingLink, findBillingLink, billingLinksActive, billingLinksHistory, billingLinksForCustomer, billingLinkCombinedDues, billingLinkSummaryText, billingLinkEntryHtml, billingLinkCsv, billingLinkFilename } from './billing-link.js';
+import { normalizeFibreRouteList, recordFibreRoute, removeFibreRoute, addFibreRouteFollowup, fibreRoutesSorted, fibreRoutesForMohalla, fibreRouteSummaryText, fibreRouteHtml, fibreRouteCsv, fibreRouteFilename } from './fibre-route.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14100,6 +14101,7 @@ function renderAnalytics() {
   renderBillFormatVersion();
   renderBillingAddresses();
   renderBillingLinks();
+  renderFibreRoutes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26900,6 +26902,55 @@ function renderBillingLinks() {
       ]);
       outEl.textContent = `${link.customer} — ${link.primaryConnection} (Rs. ${(view.primaryCents / 100).toFixed(0)}) + ${link.linkedConnection} (Rs. ${(view.linkedCents / 100).toFixed(0)}) = Rs. ${(view.totalCents / 100).toFixed(0)} combined. This is a view only; no bill, payment, or connection record changes.`;
     });
+  }
+}
+const FIBRE_ROUTE_KEY = 'shahdara_fibre_routes_v1';
+function loadFibreRoutes() {
+  try { return normalizeFibreRouteList(JSON.parse(localStorage.getItem(FIBRE_ROUTE_KEY) || '[]')); } catch { return []; }
+}
+function saveFibreRoutes(list) {
+  try { localStorage.setItem(FIBRE_ROUTE_KEY, JSON.stringify(normalizeFibreRouteList(list))); } catch { /* route records only: a failed save leaves the previous list in place */ }
+}
+let fibreRoutesBound = false;
+function renderFibreRoutes() {
+  const bodyEl = $('#frBody');
+  if (!bodyEl) return;
+  const all = loadFibreRoutes();
+  const mohallaFilter = $('#frFilter')?.value ?? '';
+  const shown = mohallaFilter ? fibreRoutesForMohalla(all, mohallaFilter) : fibreRoutesSorted(all);
+  bodyEl.innerHTML = shown.length ? shown.map((record) => fibreRouteHtml(record)).join('') : '<p>No fibre route segments recorded.</p>';
+  const summaryEl = $('#frSummary');
+  if (summaryEl) summaryEl.textContent = `${fibreRouteSummaryText(all)} A route record is corrected only by a dated follow-up note, never by silent edit. Recording a route never changes any bill, payment, customer, fault, or staff record by itself.`;
+  if (!fibreRoutesBound) {
+    fibreRoutesBound = true;
+    $('#frExportBtn')?.addEventListener('click', () => { downloadCsvFile(fibreRouteFilename(), fibreRouteCsv(loadFibreRoutes())); });
+    $('#frSaveBtn')?.addEventListener('click', () => {
+      const before = loadFibreRoutes();
+      const next = recordFibreRoute(before, {
+        id: `FR-${Date.now()}`,
+        segmentId: $('#frSegment')?.value ?? '',
+        startPoint: $('#frStart')?.value ?? '',
+        endPoint: $('#frEnd')?.value ?? '',
+        poles: $('#frPoles')?.value ?? '',
+        cabinets: $('#frCabinets')?.value ?? '',
+        mohalla: $('#frMohalla')?.value ?? '',
+        note: $('#frNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Fibre route not recorded: give a segment id, start point, end point, and mohalla. One record per segment.'); return; }
+      saveFibreRoutes(next);
+      renderFibreRoutes();
+    });
+    $('#frFollowupBtn')?.addEventListener('click', () => {
+      const next = addFibreRouteFollowup(loadFibreRoutes(), $('#frFollowupId')?.value ?? '', $('#frFollowupDate')?.value ?? '', $('#frFollowupNote')?.value ?? '');
+      if (!next) { toast('Follow-up note not added: give a recorded route id, a real date, and a note.'); return; }
+      saveFibreRoutes(next);
+      renderFibreRoutes();
+    });
+    $('#frRemoveBtn')?.addEventListener('click', () => {
+      saveFibreRoutes(removeFibreRoute(loadFibreRoutes(), $('#frRemoveId')?.value ?? ''));
+      renderFibreRoutes();
+    });
+    $('#frFilter')?.addEventListener('input', () => { renderFibreRoutes(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

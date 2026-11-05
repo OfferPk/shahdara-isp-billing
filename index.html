@@ -10138,6 +10138,77 @@
 <h4>All visit acknowledgement notes</h4>
 <div id="vaList"></div>
 </section>
+<section class="chart-card" aria-labelledby="wcHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="wcHeading">Spare part warranty claim link</h3>
+<p class="chart-caption">One link per fitted spare part: the job reference, the part reference, the warranty claim reference, the claim date, and the claim status. It links records only and never replaces the equipment warranty and supplier return log, which is the claim log itself. A link is never edited, only superseded by a dated newer link. Claims without a linked fitted part are listed as exceptions. Creating a link never changes any bill, payment, customer, job, stock, or return record by itself.</p>
+<p id="wcSummary"></p>
+</div>
+<div>
+<button id="wcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export warranty claim links CSV</button>
+</div>
+</div>
+<h4>Record a warranty claim link</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Job reference <input id="wcJobRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Part reference <input id="wcPartRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Claim reference <input id="wcClaimRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Claim date <input id="wcClaimDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Claim status <input id="wcClaimStatus" type="text" style="width: 140px;">
+</label>
+<button id="wcRecordBtn" class="secondary-button btn-sm" type="button">Record warranty claim link</button>
+</div>
+<h4>Supersede a link with a dated newer link</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Old link id <input id="wcSupersedeOldId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">New link id <input id="wcSupersedeId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Job reference <input id="wcSupersedeJobRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Part reference <input id="wcSupersedePartRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Claim reference <input id="wcSupersedeClaimRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Claim date <input id="wcSupersedeClaimDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Claim status <input id="wcSupersedeClaimStatus" type="text" style="width: 140px;">
+</label>
+<button id="wcSupersedeBtn" class="secondary-button btn-sm" type="button">Supersede link</button>
+<label style="font-size: 12px;">Remove link id <input id="wcRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="wcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Current link for one fitted part</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Part reference <input id="wcPartRefCheck" type="text" style="width: 140px;">
+</label>
+<button id="wcPartBtn" class="secondary-button btn-sm" type="button">Show link</button>
+</div>
+<div id="wcPartBody"></div>
+<h4>Claims without a linked fitted part</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Claim references, one per line <textarea id="wcExceptionsInput" rows="3" style="width: 200px;"></textarea>
+</label>
+<button id="wcExceptionsBtn" class="secondary-button btn-sm" type="button">List claims without a linked part</button>
+</div>
+<div id="wcExceptionsBody"></div>
+<h4>Links for one claim</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Claim reference <input id="wcClaimRefCheck" type="text" style="width: 140px;">
+</label>
+<button id="wcClaimBtn" class="secondary-button btn-sm" type="button">Show links</button>
+</div>
+<div id="wcClaimBody"></div>
+<h4>All warranty claim links</h4>
+<div id="wcList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

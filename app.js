@@ -456,6 +456,7 @@ import { validFieldExpenseDate, normalizeFieldExpenseList, recordFieldExpense, r
 import { validRestorationTimeDatetime, normalizeRestorationTimeList, recordRestorationTime, removeRestorationTime, addRestorationTimeFollowup, restorationTimeSorted, restorationTimesForTicket, restorationDurationText, ticketsWithoutRestorationTime, restorationTimeSummaryText, restorationTimeHtml, restorationTimeAllHtml, restorationTimeCsv, restorationTimeFilename } from './restoration-time.js';
 import { validRepeatVisitDate, normalizeRepeatVisitList, recordRepeatVisitNote, removeRepeatVisitNote, addRepeatVisitFollowup, repeatVisitSorted, repeatVisitNotesForCustomer, flaggedRepeatVisitCustomers, repeatVisitSummaryText, repeatVisitHtml, repeatVisitAllHtml, repeatVisitCsv, repeatVisitFilename } from './repeat-visit.js';
 import { validVisitAcknowledgementDate, normalizeVisitAcknowledgementList, recordVisitAcknowledgement, removeVisitAcknowledgement, addVisitAcknowledgementFollowup, visitAcknowledgementSorted, visitAcknowledgementsForCustomer, visitAcknowledgementStatus, visitsWithoutAcknowledgement, visitAcknowledgementSummaryText, visitAcknowledgementAllHtml, visitAcknowledgementCsv, visitAcknowledgementFilename } from './visit-acknowledgement.js';
+import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14154,6 +14155,7 @@ function renderAnalytics() {
   renderRestorationTimes();
   renderRepeatVisitNotes();
   renderVisitAcknowledgements();
+  renderWarrantyClaimLinks();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28720,6 +28722,100 @@ function renderVisitAcknowledgements() {
     $('#vaExceptionsBtn')?.addEventListener('click', () => { renderVisitAcknowledgements(); });
     $('#vaCustomerBtn')?.addEventListener('click', () => { renderVisitAcknowledgements(); });
     $('#vaFilterCustomer')?.addEventListener('input', () => { renderVisitAcknowledgements(); });
+  }
+}
+const WARRANTY_CLAIM_LINK_KEY = 'shahdara_warranty_claim_links_v1';
+function loadWarrantyClaimLinks() {
+  try { return normalizeWarrantyClaimLinkList(JSON.parse(localStorage.getItem(WARRANTY_CLAIM_LINK_KEY) || '[]')); } catch { return []; }
+}
+function saveWarrantyClaimLinks(list) {
+  try { localStorage.setItem(WARRANTY_CLAIM_LINK_KEY, JSON.stringify(normalizeWarrantyClaimLinkList(list))); } catch { /* warranty claim links only: a failed save leaves the previous list in place */ }
+}
+let warrantyClaimLinksBound = false;
+function renderWarrantyClaimLinks() {
+  const listEl = $('#wcList');
+  if (!listEl) return;
+  const all = loadWarrantyClaimLinks();
+  listEl.innerHTML = all.length ? warrantyClaimLinkAllHtml(all) : '<p>No warranty claim links recorded.</p>';
+  const summaryEl = $('#wcSummary');
+  if (summaryEl) summaryEl.textContent = `${warrantyClaimLinkSummaryText(all)} A link is never edited, only superseded by a dated newer link. Creating a link never changes any bill, payment, customer, job, stock, or return record by itself.`;
+  const partEl = $('#wcPartBody');
+  if (partEl) {
+    const partRef = ($('#wcPartRefCheck')?.value ?? '').trim();
+    if (partRef === '') {
+      partEl.innerHTML = '<p>Give a part reference to show its current warranty claim link.</p>';
+    } else {
+      const found = warrantyClaimLinkForPart(all, partRef);
+      partEl.innerHTML = found
+        ? `<p>Part ${found.partRef} (job ${found.jobRef}) linked to claim ${found.claimRef} on ${found.claimDate}: ${found.claimStatus}.</p>`
+        : `<p>No current warranty claim link recorded for part \u201c${partRef}\u201d.</p>`;
+    }
+  }
+  const exceptionsEl = $('#wcExceptionsBody');
+  if (exceptionsEl) {
+    const raw = ($('#wcExceptionsInput')?.value ?? '').trim();
+    if (raw === '') {
+      exceptionsEl.innerHTML = '<p>Give claim references, one per line, to list the claims without a linked fitted part.</p>';
+    } else {
+      const refs = raw.split('\n').map((line) => line.trim()).filter(Boolean);
+      const missing = claimsWithoutLinkedPart(all, refs);
+      exceptionsEl.innerHTML = missing.length
+        ? `<ul>${missing.map((item) => `<li>${item.claimRef}: ${item.status}.</li>`).join('')}</ul>`
+        : '<p>Every listed claim has a linked fitted part.</p>';
+    }
+  }
+  const claimEl = $('#wcClaimBody');
+  if (claimEl) {
+    const claimRef = ($('#wcClaimRefCheck')?.value ?? '').trim();
+    if (claimRef === '') {
+      claimEl.innerHTML = '<p>Give a claim reference to show its warranty claim links.</p>';
+    } else {
+      const rows = warrantyClaimLinksForClaim(all, claimRef);
+      claimEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>Part ${entry.partRef} (job ${entry.jobRef}, ${entry.claimDate}): ${entry.claimStatus}${entry.supersededBy ? ` — superseded by ${entry.supersededBy} on ${entry.supersededDate}` : ''}.</li>`).join('')}</ul>`
+        : `<p>No warranty claim link recorded for claim \u201c${claimRef}\u201d.</p>`;
+    }
+  }
+  if (!warrantyClaimLinksBound) {
+    warrantyClaimLinksBound = true;
+    $('#wcExportBtn')?.addEventListener('click', () => { downloadCsvFile(warrantyClaimLinkFilename(), warrantyClaimLinkCsv(loadWarrantyClaimLinks())); });
+    $('#wcRecordBtn')?.addEventListener('click', () => {
+      const before = loadWarrantyClaimLinks();
+      const next = recordWarrantyClaimLink(before, {
+        id: `WC-${Date.now()}`,
+        jobRef: $('#wcJobRef')?.value ?? '',
+        partRef: $('#wcPartRef')?.value ?? '',
+        claimRef: $('#wcClaimRef')?.value ?? '',
+        claimDate: $('#wcClaimDate')?.value ?? '',
+        claimStatus: $('#wcClaimStatus')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Warranty claim link not recorded: give a job reference, a part reference, a claim reference, a real claim date, and a claim status. One current link per fitted part.'); return; }
+      saveWarrantyClaimLinks(next);
+      renderWarrantyClaimLinks();
+    });
+    $('#wcSupersedeBtn')?.addEventListener('click', () => {
+      const before = loadWarrantyClaimLinks();
+      const next = supersedeWarrantyClaimLink(before, $('#wcSupersedeOldId')?.value ?? '', {
+        id: $('#wcSupersedeId')?.value ?? '',
+        jobRef: $('#wcSupersedeJobRef')?.value ?? '',
+        partRef: $('#wcSupersedePartRef')?.value ?? '',
+        claimRef: $('#wcSupersedeClaimRef')?.value ?? '',
+        claimDate: $('#wcSupersedeClaimDate')?.value ?? '',
+        claimStatus: $('#wcSupersedeClaimStatus')?.value ?? '',
+      });
+      if (next === before) { toast('Link not superseded: give a known old link id and a newer link for the same fitted part, with a claim date on or after the old link.'); return; }
+      saveWarrantyClaimLinks(next);
+      renderWarrantyClaimLinks();
+    });
+    $('#wcRemoveBtn')?.addEventListener('click', () => {
+      saveWarrantyClaimLinks(removeWarrantyClaimLink(loadWarrantyClaimLinks(), $('#wcRemoveId')?.value ?? ''));
+      renderWarrantyClaimLinks();
+    });
+    $('#wcPartBtn')?.addEventListener('click', () => { renderWarrantyClaimLinks(); });
+    $('#wcPartRefCheck')?.addEventListener('input', () => { renderWarrantyClaimLinks(); });
+    $('#wcExceptionsBtn')?.addEventListener('click', () => { renderWarrantyClaimLinks(); });
+    $('#wcClaimBtn')?.addEventListener('click', () => { renderWarrantyClaimLinks(); });
+    $('#wcClaimRefCheck')?.addEventListener('input', () => { renderWarrantyClaimLinks(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

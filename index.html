@@ -9906,6 +9906,52 @@
 <h4>All farewell notes</h4>
 <div id="fwList"></div>
 </section>
+<section class="chart-card" aria-labelledby="svHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="svHeading">Service trial note</h3>
+<p class="chart-caption">One trial record per trial: the customer, the package trialled, the start date, the end date, the outcome kept or declined, and a note. A trial shows its dates and outcome, and overlapping trials for the same customer are flagged. Recording a trial creates no bill and never changes any package, bill, or payment record.</p>
+<p id="svSummary"></p>
+</div>
+<div>
+<button id="svExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export service trials CSV</button>
+</div>
+</div>
+<h4>Record a service trial</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="svCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Package trialled <input id="svPackage" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Start date <input id="svStart" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">End date <input id="svEnd" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Outcome <select id="svOutcome"><option value="in progress">In progress</option><option value="kept">Kept</option><option value="declined">Declined</option></select>
+</label>
+<label style="font-size: 12px;">Note <input id="svNote" type="text" style="width: 220px;">
+</label>
+<button id="svRecordBtn" class="secondary-button btn-sm" type="button">Record service trial</button>
+</div>
+<h4>Remove a service trial</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove trial id <input id="svRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="svRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Service trials for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="svFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="svFilterBtn" class="secondary-button btn-sm" type="button">Show customer trials</button>
+</div>
+<div id="svCustomerBody"></div>
+<h4>Overlapping trials</h4>
+<div id="svOverlapBody"></div>
+<h4>All service trials</h4>
+<div id="svList"></div>
+</section>
 
 
 <section class="chart-card" aria-labelledby="ftHeading">

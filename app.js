@@ -480,6 +480,7 @@ import { validReferralEligibilityDate, normalizeReferralEligibilityList, recordR
 import { validVisitLanguageDate, normalizeVisitLanguageList, recordVisitLanguage, removeVisitLanguage, visitLanguagesForCustomer, latestVisitLanguage, visitLanguageSummaryText, visitLanguageAllHtml, visitLanguageCsv, visitLanguageFilename } from './visit-language.js';
 import { validNoShowNoteDate, normalizeNoShowNoteList, recordNoShowNote, removeNoShowNote, noShowNoteSorted, noShowNotesForCustomer, noShowNotesInPeriod, noShowNoteSummaryText, noShowNoteAllHtml, noShowNoteCsv, noShowNoteFilename } from './no-show-note.js';
 import { validFarewellNoteDate, normalizeFarewellNoteList, recordFarewellNote, removeFarewellNote, farewellNoteSorted, farewellNotesForCustomer, farewellNoteSummaryText, farewellNoteAllHtml, farewellNoteCsv, farewellNoteFilename } from './farewell-note.js';
+import { validServiceTrialDate, normalizeServiceTrialList, recordServiceTrial, removeServiceTrial, serviceTrialSorted, serviceTrialsForCustomer, overlappingServiceTrials, serviceTrialSummaryText, serviceTrialAllHtml, serviceTrialCsv, serviceTrialFilename } from './service-trial.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14204,6 +14205,7 @@ function renderAnalytics() {
   renderVisitLanguages();
   renderNoShowNotes();
   renderFarewellNotes();
+  renderServiceTrials();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30380,6 +30382,67 @@ function renderFarewellNotes() {
     });
     $('#fwFilterBtn')?.addEventListener('click', () => { renderFarewellNotes(); });
     $('#fwFilterCustomer')?.addEventListener('input', () => { renderFarewellNotes(); });
+  }
+}
+
+const SERVICE_TRIAL_KEY = 'shahdara_service_trials_v1';
+function loadServiceTrials() {
+  try { return normalizeServiceTrialList(JSON.parse(localStorage.getItem(SERVICE_TRIAL_KEY) || '[]')); } catch { return []; }
+}
+function saveServiceTrials(list) {
+  try { localStorage.setItem(SERVICE_TRIAL_KEY, JSON.stringify(normalizeServiceTrialList(list))); } catch { /* service trials only: a failed save leaves the previous list in place */ }
+}
+let serviceTrialsBound = false;
+function renderServiceTrials() {
+  const listEl = $('#svList');
+  if (!listEl) return;
+  const all = loadServiceTrials();
+  listEl.innerHTML = all.length ? serviceTrialAllHtml(all) : '<p>No service trials recorded.</p>';
+  const summaryEl = $('#svSummary');
+  if (summaryEl) summaryEl.textContent = `${serviceTrialSummaryText(all)} Recording a trial never changes any package, bill, or payment record by itself.`;
+  const customerEl = $('#svCustomerBody');
+  if (customerEl) {
+    const customer = ($('#svFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their service trials.</p>';
+    } else {
+      const rows = serviceTrialsForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? serviceTrialAllHtml(rows)
+        : '<p>No service trials recorded for this customer.</p>';
+    }
+  }
+  const overlapEl = $('#svOverlapBody');
+  if (overlapEl) {
+    const overlapping = overlappingServiceTrials(all);
+    overlapEl.innerHTML = overlapping.length
+      ? `<p>Overlapping trials for the same customer:</p>${serviceTrialAllHtml(overlapping)}`
+      : '<p>No overlapping trials for the same customer.</p>';
+  }
+  if (!serviceTrialsBound) {
+    serviceTrialsBound = true;
+    $('#svExportBtn')?.addEventListener('click', () => { downloadCsvFile(serviceTrialFilename(), serviceTrialCsv(loadServiceTrials())); });
+    $('#svRecordBtn')?.addEventListener('click', () => {
+      const before = loadServiceTrials();
+      const next = recordServiceTrial(before, {
+        id: `ST-${Date.now()}`,
+        customer: $('#svCustomer')?.value ?? '',
+        package: $('#svPackage')?.value ?? '',
+        startDate: $('#svStart')?.value ?? '',
+        endDate: $('#svEnd')?.value ?? '',
+        outcome: $('#svOutcome')?.value ?? 'in progress',
+        note: $('#svNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Service trial not recorded: give a customer, a package, and real start and end dates, with the end on or after the start.'); return; }
+      saveServiceTrials(next);
+      renderServiceTrials();
+    });
+    $('#svRemoveBtn')?.addEventListener('click', () => {
+      saveServiceTrials(removeServiceTrial(loadServiceTrials(), $('#svRemoveId')?.value ?? ''));
+      renderServiceTrials();
+    });
+    $('#svFilterBtn')?.addEventListener('click', () => { renderServiceTrials(); });
+    $('#svFilterCustomer')?.addEventListener('input', () => { renderServiceTrials(); });
   }
 }
 

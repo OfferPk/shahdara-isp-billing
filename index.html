@@ -10939,6 +10939,61 @@
 <div id="cctAllBody"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="wvHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="wvHeading">Welcome visit outcome note</h3>
+<p class="chart-caption">One outcome note per welcome visit for a new customer: the customer, the visit date, the outcome (settled or questions open), and the open questions noted. Open questions stay listed until answered. A note with no customer or no date is refused. Recording a note never changes any onboarding, bill, or payment record, and it does not replace the onboarding checklist, the welcome pack draft, or the new-customer check-in list.</p>
+<p id="wvSummary"></p>
+</div>
+<div>
+<button id="wvExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export welcome visit outcomes CSV</button>
+</div>
+</div>
+<h4>Record a welcome visit outcome</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="wvCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Visit date <input id="wvDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Outcome <select id="wvOutcome" style="width: 150px;"><option value="settled">Settled</option><option value="questions open">Questions open</option></select>
+</label>
+<label style="font-size: 12px;">Open questions, one per line <textarea id="wvQuestions" rows="3" style="width: 240px;"></textarea>
+</label>
+<label style="font-size: 12px;">Note <input id="wvNote" type="text" style="width: 200px;">
+</label>
+<button id="wvRecordBtn" class="secondary-button btn-sm" type="button">Record outcome</button>
+</div>
+<h4>Answer a question / add an open question / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="wvAnswerId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Question answered <input id="wvAnswerQuestion" type="text" style="width: 220px;">
+</label>
+<button id="wvAnswerBtn" class="secondary-button btn-sm" type="button">Mark question answered</button>
+<label style="font-size: 12px;">Add open question to note id <input id="wvAddId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Open question <input id="wvAddQuestion" type="text" style="width: 220px;">
+</label>
+<button id="wvAddBtn" class="secondary-button btn-sm" type="button">Add open question</button>
+<label style="font-size: 12px;">Remove note id <input id="wvRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="wvRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Outcomes for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="wvFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="wvFilterBtn" class="secondary-button btn-sm" type="button">Show customer outcomes</button>
+</div>
+<div id="wvCustomerBody"></div>
+<h4>Notes with open questions still to answer</h4>
+<div id="wvOpenBody"></div>
+<h4>All welcome visit outcomes</h4>
+<div id="wvList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

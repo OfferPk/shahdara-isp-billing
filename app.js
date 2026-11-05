@@ -498,6 +498,7 @@ import { normalizeDelegationNoteList, recordDelegationNote, removeDelegationNote
 import { normalizeCollectorMonthlyTargetList, recordCollectorMonthlyTarget, removeCollectorMonthlyTarget, collectorMonthlyTargetsForCollector, collectorMonthlyTargetsForMonth, collectorMonthlyTargetSummaryText, collectorMonthlyTargetAllHtml, collectorMonthlyTargetsForCollectorHtml, collectorMonthlyTargetsForMonthHtml, collectorMonthlyTargetCsv, collectorMonthlyTargetFilename } from './collector-monthly-target.js';
 import { normalizeStaffPerformanceNoteList, recordStaffPerformanceNote, removeStaffPerformanceNote, staffPerformanceNotesForStaff, staffPerformanceNoteSummaryText, staffPerformanceNoteAllHtml, staffPerformanceNotesForStaffHtml, staffPerformanceNoteCsv, staffPerformanceNoteFilename } from './staff-performance.js';
 import { normalizeShopMaintenanceNoteList, recordShopMaintenanceNote, removeShopMaintenanceNote, shopMaintenanceNotesForItem, shopMaintenanceNoteSummaryText, shopMaintenanceNoteAllHtml, shopMaintenanceNotesForItemHtml, shopMaintenanceNoteCsv, shopMaintenanceNoteFilename } from './shop-maintenance.js';
+import { normalizeSeenList, markReminderSeen, renewalReminderQueue, overdueReminders, renewalReminderSummaryText, renewalReminderQueueHtml, renewalReminderCsv, renewalReminderFilename } from './renewal-reminder.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14242,6 +14243,7 @@ function renderAnalytics() {
   renderCollectorMonthlyTargets();
   renderStaffPerformanceNotes();
   renderShopMaintenanceNotes();
+  renderRenewalReminders();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31491,6 +31493,57 @@ function renderShopMaintenanceNotes() {
     $('#smnRemoveBtn')?.addEventListener('click', () => {
       saveShopMaintenanceNotes(removeShopMaintenanceNote(loadShopMaintenanceNotes(), $('#smnRemoveId')?.value ?? ''));
       renderShopMaintenanceNotes();
+    });
+  }
+}
+
+// Plan 302 (Plan 203-350) — Licence renewal reminder queue: a queue
+// derived from the licence and subscription tracker (Plan 189). It
+// lists tracker entries by renewal date with a reminder status and
+// adds no licence fields of its own; the tracker remains the record
+// of record. Only the list of seen reminder ids is stored here.
+const RENEWAL_REMINDER_SEEN_KEY = 'shahdara_renewal_reminder_seen_v1';
+function loadSeenReminderIds() {
+  try { return normalizeSeenList(JSON.parse(localStorage.getItem(RENEWAL_REMINDER_SEEN_KEY) || '[]')); } catch { return []; }
+}
+function saveSeenReminderIds(list) {
+  try { localStorage.setItem(RENEWAL_REMINDER_SEEN_KEY, JSON.stringify(normalizeSeenList(list))); } catch { /* seen reminders only: a failed save leaves the previous list in place */ }
+}
+let renewalReminderBound = false;
+let renewalReminderShowOverdueOnly = false;
+function renderRenewalReminders() {
+  const listEl = $('#rrBody');
+  if (!listEl) return;
+  const entries = loadLicences();
+  const today = new Date().toISOString().slice(0, 10);
+  const seen = loadSeenReminderIds();
+  const queue = renewalReminderQueue(entries, today, seen);
+  listEl.innerHTML = queue.length ? renewalReminderQueueHtml(queue) : '<p>No licences recorded in the tracker, so there is nothing to remind about yet.</p>';
+  const summaryEl = $('#rrSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${renewalReminderSummaryText(queue)} Marking a reminder seen never changes any licence, subscription, bill, or payment record by itself.`;
+  }
+  const overdueEl = $('#rrOverdueBody');
+  if (overdueEl) {
+    const overdue = renewalReminderShowOverdueOnly ? overdueReminders(entries, today, seen) : [];
+    overdueEl.innerHTML = renewalReminderShowOverdueOnly
+      ? (overdue.length ? renewalReminderQueueHtml(overdue) : '<p>No overdue renewals.</p>')
+      : '';
+  }
+  if (!renewalReminderBound) {
+    renewalReminderBound = true;
+    $('#rrExportBtn')?.addEventListener('click', () => { downloadCsvFile(renewalReminderFilename(), renewalReminderCsv(renewalReminderQueue(loadLicences(), new Date().toISOString().slice(0, 10), loadSeenReminderIds()))); });
+    $('#rrSeenBtn')?.addEventListener('click', () => {
+      saveSeenReminderIds(markReminderSeen(loadSeenReminderIds(), $('#rrSeenId')?.value ?? ''));
+      renderRenewalReminders();
+    });
+    $('#rrOverdueBtn')?.addEventListener('click', () => {
+      renewalReminderShowOverdueOnly = true;
+      renderRenewalReminders();
+    });
+    $('#rrAllBtn')?.addEventListener('click', () => {
+      renewalReminderShowOverdueOnly = false;
+      renderRenewalReminders();
     });
   }
 }

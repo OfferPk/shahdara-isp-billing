@@ -476,6 +476,7 @@ import { validReactivationNoteDate, normalizeReactivationNoteList, recordReactiv
 import { validCallbackQueueDate, validCallbackQueueTime, normalizeCallbackQueueList, recordCallback, removeCallback, markCallbackDone, markCallbackMissed, rebookCallback, callbackQueueSorted, pendingCallbackQueue, missedCallbacks, overdueCallbacks, callbacksForCustomer, callbackQueueSummaryText, callbackQueueAllHtml, callbackQueueCsv, callbackQueueFilename } from './callback-queue.js';
 import { validDowngradeConversationDate, normalizeDowngradeConversationList, recordDowngradeConversation, removeDowngradeConversation, downgradeConversationSorted, downgradeConversationsForCustomer, downgradedConversations, keptPackageConversations, downgradeConversationSummaryText, downgradeConversationAllHtml, downgradeConversationCsv, downgradeConversationFilename } from './downgrade-conversation.js';
 import { validPraiseLogDate, normalizePraiseLogList, recordPraiseLog, removePraiseLog, praiseLogSorted, praiseLogsForCustomer, praiseLogsForSubject, praiseLogSummaryText, praiseLogAllHtml, praiseLogCsv, praiseLogFilename } from './praise-log.js';
+import { validReferralEligibilityDate, normalizeReferralEligibilityList, recordReferralEligibility, removeReferralEligibility, referralEligibilityForReferrer, latestReferralEligibility, referralEligibilitySummaryText, referralEligibilityAllHtml, referralEligibilityCsv, referralEligibilityFilename } from './referral-eligibility.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14196,6 +14197,7 @@ function renderAnalytics() {
   renderCallbacks();
   renderDowngradeConversations();
   renderPraiseLog();
+  renderReferralEligibility();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30123,6 +30125,73 @@ function renderPraiseLog() {
     $('#pzSubjectFilter')?.addEventListener('input', () => { renderPraiseLog(); });
     $('#pzFilterBtn')?.addEventListener('click', () => { renderPraiseLog(); });
     $('#pzFilterCustomer')?.addEventListener('input', () => { renderPraiseLog(); });
+  }
+}
+const REFERRAL_ELIGIBILITY_KEY = 'shahdara_referral_eligibility_v1';
+function loadReferralEligibility() {
+  try { return normalizeReferralEligibilityList(JSON.parse(localStorage.getItem(REFERRAL_ELIGIBILITY_KEY) || '[]')); } catch { return []; }
+}
+function saveReferralEligibility(list) {
+  try { localStorage.setItem(REFERRAL_ELIGIBILITY_KEY, JSON.stringify(normalizeReferralEligibilityList(list))); } catch { /* referral eligibility only: a failed save leaves the previous list in place */ }
+}
+let referralEligibilityBound = false;
+function renderReferralEligibility() {
+  const listEl = $('#rgList');
+  if (!listEl) return;
+  const all = loadReferralEligibility();
+  listEl.innerHTML = all.length ? referralEligibilityAllHtml(all) : '<p>No referral eligibility notes recorded.</p>';
+  const summaryEl = $('#rgSummary');
+  if (summaryEl) summaryEl.textContent = `${referralEligibilitySummaryText(all)} An eligible note never creates a credit, a payment, or a bill change by itself.`;
+  const referrerEl = $('#rgReferrerBody');
+  if (referrerEl) {
+    const referrer = ($('#rgFilterReferrer')?.value ?? '').trim();
+    if (referrer === '') {
+      referrerEl.innerHTML = '<p>Give a referrer to see their eligibility notes.</p>';
+    } else {
+      const rows = referralEligibilityForReferrer(all, referrer);
+      referrerEl.innerHTML = rows.length
+        ? referralEligibilityAllHtml(rows)
+        : '<p>No eligibility notes recorded for this referrer.</p>';
+    }
+  }
+  const latestEl = $('#rgLatestBody');
+  if (latestEl) {
+    const referral = ($('#rgLatestReferral')?.value ?? '').trim();
+    if (referral === '') {
+      latestEl.innerHTML = '<p>Give a referral to see its latest eligibility check.</p>';
+    } else {
+      const latest = latestReferralEligibility(all, referral);
+      latestEl.innerHTML = latest
+        ? referralEligibilityAllHtml([latest])
+        : '<p>No eligibility note recorded for this referral.</p>';
+    }
+  }
+  if (!referralEligibilityBound) {
+    referralEligibilityBound = true;
+    $('#rgExportBtn')?.addEventListener('click', () => { downloadCsvFile(referralEligibilityFilename(), referralEligibilityCsv(loadReferralEligibility())); });
+    $('#rgRecordBtn')?.addEventListener('click', () => {
+      const before = loadReferralEligibility();
+      const next = recordReferralEligibility(before, {
+        id: `RG-${Date.now()}`,
+        referrer: $('#rgReferrer')?.value ?? '',
+        referralId: $('#rgReferral')?.value ?? '',
+        rule: $('#rgRule')?.value ?? '',
+        eligible: $('#rgEligible')?.value ?? '',
+        dateChecked: $('#rgDate')?.value ?? '',
+        note: $('#rgNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Eligibility note not recorded: give a referrer, a referral, a rule, an eligible answer, and a real checked date. A re-check needs a later date than the last check for that referral.'); return; }
+      saveReferralEligibility(next);
+      renderReferralEligibility();
+    });
+    $('#rgRemoveBtn')?.addEventListener('click', () => {
+      saveReferralEligibility(removeReferralEligibility(loadReferralEligibility(), $('#rgRemoveId')?.value ?? ''));
+      renderReferralEligibility();
+    });
+    $('#rgFilterBtn')?.addEventListener('click', () => { renderReferralEligibility(); });
+    $('#rgFilterReferrer')?.addEventListener('input', () => { renderReferralEligibility(); });
+    $('#rgLatestBtn')?.addEventListener('click', () => { renderReferralEligibility(); });
+    $('#rgLatestReferral')?.addEventListener('input', () => { renderReferralEligibility(); });
   }
 }
 let feedbackTrendBound = false;

@@ -470,6 +470,7 @@ import { normalizeFeedbackTrendRows, feedbackTrendFor, feedbackTrendsByMohalla, 
 import { normalizePackageUptakeRows, packageUptakeFor, packageUptakesByMohalla, packageUptakeSummaryText, packageUptakeHtml, packageUptakesHtml, packageUptakeCsv, packageUptakeFilename } from './package-uptake.js';
 import { validOutageCommunicationDate, normalizeOutageCommunicationList, recordOutageCommunication, removeOutageCommunication, communicationsForIncident, outageCommunicationSummaryText, outageCommunicationAllHtml, outageCommunicationCsv, outageCommunicationFilename } from './outage-communication.js';
 import { validDifficultyNoteDate, normalizeDifficultyNoteList, recordDifficultyNote, removeDifficultyNote, difficultyNotesForCustomer, overdueDifficultyFollowups, difficultyNoteSummaryText, difficultyNoteAllHtml, difficultyNoteCsv, difficultyNoteFilename } from './payment-difficulty.js';
+import { normalizeComplaintCategoryTrendRows, complaintCategoryTrend, complaintCategoryTrendFor, complaintCategoryTrendCategoryText, complaintCategoryTrendCategoryHtml, complaintCategoryTrendSummaryText, complaintCategoryTrendHtml, complaintCategoryTrendCsv, complaintCategoryTrendFilename } from './complaint-category-trend.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14184,6 +14185,7 @@ function renderAnalytics() {
   renderPackageUptake();
   renderOutageCommunications();
   renderPaymentDifficulty();
+  renderComplaintCategoryTrend();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29707,6 +29709,46 @@ function renderPaymentDifficulty() {
     $('#pdFilterCustomer')?.addEventListener('input', () => { renderPaymentDifficulty(); });
     $('#pdOverdueBtn')?.addEventListener('click', () => { renderPaymentDifficulty(); });
     $('#pdOverdueAsOf')?.addEventListener('input', () => { renderPaymentDifficulty(); });
+  }
+}
+let complaintCategoryTrendBound = false;
+function complaintCategoryTrendRows() {
+  const raw = ($('#cctRows')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  return normalizeComplaintCategoryTrendRows(raw.map((line) => {
+    const parts = line.split('|').map((part) => part.trim());
+    return { category: parts[0] ?? '', date: parts[1] ?? '' };
+  }));
+}
+function renderComplaintCategoryTrend() {
+  const trendEl = $('#cctTrendBody');
+  if (!trendEl) return;
+  const rows = complaintCategoryTrendRows();
+  const category = ($('#cctCategory')?.value ?? '').trim();
+  const from = $('#cctPeriodFrom')?.value ?? '';
+  const to = $('#cctPeriodTo')?.value ?? '';
+  const view = complaintCategoryTrendFor(rows, category, from, to);
+  trendEl.innerHTML = complaintCategoryTrendCategoryHtml(view);
+  const allEl = $('#cctAllBody');
+  if (allEl) {
+    const trend = complaintCategoryTrend(rows, from, to);
+    allEl.innerHTML = trend && trend.categories.length
+      ? complaintCategoryTrendHtml(trend)
+      : '<p>No complaint category trend to show for this period.</p>';
+  }
+  const summaryEl = $('#cctSummary');
+  if (summaryEl) summaryEl.textContent = `${complaintCategoryTrendSummaryText(rows, from, to)} Viewing a trend never changes any complaint, bill, or payment record by itself.`;
+  if (!complaintCategoryTrendBound) {
+    complaintCategoryTrendBound = true;
+    $('#cctShowBtn')?.addEventListener('click', () => { renderComplaintCategoryTrend(); });
+    $('#cctCategory')?.addEventListener('input', () => { renderComplaintCategoryTrend(); });
+    $('#cctRows')?.addEventListener('input', () => { renderComplaintCategoryTrend(); });
+    $('#cctExportBtn')?.addEventListener('click', () => {
+      const exportRows = complaintCategoryTrendRows();
+      const exportFrom = $('#cctPeriodFrom')?.value ?? '';
+      const exportTo = $('#cctPeriodTo')?.value ?? '';
+      const exportTrend = complaintCategoryTrend(exportRows, exportFrom, exportTo);
+      downloadCsvFile(complaintCategoryTrendFilename(), complaintCategoryTrendCsv(exportTrend));
+    });
   }
 }
 let feedbackTrendBound = false;

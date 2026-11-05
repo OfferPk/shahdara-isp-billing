@@ -10566,6 +10566,70 @@
 <h4>All referral outcomes</h4>
 <div id="roList"></div>
 </section>
+<section class="chart-card" aria-labelledby="cpHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="cpHeading">Vulnerable-customer care plan</h3>
+<p class="chart-caption">One dated care plan per vulnerable customer: the customer, the agreed actions, a review date, and a note. A care plan shows its actions and review date, and overdue reviews appear on one list sorted by review date. A plan is never edited, only annotated and reviewed. Recording or reviewing a plan never changes any customer record, bill, or payment.</p>
+<p id="cpSummary"></p>
+</div>
+<div>
+<button id="cpExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export care plans CSV</button>
+</div>
+</div>
+<h4>Record a care plan</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="cpCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Agreed actions, one per line <textarea id="cpActions" rows="3" style="width: 220px;"></textarea>
+</label>
+<label style="font-size: 12px;">Review date <input id="cpReviewDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="cpNote" type="text" style="width: 200px;">
+</label>
+<button id="cpRecordBtn" class="secondary-button btn-sm" type="button">Record care plan</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Plan id <input id="cpAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="cpAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="cpAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="cpAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove plan id <input id="cpRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="cpRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Mark a plan reviewed</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Plan id <input id="cpReviewId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reviewed date <input id="cpReviewedDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Review note <input id="cpReviewNote" type="text" style="width: 200px;">
+</label>
+<button id="cpReviewBtn" class="secondary-button btn-sm" type="button">Mark reviewed</button>
+</div>
+<h4>Overdue reviews</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">As of <input id="cpOverdueAsOf" type="date" style="width: 140px;">
+</label>
+<button id="cpOverdueBtn" class="secondary-button btn-sm" type="button">Show overdue reviews</button>
+</div>
+<div id="cpOverdueBody"></div>
+<h4>Care plan for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="cpFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="cpFilterBtn" class="secondary-button btn-sm" type="button">Show care plan</button>
+</div>
+<div id="cpFilterBody"></div>
+<h4>All care plans</h4>
+<div id="cpList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

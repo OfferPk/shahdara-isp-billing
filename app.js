@@ -485,6 +485,7 @@ import { validDocumentReceiptDate, normalizeDocumentReceiptList, recordDocumentR
 import { validCommunityMeetingDate, normalizeCommunityMeetingList, recordCommunityMeeting, removeCommunityMeeting, communityMeetingSorted, communityMeetingsForMohalla, communityMeetingSummaryText, communityMeetingAllHtml, communityMeetingsForMohallaHtml, communityMeetingCsv, communityMeetingFilename } from './community-meeting.js';
 import { birthdaysForMonth, birthdaysByMonth, birthdayMonthSummaryText, birthdayMonthHtml, birthdayMonthsHtml, birthdayMonthCsv, birthdayMonthsCsv, birthdayMonthFilename, birthdayMonthsFilename } from './birthday-month.js';
 import { normalizeReadinessScorecardList, recordReadinessScorecard, removeReadinessScorecard, readinessScorecardSummaryText, readinessScorecardAllHtml, readinessScorecardCsv, readinessScorecardFilename } from './readiness-scorecard.js';
+import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14214,6 +14215,7 @@ function renderAnalytics() {
   renderCommunityMeetings();
   renderBirthdayMonth();
   renderReadinessScorecards();
+  renderSupplierPerformance();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30646,6 +30648,62 @@ function renderReadinessScorecards() {
       saveReadinessScorecards(removeReadinessScorecard(loadReadinessScorecards(), $('#scRemoveId')?.value ?? ''));
       renderReadinessScorecards();
     });
+  }
+}
+
+// Plan 288: supplier performance note. One note per delivery —
+// supplier, item, promised date, delivered date, quality note in
+// plain words, and who recorded it — listed per supplier with
+// on-time and quality visible. A note never changes any bill,
+// payment, stock total, or vendor record by itself, and past notes
+// are read-only: there is no edit function, only record, find, and
+// remove.
+const SUPPLIER_PERFORMANCE_KEY = 'shahdara_supplier_performance_v1';
+function loadSupplierPerformanceNotes() {
+  try { return normalizeSupplierPerformanceList(JSON.parse(localStorage.getItem(SUPPLIER_PERFORMANCE_KEY) || '[]')); } catch { return []; }
+}
+function saveSupplierPerformanceNotes(list) {
+  try { localStorage.setItem(SUPPLIER_PERFORMANCE_KEY, JSON.stringify(normalizeSupplierPerformanceList(list))); } catch { /* performance notes only: a failed save leaves the previous list in place */ }
+}
+let supplierPerformanceBound = false;
+function renderSupplierPerformance() {
+  const listEl = $('#spfBody');
+  if (!listEl) return;
+  const all = loadSupplierPerformanceNotes();
+  const supplier = ($('#spfFilter')?.value ?? '').trim();
+  listEl.innerHTML = all.length ? supplierPerformanceAllHtml(all) : '<p>No supplier performance notes recorded.</p>';
+  const supplierEl = $('#spfSupplierBody');
+  if (supplierEl) {
+    supplierEl.innerHTML = supplier
+      ? supplierPerformancesForSupplierHtml(all, supplier)
+      : '<p>Pick a supplier to see its performance notes.</p>';
+  }
+  const summaryEl = $('#spfSummary');
+  if (summaryEl) summaryEl.textContent = `${supplierPerformanceSummaryText(all)} Recording a note never changes any bill, payment, stock total, or vendor record by itself.`;
+  if (!supplierPerformanceBound) {
+    supplierPerformanceBound = true;
+    $('#spfExportBtn')?.addEventListener('click', () => { downloadCsvFile(supplierPerformanceFilename(), supplierPerformanceCsv(loadSupplierPerformanceNotes())); });
+    $('#spfRecordBtn')?.addEventListener('click', () => {
+      const before = loadSupplierPerformanceNotes();
+      const next = recordSupplierPerformanceNote(before, {
+        id: `SP-${Date.now()}`,
+        supplier: $('#spfSupplier')?.value ?? '',
+        item: $('#spfItem')?.value ?? '',
+        promisedDate: $('#spfPromisedDate')?.value ?? '',
+        deliveredDate: $('#spfDeliveredDate')?.value ?? '',
+        quality: $('#spfQuality')?.value ?? '',
+        recordedBy: $('#spfRecordedBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Performance note not recorded: give a supplier, an item, real promised and delivered dates, and a recorder.'); return; }
+      saveSupplierPerformanceNotes(next);
+      renderSupplierPerformance();
+    });
+    $('#spfRemoveBtn')?.addEventListener('click', () => {
+      saveSupplierPerformanceNotes(removeSupplierPerformanceNote(loadSupplierPerformanceNotes(), $('#spfRemoveId')?.value ?? ''));
+      renderSupplierPerformance();
+    });
+    $('#spfFilterBtn')?.addEventListener('click', () => { renderSupplierPerformance(); });
+    $('#spfFilter')?.addEventListener('input', () => { renderSupplierPerformance(); });
   }
 }
 

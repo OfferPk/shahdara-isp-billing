@@ -423,6 +423,7 @@ import { normalizeDepositTopUpList, recordDepositTopUp, removeDepositTopUp, depo
 import { normalizeRefundApprovalList, recordRefundApproval, removeRefundApproval, approvalsSorted as refundApprovalsSorted, approvalsForPeriod as refundApprovalsForPeriod, refundApprovalStatus, refundApprovalAllHtml, refundApprovalSummaryText, refundApprovalCsv, refundApprovalFilename } from './refund-approval.js';
 import { normalizeBankReconExceptionList, recordBankReconException, removeBankReconException, explainBankReconException, exceptionsSorted, exceptionsOpen, exceptionsForPeriod, reconcileToPeriodDifference, bankReconExceptionAllHtml, bankReconExceptionSummaryText, bankReconExceptionCsv, bankReconExceptionFilename, exceptionAgeDays } from './bank-reconciliation-exception.js';
 import { normalizeReceiptBookList, recordReceiptBook, removeReceiptBook, returnReceiptBook, receiptBooksOutstanding, receiptBooksForHolder, receiptBookAgeDays, receiptBookAllHtml, receiptBookSummaryText, receiptBookCsv, receiptBookFilename } from './receipt-book.js';
+import { normalizeMohallaCollectionTargetList, recordMohallaCollectionTarget, removeMohallaCollectionTarget, targetsForMonth, targetsForMohalla, missingTargetText, checkActualAgainstLedger, mohallaCollectionTargetAllHtml, mohallaCollectionTargetSummaryText, mohallaCollectionTargetCsv, mohallaCollectionTargetFilename } from './mohalla-collection-target.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14088,6 +14089,7 @@ function renderAnalytics() {
   renderRefundApprovals();
   renderBankReconExceptions();
   renderReceiptBooks();
+  renderMohallaCollectionTargets();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26547,6 +26549,69 @@ function renderReceiptBooks() {
     });
     $('#rbHolderFilter')?.addEventListener('input', () => { renderReceiptBooks(); });
     $('#rbAsOf')?.addEventListener('change', () => { renderReceiptBooks(); });
+  }
+}
+const MOHALLA_COLLECTION_TARGET_KEY = 'shahdara_mohalla_collection_targets_v1';
+function loadMohallaCollectionTargets() {
+  try { return normalizeMohallaCollectionTargetList(JSON.parse(localStorage.getItem(MOHALLA_COLLECTION_TARGET_KEY) || '[]')); } catch { return []; }
+}
+function saveMohallaCollectionTargets(list) {
+  try { localStorage.setItem(MOHALLA_COLLECTION_TARGET_KEY, JSON.stringify(normalizeMohallaCollectionTargetList(list))); } catch { /* target versus actual only: a failed save leaves the previous list in place */ }
+}
+let mohallaCollectionTargetsBound = false;
+function renderMohallaCollectionTargets() {
+  const bodyEl = $('#mctBody');
+  if (!bodyEl) return;
+  const all = loadMohallaCollectionTargets();
+  const monthFilter = $('#mctMonthFilter')?.value ?? '';
+  const shown = monthFilter ? targetsForMonth(all, monthFilter) : all;
+  bodyEl.innerHTML = mohallaCollectionTargetAllHtml(shown);
+  const summaryEl = $('#mctSummary');
+  if (summaryEl) summaryEl.textContent = `${mohallaCollectionTargetSummaryText(all, monthFilter)} A target compares only; it sets no penalty and changes no bill, payment, or customer record.`;
+  const missingEl = $('#mctMissingBody');
+  if (missingEl) {
+    const month = monthFilter || '';
+    const known = ($('#mctKnownMohallas')?.value ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+    missingEl.innerHTML = month ? `<p>${missingTargetText(known, all, month)}</p>` : '<p>Pick a month to check which mohallas have no target.</p>';
+  }
+  const checkEl = $('#mctCheckBody');
+  if (checkEl) {
+    const month = $('#mctCheckMonth')?.value ?? '';
+    const ledgerRaw = $('#mctLedger')?.value ?? '';
+    if (!month) { checkEl.innerHTML = '<p>Give a month and ledger collections to check actuals against.</p>'; }
+    else {
+      let ledger = [];
+      try { ledger = JSON.parse(ledgerRaw || '[]'); } catch { ledger = []; }
+      const check = checkActualAgainstLedger(all, ledger, month);
+      checkEl.innerHTML = check.mismatched.length
+        ? check.mismatched.map((row) => `<p>${row.mohalla} — target actual Rs. ${Math.round(row.targetActualCents / 100).toLocaleString('en-US')}, ledger Rs. ${Math.round(row.ledgerActualCents / 100).toLocaleString('en-US')}: mismatch.</p>`).join('')
+        : `<p>${check.matched.length} mohalla actual(s) match the ledger for ${month}.</p>`;
+    }
+  }
+  if (!mohallaCollectionTargetsBound) {
+    mohallaCollectionTargetsBound = true;
+    $('#mctExportBtn')?.addEventListener('click', () => { downloadCsvFile(mohallaCollectionTargetFilename(), mohallaCollectionTargetCsv(shown)); });
+    $('#mctSaveBtn')?.addEventListener('click', () => {
+      const before = loadMohallaCollectionTargets();
+      const targetRaw = ($('#mctTarget')?.value ?? '').trim();
+      const actualRaw = ($('#mctActual')?.value ?? '').trim();
+      const next = recordMohallaCollectionTarget(before, {
+        id: `MCT-${Date.now()}`,
+        mohalla: $('#mctMohalla')?.value ?? '',
+        month: $('#mctMonth')?.value ?? '',
+        target: targetRaw === '' ? undefined : Number(targetRaw),
+        actual: actualRaw === '' ? undefined : Number(actualRaw),
+      });
+      if (!next || next.length === before.length) { toast('Mohalla target not recorded: give a mohalla, a month, and a target amount. One target per mohalla per month.'); return; }
+      saveMohallaCollectionTargets(next);
+      renderMohallaCollectionTargets();
+    });
+    $('#mctRemoveBtn')?.addEventListener('click', () => {
+      saveMohallaCollectionTargets(removeMohallaCollectionTarget(loadMohallaCollectionTargets(), $('#mctRemoveId')?.value ?? ''));
+      renderMohallaCollectionTargets();
+    });
+    $('#mctMonthFilter')?.addEventListener('change', () => { renderMohallaCollectionTargets(); });
+    $('#mctCheckBtn')?.addEventListener('click', () => { renderMohallaCollectionTargets(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

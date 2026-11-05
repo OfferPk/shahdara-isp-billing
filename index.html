@@ -8418,6 +8418,53 @@
 </div>
 <div id="rbOpenBody"></div>
 <div id="rbBody"></div>
+</section><section class="chart-card" aria-labelledby="mctHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="mctHeading">Monthly collection target versus actual per mohalla</h3>
+<p class="chart-caption">One target record per mohalla per month: the mohalla, the target amount, the actual collected, and the difference. A target compares only: it sets no penalty and changes no bill, payment, or customer record. A mohalla with no target says so plainly.</p>
+<p id="mctSummary"></p>
+</div>
+<div>
+<button id="mctExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export mohalla targets CSV</button>
+</div>
+</div>
+<h4>Record a mohalla target</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <input id="mctMohalla" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Month <input id="mctMonth" type="month" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Target amount (Rs) <input id="mctTarget" type="number" min="0" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Actual collected (Rs) <input id="mctActual" type="number" min="0" style="width: 120px;">
+</label>
+<button id="mctSaveBtn" class="secondary-button btn-sm" type="button">Record target</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove target record id <input id="mctRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="mctRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Targets by month</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month filter <input id="mctMonthFilter" type="month" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Known mohallas (comma separated) <input id="mctKnownMohallas" type="text" style="width: 260px;">
+</label>
+</div>
+<div id="mctMissingBody"></div>
+<div id="mctBody"></div>
+<h4>Check actuals against ledger collections</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month <input id="mctCheckMonth" type="month" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Ledger collections (JSON: mohalla, month, amountCents) <input id="mctLedger" type="text" style="width: 320px;">
+</label>
+<button id="mctCheckBtn" class="secondary-button btn-sm" type="button">Check</button>
+</div>
+<div id="mctCheckBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

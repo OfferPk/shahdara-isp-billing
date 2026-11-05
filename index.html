@@ -10692,6 +10692,36 @@
 <div id="gfuBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="ptnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ptnHeading">Partnership note</h3>
+<p class="chart-caption">One note per partnership — the partner, the type in plain words, the terms agreed, the start date, a contact, and who recorded it — so what was agreed cannot be disputed later. Recording a note never changes any bill, payment, customer, or staff record by itself, and it creates no payment or commission record.</p>
+<p id="ptnSummary"></p>
+</div>
+<div>
+<button id="ptnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export partnership CSV</button>
+</div>
+</div>
+<h4>Record a partnership note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Partner <input id="ptnPartner" type="text" style="width: 160px;" placeholder="e.g. Corner Shop"></label>
+<label style="font-size: 12px;">Type <input id="ptnType" type="text" style="width: 160px;" placeholder="e.g. Payment collection point"></label>
+<label style="font-size: 12px;">Terms agreed <input id="ptnTerms" type="text" style="width: 220px;" placeholder="e.g. Takes cash and hands over a daily slip"></label>
+<label style="font-size: 12px;">Start date <input id="ptnStartDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Contact <input id="ptnContact" type="text" style="width: 140px;" placeholder="e.g. 03001234567"></label>
+<label style="font-size: 12px;">Recorded by <input id="ptnRecordedBy" type="text" style="width: 120px;" placeholder="e.g. Owner"></label>
+<button id="ptnRecordBtn" class="secondary-button btn-sm" type="button">Record partnership</button>
+<label style="font-size: 12px;">Remove id <input id="ptnRemoveId" type="text" style="width: 120px;"></label>
+<button id="ptnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Notes for one partner</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Partner <select id="ptnPartnerSelect" style="width: 160px;"></select></label>
+</div>
+<div id="ptnPartnerBody"></div>
+<h4>All partnership notes</h4>
+<div id="ptnBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="mceHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="mceHeading">New-mohalla cost estimate sheet</h3>
 <p class="chart-caption">One cost estimate sheet per candidate mohalla: the mohalla, the line items with estimated amounts, the total, the date, and the estimator. Each sheet shows its line items and a total that sums exactly to them. Completing a sheet never changes any bill, payment, or customer record by itself, and no expansion is triggered by the sheet.</p>

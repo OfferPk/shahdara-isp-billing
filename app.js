@@ -509,6 +509,7 @@ import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
 import { normalizeComplaintEscalationOwnerNoteList, recordComplaintEscalationOwnerNote, removeComplaintEscalationOwnerNote, answerComplaintEscalationOwnerNote, complaintEscalationOwnerOpenNotes, complaintEscalationOwnerComplaintRefs, complaintEscalationOwnerSummaryText, complaintEscalationOwnerAllHtml, complaintEscalationOwnerNotesForComplaintHtml, complaintEscalationOwnerCsv, complaintEscalationOwnerFilename } from './complaint-escalation-owner.js';
+import { validAnnualLeavePlanDay, foldAnnualLeavePlanYear, parseAnnualLeavePlanBlocks, normalizeAnnualLeavePlanList, recordAnnualLeavePlan, removeAnnualLeavePlan, setAnnualLeavePlanStatus, annualLeavePlanPlansForYear, annualLeavePlanPlansForStaff, annualLeavePlanStaffMembers, annualLeavePlanYears, annualLeavePlanClashes, annualLeavePlanSummaryText, annualLeavePlanYearHtml, annualLeavePlanAllHtml, annualLeavePlanCsv, annualLeavePlanFilename } from './annual-leave-plan.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14344,6 +14345,7 @@ function renderAnalytics() {
   renderShopDiary();
   renderDutyRoster();
   renderComplaintEscalationOwnerNotes();
+  renderAnnualLeavePlans();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -32309,6 +32311,96 @@ function renderComplaintEscalationOwnerNotes() {
     $('#ceoRemoveBtn')?.addEventListener('click', () => {
       saveComplaintEscalationOwnerNotes(removeComplaintEscalationOwnerNote(loadComplaintEscalationOwnerNotes(), $('#ceoRemoveId')?.value ?? ''));
       renderComplaintEscalationOwnerNotes();
+    });
+  }
+}
+
+// Annual leave planner (Plan 313): one plan per staff
+// member per year — the staff member, the year, the
+// planned leave blocks, and the status — so the year's
+// plans read side by side and clashes between staff
+// away in the same week are visible before the year
+// starts. Planning leave never changes any bill,
+// payment, customer record, or duty roster by itself.
+const ANNUAL_LEAVE_PLAN_KEY = 'shahdara_annual_leave_plans_v1';
+function loadAnnualLeavePlans() {
+  try { return normalizeAnnualLeavePlanList(JSON.parse(localStorage.getItem(ANNUAL_LEAVE_PLAN_KEY) || '[]')); } catch { return []; }
+}
+function saveAnnualLeavePlans(list) {
+  try { localStorage.setItem(ANNUAL_LEAVE_PLAN_KEY, JSON.stringify(normalizeAnnualLeavePlanList(list))); } catch { /* annual leave plans only: a failed save leaves the previous list in place */ }
+}
+let annualLeavePlanBound = false;
+function renderAnnualLeavePlans() {
+  const bodyEl = $('#alpBody');
+  if (!bodyEl) return;
+  const all = loadAnnualLeavePlans();
+  bodyEl.innerHTML = annualLeavePlanAllHtml(all);
+  const years = annualLeavePlanYears(all);
+  const yearSelect = $('#alpYearSelect');
+  if (yearSelect) {
+    const current = yearSelect.value;
+    yearSelect.innerHTML = years.map((year) => `<option value="${year}">${year}</option>`).join('');
+    if (years.includes(Number(current))) yearSelect.value = current;
+    else if (years.length) yearSelect.value = String(years[years.length - 1]);
+  }
+  const chosenYear = foldAnnualLeavePlanYear(yearSelect?.value ?? '') ?? (years.length ? years[years.length - 1] : undefined);
+  const yearEl = $('#alpYearBody');
+  if (yearEl) {
+    yearEl.innerHTML = chosenYear === undefined
+      ? '<p>No annual leave plans recorded.</p>'
+      : annualLeavePlanYearHtml(all, chosenYear);
+  }
+  const summaryEl = $('#alpSummary');
+  if (summaryEl) {
+    const clashes = chosenYear === undefined ? [] : annualLeavePlanClashes(all, chosenYear);
+    summaryEl.textContent = `${annualLeavePlanSummaryText(all, chosenYear)} Planning leave never changes any bill, payment, customer record, or duty roster by itself.${clashes.length ? ` ${clashes.length} ${clashes.length === 1 ? 'clash' : 'clashes'} in ${chosenYear}: two staff members planned away in the same week.` : ''}`;
+  }
+  const staffSelect = $('#alpStaffSelect');
+  if (staffSelect) {
+    const staff = annualLeavePlanStaffMembers(all);
+    const current = staffSelect.value;
+    staffSelect.innerHTML = staff.map((name) => `<option value="${name}">${name}</option>`).join('');
+    if (staff.includes(current)) staffSelect.value = current;
+  }
+  const staffEl = $('#alpStaffBody');
+  if (staffEl) {
+    const chosen = staffSelect?.value ?? '';
+    const plans = chosen ? annualLeavePlanPlansForStaff(all, chosen) : [];
+    staffEl.innerHTML = chosen
+      ? (plans.length ? `<ul>${plans.map((plan) => `<li>${plan.staffMember}, ${plan.year}: ${plan.blocks.map((block) => (block.start === block.end ? block.start : `${block.start} to ${block.end}`)).join(', ')} — ${plan.status}.</li>`).join('')}</ul>` : '<p>No plans for that staff member.</p>')
+      : '<p>Pick a staff member to see their plans.</p>';
+  }
+  if (!annualLeavePlanBound) {
+    annualLeavePlanBound = true;
+    $('#alpExportBtn')?.addEventListener('click', () => { downloadCsvFile(annualLeavePlanFilename(), annualLeavePlanCsv(loadAnnualLeavePlans())); });
+    $('#alpYearSelect')?.addEventListener('change', () => { renderAnnualLeavePlans(); });
+    $('#alpStaffSelect')?.addEventListener('change', () => { renderAnnualLeavePlans(); });
+    $('#alpRecordBtn')?.addEventListener('click', () => {
+      const before = loadAnnualLeavePlans();
+      const blocks = parseAnnualLeavePlanBlocks($('#alpBlocks')?.value ?? '');
+      const next = blocks ? recordAnnualLeavePlan(before, {
+        id: ($('#alpId')?.value ?? '').trim() || `ALP-${Date.now()}`,
+        staffMember: ($('#alpStaff')?.value ?? ''),
+        year: ($('#alpYear')?.value ?? ''),
+        blocks,
+        status: ($('#alpStatus')?.value ?? 'planned'),
+        note: ($('#alpNote')?.value ?? ''),
+      }) : before;
+      if (!next || next.length === before.length) { toast('Leave plan not recorded: give a staff member, a year, blocks inside that year like 2027-01-04 to 2027-01-10, and a known status. One plan per staff member per year.'); return; }
+      saveAnnualLeavePlans(next);
+      renderAnnualLeavePlans();
+    });
+    $('#alpStatusBtn')?.addEventListener('click', () => {
+      const before = loadAnnualLeavePlans();
+      const beforeJson = JSON.stringify(before);
+      const next = setAnnualLeavePlanStatus(before, ($('#alpStatusId')?.value ?? ''), ($('#alpNewStatus')?.value ?? 'planned'));
+      if (JSON.stringify(next) === beforeJson) { toast('Status not changed: give the plan id and a known status.'); return; }
+      saveAnnualLeavePlans(next);
+      renderAnnualLeavePlans();
+    });
+    $('#alpRemoveBtn')?.addEventListener('click', () => {
+      saveAnnualLeavePlans(removeAnnualLeavePlan(loadAnnualLeavePlans(), $('#alpRemoveId')?.value ?? ''));
+      renderAnnualLeavePlans();
     });
   }
 }

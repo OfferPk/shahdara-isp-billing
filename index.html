@@ -10885,6 +10885,47 @@
 <div id="ceoRefBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="alpHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="alpHeading">Annual leave planner</h3>
+<p class="chart-caption">One plan per staff member per year: the staff member, the year, the planned leave blocks, and the status. The year's plans read side by side so clashes — two staff members away in the same week — are visible before the year starts. Planning leave never changes any bill, payment, customer record, or duty roster by itself.</p>
+<p id="alpSummary"></p>
+</div>
+<div>
+<button id="alpExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export leave plans CSV</button>
+</div>
+</div>
+<h4>Record a leave plan</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Plan id <input id="alpId" type="text" style="width: 120px;" placeholder="auto if left blank"></label>
+<label style="font-size: 12px;">Staff member <input id="alpStaff" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Year <input id="alpYear" type="text" style="width: 80px;" placeholder="e.g. 2027"></label>
+<label style="font-size: 12px;">Planned blocks <input id="alpBlocks" type="text" style="width: 300px;" placeholder="e.g. 2027-01-04 to 2027-01-10, 2027-06-01 to 2027-06-05"></label>
+<label style="font-size: 12px;">Status <select id="alpStatus" style="width: 120px;"><option>planned</option><option>confirmed</option><option>cancelled</option></select></label>
+<label style="font-size: 12px;">Note <input id="alpNote" type="text" style="width: 200px;" placeholder="e.g. Winter break"></label>
+<button id="alpRecordBtn" class="secondary-button btn-sm" type="button">Record plan</button>
+<label style="font-size: 12px;">Remove id <input id="alpRemoveId" type="text" style="width: 120px;"></label>
+<button id="alpRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Change a plan status</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Plan id <input id="alpStatusId" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">New status <select id="alpNewStatus" style="width: 120px;"><option>planned</option><option>confirmed</option><option>cancelled</option></select></label>
+<button id="alpStatusBtn" class="secondary-button btn-sm" type="button">Save status</button>
+</div>
+<h4>One year side by side</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Year <select id="alpYearSelect" style="width: 120px;"></select></label>
+</div>
+<div id="alpYearBody"></div>
+<h4>Plans for one staff member</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <select id="alpStaffSelect" style="width: 160px;"></select></label>
+</div>
+<div id="alpStaffBody"></div>
+<h4>All leave plans</h4>
+<div id="alpBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

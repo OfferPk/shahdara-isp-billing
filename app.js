@@ -494,6 +494,7 @@ import { normalizeSafeCountList, recordSafeCount, removeSafeCount, safeCountSumm
 import { validExpenseApprovalDate, foldExpenseApprovalStatus, normalizeExpenseApprovalList, recordExpenseApproval, removeExpenseApproval, expenseApprovalsForCategory, expenseApprovalCategories, expenseApprovalCategorySummaryHtml, expenseApprovalSummaryText, expenseApprovalAllHtml, expenseApprovalsForCategoryHtml, expenseApprovalCsv, expenseApprovalFilename } from './expense-approval.js';
 import { validVendorPaymentDueDate, normalizeVendorPaymentDueList, recordVendorPaymentDue, removeVendorPaymentDue, markVendorPaymentDueSeen, markVendorPaymentDueSettled, vendorPaymentDuesForVendor, vendorPaymentDueVendors, vendorPaymentDuesOverdueHtml, vendorPaymentDueSummaryText, vendorPaymentDueAllHtml, vendorPaymentDuesForVendorHtml, vendorPaymentDueCsv, vendorPaymentDueFilename } from './vendor-payment-due.js';
 import { normalizeVisitorLogList, recordVisitorLog, removeVisitorLog, visitorLogForDate, visitorLogSearch, visitorLogSummaryText, visitorLogAllHtml, visitorLogSearchHtml, visitorLogCsv, visitorLogFilename } from './visitor-log.js';
+import { normalizeDelegationNoteList, recordDelegationNote, removeDelegationNote, markDelegationNoteAcknowledged, delegationNotesForStaff, delegationNotesOverdue, delegationNoteSummaryText, delegationNoteAllHtml, delegationNotesForStaffHtml, delegationNotesOverdueHtml, delegationNoteCsv, delegationNoteFilename } from './delegation-note.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14234,6 +14235,7 @@ function renderAnalytics() {
   renderExpenseApproval();
   renderVendorPaymentDue();
   renderVisitorLog();
+  renderDelegationNote();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31256,6 +31258,69 @@ function renderVisitorLog() {
     $('#vsRemoveBtn')?.addEventListener('click', () => {
       saveVisitorLog(removeVisitorLog(loadVisitorLog(), $('#vsRemoveId')?.value ?? ''));
       renderVisitorLog();
+    });
+  }
+}
+
+// Owner task delegation note — the task in plain words, who it was
+// delegated to, who delegated it, the date, the due date, and whether
+// it was acknowledged. Recording a delegation links to a task by
+// reference only and never reassigns, closes, or changes any task,
+// visit, bill, payment, or customer record by itself.
+const DELEGATION_NOTE_KEY = 'shahdara_delegation_notes_v1';
+function loadDelegationNotes() {
+  try { return normalizeDelegationNoteList(JSON.parse(localStorage.getItem(DELEGATION_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveDelegationNotes(list) {
+  try { localStorage.setItem(DELEGATION_NOTE_KEY, JSON.stringify(normalizeDelegationNoteList(list))); } catch { /* delegation notes only: a failed save leaves the previous list in place */ }
+}
+let delegationNoteBound = false;
+function renderDelegationNote() {
+  const listEl = $('#dgBody');
+  if (!listEl) return;
+  const all = loadDelegationNotes();
+  listEl.innerHTML = all.length ? delegationNoteAllHtml(all) : '<p>No delegation notes recorded.</p>';
+  const summaryEl = $('#dgSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${delegationNoteSummaryText(all)} Recording a delegation never changes any bill, payment, customer record, or past visit by itself.`;
+  }
+  const staffEl = $('#dgStaffBody');
+  if (staffEl) {
+    const staff = $('#dgStaffInput')?.value ?? '';
+    staffEl.innerHTML = delegationNotesForStaffHtml(all, staff);
+  }
+  const overdueEl = $('#dgOverdueBody');
+  if (overdueEl) {
+    const asOf = $('#dgOverdueInput')?.value ?? '';
+    overdueEl.innerHTML = delegationNotesOverdueHtml(all, asOf);
+  }
+  if (!delegationNoteBound) {
+    delegationNoteBound = true;
+    $('#dgExportBtn')?.addEventListener('click', () => { downloadCsvFile(delegationNoteFilename(), delegationNoteCsv(loadDelegationNotes())); });
+    $('#dgStaffBtn')?.addEventListener('click', () => { renderDelegationNote(); });
+    $('#dgOverdueBtn')?.addEventListener('click', () => { renderDelegationNote(); });
+    $('#dgRecordBtn')?.addEventListener('click', () => {
+      const before = loadDelegationNotes();
+      const next = recordDelegationNote(before, {
+        id: `DG-${Date.now()}`,
+        date: $('#dgDate')?.value ?? '',
+        task: $('#dgTask')?.value ?? '',
+        delegatedTo: $('#dgDelegatedTo')?.value ?? '',
+        delegatedBy: $('#dgDelegatedBy')?.value ?? '',
+        dueDate: $('#dgDueDate')?.value ?? '',
+        acknowledged: false,
+      });
+      if (!next || next.length === before.length) { toast('Delegation not recorded: give a real date, the task, who it is for, who delegated it, and a due date on or after the date.'); return; }
+      saveDelegationNotes(next);
+      renderDelegationNote();
+    });
+    $('#dgRemoveBtn')?.addEventListener('click', () => {
+      saveDelegationNotes(removeDelegationNote(loadDelegationNotes(), $('#dgRemoveId')?.value ?? ''));
+      renderDelegationNote();
+    });
+    $('#dgAckBtn')?.addEventListener('click', () => {
+      saveDelegationNotes(markDelegationNoteAcknowledged(loadDelegationNotes(), $('#dgAckId')?.value ?? ''));
+      renderDelegationNote();
     });
   }
 }

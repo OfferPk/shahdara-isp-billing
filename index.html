@@ -10416,6 +10416,44 @@
 <div id="vsBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="dgHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="dgHeading">Owner task delegation note</h3>
+<p class="chart-caption">One dated note per delegated task: the task in plain words, who it was delegated to, who delegated it, the date, the due date, and whether it was acknowledged. Delegations are listed per staff member with due dates and acknowledgement visible. Recording a delegation links to a task by reference only and never reassigns, closes, or changes any task, visit, bill, payment, or customer record by itself.</p>
+<p id="dgSummary"></p>
+</div>
+<div>
+<button id="dgExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export delegation notes CSV</button>
+</div>
+</div>
+<h4>Record a delegation</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="dgDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Task <input id="dgTask" type="text" style="width: 200px;" placeholder="e.g. Collect Rs 5,000 from Mohalla A"></label>
+<label style="font-size: 12px;">Delegated to <input id="dgDelegatedTo" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Delegated by <input id="dgDelegatedBy" type="text" style="width: 140px;" placeholder="e.g. Owner"></label>
+<label style="font-size: 12px;">Due date <input id="dgDueDate" type="date" style="width: 140px;"></label>
+<button id="dgRecordBtn" class="secondary-button btn-sm" type="button">Record delegation</button>
+<label style="font-size: 12px;">Remove id <input id="dgRemoveId" type="text" style="width: 120px;"></label>
+<button id="dgRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+<label style="font-size: 12px;">Acknowledge id <input id="dgAckId" type="text" style="width: 120px;"></label>
+<button id="dgAckBtn" class="secondary-button btn-sm" type="button">Mark acknowledged</button>
+</div>
+<h4>Delegations for one staff member</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <input id="dgStaffInput" type="text" style="width: 160px;" placeholder="e.g. Saad"></label>
+<button id="dgStaffBtn" class="secondary-button btn-sm" type="button">Show delegations</button>
+</div>
+<div id="dgStaffBody"></div>
+<h4>Overdue delegations</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">As of date <input id="dgOverdueInput" type="date" style="width: 140px;"></label>
+<button id="dgOverdueBtn" class="secondary-button btn-sm" type="button">Show overdue</button>
+</div>
+<div id="dgOverdueBody"></div>
+<h4>All delegation notes</h4>
+<div id="dgBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

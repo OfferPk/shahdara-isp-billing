@@ -10345,6 +10345,66 @@
 <h4>All promise delivery checks</h4>
 <div id="pdcList"></div>
 </section>
+<section class="chart-card" aria-labelledby="lcHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="lcHeading">New-mohalla launch checklist</h3>
+<p class="chart-caption">One launch checklist per new mohalla: launch steps in order, owner per step, done date per step. It covers execution after approval only and does not replace the expansion readiness checklist, which judges whether a mohalla is ready. A launch shows ticked and unticked steps in order, and a launch cannot be marked complete with unticked steps unless a reason is recorded. A launch is never edited, only ticked and annotated. Recording a launch never changes any coverage register, bill, or payment by itself.</p>
+<p id="lcSummary"></p>
+</div>
+<div>
+<button id="lcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export launch checklists CSV</button>
+</div>
+</div>
+<h4>Record a launch checklist</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <input id="lcMohalla" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Approved date <input id="lcApprovedDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Steps, one per line: step | owner | done date (blank if not done) <textarea id="lcSteps" rows="3" style="width: 420px;"></textarea>
+</label>
+<button id="lcRecordBtn" class="secondary-button btn-sm" type="button">Record launch checklist</button>
+</div>
+<h4>Tick a step / mark complete</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="lcTickId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Step <input id="lcTickStep" type="text" style="width: 200px;">
+</label>
+<label style="font-size: 12px;">Done date <input id="lcTickDate" type="date" style="width: 140px;">
+</label>
+<button id="lcTickBtn" class="secondary-button btn-sm" type="button">Tick step done</button>
+<label style="font-size: 12px;">Complete entry id <input id="lcCompleteId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason for unticked steps <input id="lcCompleteReason" type="text" style="width: 260px;">
+</label>
+<button id="lcCompleteBtn" class="secondary-button btn-sm" type="button">Mark launch complete</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="lcAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="lcAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="lcAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="lcAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="lcRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="lcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Launch checklist for one mohalla</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Mohalla <input id="lcFilterMohalla" type="text" style="width: 140px;">
+</label>
+<button id="lcFilterBtn" class="secondary-button btn-sm" type="button">Show launch checklist</button>
+</div>
+<div id="lcFilterBody"></div>
+<h4>All launch checklists</h4>
+<div id="lcList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

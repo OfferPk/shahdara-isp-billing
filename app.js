@@ -434,6 +434,7 @@ import { validSpliceLossDate, normalizeSpliceLossList, recordSpliceLoss, removeS
 import { normalizeOltPortPlanList, recordOltPortPlan, removeOltPortPlan, convertOltPortPlanToUsed, oltPortPlansSorted, oltPortPlansForUnit, oltPortPlanSummaryText, oltPortPlanHtml, oltPortPlanCsv, oltPortPlanFilename } from './port-plan.js';
 import { validKitPowerDate, normalizeKitPowerList, recordKitPower, removeKitPower, findKitPower, kitPowerSorted, kitPowerForItem, kitPowerItems, kitPowerLastCharge, kitPowerVisits, kitPowerStale, kitPowerSummaryText, kitPowerText, kitPowerItemText, kitPowerHtml, kitPowerCsv, kitPowerFilename } from './kit-power.js';
 import { validVehicleFuelDate, normalizeVehicleFuelList, recordVehicleFuel, removeVehicleFuel, findVehicleFuel, vehicleFuelSorted, vehicleFuelForVehicle, vehicleFuelVehicles, vehicleFuelMonthlyEntries, vehicleFuelMonthlyTotal, vehicleFuelMonthlySummaryText, addVehicleFuelFollowUp, vehicleFuelSummaryText, vehicleFuelText, vehicleFuelHtml, vehicleFuelCsv, vehicleFuelFilename } from './vehicle-fuel.js';
+import { validWeatherDisruptionDate, normalizeWeatherDisruptionList, recordWeatherDisruption, removeWeatherDisruption, findWeatherDisruption, weatherDisruptionsSorted, weatherDisruptionsForMohalla, weatherDisruptionMohallas, addWeatherDisruptionAnnotation, weatherDisruptionSummaryText, weatherDisruptionText, weatherDisruptionHtml, weatherDisruptionCsv, weatherDisruptionFilename } from './weather-disruption.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14110,6 +14111,7 @@ function renderAnalytics() {
   renderOltPortPlans();
   renderKitPower();
   renderVehicleFuel();
+  renderWeatherDisruptions();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27160,6 +27162,54 @@ function renderVehicleFuel() {
     $('#vfMonthBtn')?.addEventListener('click', () => {
       const outEl = $('#vfMonthOut');
       if (outEl) outEl.textContent = vehicleFuelMonthlySummaryText(loadVehicleFuel(), $('#vfMonthVehicle')?.value ?? '', $('#vfMonth')?.value ?? '');
+    });
+  }
+}
+const WEATHER_DISRUPTION_KEY = 'shahdara_weather_disruptions_v1';
+function loadWeatherDisruptions() {
+  try { return normalizeWeatherDisruptionList(JSON.parse(localStorage.getItem(WEATHER_DISRUPTION_KEY) || '[]')); } catch { return []; }
+}
+function saveWeatherDisruptions(list) {
+  try { localStorage.setItem(WEATHER_DISRUPTION_KEY, JSON.stringify(normalizeWeatherDisruptionList(list))); } catch { /* weather disruption only: a failed save leaves the previous list in place */ }
+}
+let weatherDisruptionsBound = false;
+function renderWeatherDisruptions() {
+  const bodyEl = $('#wdBody');
+  if (!bodyEl) return;
+  const all = loadWeatherDisruptions();
+  const mohallaFilter = $('#wdFilter')?.value ?? '';
+  const scoped = mohallaFilter ? weatherDisruptionsForMohalla(all, mohallaFilter) : weatherDisruptionsSorted(all);
+  bodyEl.innerHTML = scoped.length ? scoped.map((entry) => weatherDisruptionHtml(entry)).join('') : '<p>No weather disruptions recorded.</p>';
+  const summaryEl = $('#wdSummary');
+  if (summaryEl) summaryEl.textContent = `${weatherDisruptionSummaryText(all)} Past entries are never edited, only annotated. Recording a disruption never changes any bill, payment, customer, fault, or visit record by itself.`;
+  if (!weatherDisruptionsBound) {
+    weatherDisruptionsBound = true;
+    $('#wdExportBtn')?.addEventListener('click', () => { downloadCsvFile(weatherDisruptionFilename(), weatherDisruptionCsv(loadWeatherDisruptions())); });
+    $('#wdSaveBtn')?.addEventListener('click', () => {
+      const before = loadWeatherDisruptions();
+      const next = recordWeatherDisruption(before, {
+        id: `WD-${Date.now()}`,
+        date: $('#wdDate')?.value ?? '',
+        weather: $('#wdWeather')?.value ?? '',
+        mohallas: $('#wdMohallas')?.value ?? '',
+        visitsPostponed: $('#wdVisits')?.value ?? '',
+        faultsAttributed: $('#wdFaults')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Disruption not recorded: give a real date, the weather as described, at least one mohalla affected, and at least one visit postponed.'); return; }
+      saveWeatherDisruptions(next);
+      renderWeatherDisruptions();
+    });
+    $('#wdRemoveBtn')?.addEventListener('click', () => {
+      saveWeatherDisruptions(removeWeatherDisruption(loadWeatherDisruptions(), $('#wdRemoveId')?.value ?? ''));
+      renderWeatherDisruptions();
+    });
+    $('#wdFilter')?.addEventListener('input', () => { renderWeatherDisruptions(); });
+    $('#wdAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadWeatherDisruptions();
+      const next = addWeatherDisruptionAnnotation(before, $('#wdAnnotateId')?.value ?? '', $('#wdAnnotateDate')?.value ?? '', $('#wdAnnotateNote')?.value ?? '');
+      if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Annotation not added: give a known entry id, a real date, and a note.'); return; }
+      saveWeatherDisruptions(next);
+      renderWeatherDisruptions();
     });
   }
 }

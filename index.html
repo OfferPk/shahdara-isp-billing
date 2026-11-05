@@ -10341,6 +10341,44 @@
 <div id="eapBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="vpdHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="vpdHeading">Vendor payment due note</h3>
+<p class="chart-caption">One dated reminder per vendor payment: the vendor, the amount in whole rupees, the due date, a schedule reference in plain words, and the status. Due notes are listed by due date with overdue ones visible. Marking a note seen or settled changes only the note, never any bill, payment, or schedule record, and the payment itself goes through its own existing flow.</p>
+<p id="vpdSummary"></p>
+</div>
+<div>
+<button id="vpdExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export vendor payment dues CSV</button>
+</div>
+</div>
+<h4>Record a vendor payment due note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Vendor <input id="vpdVendor" type="text" style="width: 160px;" placeholder="e.g. Fibre House Lahore"></label>
+<label style="font-size: 12px;">Amount (Rs) <input id="vpdAmount" type="number" min="1" step="1" style="width: 120px;" placeholder="e.g. 12500"></label>
+<label style="font-size: 12px;">Due date <input id="vpdDueDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Schedule ref <input id="vpdScheduleRef" type="text" style="width: 120px;" placeholder="e.g. VB-2026-11"></label>
+<label style="font-size: 12px;">Status <select id="vpdStatus" style="width: 120px;"><option value="due">Due</option><option value="seen">Seen</option><option value="settled">Settled</option></select></label>
+<button id="vpdRecordBtn" class="secondary-button btn-sm" type="button">Record due note</button>
+<label style="font-size: 12px;">Remove id <input id="vpdRemoveId" type="text" style="width: 120px;"></label>
+<button id="vpdRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Mark a note seen or settled</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Seen id <input id="vpdMarkSeenId" type="text" style="width: 120px;"></label>
+<button id="vpdMarkSeenBtn" class="secondary-button btn-sm" type="button">Mark seen</button>
+<label style="font-size: 12px;">Settled id <input id="vpdMarkSettledId" type="text" style="width: 120px;"></label>
+<button id="vpdMarkSettledBtn" class="secondary-button btn-sm" type="button">Mark settled</button>
+</div>
+<h4>Overdue vendor payments</h4>
+<div id="vpdOverdueBody"></div>
+<h4>Due notes for one vendor</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Vendor <select id="vpdVendorSelect" style="width: 160px;"></select></label>
+</div>
+<div id="vpdVendorBody"></div>
+<h4>All vendor payment due notes</h4>
+<div id="vpdBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

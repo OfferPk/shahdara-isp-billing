@@ -10192,6 +10192,43 @@
 <div id="socBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="slvHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="slvHeading">Staff leave record</h3>
+<p class="chart-caption">One entry per leave: the staff member, the leave dates, the leave type in plain words, the approver, and the status. Leave is listed per staff member and per month with dates and approver visible. Recording leave never changes any bill, payment, customer record, or duty roster by itself, and past entries are never silently edited.</p>
+<p id="slvSummary"></p>
+</div>
+<div>
+<button id="slvExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export staff leave CSV</button>
+</div>
+</div>
+<h4>Record staff leave</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <input id="slvStaffMember" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Start date <input id="slvStartDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">End date <input id="slvEndDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Leave type <input id="slvLeaveType" type="text" style="width: 140px;" placeholder="e.g. Annual leave"></label>
+<label style="font-size: 12px;">Approver <input id="slvApprover" type="text" style="width: 120px;" placeholder="e.g. Aqib"></label>
+<label style="font-size: 12px;">Status <select id="slvStatus" style="width: 120px;"><option value="pending">Pending</option><option value="approved">Approved</option><option value="taken">Taken</option><option value="declined">Declined</option></select></label>
+<button id="slvRecordBtn" class="secondary-button btn-sm" type="button">Record leave</button>
+<label style="font-size: 12px;">Remove id <input id="slvRemoveId" type="text" style="width: 120px;"></label>
+<button id="slvRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Leave for one staff member</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <input id="slvStaffFilter" type="text" style="width: 120px;"></label>
+<button id="slvStaffBtn" class="secondary-button btn-sm" type="button">Show staff leave</button>
+</div>
+<div id="slvStaffBody"></div>
+<h4>Leave in one month</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month <input id="slvMonthFilter" type="month" style="width: 140px;"></label>
+<button id="slvMonthBtn" class="secondary-button btn-sm" type="button">Show month leave</button>
+</div>
+<div id="slvMonthBody"></div>
+<h4>All staff leave</h4>
+<div id="slvBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

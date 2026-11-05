@@ -459,6 +459,7 @@ import { validVisitAcknowledgementDate, normalizeVisitAcknowledgementList, recor
 import { validComplaintFollowupDate, normalizeComplaintFollowupList, recordComplaintFollowup, removeComplaintFollowup, addComplaintFollowupNote, completeComplaintFollowup, complaintFollowupSorted, followupsForComplaint, complaintFollowupDue, openComplaintFollowups, complaintFollowupSummaryText, complaintFollowupAllHtml, complaintFollowupCsv, complaintFollowupFilename } from './complaint-followup.js';
 import { validPromiseDeliveryCheckDate, normalizePromiseDeliveryCheckList, recordPromiseDeliveryCheck, removePromiseDeliveryCheck, addPromiseDeliveryCheckNote, promiseDeliveryCheckSorted, checksForPromise, missedPromiseDeliveryChecks, promiseDeliveryCheckSummaryText, promiseDeliveryCheckAllHtml, promiseDeliveryCheckCsv, promiseDeliveryCheckFilename } from './promise-delivery-check.js';
 import { validLaunchChecklistDate, normalizeLaunchChecklistList, recordLaunchChecklist, removeLaunchChecklist, addLaunchChecklistNote, tickLaunchChecklistStep, completeLaunchChecklist, launchesForMohalla, launchChecklistSummaryText, launchChecklistAllHtml, launchChecklistCsv, launchChecklistFilename } from './launch-checklist.js';
+import { validWinbackOutcomeDate, normalizeWinbackOutcomeList, recordWinbackOutcome, removeWinbackOutcome, addWinbackOutcomeNote, winbackOutcomeSorted, attemptsForCustomer, latestWinbackOutcome, openWinbackCustomers, winbackOutcomeSummaryText, winbackOutcomeAllHtml, winbackOutcomeCsv, winbackOutcomeFilename } from './winback-outcome.js';
 import { validAnniversaryMilestoneDate, normalizeAnniversaryMilestoneList, recordAnniversaryMilestone, removeAnniversaryMilestone, addAnniversaryMilestoneNote, milestonesForCustomer, anniversaryMilestoneSummaryText, anniversaryMilestoneAllHtml, anniversaryMilestoneCsv, anniversaryMilestoneFilename } from './anniversary-milestone.js';
 import { validReferralOutcomeDate, normalizeReferralOutcomeList, recordReferralOutcome, removeReferralOutcome, addReferralOutcomeNote, referralOutcomesForReferrer, referralOutcomeCounts, referralOutcomeSummaryText, referralOutcomeAllHtml, referralOutcomeCsv, referralOutcomeFilename } from './referral-outcome.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14164,6 +14165,7 @@ function renderAnalytics() {
   renderComplaintFollowups();
   renderPromiseDeliveryChecks();
   renderLaunchChecklists();
+  renderWinbackOutcomes();
   renderAnniversaryMilestones();
   renderReferralOutcomes();
   renderCorrectionApprovals();
@@ -29060,6 +29062,91 @@ function renderLaunchChecklists() {
     });
     $('#lcFilterBtn')?.addEventListener('click', () => { renderLaunchChecklists(); });
     $('#lcFilterMohalla')?.addEventListener('input', () => { renderLaunchChecklists(); });
+  }
+}
+const WINBACK_OUTCOME_KEY = 'shahdara_wb_outcomes_v1';
+function loadWinbackOutcomes() {
+  try { return normalizeWinbackOutcomeList(JSON.parse(localStorage.getItem(WINBACK_OUTCOME_KEY) || '[]')); } catch { return []; }
+}
+function saveWinbackOutcomes(list) {
+  try { localStorage.setItem(WINBACK_OUTCOME_KEY, JSON.stringify(normalizeWinbackOutcomeList(list))); } catch { /* winback outcomes only: a failed save leaves the previous list in place */ }
+}
+let winbackOutcomesBound = false;
+function renderWinbackOutcomes() {
+  const listEl = $('#woList');
+  if (!listEl) return;
+  const all = loadWinbackOutcomes();
+  listEl.innerHTML = all.length ? winbackOutcomeAllHtml(all) : '<p>No winback outcomes recorded.</p>';
+  const summaryEl = $('#woSummary');
+  if (summaryEl) summaryEl.textContent = `${winbackOutcomeSummaryText(all)} An outcome entry is never edited, only annotated. Recording an outcome never changes any customer record, bill, or payment by itself.`;
+  const filterEl = $('#woFilterBody');
+  if (filterEl) {
+    const customer = ($('#woFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      filterEl.innerHTML = '<p>Give a former customer name to show their winback attempts.</p>';
+    } else {
+      const rows = attemptsForCustomer(all, customer);
+      filterEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>${entry.customer} (${entry.attemptDate}): ${entry.outcome} — ${entry.note}.</li>`).join('')}</ul>`
+        : `<p>No winback attempt recorded for customer \u201c${customer}\u201d.</p>`;
+    }
+  }
+  const latestEl = $('#woLatestBody');
+  if (latestEl) {
+    const customer = ($('#woLatestCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      latestEl.innerHTML = '<p>Give a former customer name to show their latest winback outcome.</p>';
+    } else {
+      const latest = latestWinbackOutcome(all, customer);
+      latestEl.innerHTML = latest
+        ? `<p>Latest outcome for ${latest.customer}: ${latest.outcome} on ${latest.attemptDate} — ${latest.note}.</p>`
+        : `<p>No winback attempt recorded for customer \u201c${customer}\u201d.</p>`;
+    }
+  }
+  const openEl = $('#woOpenBody');
+  if (openEl) {
+    const refs = ($('#woOpenRefs')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+    if (!refs.length) {
+      openEl.innerHTML = '<p>List former customers, one per line, to see who is still on the open winback list.</p>';
+    } else {
+      const open = openWinbackCustomers(all, refs);
+      openEl.innerHTML = open.length
+        ? `<ul>${open.map((customer) => `<li>${customer}</li>`).join('')}</ul>`
+        : '<p>Every listed customer has a recorded return, so none is left on the open winback list.</p>';
+    }
+  }
+  if (!winbackOutcomesBound) {
+    winbackOutcomesBound = true;
+    $('#woExportBtn')?.addEventListener('click', () => { downloadCsvFile(winbackOutcomeFilename(), winbackOutcomeCsv(loadWinbackOutcomes())); });
+    $('#woRecordBtn')?.addEventListener('click', () => {
+      const before = loadWinbackOutcomes();
+      const next = recordWinbackOutcome(before, {
+        id: `WO-${Date.now()}`,
+        customer: $('#woCustomer')?.value ?? '',
+        attemptDate: $('#woAttemptDate')?.value ?? '',
+        outcome: $('#woOutcome')?.value ?? '',
+        note: $('#woNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Winback outcome not recorded: give a former customer, a real attempt date, a clear outcome (returned, declined, or no answer), and a note.'); return; }
+      saveWinbackOutcomes(next);
+      renderWinbackOutcomes();
+    });
+    $('#woAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadWinbackOutcomes();
+      const next = addWinbackOutcomeNote(before, $('#woAnnotateId')?.value ?? '', $('#woAnnotateDate')?.value ?? '', $('#woAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Winback note not added: give a known entry id, a real date, and a note.'); return; }
+      saveWinbackOutcomes(next);
+      renderWinbackOutcomes();
+    });
+    $('#woRemoveBtn')?.addEventListener('click', () => {
+      saveWinbackOutcomes(removeWinbackOutcome(loadWinbackOutcomes(), $('#woRemoveId')?.value ?? ''));
+      renderWinbackOutcomes();
+    });
+    $('#woFilterBtn')?.addEventListener('click', () => { renderWinbackOutcomes(); });
+    $('#woFilterCustomer')?.addEventListener('input', () => { renderWinbackOutcomes(); });
+    $('#woLatestBtn')?.addEventListener('click', () => { renderWinbackOutcomes(); });
+    $('#woLatestCustomer')?.addEventListener('input', () => { renderWinbackOutcomes(); });
+    $('#woOpenBtn')?.addEventListener('click', () => { renderWinbackOutcomes(); });
   }
 }
 const ANNIVERSARY_MILESTONE_KEY = 'shahdara_anniversary_milestones_v1';

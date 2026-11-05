@@ -455,6 +455,7 @@ import { validMaterialReturnDate, normalizeMaterialReturnList, recordMaterialRet
 import { validFieldExpenseDate, normalizeFieldExpenseList, recordFieldExpense, removeFieldExpense, addFieldExpenseFollowup, fieldExpenseSorted, fieldExpensesForVisit, fieldExpenseTotalForVisit, fieldExpensesForMonth, fieldExpenseTotalForMonth, fieldExpenseSummaryText, fieldExpenseHtml, fieldExpenseAllHtml, fieldExpenseCsv, fieldExpenseFilename } from './field-expense.js';
 import { validRestorationTimeDatetime, normalizeRestorationTimeList, recordRestorationTime, removeRestorationTime, addRestorationTimeFollowup, restorationTimeSorted, restorationTimesForTicket, restorationDurationText, ticketsWithoutRestorationTime, restorationTimeSummaryText, restorationTimeHtml, restorationTimeAllHtml, restorationTimeCsv, restorationTimeFilename } from './restoration-time.js';
 import { validRepeatVisitDate, normalizeRepeatVisitList, recordRepeatVisitNote, removeRepeatVisitNote, addRepeatVisitFollowup, repeatVisitSorted, repeatVisitNotesForCustomer, flaggedRepeatVisitCustomers, repeatVisitSummaryText, repeatVisitHtml, repeatVisitAllHtml, repeatVisitCsv, repeatVisitFilename } from './repeat-visit.js';
+import { validVisitAcknowledgementDate, normalizeVisitAcknowledgementList, recordVisitAcknowledgement, removeVisitAcknowledgement, addVisitAcknowledgementFollowup, visitAcknowledgementSorted, visitAcknowledgementsForCustomer, visitAcknowledgementStatus, visitsWithoutAcknowledgement, visitAcknowledgementSummaryText, visitAcknowledgementAllHtml, visitAcknowledgementCsv, visitAcknowledgementFilename } from './visit-acknowledgement.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14152,6 +14153,7 @@ function renderAnalytics() {
   renderFieldExpenses();
   renderRestorationTimes();
   renderRepeatVisitNotes();
+  renderVisitAcknowledgements();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28631,6 +28633,93 @@ function renderRepeatVisitNotes() {
     $('#rvCustomerBtn')?.addEventListener('click', () => { renderRepeatVisitNotes(); });
     $('#rvFilterCustomer')?.addEventListener('input', () => { renderRepeatVisitNotes(); });
     $('#rvFlaggedBtn')?.addEventListener('click', () => { renderRepeatVisitNotes(); });
+  }
+}
+const VISIT_ACKNOWLEDGEMENT_KEY = 'shahdara_visit_acknowledgements_v1';
+function loadVisitAcknowledgements() {
+  try { return normalizeVisitAcknowledgementList(JSON.parse(localStorage.getItem(VISIT_ACKNOWLEDGEMENT_KEY) || '[]')); } catch { return []; }
+}
+function saveVisitAcknowledgements(list) {
+  try { localStorage.setItem(VISIT_ACKNOWLEDGEMENT_KEY, JSON.stringify(normalizeVisitAcknowledgementList(list))); } catch { /* visit acknowledgement notes only: a failed save leaves the previous list in place */ }
+}
+let visitAcknowledgementsBound = false;
+function renderVisitAcknowledgements() {
+  const listEl = $('#vaList');
+  if (!listEl) return;
+  const all = loadVisitAcknowledgements();
+  listEl.innerHTML = all.length ? visitAcknowledgementAllHtml(all) : '<p>No visit acknowledgement notes recorded.</p>';
+  const summaryEl = $('#vaSummary');
+  if (summaryEl) summaryEl.textContent = `${visitAcknowledgementSummaryText(all)} A note is never edited, only annotated. Recording acknowledgement never changes any bill, payment, customer, job, or visit record by itself.`;
+  const statusEl = $('#vaStatusBody');
+  if (statusEl) {
+    const visitRef = ($('#vaStatusRef')?.value ?? '').trim();
+    if (visitRef === '') {
+      statusEl.innerHTML = '<p>Give a visit reference to show its acknowledgement status.</p>';
+    } else {
+      const found = visitAcknowledgementStatus(all, visitRef);
+      statusEl.innerHTML = found
+        ? `<p>Visit ${found.visitRef}: ${found.status}.</p>`
+        : '<p>Give a visit reference to show its acknowledgement status.</p>';
+    }
+  }
+  const exceptionsEl = $('#vaExceptionsBody');
+  if (exceptionsEl) {
+    const raw = ($('#vaExceptionsInput')?.value ?? '').trim();
+    if (raw === '') {
+      exceptionsEl.innerHTML = '<p>Give visit references, one per line, to list the visits without acknowledgement.</p>';
+    } else {
+      const refs = raw.split('\n').map((line) => line.trim()).filter(Boolean);
+      const missing = visitsWithoutAcknowledgement(all, refs);
+      exceptionsEl.innerHTML = missing.length
+        ? `<ul>${missing.map((item) => `<li>${item.visitRef}: ${item.status}.</li>`).join('')}</ul>`
+        : '<p>Every listed visit has an acknowledgement note that says yes.</p>';
+    }
+  }
+  const customerEl = $('#vaCustomerBody');
+  if (customerEl) {
+    const customer = ($('#vaFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to show their visit acknowledgement notes.</p>';
+    } else {
+      const rows = visitAcknowledgementsForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>Visit ${entry.visitRef} (${entry.date}): ${entry.acknowledged ? 'acknowledged' : 'not acknowledged'} — ${entry.note}.</li>`).join('')}</ul>`
+        : `<p>No visit acknowledgement note recorded for customer \u201c${customer}\u201d.</p>`;
+    }
+  }
+  if (!visitAcknowledgementsBound) {
+    visitAcknowledgementsBound = true;
+    $('#vaExportBtn')?.addEventListener('click', () => { downloadCsvFile(visitAcknowledgementFilename(), visitAcknowledgementCsv(loadVisitAcknowledgements())); });
+    $('#vaRecordBtn')?.addEventListener('click', () => {
+      const before = loadVisitAcknowledgements();
+      const next = recordVisitAcknowledgement(before, {
+        id: `VA-${Date.now()}`,
+        visitRef: $('#vaVisitRef')?.value ?? '',
+        customer: $('#vaCustomer')?.value ?? '',
+        date: $('#vaDate')?.value ?? '',
+        acknowledged: $('#vaAcknowledged')?.value ?? '',
+        note: $('#vaNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Visit acknowledgement not recorded: give a visit reference, a customer, a real date, acknowledgement yes or no, and a note of what was acknowledged. One note per visit.'); return; }
+      saveVisitAcknowledgements(next);
+      renderVisitAcknowledgements();
+    });
+    $('#vaAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadVisitAcknowledgements();
+      const next = addVisitAcknowledgementFollowup(before, $('#vaAnnotateId')?.value ?? '', $('#vaAnnotateDate')?.value ?? '', $('#vaAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Follow-up note not added: give a known entry id, a real date, and a note.'); return; }
+      saveVisitAcknowledgements(next);
+      renderVisitAcknowledgements();
+    });
+    $('#vaRemoveBtn')?.addEventListener('click', () => {
+      saveVisitAcknowledgements(removeVisitAcknowledgement(loadVisitAcknowledgements(), $('#vaRemoveId')?.value ?? ''));
+      renderVisitAcknowledgements();
+    });
+    $('#vaStatusBtn')?.addEventListener('click', () => { renderVisitAcknowledgements(); });
+    $('#vaStatusRef')?.addEventListener('input', () => { renderVisitAcknowledgements(); });
+    $('#vaExceptionsBtn')?.addEventListener('click', () => { renderVisitAcknowledgements(); });
+    $('#vaCustomerBtn')?.addEventListener('click', () => { renderVisitAcknowledgements(); });
+    $('#vaFilterCustomer')?.addEventListener('input', () => { renderVisitAcknowledgements(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

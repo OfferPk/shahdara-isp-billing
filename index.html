@@ -10072,6 +10072,72 @@
 <h4>All repeat-visit notes</h4>
 <div id="rvList"></div>
 </section>
+<section class="chart-card" aria-labelledby="vaHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="vaHeading">Field visit customer signature note</h3>
+<p class="chart-caption">One acknowledgement note per visit: the visit reference, the customer, the date, acknowledgement recorded yes or no, and a note of what was acknowledged in plain words. It records acknowledgement only — never a signature image and never a legal document. A visit shows its acknowledgement status, and visits without acknowledgement are listed as exceptions. A note is never edited, only annotated. Recording acknowledgement never changes any bill, payment, customer, job, or visit record by itself.</p>
+<p id="vaSummary"></p>
+</div>
+<div>
+<button id="vaExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export visit acknowledgements CSV</button>
+</div>
+</div>
+<h4>Record a visit acknowledgement note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Visit reference <input id="vaVisitRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Customer <input id="vaCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="vaDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Acknowledgement <select id="vaAcknowledged" style="width: 90px;">
+<option value="yes">Yes</option>
+<option value="no">No</option>
+</select>
+</label>
+<label style="font-size: 12px;">What was acknowledged <input id="vaNote" type="text" style="width: 260px;">
+</label>
+<button id="vaRecordBtn" class="secondary-button btn-sm" type="button">Record acknowledgement note</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="vaAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="vaAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="vaAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="vaAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="vaRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="vaRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Acknowledgement status for one visit</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Visit reference <input id="vaStatusRef" type="text" style="width: 140px;">
+</label>
+<button id="vaStatusBtn" class="secondary-button btn-sm" type="button">Show status</button>
+</div>
+<div id="vaStatusBody"></div>
+<h4>Visits without acknowledgement</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Visit references, one per line <textarea id="vaExceptionsInput" rows="3" style="width: 200px;"></textarea>
+</label>
+<button id="vaExceptionsBtn" class="secondary-button btn-sm" type="button">List visits without acknowledgement</button>
+</div>
+<div id="vaExceptionsBody"></div>
+<h4>Notes for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="vaFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="vaCustomerBtn" class="secondary-button btn-sm" type="button">Show notes</button>
+</div>
+<div id="vaCustomerBody"></div>
+<h4>All visit acknowledgement notes</h4>
+<div id="vaList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

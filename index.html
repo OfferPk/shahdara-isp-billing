@@ -10405,6 +10405,67 @@
 <h4>All launch checklists</h4>
 <div id="lcList"></div>
 </section>
+<section class="chart-card" aria-labelledby="woHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="woHeading">Winback outcome log</h3>
+<p class="chart-caption">One outcome entry per winback attempt: former customer, attempt date, outcome returned, declined, or no answer, and a note in plain words. It logs outcomes only and does not replace the winback queue or the follow-up cadence. A former customer shows attempts in date order with the latest outcome prominent, and returned customers leave the open winback list. An outcome entry is never edited, only annotated. Recording an outcome never changes any customer record, bill, or payment by itself.</p>
+<p id="woSummary"></p>
+</div>
+<div>
+<button id="woExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export winback outcomes CSV</button>
+</div>
+</div>
+<h4>Record a winback outcome</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Former customer <input id="woCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Attempt date <input id="woAttemptDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Outcome <select id="woOutcome" style="width: 140px;"><option value="">Choose…</option><option value="returned">Returned</option><option value="declined">Declined</option><option value="no answer">No answer</option></select>
+</label>
+<label style="font-size: 12px;">Note <input id="woNote" type="text" style="width: 260px;">
+</label>
+<button id="woRecordBtn" class="secondary-button btn-sm" type="button">Record winback outcome</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="woAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="woAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="woAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="woAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="woRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="woRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Winback attempts for one former customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Former customer <input id="woFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="woFilterBtn" class="secondary-button btn-sm" type="button">Show winback attempts</button>
+</div>
+<div id="woFilterBody"></div>
+<h4>Latest winback outcome for one former customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Former customer <input id="woLatestCustomer" type="text" style="width: 140px;">
+</label>
+<button id="woLatestBtn" class="secondary-button btn-sm" type="button">Show latest outcome</button>
+</div>
+<div id="woLatestBody"></div>
+<h4>Open winback list</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Former customers, one per line <textarea id="woOpenRefs" rows="3" style="width: 260px;"></textarea>
+</label>
+<button id="woOpenBtn" class="secondary-button btn-sm" type="button">List open winback customers</button>
+</div>
+<div id="woOpenBody"></div>
+<h4>All winback outcomes</h4>
+<div id="woList"></div>
+</section>
 <section class="chart-card" aria-labelledby="amHeading">
 <div class="table-heading">
 <div>

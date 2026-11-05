@@ -10683,6 +10683,53 @@
 <h4>All preference changes</h4>
 <div id="pcList"></div>
 </section>
+<section class="chart-card" aria-labelledby="crHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="crHeading">Complaint reopen note</h3>
+<p class="chart-caption">One reopen note per reopened complaint: the complaint link, the reopen date, the reason in plain words, and the previous outcome noted. A complaint page lists its reopen notes in date order with reasons. A reopen note with no complaint link or no reason is refused. Recording a note never changes the original complaint history, any bill, or any payment, and it is not the post-resolution note recorded at closure or the reopen window rule.</p>
+<p id="crSummary"></p>
+</div>
+<div>
+<button id="crExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export complaint reopen notes CSV</button>
+</div>
+</div>
+<h4>Record a complaint reopen note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Complaint reference <input id="crComplaintRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reopen date <input id="crReopenDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason <input id="crReason" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Previous outcome <input id="crPreviousOutcome" type="text" style="width: 220px;">
+</label>
+<button id="crRecordBtn" class="secondary-button btn-sm" type="button">Record reopen note</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="crAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="crAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="crAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="crAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove note id <input id="crRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="crRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Reopen notes for one complaint</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Complaint reference <input id="crFilterComplaint" type="text" style="width: 140px;">
+</label>
+<button id="crFilterBtn" class="secondary-button btn-sm" type="button">Show reopen notes</button>
+</div>
+<div id="crFilterBody"></div>
+<h4>All complaint reopen notes</h4>
+<div id="crList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

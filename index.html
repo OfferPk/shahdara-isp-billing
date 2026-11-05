@@ -8812,6 +8812,53 @@
 <div id="ppPlannedBody"></div>
 <h4>Used ports</h4>
 <div id="ppUsedBody"></div>
+</section><section class="chart-card" aria-labelledby="kpHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="kpHeading">Field kit power backup log</h3>
+<p class="chart-caption">One log entry per charge of a field-kit power item — a portable battery or charger, the kit it belongs to, the date charged, the visit it was carried on, and a condition note — so a visit is never cut short by a flat battery that could have been charged the night before. This covers field kit only, not site power or site battery runtime, and a charge entry is never edited, only followed by a newer entry. Recording a charge never changes any bill, payment, customer, visit, or staff record by itself.</p>
+<p id="kpSummary"></p>
+</div>
+<div>
+<button id="kpExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export kit power CSV</button>
+</div>
+</div>
+<h4>Record a kit charge</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Item (battery or charger) <input id="kpItem" type="text" style="width: 150px;">
+</label>
+<label style="font-size: 12px;">Kit it belongs to <input id="kpKit" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Date charged <input id="kpDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Visit carried on <input id="kpVisit" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Condition note <input id="kpCondition" type="text" style="width: 170px;">
+</label>
+<button id="kpSaveBtn" class="secondary-button btn-sm" type="button">Record charge</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove entry id <input id="kpRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="kpRemoveBtn" class="secondary-button btn-sm" type="button">Remove entry</button>
+<label style="font-size: 12px;">Filter by item <input id="kpFilter" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Check item <input id="kpCheckItem" type="text" style="width: 120px;">
+</label>
+<button id="kpCheckBtn" class="secondary-button btn-sm" type="button">Show last charge and visits</button>
+</div>
+<p id="kpCheckOut" style="font-size: 12px;"></p>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">As-of date <input id="kpAsOf" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Charge interval (days) <input id="kpInterval" type="number" style="width: 100px;">
+</label>
+<button id="kpStaleBtn" class="secondary-button btn-sm" type="button">Show items overdue for charging</button>
+</div>
+<p id="kpStaleOut" style="font-size: 12px;"></p>
+<h4>Kit power entries</h4>
+<div id="kpBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

@@ -422,6 +422,7 @@ import { normalizeInstalmentDefaultList, recordInstalmentDefault, removeInstalme
 import { normalizeDepositTopUpList, recordDepositTopUp, removeDepositTopUp, depositTopUpsSorted, depositTopUpsForDeposit, depositTopUpSummaryText, depositTopUpAllHtml, depositTopUpCsv, depositTopUpFilename } from './deposit-topup.js';
 import { normalizeRefundApprovalList, recordRefundApproval, removeRefundApproval, approvalsSorted as refundApprovalsSorted, approvalsForPeriod as refundApprovalsForPeriod, refundApprovalStatus, refundApprovalAllHtml, refundApprovalSummaryText, refundApprovalCsv, refundApprovalFilename } from './refund-approval.js';
 import { normalizeBankReconExceptionList, recordBankReconException, removeBankReconException, explainBankReconException, exceptionsSorted, exceptionsOpen, exceptionsForPeriod, reconcileToPeriodDifference, bankReconExceptionAllHtml, bankReconExceptionSummaryText, bankReconExceptionCsv, bankReconExceptionFilename, exceptionAgeDays } from './bank-reconciliation-exception.js';
+import { normalizeReceiptBookList, recordReceiptBook, removeReceiptBook, returnReceiptBook, receiptBooksOutstanding, receiptBooksForHolder, receiptBookAgeDays, receiptBookAllHtml, receiptBookSummaryText, receiptBookCsv, receiptBookFilename } from './receipt-book.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14086,6 +14087,7 @@ function renderAnalytics() {
   renderDepositTopUps();
   renderRefundApprovals();
   renderBankReconExceptions();
+  renderReceiptBooks();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26492,6 +26494,59 @@ function renderBankReconExceptions() {
         : result.matches ? `Reconciled: open plus explained (${result.totalCents} cents) equals the period bank difference.`
         : `Not reconciled: open plus explained is ${result.totalCents} cents against a period bank difference of ${result.periodDifferenceCents} cents (${result.remainingCents} cents remaining).`;
     });
+  }
+}
+const RECEIPT_BOOK_KEY = 'shahdara_receipt_books_v1';
+function loadReceiptBooks() {
+  try { return normalizeReceiptBookList(JSON.parse(localStorage.getItem(RECEIPT_BOOK_KEY) || '[]')); } catch { return []; }
+}
+function saveReceiptBooks(list) {
+  try { localStorage.setItem(RECEIPT_BOOK_KEY, JSON.stringify(normalizeReceiptBookList(list))); } catch { /* book custody only: a failed save leaves the previous list in place */ }
+}
+let receiptBooksBound = false;
+function renderReceiptBooks() {
+  const bodyEl = $('#rbBody');
+  if (!bodyEl) return;
+  const all = loadReceiptBooks();
+  const holder = $('#rbHolderFilter')?.value ?? '';
+  const shown = holder ? receiptBooksForHolder(all, holder) : all;
+  bodyEl.innerHTML = receiptBookAllHtml(shown);
+  const openEl = $('#rbOpenBody');
+  if (openEl) {
+    const asOf = $('#rbAsOf')?.value ?? '';
+    const open = receiptBooksOutstanding(all);
+    openEl.innerHTML = open.length ? open.map((row) => {
+      const age = asOf ? receiptBookAgeDays(row, asOf) : null;
+      return `<p>Book ${row.bookId} — ${row.issuedTo} — issued ${row.dateIssued}${age === null ? '' : ` — ${age} day(s) outstanding`}</p>`;
+    }).join('') : '<p>No outstanding receipt books.</p>';
+  }
+  const summaryEl = $('#rbSummary');
+  if (summaryEl) summaryEl.textContent = `${receiptBookSummaryText(all)} A book issue tracks custody only; it assigns no numbers and changes no receipt, payment, or series record.`;
+  if (!receiptBooksBound) {
+    receiptBooksBound = true;
+    $('#rbExportBtn')?.addEventListener('click', () => { downloadCsvFile(receiptBookFilename(), receiptBookCsv(shown)); });
+    $('#rbSaveBtn')?.addEventListener('click', () => {
+      const before = loadReceiptBooks();
+      const next = recordReceiptBook(before, {
+        id: `RB-${Date.now()}`,
+        bookId: $('#rbBookId')?.value ?? '',
+        issuedTo: $('#rbHolder')?.value ?? '',
+        dateIssued: $('#rbDateIssued')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Receipt book not recorded: give a book id, a holder, and a real issue date.'); return; }
+      saveReceiptBooks(next);
+      renderReceiptBooks();
+    });
+    $('#rbRemoveBtn')?.addEventListener('click', () => {
+      saveReceiptBooks(removeReceiptBook(loadReceiptBooks(), $('#rbRemoveId')?.value ?? ''));
+      renderReceiptBooks();
+    });
+    $('#rbReturnBtn')?.addEventListener('click', () => {
+      saveReceiptBooks(returnReceiptBook(loadReceiptBooks(), $('#rbReturnId')?.value ?? '', $('#rbReturnDate')?.value ?? '', $('#rbReturnCondition')?.value ?? ''));
+      renderReceiptBooks();
+    });
+    $('#rbHolderFilter')?.addEventListener('input', () => { renderReceiptBooks(); });
+    $('#rbAsOf')?.addEventListener('change', () => { renderReceiptBooks(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

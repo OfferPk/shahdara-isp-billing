@@ -10633,6 +10633,34 @@
 <div id="epaBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="gfuHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="gfuHeading">Growth funding note</h3>
+<p class="chart-caption">One dated set-aside note per saving toward the second OLT: the date, the amount set aside in whole rupees, the source in plain words, and the running set-aside total entered by the operator. Notes show each set-aside and the running total, reconciling on the same fixture. Recording a note never changes any bill, payment, or ledger total by itself, and moving money still goes through its own existing flow.</p>
+<p id="gfuSummary"></p>
+</div>
+<div>
+<button id="gfuExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export growth funding CSV</button>
+</div>
+</div>
+<h4>Record a growth funding note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="gfuDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Amount set aside (Rs) <input id="gfuAmount" type="text" style="width: 120px;" placeholder="e.g. 5000"></label>
+<label style="font-size: 12px;">Source <input id="gfuSource" type="text" style="width: 160px;" placeholder="e.g. Shop cash"></label>
+<label style="font-size: 12px;">Running total (Rs) <input id="gfuRunningTotal" type="text" style="width: 120px;" placeholder="e.g. 50000"></label>
+<button id="gfuRecordBtn" class="secondary-button btn-sm" type="button">Record set-aside</button>
+<label style="font-size: 12px;">Remove id <input id="gfuRemoveId" type="text" style="width: 120px;"></label>
+<button id="gfuRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Set-asides from one source</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Source <select id="gfuSourceSelect" style="width: 160px;"></select></label>
+</div>
+<div id="gfuSourceBody"></div>
+<h4>All growth funding notes</h4>
+<div id="gfuBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

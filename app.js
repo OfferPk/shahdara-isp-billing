@@ -501,6 +501,7 @@ import { normalizeShopMaintenanceNoteList, recordShopMaintenanceNote, removeShop
 import { normalizeSeenList, markReminderSeen, renewalReminderQueue, overdueReminders, renewalReminderSummaryText, renewalReminderQueueHtml, renewalReminderCsv, renewalReminderFilename } from './renewal-reminder.js';
 import { normalizeInsuranceClaimList, recordInsuranceClaim, removeInsuranceClaim, insuranceClaimsForAsset, insuranceClaimSummaryText, insuranceClaimAllHtml, insuranceClaimsForAssetHtml, insuranceClaimCsv, insuranceClaimFilename } from './insurance-claim.js';
 import { normalizePurchaseApprovalList, recordPurchaseApproval, removePurchaseApproval, purchaseApprovalsForItem, purchaseApprovalSummaryText, purchaseApprovalAllHtml, purchaseApprovalsForItemHtml, purchaseApprovalCsv, purchaseApprovalFilename } from './equipment-purchase-approval.js';
+import { validGrowthFundingDate, normalizeGrowthFundingList, recordGrowthFundingNote, removeGrowthFundingNote, growthFundingNotesForSource, growthFundingSources, growthFundingSummaryText, growthFundingAllHtml, growthFundingNotesForSourceHtml, growthFundingCsv, growthFundingFilename } from './growth-funding.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14248,6 +14249,7 @@ function renderAnalytics() {
   renderRenewalReminders();
   renderInsuranceClaims();
   renderPurchaseApprovals();
+  renderGrowthFunding();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31658,6 +31660,67 @@ function renderPurchaseApprovals() {
     $('#epaRemoveBtn')?.addEventListener('click', () => {
       savePurchaseApprovals(removePurchaseApproval(loadPurchaseApprovals(), $('#epaRemoveId')?.value ?? ''));
       renderPurchaseApprovals();
+    });
+  }
+}
+
+// Growth funding note (Plan 305): one dated set-aside note per
+// saving toward the second unit — the date, the amount set aside
+// in whole rupees, the source in plain words, and the running
+// set-aside total entered by the operator. Recording a note never
+// changes any bill, payment, or ledger total by itself, and moving
+// money still goes through its own existing flow.
+const GROWTH_FUNDING_KEY = 'shahdara_growth_funding_v1';
+function loadGrowthFundingNotes() {
+  try { return normalizeGrowthFundingList(JSON.parse(localStorage.getItem(GROWTH_FUNDING_KEY) || '[]')); } catch { return []; }
+}
+function saveGrowthFundingNotes(list) {
+  try { localStorage.setItem(GROWTH_FUNDING_KEY, JSON.stringify(normalizeGrowthFundingList(list))); } catch { /* growth funding only: a failed save leaves the previous list in place */ }
+}
+let growthFundingBound = false;
+function renderGrowthFunding() {
+  const listEl = $('#gfuBody');
+  if (!listEl) return;
+  const all = loadGrowthFundingNotes();
+  listEl.innerHTML = all.length ? growthFundingAllHtml(all) : '<p>No growth funding notes recorded.</p>';
+  const summaryEl = $('#gfuSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${growthFundingSummaryText(all)} Recording a note never changes any bill, payment, or ledger total by itself.`;
+  }
+  const sourceSelect = $('#gfuSourceSelect');
+  if (sourceSelect) {
+    const sources = growthFundingSources(all);
+    const current = sourceSelect.value;
+    sourceSelect.innerHTML = sources.map((source) => `<option value="${source}">${source}</option>`).join('');
+    if (sources.includes(current)) sourceSelect.value = current;
+  }
+  const sourceEl = $('#gfuSourceBody');
+  if (sourceEl) {
+    const chosen = sourceSelect?.value ?? '';
+    sourceEl.innerHTML = chosen
+      ? growthFundingNotesForSourceHtml(all, chosen)
+      : '<p>Pick a source to see its set-asides.</p>';
+  }
+  if (!growthFundingBound) {
+    growthFundingBound = true;
+    $('#gfuExportBtn')?.addEventListener('click', () => { downloadCsvFile(growthFundingFilename(), growthFundingCsv(loadGrowthFundingNotes())); });
+    $('#gfuSourceSelect')?.addEventListener('change', () => { renderGrowthFunding(); });
+    $('#gfuRecordBtn')?.addEventListener('click', () => {
+      const before = loadGrowthFundingNotes();
+      const next = recordGrowthFundingNote(before, {
+        id: `GF-${Date.now()}`,
+        date: $('#gfuDate')?.value ?? '',
+        amount: $('#gfuAmount')?.value ?? '',
+        source: $('#gfuSource')?.value ?? '',
+        runningTotal: $('#gfuRunningTotal')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Growth funding note not recorded: give a real date, a whole-rupee amount of at least Rs 1, a source, and a whole-rupee running total.'); return; }
+      saveGrowthFundingNotes(next);
+      renderGrowthFunding();
+    });
+    $('#gfuRemoveBtn')?.addEventListener('click', () => {
+      saveGrowthFundingNotes(removeGrowthFundingNote(loadGrowthFundingNotes(), $('#gfuRemoveId')?.value ?? ''));
+      renderGrowthFunding();
     });
   }
 }

@@ -444,6 +444,7 @@ import { validEmergencyKitChecklistDate, normalizeEmergencyKitChecklistList, rec
 import { validNightVisitPairDate, validNightVisitPairReturnTime, normalizeNightVisitPairList, recordNightVisitPair, removeNightVisitPair, findNightVisitPair, addNightVisitPairAnnotation, recordNightVisitReturn, nightVisitPairSorted, nightVisitPairsInPeriod, nightVisitPairsForArea, nightVisitPairAreas, unpairedNightVisits, nightVisitPairSummaryText, unpairedNightVisitSummaryText, nightVisitPairText, nightVisitPairHtml, nightVisitPairCsv, nightVisitPairFilename } from './night-visit-pair.js';
 import { validRevisitAuthorisationDate, normalizeRevisitAuthorisationList, recordRevisitAuthorisation, removeRevisitAuthorisation, supersedeRevisitAuthorisation, revisitAuthorisationSorted, revisitAuthorisationsForJob, unauthorisedRevisits, revisitAuthorisationSummaryText, unauthorisedRevisitSummaryText, revisitAuthorisationHtml, revisitAuthorisationCsv, revisitAuthorisationFilename } from './revisit-authorisation.js';
 import { validAccessDifficultyDate, normalizeAccessDifficultyType, normalizeAccessDifficultyList, recordAccessDifficulty, removeAccessDifficulty, addAccessDifficultyUpdate, accessDifficultySorted, accessDifficultiesForCustomer, accessDifficultiesByType, accessDifficultySummaryText, accessDifficultyHtml, accessDifficultyCsv, accessDifficultyFilename } from './access-difficulty.js';
+import { validDropCableHistoryDate, normalizeDropCableHistoryList, recordDropCableReplacement, removeDropCableReplacement, addDropCableHistoryFollowUp, dropCableHistorySorted, dropCableReplacementsForCustomer, flaggedDropCableCustomers, dropCableHistorySummaryText, dropCableHistoryHtml, dropCableHistoryCsv, dropCableHistoryFilename } from './drop-cable-history.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14130,6 +14131,7 @@ function renderAnalytics() {
   renderNightVisitPairs();
   renderRevisitAuthorisations();
   renderAccessDifficulties();
+  renderDropCableHistories();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27778,6 +27780,71 @@ function renderAccessDifficulties() {
     $('#adVisitBtn')?.addEventListener('click', () => { renderAccessDifficulties(); });
     $('#adFilterCustomer')?.addEventListener('input', () => { renderAccessDifficulties(); });
     $('#adTypeBtn')?.addEventListener('click', () => { renderAccessDifficulties(); });
+  }
+}
+const DROP_CABLE_HISTORY_KEY = 'shahdara_drop_cable_histories_v1';
+function loadDropCableHistories() {
+  try { return normalizeDropCableHistoryList(JSON.parse(localStorage.getItem(DROP_CABLE_HISTORY_KEY) || '[]')); } catch { return []; }
+}
+function saveDropCableHistories(list) {
+  try { localStorage.setItem(DROP_CABLE_HISTORY_KEY, JSON.stringify(normalizeDropCableHistoryList(list))); } catch { /* replacement history only: a failed save leaves the previous list in place */ }
+}
+let dropCableHistoriesBound = false;
+function renderDropCableHistories() {
+  const listEl = $('#dchList');
+  if (!listEl) return;
+  const all = loadDropCableHistories();
+  listEl.innerHTML = all.length ? dropCableHistoryHtml(dropCableHistorySorted(all)) : '<p>No drop cable replacements recorded.</p>';
+  const summaryEl = $('#dchSummary');
+  if (summaryEl) summaryEl.textContent = `${dropCableHistorySummaryText(all)} An entry is never edited, only followed by a newer entry or a dated follow-up note. Recording a replacement never changes any bill, payment, customer, or condition record by itself, and it does not replace the drop cable condition record.`;
+  const customerEl = $('#dchCustomerBody');
+  if (customerEl) {
+    const customer = ($('#dchFilterCustomer')?.value ?? '').trim();
+    const rows = dropCableReplacementsForCustomer(all, customer);
+    customerEl.innerHTML = customer === ''
+      ? '<p>Give a customer to see their replacement history in date order.</p>'
+      : (rows.length ? dropCableHistoryHtml(rows) : '<p>No replacements recorded for this customer.</p>');
+  }
+  const flaggedEl = $('#dchFlaggedBody');
+  if (flaggedEl) {
+    const flagged = flaggedDropCableCustomers(all);
+    flaggedEl.innerHTML = flagged.length
+      ? `<ul>${flagged.map((entry) => `<li>${entry.customer} — ${entry.count} replacements. Fix the route or fitting before fitting another cable.</li>`).join('')}</ul>`
+      : '<p>No customer has two or more replacements.</p>';
+  }
+  if (!dropCableHistoriesBound) {
+    dropCableHistoriesBound = true;
+    $('#dchExportBtn')?.addEventListener('click', () => { downloadCsvFile(dropCableHistoryFilename(), dropCableHistoryCsv(loadDropCableHistories())); });
+    $('#dchRecordBtn')?.addEventListener('click', () => {
+      const before = loadDropCableHistories();
+      const next = recordDropCableReplacement(before, {
+        id: `DCH-${Date.now()}`,
+        customer: $('#dchCustomer')?.value ?? '',
+        date: $('#dchDate')?.value ?? '',
+        reason: $('#dchReason')?.value ?? '',
+        cableLengthM: $('#dchLength')?.value ?? '',
+        replacedBy: $('#dchReplacedBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Replacement not recorded: give a customer, a real date, a reason, and who replaced it.'); return; }
+      saveDropCableHistories(next);
+      renderDropCableHistories();
+    });
+    $('#dchFollowUpBtn')?.addEventListener('click', () => {
+      const before = loadDropCableHistories();
+      const next = addDropCableHistoryFollowUp(before, $('#dchFollowUpId')?.value ?? '', {
+        date: $('#dchFollowUpDate')?.value ?? '',
+        note: $('#dchFollowUpNote')?.value ?? '',
+      });
+      if (next === before) { toast('Follow-up not added: give a known entry id, a real date, and a follow-up note.'); return; }
+      saveDropCableHistories(next);
+      renderDropCableHistories();
+    });
+    $('#dchRemoveBtn')?.addEventListener('click', () => {
+      saveDropCableHistories(removeDropCableReplacement(loadDropCableHistories(), $('#dchRemoveId')?.value ?? ''));
+      renderDropCableHistories();
+    });
+    $('#dchCustomerBtn')?.addEventListener('click', () => { renderDropCableHistories(); });
+    $('#dchFilterCustomer')?.addEventListener('input', () => { renderDropCableHistories(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

@@ -9439,6 +9439,57 @@
 <div id="adTypeBody"></div>
 <h4>All difficulty notes</h4>
 <div id="adList"></div>
+</section>
+<section class="chart-card" aria-labelledby="dchHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="dchHeading">Drop cable replacement history per customer</h3>
+<p class="chart-caption">One history entry per drop cable replacement: the customer, the date, the reason in plain words, the cable length used if known, and who replaced it. A customer's replacements list in date order with reasons, and a customer with two or more replacements is flagged, so a home needing its third drop cable is a signal to fix the route or fitting, not to fit a fourth cable. An entry is never edited, only followed by a newer entry or a dated follow-up note. Recording a replacement never changes any bill, payment, customer, or condition record by itself.</p>
+<p id="dchSummary"></p>
+</div>
+<div>
+<button id="dchExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export drop cable histories CSV</button>
+</div>
+</div>
+<h4>Record a replacement</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="dchCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date replaced <input id="dchDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason <input id="dchReason" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Cable length (m, if known) <input id="dchLength" type="number" min="0" step="0.5" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Replaced by <input id="dchReplacedBy" type="text" style="width: 140px;">
+</label>
+<button id="dchRecordBtn" class="secondary-button btn-sm" type="button">Record replacement</button>
+</div>
+<h4>Add a dated follow-up / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="dchFollowUpId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="dchFollowUpDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="dchFollowUpNote" type="text" style="width: 220px;">
+</label>
+<button id="dchFollowUpBtn" class="secondary-button btn-sm" type="button">Add follow-up</button>
+<label style="font-size: 12px;">Remove entry id <input id="dchRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="dchRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Replacements for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="dchFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="dchCustomerBtn" class="secondary-button btn-sm" type="button">Show history</button>
+</div>
+<div id="dchCustomerBody"></div>
+<h4>Flagged customers (two or more replacements)</h4>
+<div id="dchFlaggedBody"></div>
+<h4>All replacements</h4>
+<div id="dchList"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

@@ -511,6 +511,7 @@ import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEn
 import { normalizeComplaintEscalationOwnerNoteList, recordComplaintEscalationOwnerNote, removeComplaintEscalationOwnerNote, answerComplaintEscalationOwnerNote, complaintEscalationOwnerOpenNotes, complaintEscalationOwnerComplaintRefs, complaintEscalationOwnerSummaryText, complaintEscalationOwnerAllHtml, complaintEscalationOwnerNotesForComplaintHtml, complaintEscalationOwnerCsv, complaintEscalationOwnerFilename } from './complaint-escalation-owner.js';
 import { validAnnualLeavePlanDay, foldAnnualLeavePlanYear, parseAnnualLeavePlanBlocks, normalizeAnnualLeavePlanList, recordAnnualLeavePlan, removeAnnualLeavePlan, setAnnualLeavePlanStatus, annualLeavePlanPlansForYear, annualLeavePlanPlansForStaff, annualLeavePlanStaffMembers, annualLeavePlanYears, annualLeavePlanClashes, annualLeavePlanSummaryText, annualLeavePlanYearHtml, annualLeavePlanAllHtml, annualLeavePlanCsv, annualLeavePlanFilename } from './annual-leave-plan.js';
 import { validStaffRecognitionDay, normalizeStaffRecognitionNoteList, recordStaffRecognitionNote, removeStaffRecognitionNote, staffRecognitionNotesForStaff, staffRecognitionStaffMembers, staffRecognitionSummaryText, staffRecognitionAllHtml, staffRecognitionNotesForStaffHtml, staffRecognitionCsv, staffRecognitionFilename } from './staff-recognition.js';
+import { validExportVerificationDay, foldExportVerificationResult, normalizeExportVerificationChecklistList, recordExportVerificationChecklist, removeExportVerificationChecklist, exportVerificationChecklistsForExport, exportVerificationExportRefs, exportVerificationSummaryText, exportVerificationAllHtml, exportVerificationChecklistsForExportHtml, uncheckedExportVerificationChecklistsHtml, exportVerificationCsv, exportVerificationFilename } from './export-verification.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14348,6 +14349,7 @@ function renderAnalytics() {
   renderComplaintEscalationOwnerNotes();
   renderAnnualLeavePlans();
   renderStaffRecognitionNotes();
+  renderExportVerificationChecklists();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -32460,6 +32462,72 @@ function renderStaffRecognitionNotes() {
     $('#srnRemoveBtn')?.addEventListener('click', () => {
       saveStaffRecognitionNotes(removeStaffRecognitionNote(loadStaffRecognitionNotes(), $('#srnRemoveId')?.value ?? ''));
       renderStaffRecognitionNotes();
+    });
+  }
+}
+
+const EXPORT_VERIFICATION_KEY = 'shahdara_export_verification_v1';
+function loadExportVerificationChecklists() {
+  try { return normalizeExportVerificationChecklistList(JSON.parse(localStorage.getItem(EXPORT_VERIFICATION_KEY) || '[]')); } catch { return []; }
+}
+function saveExportVerificationChecklists(list) {
+  try { localStorage.setItem(EXPORT_VERIFICATION_KEY, JSON.stringify(normalizeExportVerificationChecklistList(list))); } catch { /* verification checklists only: a failed save leaves the previous list in place */ }
+}
+let exportVerificationBound = false;
+function renderExportVerificationChecklists() {
+  const bodyEl = $('#evcBody');
+  if (!bodyEl) return;
+  const all = loadExportVerificationChecklists();
+  bodyEl.innerHTML = exportVerificationAllHtml(all);
+  const summaryEl = $('#evcSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${exportVerificationSummaryText(all)} A checklist only checks an export; recording one never changes any bill, payment, customer, or staff record by itself.`;
+  }
+  const refSelect = $('#evcRefSelect');
+  if (refSelect) {
+    const refs = exportVerificationExportRefs(all);
+    const current = refSelect.value;
+    refSelect.innerHTML = refs.map((ref) => `<option value="${escapeHtml(ref)}">${escapeHtml(ref)}</option>`).join('');
+    if (refs.includes(current)) refSelect.value = current;
+  }
+  const refEl = $('#evcRefBody');
+  if (refEl) {
+    const chosen = refSelect?.value ?? '';
+    refEl.innerHTML = chosen
+      ? exportVerificationChecklistsForExportHtml(all, chosen)
+      : '<p>Pick an export to see its verification checklists.</p>';
+  }
+  const uncheckedEl = $('#evcUncheckedBody');
+  if (uncheckedEl) {
+    uncheckedEl.innerHTML = uncheckedExportVerificationChecklistsHtml(all);
+  }
+  if (!exportVerificationBound) {
+    exportVerificationBound = true;
+    $('#evcExportBtn')?.addEventListener('click', () => { downloadCsvFile(exportVerificationFilename(), exportVerificationCsv(loadExportVerificationChecklists())); });
+    $('#evcRefSelect')?.addEventListener('change', () => { renderExportVerificationChecklists(); });
+    $('#evcRecordBtn')?.addEventListener('click', () => {
+      const before = loadExportVerificationChecklists();
+      const dateFrom = ($('#evcDateFrom')?.value ?? '').trim();
+      const dateTo = ($('#evcDateTo')?.value ?? '').trim();
+      if (!validExportVerificationDay(dateFrom) || !validExportVerificationDay(dateTo)) { toast('Verification checklist not recorded: give real start and end dates like 2026-11-01.'); return; }
+      if (dateTo < dateFrom) { toast('Verification checklist not recorded: the end date cannot be before the start date.'); return; }
+      const next = recordExportVerificationChecklist(before, {
+        id: ($('#evcId')?.value ?? '').trim() || `EVC-${Date.now()}`,
+        exportRef: ($('#evcExportRef')?.value ?? ''),
+        expectedCount: ($('#evcExpected')?.value ?? '').trim(),
+        foundCount: ($('#evcFound')?.value ?? '').trim(),
+        dateFrom,
+        dateTo,
+        checker: ($('#evcChecker')?.value ?? ''),
+        result: foldExportVerificationResult($('#evcResult')?.value ?? 'unchecked'),
+      });
+      if (!next || next.length === before.length) { toast('Verification checklist not recorded: give an export reference, whole expected and found counts, real dates, and a checker.'); return; }
+      saveExportVerificationChecklists(next);
+      renderExportVerificationChecklists();
+    });
+    $('#evcRemoveBtn')?.addEventListener('click', () => {
+      saveExportVerificationChecklists(removeExportVerificationChecklist(loadExportVerificationChecklists(), $('#evcRemoveId')?.value ?? ''));
+      renderExportVerificationChecklists();
     });
   }
 }

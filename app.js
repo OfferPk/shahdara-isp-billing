@@ -484,6 +484,7 @@ import { validServiceTrialDate, normalizeServiceTrialList, recordServiceTrial, r
 import { validDocumentReceiptDate, normalizeDocumentReceiptList, recordDocumentReceipt, removeDocumentReceipt, documentReceiptSorted, documentReceiptsForCustomer, documentReceiptSummaryText, documentReceiptAllHtml, documentReceiptCsv, documentReceiptFilename } from './document-receipt.js';
 import { validCommunityMeetingDate, normalizeCommunityMeetingList, recordCommunityMeeting, removeCommunityMeeting, communityMeetingSorted, communityMeetingsForMohalla, communityMeetingSummaryText, communityMeetingAllHtml, communityMeetingsForMohallaHtml, communityMeetingCsv, communityMeetingFilename } from './community-meeting.js';
 import { birthdaysForMonth, birthdaysByMonth, birthdayMonthSummaryText, birthdayMonthHtml, birthdayMonthsHtml, birthdayMonthCsv, birthdayMonthsCsv, birthdayMonthFilename, birthdayMonthsFilename } from './birthday-month.js';
+import { normalizeReadinessScorecardList, recordReadinessScorecard, removeReadinessScorecard, readinessScorecardSummaryText, readinessScorecardAllHtml, readinessScorecardCsv, readinessScorecardFilename } from './readiness-scorecard.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14212,6 +14213,7 @@ function renderAnalytics() {
   renderDocumentReceipts();
   renderCommunityMeetings();
   renderBirthdayMonth();
+  renderReadinessScorecards();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30599,6 +30601,51 @@ function renderBirthdayMonth() {
       if (exportView) downloadCsvFile(birthdayMonthFilename(exportMonth), birthdayMonthCsv(exportView));
     });
     $('#bmExportYearBtn')?.addEventListener('click', () => { downloadCsvFile(birthdayMonthsFilename(), birthdayMonthsCsv(birthdayMonthRows())); });
+  }
+}
+
+// Plan 287: second-unit readiness scorecard record. A dated
+// scorecard — the date, the checklist items with done or not-done
+// against each, and who recorded it — with a plain checked-item
+// count only, never a percentage or a score. Past scorecards are
+// read-only: there is no edit function, only record, find, and
+// remove. Creating a scorecard never changes any bill, payment,
+// customer, port, or unit record by itself.
+const READINESS_SCORECARD_KEY = 'shahdara_readiness_scorecards_v1';
+function loadReadinessScorecards() {
+  try { return normalizeReadinessScorecardList(JSON.parse(localStorage.getItem(READINESS_SCORECARD_KEY) || '[]')); } catch { return []; }
+}
+function saveReadinessScorecards(list) {
+  try { localStorage.setItem(READINESS_SCORECARD_KEY, JSON.stringify(normalizeReadinessScorecardList(list))); } catch { /* scorecards only: a failed save leaves the previous list in place */ }
+}
+let readinessScorecardsBound = false;
+function renderReadinessScorecards() {
+  const listEl = $('#scBody');
+  if (!listEl) return;
+  const all = loadReadinessScorecards();
+  listEl.innerHTML = all.length ? readinessScorecardAllHtml(all) : '<p>No readiness scorecards recorded.</p>';
+  const summaryEl = $('#scSummary');
+  if (summaryEl) summaryEl.textContent = `${readinessScorecardSummaryText(all)} Creating a scorecard never changes any bill, payment, customer, or port record by itself.`;
+  if (!readinessScorecardsBound) {
+    readinessScorecardsBound = true;
+    $('#scExportBtn')?.addEventListener('click', () => { downloadCsvFile(readinessScorecardFilename(), readinessScorecardCsv(loadReadinessScorecards())); });
+    $('#scRecordBtn')?.addEventListener('click', () => {
+      const before = loadReadinessScorecards();
+      const splitItems = (value, done) => (value ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map((label) => ({ label, done }));
+      const next = recordReadinessScorecard(before, {
+        id: `RS-${Date.now()}`,
+        date: $('#scDate')?.value ?? '',
+        recordedBy: $('#scRecordedBy')?.value ?? '',
+        items: [...splitItems($('#scDoneItems')?.value, true), ...splitItems($('#scPendingItems')?.value, false)],
+      });
+      if (!next || next.length === before.length) { toast('Scorecard not recorded: give a real date, a recorder, and at least one item.'); return; }
+      saveReadinessScorecards(next);
+      renderReadinessScorecards();
+    });
+    $('#scRemoveBtn')?.addEventListener('click', () => {
+      saveReadinessScorecards(removeReadinessScorecard(loadReadinessScorecards(), $('#scRemoveId')?.value ?? ''));
+      renderReadinessScorecards();
+    });
   }
 }
 

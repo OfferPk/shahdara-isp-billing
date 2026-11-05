@@ -10966,6 +10966,36 @@
 <div id="ptrBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="deeHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="deeHeading">Data entry error log</h3>
+<p class="chart-caption">One error record per data entry error: the record affected, the error type, the date found, and the correction reference it links to. Errors list by type with counts over a period. Logging an error never changes any bill, payment, or customer record by itself.</p>
+<p id="deeSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="deeExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export data entry errors CSV</button>
+</div></div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Record affected <input id="deeRecord" type="text" style="width: 200px;" placeholder="e.g. Customer CUST-1 bill Nov 2026"></label>
+<label style="font-size: 12px;">Error type <input id="deeType" type="text" style="width: 130px;" placeholder="e.g. wrong amount"></label>
+<label style="font-size: 12px;">Date found <input id="deeDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Correction reference <input id="deeCorrection" type="text" style="width: 120px;" placeholder="e.g. CORR-12"></label>
+<label style="font-size: 12px;">Found by <input id="deeFoundBy" type="text" style="width: 110px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Note <input id="deeNote" type="text" style="width: 200px;" placeholder="e.g. Amount typed 3000 instead of 2000"></label>
+<button id="deeRecordBtn" class="secondary-button btn-sm" type="button">Record error</button>
+<label style="font-size: 12px;">Remove id <input id="deeRemoveId" type="text" style="width: 120px;"></label>
+<button id="deeRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Counts from <input id="deeFrom" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Counts to <input id="deeTo" type="date" style="width: 140px;"></label>
+<button id="deeCountsBtn" class="secondary-button btn-sm" type="button">Show counts by type</button>
+</div>
+<h4>Counts by type</h4>
+<div id="deeCountsBody"></div>
+<h4>Errors, by type</h4>
+<div id="deeBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

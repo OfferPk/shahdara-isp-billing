@@ -462,6 +462,7 @@ import { validLaunchChecklistDate, normalizeLaunchChecklistList, recordLaunchChe
 import { validWinbackOutcomeDate, normalizeWinbackOutcomeList, recordWinbackOutcome, removeWinbackOutcome, addWinbackOutcomeNote, winbackOutcomeSorted, attemptsForCustomer, latestWinbackOutcome, openWinbackCustomers, winbackOutcomeSummaryText, winbackOutcomeAllHtml, winbackOutcomeCsv, winbackOutcomeFilename } from './winback-outcome.js';
 import { validAnniversaryMilestoneDate, normalizeAnniversaryMilestoneList, recordAnniversaryMilestone, removeAnniversaryMilestone, addAnniversaryMilestoneNote, milestonesForCustomer, anniversaryMilestoneSummaryText, anniversaryMilestoneAllHtml, anniversaryMilestoneCsv, anniversaryMilestoneFilename } from './anniversary-milestone.js';
 import { validReferralOutcomeDate, normalizeReferralOutcomeList, recordReferralOutcome, removeReferralOutcome, addReferralOutcomeNote, referralOutcomesForReferrer, referralOutcomeCounts, referralOutcomeSummaryText, referralOutcomeAllHtml, referralOutcomeCsv, referralOutcomeFilename } from './referral-outcome.js';
+import { validCarePlanDate, normalizeCarePlanList, recordCarePlan, removeCarePlan, addCarePlanNote, reviewCarePlan, carePlanSorted, carePlansForCustomer, overdueCarePlans, carePlanSummaryText, carePlanAllHtml, carePlanCsv, carePlanFilename } from './care-plan.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14168,6 +14169,7 @@ function renderAnalytics() {
   renderWinbackOutcomes();
   renderAnniversaryMilestones();
   renderReferralOutcomes();
+  renderCarePlans();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29273,6 +29275,84 @@ function renderReferralOutcomes() {
     $('#roFilterBtn')?.addEventListener('click', () => { renderReferralOutcomes(); });
     $('#roFilterReferrer')?.addEventListener('input', () => { renderReferralOutcomes(); });
     $('#roFilterReferred')?.addEventListener('input', () => { renderReferralOutcomes(); });
+  }
+}
+const CARE_PLAN_KEY = 'shahdara_care_plans_v1';
+function loadCarePlans() {
+  try { return normalizeCarePlanList(JSON.parse(localStorage.getItem(CARE_PLAN_KEY) || '[]')); } catch { return []; }
+}
+function saveCarePlans(list) {
+  try { localStorage.setItem(CARE_PLAN_KEY, JSON.stringify(normalizeCarePlanList(list))); } catch { /* care plans only: a failed save leaves the previous list in place */ }
+}
+let carePlansBound = false;
+function renderCarePlans() {
+  const listEl = $('#cpList');
+  if (!listEl) return;
+  const all = loadCarePlans();
+  listEl.innerHTML = all.length ? carePlanAllHtml(all) : '<p>No care plans recorded.</p>';
+  const summaryEl = $('#cpSummary');
+  if (summaryEl) summaryEl.textContent = `${carePlanSummaryText(all)} A care plan is never edited, only annotated and reviewed. Recording or reviewing a plan never changes any customer record, bill, or payment by itself.`;
+  const overdueEl = $('#cpOverdueBody');
+  if (overdueEl) {
+    const asOf = ($('#cpOverdueAsOf')?.value ?? '').trim();
+    if (!validCarePlanDate(asOf)) {
+      overdueEl.innerHTML = '<p>Give an as-of date to list reviews overdue by that date.</p>';
+    } else {
+      const overdue = overdueCarePlans(all, asOf);
+      overdueEl.innerHTML = overdue.length
+        ? `<p>${overdue.length} review${overdue.length === 1 ? '' : 's'} overdue by ${asOf}, oldest first.</p>${carePlanAllHtml(overdue)}`
+        : `<p>No reviews overdue by ${asOf}.</p>`;
+    }
+  }
+  const filterEl = $('#cpFilterBody');
+  if (filterEl) {
+    const customer = ($('#cpFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      filterEl.innerHTML = '<p>Give a customer name to show their care plan.</p>';
+    } else {
+      const plans = carePlansForCustomer(all, customer);
+      filterEl.innerHTML = plans.length
+        ? carePlanAllHtml(plans)
+        : `<p>No care plan recorded for customer \u201c${customer}\u201d.</p>`;
+    }
+  }
+  if (!carePlansBound) {
+    carePlansBound = true;
+    $('#cpExportBtn')?.addEventListener('click', () => { downloadCsvFile(carePlanFilename(), carePlanCsv(loadCarePlans())); });
+    $('#cpRecordBtn')?.addEventListener('click', () => {
+      const before = loadCarePlans();
+      const next = recordCarePlan(before, {
+        id: `CP-${Date.now()}`,
+        customer: $('#cpCustomer')?.value ?? '',
+        actions: ($('#cpActions')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean),
+        reviewDate: $('#cpReviewDate')?.value ?? '',
+        note: $('#cpNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Care plan not recorded: give a customer, at least one agreed action, a real review date, and a note. One care plan per customer.'); return; }
+      saveCarePlans(next);
+      renderCarePlans();
+    });
+    $('#cpAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadCarePlans();
+      const next = addCarePlanNote(before, $('#cpAnnotateId')?.value ?? '', $('#cpAnnotateDate')?.value ?? '', $('#cpAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Care plan note not added: give a known plan id, a real date, and a note.'); return; }
+      saveCarePlans(next);
+      renderCarePlans();
+    });
+    $('#cpRemoveBtn')?.addEventListener('click', () => {
+      saveCarePlans(removeCarePlan(loadCarePlans(), $('#cpRemoveId')?.value ?? ''));
+      renderCarePlans();
+    });
+    $('#cpReviewBtn')?.addEventListener('click', () => {
+      const before = loadCarePlans();
+      const next = reviewCarePlan(before, $('#cpReviewId')?.value ?? '', $('#cpReviewedDate')?.value ?? '', $('#cpReviewNote')?.value ?? '');
+      if (next === before) { toast('Care plan not reviewed: give a known plan id, a real review date, and a note.'); return; }
+      saveCarePlans(next);
+      renderCarePlans();
+    });
+    $('#cpOverdueBtn')?.addEventListener('click', () => { renderCarePlans(); });
+    $('#cpFilterBtn')?.addEventListener('click', () => { renderCarePlans(); });
+    $('#cpFilterCustomer')?.addEventListener('input', () => { renderCarePlans(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

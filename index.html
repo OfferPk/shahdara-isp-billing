@@ -11100,6 +11100,40 @@
 <div id="qbsBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="rrlHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rrlHeading">Data retention review log</h3>
+<p class="chart-caption">One review record per retention review: the review date, the reviewer, the policy sections checked, the findings with dated follow-ups, and a follow-up note. A review whose next review date has passed appears on the open list. Logging a review never changes any record, bill, payment, or the policy text by itself.</p>
+<p id="rrlSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="rrlExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export retention reviews CSV</button>
+</div></div>
+<h4>Record a review</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Review date <input id="rrlDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Reviewer <input id="rrlReviewer" type="text" style="width: 140px;" placeholder="e.g. Bike"></label>
+<label style="font-size: 12px;">Sections checked <input id="rrlSections" type="text" style="width: 260px;" placeholder="e.g. how long records are kept, who may read old bills"></label>
+<label style="font-size: 12px;">Next review due <input id="rrlNextDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Follow-up note <input id="rrlFollowUpNote" type="text" style="width: 220px;" placeholder="e.g. Check the archive cupboard next visit"></label>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Finding section <input id="rrlFindingSection" type="text" style="width: 180px;" placeholder="e.g. how long records are kept"></label>
+<label style="font-size: 12px;">Finding <input id="rrlFinding" type="text" style="width: 240px;" placeholder="e.g. Old bills kept longer than the policy says"></label>
+<label style="font-size: 12px;">Follow up by <input id="rrlFollowUpDate" type="date" style="width: 140px;"></label>
+<button id="rrlRecordBtn" class="secondary-button btn-sm" type="button">Record review</button>
+<label style="font-size: 12px;">Remove id <input id="rrlRemoveId" type="text" style="width: 140px;" placeholder="e.g. RR-1762380000000"></label>
+<button id="rrlRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Overdue as of <input id="rrlAsOf" type="date" style="width: 140px;"></label>
+<button id="rrlCheckBtn" class="secondary-button btn-sm" type="button">Check overdue reviews</button>
+</div>
+<h4>Overdue reviews</h4>
+<div id="rrlOverdueBody"></div>
+<h4>Reviews, newest first</h4>
+<div id="rrlBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

@@ -229,6 +229,7 @@ import { GROUP_BILLING_KEY, billingGroupsSummary, buildGroupDue, buildGroupRecei
 import { SUSPENSE_PAYMENTS_KEY, buildSuspenseReceipt, claimSuspensePayment, loadSuspensePayments, saveSuspensePayments, setupSuspensePaymentsModal, suspensePendingBalanceCents, suspenseSummary, suspenseAgeDays } from './suspense-payments.js';
 import { buildOwnerDigest, dailyDigestRange, weeklyDigestRange, digestHtml, digestCsv, digestFilename } from './owner-digest.js';
 import { buildReceivablesAgeing, ageingHtml, ageingCsv, ageingFilename } from './receivables-ageing.js';
+import { buildMohallaAgeing, mohallaAgeingHtml, mohallaAgeingCsv, mohallaAgeingFilename } from './mohalla-ageing.js';
 import { ALERT_TYPES, DEFAULT_ALERT_THRESHOLDS, normalizeAlertThresholds, buildAlertsInbox, alertsInboxSummaryText, alertsInboxHtml } from './alerts-inbox.js';
 import { buildCollectorPerformance, collectorPerformanceHtml, collectorPerformanceCsv, collectorPerformanceFilename } from './collector-performance.js';
 import { buildCashflowSnapshot, cashflowSnapshotHtml, cashflowSnapshotCsv, cashflowSnapshotFilename } from './cashflow-snapshot.js';
@@ -11187,12 +11188,54 @@ function renderReceivablesAgeing() {
   const view = buildReceivablesAgeing(entries, asOfMonth);
   lastReceivablesAgeing = view.valid ? { view, entries } : null;
   bodyEl.innerHTML = view.valid ? ageingHtml(view) : '';
+  renderMohallaAgeing(view);
   if (!receivablesAgeingExportBound) {
     receivablesAgeingExportBound = true;
     const exportBtn = $('#receivablesAgeingExportBtn');
     if (exportBtn) exportBtn.addEventListener('click', () => {
       if (!lastReceivablesAgeing) return;
       downloadCsvFile(ageingFilename(lastReceivablesAgeing.view), ageingCsv(lastReceivablesAgeing.view, lastReceivablesAgeing.entries));
+    });
+  }
+}
+// Plan 213 (Plan 203-350) — Dues ageing note per mohalla.
+// Render-only: the same Plan 7 view, regrouped so each known mohalla
+// stands on its own — including a mohalla with no dues, which says
+// "No dues." plainly instead of vanishing. Known mohallas come from
+// the non-archived customers' own areas, resolved through the same
+// canonical rule Plan 7 uses; a mohalla in the view but not in that
+// list is still shown, so the rows always sum to the business total.
+// It changes no bill, payment, or customer record.
+let lastMohallaAgeing = null;
+let mohallaAgeingExportBound = false;
+function renderMohallaAgeing(view) {
+  const bodyEl = $('#mohallaAgeingBody');
+  if (!bodyEl) return;
+  if (!view || !view.valid) {
+    bodyEl.innerHTML = '';
+    lastMohallaAgeing = null;
+    return;
+  }
+  const knownByKey = new Map();
+  let hasBlankArea = false;
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    const raw = customer.mohalla || customer.area || '';
+    if (!raw.trim()) { hasBlankArea = true; continue; }
+    const canon = canonicalMohalla(raw);
+    const key = canon ? canon.key : raw.trim().toUpperCase();
+    if (!knownByKey.has(key)) knownByKey.set(key, { key, label: canon ? canon.label : raw.trim() });
+  }
+  if (hasBlankArea && !knownByKey.has('UNASSIGNED')) knownByKey.set('UNASSIGNED', { key: 'UNASSIGNED', label: 'Unassigned' });
+  const summary = buildMohallaAgeing(view, [...knownByKey.values()]);
+  lastMohallaAgeing = summary.valid ? summary : null;
+  bodyEl.innerHTML = summary.valid ? mohallaAgeingHtml(summary) : '';
+  if (!mohallaAgeingExportBound) {
+    mohallaAgeingExportBound = true;
+    const exportBtn = $('#mohallaAgeingExportBtn');
+    if (exportBtn) exportBtn.addEventListener('click', () => {
+      if (!lastMohallaAgeing) return;
+      downloadCsvFile(mohallaAgeingFilename(lastMohallaAgeing), mohallaAgeingCsv(lastMohallaAgeing));
     });
   }
 }

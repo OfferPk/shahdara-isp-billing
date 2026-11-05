@@ -10454,6 +10454,42 @@
 <div id="dgBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="cmtHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="cmtHeading">Monthly target record per collector</h3>
+<p class="chart-caption">One written target per collector per month: the collector, the month, the target in plain words and figures, and the month-end achieved figure entered by the operator from existing settlement figures. Target and achieved sit side by side for the month. Recording a target never changes any bill, payment, or collection figure by itself, and achieved figures are entered, never recomputed from live data.</p>
+<p id="cmtSummary"></p>
+</div>
+<div>
+<button id="cmtExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export monthly targets CSV</button>
+</div>
+</div>
+<h4>Record a monthly target</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Collector <input id="cmtCollector" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Month <input id="cmtMonth" type="month" style="width: 140px;"></label>
+<label style="font-size: 12px;">Target <input id="cmtTargetWords" type="text" style="width: 220px;" placeholder="e.g. Collect Rs 100,000 across 11 mohallas"></label>
+<label style="font-size: 12px;">Target amount (Rs) <input id="cmtTargetAmount" type="number" min="1" step="1" style="width: 120px;"></label>
+<label style="font-size: 12px;">Achieved amount (Rs) <input id="cmtAchievedAmount" type="number" min="0" step="1" style="width: 120px;" placeholder="optional"></label>
+<button id="cmtRecordBtn" class="secondary-button btn-sm" type="button">Record target</button>
+<label style="font-size: 12px;">Remove id <input id="cmtRemoveId" type="text" style="width: 120px;"></label>
+<button id="cmtRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Targets for one collector</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Collector <input id="cmtCollectorInput" type="text" style="width: 160px;" placeholder="e.g. Saad"></label>
+<button id="cmtCollectorBtn" class="secondary-button btn-sm" type="button">Show targets</button>
+</div>
+<div id="cmtCollectorBody"></div>
+<h4>Targets in one month</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month <input id="cmtMonthInput" type="month" style="width: 140px;"></label>
+<button id="cmtMonthBtn" class="secondary-button btn-sm" type="button">Show targets</button>
+</div>
+<div id="cmtMonthBody"></div>
+<h4>All monthly targets</h4>
+<div id="cmtBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

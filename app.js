@@ -441,6 +441,7 @@ import { validDrumUsageDate, normalizeDrumUsageList, recordDrumUsage, removeDrum
 import { validFaultRevisitDate, normalizeFaultRevisitList, faultRevisitInPeriod, faultRevisitPattern, faultRevisitPatterns, faultRevisitRepeats, faultRevisitSegments, faultRevisitPatternText, faultRevisitSummaryText, faultRevisitHtml, faultRevisitCsv, faultRevisitFilename } from './fault-revisit.js';
 import { validOutageNoticeDate, normalizeOutageNoticeList, recordOutageNotice, removeOutageNotice, findOutageNotice, addOutageNoticeStep, addOutageNoticeUnreached, annotateOutageNotice, outageNoticeIsComplete, outageNoticeSorted, outageNoticeForOutage, outageNoticeSummaryText, outageNoticeHtml, outageNoticeCsv, outageNoticeFilename } from './outage-notice.js';
 import { validEmergencyKitChecklistDate, normalizeEmergencyKitChecklistList, recordEmergencyKitChecklist, removeEmergencyKitChecklist, findEmergencyKitChecklist, addEmergencyKitChecklistAnnotation, emergencyKitChecklistSorted, emergencyKitChecklistsForVehicle, latestEmergencyKitChecklistForVehicle, emergencyKitChecklistVehicles, emergencyKitChecklistMissingItems, emergencyKitChecklistMissingCritical, emergencyKitChecklistHasMissingCritical, emergencyKitChecklistVehiclesWithMissingCritical, emergencyKitChecklistSummaryText, emergencyKitChecklistText, emergencyKitChecklistHtml, emergencyKitChecklistCsv, emergencyKitChecklistFilename } from './emergency-kit-checklist.js';
+import { validNightVisitPairDate, validNightVisitPairReturnTime, normalizeNightVisitPairList, recordNightVisitPair, removeNightVisitPair, findNightVisitPair, addNightVisitPairAnnotation, recordNightVisitReturn, nightVisitPairSorted, nightVisitPairsInPeriod, nightVisitPairsForArea, nightVisitPairAreas, unpairedNightVisits, nightVisitPairSummaryText, unpairedNightVisitSummaryText, nightVisitPairText, nightVisitPairHtml, nightVisitPairCsv, nightVisitPairFilename } from './night-visit-pair.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14124,6 +14125,7 @@ function renderAnalytics() {
   renderFaultRevisit();
   renderOutageNotice();
   renderEmergencyKitChecklist();
+  renderNightVisitPairs();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27557,6 +27559,82 @@ function renderEmergencyKitChecklist() {
       saveEmergencyKitChecklists(next);
       renderEmergencyKitChecklist();
     });
+  }
+}
+const NIGHT_VISIT_PAIR_KEY = 'shahdara_night_visit_pairs_v1';
+function loadNightVisitPairs() {
+  try { return normalizeNightVisitPairList(JSON.parse(localStorage.getItem(NIGHT_VISIT_PAIR_KEY) || '[]')); } catch { return []; }
+}
+function saveNightVisitPairs(list) {
+  try { localStorage.setItem(NIGHT_VISIT_PAIR_KEY, JSON.stringify(normalizeNightVisitPairList(list))); } catch { /* pair records only: a failed save leaves the previous list in place */ }
+}
+let nightVisitPairsBound = false;
+function parseNvpVisitLines(text) {
+  return (text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const parts = line.split(',').map((part) => part.trim());
+    return { visitRef: parts[0] || '', date: parts[1] || '' };
+  });
+}
+function renderNightVisitPairs() {
+  const listEl = $('#nvpList');
+  if (!listEl) return;
+  const all = loadNightVisitPairs();
+  const areaFilter = ($('#nvpFilterArea')?.value ?? '').trim();
+  let scoped = nightVisitPairSorted(all);
+  if (areaFilter) scoped = nightVisitPairsForArea(scoped, areaFilter);
+  listEl.innerHTML = scoped.length ? nightVisitPairHtml(scoped) : '<p>No night visit pair records.</p>';
+  const summaryEl = $('#nvpSummary');
+  if (summaryEl) summaryEl.textContent = `${nightVisitPairSummaryText(all)} A pair record is never edited, only annotated after the visit. Recording a pair never changes any bill, payment, customer, visit, or staff record by itself, and it does not replace the field safety note or the on-call rota.`;
+  const exceptionsEl = $('#nvpExceptions');
+  if (exceptionsEl) {
+    const visits = parseNvpVisitLines($('#nvpVisitList')?.value ?? '');
+    const from = $('#nvpPeriodFrom')?.value ?? '';
+    const to = $('#nvpPeriodTo')?.value ?? '';
+    exceptionsEl.textContent = visits.length === 0
+      ? 'Type night visit references (one per line, visit reference, date) to check for unpaired night visits.'
+      : unpairedNightVisitSummaryText(visits, all, from, to);
+  }
+  if (!nightVisitPairsBound) {
+    nightVisitPairsBound = true;
+    $('#nvpExportBtn')?.addEventListener('click', () => { downloadCsvFile(nightVisitPairFilename(), nightVisitPairCsv(loadNightVisitPairs())); });
+    $('#nvpRecordBtn')?.addEventListener('click', () => {
+      const before = loadNightVisitPairs();
+      const next = recordNightVisitPair(before, {
+        id: `NV-${Date.now()}`,
+        visitRef: $('#nvpVisitRef')?.value ?? '',
+        date: $('#nvpDate')?.value ?? '',
+        staffA: $('#nvpStaffA')?.value ?? '',
+        staffB: $('#nvpStaffB')?.value ?? '',
+        area: $('#nvpArea')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Pair record not recorded: give a visit reference, a real date, two different staff names, and an area.'); return; }
+      saveNightVisitPairs(next);
+      renderNightVisitPairs();
+    });
+    $('#nvpReturnBtn')?.addEventListener('click', () => {
+      const before = loadNightVisitPairs();
+      const next = recordNightVisitReturn(before, $('#nvpReturnId')?.value ?? '', $('#nvpReturnTime')?.value ?? '', $('#nvpReturnDate')?.value ?? '');
+      if (next === before) { toast('Return time not recorded: give a known pair record id, a clock time, and a real date; the return time is recorded once only.'); return; }
+      saveNightVisitPairs(next);
+      renderNightVisitPairs();
+    });
+    $('#nvpAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadNightVisitPairs();
+      const next = addNightVisitPairAnnotation(before, $('#nvpAnnotateId')?.value ?? '', {
+        date: $('#nvpAnnotateDate')?.value ?? '',
+        note: $('#nvpAnnotateNote')?.value ?? '',
+      });
+      if (next === before) { toast('Annotation not added: give a known pair record id, a real date, and a note.'); return; }
+      saveNightVisitPairs(next);
+      renderNightVisitPairs();
+    });
+    $('#nvpRemoveBtn')?.addEventListener('click', () => {
+      saveNightVisitPairs(removeNightVisitPair(loadNightVisitPairs(), $('#nvpRemoveId')?.value ?? ''));
+      renderNightVisitPairs();
+    });
+    $('#nvpFilterBtn')?.addEventListener('click', () => { renderNightVisitPairs(); });
+    $('#nvpFilterArea')?.addEventListener('input', () => { renderNightVisitPairs(); });
+    $('#nvpExceptionsBtn')?.addEventListener('click', () => { renderNightVisitPairs(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

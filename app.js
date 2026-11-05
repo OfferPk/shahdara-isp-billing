@@ -475,6 +475,7 @@ import { validWelcomeVisitOutcomeDate, foldWelcomeVisitOutcome, normalizeWelcome
 import { validReactivationNoteDate, normalizeReactivationNoteList, recordReactivationNote, removeReactivationNote, addReactivationNoteFollowup, reactivationNoteSorted, reactivationNotesForCustomer, stillDormantCustomers, reactivationNoteSummaryText, reactivationNoteAllHtml, reactivationNoteCsv, reactivationNoteFilename } from './reactivation-note.js';
 import { validCallbackQueueDate, validCallbackQueueTime, normalizeCallbackQueueList, recordCallback, removeCallback, markCallbackDone, markCallbackMissed, rebookCallback, callbackQueueSorted, pendingCallbackQueue, missedCallbacks, overdueCallbacks, callbacksForCustomer, callbackQueueSummaryText, callbackQueueAllHtml, callbackQueueCsv, callbackQueueFilename } from './callback-queue.js';
 import { validDowngradeConversationDate, normalizeDowngradeConversationList, recordDowngradeConversation, removeDowngradeConversation, downgradeConversationSorted, downgradeConversationsForCustomer, downgradedConversations, keptPackageConversations, downgradeConversationSummaryText, downgradeConversationAllHtml, downgradeConversationCsv, downgradeConversationFilename } from './downgrade-conversation.js';
+import { validPraiseLogDate, normalizePraiseLogList, recordPraiseLog, removePraiseLog, praiseLogSorted, praiseLogsForCustomer, praiseLogsForSubject, praiseLogSummaryText, praiseLogAllHtml, praiseLogCsv, praiseLogFilename } from './praise-log.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14194,6 +14195,7 @@ function renderAnalytics() {
   renderReactivationNotes();
   renderCallbacks();
   renderDowngradeConversations();
+  renderPraiseLog();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30056,6 +30058,71 @@ function renderDowngradeConversations() {
     });
     $('#dcFilterBtn')?.addEventListener('click', () => { renderDowngradeConversations(); });
     $('#dcFilterCustomer')?.addEventListener('input', () => { renderDowngradeConversations(); });
+  }
+}
+const PRAISE_LOG_KEY = 'shahdara_praise_log_v1';
+function loadPraiseLog() {
+  try { return normalizePraiseLogList(JSON.parse(localStorage.getItem(PRAISE_LOG_KEY) || '[]')); } catch { return []; }
+}
+function savePraiseLog(list) {
+  try { localStorage.setItem(PRAISE_LOG_KEY, JSON.stringify(normalizePraiseLogList(list))); } catch { /* praise log only: a failed save leaves the previous list in place */ }
+}
+let praiseLogBound = false;
+function renderPraiseLog() {
+  const listEl = $('#pzList');
+  if (!listEl) return;
+  const all = loadPraiseLog();
+  listEl.innerHTML = all.length ? praiseLogAllHtml(all) : '<p>No praise recorded.</p>';
+  const summaryEl = $('#pzSummary');
+  if (summaryEl) summaryEl.textContent = `${praiseLogSummaryText(all)} Recording praise never changes any customer, staff, bill, or payment record.`;
+  const subjectEl = $('#pzSubjectBody');
+  if (subjectEl) {
+    const subject = ($('#pzSubjectFilter')?.value ?? '').trim();
+    if (subject === '') {
+      subjectEl.innerHTML = '<p>Give a praised subject to see its praise.</p>';
+    } else {
+      const rows = praiseLogsForSubject(all, subject);
+      subjectEl.innerHTML = rows.length
+        ? praiseLogAllHtml(rows)
+        : '<p>No praise recorded for this subject.</p>';
+    }
+  }
+  const customerEl = $('#pzCustomerBody');
+  if (customerEl) {
+    const customer = ($('#pzFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their praise.</p>';
+    } else {
+      const rows = praiseLogsForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? praiseLogAllHtml(rows)
+        : '<p>No praise recorded for this customer.</p>';
+    }
+  }
+  if (!praiseLogBound) {
+    praiseLogBound = true;
+    $('#pzExportBtn')?.addEventListener('click', () => { downloadCsvFile(praiseLogFilename(), praiseLogCsv(loadPraiseLog())); });
+    $('#pzRecordBtn')?.addEventListener('click', () => {
+      const before = loadPraiseLog();
+      const next = recordPraiseLog(before, {
+        id: `PZ-${Date.now()}`,
+        customer: $('#pzCustomer')?.value ?? '',
+        date: $('#pzDate')?.value ?? '',
+        description: $('#pzDescription')?.value ?? '',
+        subject: $('#pzSubject')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Praise not recorded: give a customer, a real date, and what was praised.'); return; }
+      savePraiseLog(next);
+      renderPraiseLog();
+    });
+    $('#pzRemoveBtn')?.addEventListener('click', () => {
+      savePraiseLog(removePraiseLog(loadPraiseLog(), $('#pzRemoveId')?.value ?? ''));
+      renderPraiseLog();
+    });
+    $('#pzSubjectBtn')?.addEventListener('click', () => { renderPraiseLog(); });
+    $('#pzSubjectFilter')?.addEventListener('input', () => { renderPraiseLog(); });
+    $('#pzFilterBtn')?.addEventListener('click', () => { renderPraiseLog(); });
+    $('#pzFilterCustomer')?.addEventListener('input', () => { renderPraiseLog(); });
   }
 }
 let feedbackTrendBound = false;

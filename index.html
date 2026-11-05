@@ -7995,6 +7995,61 @@
 <div id="caBody"></div>
 <h4>Flagged: above the operator tier with no second approver</h4>
 <div id="caFlaggedBody"></div>
+</section><section class="chart-card" aria-labelledby="ppnHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">BILLING &amp; COLLECTION</p>
+<h3 id="ppnHeading">Part-payment receipt notes</h3>
+<p class="chart-caption">One note on a part-payment receipt: what was paid, which bills were settled in part or in full, and what still remains on each bill, in plain words — so the customer leaves with the remaining figure in writing and the next visit does not start with a disagreement. This note annotates the receipt only: it never changes the allocation rules, never splits across methods, never creates a payment, never changes a total, and never issues a new receipt number.</p>
+<p id="ppnSummary"></p>
+</div>
+<div>
+<button id="ppnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export receipt notes CSV</button>
+</div>
+</div>
+<h4>Record a receipt note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Receipt number <input id="ppnReceiptNo" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Customer <input id="ppnCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="ppnDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Unallocated (Rs., if any) <input id="ppnUnallocated" type="number" min="0" step="1" style="width: 110px;">
+</label>
+<button id="ppnSaveBtn" class="secondary-button btn-sm" type="button">Record note</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Bill lines — one per line: bill reference, due Rs., paid Rs., optional month <textarea id="ppnBillLines" rows="3" style="width: 420px;" placeholder="B-1, 1000, 600, 2026-10"></textarea>
+</label>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove note id <input id="ppnRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="ppnRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Receipt notes</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="ppnCustomerFilter" type="text" style="width: 160px;">
+</label>
+</div>
+<div id="ppnBody"></div>
+<h4>Flagged: receipts with no note, so no remaining balance shown</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Receipt numbers to check, comma-separated <input id="ppnCheckReceipts" type="text" style="width: 280px;">
+</label>
+<button id="ppnCheckBtn" class="secondary-button btn-sm" type="button">Check</button>
+</div>
+<div id="ppnFlaggedBody"></div>
+<h4>Reconcile a note against the customer's dues</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="ppnReconcileId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Dues — one per line: bill reference, due Rs. <textarea id="ppnDuesLines" rows="3" style="width: 300px;" placeholder="B-1, 1000"></textarea>
+</label>
+<button id="ppnReconcileBtn" class="secondary-button btn-sm" type="button">Reconcile</button>
+</div>
+<div id="ppnReconcileBody"></div>
 </section><section class="chart-card" aria-labelledby="aeHeading">
 <div class="table-heading">
 <div>

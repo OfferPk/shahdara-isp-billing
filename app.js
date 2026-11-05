@@ -464,6 +464,7 @@ import { validAnniversaryMilestoneDate, normalizeAnniversaryMilestoneList, recor
 import { validReferralOutcomeDate, normalizeReferralOutcomeList, recordReferralOutcome, removeReferralOutcome, addReferralOutcomeNote, referralOutcomesForReferrer, referralOutcomeCounts, referralOutcomeSummaryText, referralOutcomeAllHtml, referralOutcomeCsv, referralOutcomeFilename } from './referral-outcome.js';
 import { validCarePlanDate, normalizeCarePlanList, recordCarePlan, removeCarePlan, addCarePlanNote, reviewCarePlan, carePlanSorted, carePlansForCustomer, overdueCarePlans, carePlanSummaryText, carePlanAllHtml, carePlanCsv, carePlanFilename } from './care-plan.js';
 import { validPreferenceChangeDate, normalizePreferenceChangeList, recordPreferenceChange, removePreferenceChange, addPreferenceChangeNote, preferenceChangeSorted, preferenceChangesForCustomer, preferenceChangeSummaryText, preferenceChangeAllHtml, preferenceChangeCsv, preferenceChangeFilename } from './preference-change.js';
+import { validComplaintReopenDate, normalizeComplaintReopenList, recordComplaintReopen, removeComplaintReopen, addComplaintReopenNote, complaintReopenSorted, reopenNotesForComplaint, complaintReopenSummaryText, complaintReopenAllHtml, complaintReopenCsv, complaintReopenFilename } from './complaint-reopen.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14172,6 +14173,7 @@ function renderAnalytics() {
   renderReferralOutcomes();
   renderCarePlans();
   renderPreferenceChanges();
+  renderComplaintReopens();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29416,6 +29418,64 @@ function renderPreferenceChanges() {
     });
     $('#pcFilterBtn')?.addEventListener('click', () => { renderPreferenceChanges(); });
     $('#pcFilterCustomer')?.addEventListener('input', () => { renderPreferenceChanges(); });
+  }
+}
+const COMPLAINT_REOPEN_KEY = 'shahdara_complaint_reopen_notes_v1';
+function loadComplaintReopens() {
+  try { return normalizeComplaintReopenList(JSON.parse(localStorage.getItem(COMPLAINT_REOPEN_KEY) || '[]')); } catch { return []; }
+}
+function saveComplaintReopens(list) {
+  try { localStorage.setItem(COMPLAINT_REOPEN_KEY, JSON.stringify(normalizeComplaintReopenList(list))); } catch { /* reopen notes only: a failed save leaves the previous list in place */ }
+}
+let complaintReopensBound = false;
+function renderComplaintReopens() {
+  const listEl = $('#crList');
+  if (!listEl) return;
+  const all = loadComplaintReopens();
+  listEl.innerHTML = all.length ? complaintReopenAllHtml(all) : '<p>No complaint reopen notes recorded.</p>';
+  const summaryEl = $('#crSummary');
+  if (summaryEl) summaryEl.textContent = `${complaintReopenSummaryText(all)} A reopen note is never edited, only followed by a dated note. Recording a note never changes the original complaint history, any bill, or any payment.`;
+  const filterEl = $('#crFilterBody');
+  if (filterEl) {
+    const complaintRef = ($('#crFilterComplaint')?.value ?? '').trim();
+    if (complaintRef === '') {
+      filterEl.innerHTML = '<p>Give a complaint reference to show its reopen notes in date order.</p>';
+    } else {
+      const rows = reopenNotesForComplaint(all, complaintRef);
+      filterEl.innerHTML = rows.length
+        ? complaintReopenAllHtml(rows)
+        : `<p>No reopen note recorded for complaint \u201c${complaintRef}\u201d.</p>`;
+    }
+  }
+  if (!complaintReopensBound) {
+    complaintReopensBound = true;
+    $('#crExportBtn')?.addEventListener('click', () => { downloadCsvFile(complaintReopenFilename(), complaintReopenCsv(loadComplaintReopens())); });
+    $('#crRecordBtn')?.addEventListener('click', () => {
+      const before = loadComplaintReopens();
+      const next = recordComplaintReopen(before, {
+        id: `CR-${Date.now()}`,
+        complaintRef: $('#crComplaintRef')?.value ?? '',
+        reopenDate: $('#crReopenDate')?.value ?? '',
+        reason: $('#crReason')?.value ?? '',
+        previousOutcome: $('#crPreviousOutcome')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Complaint reopen note not recorded: give a complaint reference, a real reopen date, and the reason.'); return; }
+      saveComplaintReopens(next);
+      renderComplaintReopens();
+    });
+    $('#crAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadComplaintReopens();
+      const next = addComplaintReopenNote(before, $('#crAnnotateId')?.value ?? '', $('#crAnnotateDate')?.value ?? '', $('#crAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Reopen note not added: give a known note id, a real date, and a note.'); return; }
+      saveComplaintReopens(next);
+      renderComplaintReopens();
+    });
+    $('#crRemoveBtn')?.addEventListener('click', () => {
+      saveComplaintReopens(removeComplaintReopen(loadComplaintReopens(), $('#crRemoveId')?.value ?? ''));
+      renderComplaintReopens();
+    });
+    $('#crFilterBtn')?.addEventListener('click', () => { renderComplaintReopens(); });
+    $('#crFilterComplaint')?.addEventListener('input', () => { renderComplaintReopens(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

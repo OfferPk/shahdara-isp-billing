@@ -471,6 +471,7 @@ import { normalizePackageUptakeRows, packageUptakeFor, packageUptakesByMohalla, 
 import { validOutageCommunicationDate, normalizeOutageCommunicationList, recordOutageCommunication, removeOutageCommunication, communicationsForIncident, outageCommunicationSummaryText, outageCommunicationAllHtml, outageCommunicationCsv, outageCommunicationFilename } from './outage-communication.js';
 import { validDifficultyNoteDate, normalizeDifficultyNoteList, recordDifficultyNote, removeDifficultyNote, difficultyNotesForCustomer, overdueDifficultyFollowups, difficultyNoteSummaryText, difficultyNoteAllHtml, difficultyNoteCsv, difficultyNoteFilename } from './payment-difficulty.js';
 import { normalizeComplaintCategoryTrendRows, complaintCategoryTrend, complaintCategoryTrendFor, complaintCategoryTrendCategoryText, complaintCategoryTrendCategoryHtml, complaintCategoryTrendSummaryText, complaintCategoryTrendHtml, complaintCategoryTrendCsv, complaintCategoryTrendFilename } from './complaint-category-trend.js';
+import { validWelcomeVisitOutcomeDate, foldWelcomeVisitOutcome, normalizeWelcomeVisitOutcomeList, recordWelcomeVisitOutcome, removeWelcomeVisitOutcome, addWelcomeVisitOpenQuestion, answerWelcomeVisitQuestion, welcomeVisitOutcomeSorted, outcomesForCustomer, notesWithOpenQuestions, welcomeVisitOutcomeSummaryText, welcomeVisitOutcomeAllHtml, welcomeVisitOutcomeCsv, welcomeVisitOutcomeFilename } from './welcome-visit-outcome.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14186,6 +14187,7 @@ function renderAnalytics() {
   renderOutageCommunications();
   renderPaymentDifficulty();
   renderComplaintCategoryTrend();
+  renderWelcomeVisitOutcomes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -29749,6 +29751,77 @@ function renderComplaintCategoryTrend() {
       const exportTrend = complaintCategoryTrend(exportRows, exportFrom, exportTo);
       downloadCsvFile(complaintCategoryTrendFilename(), complaintCategoryTrendCsv(exportTrend));
     });
+  }
+}
+const WELCOME_VISIT_OUTCOME_KEY = 'shahdara_welcome_visit_outcomes_v1';
+function loadWelcomeVisitOutcomes() {
+  try { return normalizeWelcomeVisitOutcomeList(JSON.parse(localStorage.getItem(WELCOME_VISIT_OUTCOME_KEY) || '[]')); } catch { return []; }
+}
+function saveWelcomeVisitOutcomes(list) {
+  try { localStorage.setItem(WELCOME_VISIT_OUTCOME_KEY, JSON.stringify(normalizeWelcomeVisitOutcomeList(list))); } catch { /* welcome visit outcomes only: a failed save leaves the previous list in place */ }
+}
+let welcomeVisitOutcomesBound = false;
+function renderWelcomeVisitOutcomes() {
+  const listEl = $('#wvList');
+  if (!listEl) return;
+  const all = loadWelcomeVisitOutcomes();
+  listEl.innerHTML = all.length ? welcomeVisitOutcomeAllHtml(all) : '<p>No welcome visit outcomes recorded.</p>';
+  const summaryEl = $('#wvSummary');
+  if (summaryEl) summaryEl.textContent = `${welcomeVisitOutcomeSummaryText(all)} A note is never edited, only annotated. Recording a note never changes any onboarding, bill, or payment record.`;
+  const openEl = $('#wvOpenBody');
+  if (openEl) {
+    const open = notesWithOpenQuestions(all);
+    openEl.innerHTML = open.length ? welcomeVisitOutcomeAllHtml(open) : '<p>No open questions waiting.</p>';
+  }
+  const customerEl = $('#wvCustomerBody');
+  if (customerEl) {
+    const customer = ($('#wvFilterCustomer')?.value ?? '').trim();
+    if (customer === '') {
+      customerEl.innerHTML = '<p>Give a customer to see their welcome visit outcomes.</p>';
+    } else {
+      const rows = outcomesForCustomer(all, customer);
+      customerEl.innerHTML = rows.length
+        ? welcomeVisitOutcomeAllHtml(rows)
+        : '<p>No welcome visit outcome recorded for this customer.</p>';
+    }
+  }
+  if (!welcomeVisitOutcomesBound) {
+    welcomeVisitOutcomesBound = true;
+    $('#wvExportBtn')?.addEventListener('click', () => { downloadCsvFile(welcomeVisitOutcomeFilename(), welcomeVisitOutcomeCsv(loadWelcomeVisitOutcomes())); });
+    $('#wvRecordBtn')?.addEventListener('click', () => {
+      const before = loadWelcomeVisitOutcomes();
+      const next = recordWelcomeVisitOutcome(before, {
+        id: `WV-${Date.now()}`,
+        customer: $('#wvCustomer')?.value ?? '',
+        date: $('#wvDate')?.value ?? '',
+        outcome: $('#wvOutcome')?.value ?? '',
+        openQuestions: ($('#wvQuestions')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean),
+        note: $('#wvNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Welcome visit outcome not recorded: give a customer and a real visit date.'); return; }
+      saveWelcomeVisitOutcomes(next);
+      renderWelcomeVisitOutcomes();
+    });
+    $('#wvAnswerBtn')?.addEventListener('click', () => {
+      const before = loadWelcomeVisitOutcomes();
+      const next = answerWelcomeVisitQuestion(before, $('#wvAnswerId')?.value ?? '', $('#wvAnswerQuestion')?.value ?? '');
+      if (next === before) { toast('Question not marked answered: give a known note id and the exact open question.'); return; }
+      saveWelcomeVisitOutcomes(next);
+      renderWelcomeVisitOutcomes();
+    });
+    $('#wvAddBtn')?.addEventListener('click', () => {
+      const before = loadWelcomeVisitOutcomes();
+      const next = addWelcomeVisitOpenQuestion(before, $('#wvAddId')?.value ?? '', $('#wvAddQuestion')?.value ?? '');
+      if (next === before) { toast('Open question not added: give a known note id and a question.'); return; }
+      saveWelcomeVisitOutcomes(next);
+      renderWelcomeVisitOutcomes();
+    });
+    $('#wvRemoveBtn')?.addEventListener('click', () => {
+      saveWelcomeVisitOutcomes(removeWelcomeVisitOutcome(loadWelcomeVisitOutcomes(), $('#wvRemoveId')?.value ?? ''));
+      renderWelcomeVisitOutcomes();
+    });
+    $('#wvFilterBtn')?.addEventListener('click', () => { renderWelcomeVisitOutcomes(); });
+    $('#wvFilterCustomer')?.addEventListener('input', () => { renderWelcomeVisitOutcomes(); });
   }
 }
 let feedbackTrendBound = false;

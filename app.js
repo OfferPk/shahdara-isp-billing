@@ -511,6 +511,7 @@ import { normalizeMohallaYearFigureRecordList, recordMohallaYearFigure, removeMo
 import { normalizeSeasonalMonthlyFigureRecordList, recordSeasonalMonthlyFigure, removeSeasonalMonthlyFigure, buildSeasonalComparison, seasonalComparisonSummaryText, seasonalComparisonAllHtml, seasonalComparisonCsv, seasonalComparisonFilename } from './seasonal-comparison.js';
 import { normalizeArchiveRetrievalList, recordArchiveRetrieval, removeArchiveRetrieval, returnArchiveItem, archiveRetrievalOpen, archiveRetrievalSummaryText, archiveRetrievalOpenHtml, archiveRetrievalAllHtml, archiveRetrievalCsv, archiveRetrievalFilename } from './archive-retrieval.js';
 import { normalizeAppFeedbackList, recordAppFeedback, removeAppFeedback, closeAppFeedback, appFeedbackOpenByScreen, appFeedbackSummaryText, appFeedbackOpenHtml, appFeedbackAllHtml, appFeedbackCsv, appFeedbackFilename } from './app-feedback-inbox.js';
+import { normalizeAccessibilityNoteList, recordAccessibilityNote, removeAccessibilityNote, accessibilityNotesByScreen, accessibilityNoteScreensWithNotes, accessibilityNoteSummaryText, accessibilityNotesByScreenHtml, accessibilityNoteScreenStatusHtml, accessibilityNoteCsv, accessibilityNoteFilename } from './accessibility-note.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14392,6 +14393,7 @@ function renderAnalytics() {
   renderSeasonalComparison();
   renderArchiveRetrieval();
   renderAppFeedbackInbox();
+  renderAccessibilityNote();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32407,6 +32409,60 @@ function renderAppFeedbackInbox() {
     $('#afiRemoveBtn')?.addEventListener('click', () => {
       saveAppFeedback(removeAppFeedback(loadAppFeedback(), $('#afiRemoveId')?.value ?? ''));
       renderAppFeedbackInbox();
+    });
+  }
+}
+
+// Accessibility note per screen (Plan 323): one note per
+// screen that is hard to use — the screen name, the issue
+// in plain words, a workaround, and the date it was noted.
+// Recording or removing a note never changes any screen,
+// bill, payment, or customer record by itself: the note
+// only lists the issue and its workaround.
+const ACCESSIBILITY_NOTE_KEY = 'shahdara_accessibility_notes_v1';
+function loadAccessibilityNotes() {
+  try { return normalizeAccessibilityNoteList(JSON.parse(localStorage.getItem(ACCESSIBILITY_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveAccessibilityNotes(list) {
+  try { localStorage.setItem(ACCESSIBILITY_NOTE_KEY, JSON.stringify(normalizeAccessibilityNoteList(list))); } catch { /* accessibility notes only: a failed save leaves the previous list in place */ }
+}
+let accessibilityNoteBound = false;
+function renderAccessibilityNote() {
+  const listEl = $('#acnBody');
+  if (!listEl) return;
+  const all = loadAccessibilityNotes();
+  const groups = accessibilityNotesByScreen(all);
+  listEl.innerHTML = groups.length ? accessibilityNotesByScreenHtml(all) : '<p>No accessibility notes recorded.</p>';
+  const summaryEl = $('#acnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${accessibilityNoteSummaryText(all)} Recording a note never changes any screen, bill, payment, or customer record by itself.`;
+  }
+  const statusEl = $('#acnStatusBody');
+  if (statusEl) {
+    const typed = ($('#acnScreens')?.value ?? '').split(',').map((name) => name.trim()).filter(Boolean);
+    const screens = typed.length ? typed : accessibilityNoteScreensWithNotes(all);
+    statusEl.innerHTML = accessibilityNoteScreenStatusHtml(all, screens);
+  }
+  if (!accessibilityNoteBound) {
+    accessibilityNoteBound = true;
+    $('#acnExportBtn')?.addEventListener('click', () => { downloadCsvFile(accessibilityNoteFilename(), accessibilityNoteCsv(loadAccessibilityNotes())); });
+    $('#acnCheckBtn')?.addEventListener('click', () => { renderAccessibilityNote(); });
+    $('#acnRecordBtn')?.addEventListener('click', () => {
+      const before = loadAccessibilityNotes();
+      const next = recordAccessibilityNote(before, {
+        id: `AN-${Date.now()}`,
+        screen: $('#acnScreen')?.value ?? '',
+        issue: $('#acnIssue')?.value ?? '',
+        workaround: $('#acnWorkaround')?.value ?? '',
+        date: $('#acnDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Accessibility note not recorded: give a screen, the issue in plain words, and a real date.'); return; }
+      saveAccessibilityNotes(next);
+      renderAccessibilityNote();
+    });
+    $('#acnRemoveBtn')?.addEventListener('click', () => {
+      saveAccessibilityNotes(removeAccessibilityNote(loadAccessibilityNotes(), $('#acnRemoveId')?.value ?? ''));
+      renderAccessibilityNote();
     });
   }
 }

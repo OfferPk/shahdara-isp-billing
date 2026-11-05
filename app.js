@@ -506,6 +506,7 @@ import { validGrowthFundingDate, normalizeGrowthFundingList, recordGrowthFunding
 import { validPartnershipNoteDate, normalizePartnershipNoteList, recordPartnershipNote, removePartnershipNote, partnershipNotesForPartner, partnershipPartners, partnershipNoteSummaryText, partnershipNoteAllHtml, partnershipNotesForPartnerHtml, partnershipNoteCsv, partnershipNoteFilename } from './partnership-note.js';
 import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMohallaCostEstimateSheet, removeMohallaCostEstimateSheet, mohallaCostEstimatesForMohalla, mohallaCostEstimateMohallas, mohallaCostEstimateSummaryText, mohallaCostEstimateAllHtml, mohallaCostEstimatesForMohallaHtml, mohallaCostEstimateCsv, mohallaCostEstimateFilename } from './mohalla-cost-estimate.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
+import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14338,6 +14339,7 @@ function renderAnalytics() {
   renderPartnershipNotes();
   renderMohallaCostEstimate();
   renderAbsenceHandoverChecklist();
+  renderShopDiary();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -32087,6 +32089,69 @@ function renderAbsenceHandoverChecklist() {
     };
     $('#ahcMarkDoneBtn')?.addEventListener('click', () => { markStep(true); });
     $('#ahcMarkTodoBtn')?.addEventListener('click', () => { markStep(false); });
+  }
+}
+
+// Daily shop diary (Plan 310): one entry per day — the
+// date, the day's lines in plain words, and who entered
+// them. A past entry is never silently edited: there is no
+// edit, only record, find, and remove. Writing an entry
+// never changes any bill, payment, customer, or staff
+// record by itself.
+const SHOP_DIARY_KEY = 'shahdara_shop_diary_v1';
+function loadShopDiaryEntries() {
+  try { return normalizeShopDiaryEntryList(JSON.parse(localStorage.getItem(SHOP_DIARY_KEY) || '[]')); } catch { return []; }
+}
+function saveShopDiaryEntries(list) {
+  try { localStorage.setItem(SHOP_DIARY_KEY, JSON.stringify(normalizeShopDiaryEntryList(list))); } catch { /* shop diary only: a failed save leaves the previous list in place */ }
+}
+function shopDiaryEntriesFromText(raw) {
+  return String(raw ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+}
+let shopDiaryBound = false;
+function renderShopDiary() {
+  const listEl = $('#sdyBody');
+  if (!listEl) return;
+  const all = loadShopDiaryEntries();
+  listEl.innerHTML = all.length ? shopDiaryAllHtml(all) : '<p>No daily shop diary entries recorded.</p>';
+  const summaryEl = $('#sdySummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${shopDiarySummaryText(all)} Writing a diary entry never changes any bill, payment, customer, or staff record by itself.`;
+  }
+  const personSelect = $('#sdyPersonSelect');
+  if (personSelect) {
+    const people = shopDiaryEnteredByPeople(all);
+    const current = personSelect.value;
+    personSelect.innerHTML = people.map((person) => `<option value="${person}">${person}</option>`).join('');
+    if (people.includes(current)) personSelect.value = current;
+  }
+  const personEl = $('#sdyPersonBody');
+  if (personEl) {
+    const chosen = personSelect?.value ?? '';
+    personEl.innerHTML = chosen
+      ? shopDiaryEntriesForPersonHtml(all, chosen)
+      : '<p>Pick a person to see the diary entries they entered.</p>';
+  }
+  if (!shopDiaryBound) {
+    shopDiaryBound = true;
+    $('#sdyExportBtn')?.addEventListener('click', () => { downloadCsvFile(shopDiaryFilename(), shopDiaryCsv(loadShopDiaryEntries())); });
+    $('#sdyPersonSelect')?.addEventListener('change', () => { renderShopDiary(); });
+    $('#sdyRecordBtn')?.addEventListener('click', () => {
+      const before = loadShopDiaryEntries();
+      const next = recordShopDiaryEntry(before, {
+        id: ($('#sdyId')?.value ?? '').trim() || `SD-${Date.now()}`,
+        date: ($('#sdyDate')?.value ?? ''),
+        entries: shopDiaryEntriesFromText($('#sdyEntries')?.value ?? ''),
+        enteredBy: ($('#sdyEnteredBy')?.value ?? ''),
+      });
+      if (!next || next.length === before.length) { toast('Diary entry not recorded: give a real date, at least one line in plain words, and who entered it. One entry per day — a date that already has an entry stays as it is.'); return; }
+      saveShopDiaryEntries(next);
+      renderShopDiary();
+    });
+    $('#sdyRemoveBtn')?.addEventListener('click', () => {
+      saveShopDiaryEntries(removeShopDiaryEntry(loadShopDiaryEntries(), $('#sdyRemoveId')?.value ?? ''));
+      renderShopDiary();
+    });
   }
 }
 

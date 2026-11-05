@@ -485,6 +485,7 @@ import { validDocumentReceiptDate, normalizeDocumentReceiptList, recordDocumentR
 import { validCommunityMeetingDate, normalizeCommunityMeetingList, recordCommunityMeeting, removeCommunityMeeting, communityMeetingSorted, communityMeetingsForMohalla, communityMeetingSummaryText, communityMeetingAllHtml, communityMeetingsForMohallaHtml, communityMeetingCsv, communityMeetingFilename } from './community-meeting.js';
 import { birthdaysForMonth, birthdaysByMonth, birthdayMonthSummaryText, birthdayMonthHtml, birthdayMonthsHtml, birthdayMonthCsv, birthdayMonthsCsv, birthdayMonthFilename, birthdayMonthsFilename } from './birthday-month.js';
 import { normalizeReadinessScorecardList, recordReadinessScorecard, removeReadinessScorecard, readinessScorecardSummaryText, readinessScorecardAllHtml, readinessScorecardCsv, readinessScorecardFilename } from './readiness-scorecard.js';
+import { validPriceReviewDate, normalizePriceReviewList, recordPriceReviewWorksheet, removePriceReviewWorksheet, priceReviewsForPackage, priceReviewSummaryText, priceReviewAllHtml, priceReviewsForPackageHtml, priceReviewCsv, priceReviewFilename } from './price-review.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14216,6 +14217,7 @@ function renderAnalytics() {
   renderBirthdayMonth();
   renderReadinessScorecards();
   renderSupplierPerformance();
+  renderPriceReview();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -30704,6 +30706,63 @@ function renderSupplierPerformance() {
     });
     $('#spfFilterBtn')?.addEventListener('click', () => { renderSupplierPerformance(); });
     $('#spfFilter')?.addEventListener('input', () => { renderSupplierPerformance(); });
+  }
+}
+
+// Price review worksheet (Plan 289) — one worksheet per price
+// review: the package, its current price, the figure it was
+// compared against, a cost or margin note in plain words, the
+// review date, who reviewed it, and a conclusion in plain words.
+// A worksheet never changes any package price, bill, or customer
+// record by itself, and past worksheets are read-only: there is
+// no edit function, only record, find, and remove.
+const PRICE_REVIEW_KEY = 'shahdara_price_reviews_v1';
+function loadPriceReviewWorksheets() {
+  try { return normalizePriceReviewList(JSON.parse(localStorage.getItem(PRICE_REVIEW_KEY) || '[]')); } catch { return []; }
+}
+function savePriceReviewWorksheets(list) {
+  try { localStorage.setItem(PRICE_REVIEW_KEY, JSON.stringify(normalizePriceReviewList(list))); } catch { /* price review worksheets only: a failed save leaves the previous list in place */ }
+}
+let priceReviewBound = false;
+function renderPriceReview() {
+  const listEl = $('#prwBody');
+  if (!listEl) return;
+  const all = loadPriceReviewWorksheets();
+  const packageName = ($('#prwFilter')?.value ?? '').trim();
+  listEl.innerHTML = all.length ? priceReviewAllHtml(all) : '<p>No price review worksheets recorded.</p>';
+  const packageEl = $('#prwPackageBody');
+  if (packageEl) {
+    packageEl.innerHTML = packageName
+      ? priceReviewsForPackageHtml(all, packageName)
+      : '<p>Pick a package to see its review worksheets.</p>';
+  }
+  const summaryEl = $('#prwSummary');
+  if (summaryEl) summaryEl.textContent = `${priceReviewSummaryText(all)} Completing a worksheet never changes any package price, bill, or customer record by itself.`;
+  if (!priceReviewBound) {
+    priceReviewBound = true;
+    $('#prwExportBtn')?.addEventListener('click', () => { downloadCsvFile(priceReviewFilename(), priceReviewCsv(loadPriceReviewWorksheets())); });
+    $('#prwRecordBtn')?.addEventListener('click', () => {
+      const before = loadPriceReviewWorksheets();
+      const next = recordPriceReviewWorksheet(before, {
+        id: `PR-${Date.now()}`,
+        package: $('#prwPackage')?.value ?? '',
+        currentPrice: $('#prwCurrentPrice')?.value ?? '',
+        comparedFigure: $('#prwComparedFigure')?.value ?? '',
+        costNote: $('#prwCostNote')?.value ?? '',
+        reviewDate: $('#prwReviewDate')?.value ?? '',
+        reviewer: $('#prwReviewer')?.value ?? '',
+        conclusion: $('#prwConclusion')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Worksheet not recorded: give a package, whole-rupee current price and compared figure, a real review date, and a reviewer.'); return; }
+      savePriceReviewWorksheets(next);
+      renderPriceReview();
+    });
+    $('#prwRemoveBtn')?.addEventListener('click', () => {
+      savePriceReviewWorksheets(removePriceReviewWorksheet(loadPriceReviewWorksheets(), $('#prwRemoveId')?.value ?? ''));
+      renderPriceReview();
+    });
+    $('#prwFilterBtn')?.addEventListener('click', () => { renderPriceReview(); });
+    $('#prwFilter')?.addEventListener('input', () => { renderPriceReview(); });
   }
 }
 

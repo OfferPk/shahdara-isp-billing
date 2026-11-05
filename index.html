@@ -11117,6 +11117,56 @@
 <div id="cbList"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="dcHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="dcHeading">Service downgrade conversation note</h3>
+<p class="chart-caption">One conversation note per downgrade discussion: the customer, the date, the reason in plain words, the outcome (downgraded or kept package), and an optional note. A note with no customer or no reason is refused. Recording a conversation never changes any package, bill, payment, or credit record, and it is not the package-change preview, the plan-change queue, or the unused-days credit record.</p>
+<p id="dcSummary"></p>
+</div>
+<div>
+<button id="dcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export downgrade conversations CSV</button>
+</div>
+</div>
+<h4>Record a downgrade conversation</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="dcCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Date <input id="dcDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason <input id="dcReason" type="text" style="width: 240px;">
+</label>
+<label style="font-size: 12px;">Outcome <select id="dcOutcome" style="width: 140px;">
+<option value="downgraded">downgraded</option>
+<option value="kept package">kept package</option>
+</select>
+</label>
+<label style="font-size: 12px;">Note <input id="dcNote" type="text" style="width: 240px;">
+</label>
+<button id="dcRecordBtn" class="secondary-button btn-sm" type="button">Record conversation</button>
+</div>
+<h4>Remove a conversation</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove conversation id <input id="dcRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="dcRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Conversations that ended in a downgrade</h4>
+<div id="dcDowngradedBody"></div>
+<h4>Conversations where the package was kept</h4>
+<div id="dcKeptBody"></div>
+<h4>Conversations for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="dcFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="dcFilterBtn" class="secondary-button btn-sm" type="button">Show customer conversations</button>
+</div>
+<div id="dcCustomerBody"></div>
+<h4>All downgrade conversations</h4>
+<div id="dcList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

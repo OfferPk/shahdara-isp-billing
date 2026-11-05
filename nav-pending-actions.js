@@ -37,6 +37,7 @@ import {
   formatPakistaniPhone,
   escapeHtml
 } from './nav-quick-profile.js';
+import { pendingReceiptForShare, pendingReceiptMonthLabel } from './pending-receipt-month.js';
 import { getOfflineSyncQueue } from './nav.js';
 
 export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
@@ -718,6 +719,10 @@ export function setupPendingActionsModal(options = {}) {
       if (item.type === 'receipt') {
         const r = item.data;
         const phoneFormatted = r.customerPhone ? formatPakistaniPhone(r.customerPhone) : 'No phone saved';
+        // Polish 6 (A): the month the receipt is for, derived automatically
+        // (bill month first, payment date second) so the operator sees
+        // before sending exactly what the customer will receive.
+        const monthLabel = pendingReceiptMonthLabel(r);
         card.innerHTML = `
           <div class="pending-card-header">
             <span class="pending-card-badge badge-receipt">📱 Unshared Receipt</span>
@@ -732,6 +737,7 @@ export function setupPendingActionsModal(options = {}) {
               <span>Amount: <strong>Rs. ${Number(r.amount).toLocaleString()}</strong></span>
               <span>Method: <span class="method-tag">${escapeHtml(r.method)}</span></span>
               <span>Phone: ${escapeHtml(phoneFormatted)}</span>
+              ${monthLabel ? `<span>Month: <strong>${escapeHtml(monthLabel)}</strong></span>` : ''}
             </div>
           </div>
           <div class="pending-card-actions">
@@ -749,7 +755,11 @@ export function setupPendingActionsModal(options = {}) {
         if (waBtn) {
           waBtn.addEventListener('click', async () => {
             const cust = { id: r.customerId, name: r.customerName, phone: r.customerPhone, customerNumber: r.customerNumber };
-            const receipt = { id: r.paymentId, amount: r.amount, method: r.method, date: r.date, originMonth: r.month };
+            // Polish 6 (A): the share receipt is built complete — customer
+            // id/name/number plus the month derived automatically — so the
+            // WhatsApp draft opens with the month filled in instead of
+            // falling back to a clipboard text with a blank month.
+            const receipt = pendingReceiptForShare(r, cust);
             await executeReceiptWhatsAppShare(cust, receipt, { storage });
             toast(`WhatsApp draft opened for ${r.customerName}`);
             render();

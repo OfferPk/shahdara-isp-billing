@@ -333,7 +333,7 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
       customerNumber: customer.customerNumber,
       name: customer.name,
       phone: customer.phone || '',
-      area: customer.area || 'Unassigned',
+      area: customer.mohalla || customer.area || 'Unassigned',
       mohalla: customer.mohalla || '',
       address: customer.address || '',
       serviceStatus: customer.serviceStatus || 'not-set',
@@ -475,7 +475,7 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     customerNumber: customer.customerNumber,
     name: customer.name,
     phone: customer.phone || '',
-    area: customer.area || 'Unassigned',
+    area: customer.mohalla || customer.area || 'Unassigned',
     targetMonth,
     suggestedAmount,
     balanceDue: targetDue,
@@ -2898,10 +2898,12 @@ export function setupQuickCollectModal({
 
   // SISP-121: the success card shows the COMBINED receipt after a split
   // collection (activeReceipt.splitTender), the ordinary card otherwise.
+  // Polish 6 (B): the combined card gets the same on-screen Area select
+  // as the ordinary card, so an unassigned area can be picked right here.
   function renderActiveReceiptCard() {
     if (!receiptCardContainer || !activeReceipt) return;
     receiptCardContainer.innerHTML = activeReceipt.splitTender
-      ? renderSplitReceiptCardHtml(activeReceipt.splitTender)
+      ? renderSplitReceiptCardHtml(activeReceipt.splitTender, quickCollectAreaSelectHtml(activeReceipt.splitTender.area))
       : renderQuickCollectReceiptCardHtml(activeReceipt);
   }
 
@@ -2931,6 +2933,12 @@ export function setupQuickCollectModal({
         const nextState = updateCustomerProfile(getState(), activeCustomerId, { mohalla: stored });
         if (typeof onSaveState === 'function') onSaveState(nextState);
         activeReceipt = { ...activeReceipt, area: stored };
+        // Polish 6 (B): the combined split card reads its area from the
+        // split receipt, not from the top-level receipt, so sync it too —
+        // otherwise the re-render would show the old area on that card.
+        if (activeReceipt.splitTender) {
+          activeReceipt = { ...activeReceipt, splitTender: { ...activeReceipt.splitTender, area: stored } };
+        }
         renderActiveReceiptCard();
         if (typeof onToast === 'function') onToast(`Area updated to ${stored}.`, { type: 'success', title: 'Area updated' });
       } catch (err) {

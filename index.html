@@ -10454,6 +10454,57 @@
 <h4>All anniversary milestones</h4>
 <div id="amList"></div>
 </section>
+<section class="chart-card" aria-labelledby="roHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="roHeading">Referral outcome log per referrer</h3>
+<p class="chart-caption">One outcome entry per referred customer after activation: referrer, referred customer, outcome joined, stayed, or left, date, and a note. A referrer page shows referred customers with their latest outcome, and counts that sum to the referrals recorded. An outcome entry is never edited, only annotated. Recording an outcome never changes any referral record, customer record, bill, or payment, and never grants any credit.</p>
+<p id="roSummary"></p>
+</div>
+<div>
+<button id="roExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export referral outcomes CSV</button>
+</div>
+</div>
+<h4>Record a referral outcome</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Referrer <input id="roReferrer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Referred customer <input id="roReferred" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Outcome <select id="roOutcome" style="width: 110px;"><option value="">Choose</option><option value="joined">Joined</option><option value="stayed">Stayed</option><option value="left">Left</option></select>
+</label>
+<label style="font-size: 12px;">Date <input id="roDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="roNote" type="text" style="width: 200px;">
+</label>
+<button id="roRecordBtn" class="secondary-button btn-sm" type="button">Record outcome</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="roAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="roAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="roAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="roAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="roRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="roRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Referrer page</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Referrer <input id="roFilterReferrer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Referred customers, one per line <textarea id="roFilterReferred" rows="3" style="width: 200px;"></textarea>
+</label>
+<button id="roFilterBtn" class="secondary-button btn-sm" type="button">Show referrer page</button>
+</div>
+<div id="roFilterBody"></div>
+<h4>All referral outcomes</h4>
+<div id="roList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

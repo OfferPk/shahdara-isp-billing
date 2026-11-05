@@ -453,6 +453,7 @@ import { validFieldTrainingDate, normalizeFieldTrainingList, recordFieldTraining
 import { validJobDelayDate, normalizeJobDelayList, recordJobDelay, removeJobDelay, annotateJobDelay, jobDelaySorted, jobDelaysForReason, jobDelayReasons, jobDelaysInPeriod, jobDelayReasonCounts, jobDelaySummaryText, jobDelayHtml, jobDelayCsv, jobDelayFilename } from './job-delay.js';
 import { validMaterialReturnDate, normalizeMaterialReturnList, recordMaterialReturn, removeMaterialReturn, addMaterialReturnFollowup, materialReturnSorted, materialReturnsForJob, materialReturnsForItem, materialReturnTotalForItem, materialReturnSummaryText, materialReturnReconciliationText, materialReturnHtml, materialReturnAllHtml, materialReturnCsv, materialReturnFilename } from './material-return.js';
 import { validFieldExpenseDate, normalizeFieldExpenseList, recordFieldExpense, removeFieldExpense, addFieldExpenseFollowup, fieldExpenseSorted, fieldExpensesForVisit, fieldExpenseTotalForVisit, fieldExpensesForMonth, fieldExpenseTotalForMonth, fieldExpenseSummaryText, fieldExpenseHtml, fieldExpenseAllHtml, fieldExpenseCsv, fieldExpenseFilename } from './field-expense.js';
+import { validRestorationTimeDatetime, normalizeRestorationTimeList, recordRestorationTime, removeRestorationTime, addRestorationTimeFollowup, restorationTimeSorted, restorationTimesForTicket, restorationDurationText, ticketsWithoutRestorationTime, restorationTimeSummaryText, restorationTimeHtml, restorationTimeAllHtml, restorationTimeCsv, restorationTimeFilename } from './restoration-time.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14148,6 +14149,7 @@ function renderAnalytics() {
   renderJobDelays();
   renderMaterialReturns();
   renderFieldExpenses();
+  renderRestorationTimes();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28474,6 +28476,79 @@ function renderFieldExpenses() {
     $('#feFilterVisit')?.addEventListener('input', () => { renderFieldExpenses(); });
     $('#feMonthBtn')?.addEventListener('click', () => { renderFieldExpenses(); });
     $('#feFilterMonth')?.addEventListener('input', () => { renderFieldExpenses(); });
+  }
+}
+const RESTORATION_TIME_KEY = 'shahdara_restoration_times_v1';
+function loadRestorationTimes() {
+  try { return normalizeRestorationTimeList(JSON.parse(localStorage.getItem(RESTORATION_TIME_KEY) || '[]')); } catch { return []; }
+}
+function saveRestorationTimes(list) {
+  try { localStorage.setItem(RESTORATION_TIME_KEY, JSON.stringify(normalizeRestorationTimeList(list))); } catch { /* restoration times only: a failed save leaves the previous list in place */ }
+}
+let restorationTimesBound = false;
+function renderRestorationTimes() {
+  const listEl = $('#rtList');
+  if (!listEl) return;
+  const all = loadRestorationTimes();
+  listEl.innerHTML = all.length ? restorationTimeAllHtml(all) : '<p>No service restoration times recorded.</p>';
+  const summaryEl = $('#rtSummary');
+  if (summaryEl) summaryEl.textContent = `${restorationTimeSummaryText(all)} The restoration time is always after the reported time, and the outage length is counted from those two times. Recording a restoration never changes any bill, payment, customer, or ticket record by itself.`;
+  const ticketEl = $('#rtTicketBody');
+  if (ticketEl) {
+    const ticket = ($('#rtFilterTicket')?.value ?? '').trim();
+    if (ticket === '') {
+      ticketEl.innerHTML = '<p>Give a ticket reference to show its restoration time.</p>';
+    } else {
+      const rows = restorationTimesForTicket(all, ticket);
+      ticketEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>${entry.ticketRef}: fault reported ${entry.reportedAt}, service restored ${entry.restoredAt} (${restorationDurationText(entry)}), restored by ${entry.restoredBy}.</li>`).join('')}</ul>`
+        : `<p>No restoration time recorded for ticket \u201c${ticket}\u201d.</p>`;
+    }
+  }
+  const exceptionsEl = $('#rtExceptionsBody');
+  if (exceptionsEl) {
+    const raw = ($('#rtExceptionsInput')?.value ?? '').trim();
+    if (raw === '') {
+      exceptionsEl.innerHTML = '<p>Give closed ticket references, one per line, to list the ones without a restoration record.</p>';
+    } else {
+      const closed = raw.split('\n').map((line) => line.trim()).filter(Boolean);
+      const missing = ticketsWithoutRestorationTime(closed, all);
+      exceptionsEl.innerHTML = missing.length
+        ? `<ul>${missing.map((ref) => `<li>${ref}</li>`).join('')}</ul>`
+        : '<p>Every closed ticket listed has a restoration record.</p>';
+    }
+  }
+  if (!restorationTimesBound) {
+    restorationTimesBound = true;
+    $('#rtExportBtn')?.addEventListener('click', () => { downloadCsvFile(restorationTimeFilename(), restorationTimeCsv(loadRestorationTimes())); });
+    $('#rtRecordBtn')?.addEventListener('click', () => {
+      const before = loadRestorationTimes();
+      const next = recordRestorationTime(before, {
+        id: `RT-${Date.now()}`,
+        ticketRef: $('#rtTicketRef')?.value ?? '',
+        reportedAt: $('#rtReportedAt')?.value ?? '',
+        restoredAt: $('#rtRestoredAt')?.value ?? '',
+        restoredBy: $('#rtRestoredBy')?.value ?? '',
+        note: $('#rtNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Restoration time not recorded: give a ticket reference, a real fault reported time, a service restored time after it, who restored it, and a note. One record per ticket.'); return; }
+      saveRestorationTimes(next);
+      renderRestorationTimes();
+    });
+    $('#rtAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadRestorationTimes();
+      const next = addRestorationTimeFollowup(before, $('#rtAnnotateId')?.value ?? '', $('#rtAnnotateDate')?.value ?? '', $('#rtAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Follow-up note not added: give a known entry id, a real date, and a note.'); return; }
+      saveRestorationTimes(next);
+      renderRestorationTimes();
+    });
+    $('#rtRemoveBtn')?.addEventListener('click', () => {
+      saveRestorationTimes(removeRestorationTime(loadRestorationTimes(), $('#rtRemoveId')?.value ?? ''));
+      renderRestorationTimes();
+    });
+    $('#rtTicketBtn')?.addEventListener('click', () => { renderRestorationTimes(); });
+    $('#rtFilterTicket')?.addEventListener('input', () => { renderRestorationTimes(); });
+    $('#rtExceptionsBtn')?.addEventListener('click', () => { renderRestorationTimes(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

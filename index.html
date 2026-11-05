@@ -8041,6 +8041,55 @@
 </div>
 <p class="chart-caption">The list below is built from the saved bills. A delivery record matches a bill by its bill reference, typed as shown in the list. A bill with no delivery record and a due date after the reference date is listed here for chasing; a bill with no due date cannot be placed before its due date, so it stays out of this list.</p>
 <div id="bdUndeliveredBody"></div>
+</section><section class="chart-card" aria-labelledby="prHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">BILLING &amp; COLLECTIONS</p>
+<h3 id="prHeading">Payment reminder log</h3>
+<p class="chart-caption">One record per reminder sent: the customer, the bill, the date, the channel, and the reminder draft used — so a customer is never reminded twice while another is missed, and the reminder history is visible before the next visit. This logs reminders only: it creates no draft, sends nothing automatically, and recording a reminder never changes any bill, payment, or contact preference.</p>
+<p id="prSummary"></p>
+</div>
+<div>
+<button id="prExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export reminders CSV</button>
+</div>
+</div>
+<h4>Record a payment reminder</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer id <input id="prCustomer" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Bill <input id="prBill" type="text" style="width: 140px;" placeholder="bill id, as in the list below">
+</label>
+<label style="font-size: 12px;">Date <input id="prDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Channel <select id="prChannel" style="width: 140px;"><option value="whatsapp">WhatsApp</option><option value="sms">SMS</option><option value="in-person">In person</option><option value="phone">Phone call</option></select>
+</label>
+<label style="font-size: 12px;">Draft used <input id="prDraft" type="text" style="width: 160px;" placeholder="draft reference, or blank if none">
+</label>
+<button id="prSaveBtn" class="secondary-button btn-sm" type="button">Record reminder</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove record id <input id="prRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="prRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Payment reminders</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="prCustomerFilter" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Filter by bill <input id="prBillFilter" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Filter by channel <select id="prChannelFilter" style="width: 140px;"><option value="">All channels</option><option value="whatsapp">WhatsApp</option><option value="sms">SMS</option><option value="in-person">In person</option><option value="phone">Phone call</option></select>
+</label>
+</div>
+<div id="prBody"></div>
+<h4>How many reminders has a bill had?</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Bill <input id="prBillCount" type="text" style="width: 140px;">
+</label>
+<button id="prBillCountBtn" class="secondary-button btn-sm" type="button">Count reminders</button>
+<span id="prBillCountResult" style="font-size: 12px;"></span>
+</div>
+<p class="chart-caption">Filtering by customer lists that customer's reminders in date order, with channel and bill. The count above is an exact bill match, so a bill never inherits another bill's reminders.</p>
 </section><section class="chart-card" aria-labelledby="spHeading">
 <div class="table-heading">
 <div>

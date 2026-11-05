@@ -514,6 +514,7 @@ import { normalizeAppFeedbackList, recordAppFeedback, removeAppFeedback, closeAp
 import { normalizeAccessibilityNoteList, recordAccessibilityNote, removeAccessibilityNote, accessibilityNotesByScreen, accessibilityNoteScreensWithNotes, accessibilityNoteSummaryText, accessibilityNotesByScreenHtml, accessibilityNoteScreenStatusHtml, accessibilityNoteCsv, accessibilityNoteFilename } from './accessibility-note.js';
 import { normalizePrintTemplateList, recordPrintTemplate, supersedePrintTemplate, printTemplateCurrentVersion, printTemplatesByNameHtml, printTemplateSummaryText, printTemplateCsv, printTemplateFilename } from './print-template-register.js';
 import { validDataEntryErrorDay, foldDataEntryErrorType, normalizeDataEntryErrorList, recordDataEntryError, removeDataEntryError, dataEntryErrorsForType, dataEntryErrorTypes, dataEntryErrorCountsByType, dataEntryErrorSummaryText, dataEntryErrorsByTypeHtml, dataEntryErrorCsv, dataEntryErrorFilename } from './data-entry-error-log.js';
+import { validDuplicationCheckDay, foldDuplicationCheckRecordType, normalizeDuplicationCheckList, recordDuplicationCheck, removeDuplicationCheck, duplicationCheckOpenPairs, decideDuplicationPair, findSuspectedDuplicatePairs, duplicationChecksSummaryText, duplicationCheckPairText, duplicationCheckAllHtml, duplicationCheckCsv, duplicationCheckFilename } from './duplication-check.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14398,6 +14399,7 @@ function renderAnalytics() {
   renderAccessibilityNote();
   renderPrintTemplateRegister();
   renderDataEntryErrorLog();
+  renderDuplicationCheck();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32596,6 +32598,95 @@ function renderDataEntryErrorLog() {
       if (JSON.stringify(next) === JSON.stringify(before)) { toast('Nothing removed: give the id of a logged error.'); return; }
       saveDataEntryErrors(next);
       renderDataEntryErrorLog();
+    });
+  }
+}
+
+// Record duplication check (Plan 326): a periodic check
+// routine listing suspected duplicate records — each pair
+// with its matching fields, the date checked, and the
+// operator decision — for operator review. Checking only
+// lists suspected pairs: it never merges, deletes, or
+// changes any customer, bill, or payment record.
+const DUPLICATION_CHECK_KEY = 'shahdara_duplication_checks_v1';
+function loadDuplicationChecks() {
+  try { return normalizeDuplicationCheckList(JSON.parse(localStorage.getItem(DUPLICATION_CHECK_KEY) || '[]')); } catch { return []; }
+}
+function saveDuplicationChecks(list) {
+  try { localStorage.setItem(DUPLICATION_CHECK_KEY, JSON.stringify(normalizeDuplicationCheckList(list))); } catch { /* duplication checks only: a failed save leaves the previous list in place */ }
+}
+let duplicationCheckBound = false;
+function renderDuplicationCheck() {
+  const listEl = $('#dpcBody');
+  if (!listEl) return;
+  const all = loadDuplicationChecks();
+  listEl.innerHTML = all.length ? duplicationCheckAllHtml(all) : '<p>No duplication checks recorded.</p>';
+  const summaryEl = $('#dpcSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${duplicationChecksSummaryText(all)} Checking never merges, deletes, or changes any customer, bill, or payment record.`;
+  }
+  const openEl = $('#dpcOpenBody');
+  if (openEl) {
+    const openPairs = all.flatMap((check) => duplicationCheckOpenPairs(check).map((pair) => ({ checkId: check.id, pair })));
+    openEl.innerHTML = openPairs.length
+      ? `<ul>${openPairs.map(({ checkId, pair }) => `<li>${escapeHtml(checkId)}: ${escapeHtml(duplicationCheckPairText(pair))}</li>`).join('')}</ul>`
+      : '<p>No open suspected pairs.</p>';
+  }
+  if (!duplicationCheckBound) {
+    duplicationCheckBound = true;
+    $('#dpcExportBtn')?.addEventListener('click', () => { downloadCsvFile(duplicationCheckFilename(), duplicationCheckCsv(loadDuplicationChecks())); });
+    $('#dpcRunBtn')?.addEventListener('click', () => {
+      const before = loadDuplicationChecks();
+      const dateChecked = $('#dpcDate')?.value ?? '';
+      const checkedBy = $('#dpcCheckedBy')?.value ?? '';
+      if (!validDuplicationCheckDay(dateChecked) || !checkedBy.trim()) { toast('Run a check with a real date checked and the person who checked.'); return; }
+      const pairs = findSuspectedDuplicatePairs(state.customers ?? [], ['name', 'phone']);
+      const next = recordDuplicationCheck(before, {
+        id: `DPC-${Date.now()}`,
+        dateChecked,
+        checkedBy,
+        recordType: 'customer',
+        pairs,
+      });
+      if (next.length === before.length) { toast('Check not recorded: give a real date checked and the person who checked.'); return; }
+      saveDuplicationChecks(next);
+      renderDuplicationCheck();
+    });
+    $('#dpcPairBtn')?.addEventListener('click', () => {
+      const before = loadDuplicationChecks();
+      const fields = ($('#dpcFields')?.value ?? '').split(',').map((field) => field.trim()).filter(Boolean);
+      const next = recordDuplicationCheck(before, {
+        id: `DPC-${Date.now()}`,
+        dateChecked: $('#dpcDate')?.value ?? '',
+        checkedBy: $('#dpcCheckedBy')?.value ?? '',
+        recordType: foldDuplicationCheckRecordType($('#dpcType')?.value ?? ''),
+        pairs: [{
+          id: `DPC-P-${Date.now()}`,
+          recordA: $('#dpcRecordA')?.value ?? '',
+          recordB: $('#dpcRecordB')?.value ?? '',
+          matchingFields: fields,
+          decision: 'open',
+          reason: '',
+          decidedBy: '',
+        }],
+      });
+      if (next.length === before.length) { toast('Suspected pair not recorded: give a real date checked, the checker, two different records, and a matching field.'); return; }
+      saveDuplicationChecks(next);
+      renderDuplicationCheck();
+    });
+    $('#dpcDismissBtn')?.addEventListener('click', () => {
+      const before = loadDuplicationChecks();
+      const next = decideDuplicationPair(before, $('#dpcDismissCheck')?.value ?? '', $('#dpcDismissPair')?.value ?? '', 'dismissed', $('#dpcDismissReason')?.value ?? '', $('#dpcDismissBy')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Nothing dismissed: give a check id, a pair id, and a reason.'); return; }
+      saveDuplicationChecks(next);
+      renderDuplicationCheck();
+    });
+    $('#dpcRemoveBtn')?.addEventListener('click', () => {
+      const before = loadDuplicationChecks();
+      const next = removeDuplicationCheck(before, $('#dpcRemoveId')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Nothing removed: give the id of a recorded check.'); return; }
+      saveDuplicationChecks(next);
+      renderDuplicationCheck();
     });
   }
 }

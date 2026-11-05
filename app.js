@@ -431,6 +431,7 @@ import { normalizeBillingAddressList, recordBillingAddress, removeBillingAddress
 import { normalizeBillingLinkList, recordBillingLink, unlinkBillingLink, findBillingLink, billingLinksActive, billingLinksHistory, billingLinksForCustomer, billingLinkCombinedDues, billingLinkSummaryText, billingLinkEntryHtml, billingLinkCsv, billingLinkFilename } from './billing-link.js';
 import { normalizeFibreRouteList, recordFibreRoute, removeFibreRoute, addFibreRouteFollowup, fibreRoutesSorted, fibreRoutesForMohalla, fibreRouteSummaryText, fibreRouteHtml, fibreRouteCsv, fibreRouteFilename } from './fibre-route.js';
 import { validSpliceLossDate, normalizeSpliceLossList, recordSpliceLoss, removeSpliceLoss, findSpliceLoss, spliceLossSorted, spliceLossForJoint, spliceLossLatest, spliceLossSummaryText, spliceLossText, spliceLossJointText, spliceLossHtml, spliceLossCsv, spliceLossFilename } from './splice-loss.js';
+import { normalizeOltPortPlanList, recordOltPortPlan, removeOltPortPlan, convertOltPortPlanToUsed, oltPortPlansSorted, oltPortPlansForUnit, oltPortPlanSummaryText, oltPortPlanHtml, oltPortPlanCsv, oltPortPlanFilename } from './port-plan.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14104,6 +14105,7 @@ function renderAnalytics() {
   renderBillingLinks();
   renderFibreRoutes();
   renderSpliceLoss();
+  renderOltPortPlans();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26997,6 +26999,58 @@ function renderSpliceLoss() {
     $('#slCheckBtn')?.addEventListener('click', () => {
       const outEl = $('#slCheckOut');
       if (outEl) outEl.textContent = spliceLossJointText(loadSpliceLoss(), $('#slCheckJoint')?.value ?? '');
+    });
+  }
+}
+const PORT_PLAN_KEY = 'shahdara_port_plans_v1';
+function loadOltPortPlans() {
+  try { return normalizeOltPortPlanList(JSON.parse(localStorage.getItem(PORT_PLAN_KEY) || '[]')); } catch { return []; }
+}
+function saveOltPortPlans(list) {
+  try { localStorage.setItem(PORT_PLAN_KEY, JSON.stringify(normalizeOltPortPlanList(list))); } catch { /* port plans only: a failed save leaves the previous list in place */ }
+}
+let oltPortPlanBound = false;
+function renderOltPortPlans() {
+  const plannedEl = $('#ppPlannedBody');
+  if (!plannedEl) return;
+  const all = loadOltPortPlans();
+  const unitFilter = $('#ppFilter')?.value ?? '';
+  const scoped = unitFilter ? oltPortPlansForUnit(all, unitFilter) : oltPortPlansSorted(all);
+  const planned = scoped.filter((item) => item.status === 'planned');
+  const used = scoped.filter((item) => item.status === 'used');
+  plannedEl.innerHTML = planned.length ? planned.map((plan) => oltPortPlanHtml(plan)).join('') : '<p>No planned ports recorded.</p>';
+  const usedEl = $('#ppUsedBody');
+  if (usedEl) usedEl.innerHTML = used.length ? used.map((plan) => oltPortPlanHtml(plan)).join('') : '<p>No used ports recorded.</p>';
+  const summaryEl = $('#ppSummary');
+  if (summaryEl) summaryEl.textContent = `${oltPortPlanSummaryText(all)} Planned and used ports are listed separately per unit and never double-count the same port. Recording a plan never changes any bill, payment, customer, or assignment record by itself.`;
+  if (!oltPortPlanBound) {
+    oltPortPlanBound = true;
+    $('#ppExportBtn')?.addEventListener('click', () => { downloadCsvFile(oltPortPlanFilename(), oltPortPlanCsv(loadOltPortPlans())); });
+    $('#ppSaveBtn')?.addEventListener('click', () => {
+      const before = loadOltPortPlans();
+      const next = recordOltPortPlan(before, {
+        id: `PP-${Date.now()}`,
+        unit: $('#ppUnit')?.value ?? '',
+        port: $('#ppPort')?.value ?? '',
+        status: 'planned',
+        plannedFor: $('#ppPlannedFor')?.value ?? '',
+        datePlanned: $('#ppDate')?.value ?? '',
+        customerConnected: '',
+      });
+      if (!next || next.length === before.length) { toast('Port plan not recorded: give a unit, a port number, and a real date. A port already planned or used for that unit cannot be planned twice.'); return; }
+      saveOltPortPlans(next);
+      renderOltPortPlans();
+    });
+    $('#ppRemoveBtn')?.addEventListener('click', () => {
+      saveOltPortPlans(removeOltPortPlan(loadOltPortPlans(), $('#ppRemoveId')?.value ?? ''));
+      renderOltPortPlans();
+    });
+    $('#ppFilter')?.addEventListener('input', () => { renderOltPortPlans(); });
+    $('#ppConvertBtn')?.addEventListener('click', () => {
+      const next = convertOltPortPlanToUsed(loadOltPortPlans(), $('#ppConvertId')?.value ?? '', $('#ppConvertCustomer')?.value ?? '');
+      if (!next) { toast('Port not converted: give a planned port record id and the customer connected.'); return; }
+      saveOltPortPlans(next);
+      renderOltPortPlans();
     });
   }
 }

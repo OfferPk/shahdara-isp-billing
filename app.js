@@ -452,6 +452,7 @@ import { validCabinetAccessDate, normalizeCabinetAccessList, recordCabinetAccess
 import { validFieldTrainingDate, normalizeFieldTrainingList, recordFieldTraining, removeFieldTraining, annotateFieldTraining, fieldTrainingSorted, fieldTrainingForTechnician, fieldTrainingSkillsForTechnician, technicianSkillStatus, fieldTrainingSummaryText, fieldTrainingHtml, fieldTrainingCsv, fieldTrainingFilename } from './field-training.js';
 import { validJobDelayDate, normalizeJobDelayList, recordJobDelay, removeJobDelay, annotateJobDelay, jobDelaySorted, jobDelaysForReason, jobDelayReasons, jobDelaysInPeriod, jobDelayReasonCounts, jobDelaySummaryText, jobDelayHtml, jobDelayCsv, jobDelayFilename } from './job-delay.js';
 import { validMaterialReturnDate, normalizeMaterialReturnList, recordMaterialReturn, removeMaterialReturn, addMaterialReturnFollowup, materialReturnSorted, materialReturnsForJob, materialReturnsForItem, materialReturnTotalForItem, materialReturnSummaryText, materialReturnReconciliationText, materialReturnHtml, materialReturnAllHtml, materialReturnCsv, materialReturnFilename } from './material-return.js';
+import { validFieldExpenseDate, normalizeFieldExpenseList, recordFieldExpense, removeFieldExpense, addFieldExpenseFollowup, fieldExpenseSorted, fieldExpensesForVisit, fieldExpenseTotalForVisit, fieldExpensesForMonth, fieldExpenseTotalForMonth, fieldExpenseSummaryText, fieldExpenseHtml, fieldExpenseAllHtml, fieldExpenseCsv, fieldExpenseFilename } from './field-expense.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14146,6 +14147,7 @@ function renderAnalytics() {
   renderFieldTraining();
   renderJobDelays();
   renderMaterialReturns();
+  renderFieldExpenses();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28396,6 +28398,82 @@ function renderMaterialReturns() {
     $('#mrItemBtn')?.addEventListener('click', () => { renderMaterialReturns(); });
     $('#mrFilterItem')?.addEventListener('input', () => { renderMaterialReturns(); });
     $('#mrReconcileBtn')?.addEventListener('click', () => { renderMaterialReturns(); });
+  }
+}
+const FIELD_EXPENSE_KEY = 'shahdara_field_expenses_v1';
+function loadFieldExpenses() {
+  try { return normalizeFieldExpenseList(JSON.parse(localStorage.getItem(FIELD_EXPENSE_KEY) || '[]')); } catch { return []; }
+}
+function saveFieldExpenses(list) {
+  try { localStorage.setItem(FIELD_EXPENSE_KEY, JSON.stringify(normalizeFieldExpenseList(list))); } catch { /* expense notes only: a failed save leaves the previous list in place */ }
+}
+let fieldExpensesBound = false;
+function renderFieldExpenses() {
+  const listEl = $('#feList');
+  if (!listEl) return;
+  const all = loadFieldExpenses();
+  listEl.innerHTML = all.length ? fieldExpenseAllHtml(all) : '<p>No field expenses recorded.</p>';
+  const summaryEl = $('#feSummary');
+  if (summaryEl) summaryEl.textContent = `${fieldExpenseSummaryText(all)} Expenses list by visit and sum to a total per visit and per month that matches the notes listed, and recording an expense never changes any bill, payment, customer, visit, or petty cash total by itself.`;
+  const visitEl = $('#feVisitBody');
+  if (visitEl) {
+    const visit = ($('#feFilterVisit')?.value ?? '').trim();
+    if (visit === '') {
+      visitEl.innerHTML = '<p>Give a visit reference to list its field expenses.</p>';
+    } else {
+      const rows = fieldExpensesForVisit(all, visit);
+      const total = fieldExpenseTotalForVisit(all, visit);
+      visitEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>${entry.expense}, ${entry.amount} on ${entry.date}, paid by ${entry.paidBy}.</li>`).join('')}</ul><p>Total for this visit: ${total}.</p>`
+        : `<p>No field expenses recorded for visit \u201c${visit}\u201d.</p>`;
+    }
+  }
+  const monthEl = $('#feMonthBody');
+  if (monthEl) {
+    const month = ($('#feFilterMonth')?.value ?? '').trim();
+    if (month === '') {
+      monthEl.innerHTML = '<p>Give a month (YYYY-MM) to list its field expenses.</p>';
+    } else {
+      const rows = fieldExpensesForMonth(all, month);
+      const total = fieldExpenseTotalForMonth(all, month);
+      monthEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>Visit ${entry.visitRef}: ${entry.expense}, ${entry.amount} on ${entry.date}.</li>`).join('')}</ul><p>Total for this month: ${total}.</p>`
+        : `<p>No field expenses recorded for month \u201c${month}\u201d.</p>`;
+    }
+  }
+  if (!fieldExpensesBound) {
+    fieldExpensesBound = true;
+    $('#feExportBtn')?.addEventListener('click', () => { downloadCsvFile(fieldExpenseFilename(), fieldExpenseCsv(loadFieldExpenses())); });
+    $('#feRecordBtn')?.addEventListener('click', () => {
+      const before = loadFieldExpenses();
+      const amountRaw = ($('#feAmount')?.value ?? '').trim();
+      const next = recordFieldExpense(before, {
+        id: `FE-${Date.now()}`,
+        visitRef: $('#feVisitRef')?.value ?? '',
+        expense: $('#feExpense')?.value ?? '',
+        amount: amountRaw === '' ? undefined : Number(amountRaw),
+        date: $('#feDate')?.value ?? '',
+        paidBy: $('#fePaidBy')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Expense not recorded: give a visit reference, an expense in plain words, a positive amount, a real date, and who paid it.'); return; }
+      saveFieldExpenses(next);
+      renderFieldExpenses();
+    });
+    $('#feAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadFieldExpenses();
+      const next = addFieldExpenseFollowup(before, $('#feAnnotateId')?.value ?? '', $('#feAnnotateDate')?.value ?? '', $('#feAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Follow-up note not added: give a known entry id, a real date, and a note.'); return; }
+      saveFieldExpenses(next);
+      renderFieldExpenses();
+    });
+    $('#feRemoveBtn')?.addEventListener('click', () => {
+      saveFieldExpenses(removeFieldExpense(loadFieldExpenses(), $('#feRemoveId')?.value ?? ''));
+      renderFieldExpenses();
+    });
+    $('#feVisitBtn')?.addEventListener('click', () => { renderFieldExpenses(); });
+    $('#feFilterVisit')?.addEventListener('input', () => { renderFieldExpenses(); });
+    $('#feMonthBtn')?.addEventListener('click', () => { renderFieldExpenses(); });
+    $('#feFilterMonth')?.addEventListener('input', () => { renderFieldExpenses(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

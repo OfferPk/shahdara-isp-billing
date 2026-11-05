@@ -9896,6 +9896,62 @@
 <h4>All material returns</h4>
 <div id="mrList"></div>
 </section>
+<section class="chart-card" aria-labelledby="feHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="feHeading">Field expense note per visit</h3>
+<p class="chart-caption">One expense note per visit: the visit reference, the expense in plain words, the amount as entered, the date, and who paid it. Expenses list by visit and sum to a total per visit and per month that matches the notes listed. A note is never edited, only corrected by a dated follow-up note. It records expenses only: it never changes any bill, payment, customer, visit, or petty cash total by itself.</p>
+<p id="feSummary"></p>
+</div>
+<div>
+<button id="feExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export field expenses CSV</button>
+</div>
+</div>
+<h4>Record a field expense</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Visit reference <input id="feVisitRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Expense <input id="feExpense" type="text" style="width: 180px;">
+</label>
+<label style="font-size: 12px;">Amount <input id="feAmount" type="number" min="0" step="any" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Date <input id="feDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Paid by <input id="fePaidBy" type="text" style="width: 140px;">
+</label>
+<button id="feRecordBtn" class="secondary-button btn-sm" type="button">Record expense</button>
+</div>
+<h4>Dated follow-up note / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="feAnnotateId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="feAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="feAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="feAnnotateBtn" class="secondary-button btn-sm" type="button">Add dated follow-up note</button>
+<label style="font-size: 12px;">Remove entry id <input id="feRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="feRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Expenses by visit</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Visit reference <input id="feFilterVisit" type="text" style="width: 140px;">
+</label>
+<button id="feVisitBtn" class="secondary-button btn-sm" type="button">Show expenses</button>
+</div>
+<div id="feVisitBody"></div>
+<h4>Expenses by month</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month (YYYY-MM) <input id="feFilterMonth" type="text" style="width: 140px;">
+</label>
+<button id="feMonthBtn" class="secondary-button btn-sm" type="button">Show expenses</button>
+</div>
+<div id="feMonthBody"></div>
+<h4>All field expenses</h4>
+<div id="feList"></div>
+</section>
 <section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

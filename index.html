@@ -7952,6 +7952,52 @@
 <button id="acGapsBtn" class="secondary-button btn-sm" type="button">Check gaps</button>
 </div>
 <p id="acGapsBody"></p>
+</section><section class="chart-card" aria-labelledby="cpHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="cpHeading">Collection promise versus actual tracker</h3>
+<p class="chart-caption">One record per customer payment promise: what was promised, for when, and what was actually paid — or plainly unkept once the promised date passes. This tracker records promises only: it is not a bill extension, it never changes any bill, payment, due date, or customer record, and it never touches the live Waada record. A promise kept late is still shown as paid late, and repeat broken promises become visible instead of anecdotal.</p>
+<p id="cpSummary"></p>
+</div>
+<div>
+<button id="cpExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export collection promises CSV</button>
+</div>
+</div>
+<h4>Record a promise</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="cpCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Amount promised <input id="cpAmount" type="number" min="0.01" step="0.01" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Promised date <input id="cpPromisedDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Recorded by (collector) <input id="cpCollector" type="text" style="width: 140px;">
+</label>
+<button id="cpSaveBtn" class="secondary-button btn-sm" type="button">Record promise</button>
+</div>
+<h4>Record the actual payment</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Promise id <input id="cpPayId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date actually paid <input id="cpPaidDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Amount actually paid <input id="cpPaidAmount" type="number" min="0.01" step="0.01" style="width: 120px;">
+</label>
+<button id="cpPayBtn" class="secondary-button btn-sm" type="button">Record payment</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove promise id <input id="cpRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="cpRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Promises</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by customer <input id="cpCustomerFilter" type="text" style="width: 160px;">
+</label>
+</div>
+<p id="cpCountsBody"></p>
+<div id="cpBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

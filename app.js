@@ -414,6 +414,7 @@ import { normalizeCustodyList, recordCustodyExport, removeCustodyExport, confirm
 import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEntriesSorted, archiveByYear, archiveByKind, archiveAllHtml, archiveSummaryText, archiveCsv, archiveFilename } from './archive-index.js';
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
+import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
 import { normalizePartPaymentReceiptNoteList, recordPartPaymentReceiptNote, removePartPaymentReceiptNote, findPartPaymentReceiptNote, receiptNotesForCustomer, receiptNotesSorted, receiptNoteAllHtml, receiptNoteSummaryText, receiptNoteCsv, receiptNoteFilename, receiptsMissingReceiptNotes, reconcileReceiptNote } from './part-payment-receipt-note.js';
 import { normalizeExpiryList, recordExpiryNote, removeExpiryNote, expiryNotesSorted, expiryNotesForAdvance, expiryReviewText, expiryAllHtml, expirySummaryText, expiryCsv, expiryFilename } from './advance-expiry.js';
@@ -14066,6 +14067,7 @@ function renderAnalytics() {
   renderArchiveIndex();
   renderBusinessContacts();
   renderAbsenceCover();
+  renderCollectionPromises();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -25966,6 +25968,61 @@ function renderAbsenceCover() {
       const gapsEl = $('#acGapsBody');
       if (gapsEl) gapsEl.textContent = coverGapsText(loadAbsenceCover(), $('#acRangeStart')?.value ?? '', $('#acRangeEnd')?.value ?? '') || 'Give real start and end dates to check for cover gaps.';
     });
+  }
+}
+const COLLECTION_PROMISE_KEY = 'shahdara_collection_promises_v2';
+function loadCollectionPromises() {
+  try { return normalizeCollectionPromiseList(JSON.parse(localStorage.getItem(COLLECTION_PROMISE_KEY) || '[]')); } catch { return []; }
+}
+function saveCollectionPromises(list) {
+  try { localStorage.setItem(COLLECTION_PROMISE_KEY, JSON.stringify(normalizeCollectionPromiseList(list))); } catch { /* promise record only: a failed save leaves the previous list in place */ }
+}
+let collectionPromisesBound = false;
+function renderCollectionPromises() {
+  const bodyEl = $('#cpBody');
+  if (!bodyEl) return;
+  const today = typeof localDate === 'function' ? localDate() : '';
+  const customerQuery = ($('#cpCustomerFilter')?.value ?? '').trim();
+  let shown = collectionPromisesSorted(loadCollectionPromises());
+  if (customerQuery) shown = collectionPromisesForCustomer(shown, customerQuery);
+  bodyEl.innerHTML = shown.length ? collectionPromiseAllHtml(shown, today) : '<p>No collection promises recorded.</p>';
+  const summaryEl = $('#cpSummary');
+  if (summaryEl) summaryEl.textContent = collectionPromiseSummaryText(loadCollectionPromises(), today);
+  const countsEl = $('#cpCountsBody');
+  if (countsEl && customerQuery) {
+    const counts = collectionPromiseCountsForCustomer(loadCollectionPromises(), customerQuery, today);
+    countsEl.textContent = `${customerQuery}: ${counts.kept} kept, ${counts.unkept} unkept, ${counts.open} still open, ${counts.total} total.`;
+  } else if (countsEl) {
+    countsEl.textContent = 'Filter by a customer to see that customer\'s kept and unkept counts.';
+  }
+  if (!collectionPromisesBound) {
+    collectionPromisesBound = true;
+    $('#cpExportBtn')?.addEventListener('click', () => { downloadCsvFile(collectionPromiseFilename(), collectionPromiseCsv(loadCollectionPromises(), today)); });
+    $('#cpSaveBtn')?.addEventListener('click', () => {
+      const before = loadCollectionPromises();
+      const next = recordCollectionPromise(before, {
+        id: `CP-${Date.now()}`,
+        customer: $('#cpCustomer')?.value ?? '',
+        amountPromised: $('#cpAmount')?.value ?? '',
+        promisedDate: $('#cpPromisedDate')?.value ?? '',
+        collector: $('#cpCollector')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Collection promise not recorded: give a customer, a positive amount, and a real promised date.'); return; }
+      saveCollectionPromises(next);
+      renderCollectionPromises();
+    });
+    $('#cpPayBtn')?.addEventListener('click', () => {
+      const before = loadCollectionPromises();
+      const next = recordCollectionPromisePayment(before, $('#cpPayId')?.value ?? '', $('#cpPaidDate')?.value ?? '', $('#cpPaidAmount')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Payment not recorded: give a recorded unpaid promise id, a real paid date, and a positive amount.'); return; }
+      saveCollectionPromises(next);
+      renderCollectionPromises();
+    });
+    $('#cpRemoveBtn')?.addEventListener('click', () => {
+      saveCollectionPromises(removeCollectionPromise(loadCollectionPromises(), $('#cpRemoveId')?.value ?? ''));
+      renderCollectionPromises();
+    });
+    $('#cpCustomerFilter')?.addEventListener('input', () => { renderCollectionPromises(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

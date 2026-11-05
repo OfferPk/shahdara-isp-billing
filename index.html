@@ -10938,6 +10938,34 @@
 <div id="acnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="ptrHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="ptrHeading">Print template register</h3>
+<p class="chart-caption">One register entry per print template: the template name, its purpose, its version, the date it was adopted, and the screens or printed sheets it serves. Each template shows its current version and adoption date; superseded versions stay listed as superseded, never deleted. The register never changes any printed sheet, bill, payment, or customer record by itself.</p>
+<p id="ptrSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="ptrExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export print templates CSV</button>
+</div></div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Template name <input id="ptrName" type="text" style="width: 150px;" placeholder="e.g. Customer info sheet"></label>
+<label style="font-size: 12px;">Purpose <input id="ptrPurpose" type="text" style="width: 220px;" placeholder="e.g. One-page sheet for a new customer"></label>
+<label style="font-size: 12px;">Version <input id="ptrVersion" type="text" style="width: 80px;" placeholder="e.g. v2"></label>
+<label style="font-size: 12px;">Date adopted <input id="ptrDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Serves <input id="ptrServes" type="text" style="width: 220px;" placeholder="e.g. New customer onboarding, Info sheet printout"></label>
+<button id="ptrRecordBtn" class="secondary-button btn-sm" type="button">Record template</button>
+</div>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Supersede id <input id="ptrSupersedeId" type="text" style="width: 120px;"></label>
+<label style="font-size: 12px;">Superseded by id <input id="ptrSupersedeBy" type="text" style="width: 120px;"></label>
+<button id="ptrSupersedeBtn" class="secondary-button btn-sm" type="button">Mark superseded</button>
+<label style="font-size: 12px;">Current version of <input id="ptrCurrentName" type="text" style="width: 150px;" placeholder="e.g. Urdu receipt"></label>
+<button id="ptrCheckBtn" class="secondary-button btn-sm" type="button">Check current version</button>
+</div>
+<div id="ptrCurrentBody"></div>
+<h4>Templates, by name</h4>
+<div id="ptrBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

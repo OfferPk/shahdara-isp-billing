@@ -435,6 +435,7 @@ import { normalizeOltPortPlanList, recordOltPortPlan, removeOltPortPlan, convert
 import { validKitPowerDate, normalizeKitPowerList, recordKitPower, removeKitPower, findKitPower, kitPowerSorted, kitPowerForItem, kitPowerItems, kitPowerLastCharge, kitPowerVisits, kitPowerStale, kitPowerSummaryText, kitPowerText, kitPowerItemText, kitPowerHtml, kitPowerCsv, kitPowerFilename } from './kit-power.js';
 import { validVehicleFuelDate, normalizeVehicleFuelList, recordVehicleFuel, removeVehicleFuel, findVehicleFuel, vehicleFuelSorted, vehicleFuelForVehicle, vehicleFuelVehicles, vehicleFuelMonthlyEntries, vehicleFuelMonthlyTotal, vehicleFuelMonthlySummaryText, addVehicleFuelFollowUp, vehicleFuelSummaryText, vehicleFuelText, vehicleFuelHtml, vehicleFuelCsv, vehicleFuelFilename } from './vehicle-fuel.js';
 import { validWeatherDisruptionDate, normalizeWeatherDisruptionList, recordWeatherDisruption, removeWeatherDisruption, findWeatherDisruption, weatherDisruptionsSorted, weatherDisruptionsForMohalla, weatherDisruptionMohallas, addWeatherDisruptionAnnotation, weatherDisruptionSummaryText, weatherDisruptionText, weatherDisruptionHtml, weatherDisruptionCsv, weatherDisruptionFilename } from './weather-disruption.js';
+import { validContractorVisitDate, normalizeContractorVisitList, recordContractorVisit, removeContractorVisit, findContractorVisit, contractorVisitsSorted, contractorVisitsForContractor, contractorVisitsOnDate, addContractorVisitCorrection, contractorVisitSummaryText, contractorVisitText, contractorVisitHtml, contractorVisitCsv, contractorVisitFilename } from './contractor-visit.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14112,6 +14113,7 @@ function renderAnalytics() {
   renderKitPower();
   renderVehicleFuel();
   renderWeatherDisruptions();
+  renderContractorVisits();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27210,6 +27212,62 @@ function renderWeatherDisruptions() {
       if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Annotation not added: give a known entry id, a real date, and a note.'); return; }
       saveWeatherDisruptions(next);
       renderWeatherDisruptions();
+    });
+  }
+}
+const CONTRACTOR_VISIT_KEY = 'shahdara_contractor_visits_v1';
+function loadContractorVisits() {
+  try { return normalizeContractorVisitList(JSON.parse(localStorage.getItem(CONTRACTOR_VISIT_KEY) || '[]')); } catch { return []; }
+}
+function saveContractorVisits(list) {
+  try { localStorage.setItem(CONTRACTOR_VISIT_KEY, JSON.stringify(normalizeContractorVisitList(list))); } catch { /* contractor visit only: a failed save leaves the previous list in place */ }
+}
+let contractorVisitsBound = false;
+function renderContractorVisits() {
+  const bodyEl = $('#cvBody');
+  if (!bodyEl) return;
+  const all = loadContractorVisits();
+  const contractorFilter = $('#cvFilter')?.value ?? '';
+  const scoped = contractorFilter ? contractorVisitsForContractor(all, contractorFilter) : contractorVisitsSorted(all);
+  bodyEl.innerHTML = scoped.length ? scoped.map((visit) => contractorVisitHtml(visit)).join('') : '<p>No contractor visits recorded.</p>';
+  const summaryEl = $('#cvSummary');
+  if (summaryEl) summaryEl.textContent = `${contractorVisitSummaryText(all)} A record is never edited, only followed by a dated correction note. Recording a visit never changes any bill, payment, customer, fault, or staff record by itself.`;
+  if (!contractorVisitsBound) {
+    contractorVisitsBound = true;
+    $('#cvExportBtn')?.addEventListener('click', () => { downloadCsvFile(contractorVisitFilename(), contractorVisitCsv(loadContractorVisits())); });
+    $('#cvSaveBtn')?.addEventListener('click', () => {
+      const before = loadContractorVisits();
+      const chargeRaw = $('#cvCharge')?.value ?? '';
+      const next = recordContractorVisit(before, {
+        id: `CV-${Date.now()}`,
+        contractor: $('#cvContractor')?.value ?? '',
+        date: $('#cvDate')?.value ?? '',
+        job: $('#cvJob')?.value ?? '',
+        customer: $('#cvCustomer')?.value ?? '',
+        segment: $('#cvSegment')?.value ?? '',
+        workDone: $('#cvWork')?.value ?? '',
+        charge: chargeRaw === '' ? null : Number(chargeRaw),
+      });
+      if (!next || next.length === before.length) { toast('Visit not recorded: give a contractor, a real date, a job, a customer or a segment, and the work done.'); return; }
+      saveContractorVisits(next);
+      renderContractorVisits();
+    });
+    $('#cvRemoveBtn')?.addEventListener('click', () => {
+      saveContractorVisits(removeContractorVisit(loadContractorVisits(), $('#cvRemoveId')?.value ?? ''));
+      renderContractorVisits();
+    });
+    $('#cvFilter')?.addEventListener('input', () => { renderContractorVisits(); });
+    $('#cvDateBtn')?.addEventListener('click', () => {
+      const date = $('#cvDateFilter')?.value ?? '';
+      const scoped = contractorVisitsOnDate(loadContractorVisits(), date);
+      bodyEl.innerHTML = scoped.length ? scoped.map((visit) => contractorVisitHtml(visit)).join('') : '<p>No contractor visits on that date.</p>';
+    });
+    $('#cvCorrectBtn')?.addEventListener('click', () => {
+      const before = loadContractorVisits();
+      const next = addContractorVisitCorrection(before, $('#cvCorrectId')?.value ?? '', $('#cvCorrectDate')?.value ?? '', $('#cvCorrectNote')?.value ?? '');
+      if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Correction not added: give a known visit id, a real date, and a note.'); return; }
+      saveContractorVisits(next);
+      renderContractorVisits();
     });
   }
 }

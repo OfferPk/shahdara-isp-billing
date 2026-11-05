@@ -10750,6 +10750,37 @@
 <div id="mceBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="mksHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="mksHeading">Monthly KPI record sheet</h3>
+<p class="chart-caption">One KPI record sheet per month: collections, new and exited customers, open faults, and dues outstanding, each copied from its source report. Every figure names the source report it came from. Leave a figure blank when its source report is not available — the sheet is then marked incomplete instead of being filled by guesswork. Recording a sheet never changes any bill, payment, customer, or source report.</p>
+<p id="mksSummary"></p>
+</div>
+<div>
+<button id="mksExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export KPI sheets CSV</button>
+</div>
+</div>
+<h4>Record a monthly KPI sheet</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month <input id="mksMonth" type="month" style="width: 140px;"></label>
+<label style="font-size: 12px;">Collections, Rs (Collections report) <input id="mksCollections" type="number" min="0" step="1" style="width: 120px;" placeholder="e.g. 285000"></label>
+<label style="font-size: 12px;">New customers (New customers report) <input id="mksNewCustomers" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Exited customers (Exited customers report) <input id="mksExitedCustomers" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Open faults (Faults report) <input id="mksOpenFaults" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Dues outstanding, Rs (Dues report) <input id="mksDuesOutstanding" type="number" min="0" step="1" style="width: 120px;" placeholder="e.g. 12000"></label>
+<label style="font-size: 12px;">Recorded by <input id="mksRecordedBy" type="text" style="width: 120px;" placeholder="e.g. Owner"></label>
+<button id="mksRecordBtn" class="secondary-button btn-sm" type="button">Record KPI sheet</button>
+<label style="font-size: 12px;">Remove id <input id="mksRemoveId" type="text" style="width: 120px;"></label>
+<button id="mksRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>KPI sheet for one month</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month <select id="mksMonthSelect" style="width: 160px;"></select></label>
+</div>
+<div id="mksMonthBody"></div>
+<h4>All monthly KPI sheets</h4>
+<div id="mksBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

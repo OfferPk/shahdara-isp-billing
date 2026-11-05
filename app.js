@@ -506,6 +506,7 @@ import { normalizePurchaseApprovalList, recordPurchaseApproval, removePurchaseAp
 import { validGrowthFundingDate, normalizeGrowthFundingList, recordGrowthFundingNote, removeGrowthFundingNote, growthFundingNotesForSource, growthFundingSources, growthFundingSummaryText, growthFundingAllHtml, growthFundingNotesForSourceHtml, growthFundingCsv, growthFundingFilename } from './growth-funding.js';
 import { validPartnershipNoteDate, normalizePartnershipNoteList, recordPartnershipNote, removePartnershipNote, partnershipNotesForPartner, partnershipPartners, partnershipNoteSummaryText, partnershipNoteAllHtml, partnershipNotesForPartnerHtml, partnershipNoteCsv, partnershipNoteFilename } from './partnership-note.js';
 import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMohallaCostEstimateSheet, removeMohallaCostEstimateSheet, mohallaCostEstimatesForMohalla, mohallaCostEstimateMohallas, mohallaCostEstimateSummaryText, mohallaCostEstimateAllHtml, mohallaCostEstimatesForMohallaHtml, mohallaCostEstimateCsv, mohallaCostEstimateFilename } from './mohalla-cost-estimate.js';
+import { monthlyKpiMonthLabel, normalizeMonthlyKpiSheetList, recordMonthlyKpiSheet, removeMonthlyKpiSheet, monthlyKpiSheetMonths, monthlyKpiSheetSummaryText, monthlyKpiSheetEntryHtml, monthlyKpiSheetAllHtml, monthlyKpiSheetCsv, monthlyKpiSheetFilename } from './monthly-kpi-sheet.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14382,6 +14383,7 @@ function renderAnalytics() {
   renderGrowthFunding();
   renderPartnershipNotes();
   renderMohallaCostEstimate();
+  renderMonthlyKpiSheet();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32061,6 +32063,74 @@ function renderMohallaCostEstimate() {
     $('#mceRemoveBtn')?.addEventListener('click', () => {
       saveMohallaCostEstimates(removeMohallaCostEstimateSheet(loadMohallaCostEstimates(), $('#mceRemoveId')?.value ?? ''));
       renderMohallaCostEstimate();
+    });
+  }
+}
+
+// Monthly KPI record sheet (Plan 318): one sheet per month —
+// collections, new and exited customers, open faults, and dues
+// outstanding — where every figure names the source report it
+// was copied from. A figure is left blank when its source report
+// is not available, and the sheet is then marked incomplete
+// instead of being filled by guesswork. Recording a sheet never
+// changes any bill, payment, customer, or source report.
+const MONTHLY_KPI_SHEET_KEY = 'shahdara_monthly_kpi_sheets_v1';
+function loadMonthlyKpiSheets() {
+  try { return normalizeMonthlyKpiSheetList(JSON.parse(localStorage.getItem(MONTHLY_KPI_SHEET_KEY) || '[]')); } catch { return []; }
+}
+function saveMonthlyKpiSheets(list) {
+  try { localStorage.setItem(MONTHLY_KPI_SHEET_KEY, JSON.stringify(normalizeMonthlyKpiSheetList(list))); } catch { /* KPI sheet only: a failed save leaves the previous list in place */ }
+}
+let monthlyKpiSheetBound = false;
+function renderMonthlyKpiSheet() {
+  const listEl = $('#mksBody');
+  if (!listEl) return;
+  const all = loadMonthlyKpiSheets();
+  listEl.innerHTML = all.length ? monthlyKpiSheetAllHtml(all) : '<p>No monthly KPI sheets recorded.</p>';
+  const summaryEl = $('#mksSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${monthlyKpiSheetSummaryText(all)} Recording a sheet never changes any bill, payment, customer, or source report.`;
+  }
+  const monthSelect = $('#mksMonthSelect');
+  if (monthSelect) {
+    const months = monthlyKpiSheetMonths(all);
+    const current = monthSelect.value;
+    monthSelect.innerHTML = months.map((month) => `<option value="${month}">${monthlyKpiMonthLabel(month)}</option>`).join('');
+    if (months.includes(current)) monthSelect.value = current;
+  }
+  const monthEl = $('#mksMonthBody');
+  if (monthEl) {
+    const chosen = monthSelect?.value ?? '';
+    monthEl.innerHTML = chosen
+      ? monthlyKpiSheetEntryHtml(all.find((sheet) => sheet.month === chosen) ?? null)
+      : '<p>Pick a month to see its KPI sheet.</p>';
+  }
+  if (!monthlyKpiSheetBound) {
+    monthlyKpiSheetBound = true;
+    $('#mksExportBtn')?.addEventListener('click', () => { downloadCsvFile(monthlyKpiSheetFilename(), monthlyKpiSheetCsv(loadMonthlyKpiSheets())); });
+    $('#mksMonthSelect')?.addEventListener('change', () => { renderMonthlyKpiSheet(); });
+    $('#mksRecordBtn')?.addEventListener('click', () => {
+      const before = loadMonthlyKpiSheets();
+      const month = $('#mksMonth')?.value ?? '';
+      const next = recordMonthlyKpiSheet(before, {
+        id: `KPI-${month}`,
+        month,
+        recordedBy: $('#mksRecordedBy')?.value ?? '',
+        figures: {
+          collections: $('#mksCollections')?.value ?? '',
+          newCustomers: $('#mksNewCustomers')?.value ?? '',
+          exitedCustomers: $('#mksExitedCustomers')?.value ?? '',
+          openFaults: $('#mksOpenFaults')?.value ?? '',
+          duesOutstanding: $('#mksDuesOutstanding')?.value ?? '',
+        },
+      });
+      if (!next || next.length === before.length) { toast('KPI sheet not recorded: give a month, a recorder, and at least one whole-number figure copied from its source report. A month already recorded is kept as it is.'); return; }
+      saveMonthlyKpiSheets(next);
+      renderMonthlyKpiSheet();
+    });
+    $('#mksRemoveBtn')?.addEventListener('click', () => {
+      saveMonthlyKpiSheets(removeMonthlyKpiSheet(loadMonthlyKpiSheets(), $('#mksRemoveId')?.value ?? ''));
+      renderMonthlyKpiSheet();
     });
   }
 }

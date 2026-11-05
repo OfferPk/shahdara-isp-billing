@@ -428,6 +428,7 @@ import { normalizeOverdueWatchlistList, recordOverdueWatchlistEntry, removeOverd
 import { normalizeDisputeEvidenceList, recordDisputeEvidence, removeDisputeEvidence, disputeEvidenceSorted, evidenceForCase, evidenceForType, disputeEvidenceEntryHtml, disputeEvidenceSummaryText, disputeEvidenceCsv, disputeEvidenceFilename } from './dispute-evidence.js';
 import { normalizeFormatVersionList, recordFormatVersion, removeFormatVersion, formatVersionsSorted, normalizeBillFormatStampList, stampBillFormat, removeBillFormatStamp, billFormatStampsSorted, flaggedBillFormatStamps, billFormatStampText, formatVersionEntryHtml, billFormatStampHtml, formatVersionSummaryText, formatVersionCsv, formatVersionFilename } from './bill-format-version.js';
 import { normalizeBillingAddressList, recordBillingAddress, removeBillingAddress, findBillingAddress, billingAddressesSorted, billingAddressesForCustomer, deliveryAddressFor, billingAddressDiffers, billingAddressSideBySideText, billingAddressSummaryText, billingAddressEntryHtml, billingAddressCsv, billingAddressFilename } from './billing-address.js';
+import { normalizeBillingLinkList, recordBillingLink, unlinkBillingLink, findBillingLink, billingLinksActive, billingLinksHistory, billingLinksForCustomer, billingLinkCombinedDues, billingLinkSummaryText, billingLinkEntryHtml, billingLinkCsv, billingLinkFilename } from './billing-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14098,6 +14099,7 @@ function renderAnalytics() {
   renderDisputeEvidence();
   renderBillFormatVersion();
   renderBillingAddresses();
+  renderBillingLinks();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26836,6 +26838,67 @@ function renderBillingAddresses() {
         const delivery = deliveryAddressFor(allNow, customer, service);
         sideElNow.textContent += ` Bills for this customer go to: ${delivery}.`;
       }
+    });
+  }
+}
+const BILLING_LINK_KEY = 'shahdara_billing_links_v1';
+function loadBillingLinks() {
+  try { return normalizeBillingLinkList(JSON.parse(localStorage.getItem(BILLING_LINK_KEY) || '[]')); } catch { return []; }
+}
+function saveBillingLinks(list) {
+  try { localStorage.setItem(BILLING_LINK_KEY, JSON.stringify(normalizeBillingLinkList(list))); } catch { /* billing links only: a failed save leaves the previous list in place */ }
+}
+let billingLinksBound = false;
+function renderBillingLinks() {
+  const bodyEl = $('#blBody');
+  if (!bodyEl) return;
+  const all = loadBillingLinks();
+  const customerFilter = $('#blFilter')?.value ?? '';
+  const shown = customerFilter ? billingLinksForCustomer(all, customerFilter) : billingLinksActive(all);
+  bodyEl.innerHTML = shown.length ? shown.map((record) => billingLinkEntryHtml(record)).join('') : '<p>No billing links recorded.</p>';
+  const historyEl = $('#blHistoryBody');
+  if (historyEl) {
+    const history = billingLinksHistory(all);
+    historyEl.innerHTML = history.length ? history.map((record) => billingLinkEntryHtml(record)).join('') : '<p>No unlinked links kept in history.</p>';
+  }
+  const summaryEl = $('#blSummary');
+  if (summaryEl) summaryEl.textContent = `${billingLinkSummaryText(all)} Recording or unlinking a link never changes any bill, payment, or connection record by itself.`;
+  if (!billingLinksBound) {
+    billingLinksBound = true;
+    $('#blExportBtn')?.addEventListener('click', () => { downloadCsvFile(billingLinkFilename(), billingLinkCsv(loadBillingLinks())); });
+    $('#blSaveBtn')?.addEventListener('click', () => {
+      const before = loadBillingLinks();
+      const next = recordBillingLink(before, {
+        id: `BL-${Date.now()}`,
+        customer: $('#blCustomer')?.value ?? '',
+        primaryConnection: $('#blPrimary')?.value ?? '',
+        linkedConnection: $('#blLinked')?.value ?? '',
+        linkDate: $('#blDate')?.value ?? '',
+        linkNote: $('#blNote')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Billing link not recorded: give a customer, two different connections, and a real link date. One active link per customer.'); return; }
+      saveBillingLinks(next);
+      renderBillingLinks();
+    });
+    $('#blUnlinkBtn')?.addEventListener('click', () => {
+      saveBillingLinks(unlinkBillingLink(loadBillingLinks(), $('#blUnlinkId')?.value ?? '', $('#blUnlinkDate')?.value ?? ''));
+      renderBillingLinks();
+    });
+    $('#blFilter')?.addEventListener('input', () => { renderBillingLinks(); });
+    $('#blDuesBtn')?.addEventListener('click', () => {
+      const allNow = loadBillingLinks();
+      const customer = $('#blCheckCustomer')?.value ?? '';
+      const outEl = $('#blDuesOut');
+      if (!outEl) return;
+      const link = findBillingLink(allNow, customer);
+      if (!link) { outEl.textContent = 'No active billing link for that customer.'; return; }
+      const primaryDues = Number($('#blPrimaryDues')?.value ?? '');
+      const linkedDues = Number($('#blLinkedDues')?.value ?? '');
+      const view = billingLinkCombinedDues(link, [
+        { connectionId: link.primaryConnection, amount: Number.isFinite(primaryDues) ? primaryDues : 0 },
+        { connectionId: link.linkedConnection, amount: Number.isFinite(linkedDues) ? linkedDues : 0 },
+      ]);
+      outEl.textContent = `${link.customer} — ${link.primaryConnection} (Rs. ${(view.primaryCents / 100).toFixed(0)}) + ${link.linkedConnection} (Rs. ${(view.linkedCents / 100).toFixed(0)}) = Rs. ${(view.totalCents / 100).toFixed(0)} combined. This is a view only; no bill, payment, or connection record changes.`;
     });
   }
 }

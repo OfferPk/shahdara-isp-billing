@@ -433,6 +433,7 @@ import { normalizeFibreRouteList, recordFibreRoute, removeFibreRoute, addFibreRo
 import { validSpliceLossDate, normalizeSpliceLossList, recordSpliceLoss, removeSpliceLoss, findSpliceLoss, spliceLossSorted, spliceLossForJoint, spliceLossLatest, spliceLossSummaryText, spliceLossText, spliceLossJointText, spliceLossHtml, spliceLossCsv, spliceLossFilename } from './splice-loss.js';
 import { normalizeOltPortPlanList, recordOltPortPlan, removeOltPortPlan, convertOltPortPlanToUsed, oltPortPlansSorted, oltPortPlansForUnit, oltPortPlanSummaryText, oltPortPlanHtml, oltPortPlanCsv, oltPortPlanFilename } from './port-plan.js';
 import { validKitPowerDate, normalizeKitPowerList, recordKitPower, removeKitPower, findKitPower, kitPowerSorted, kitPowerForItem, kitPowerItems, kitPowerLastCharge, kitPowerVisits, kitPowerStale, kitPowerSummaryText, kitPowerText, kitPowerItemText, kitPowerHtml, kitPowerCsv, kitPowerFilename } from './kit-power.js';
+import { validVehicleFuelDate, normalizeVehicleFuelList, recordVehicleFuel, removeVehicleFuel, findVehicleFuel, vehicleFuelSorted, vehicleFuelForVehicle, vehicleFuelVehicles, vehicleFuelMonthlyEntries, vehicleFuelMonthlyTotal, vehicleFuelMonthlySummaryText, addVehicleFuelFollowUp, vehicleFuelSummaryText, vehicleFuelText, vehicleFuelHtml, vehicleFuelCsv, vehicleFuelFilename } from './vehicle-fuel.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14108,6 +14109,7 @@ function renderAnalytics() {
   renderSpliceLoss();
   renderOltPortPlans();
   renderKitPower();
+  renderVehicleFuel();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -27105,6 +27107,59 @@ function renderKitPower() {
         const stale = kitPowerStale(loadKitPower(), $('#kpAsOf')?.value ?? '', $('#kpInterval')?.value ?? '');
         outEl.textContent = stale.length ? `Not charged within the interval: ${stale.join(', ')}.` : 'No kit item is overdue for charging.';
       }
+    });
+  }
+}
+const VEHICLE_FUEL_KEY = 'shahdara_vehicle_fuel_v1';
+function loadVehicleFuel() {
+  try { return normalizeVehicleFuelList(JSON.parse(localStorage.getItem(VEHICLE_FUEL_KEY) || '[]')); } catch { return []; }
+}
+function saveVehicleFuel(list) {
+  try { localStorage.setItem(VEHICLE_FUEL_KEY, JSON.stringify(normalizeVehicleFuelList(list))); } catch { /* vehicle fuel only: a failed save leaves the previous list in place */ }
+}
+let vehicleFuelBound = false;
+function renderVehicleFuel() {
+  const bodyEl = $('#vfBody');
+  if (!bodyEl) return;
+  const all = loadVehicleFuel();
+  const vehicleFilter = $('#vfFilter')?.value ?? '';
+  const scoped = vehicleFilter ? vehicleFuelForVehicle(all, vehicleFilter) : vehicleFuelSorted(all);
+  bodyEl.innerHTML = scoped.length ? scoped.map((entry) => vehicleFuelHtml(entry)).join('') : '<p>No vehicle fuel entries recorded.</p>';
+  const summaryEl = $('#vfSummary');
+  if (summaryEl) summaryEl.textContent = `${vehicleFuelSummaryText(all)} An entry is never edited, only corrected by a dated follow-up note. Recording fuel never changes any bill, payment, customer, visit, or expense total by itself.`;
+  if (!vehicleFuelBound) {
+    vehicleFuelBound = true;
+    $('#vfExportBtn')?.addEventListener('click', () => { downloadCsvFile(vehicleFuelFilename(), vehicleFuelCsv(loadVehicleFuel())); });
+    $('#vfSaveBtn')?.addEventListener('click', () => {
+      const before = loadVehicleFuel();
+      const next = recordVehicleFuel(before, {
+        id: `VF-${Date.now()}`,
+        vehicle: $('#vfVehicle')?.value ?? '',
+        date: $('#vfDate')?.value ?? '',
+        fuelLitres: Number($('#vfFuel')?.value ?? ''),
+        cost: Number($('#vfCost')?.value ?? ''),
+        odometer: ($('#vfOdometer')?.value ?? '') === '' ? null : Number($('#vfOdometer')?.value ?? ''),
+        visits: $('#vfVisits')?.value ?? '',
+      });
+      if (!next || next.length === before.length) { toast('Fuel entry not recorded: give a vehicle, a real date, a positive fuel amount, a cost, and at least one visit covered.'); return; }
+      saveVehicleFuel(next);
+      renderVehicleFuel();
+    });
+    $('#vfRemoveBtn')?.addEventListener('click', () => {
+      saveVehicleFuel(removeVehicleFuel(loadVehicleFuel(), $('#vfRemoveId')?.value ?? ''));
+      renderVehicleFuel();
+    });
+    $('#vfFilter')?.addEventListener('input', () => { renderVehicleFuel(); });
+    $('#vfFollowBtn')?.addEventListener('click', () => {
+      const before = loadVehicleFuel();
+      const next = addVehicleFuelFollowUp(before, $('#vfFollowId')?.value ?? '', $('#vfFollowDate')?.value ?? '', $('#vfFollowNote')?.value ?? '');
+      if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Follow-up not added: give a known entry id, a real date, and a note.'); return; }
+      saveVehicleFuel(next);
+      renderVehicleFuel();
+    });
+    $('#vfMonthBtn')?.addEventListener('click', () => {
+      const outEl = $('#vfMonthOut');
+      if (outEl) outEl.textContent = vehicleFuelMonthlySummaryText(loadVehicleFuel(), $('#vfMonthVehicle')?.value ?? '', $('#vfMonth')?.value ?? '');
     });
   }
 }

@@ -418,6 +418,7 @@ import { normalizeBillDeliveryList, recordBillDelivery, removeBillDelivery, bill
 import { normalizeReminderList, recordReminder, removeReminder, remindersForCustomer, remindersForBill, remindersForChannel, reminderCountForBill, reminderHtml, reminderSummaryText, reminderCsv, reminderFilename } from './reminder-log.js';
 import { normalizeCashHandlingList, recordCashHandling, removeCashHandling, cashHandlingSorted, cashHandlingForCounter, cashHandlingForLocation, cashHandlingFlagged, compareCashHandlingToDaySheet, cashHandlingDaySheetText, cashHandlingAllHtml, cashHandlingSummaryText, cashHandlingCsv, cashHandlingFilename } from './cash-handling.js';
 import { normalizeSeasonalPatternList, recordSeasonalPattern, removeSeasonalPattern, seasonalPatternsForMohalla, seasonalPatternsForMonth, seasonalPatternAllHtml, seasonalPatternSummaryText, seasonalPatternCsv, seasonalPatternFilename } from './seasonal-pattern.js';
+import { normalizeRouteLoadList, recordRouteLoad, removeRouteLoad, routeLoadsSorted, routeLoadsForCollector, routeDayView, routeDayImbalanceText, routeDaySummaryText, routeLoadAllHtml, routeLoadDayHtml, routeLoadCsv, routeLoadFilename } from './route-balancing.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
 import { BILL_EXCEPTION_REASONS, BILL_EXCEPTION_REASON_LABELS, BILL_EXCEPTION_CLEAR_METHODS, BILL_EXCEPTION_CLEAR_METHOD_LABELS, normalizeExceptionClearanceList, buildBillExceptions, applyBillExceptionClearance, openBillExceptions, clearedBillExceptions, billExceptionSummaryText, billExceptionHtml, billExceptionCsv, billExceptionFilename } from './bill-exceptions.js?v=1.11.0';
@@ -14018,6 +14019,7 @@ function renderAnalytics() {
   renderArchiveIndex();
   renderBusinessContacts();
   renderAbsenceCover();
+  renderRouteLoad();
   renderAppliedPrices();
   renderBillDeliveries();
   renderPaymentReminders();
@@ -25912,6 +25914,58 @@ function renderAbsenceCover() {
     $('#acGapsBtn')?.addEventListener('click', () => {
       const gapsEl = $('#acGapsBody');
       if (gapsEl) gapsEl.textContent = coverGapsText(loadAbsenceCover(), $('#acRangeStart')?.value ?? '', $('#acRangeEnd')?.value ?? '') || 'Give real start and end dates to check for cover gaps.';
+    });
+  }
+}
+const ROUTE_LOAD_KEY = 'shahdara_route_load_v1';
+function loadRouteLoad() {
+  try { return normalizeRouteLoadList(JSON.parse(localStorage.getItem(ROUTE_LOAD_KEY) || '[]')); } catch { return []; }
+}
+function saveRouteLoad(list) {
+  try { localStorage.setItem(ROUTE_LOAD_KEY, JSON.stringify(normalizeRouteLoadList(list))); } catch { /* route-load records only: a failed save leaves the previous list in place */ }
+}
+let routeLoadBound = false;
+function renderRouteLoad() {
+  const bodyEl = $('#rbBody');
+  if (!bodyEl) return;
+  const collectorQuery = ($('#rbCollectorFilter')?.value ?? '').trim();
+  let shown = routeLoadsSorted(loadRouteLoad());
+  if (collectorQuery) shown = routeLoadsForCollector(shown, collectorQuery);
+  bodyEl.innerHTML = shown.length ? routeLoadAllHtml(shown) : '<p>No route load recorded.</p>';
+  const summaryEl = $('#rbSummary');
+  if (summaryEl) summaryEl.textContent = `${loadRouteLoad().length} route-load records.`;
+  if (!routeLoadBound) {
+    routeLoadBound = true;
+    $('#rbExportBtn')?.addEventListener('click', () => { downloadCsvFile(routeLoadFilename(), routeLoadCsv(loadRouteLoad())); });
+    $('#rbSaveBtn')?.addEventListener('click', () => {
+      const before = loadRouteLoad();
+      const mohallas = ($('#rbMohallas')?.value ?? '').split(',').map((m) => m.trim()).filter(Boolean);
+      const next = recordRouteLoad(before, {
+        id: `RB-${Date.now()}`,
+        date: $('#rbDate')?.value ?? '',
+        collector: $('#rbCollector')?.value ?? '',
+        mohallas,
+        stopsPlanned: Number($('#rbStops')?.value ?? ''),
+        estimatedVisits: ($('#rbVisits')?.value ?? '') === '' ? null : Number($('#rbVisits')?.value ?? ''),
+        note: $('#rbNote')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Route load not recorded: give a collector, a real date, at least one mohalla, and a whole number of planned stops (one record per collector per day).'); return; }
+      saveRouteLoad(next);
+      renderRouteLoad();
+    });
+    $('#rbRemoveBtn')?.addEventListener('click', () => {
+      saveRouteLoad(removeRouteLoad(loadRouteLoad(), $('#rbRemoveId')?.value ?? ''));
+      renderRouteLoad();
+    });
+    $('#rbCollectorFilter')?.addEventListener('input', () => { renderRouteLoad(); });
+    $('#rbDayBtn')?.addEventListener('click', () => {
+      const date = $('#rbDayDate')?.value ?? '';
+      const dayBodyEl = $('#rbDayBody');
+      if (dayBodyEl) dayBodyEl.innerHTML = routeDayView(loadRouteLoad(), date).length ? routeLoadDayHtml(loadRouteLoad(), date) : '<p>No route load recorded for that date.</p>';
+      const totalEl = $('#rbDayTotal');
+      if (totalEl) totalEl.textContent = routeDaySummaryText(loadRouteLoad(), date);
+      const imbalanceEl = $('#rbImbalanceBody');
+      if (imbalanceEl) imbalanceEl.textContent = routeDayImbalanceText(loadRouteLoad(), date) || 'No imbalance flagged for that day.';
     });
   }
 }

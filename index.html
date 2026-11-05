@@ -7952,6 +7952,55 @@
 <button id="acGapsBtn" class="secondary-button btn-sm" type="button">Check gaps</button>
 </div>
 <p id="acGapsBody"></p>
+</section><section class="chart-card" aria-labelledby="rbHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">FIELD &amp; COLLECTION</p>
+<h3 id="rbHeading">Collector route balancing record</h3>
+<p class="chart-caption">One route-load record per collector per day: the collector, the mohallas assigned, the stops planned, and the estimated visits — so the owner can see at a glance whether one collector carries far more than another. This measures load only: it never re-sequences a route, never reassigns a mohalla, and recording load never changes any route, visit, or payment. A day where one collector carries more than twice another's stops is flagged below.</p>
+<p id="rbSummary"></p>
+</div>
+<div>
+<button id="rbExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export route load CSV</button>
+</div>
+</div>
+<h4>Record a day's route load</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Collector <input id="rbCollector" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="rbDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Mohallas (comma separated) <input id="rbMohallas" type="text" style="width: 200px;" placeholder="e.g. BANII, KISHTII">
+</label>
+<label style="font-size: 12px;">Stops planned <input id="rbStops" type="number" min="0" step="1" style="width: 100px;">
+</label>
+<label style="font-size: 12px;">Estimated visits <input id="rbVisits" type="number" min="0" step="1" style="width: 100px;">
+</label>
+<label style="font-size: 12px;">Note <input id="rbNote" type="text" style="width: 160px;">
+</label>
+<button id="rbSaveBtn" class="secondary-button btn-sm" type="button">Record load</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove load id <input id="rbRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="rbRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Route-load records</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Filter by collector <input id="rbCollectorFilter" type="text" style="width: 160px;">
+</label>
+</div>
+<div id="rbBody"></div>
+<h4>Day view: planned stops side by side</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Day <input id="rbDayDate" type="date" style="width: 140px;">
+</label>
+<button id="rbDayBtn" class="secondary-button btn-sm" type="button">Show day</button>
+</div>
+<p id="rbDayTotal"></p>
+<div id="rbDayBody"></div>
+<h4>Imbalance flagged</h4>
+<p id="rbImbalanceBody"></p>
 </section><section class="chart-card" aria-labelledby="apHeading">
 <div class="table-heading">
 <div>

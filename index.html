@@ -9715,6 +9715,58 @@
 <h4>All cabinet access notes</h4>
 <div id="ckList"></div>
 </section>
+<section class="chart-card" aria-labelledby="rgHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rgHeading">Referral reward eligibility note</h3>
+<p class="chart-caption">One eligibility note per referrer per referral: the referral link, the eligibility rule applied in plain words, eligible yes or no, and the date checked. A second note for the same referral is allowed only as a dated re-check with a later date, never an edit. An eligible note grants no credit and no discount by itself, and it never changes any referral record, bill, or payment.</p>
+<p id="rgSummary"></p>
+</div>
+<div>
+<button id="rgExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export eligibility notes CSV</button>
+</div>
+</div>
+<h4>Record an eligibility note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Referrer <input id="rgReferrer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Referral <input id="rgReferral" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Eligibility rule <input id="rgRule" type="text" style="width: 240px;">
+</label>
+<label style="font-size: 12px;">Eligible <select id="rgEligible" style="width: 120px;"><option value="">Choose</option><option value="yes">Yes</option><option value="no">No</option></select>
+</label>
+<label style="font-size: 12px;">Date checked <input id="rgDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Note <input id="rgNote" type="text" style="width: 200px;">
+</label>
+<button id="rgRecordBtn" class="secondary-button btn-sm" type="button">Record eligibility note</button>
+</div>
+<h4>Remove an eligibility note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove note id <input id="rgRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="rgRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Eligibility notes for one referrer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Referrer <input id="rgFilterReferrer" type="text" style="width: 160px;">
+</label>
+<button id="rgFilterBtn" class="secondary-button btn-sm" type="button">Show referrer notes</button>
+</div>
+<div id="rgReferrerBody"></div>
+<h4>Latest eligibility check for one referral</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Referral <input id="rgLatestReferral" type="text" style="width: 120px;">
+</label>
+<button id="rgLatestBtn" class="secondary-button btn-sm" type="button">Show latest check</button>
+</div>
+<div id="rgLatestBody"></div>
+<h4>All eligibility notes</h4>
+<div id="rgList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

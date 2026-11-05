@@ -9490,6 +9490,65 @@
 <div id="dchFlaggedBody"></div>
 <h4>All replacements</h4>
 <div id="dchList"></div>
+</section><section class="chart-card" aria-labelledby="orHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="orHeading">ONU replacement reason log</h3>
+<p class="chart-caption">One log entry per ONU replacement: the customer, the old unit reference, the new unit reference, the reason in plain words, the date, and who replaced it. Replacements list by reason and by customer, and each entry names both units, so a repeated reason — power damage, for example — points to a fixable cause. An entry is never edited, only corrected by a dated follow-up note. Recording a reason never changes any bill, payment, customer, or equipment record by itself.</p>
+<p id="orSummary"></p>
+</div>
+<div>
+<button id="orExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export ONU replacements CSV</button>
+</div>
+</div>
+<h4>Record a replacement</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="orCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Old unit <input id="orOldUnit" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">New unit <input id="orNewUnit" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Reason <input id="orReason" type="text" style="width: 220px;">
+</label>
+<label style="font-size: 12px;">Date replaced <input id="orDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Replaced by <input id="orReplacedBy" type="text" style="width: 140px;">
+</label>
+<button id="orRecordBtn" class="secondary-button btn-sm" type="button">Record replacement</button>
+</div>
+<h4>Add a dated follow-up / remove</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="orFollowUpId" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up date <input id="orFollowUpDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Follow-up note <input id="orFollowUpNote" type="text" style="width: 220px;">
+</label>
+<button id="orFollowUpBtn" class="secondary-button btn-sm" type="button">Add follow-up</button>
+<label style="font-size: 12px;">Remove entry id <input id="orRemoveId" type="text" style="width: 140px;">
+</label>
+<button id="orRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Replacements for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="orFilterCustomer" type="text" style="width: 140px;">
+</label>
+<button id="orCustomerBtn" class="secondary-button btn-sm" type="button">Show replacements</button>
+</div>
+<div id="orCustomerBody"></div>
+<h4>Replacements by reason</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Reason <input id="orFilterReason" type="text" style="width: 220px;">
+</label>
+<button id="orReasonBtn" class="secondary-button btn-sm" type="button">Show replacements</button>
+</div>
+<div id="orReasonBody"></div>
+<h4>Repeated reasons (two or more replacements)</h4>
+<div id="orRepeatBody"></div>
+<h4>All replacements</h4>
+<div id="orList"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

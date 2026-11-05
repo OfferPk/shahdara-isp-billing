@@ -11167,6 +11167,54 @@
 <div id="dcList"></div>
 </section>
 
+<section class="chart-card" aria-labelledby="pzHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="pzHeading">Customer praise and compliment log</h3>
+<p class="chart-caption">One praise entry per compliment: the customer, the date, what was praised in plain words, and who or what it was about. A praise entry with no customer or no description is refused. Recording praise never changes any customer, staff, bill, or payment record, it is not a complaint, and it is not a testimonial — no consent note is needed unless the praise is later used publicly.</p>
+<p id="pzSummary"></p>
+</div>
+<div>
+<button id="pzExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export praise log CSV</button>
+</div>
+</div>
+<h4>Record praise</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="pzCustomer" type="text" style="width: 160px;">
+</label>
+<label style="font-size: 12px;">Date <input id="pzDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">What was praised <input id="pzDescription" type="text" style="width: 240px;">
+</label>
+<label style="font-size: 12px;">Who or what it was about <input id="pzSubject" type="text" style="width: 160px;">
+</label>
+<button id="pzRecordBtn" class="secondary-button btn-sm" type="button">Record praise</button>
+</div>
+<h4>Remove a praise entry</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove praise id <input id="pzRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="pzRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Praise for one subject</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Praised subject <input id="pzSubjectFilter" type="text" style="width: 160px;">
+</label>
+<button id="pzSubjectBtn" class="secondary-button btn-sm" type="button">Show subject praise</button>
+</div>
+<div id="pzSubjectBody"></div>
+<h4>Praise for one customer</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Customer <input id="pzFilterCustomer" type="text" style="width: 160px;">
+</label>
+<button id="pzFilterBtn" class="secondary-button btn-sm" type="button">Show customer praise</button>
+</div>
+<div id="pzCustomerBody"></div>
+<h4>All praise</h4>
+<div id="pzList"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

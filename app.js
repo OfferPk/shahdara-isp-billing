@@ -420,6 +420,7 @@ import { normalizeDiscountExpiryList, recordDiscountExpiry, removeDiscountExpiry
 import { normalizeWaiverReasonList, recordWaiverReason, removeWaiverReason, waiverReasonsForCategory, waiverReasonAllHtml, waiverReasonCsv, waiverReasonFilename } from './waiver-reason.js';
 import { normalizeInstalmentDefaultList, recordInstalmentDefault, removeInstalmentDefault, markInstalmentPaidLate, instalmentDefaultsSorted, instalmentDefaultsOpen, instalmentDefaultsForSchedule, instalmentDefaultSummaryText, instalmentDefaultAllHtml, instalmentDefaultCsv, instalmentDefaultFilename } from './instalment-default.js';
 import { normalizeDepositTopUpList, recordDepositTopUp, removeDepositTopUp, depositTopUpsSorted, depositTopUpsForDeposit, depositTopUpSummaryText, depositTopUpAllHtml, depositTopUpCsv, depositTopUpFilename } from './deposit-topup.js';
+import { normalizeRefundApprovalList, recordRefundApproval, removeRefundApproval, approvalsSorted as refundApprovalsSorted, approvalsForPeriod as refundApprovalsForPeriod, refundApprovalStatus, refundApprovalAllHtml, refundApprovalSummaryText, refundApprovalCsv, refundApprovalFilename } from './refund-approval.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
@@ -14082,6 +14083,7 @@ function renderAnalytics() {
   renderWaiverReasons();
   renderInstalmentDefaults();
   renderDepositTopUps();
+  renderRefundApprovals();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26357,6 +26359,71 @@ function renderDepositTopUps() {
       renderDepositTopUps();
     });
     $('#dtDepositFilter')?.addEventListener('input', () => { renderDepositTopUps(); });
+  }
+}
+const REFUND_APPROVAL_KEY = 'shahdara_refund_approvals_v1';
+function loadRefundApprovals() {
+  try { return normalizeRefundApprovalList(JSON.parse(localStorage.getItem(REFUND_APPROVAL_KEY) || '[]')); } catch { return []; }
+}
+function saveRefundApprovals(list) {
+  try { localStorage.setItem(REFUND_APPROVAL_KEY, JSON.stringify(normalizeRefundApprovalList(list))); } catch { /* approval note only: a failed save leaves the previous notes in place */ }
+}
+function refundApprovalTierLimitCents() {
+  const raw = ($('#raTierLimit')?.value ?? '').trim();
+  if (raw === '') return null;
+  const num = Number(raw);
+  if (!Number.isFinite(num) || num < 0) return null;
+  return Math.round(num * 100);
+}
+let refundApprovalsBound = false;
+function renderRefundApprovals() {
+  const bodyEl = $('#raBody');
+  if (!bodyEl) return;
+  const all = loadRefundApprovals();
+  const from = $('#raPeriodFrom')?.value ?? '';
+  const to = $('#raPeriodTo')?.value ?? '';
+  const shown = (from || to) ? refundApprovalsForPeriod(all, { from, to }) : refundApprovalsSorted(all);
+  bodyEl.innerHTML = refundApprovalAllHtml(shown);
+  const summaryEl = $('#raSummary');
+  if (summaryEl) summaryEl.textContent = `${refundApprovalSummaryText(all, [], refundApprovalTierLimitCents())} An approval approves only; it posts no refund and moves no money.`;
+  if (!refundApprovalsBound) {
+    refundApprovalsBound = true;
+    $('#raExportBtn')?.addEventListener('click', () => { downloadCsvFile(refundApprovalFilename(), refundApprovalCsv(shown)); });
+    $('#raSaveBtn')?.addEventListener('click', () => {
+      const before = loadRefundApprovals();
+      const next = recordRefundApproval(before, {
+        id: `RA-${Date.now()}`,
+        refundRef: $('#raRefundRef')?.value ?? '',
+        approver: $('#raApprover')?.value ?? '',
+        date: $('#raDate')?.value ?? '',
+        amount: Number($('#raAmount')?.value ?? ''),
+      });
+      if (!next || next.length === before.length) { toast('Refund approval not recorded: give a refund reference, an approver, a real date, and a positive amount.'); return; }
+      saveRefundApprovals(next);
+      renderRefundApprovals();
+    });
+    $('#raRemoveBtn')?.addEventListener('click', () => {
+      saveRefundApprovals(removeRefundApproval(loadRefundApprovals(), $('#raRemoveId')?.value ?? ''));
+      renderRefundApprovals();
+    });
+    $('#raPeriodFrom')?.addEventListener('change', () => { renderRefundApprovals(); });
+    $('#raPeriodTo')?.addEventListener('change', () => { renderRefundApprovals(); });
+    $('#raTierLimit')?.addEventListener('change', () => { renderRefundApprovals(); });
+    $('#raCheckBtn')?.addEventListener('click', () => {
+      const resultEl = $('#raCheckResult');
+      if (!resultEl) return;
+      const limit = refundApprovalTierLimitCents();
+      const amountRaw = ($('#raCheckAmount')?.value ?? '').trim();
+      const status = refundApprovalStatus({
+        refundRef: $('#raCheckRef')?.value ?? '',
+        amount: amountRaw === '' ? undefined : Number(amountRaw),
+        date: $('#raCheckDate')?.value ?? '',
+      }, loadRefundApprovals(), limit);
+      resultEl.textContent = status === 'not-required' ? 'No approval required: this refund is at or below the operator tier.'
+        : status === 'approved' ? 'Approved: a prior approval for this refund reference is on record.'
+        : status === 'missing-approval' ? 'Flagged: this refund is above the operator tier and has no prior approval on record.'
+        : 'Cannot judge: give a refund reference, a positive amount, and a valid operator tier limit.';
+    });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

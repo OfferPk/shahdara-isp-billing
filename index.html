@@ -8263,6 +8263,56 @@
 </label>
 </div>
 <div id="dtBody"></div>
+</section><section class="chart-card" aria-labelledby="raHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="raHeading">Refund approval note</h3>
+<p class="chart-caption">One approval record per refund requiring approval: the refund reference, the approver, the date approved, and the amount. This note approves only: it posts no refund, it does not replace the refund record itself, and recording an approval never moves money or changes any payment. A refund above the operator tier with no prior approval is flagged.</p>
+<p id="raSummary"></p>
+</div>
+<div>
+<button id="raExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export refund approvals CSV</button>
+</div>
+</div>
+<h4>Record a refund approval</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Refund reference <input id="raRefundRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Approver <input id="raApprover" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date approved <input id="raDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Amount (Rs.) <input id="raAmount" type="number" min="1" style="width: 110px;">
+</label>
+<button id="raSaveBtn" class="secondary-button btn-sm" type="button">Record approval</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove approval id <input id="raRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="raRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Review approvals</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Period from <input id="raPeriodFrom" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Period to <input id="raPeriodTo" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Operator tier limit (Rs.) <input id="raTierLimit" type="number" min="0" step="1" style="width: 110px;">
+</label>
+</div>
+<h4>Check a refund</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Refund reference <input id="raCheckRef" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Refund amount (Rs.) <input id="raCheckAmount" type="number" min="1" style="width: 110px;">
+</label>
+<label style="font-size: 12px;">Refund date <input id="raCheckDate" type="date" style="width: 140px;">
+</label>
+<button id="raCheckBtn" class="secondary-button btn-sm" type="button">Check approval</button>
+</div>
+<p id="raCheckResult"></p>
+<div id="raBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

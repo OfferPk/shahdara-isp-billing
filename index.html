@@ -10072,6 +10072,33 @@
 </section>
 
 
+<section class="chart-card" aria-labelledby="scHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="scHeading">Second OLT readiness scorecard</h3>
+<p class="chart-caption">One dated scorecard per readiness check: the date, the checklist items with done or not done against each, and who recorded it. A scorecard shows its plain checked-item count only — no percentage, no score — and past scorecards are read-only. Creating a scorecard never changes any bill, payment, customer, port, or OLT record by itself, and it never triggers a second OLT on its own.</p>
+<p id="scSummary"></p>
+</div>
+<div>
+<button id="scExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export scorecards CSV</button>
+</div>
+</div>
+<h4>Record a scorecard</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="scDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Recorded by <input id="scRecordedBy" type="text" style="width: 140px;"></label>
+<label style="font-size: 12px;">Checked items, one per line <textarea id="scDoneItems" style="width: 200px;" placeholder="Port count under 250"></textarea></label>
+<label style="font-size: 12px;">Not yet checked items, one per line <textarea id="scPendingItems" style="width: 200px;" placeholder="Second unit rack space ready"></textarea></label>
+<button id="scRecordBtn" class="secondary-button btn-sm" type="button">Record scorecard</button>
+<label style="font-size: 12px;">Remove id <input id="scRemoveId" type="text" style="width: 120px;"></label>
+<button id="scRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>All scorecards</h4>
+<div id="scBody"></div>
+</section>
+
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

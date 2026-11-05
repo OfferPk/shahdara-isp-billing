@@ -8915,6 +8915,51 @@
 <p id="vfMonthOut" style="font-size: 12px;"></p>
 <h4>Vehicle fuel entries</h4>
 <div id="vfBody"></div>
+</section><section class="chart-card" aria-labelledby="wdHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="wdHeading">Weather disruption log</h3>
+<p class="chart-caption">One log entry per weather disruption — the date, the weather as described by the operator, the mohallas affected, the visits postponed, and the faults attributed to it — so the same weather pattern stops catching the team unprepared. This logs dated disruptions only: it does not replace the seasonal field risk note, which is a forward-looking note, and past entries are never edited, only annotated. Recording a disruption never changes any bill, payment, customer, fault, or visit record by itself.</p>
+<p id="wdSummary"></p>
+</div>
+<div>
+<button id="wdExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export weather disruptions CSV</button>
+</div>
+</div>
+<h4>Record a disruption</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Date <input id="wdDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Weather as described <input id="wdWeather" type="text" style="width: 170px;">
+</label>
+<label style="font-size: 12px;">Mohallas affected (comma-separated) <input id="wdMohallas" type="text" style="width: 170px;">
+</label>
+<label style="font-size: 12px;">Visits postponed (comma-separated) <input id="wdVisits" type="text" style="width: 170px;">
+</label>
+<label style="font-size: 12px;">Faults attributed (comma-separated, optional) <input id="wdFaults" type="text" style="width: 170px;">
+</label>
+<button id="wdSaveBtn" class="secondary-button btn-sm" type="button">Record disruption</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove entry id <input id="wdRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="wdRemoveBtn" class="secondary-button btn-sm" type="button">Remove entry</button>
+<label style="font-size: 12px;">Filter by mohalla <input id="wdFilter" type="text" style="width: 120px;">
+</label>
+</div>
+<h4>Dated annotation</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="wdAnnotateId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Annotation date <input id="wdAnnotateDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Annotation note <input id="wdAnnotateNote" type="text" style="width: 200px;">
+</label>
+<button id="wdAnnotateBtn" class="secondary-button btn-sm" type="button">Add annotation</button>
+</div>
+<h4>Weather disruptions</h4>
+<div id="wdBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

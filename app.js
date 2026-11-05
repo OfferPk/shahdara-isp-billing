@@ -509,6 +509,7 @@ import { validMohallaCostEstimateDay, normalizeMohallaCostEstimateList, recordMo
 import { monthlyKpiMonthLabel, normalizeMonthlyKpiSheetList, recordMonthlyKpiSheet, removeMonthlyKpiSheet, monthlyKpiSheetMonths, monthlyKpiSheetSummaryText, monthlyKpiSheetEntryHtml, monthlyKpiSheetAllHtml, monthlyKpiSheetCsv, monthlyKpiSheetFilename } from './monthly-kpi-sheet.js';
 import { normalizeMohallaYearFigureRecordList, recordMohallaYearFigure, removeMohallaYearFigure, mohallaYearFigureMohallas, normalizeShopWideYearFigureList, recordShopWideYearFigure, removeShopWideYearFigure, buildMohallaYearComparison, mohallaYearComparisonSummaryText, mohallaYearComparisonForMohallaHtml, mohallaYearComparisonAllHtml, mohallaYearComparisonCsv, mohallaYearComparisonFilename } from './mohalla-year-comparison.js';
 import { normalizeSeasonalMonthlyFigureRecordList, recordSeasonalMonthlyFigure, removeSeasonalMonthlyFigure, buildSeasonalComparison, seasonalComparisonSummaryText, seasonalComparisonAllHtml, seasonalComparisonCsv, seasonalComparisonFilename } from './seasonal-comparison.js';
+import { normalizeArchiveRetrievalList, recordArchiveRetrieval, removeArchiveRetrieval, returnArchiveItem, archiveRetrievalOpen, archiveRetrievalSummaryText, archiveRetrievalOpenHtml, archiveRetrievalAllHtml, archiveRetrievalCsv, archiveRetrievalFilename } from './archive-retrieval.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14388,6 +14389,7 @@ function renderAnalytics() {
   renderMonthlyKpiSheet();
   renderMohallaYearComparison();
   renderSeasonalComparison();
+  renderArchiveRetrieval();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32278,6 +32280,67 @@ function renderSeasonalComparison() {
     $('#scvRemoveBtn')?.addEventListener('click', () => {
       saveSeasonalMonthlyFigures(removeSeasonalMonthlyFigure(loadSeasonalMonthlyFigures(), $('#scvRemoveId')?.value ?? ''));
       renderSeasonalComparison();
+    });
+  }
+}
+
+// Archive retrieval log (Plan 321): one retrieval record per
+// archive taken out — the archive reference, who retrieved
+// it, the date out, the date returned, and the reason.
+// Unreturned retrievals stay on an open list by age until
+// the item comes back. Logging a retrieval never changes
+// any archived record, bill, or payment.
+const ARCHIVE_RETRIEVAL_KEY = 'shahdara_archive_retrievals_v1';
+function loadArchiveRetrievals() {
+  try { return normalizeArchiveRetrievalList(JSON.parse(localStorage.getItem(ARCHIVE_RETRIEVAL_KEY) || '[]')); } catch { return []; }
+}
+function saveArchiveRetrievals(list) {
+  try { localStorage.setItem(ARCHIVE_RETRIEVAL_KEY, JSON.stringify(normalizeArchiveRetrievalList(list))); } catch { /* retrieval log only: a failed save leaves the previous list in place */ }
+}
+let archiveRetrievalBound = false;
+function renderArchiveRetrieval() {
+  const listEl = $('#arlBody');
+  if (!listEl) return;
+  const all = loadArchiveRetrievals();
+  const asOf = $('#arlAsOf')?.value || new Date().toISOString().slice(0, 10);
+  const open = archiveRetrievalOpen(all);
+  listEl.innerHTML = open.length ? archiveRetrievalOpenHtml(all, asOf) : '<p>No archive retrievals are still out.</p>';
+  const summaryEl = $('#arlSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${archiveRetrievalSummaryText(all)} Logging a retrieval never changes any archived record, bill, or payment.`;
+  }
+  const allEl = $('#arlAllBody');
+  if (allEl) {
+    allEl.innerHTML = all.length ? archiveRetrievalAllHtml(all, asOf) : '<p>No archive retrievals recorded.</p>';
+  }
+  if (!archiveRetrievalBound) {
+    archiveRetrievalBound = true;
+    $('#arlExportBtn')?.addEventListener('click', () => { downloadCsvFile(archiveRetrievalFilename(), archiveRetrievalCsv(loadArchiveRetrievals())); });
+    $('#arlAsOf')?.addEventListener('change', () => { renderArchiveRetrieval(); });
+    $('#arlRecordBtn')?.addEventListener('click', () => {
+      const before = loadArchiveRetrievals();
+      const next = recordArchiveRetrieval(before, {
+        id: `AR-${Date.now()}`,
+        archiveRef: $('#arlRef')?.value ?? '',
+        retrievedBy: $('#arlBy')?.value ?? '',
+        dateOut: $('#arlDateOut')?.value ?? '',
+        dateReturned: '',
+        reason: $('#arlReason')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Archive retrieval not recorded: give an archive reference, a retriever, a real date out, and a reason.'); return; }
+      saveArchiveRetrievals(next);
+      renderArchiveRetrieval();
+    });
+    $('#arlReturnBtn')?.addEventListener('click', () => {
+      const before = loadArchiveRetrievals();
+      const next = returnArchiveItem(before, $('#arlReturnId')?.value ?? '', $('#arlDateReturned')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Archive item not returned: give a recorded retrieval id and a real return date on or after the date out. An already-returned item stays as it is.'); return; }
+      saveArchiveRetrievals(next);
+      renderArchiveRetrieval();
+    });
+    $('#arlRemoveBtn')?.addEventListener('click', () => {
+      saveArchiveRetrievals(removeArchiveRetrieval(loadArchiveRetrievals(), $('#arlRemoveId')?.value ?? ''));
+      renderArchiveRetrieval();
     });
   }
 }

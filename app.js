@@ -414,6 +414,7 @@ import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEn
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
 import { normalizeAppliedPriceList, recordAppliedPrice, removeAppliedPrice, appliedPricesForCustomer, appliedPricesForBill, flaggedAppliedPrices, appliedPriceHtml, appliedPriceSummaryText, appliedPriceCsv, appliedPriceFilename } from './applied-price.js';
+import { normalizeBillDeliveryList, recordBillDelivery, removeBillDelivery, billDeliveriesForCustomer, billDeliveriesForBill, billDeliveryHtml, billDeliverySummaryText, undeliveredBillsBeforeDue, billDeliveryCsv, billDeliveryFilename } from './bill-delivery.js';
 import { normalizeSeasonalPatternList, recordSeasonalPattern, removeSeasonalPattern, seasonalPatternsForMohalla, seasonalPatternsForMonth, seasonalPatternAllHtml, seasonalPatternSummaryText, seasonalPatternCsv, seasonalPatternFilename } from './seasonal-pattern.js';
 import { normalizeProrataSheetList, upsertProrataSheet, lockProrataSheet, removeProrataSheet, prorataSheetsForCustomer, prorataSheetSummaryText, prorataSheetHtml, prorataSheetCsv, prorataSheetFilename } from './prorata-sheet.js';
 import { normalizeRoundingRecordList, upsertRoundingRecord, writeOffRoundingRecord, roundingRecordsForCustomer, reconcileRounding, roundingSummaryText, roundingRecordHtml, roundingRecordCsv, roundingRecordFilename } from './bill-total-rounding.js';
@@ -14016,6 +14017,7 @@ function renderAnalytics() {
   renderBusinessContacts();
   renderAbsenceCover();
   renderAppliedPrices();
+  renderBillDeliveries();
   renderSeasonalPatterns();
 }
 // Plan 44: cost per customer and margin per package, read-only. The
@@ -25969,6 +25971,71 @@ function renderAppliedPrices() {
     });
     $('#apCustomerFilter')?.addEventListener('input', () => { renderAppliedPrices(); });
     $('#apBillFilter')?.addEventListener('input', () => { renderAppliedPrices(); });
+  }
+}
+const BILL_DELIVERY_KEY = 'shahdara_bill_deliveries_v1';
+function loadBillDeliveries() {
+  try { return normalizeBillDeliveryList(JSON.parse(localStorage.getItem(BILL_DELIVERY_KEY) || '[]')); } catch { return []; }
+}
+function saveBillDeliveries(list) {
+  try { localStorage.setItem(BILL_DELIVERY_KEY, JSON.stringify(normalizeBillDeliveryList(list))); } catch { /* bill-delivery records only: a failed save leaves the previous list in place */ }
+}
+function billDeliveryBills() {
+  const bills = [];
+  for (const customer of state.customers ?? []) {
+    if (customer.archived) continue;
+    for (const bill of customer.bills ?? []) {
+      bills.push({ billId: bill.id ?? `${customer.id}-${bill.month}`, dueDate: typeof bill.dueDate === 'string' ? bill.dueDate : null });
+    }
+  }
+  return bills;
+}
+let billDeliveriesBound = false;
+function renderBillDeliveries() {
+  const bodyEl = $('#bdBody');
+  if (!bodyEl) return;
+  const customerQuery = ($('#bdCustomerFilter')?.value ?? '').trim();
+  const billQuery = ($('#bdBillFilter')?.value ?? '').trim();
+  let shown = loadBillDeliveries();
+  if (customerQuery) shown = billDeliveriesForCustomer(shown, customerQuery);
+  if (billQuery) shown = billDeliveriesForBill(shown, billQuery);
+  bodyEl.innerHTML = shown.length ? billDeliveryHtml(shown) : '<p>No bill deliveries recorded.</p>';
+  const summaryEl = $('#bdSummary');
+  if (summaryEl) summaryEl.textContent = billDeliverySummaryText(loadBillDeliveries());
+  const undeliveredEl = $('#bdUndeliveredBody');
+  if (undeliveredEl) {
+    const referenceDate = ($('#bdReferenceDate')?.value ?? '').trim();
+    const chase = referenceDate ? undeliveredBillsBeforeDue(loadBillDeliveries(), billDeliveryBills(), referenceDate) : [];
+    undeliveredEl.innerHTML = !referenceDate
+      ? '<p>Give a reference date to list undelivered bills still before their due date.</p>'
+      : chase.length
+        ? `<ul>${chase.map((bill) => `<li>${escapeHtml(bill.billId)} (due ${escapeHtml(bill.dueDate || 'date not given')})</li>`).join('')}</ul>`
+        : '<p>No undelivered bills before their due date.</p>';
+  }
+  if (!billDeliveriesBound) {
+    billDeliveriesBound = true;
+    $('#bdExportBtn')?.addEventListener('click', () => { downloadCsvFile(billDeliveryFilename(), billDeliveryCsv(loadBillDeliveries())); });
+    $('#bdSaveBtn')?.addEventListener('click', () => {
+      const before = loadBillDeliveries();
+      const next = recordBillDelivery(before, {
+        id: `BD-${Date.now()}`,
+        billId: $('#bdBill')?.value ?? '',
+        customerId: $('#bdCustomer')?.value ?? '',
+        method: $('#bdMethod')?.value ?? '',
+        deliveredBy: $('#bdDeliverer')?.value ?? '',
+        date: $('#bdDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Bill delivery not recorded: give a bill, a customer, a delivery method, a deliverer, and a real date. One record per bill — a bill already delivered is not recorded twice.'); return; }
+      saveBillDeliveries(next);
+      renderBillDeliveries();
+    });
+    $('#bdRemoveBtn')?.addEventListener('click', () => {
+      saveBillDeliveries(removeBillDelivery(loadBillDeliveries(), $('#bdRemoveId')?.value ?? ''));
+      renderBillDeliveries();
+    });
+    $('#bdCustomerFilter')?.addEventListener('input', () => { renderBillDeliveries(); });
+    $('#bdBillFilter')?.addEventListener('input', () => { renderBillDeliveries(); });
+    $('#bdReferenceDate')?.addEventListener('input', () => { renderBillDeliveries(); });
   }
 }
 const SEASONAL_PATTERN_KEY = 'shahdara_seasonal_patterns_v1';

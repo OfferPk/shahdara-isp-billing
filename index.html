@@ -8960,6 +8960,58 @@
 </div>
 <h4>Weather disruptions</h4>
 <div id="wdBody"></div>
+</section><section class="chart-card" aria-labelledby="cvHeading">
+<div class="table-heading">
+<div>
+<p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="cvHeading">Contractor visit record</h3>
+<p class="chart-caption">One record per contractor visit — the outside technician, the date, the job, the customer or segment, the work done in plain words, and the charge if any — so outside help stays accountable without a separate contractor system. This covers outside technicians only: it does not replace the field safety note, the on-call rota, or the field handover note, and a record is never edited, only followed by a dated correction note. Recording a visit never changes any bill, payment, customer, fault, or staff record by itself.</p>
+<p id="cvSummary"></p>
+</div>
+<div>
+<button id="cvExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export contractor visits CSV</button>
+</div>
+</div>
+<h4>Record a contractor visit</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Contractor <input id="cvContractor" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Date <input id="cvDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Job <input id="cvJob" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Customer <input id="cvCustomer" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Segment <input id="cvSegment" type="text" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Work done <input id="cvWork" type="text" style="width: 200px;">
+</label>
+<label style="font-size: 12px;">Charge (Rs., optional) <input id="cvCharge" type="number" min="0" step="1" style="width: 110px;">
+</label>
+<button id="cvSaveBtn" class="secondary-button btn-sm" type="button">Record visit</button>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Remove visit id <input id="cvRemoveId" type="text" style="width: 120px;">
+</label>
+<button id="cvRemoveBtn" class="secondary-button btn-sm" type="button">Remove visit</button>
+<label style="font-size: 12px;">Filter by contractor <input id="cvFilter" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Visits on date <input id="cvDateFilter" type="date" style="width: 140px;">
+</label>
+<button id="cvDateBtn" class="secondary-button btn-sm" type="button">Show date</button>
+</div>
+<h4>Dated correction note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Visit id <input id="cvCorrectId" type="text" style="width: 120px;">
+</label>
+<label style="font-size: 12px;">Correction date <input id="cvCorrectDate" type="date" style="width: 140px;">
+</label>
+<label style="font-size: 12px;">Correction note <input id="cvCorrectNote" type="text" style="width: 200px;">
+</label>
+<button id="cvCorrectBtn" class="secondary-button btn-sm" type="button">Add correction</button>
+</div>
+<h4>Contractor visits</h4>
+<div id="cvBody"></div>
 </section><section class="chart-card" aria-labelledby="caHeading">
 <div class="table-heading">
 <div>

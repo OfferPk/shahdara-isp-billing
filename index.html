@@ -10572,6 +10572,36 @@
 <h4>All renewals in date order</h4>
 <div id="rrBody"></div>
 </section>
+<section class="analytics-panel" aria-labelledby="icHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="icHeading">Insurance claim note</h3>
+<p class="chart-caption">One note per claim on an insured shop asset: asset reference, incident date, claim date, amount claimed in whole rupees, status in plain words, and amount settled in whole rupees. A claim links to the shop insurance and asset register by reference only and never changes it. Recording a claim never changes any bill, payment, asset, or register record by itself.</p>
+<p id="icSummary"></p>
+</div>
+<div>
+<button id="icExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export insurance claims CSV</button>
+</div>
+</div>
+<h4>Record an insurance claim</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Asset <input id="icAssetRef" type="text" style="width: 140px;" placeholder="e.g. Main UPS"></label>
+<label style="font-size: 12px;">Incident date <input id="icIncidentDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Claim date <input id="icClaimDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Amount claimed (Rs) <input id="icAmountClaimed" type="text" style="width: 120px;" placeholder="e.g. 15000"></label>
+<label style="font-size: 12px;">Status <input id="icStatus" type="text" style="width: 120px;" placeholder="e.g. filed"></label>
+<label style="font-size: 12px;">Amount settled (Rs) <input id="icAmountSettled" type="text" style="width: 120px;" placeholder="leave blank if not settled"></label>
+<button id="icRecordBtn" class="secondary-button btn-sm" type="button">Record claim</button>
+<label style="font-size: 12px;">Remove id <input id="icRemoveId" type="text" style="width: 120px;"></label>
+<button id="icRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Claims for one asset</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Asset <input id="icAssetInput" type="text" style="width: 160px;" placeholder="e.g. Main UPS"></label>
+<button id="icAssetBtn" class="secondary-button btn-sm" type="button">Show claims</button>
+</div>
+<div id="icAssetBody"></div>
+<h4>All insurance claims</h4>
+<div id="icBody"></div>
+</section>
 
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">

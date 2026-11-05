@@ -415,6 +415,7 @@ import { normalizeArchiveList, recordArchiveEntry, removeArchiveEntry, archiveEn
 import { normalizeBusinessContactList, recordBusinessContact, removeBusinessContact, businessContactsSorted, businessContactsByOrganisation, businessContactsByRole, businessContactAllHtml, businessContactSummaryText, businessContactCsv, businessContactFilename } from './business-contact.js';
 import { normalizeCoverList, recordCoverPeriod, removeCoverPeriod, coverPeriodsSorted, coverPeriodsForPerson, coverOverlaps, coverGapsText, coverAllHtml, coverSummaryText, coverOverlapText, coverCsv, coverFilename } from './absence-cover.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
+import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
 import { normalizePartPaymentReceiptNoteList, recordPartPaymentReceiptNote, removePartPaymentReceiptNote, findPartPaymentReceiptNote, receiptNotesForCustomer, receiptNotesSorted, receiptNoteAllHtml, receiptNoteSummaryText, receiptNoteCsv, receiptNoteFilename, receiptsMissingReceiptNotes, reconcileReceiptNote } from './part-payment-receipt-note.js';
 import { normalizeExpiryList, recordExpiryNote, removeExpiryNote, expiryNotesSorted, expiryNotesForAdvance, expiryReviewText, expiryAllHtml, expirySummaryText, expiryCsv, expiryFilename } from './advance-expiry.js';
@@ -14068,6 +14069,7 @@ function renderAnalytics() {
   renderBusinessContacts();
   renderAbsenceCover();
   renderCollectionPromises();
+  renderPaymentFailures();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -26023,6 +26025,56 @@ function renderCollectionPromises() {
       renderCollectionPromises();
     });
     $('#cpCustomerFilter')?.addEventListener('input', () => { renderCollectionPromises(); });
+  }
+}
+const PAYMENT_FAILURE_KEY = 'shahdara_payment_failures_v1';
+function loadPaymentFailures() {
+  try { return normalizePaymentFailureList(JSON.parse(localStorage.getItem(PAYMENT_FAILURE_KEY) || '[]')); } catch { return []; }
+}
+function savePaymentFailures(list) {
+  try { localStorage.setItem(PAYMENT_FAILURE_KEY, JSON.stringify(normalizePaymentFailureList(list))); } catch { /* failure note only: a failed save leaves the previous list in place */ }
+}
+let paymentFailuresBound = false;
+function renderPaymentFailures() {
+  const bodyEl = $('#pfBody');
+  if (!bodyEl) return;
+  const customerQuery = ($('#pfCustomerFilter')?.value ?? '').trim();
+  let shown = paymentFailuresSorted(loadPaymentFailures());
+  if (customerQuery) shown = paymentFailuresForCustomer(shown, customerQuery);
+  bodyEl.innerHTML = shown.length ? paymentFailureAllHtml(shown) : '<p>No failed payment attempts recorded.</p>';
+  const summaryEl = $('#pfSummary');
+  if (summaryEl) summaryEl.textContent = paymentFailureSummaryText(loadPaymentFailures());
+  const countsEl = $('#pfCountsBody');
+  if (countsEl && customerQuery) {
+    const counts = paymentFailureCountsForCustomer(loadPaymentFailures(), customerQuery);
+    const byChannel = Object.entries(counts.byChannel).map(([channel, n]) => `${channel}: ${n}`).join(', ');
+    countsEl.textContent = `${customerQuery}: ${counts.total} failed attempt${counts.total === 1 ? '' : 's'}${byChannel ? ` (${byChannel})` : ''}. A failed attempt never settles a bill and never appears in collections.`;
+  } else if (countsEl) {
+    countsEl.textContent = 'Filter by a customer to see that customer\'s failed attempts by channel.';
+  }
+  if (!paymentFailuresBound) {
+    paymentFailuresBound = true;
+    $('#pfExportBtn')?.addEventListener('click', () => { downloadCsvFile(paymentFailureFilename(), paymentFailureCsv(loadPaymentFailures())); });
+    $('#pfSaveBtn')?.addEventListener('click', () => {
+      const before = loadPaymentFailures();
+      const next = recordPaymentFailure(before, {
+        id: `PF-${Date.now()}`,
+        customer: $('#pfCustomer')?.value ?? '',
+        channel: $('#pfChannel')?.value ?? '',
+        date: $('#pfDate')?.value ?? '',
+        amountAttempted: $('#pfAmount')?.value ?? '',
+        reason: $('#pfReason')?.value ?? '',
+        reference: $('#pfReference')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Failure note not recorded: give a customer, a channel, a real date, and a positive amount attempted.'); return; }
+      savePaymentFailures(next);
+      renderPaymentFailures();
+    });
+    $('#pfRemoveBtn')?.addEventListener('click', () => {
+      savePaymentFailures(removePaymentFailure(loadPaymentFailures(), $('#pfRemoveId')?.value ?? ''));
+      renderPaymentFailures();
+    });
+    $('#pfCustomerFilter')?.addEventListener('input', () => { renderPaymentFailures(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

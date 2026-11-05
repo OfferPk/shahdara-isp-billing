@@ -458,6 +458,7 @@ import { validRepeatVisitDate, normalizeRepeatVisitList, recordRepeatVisitNote, 
 import { validVisitAcknowledgementDate, normalizeVisitAcknowledgementList, recordVisitAcknowledgement, removeVisitAcknowledgement, addVisitAcknowledgementFollowup, visitAcknowledgementSorted, visitAcknowledgementsForCustomer, visitAcknowledgementStatus, visitsWithoutAcknowledgement, visitAcknowledgementSummaryText, visitAcknowledgementAllHtml, visitAcknowledgementCsv, visitAcknowledgementFilename } from './visit-acknowledgement.js';
 import { validComplaintFollowupDate, normalizeComplaintFollowupList, recordComplaintFollowup, removeComplaintFollowup, addComplaintFollowupNote, completeComplaintFollowup, complaintFollowupSorted, followupsForComplaint, complaintFollowupDue, openComplaintFollowups, complaintFollowupSummaryText, complaintFollowupAllHtml, complaintFollowupCsv, complaintFollowupFilename } from './complaint-followup.js';
 import { validPromiseDeliveryCheckDate, normalizePromiseDeliveryCheckList, recordPromiseDeliveryCheck, removePromiseDeliveryCheck, addPromiseDeliveryCheckNote, promiseDeliveryCheckSorted, checksForPromise, missedPromiseDeliveryChecks, promiseDeliveryCheckSummaryText, promiseDeliveryCheckAllHtml, promiseDeliveryCheckCsv, promiseDeliveryCheckFilename } from './promise-delivery-check.js';
+import { validLaunchChecklistDate, normalizeLaunchChecklistList, recordLaunchChecklist, removeLaunchChecklist, addLaunchChecklistNote, tickLaunchChecklistStep, completeLaunchChecklist, launchesForMohalla, launchChecklistSummaryText, launchChecklistAllHtml, launchChecklistCsv, launchChecklistFilename } from './launch-checklist.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
@@ -14160,6 +14161,7 @@ function renderAnalytics() {
   renderWarrantyClaimLinks();
   renderComplaintFollowups();
   renderPromiseDeliveryChecks();
+  renderLaunchChecklists();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -28977,6 +28979,83 @@ function renderPromiseDeliveryChecks() {
     $('#pdcMissedBtn')?.addEventListener('click', () => { renderPromiseDeliveryChecks(); });
     $('#pdcFilterBtn')?.addEventListener('click', () => { renderPromiseDeliveryChecks(); });
     $('#pdcFilterPromise')?.addEventListener('input', () => { renderPromiseDeliveryChecks(); });
+  }
+}
+const LAUNCH_CHECKLIST_KEY = 'shahdara_launch_checklists_v1';
+function loadLaunchChecklists() {
+  try { return normalizeLaunchChecklistList(JSON.parse(localStorage.getItem(LAUNCH_CHECKLIST_KEY) || '[]')); } catch { return []; }
+}
+function saveLaunchChecklists(list) {
+  try { localStorage.setItem(LAUNCH_CHECKLIST_KEY, JSON.stringify(normalizeLaunchChecklistList(list))); } catch { /* launch checklists only: a failed save leaves the previous list in place */ }
+}
+function parseLcStepLines(text) {
+  return (text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const parts = line.split('|').map((part) => part.trim());
+    return { step: parts[0] || '', owner: parts[1] || '', doneDate: parts[2] || '' };
+  });
+}
+let launchChecklistsBound = false;
+function renderLaunchChecklists() {
+  const listEl = $('#lcList');
+  if (!listEl) return;
+  const all = loadLaunchChecklists();
+  listEl.innerHTML = all.length ? launchChecklistAllHtml(all) : '<p>No launch checklists recorded.</p>';
+  const summaryEl = $('#lcSummary');
+  if (summaryEl) summaryEl.textContent = `${launchChecklistSummaryText(all)} A launch is never edited, only ticked and annotated. Recording a launch never changes any coverage register, bill, or payment by itself.`;
+  const filterEl = $('#lcFilterBody');
+  if (filterEl) {
+    const mohalla = ($('#lcFilterMohalla')?.value ?? '').trim();
+    if (mohalla === '') {
+      filterEl.innerHTML = '<p>Give a mohalla name to show its launch checklist.</p>';
+    } else {
+      const rows = launchesForMohalla(all, mohalla);
+      filterEl.innerHTML = rows.length
+        ? `<ul>${rows.map((entry) => `<li>${entry.mohalla} (approved ${entry.approvedDate}): ${entry.steps.filter((step) => step.doneDate !== '').length}/${entry.steps.length} steps done — ${entry.complete ? 'complete' : 'in progress'}.</li>`).join('')}</ul>`
+        : `<p>No launch checklist recorded for mohalla \u201c${mohalla}\u201d.</p>`;
+    }
+  }
+  if (!launchChecklistsBound) {
+    launchChecklistsBound = true;
+    $('#lcExportBtn')?.addEventListener('click', () => { downloadCsvFile(launchChecklistFilename(), launchChecklistCsv(loadLaunchChecklists())); });
+    $('#lcRecordBtn')?.addEventListener('click', () => {
+      const before = loadLaunchChecklists();
+      const next = recordLaunchChecklist(before, {
+        id: `LC-${Date.now()}`,
+        mohalla: $('#lcMohalla')?.value ?? '',
+        approvedDate: $('#lcApprovedDate')?.value ?? '',
+        steps: parseLcStepLines($('#lcSteps')?.value ?? ''),
+      });
+      if (!next || next.length === before.length) { toast('Launch checklist not recorded: give a mohalla, a real approved date, and at least one step with its owner. One launch checklist per mohalla.'); return; }
+      saveLaunchChecklists(next);
+      renderLaunchChecklists();
+    });
+    $('#lcAnnotateBtn')?.addEventListener('click', () => {
+      const before = loadLaunchChecklists();
+      const next = addLaunchChecklistNote(before, $('#lcAnnotateId')?.value ?? '', $('#lcAnnotateDate')?.value ?? '', $('#lcAnnotateNote')?.value ?? '');
+      if (next === before) { toast('Launch note not added: give a known entry id, a real date, and a note.'); return; }
+      saveLaunchChecklists(next);
+      renderLaunchChecklists();
+    });
+    $('#lcRemoveBtn')?.addEventListener('click', () => {
+      saveLaunchChecklists(removeLaunchChecklist(loadLaunchChecklists(), $('#lcRemoveId')?.value ?? ''));
+      renderLaunchChecklists();
+    });
+    $('#lcTickBtn')?.addEventListener('click', () => {
+      const before = loadLaunchChecklists();
+      const next = tickLaunchChecklistStep(before, $('#lcTickId')?.value ?? '', $('#lcTickStep')?.value ?? '', $('#lcTickDate')?.value ?? '');
+      if (next === before) { toast('Step not ticked: give a known entry id, the exact step text, and a real done date. A ticked step stays ticked.'); return; }
+      saveLaunchChecklists(next);
+      renderLaunchChecklists();
+    });
+    $('#lcCompleteBtn')?.addEventListener('click', () => {
+      const before = loadLaunchChecklists();
+      const next = completeLaunchChecklist(before, $('#lcCompleteId')?.value ?? '', $('#lcCompleteReason')?.value ?? '');
+      if (next === before) { toast('Launch not marked complete: tick every step first, or record a reason for the unticked steps.'); return; }
+      saveLaunchChecklists(next);
+      renderLaunchChecklists();
+    });
+    $('#lcFilterBtn')?.addEventListener('click', () => { renderLaunchChecklists(); });
+    $('#lcFilterMohalla')?.addEventListener('input', () => { renderLaunchChecklists(); });
   }
 }
 const CORRECTION_APPROVAL_KEY = 'shahdara_correction_approvals_v1';

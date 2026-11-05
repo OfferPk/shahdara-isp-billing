@@ -10815,6 +10815,40 @@
 <div id="sdyBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="dtrHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="dtrHeading">Staff duty roster</h3>
+<p class="chart-caption">One posted entry per day of a week: the week, the day, the staff member on duty, the duty in plain words, and who posted it. Each week shows its days with the staff member on duty visible, and a day with nobody posted is named as a gap to fill. Posting a roster never changes any bill, payment, customer record, or leave record by itself.</p>
+<p id="dtrSummary"></p>
+<p id="dtrCoverage"></p>
+</div>
+<div>
+<button id="dtrExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export duty roster CSV</button>
+</div>
+</div>
+<h4>Record a roster entry</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Entry id <input id="dtrId" type="text" style="width: 120px;" placeholder="auto if left blank"></label>
+<label style="font-size: 12px;">Week (start date) <input id="dtrWeek" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Day <select id="dtrDay" style="width: 120px;"><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></label>
+<label style="font-size: 12px;">Staff member <input id="dtrStaff" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Duty <input id="dtrDuty" type="text" style="width: 220px;" placeholder="e.g. Shop counter and field visits"></label>
+<label style="font-size: 12px;">Posted by <input id="dtrPostedBy" type="text" style="width: 120px;" placeholder="e.g. Owner"></label>
+<button id="dtrRecordBtn" class="secondary-button btn-sm" type="button">Record roster entry</button>
+<label style="font-size: 12px;">Remove id <input id="dtrRemoveId" type="text" style="width: 120px;"></label>
+<button id="dtrRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Roster for one week</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Week <select id="dtrWeekSelect" style="width: 160px;"></select></label>
+</div>
+<div id="dtrBody"></div>
+<h4>Roster entries for one staff member</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Staff member <select id="dtrStaffSelect" style="width: 160px;"></select></label>
+</div>
+<div id="dtrStaffBody"></div>
+</section>
+
 <section class="chart-card" aria-labelledby="ftHeading">
 <div class="table-heading">
 <div>

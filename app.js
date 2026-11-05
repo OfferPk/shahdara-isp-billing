@@ -516,6 +516,7 @@ import { normalizePrintTemplateList, recordPrintTemplate, supersedePrintTemplate
 import { validDataEntryErrorDay, foldDataEntryErrorType, normalizeDataEntryErrorList, recordDataEntryError, removeDataEntryError, dataEntryErrorsForType, dataEntryErrorTypes, dataEntryErrorCountsByType, dataEntryErrorSummaryText, dataEntryErrorsByTypeHtml, dataEntryErrorCsv, dataEntryErrorFilename } from './data-entry-error-log.js';
 import { validDuplicationCheckDay, foldDuplicationCheckRecordType, normalizeDuplicationCheckList, recordDuplicationCheck, removeDuplicationCheck, duplicationCheckOpenPairs, decideDuplicationPair, findSuspectedDuplicatePairs, duplicationChecksSummaryText, duplicationCheckPairText, duplicationCheckAllHtml, duplicationCheckCsv, duplicationCheckFilename } from './duplication-check.js';
 import { customerCompletenessFields, customerCompletenessFieldPresent, scoreCustomerCompleteness, scoreCustomerCompletenessList, customerCompletenessIncomplete, customerCompletenessSummaryText, customerCompletenessScoreHtml, customerCompletenessAllHtml, customerCompletenessCsv, customerCompletenessFilename } from './customer-completeness.js';
+import { validReportPackMonth, validReportPackDay, normalizeReportPackChecklistList, recordReportPackChecklist, removeReportPackChecklist, markReportPackReport, completeReportPackChecklist, reportPackChecklistSummaryText, reportPackChecklistsHtml, incompleteReportPackChecklistsHtml, reportPackChecklistCsv, reportPackChecklistFilename } from './report-pack-checklist.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14402,6 +14403,7 @@ function renderAnalytics() {
   renderDataEntryErrorLog();
   renderDuplicationCheck();
   renderCustomerCompleteness();
+  renderReportPackChecklist();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32637,6 +32639,77 @@ function renderCustomerCompleteness() {
   if (!customerCompletenessBound) {
     customerCompletenessBound = true;
     $('#dcsExportBtn')?.addEventListener('click', () => { downloadCsvFile(customerCompletenessFilename(), customerCompletenessCsv(scoreCustomerCompletenessList(state.customers ?? []))); });
+  }
+}
+
+// Monthly report pack assembly checklist (Plan 328): one
+// assembly checklist per month — the reports required for
+// that month's pack, each report's status included or
+// missing, the assembler, and the date completed. The
+// checklist only tracks assembly: it assembles nothing
+// itself, and it never changes any bill, payment, or
+// source report by itself.
+const REPORT_PACK_CHECKLIST_KEY = 'shahdara_report_pack_checklists_v1';
+function loadReportPackChecklists() {
+  try { return normalizeReportPackChecklistList(JSON.parse(localStorage.getItem(REPORT_PACK_CHECKLIST_KEY) || '[]')); } catch { return []; }
+}
+function saveReportPackChecklists(list) {
+  try { localStorage.setItem(REPORT_PACK_CHECKLIST_KEY, JSON.stringify(normalizeReportPackChecklistList(list))); } catch { /* report pack checklists only: a failed save leaves the previous list in place */ }
+}
+let reportPackChecklistBound = false;
+function renderReportPackChecklist() {
+  const listEl = $('#rpcBody');
+  if (!listEl) return;
+  const all = loadReportPackChecklists();
+  listEl.innerHTML = all.length ? reportPackChecklistsHtml(all) : '<p>No monthly report packs tracked.</p>';
+  const summaryEl = $('#rpcSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${reportPackChecklistSummaryText(all)} The checklist never changes any bill, payment, or source report by itself.`;
+  }
+  const incompleteEl = $('#rpcIncompleteBody');
+  if (incompleteEl) {
+    incompleteEl.innerHTML = incompleteReportPackChecklistsHtml(all);
+  }
+  if (!reportPackChecklistBound) {
+    reportPackChecklistBound = true;
+    $('#rpcExportBtn')?.addEventListener('click', () => { downloadCsvFile(reportPackChecklistFilename(), reportPackChecklistCsv(loadReportPackChecklists())); });
+    $('#rpcRecordBtn')?.addEventListener('click', () => {
+      const month = $('#rpcMonth')?.value ?? '';
+      if (!validReportPackMonth(month)) { toast('Monthly pack not recorded: give a real month (YYYY-MM).'); return; }
+      const reports = ($('#rpcReports')?.value ?? '').split(',').map((name) => ({ name: name.trim(), status: 'missing' })).filter((report) => report.name);
+      const before = loadReportPackChecklists();
+      const next = recordReportPackChecklist(before, {
+        id: `RPC-${Date.now()}`,
+        month,
+        reports,
+        assembler: $('#rpcAssembler')?.value ?? '',
+        dateCompleted: '',
+      });
+      if (next.length === before.length) { toast('Monthly pack not recorded: give at least one required report and the assembler, and one checklist per month only.'); return; }
+      saveReportPackChecklists(next);
+      renderReportPackChecklist();
+    });
+    $('#rpcMarkBtn')?.addEventListener('click', () => {
+      const before = loadReportPackChecklists();
+      const next = markReportPackReport(before, $('#rpcMarkId')?.value ?? '', $('#rpcMarkReport')?.value ?? '', $('#rpcMarkStatus')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Nothing marked: give the checklist id, a report on it, and included or missing.'); return; }
+      saveReportPackChecklists(next);
+      renderReportPackChecklist();
+    });
+    $('#rpcCompleteBtn')?.addEventListener('click', () => {
+      const before = loadReportPackChecklists();
+      const next = completeReportPackChecklist(before, $('#rpcCompleteId')?.value ?? '', $('#rpcCompleteDate')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Pack not completed: every required report must be included first, with a real completion date.'); return; }
+      saveReportPackChecklists(next);
+      renderReportPackChecklist();
+    });
+    $('#rpcRemoveBtn')?.addEventListener('click', () => {
+      const before = loadReportPackChecklists();
+      const next = removeReportPackChecklist(before, $('#rpcRemoveId')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Nothing removed: give the id of a tracked pack.'); return; }
+      saveReportPackChecklists(next);
+      renderReportPackChecklist();
+    });
   }
 }
 let duplicationCheckBound = false;

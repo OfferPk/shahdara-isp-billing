@@ -11076,6 +11076,30 @@
 <div id="rpcBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="qbsHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="qbsHeading">Quarterly business snapshot</h3>
+<p class="chart-caption">One snapshot per quarter — collections, customers gained and lost, open faults, and dues outstanding — composed from the monthly figures copied from the monthly reports. Quarterly figures reconcile exactly to the three monthly figures they compose; a quarter with a missing month is marked incomplete and the missing months are named. The snapshot never changes any bill, payment, customer, or monthly figure by itself.</p>
+<p id="qbsSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="qbsExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export quarterly snapshots CSV</button>
+</div></div>
+<h4>Record a monthly figure</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Month <input id="qbsMonth" type="month" style="width: 140px;"></label>
+<label style="font-size: 12px;">Collections, Rs <input id="qbsCollections" type="number" min="0" step="1" style="width: 120px;" placeholder="e.g. 310000"></label>
+<label style="font-size: 12px;">Gained <input id="qbsGained" type="number" min="0" step="1" style="width: 80px;"></label>
+<label style="font-size: 12px;">Lost <input id="qbsLost" type="number" min="0" step="1" style="width: 80px;"></label>
+<label style="font-size: 12px;">Open faults <input id="qbsOpenFaults" type="number" min="0" step="1" style="width: 90px;"></label>
+<label style="font-size: 12px;">Dues, Rs <input id="qbsDues" type="number" min="0" step="1" style="width: 120px;" placeholder="e.g. 40000"></label>
+<button id="qbsRecordBtn" class="secondary-button btn-sm" type="button">Record monthly figure</button>
+<label style="font-size: 12px;">Remove id <input id="qbsRemoveId" type="text" style="width: 140px;" placeholder="e.g. QS-2026-01"></label>
+<button id="qbsRemoveBtn" class="secondary-button btn-sm" type="button">Remove</button>
+</div>
+<h4>Snapshots, newest quarter first</h4>
+<div id="qbsBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

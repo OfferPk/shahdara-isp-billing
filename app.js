@@ -495,6 +495,7 @@ import { validExpenseApprovalDate, foldExpenseApprovalStatus, normalizeExpenseAp
 import { validVendorPaymentDueDate, normalizeVendorPaymentDueList, recordVendorPaymentDue, removeVendorPaymentDue, markVendorPaymentDueSeen, markVendorPaymentDueSettled, vendorPaymentDuesForVendor, vendorPaymentDueVendors, vendorPaymentDuesOverdueHtml, vendorPaymentDueSummaryText, vendorPaymentDueAllHtml, vendorPaymentDuesForVendorHtml, vendorPaymentDueCsv, vendorPaymentDueFilename } from './vendor-payment-due.js';
 import { normalizeVisitorLogList, recordVisitorLog, removeVisitorLog, visitorLogForDate, visitorLogSearch, visitorLogSummaryText, visitorLogAllHtml, visitorLogSearchHtml, visitorLogCsv, visitorLogFilename } from './visitor-log.js';
 import { normalizeDelegationNoteList, recordDelegationNote, removeDelegationNote, markDelegationNoteAcknowledged, delegationNotesForStaff, delegationNotesOverdue, delegationNoteSummaryText, delegationNoteAllHtml, delegationNotesForStaffHtml, delegationNotesOverdueHtml, delegationNoteCsv, delegationNoteFilename } from './delegation-note.js';
+import { normalizeCollectorMonthlyTargetList, recordCollectorMonthlyTarget, removeCollectorMonthlyTarget, collectorMonthlyTargetsForCollector, collectorMonthlyTargetsForMonth, collectorMonthlyTargetSummaryText, collectorMonthlyTargetAllHtml, collectorMonthlyTargetsForCollectorHtml, collectorMonthlyTargetsForMonthHtml, collectorMonthlyTargetCsv, collectorMonthlyTargetFilename } from './collector-monthly-target.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
@@ -14236,6 +14237,7 @@ function renderAnalytics() {
   renderVendorPaymentDue();
   renderVisitorLog();
   renderDelegationNote();
+  renderCollectorMonthlyTargets();
   renderCorrectionApprovals();
   renderPartPaymentReceiptNotes();
   renderAdvanceExpiry();
@@ -31321,6 +31323,66 @@ function renderDelegationNote() {
     $('#dgAckBtn')?.addEventListener('click', () => {
       saveDelegationNotes(markDelegationNoteAcknowledged(loadDelegationNotes(), $('#dgAckId')?.value ?? ''));
       renderDelegationNote();
+    });
+  }
+}
+
+// Monthly target record per collector — the collector, the month, the
+// target in plain words and figures, and the month-end achieved figure
+// entered by the operator from existing settlement figures. Target and
+// achieved sit side by side for the month. Recording a target never
+// changes any bill, payment, or collection figure by itself, and
+// achieved figures are entered, never recomputed from live data.
+const COLLECTOR_MONTHLY_TARGET_KEY = 'shahdara_collector_monthly_targets_v1';
+function loadCollectorMonthlyTargets() {
+  try { return normalizeCollectorMonthlyTargetList(JSON.parse(localStorage.getItem(COLLECTOR_MONTHLY_TARGET_KEY) || '[]')); } catch { return []; }
+}
+function saveCollectorMonthlyTargets(list) {
+  try { localStorage.setItem(COLLECTOR_MONTHLY_TARGET_KEY, JSON.stringify(normalizeCollectorMonthlyTargetList(list))); } catch { /* monthly targets only: a failed save leaves the previous list in place */ }
+}
+let collectorMonthlyTargetBound = false;
+function renderCollectorMonthlyTargets() {
+  const listEl = $('#cmtBody');
+  if (!listEl) return;
+  const all = loadCollectorMonthlyTargets();
+  listEl.innerHTML = all.length ? collectorMonthlyTargetAllHtml(all) : '<p>No monthly collector targets recorded.</p>';
+  const summaryEl = $('#cmtSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${collectorMonthlyTargetSummaryText(all)} Recording a target never changes any bill, payment, or collection figure by itself.`;
+  }
+  const collectorEl = $('#cmtCollectorBody');
+  if (collectorEl) {
+    const collector = $('#cmtCollectorInput')?.value ?? '';
+    collectorEl.innerHTML = collectorMonthlyTargetsForCollectorHtml(all, collector);
+  }
+  const monthEl = $('#cmtMonthBody');
+  if (monthEl) {
+    const month = $('#cmtMonthInput')?.value ?? '';
+    monthEl.innerHTML = collectorMonthlyTargetsForMonthHtml(all, month);
+  }
+  if (!collectorMonthlyTargetBound) {
+    collectorMonthlyTargetBound = true;
+    $('#cmtExportBtn')?.addEventListener('click', () => { downloadCsvFile(collectorMonthlyTargetFilename(), collectorMonthlyTargetCsv(loadCollectorMonthlyTargets())); });
+    $('#cmtCollectorBtn')?.addEventListener('click', () => { renderCollectorMonthlyTargets(); });
+    $('#cmtMonthBtn')?.addEventListener('click', () => { renderCollectorMonthlyTargets(); });
+    $('#cmtRecordBtn')?.addEventListener('click', () => {
+      const before = loadCollectorMonthlyTargets();
+      const achievedRaw = $('#cmtAchievedAmount')?.value ?? '';
+      const next = recordCollectorMonthlyTarget(before, {
+        id: `CMT-${Date.now()}`,
+        collector: $('#cmtCollector')?.value ?? '',
+        month: $('#cmtMonth')?.value ?? '',
+        target: $('#cmtTargetWords')?.value ?? '',
+        targetAmount: $('#cmtTargetAmount')?.value ?? '',
+        achievedAmount: achievedRaw === '' ? null : achievedRaw,
+      });
+      if (!next || next.length === before.length) { toast('Monthly target not recorded: give the collector, a real month, the target in plain words, and a whole-rupee target amount of at least one rupee — and only one target per collector per month.'); return; }
+      saveCollectorMonthlyTargets(next);
+      renderCollectorMonthlyTargets();
+    });
+    $('#cmtRemoveBtn')?.addEventListener('click', () => {
+      saveCollectorMonthlyTargets(removeCollectorMonthlyTarget(loadCollectorMonthlyTargets(), $('#cmtRemoveId')?.value ?? ''));
+      renderCollectorMonthlyTargets();
     });
   }
 }

@@ -63,6 +63,7 @@ import { sanitizeSignalReadings } from './signal-history.js';
 import { sanitizeReceiptLang, sanitizeReceiptChannel, prefersSmsForChannel } from './receipt-preferences.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSameDayCorrectionNote, sameDayCorrectionNoteOf } from './same-day-correction-note.js';
+import { normalizeReversalLink, reversalLinkOf } from './reversal-link.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
@@ -943,6 +944,21 @@ function checkPaymentAmount(value) {
   const normalizedAmount = cents / 100;
   if (!Number.isSafeInteger(cents) || cents < 1 || number !== normalizedAmount) {
     throw new Error('Payment amount must be at least PKR 0.01, use no more than two decimal places, and fit safely in cents.');
+  }
+  return normalizedAmount;
+}
+// Plan 384: a reversing entry is a normal negative entry — the
+// amount must be below zero, with the same two-decimal / safe-cents
+// rules as an ordinary payment, mirrored in sign. Only a payment
+// carrying a reversal link may reach this check (validatePayment
+// above), so negatives stay fenced to reversals.
+function checkReversalPaymentAmount(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number >= 0) throw new Error('A reversal entry must be a negative amount.');
+  const cents = Math.round(number * 100);
+  const normalizedAmount = cents / 100;
+  if (!Number.isSafeInteger(cents) || cents > -1 || number !== normalizedAmount) {
+    throw new Error('A reversal amount must be at least PKR -0.01, use no more than two decimal places, and fit safely in cents.');
   }
   return normalizedAmount;
 }
@@ -1955,12 +1971,26 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
   if (date > dateKey(referenceDate)) throw new Error('Payment date cannot be in the future.');
-  const cents = checkPaymentAmount(amount);
+  // Plan 384: the reversal link — the original transaction this
+  // payment reverses, the reason, the date, and the operator. A
+  // reversing entry is a normal negative entry linked by reference:
+  // the link rides the reversing payment itself (the same field the
+  // validator keeps), so it needs no store of its own, and the
+  // original is never edited or deleted. A link that carries words
+  // but fails to normalize is refused loudly (the Plan 383 rule for
+  // a note whose day is wrong); a negative amount without a link
+  // still throws the existing "greater than zero" error below, so
+  // negatives stay fenced to reversals.
+  const reversalHasText = reversalLink && typeof reversalLink === 'object'
+    && (String(reversalLink.reversesPaymentId ?? '').trim() || String(reversalLink.reason ?? '').trim() || String(reversalLink.date ?? '').trim() || String(reversalLink.operator ?? '').trim());
+  const cleanReversalLink = normalizeReversalLink(reversalLink, date);
+  if (reversalHasText && !cleanReversalLink) throw new Error('A reversal link needs the original payment and a valid date.');
+  const cents = cleanReversalLink ? checkReversalPaymentAmount(amount) : checkPaymentAmount(amount);
   if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
 
   const ref = String(transactionId ?? reference ?? '').trim().slice(0, 64);
@@ -2010,9 +2040,14 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   if (cleanReason.length > 100) throw new Error('Discount reason must be 100 characters or fewer.');
   // SISP-43: settled ticket-charge lines ride the payment (see above).
   // The settled total can never exceed the cash actually collected.
+  // Plan 384: the cap is the amount's magnitude — a reversing entry
+  // is a negative amount, so comparing against the signed amount
+  // would refuse even a plain reversal with no settled lines at all.
+  // For every positive payment the magnitude is the amount itself,
+  // so this changes no existing behaviour.
   const ticketChargeLines = sanitizeTicketChargeLines(ticketCharges);
   const ticketChargeTotalCents = ticketChargeLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
-  if (ticketChargeTotalCents > Math.round(cents * 100)) throw new Error('Ticket charges on a payment cannot exceed the amount collected.');
+  if (ticketChargeTotalCents > Math.round(Math.abs(cents) * 100)) throw new Error('Ticket charges on a payment cannot exceed the amount collected.');
   // SISP-106: settled boost-charge lines ride the payment the same way
   // (see above). Ticket + boost portions together can never exceed the
   // cash actually collected.
@@ -2023,7 +2058,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   // the two non-bill portions can never exceed the cash collected.
   const manualBaqayaLines = sanitizeManualBaqayaSettlementLines(manualBaqayaSettlements);
   const manualBaqayaTotalCents = manualBaqayaLines.reduce((sum, line) => sum + Math.round(line.amount * 100), 0);
-  if (ticketChargeTotalCents + addonChargeTotalCents + manualBaqayaTotalCents > Math.round(cents * 100)) throw new Error('Settled charges and baqaya on a payment cannot exceed the amount collected.');
+  if (ticketChargeTotalCents + addonChargeTotalCents + manualBaqayaTotalCents > Math.round(Math.abs(cents) * 100)) throw new Error('Settled charges and baqaya on a payment cannot exceed the amount collected.');
 
   // Advance tag: only the exact 'advance' kind is kept — any other value
   // (including a missing one, i.e. every legacy payment) stays untagged,
@@ -2100,6 +2135,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(cleanPlace ? { collectionPlace: cleanPlace } : {}),
     ...(collectionMohallaClean ? { collectionMohalla: collectionMohallaClean } : {}),
     ...(cleanCorrection ? { sameDayCorrection: cleanCorrection } : {}),
+    ...(cleanReversalLink ? { reversalLink: cleanReversalLink } : {}),
     ...(contributorStamp ? { paidByContributor: contributorStamp } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -2393,6 +2429,12 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // validator above still refuses a note whose date is not the
     // (possibly corrected) payment date.
     sameDayCorrection: fields.sameDayCorrection !== undefined ? fields.sameDayCorrection : existingPayment.sameDayCorrection,
+    // Plan 384: the reversal link rides the correction the same way
+    // the same-day note does — an explicit new link replaces it, an
+    // emptied link (null) clears it, and saying nothing about it
+    // keeps the link the payment already carries, so a correction
+    // can never silently strip the link to the original it reverses.
+    reversalLink: fields.reversalLink !== undefined ? fields.reversalLink : existingPayment.reversalLink,
     walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified,
     // Payment proof screenshot: the correction form carries no proof
     // picker either, so a correction must never silently drop an
@@ -3298,6 +3340,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     // entry, with its date — sanitized by the same reader the display
     // uses, so a damaged record reads as no note.
     sameDayCorrection: sameDayCorrectionNoteOf(payment),
+    // Plan 384: the reversal link rides the transaction row so the
+    // Transactions list can show the original its reversal and the
+    // reversal its original — sanitized by the same reader the
+    // display uses, so a damaged record reads as no link.
+    reversalLink: reversalLinkOf(payment),
     allocation:allocations.byPaymentId.get(payment.id)
   })))).filter(row => transactionMatchesQuery(row, query) && (!date || row.date === date) && (windowDays === null || (row.date >= fromDate && row.date <= throughDate)))
     .sort((a, b) => b.date.localeCompare(a.date) || a.customerName.localeCompare(b.customerName) || b.month.localeCompare(a.month) || a.paymentId.localeCompare(b.paymentId));

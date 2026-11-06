@@ -537,6 +537,7 @@ import { validDashboardWidgetOrderDay, normalizeDashboardWidgetOrderWidgets, nor
 import { validReportSchedulingNoteDay, foldReportSchedulingNoteCycle, normalizeReportSchedulingNoteList, recordReportSchedulingNote, reportSchedulingNoteForReport, reportSchedulingNoteOverdue, reportSchedulingNoteDueList, markReportSchedulingNoteProduced, reportSchedulingNoteSummaryText, reportSchedulingNoteText, reportSchedulingNoteHtml, reportSchedulingNotesHtml, reportSchedulingNoteDueHtml, reportSchedulingNoteCsv, reportSchedulingNoteFilename } from './report-scheduling-note.js';
 import { validAnonymisationNoteDay, normalizeAnonymisationNoteFields, normalizeAnonymisationNoteList, recordAnonymisationNote, anonymisationNoteForCopy, anonymisationNotesForHolder, unapprovedAnonymisationCopies, anonymisationNoteSummaryText, anonymisationNotesHtml, anonymisationNoteUnapprovedHtml, anonymisationNoteCsv, anonymisationNoteFilename } from './data-anonymisation-note.js';
 import { validTestDataSeparationDay, normalizeTestDataSeparationRecords, normalizeTestDataSeparationNoteList, recordTestDataSeparationNote, testDataSeparationNoteForSet, openTestDataSeparationNotes, clearTestDataSeparationNote, splitTestDataRecords, testDataSeparationNoteSummaryText, testDataSeparationNotesHtml, testDataSeparationOpenHtml, testDataSeparationNoteCsv, testDataSeparationNoteFilename } from './test-data-separation-note.js';
+import { normalizeVersionUpgradeChecklistList, recordVersionUpgradeChecklist, tickVersionUpgradeChecklistStep, skipVersionUpgradeChecklistStep, versionUpgradeChecklistSummaryText, versionUpgradeChecklistsHtml, versionUpgradeChecklistIncompleteHtml, versionUpgradeChecklistCsv, versionUpgradeChecklistFilename } from './version-upgrade-checklist.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14430,6 +14431,7 @@ function renderAnalytics() {
   renderReportSchedulingNotes();
   renderDataAnonymisationNotes();
   renderTestDataSeparationNotes();
+  renderVersionUpgradeChecklists();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33544,6 +33546,69 @@ function renderTestDataSeparationNotes() {
       if (next === before) { toast('Set not cleared: give a saved note id and a strict cleared date on or after the date created.'); return; }
       saveTestDataSeparationNotes(next);
       renderTestDataSeparationNotes();
+    });
+  }
+}
+const VERSION_UPGRADE_CHECKLIST_KEY = 'shahdara_vuc_checklists_v1';
+function loadVersionUpgradeChecklists() {
+  try { return normalizeVersionUpgradeChecklistList(JSON.parse(localStorage.getItem(VERSION_UPGRADE_CHECKLIST_KEY) || '[]')); } catch { return []; }
+}
+function saveVersionUpgradeChecklists(list) {
+  try { localStorage.setItem(VERSION_UPGRADE_CHECKLIST_KEY, JSON.stringify(normalizeVersionUpgradeChecklistList(list))); } catch { /* Upgrade checklists only: a failed save leaves the previous list in place */ }
+}
+
+// Version upgrade checklist (Plan 342): one checklist per version change —
+// the version before, the version after, the steps in order with each step
+// done, skipped, or pending, the checker, and the date. An upgrade is
+// complete only when every step is ticked; a skipped step stays flagged,
+// never hidden. The checklist only records the sequence: it never installs,
+// changes, or rolls back any app version by itself.
+let versionUpgradeChecklistBound = false;
+function renderVersionUpgradeChecklists() {
+  const listEl = $('#vucBody');
+  if (!listEl) return;
+  const all = loadVersionUpgradeChecklists();
+  listEl.innerHTML = all.length ? versionUpgradeChecklistsHtml(all) : '<p>No version upgrade checklists yet.</p>';
+  const summaryEl = $('#vucSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${versionUpgradeChecklistSummaryText(all)} A checklist only records the upgrade sequence and never installs, changes, or rolls back any app version by itself.`;
+  }
+  const openEl = $('#vucOpenBody');
+  if (openEl) {
+    openEl.innerHTML = versionUpgradeChecklistIncompleteHtml(all);
+  }
+  if (!versionUpgradeChecklistBound) {
+    versionUpgradeChecklistBound = true;
+    $('#vucExportBtn')?.addEventListener('click', () => { downloadCsvFile(versionUpgradeChecklistFilename(), versionUpgradeChecklistCsv(loadVersionUpgradeChecklists())); });
+    $('#vucSaveBtn')?.addEventListener('click', () => {
+      const before = loadVersionUpgradeChecklists();
+      const next = recordVersionUpgradeChecklist(before, {
+        id: `VUC-${Date.now()}`,
+        fromVersion: $('#vucFromVersion')?.value ?? '',
+        toVersion: $('#vucToVersion')?.value ?? '',
+        steps: $('#vucSteps')?.value ?? '',
+        checker: $('#vucChecker')?.value ?? '',
+        date: $('#vucDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Checklist not saved: give the version before, a different version after, at least one step, the checker, and a strict date.'); return; }
+      saveVersionUpgradeChecklists(next);
+      renderVersionUpgradeChecklists();
+    });
+    $('#vucTickBtn')?.addEventListener('click', () => {
+      const before = loadVersionUpgradeChecklists();
+      const stepNumber = Number($('#vucStepNumber')?.value ?? '');
+      const next = tickVersionUpgradeChecklistStep(before, $('#vucTickId')?.value ?? '', Number.isInteger(stepNumber) ? stepNumber - 1 : -1);
+      if (next === before) { toast('Step not ticked: give a saved checklist id and a step number on that checklist.'); return; }
+      saveVersionUpgradeChecklists(next);
+      renderVersionUpgradeChecklists();
+    });
+    $('#vucSkipBtn')?.addEventListener('click', () => {
+      const before = loadVersionUpgradeChecklists();
+      const stepNumber = Number($('#vucStepNumber')?.value ?? '');
+      const next = skipVersionUpgradeChecklistStep(before, $('#vucTickId')?.value ?? '', Number.isInteger(stepNumber) ? stepNumber - 1 : -1);
+      if (next === before) { toast('Step not skipped: give a saved checklist id and a step number on that checklist.'); return; }
+      saveVersionUpgradeChecklists(next);
+      renderVersionUpgradeChecklists();
     });
   }
 }

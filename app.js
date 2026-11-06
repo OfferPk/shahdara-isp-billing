@@ -536,6 +536,7 @@ import { validOperatorNotePinDay, normalizeOperatorNotePinList, findOperatorNote
 import { validDashboardWidgetOrderDay, normalizeDashboardWidgetOrderWidgets, normalizeDashboardWidgetOrderPreferenceList, dashboardWidgetOrderForOperator, dashboardWidgetOrderHistoryForOperator, recordDashboardWidgetOrderPreference, resetDashboardWidgetOrder, dashboardWidgetsInPreferredOrder, dashboardWidgetOrderSummaryText, dashboardWidgetOrderText, dashboardWidgetOrderHtml, dashboardWidgetOrdersHtml, dashboardWidgetOrderCurrentHtml, dashboardWidgetsInPreferredOrderHtml, dashboardWidgetOrderCsv, dashboardWidgetOrderFilename } from './dashboard-widget-order.js';
 import { validReportSchedulingNoteDay, foldReportSchedulingNoteCycle, normalizeReportSchedulingNoteList, recordReportSchedulingNote, reportSchedulingNoteForReport, reportSchedulingNoteOverdue, reportSchedulingNoteDueList, markReportSchedulingNoteProduced, reportSchedulingNoteSummaryText, reportSchedulingNoteText, reportSchedulingNoteHtml, reportSchedulingNotesHtml, reportSchedulingNoteDueHtml, reportSchedulingNoteCsv, reportSchedulingNoteFilename } from './report-scheduling-note.js';
 import { validAnonymisationNoteDay, normalizeAnonymisationNoteFields, normalizeAnonymisationNoteList, recordAnonymisationNote, anonymisationNoteForCopy, anonymisationNotesForHolder, unapprovedAnonymisationCopies, anonymisationNoteSummaryText, anonymisationNotesHtml, anonymisationNoteUnapprovedHtml, anonymisationNoteCsv, anonymisationNoteFilename } from './data-anonymisation-note.js';
+import { validTestDataSeparationDay, normalizeTestDataSeparationRecords, normalizeTestDataSeparationNoteList, recordTestDataSeparationNote, testDataSeparationNoteForSet, openTestDataSeparationNotes, clearTestDataSeparationNote, splitTestDataRecords, testDataSeparationNoteSummaryText, testDataSeparationNotesHtml, testDataSeparationOpenHtml, testDataSeparationNoteCsv, testDataSeparationNoteFilename } from './test-data-separation-note.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14428,6 +14429,7 @@ function renderAnalytics() {
   renderDashboardWidgetOrders();
   renderReportSchedulingNotes();
   renderDataAnonymisationNotes();
+  renderTestDataSeparationNotes();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33488,6 +33490,61 @@ function renderDataAnonymisationNotes() {
       renderDataAnonymisationNotes();
     });
     $('#danCheckBtn')?.addEventListener('click', () => { renderDataAnonymisationNotes(); });
+  }
+}
+const TEST_DATA_SEPARATION_NOTE_KEY = 'shahdara_tds_notes_v1';
+function loadTestDataSeparationNotes() {
+  try { return normalizeTestDataSeparationNoteList(JSON.parse(localStorage.getItem(TEST_DATA_SEPARATION_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveTestDataSeparationNotes(list) {
+  try { localStorage.setItem(TEST_DATA_SEPARATION_NOTE_KEY, JSON.stringify(normalizeTestDataSeparationNoteList(list))); } catch { /* Separation notes only: a failed save leaves the previous list in place */ }
+}
+
+// Test data separation note (Plan 341): one note per test data set — the
+// set reference, the records included, the marked-as-test method in plain
+// words, the date the set was created, and the date it was cleared. Test
+// records are listed separately from live records and excluded from live
+// totals. The note only marks test data: it never creates test data, never
+// converts test data to live data, and never changes any live customer,
+// bill, or payment record.
+let testDataSeparationNoteBound = false;
+function renderTestDataSeparationNotes() {
+  const listEl = $('#tdsBody');
+  if (!listEl) return;
+  const all = loadTestDataSeparationNotes();
+  listEl.innerHTML = all.length ? testDataSeparationNotesHtml(all) : '<p>No test data separation notes yet.</p>';
+  const summaryEl = $('#tdsSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${testDataSeparationNoteSummaryText(all)} A note only marks test data and never changes any live customer, bill, or payment record by itself.`;
+  }
+  const openEl = $('#tdsOpenBody');
+  if (openEl) {
+    openEl.innerHTML = testDataSeparationOpenHtml(all);
+  }
+  if (!testDataSeparationNoteBound) {
+    testDataSeparationNoteBound = true;
+    $('#tdsExportBtn')?.addEventListener('click', () => { downloadCsvFile(testDataSeparationNoteFilename(), testDataSeparationNoteCsv(loadTestDataSeparationNotes())); });
+    $('#tdsSaveBtn')?.addEventListener('click', () => {
+      const before = loadTestDataSeparationNotes();
+      const next = recordTestDataSeparationNote(before, {
+        id: `TDS-${Date.now()}`,
+        setRef: $('#tdsSetRef')?.value ?? '',
+        records: $('#tdsRecords')?.value ?? '',
+        method: $('#tdsMethod')?.value ?? '',
+        dateCreated: $('#tdsDateCreated')?.value ?? '',
+        dateCleared: '',
+      });
+      if (next.length === before.length) { toast('Note not saved: give the set reference, at least one record, the marked-as-test method, and a strict date created.'); return; }
+      saveTestDataSeparationNotes(next);
+      renderTestDataSeparationNotes();
+    });
+    $('#tdsClearBtn')?.addEventListener('click', () => {
+      const before = loadTestDataSeparationNotes();
+      const next = clearTestDataSeparationNote(before, $('#tdsClearId')?.value ?? '', $('#tdsDateCleared')?.value ?? '');
+      if (next === before) { toast('Set not cleared: give a saved note id and a strict cleared date on or after the date created.'); return; }
+      saveTestDataSeparationNotes(next);
+      renderTestDataSeparationNotes();
+    });
   }
 }
 let duplicationCheckBound = false;

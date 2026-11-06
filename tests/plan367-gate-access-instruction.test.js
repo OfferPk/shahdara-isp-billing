@@ -214,8 +214,17 @@ test('Plan 367: wiring — import, load/save, section after the spoken language 
   assert.ok(appSrc.includes('loadGateAccessInstructions'));
   assert.ok(appSrc.includes('saveGateAccessInstructions'));
   assert.ok(appSrc.includes('gateAccessInstructionSectionMarkup'));
+  // Order, not adjacency: the Plan 368 emergency contact section now
+  // sits between the gate access instruction and the header strip, so
+  // the gate access section is still after the spoken language note
+  // and still before the strip.
+  const spokenAt = appSrc.indexOf('${spokenLanguageNoteSectionMarkup}');
+  const gateAt = appSrc.indexOf('${gateAccessInstructionSectionMarkup}');
+  const emergencyAt = appSrc.indexOf('${customerEmergencyContactSectionMarkup}');
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  assert.ok(spokenAt !== -1 && gateAt !== -1 && emergencyAt !== -1 && stripAt !== -1);
   assert.ok(
-    appSrc.includes('${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${profileHeaderStripSectionHtml}'),
+    spokenAt < gateAt && gateAt < emergencyAt && emergencyAt < stripAt,
     'gate access section sits at the top of the profile, after the spoken language note and before the header strip',
   );
   assert.ok(appSrc.includes('gaiForm'));

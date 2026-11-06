@@ -67,6 +67,7 @@ import { normalizeReversalLink, reversalLinkOf } from './reversal-link.js';
 import { normalizeOverpaymentChoice, overpaymentChoiceOf } from './overpayment-choice.js';
 import { normalizeExcessCashNote, excessCashNoteOf } from './excess-cash-note.js';
 import { normalizeLargeCashApproval, largeCashApprovalOf, requiresLargeCashApproval } from './large-cash-approval.js';
+import { normalizeTransactionCategoryTag, transactionCategoryTagOf } from './transaction-category-tag.js';
 import { normalizeUrduNote, urduNoteOf } from './urdu-note.js';
 import { normalizeCrossPaymentNote, crossPaymentNoteOf } from './cross-payment-note.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
@@ -1976,7 +1977,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, excessCashNote, excessCashDuesCents, largeCashApproval, largeCashThresholdCents, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, excessCashNote, excessCashDuesCents, largeCashApproval, largeCashThresholdCents, categoryTag, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -2032,6 +2033,13 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   // approval recorded cannot post.
   const cleanLargeCashApproval = normalizeLargeCashApproval(largeCashApproval, { isCash: isCashPaymentMethod(method), amountCents: Math.round(cents * 100), thresholdCents: largeCashThresholdCents });
   if (largeCashThresholdCents !== undefined && largeCashThresholdCents !== null && requiresLargeCashApproval(isCashPaymentMethod(method), Math.round(cents * 100), largeCashThresholdCents) && !cleanLargeCashApproval) throw new Error('Large cash payments need the owner\'s approval recorded.');
+  // Plan 398: the category tag — collection, advance, refund,
+  // adjustment, or other, in plain words, set at entry and used
+  // only for filtering. It tags only: it never changes any amount,
+  // type, bill, payment total, method reconciliation, or customer
+  // record by itself. Only the four meaningful tags are stored; a
+  // payment without one stores nothing extra and reads as 'other'.
+  const cleanCategoryTag = normalizeTransactionCategoryTag(categoryTag);
 
   const ref = String(transactionId ?? reference ?? '').trim().slice(0, 64);
   const overrideReason = String(referenceOverrideReason ?? '').trim().slice(0, 100);
@@ -2198,6 +2206,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(cleanOverpaymentChoice ? { overpaymentChoice: cleanOverpaymentChoice } : {}),
     ...(cleanExcessCashNote ? { excessCashNote: cleanExcessCashNote } : {}),
     ...(cleanLargeCashApproval ? { largeCashApproval: cleanLargeCashApproval } : {}),
+    ...(cleanCategoryTag ? { categoryTag: cleanCategoryTag } : {}),
     ...(contributorStamp ? { paidByContributor: contributorStamp } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -2524,6 +2533,14 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // (no threshold is passed on a correction), so the recorded
     // approval stays exactly as it was entered.
     largeCashApproval: fields.largeCashApproval !== undefined ? fields.largeCashApproval : existingPayment.largeCashApproval,
+    // Plan 398: the category tag rides the correction the same way
+    // the large-cash approval does — an explicit new tag replaces
+    // it, an emptied tag (null) clears it, and saying nothing about
+    // it keeps the tag the payment already carries, so a correction
+    // can never silently strip the tag. The correction form carries
+    // no category field, so in practice the tag is preserved
+    // silently, exactly like the Urdu-script note.
+    categoryTag: fields.categoryTag !== undefined ? fields.categoryTag : existingPayment.categoryTag,
     // Plan 389: the Urdu-script note rides the correction the same
     // way the overpayment choice does — an explicit new note
     // replaces it, an emptied note (null) clears it, and saying
@@ -3473,6 +3490,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     // entry — sanitized by the same reader the display uses, so a
     // damaged record reads as no approval.
     largeCashApproval: largeCashApprovalOf(payment),
+    // Plan 398: the category tag rides the transaction row so the
+    // Transactions list can filter by it and show it beside the
+    // entry — sanitized by the same reader the display uses, so a
+    // damaged record reads as 'other'.
+    categoryTag: transactionCategoryTagOf(payment),
     // Plan 389: the Urdu-script note rides the transaction row so
     // the Transactions list can show the note exactly as written
     // beside the entry — sanitized by the same reader the display

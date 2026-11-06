@@ -68,6 +68,7 @@ import { normalizeOverpaymentChoice, overpaymentChoiceOf } from './overpayment-c
 import { normalizeExcessCashNote, excessCashNoteOf } from './excess-cash-note.js';
 import { normalizeLargeCashApproval, largeCashApprovalOf, requiresLargeCashApproval } from './large-cash-approval.js';
 import { normalizeTransactionCategoryTag, transactionCategoryTagOf } from './transaction-category-tag.js';
+import { normalizePromisePaymentLink, promisePaymentLinkOf } from './promise-payment-link.js';
 import { normalizeUrduNote, urduNoteOf } from './urdu-note.js';
 import { normalizeCrossPaymentNote, crossPaymentNoteOf } from './cross-payment-note.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
@@ -1977,7 +1978,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, excessCashNote, excessCashDuesCents, largeCashApproval, largeCashThresholdCents, categoryTag, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, excessCashNote, excessCashDuesCents, largeCashApproval, largeCashThresholdCents, categoryTag, promiseLink, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -2040,6 +2041,15 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   // record by itself. Only the four meaningful tags are stored; a
   // payment without one stores nothing extra and reads as 'other'.
   const cleanCategoryTag = normalizeTransactionCategoryTag(categoryTag);
+
+  // Plan 399: the link to the collection promise this payment
+  // fulfils rides the payment record — one link joining a
+  // transaction to the promise it fulfils (promise reference,
+  // transaction reference, date), recorded when the payment is
+  // entered. It links only: it never changes any amount, bill,
+  // payment total, promise record, or customer record by itself.
+  // The date is the payment's own day when the link carries none.
+  const cleanPromiseLink = normalizePromisePaymentLink(promiseLink, date);
 
   const ref = String(transactionId ?? reference ?? '').trim().slice(0, 64);
   const overrideReason = String(referenceOverrideReason ?? '').trim().slice(0, 100);
@@ -2207,6 +2217,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(cleanExcessCashNote ? { excessCashNote: cleanExcessCashNote } : {}),
     ...(cleanLargeCashApproval ? { largeCashApproval: cleanLargeCashApproval } : {}),
     ...(cleanCategoryTag ? { categoryTag: cleanCategoryTag } : {}),
+    ...(cleanPromiseLink ? { promiseLink: cleanPromiseLink } : {}),
     ...(contributorStamp ? { paidByContributor: contributorStamp } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -2541,6 +2552,13 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // no category field, so in practice the tag is preserved
     // silently, exactly like the Urdu-script note.
     categoryTag: fields.categoryTag !== undefined ? fields.categoryTag : existingPayment.categoryTag,
+    // Plan 399: the promise-payment link rides the correction the
+    // same way the category tag does — an explicit new link
+    // replaces it, an emptied link (null) clears it, and saying
+    // nothing about it keeps the link the payment already carries,
+    // so a correction can never silently strip which promise the
+    // payment fulfilled.
+    promiseLink: fields.promiseLink !== undefined ? fields.promiseLink : existingPayment.promiseLink,
     // Plan 389: the Urdu-script note rides the correction the same
     // way the overpayment choice does — an explicit new note
     // replaces it, an emptied note (null) clears it, and saying
@@ -3495,6 +3513,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     // entry — sanitized by the same reader the display uses, so a
     // damaged record reads as 'other'.
     categoryTag: transactionCategoryTagOf(payment),
+    // Plan 399: the promise-payment link rides the transaction row
+    // so the Transactions list can show which promise the payment
+    // fulfilled — sanitized by the same reader the display uses,
+    // so a damaged record reads as no link.
+    promiseLink: promisePaymentLinkOf(payment),
     // Plan 389: the Urdu-script note rides the transaction row so
     // the Transactions list can show the note exactly as written
     // beside the entry — sanitized by the same reader the display

@@ -65,6 +65,7 @@ import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSameDayCorrectionNote, sameDayCorrectionNoteOf } from './same-day-correction-note.js';
 import { normalizeReversalLink, reversalLinkOf } from './reversal-link.js';
 import { normalizeOverpaymentChoice, overpaymentChoiceOf } from './overpayment-choice.js';
+import { normalizeExcessCashNote, excessCashNoteOf } from './excess-cash-note.js';
 import { normalizeUrduNote, urduNoteOf } from './urdu-note.js';
 import { normalizeCrossPaymentNote, crossPaymentNoteOf } from './cross-payment-note.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
@@ -1974,7 +1975,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, excessCashNote, excessCashDuesCents, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -2006,6 +2007,17 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   // (cents here is the normalized amount in rupees, despite the
   // name — the choice module works in integer cents throughout.)
   const cleanOverpaymentChoice = normalizeOverpaymentChoice(overpaymentChoice, overpaymentDuesCents, Math.round(cents * 100));
+  // Plan 395: the excess cash note — the extra over the dues and
+  // what it is for in plain words (advance, credit, or change to
+  // return), recorded with the transaction. The validator is given
+  // the dues at entry time and keeps the note only when the amount
+  // strictly exceeds them, with the extra recomputed as amount
+  // minus dues; a note on a payment that does not exceed the dues
+  // stores nothing, and a missing purpose stores nothing too. The
+  // dues ride along for that check only and are never stored. The
+  // note applies nothing by itself — it never creates an advance
+  // record and never touches any credit balance.
+  const cleanExcessCashNote = normalizeExcessCashNote(excessCashNote, excessCashDuesCents, Math.round(cents * 100));
   if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
 
   const ref = String(transactionId ?? reference ?? '').trim().slice(0, 64);
@@ -2171,6 +2183,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(cleanCorrection ? { sameDayCorrection: cleanCorrection } : {}),
     ...(cleanReversalLink ? { reversalLink: cleanReversalLink } : {}),
     ...(cleanOverpaymentChoice ? { overpaymentChoice: cleanOverpaymentChoice } : {}),
+    ...(cleanExcessCashNote ? { excessCashNote: cleanExcessCashNote } : {}),
     ...(contributorStamp ? { paidByContributor: contributorStamp } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -2479,6 +2492,15 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // choice by its shape (no dues are passed on a correction), so
     // the recorded extra stays exactly as it was entered.
     overpaymentChoice: fields.overpaymentChoice !== undefined ? fields.overpaymentChoice : existingPayment.overpaymentChoice,
+    // Plan 395: the excess cash note rides the correction the same
+    // way the overpayment choice does — an explicit new note
+    // replaces it, an emptied note (null) clears it, and saying
+    // nothing about it keeps the note the payment already carries,
+    // so a correction can never silently strip the note explaining
+    // the extra cash. The validator keeps a carried note by its
+    // shape (no dues are passed on a correction), so the recorded
+    // extra stays exactly as it was entered.
+    excessCashNote: fields.excessCashNote !== undefined ? fields.excessCashNote : existingPayment.excessCashNote,
     // Plan 389: the Urdu-script note rides the correction the same
     // way the overpayment choice does — an explicit new note
     // replaces it, an emptied note (null) clears it, and saying
@@ -3413,6 +3435,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     // beside the entry — sanitized by the same reader the display
     // uses, so a damaged record reads as no choice.
     overpaymentChoice: overpaymentChoiceOf(payment),
+    // Plan 395: the excess cash note rides the transaction row so
+    // the Transactions list can show the extra amount and its stated
+    // purpose beside the entry — sanitized by the same reader the
+    // display uses, so a damaged record reads as no note.
+    excessCashNote: excessCashNoteOf(payment),
     // Plan 389: the Urdu-script note rides the transaction row so
     // the Transactions list can show the note exactly as written
     // beside the entry — sanitized by the same reader the display

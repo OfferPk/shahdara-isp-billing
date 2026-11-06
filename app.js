@@ -534,6 +534,7 @@ import { validDataConflictDay, foldDataConflictResolution, normalizeDataConflict
 import { validScreenHelpNoteDay, foldScreenHelpNoteStatus, normalizeScreenHelpNoteList, findScreenHelpNote, recordScreenHelpNote, updateScreenHelpNoteCheck, screenHelpNoteScreens, screenHelpNoteGaps, screenHelpNoteCoverage, screenHelpNoteSummaryText, screenHelpNoteText, screenHelpNoteHtml, screenHelpNotesHtml, screenHelpNoteGapsHtml, screenHelpNoteCoverageHtml, screenHelpNoteCsv, screenHelpNoteFilename } from './screen-help-note.js';
 import { validOperatorNotePinDay, normalizeOperatorNotePinList, findOperatorNotePin, recordOperatorNotePin, unpinOperatorNotePin, activeOperatorNotePins, operatorNotePinsInDisplayOrder, operatorNotePinSummaryText, operatorNotePinText, operatorNotePinHtml, operatorNotePinsHtml, activeOperatorNotePinsHtml, operatorNotePinsInDisplayOrderHtml, operatorNotePinCsv, operatorNotePinFilename } from './operator-note-pin.js';
 import { validDashboardWidgetOrderDay, normalizeDashboardWidgetOrderWidgets, normalizeDashboardWidgetOrderPreferenceList, dashboardWidgetOrderForOperator, dashboardWidgetOrderHistoryForOperator, recordDashboardWidgetOrderPreference, resetDashboardWidgetOrder, dashboardWidgetsInPreferredOrder, dashboardWidgetOrderSummaryText, dashboardWidgetOrderText, dashboardWidgetOrderHtml, dashboardWidgetOrdersHtml, dashboardWidgetOrderCurrentHtml, dashboardWidgetsInPreferredOrderHtml, dashboardWidgetOrderCsv, dashboardWidgetOrderFilename } from './dashboard-widget-order.js';
+import { validReportSchedulingNoteDay, foldReportSchedulingNoteCycle, normalizeReportSchedulingNoteList, recordReportSchedulingNote, reportSchedulingNoteForReport, reportSchedulingNoteOverdue, reportSchedulingNoteDueList, markReportSchedulingNoteProduced, reportSchedulingNoteSummaryText, reportSchedulingNoteText, reportSchedulingNoteHtml, reportSchedulingNotesHtml, reportSchedulingNoteDueHtml, reportSchedulingNoteCsv, reportSchedulingNoteFilename } from './report-scheduling-note.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14424,6 +14425,7 @@ function renderAnalytics() {
   renderScreenHelpNotes();
   renderOperatorNotePins();
   renderDashboardWidgetOrders();
+  renderReportSchedulingNotes();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33376,6 +33378,64 @@ function renderDashboardWidgetOrders() {
       if (JSON.stringify(next) === JSON.stringify(before)) { toast('Order not reset: the operator must have a saved order, and a strict reset date is needed.'); return; }
       saveDashboardWidgetOrders(next);
       renderDashboardWidgetOrders();
+    });
+  }
+}
+let reportSchedulingNoteBound = false;
+const REPORT_SCHEDULING_NOTE_KEY = 'shahdara_rsn_notes_v1';
+function loadReportSchedulingNotes() {
+  try { return normalizeReportSchedulingNoteList(JSON.parse(localStorage.getItem(REPORT_SCHEDULING_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveReportSchedulingNotes(list) {
+  try { localStorage.setItem(REPORT_SCHEDULING_NOTE_KEY, JSON.stringify(normalizeReportSchedulingNoteList(list))); } catch { /* Report scheduling only: a failed save leaves the previous list in place */ }
+}
+
+// Report scheduling note (Plan 339): one scheduling note per recurring
+// report — the report name, the due cycle, the next due date, a recipient
+// list reference, and the owner. Overdue reports appear on a dated due
+// list, and recording a report as produced moves its next due date forward
+// by its cycle. A note only records due dates: it sends nothing
+// automatically, it never produces a report, and it never changes any bill,
+// payment, or report content by itself.
+function renderReportSchedulingNotes() {
+  const listEl = $('#rsnBody');
+  if (!listEl) return;
+  const all = loadReportSchedulingNotes();
+  listEl.innerHTML = all.length ? reportSchedulingNotesHtml(all) : '<p>No scheduled reports yet.</p>';
+  const today = new Date().toISOString().slice(0, 10);
+  const summaryEl = $('#rsnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${reportSchedulingNoteSummaryText(all, today)} A note only records due dates and never sends any message or changes any bill, payment, or report content by itself.`;
+  }
+  const dueEl = $('#rsnDueBody');
+  if (dueEl) {
+    dueEl.innerHTML = reportSchedulingNoteDueHtml(all, today);
+  }
+  if (!reportSchedulingNoteBound) {
+    reportSchedulingNoteBound = true;
+    $('#rsnExportBtn')?.addEventListener('click', () => { downloadCsvFile(reportSchedulingNoteFilename(), reportSchedulingNoteCsv(loadReportSchedulingNotes())); });
+    $('#rsnSaveBtn')?.addEventListener('click', () => {
+      const before = loadReportSchedulingNotes();
+      const next = recordReportSchedulingNote(before, {
+        id: `RSN-${Date.now()}`,
+        reportName: $('#rsnReportName')?.value ?? '',
+        cycle: $('#rsnCycle')?.value ?? '',
+        nextDueDate: $('#rsnNextDue')?.value ?? '',
+        recipients: $('#rsnRecipients')?.value ?? '',
+        owner: $('#rsnOwner')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Note not saved: give the report name, a due cycle, a strict next due date, and the owner.'); return; }
+      saveReportSchedulingNotes(next);
+      renderReportSchedulingNotes();
+    });
+    $('#rsnProducedBtn')?.addEventListener('click', () => {
+      const before = loadReportSchedulingNotes();
+      const found = reportSchedulingNoteForReport(before, $('#rsnProducedReport')?.value ?? '');
+      if (!found) { toast('Not marked produced: no scheduled report has that name.'); return; }
+      const next = markReportSchedulingNoteProduced(before, found.id, $('#rsnProducedDate')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Not marked produced: a strict produced date is needed.'); return; }
+      saveReportSchedulingNotes(next);
+      renderReportSchedulingNotes();
     });
   }
 }

@@ -91,6 +91,7 @@ import { nextReceiptNumberLineText } from './next-receipt-number.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
+import { overpaymentExtraCents } from './overpayment-choice.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
@@ -644,6 +645,8 @@ export function executeQuickCollection(state, {
   collectedBy,
   collectionPlace,
   collectionMohalla,
+  overpaymentChoice,
+  overpaymentDuesCents,
   transactionId,
   senderTitle,
   senderDigits,
@@ -801,6 +804,15 @@ export function executeQuickCollection(state, {
     collectedBy: collectedBy ? String(collectedBy).trim() : undefined,
     collectionPlace: normalizeCollectionPlace(collectionPlace) || undefined,
     collectionMohalla: collectionMohalla ? String(collectionMohalla).trim() : undefined,
+    // Plan 386: the overpayment choice rides the payment — the
+    // operator's explicit advance-or-credit choice for the extra
+    // over the dues, recorded with the transaction. Core's
+    // validatePayment enforces the amount-above-dues rule (the dues
+    // ride along for that check only and are never stored), so a
+    // choice on a payment that does not exceed the dues stores
+    // nothing; the choice applies nothing automatically.
+    overpaymentChoice: overpaymentChoice || undefined,
+    overpaymentDuesCents: Number.isFinite(Number(overpaymentDuesCents)) ? Math.round(Number(overpaymentDuesCents)) : undefined,
     paidByContributor: contributorStamp ?? undefined,
     transactionId: cleanTxnId || undefined,
     // SISP-63: sender proof metadata rides alongside the TID; core's
@@ -1702,6 +1714,12 @@ export function setupQuickCollectModal({
   // Plan 385: the live settlement preview under the amount field
   // (null when the host page predates it).
   const settlementPreviewBox = typeof document !== 'undefined' ? document.getElementById('quickCollectSettlementPreview') : null;
+  // Plan 386: the overpayment choice box under the amount field
+  // (null when the host page predates it) — the radio pair the
+  // operator uses to say what the extra over the dues should be,
+  // and the span that names the extra in plain words.
+  const overpaymentChoiceBox = typeof document !== 'undefined' ? document.getElementById('quickCollectOverpaymentChoice') : null;
+  const overpaymentExtraLine = typeof document !== 'undefined' ? document.getElementById('quickCollectOverpaymentExtra') : null;
   // Plan 382: the save confirmation summary hosts (null when the
   // host page predates them) — the summary panel and its Confirm /
   // Back buttons, shown before the payment posts.
@@ -1765,6 +1783,36 @@ export function setupQuickCollectModal({
     }
     settlementPreviewBox.innerHTML = html;
     settlementPreviewBox.hidden = html === '';
+  }
+  // Plan 386: the overpayment choice is offered only when the amount
+  // currently typed strictly exceeds the customer's total dues — the
+  // extra over the dues, in plain words — so the operator records
+  // the customer's own decision at the counter instead of guessing
+  // later. Offered, never forced: no radio is pre-ticked, and an
+  // unticked choice records nothing. The box hides while Advance is
+  // ticked (the money is already advance) and on a split payment
+  // (each leg is an ordinary payment of its own). Read-only:
+  // rendering chooses nothing and changes no record. The dues are
+  // the same live remaining balances the settlement preview reads.
+  function renderOverpaymentChoice() {
+    if (!overpaymentChoiceBox) return;
+    let extraCents = 0;
+    const amountCents = Math.round(Number(amountInput?.value || 0) * 100);
+    if (activeCustomerId && amountCents > 0 && !advanceCheckbox?.checked && !splitToggle?.checked) {
+      const state = getState();
+      const customer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+      if (customer) {
+        const allocations = calculatePaymentAllocations(state);
+        let duesCents = 0;
+        for (const bill of (customer.bills ?? [])) {
+          const remaining = allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? 0;
+          if (remaining > 0) duesCents += remaining;
+        }
+        extraCents = overpaymentExtraCents(duesCents, amountCents);
+      }
+    }
+    if (overpaymentExtraLine) overpaymentExtraLine.textContent = formatPKR(extraCents / 100);
+    overpaymentChoiceBox.hidden = extraCents <= 0;
   }
   // Plan 382: the save confirmation summary — built from the same
   // reads the submit handler posts with, so the figures the operator
@@ -2130,6 +2178,9 @@ export function setupQuickCollectModal({
     // Plan 385: the settlement preview belongs to the picked month
     // too — a month switch re-settles it before anything is saved.
     renderSettlementPreview();
+    // Plan 386: a month switch moves the dues too, so the choice is
+    // re-offered for the new total before anything is saved.
+    renderOverpaymentChoice();
   });
 
   // SISP-101: the waiver gate depends on the amount being collected, so
@@ -2143,6 +2194,9 @@ export function setupQuickCollectModal({
   // Plan 385: the settlement preview follows every keystroke too —
   // changing the amount re-settles it before anything is saved.
   amountInput?.addEventListener('input', () => renderSettlementPreview());
+  // Plan 386: the choice follows every keystroke too — changing the
+  // amount re-offers (or withdraws) it before anything is saved.
+  amountInput?.addEventListener('input', () => renderOverpaymentChoice());
   advanceCheckbox?.addEventListener('change', () => {
     // An advance collection can never carry a waiver (see
     // executeQuickCollection) — the box hides while Advance is ticked.
@@ -2154,6 +2208,10 @@ export function setupQuickCollectModal({
   // target month moves.
   advanceCheckbox?.addEventListener('change', () => renderSettlementPreview());
   advanceTargetSelect?.addEventListener('change', () => renderSettlementPreview());
+  // Plan 386: ticking Advance hides the choice (the money is already
+  // advance), and clearing it re-offers the choice when the amount
+  // exceeds the dues.
+  advanceCheckbox?.addEventListener('change', () => renderOverpaymentChoice());
 
   // SISP-126: the Remainder Waada row tracks the amount live (typing, and
   // the payment date / Advance toggle, which move the chip dates and the
@@ -2186,6 +2244,9 @@ export function setupQuickCollectModal({
     if (splitDigitalFields) splitDigitalFields.hidden = !leg2Digital;
   }
   splitToggle?.addEventListener('change', updateSplitVisibility);
+  // Plan 386: splitting the payment hides the choice (each leg is an
+  // ordinary payment of its own), and un-splitting re-offers it.
+  splitToggle?.addEventListener('change', () => renderOverpaymentChoice());
   splitMethodSelect?.addEventListener('change', updateSplitVisibility);
 
   function updateCounts() {
@@ -2711,6 +2772,9 @@ export function setupQuickCollectModal({
       // shown for the suggested amount, so the operator can tell the
       // customer which months it settles before anything is saved.
       renderSettlementPreview();
+      // Plan 386: the form opens with the choice already offered for
+      // the suggested amount when it exceeds the dues.
+      renderOverpaymentChoice();
       if (dateInput) {
         dateInput.value = activeDefaults.todayDate;
         dateInput.max = activeDefaults.todayDate;
@@ -3080,6 +3144,8 @@ export function setupQuickCollectModal({
       renderAmountWordsLine();
       // Plan 385: a chip-set amount re-settles the preview the same way.
       renderSettlementPreview();
+      // Plan 386: a chip-set amount re-offers the choice the same way.
+      renderOverpaymentChoice();
       amountInput.focus();
       // SISP-126: a chip-set amount can reveal/clear the remainder row.
       renderRemainderWaadaRow();
@@ -3101,6 +3167,9 @@ export function setupQuickCollectModal({
     // Plan 385: a loose-change tap fills the amount, so the preview
     // refreshes explicitly too.
     renderSettlementPreview();
+    // Plan 386: a loose-change tap fills the amount, so the choice
+    // refreshes explicitly too.
+    renderOverpaymentChoice();
     amountInput.focus();
   });
   // The chips belong to the dues flow only; the Advance tag hides them.
@@ -3582,6 +3651,31 @@ export function setupQuickCollectModal({
         return;
       }
 
+      // Plan 386: the overpayment choice for this payment — the radio
+      // picked for the extra over the customer's total dues, read live
+      // at submit from the same allocation state the preview reads,
+      // so a figure typed after the last render still counts. The
+      // validator re-checks it before anything records. Only the
+      // single-payment path carries it; a split payment records two
+      // ordinary legs of its own.
+      let selectedOverpaymentChoice = '';
+      let overpaymentDuesCents = 0;
+      {
+        // The radios live inside the choice box, so the checked one
+        // is read through the box itself (null on hosts that predate
+        // the box, and null in the test stub whose elements answer
+        // no checked radio) — never through the bare document.
+        const picked = overpaymentChoiceBox?.querySelector('input[name="quickCollectOverpaymentChoice"]:checked') ?? null;
+        selectedOverpaymentChoice = picked?.value || '';
+        if (selectedOverpaymentChoice) {
+          const submitAllocations = calculatePaymentAllocations(state);
+          const submitCustomer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+          for (const bill of (submitCustomer?.bills ?? [])) {
+            const remaining = submitAllocations.forMonth(activeCustomerId, bill.month)?.balanceDueCents ?? 0;
+            if (remaining > 0) overpaymentDuesCents += remaining;
+          }
+        }
+      }
       const { nextState, receipt, nextTickets } = executeQuickCollection(state, {
         customerId: activeCustomerId,
         month: monthVal,
@@ -3597,6 +3691,8 @@ export function setupQuickCollectModal({
         collectedBy: collectedByVal || undefined,
         collectionPlace: collectionPlaceVal || undefined,
         collectionMohalla: collectionMohallaVal || undefined,
+        overpaymentChoice: selectedOverpaymentChoice || undefined,
+        overpaymentDuesCents: selectedOverpaymentChoice ? overpaymentDuesCents : undefined,
         paidByContributorId: contributorSelect && contributorField && !contributorField.hidden ? (contributorSelect.value || undefined) : undefined,
         transactionId: txnIdVal,
         senderTitle: (senderNameInput?.value || '').trim(),

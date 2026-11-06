@@ -92,6 +92,7 @@ import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
 import { overpaymentExtraCents } from './overpayment-choice.js';
+import { underpaymentWarning, underpaymentWarningLineText } from './underpayment-warning.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
@@ -1720,6 +1721,9 @@ export function setupQuickCollectModal({
   // and the span that names the extra in plain words.
   const overpaymentChoiceBox = typeof document !== 'undefined' ? document.getElementById('quickCollectOverpaymentChoice') : null;
   const overpaymentExtraLine = typeof document !== 'undefined' ? document.getElementById('quickCollectOverpaymentExtra') : null;
+  // Plan 387: the underpayment warning line under the amount field
+  // (null when the host page predates it).
+  const underpaymentWarningLine = typeof document !== 'undefined' ? document.getElementById('quickCollectUnderpaymentWarning') : null;
   // Plan 382: the save confirmation summary hosts (null when the
   // host page predates them) — the summary panel and its Confirm /
   // Back buttons, shown before the payment posts.
@@ -1813,6 +1817,38 @@ export function setupQuickCollectModal({
     }
     if (overpaymentExtraLine) overpaymentExtraLine.textContent = formatPKR(extraCents / 100);
     overpaymentChoiceBox.hidden = extraCents <= 0;
+  }
+  // Plan 387: the underpayment warning is shown only while the
+  // amount currently typed is a positive number strictly below the
+  // customer's total dues — the amount entered, the dues total, and
+  // what remains after this payment, in plain words — so the
+  // customer leaves knowing what is still due instead of believing
+  // they are fully paid. Warns only, blocks nothing: the form saves
+  // exactly as before. The line hides while Advance is ticked (the
+  // money is already advance, not a dues payment) and on a split
+  // payment (each leg is an ordinary payment of its own). Read-only:
+  // rendering warns nothing into any record. The dues are the same
+  // live remaining balances the settlement preview reads.
+  function renderUnderpaymentWarning() {
+    if (!underpaymentWarningLine) return;
+    let line = '';
+    const amountCents = Math.round(Number(amountInput?.value || 0) * 100);
+    if (activeCustomerId && amountCents > 0 && !advanceCheckbox?.checked && !splitToggle?.checked) {
+      const state = getState();
+      const customer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+      if (customer) {
+        const allocations = calculatePaymentAllocations(state);
+        let duesCents = 0;
+        for (const bill of (customer.bills ?? [])) {
+          const remaining = allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? 0;
+          if (remaining > 0) duesCents += remaining;
+        }
+        const warning = underpaymentWarning(duesCents, amountCents);
+        if (warning) line = underpaymentWarningLineText(warning);
+      }
+    }
+    underpaymentWarningLine.textContent = line;
+    underpaymentWarningLine.hidden = line === '';
   }
   // Plan 382: the save confirmation summary — built from the same
   // reads the submit handler posts with, so the figures the operator
@@ -2181,6 +2217,9 @@ export function setupQuickCollectModal({
     // Plan 386: a month switch moves the dues too, so the choice is
     // re-offered for the new total before anything is saved.
     renderOverpaymentChoice();
+    // Plan 387: a month switch moves the dues too, so the warning is
+    // re-shown for the new remaining figure before anything is saved.
+    renderUnderpaymentWarning();
   });
 
   // SISP-101: the waiver gate depends on the amount being collected, so
@@ -2197,6 +2236,9 @@ export function setupQuickCollectModal({
   // Plan 386: the choice follows every keystroke too — changing the
   // amount re-offers (or withdraws) it before anything is saved.
   amountInput?.addEventListener('input', () => renderOverpaymentChoice());
+  // Plan 387: the warning follows every keystroke too — changing the
+  // amount re-shows (or withdraws) it before anything is saved.
+  amountInput?.addEventListener('input', () => renderUnderpaymentWarning());
   advanceCheckbox?.addEventListener('change', () => {
     // An advance collection can never carry a waiver (see
     // executeQuickCollection) — the box hides while Advance is ticked.
@@ -2212,6 +2254,9 @@ export function setupQuickCollectModal({
   // advance), and clearing it re-offers the choice when the amount
   // exceeds the dues.
   advanceCheckbox?.addEventListener('change', () => renderOverpaymentChoice());
+  // Plan 387: ticking Advance hides the warning (the money is already
+  // advance, not a dues payment), and clearing it re-shows it.
+  advanceCheckbox?.addEventListener('change', () => renderUnderpaymentWarning());
 
   // SISP-126: the Remainder Waada row tracks the amount live (typing, and
   // the payment date / Advance toggle, which move the chip dates and the
@@ -2247,6 +2292,9 @@ export function setupQuickCollectModal({
   // Plan 386: splitting the payment hides the choice (each leg is an
   // ordinary payment of its own), and un-splitting re-offers it.
   splitToggle?.addEventListener('change', () => renderOverpaymentChoice());
+  // Plan 387: splitting the payment hides the warning (each leg is an
+  // ordinary payment of its own), and un-splitting re-shows it.
+  splitToggle?.addEventListener('change', () => renderUnderpaymentWarning());
   splitMethodSelect?.addEventListener('change', updateSplitVisibility);
 
   function updateCounts() {
@@ -2775,6 +2823,9 @@ export function setupQuickCollectModal({
       // Plan 386: the form opens with the choice already offered for
       // the suggested amount when it exceeds the dues.
       renderOverpaymentChoice();
+      // Plan 387: the form opens with the warning already shown for
+      // the suggested amount when it falls short of the dues.
+      renderUnderpaymentWarning();
       if (dateInput) {
         dateInput.value = activeDefaults.todayDate;
         dateInput.max = activeDefaults.todayDate;
@@ -3146,6 +3197,8 @@ export function setupQuickCollectModal({
       renderSettlementPreview();
       // Plan 386: a chip-set amount re-offers the choice the same way.
       renderOverpaymentChoice();
+      // Plan 387: a chip-set amount re-shows the warning the same way.
+      renderUnderpaymentWarning();
       amountInput.focus();
       // SISP-126: a chip-set amount can reveal/clear the remainder row.
       renderRemainderWaadaRow();
@@ -3170,6 +3223,9 @@ export function setupQuickCollectModal({
     // Plan 386: a loose-change tap fills the amount, so the choice
     // refreshes explicitly too.
     renderOverpaymentChoice();
+    // Plan 387: a loose-change tap fills the amount, so the warning
+    // refreshes explicitly too.
+    renderUnderpaymentWarning();
     amountInput.focus();
   });
   // The chips belong to the dues flow only; the Advance tag hides them.

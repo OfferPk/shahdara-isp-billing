@@ -511,6 +511,7 @@ import { normalizeMohallaYearFigureRecordList, recordMohallaYearFigure, removeMo
 import { normalizeSeasonalMonthlyFigureRecordList, recordSeasonalMonthlyFigure, removeSeasonalMonthlyFigure, buildSeasonalComparison, seasonalComparisonSummaryText, seasonalComparisonAllHtml, seasonalComparisonCsv, seasonalComparisonFilename } from './seasonal-comparison.js';
 import { normalizeArchiveRetrievalList, recordArchiveRetrieval, removeArchiveRetrieval, returnArchiveItem, archiveRetrievalOpen, archiveRetrievalSummaryText, archiveRetrievalOpenHtml, archiveRetrievalAllHtml, archiveRetrievalCsv, archiveRetrievalFilename } from './archive-retrieval.js';
 import { normalizeAppFeedbackList, recordAppFeedback, removeAppFeedback, closeAppFeedback, appFeedbackOpenByScreen, appFeedbackSummaryText, appFeedbackOpenHtml, appFeedbackAllHtml, appFeedbackCsv, appFeedbackFilename } from './app-feedback-inbox.js';
+import { validAppPerformanceDay, foldAppPerformanceFrequency, normalizeAppPerformanceNoteList, findAppPerformanceNote, recordAppPerformanceNote, appPerformanceNotesForScreen, appPerformanceScreens, appPerformanceCountsByScreen, appPerformanceSummaryText, appPerformanceNoteText, appPerformanceNotesHtml, appPerformanceCountsHtml, appPerformanceCsv, appPerformanceFilename } from './app-performance-note.js';
 import { normalizeAccessibilityNoteList, recordAccessibilityNote, removeAccessibilityNote, accessibilityNotesByScreen, accessibilityNoteScreensWithNotes, accessibilityNoteSummaryText, accessibilityNotesByScreenHtml, accessibilityNoteScreenStatusHtml, accessibilityNoteCsv, accessibilityNoteFilename } from './accessibility-note.js';
 import { normalizePrintTemplateList, recordPrintTemplate, supersedePrintTemplate, printTemplateCurrentVersion, printTemplatesByNameHtml, printTemplateSummaryText, printTemplateCsv, printTemplateFilename } from './print-template-register.js';
 import { validDataEntryErrorDay, foldDataEntryErrorType, normalizeDataEntryErrorList, recordDataEntryError, removeDataEntryError, dataEntryErrorsForType, dataEntryErrorTypes, dataEntryErrorCountsByType, dataEntryErrorSummaryText, dataEntryErrorsByTypeHtml, dataEntryErrorCsv, dataEntryErrorFilename } from './data-entry-error-log.js';
@@ -14416,6 +14417,7 @@ function renderAnalytics() {
   renderRestoreVerificationNote();
   renderExportFormatVersions();
   renderDataConflicts();
+  renderAppPerformanceNotes();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33122,6 +33124,56 @@ function renderDataConflicts() {
       if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Conflict not resolved: give a note id from the open list, a resolution, and who resolved it — an already-resolved note stays as it is.'); return; }
       saveDataConflicts(next);
       renderDataConflicts();
+    });
+  }
+}
+let appPerformanceBound = false;
+const APP_PERFORMANCE_KEY = 'shahdara_apn_notes_v1';
+function loadAppPerformanceNotes() {
+  try { return normalizeAppPerformanceNoteList(JSON.parse(localStorage.getItem(APP_PERFORMANCE_KEY) || '[]')); } catch { return []; }
+}
+function saveAppPerformanceNotes(list) {
+  try { localStorage.setItem(APP_PERFORMANCE_KEY, JSON.stringify(normalizeAppPerformanceNoteList(list))); } catch { /* App performance note only: a failed save leaves the previous list in place */ }
+}
+
+// App performance note (Plan 335): one note per observation of a slow
+// screen or a long wait — the screen, the device, the symptom in plain
+// words, the date, and how often it happens. Notes group by screen with
+// counts over a period, so the screens that actually waste field time
+// are visible. Recording a note never changes any screen, bill,
+// payment, or customer record by itself.
+function renderAppPerformanceNotes() {
+  const listEl = $('#apnBody');
+  if (!listEl) return;
+  const all = loadAppPerformanceNotes();
+  listEl.innerHTML = all.length ? appPerformanceNotesHtml(all) : '<p>No app performance notes recorded.</p>';
+  const summaryEl = $('#apnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${appPerformanceSummaryText(all)} A note never changes any screen, bill, payment, or customer record by itself.`;
+  }
+  const countsEl = $('#apnCountsBody');
+  if (countsEl) {
+    const from = $('#apnFrom')?.value ?? '';
+    const to = $('#apnTo')?.value ?? '';
+    countsEl.innerHTML = (from && to) ? appPerformanceCountsHtml(all, from, to) : '<p>Pick a from and to date to see counts per screen for that period.</p>';
+  }
+  if (!appPerformanceBound) {
+    appPerformanceBound = true;
+    $('#apnExportBtn')?.addEventListener('click', () => { downloadCsvFile(appPerformanceFilename(), appPerformanceCsv(loadAppPerformanceNotes())); });
+    $('#apnCountsBtn')?.addEventListener('click', () => { renderAppPerformanceNotes(); });
+    $('#apnRecordBtn')?.addEventListener('click', () => {
+      const before = loadAppPerformanceNotes();
+      const next = recordAppPerformanceNote(before, {
+        id: `APN-${Date.now()}`,
+        screen: $('#apnScreen')?.value ?? '',
+        device: $('#apnDevice')?.value ?? '',
+        symptom: $('#apnSymptom')?.value ?? '',
+        date: $('#apnDate')?.value ?? '',
+        frequency: $('#apnFrequency')?.value ?? 'once',
+      });
+      if (next.length === before.length) { toast('Performance note not recorded: give the screen, the symptom in plain words, and a strict date.'); return; }
+      saveAppPerformanceNotes(next);
+      renderAppPerformanceNotes();
     });
   }
 }

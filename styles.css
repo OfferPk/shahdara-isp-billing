@@ -7781,6 +7781,16 @@ html, body {
   font-size: 12px;
 }
 
+/* Plan 377 — live amount-in-words line beside the amount field: the
+   typed amount in plain words, so an extra zero is caught before the
+   receipt is printed. No colour of its own, so no new hex colour is
+   introduced. */
+.aiw-words-line {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-style: italic;
+}
+
 .qc-quick-amount-chips {
   display: flex;
   flex-wrap: wrap;

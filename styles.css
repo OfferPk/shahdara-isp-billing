@@ -8376,6 +8376,33 @@ html, body {
   padding: 4px;
 }
 
+/* Plan 353: mohalla-first filter row under the search bar — pick a
+   mohalla, then search names within that mohalla only. */
+.fcs-mohalla-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.fcs-mohalla-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted, #475569);
+  white-space: nowrap;
+}
+
+.fcs-mohalla-select {
+  flex: 1;
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 1rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #cbd5e1);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #0f172a);
+}
+
 .fcs-filter-row {
   display: flex;
   gap: 6px;

@@ -27,6 +27,7 @@ import { computeWaadaScore } from './waada-queue.js';
 import { activeDownstreamCount, feederHostCreditOf, isFeederHost } from './feeder-host-credit.js';
 import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
+import { receiptTermsNoteText } from './receipt-terms.js';
 import { helpButtonMarkup } from './help-guide.js';
 
 const BILL_STATUS = Object.freeze({
@@ -336,6 +337,11 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
       L.payBy5
     );
   }
+
+  // Receipt polish 7: the terms phrase + support line ride every
+  // receipt draft (paid, partial, or no bill context), right after
+  // the 5th-date reminder they restate.
+  lines.push('', receiptTermsNoteText());
 
   // SISP-120: the fixed thank-you line rides only on a starred
   // customer's draft (the resolver attaches the live-derived flag).

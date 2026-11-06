@@ -13525,6 +13525,19 @@ dialog::backdrop {
 .mvh-form label{display:grid;gap:4px;font-size:12px;font-weight:600}
 .mvh-annotate{display:grid;gap:6px}
 .mvh-annotate label{display:grid;gap:4px;font-size:12px;font-weight:600}
+.ncl-list{list-style:none;margin:8px 0;padding:0;display:grid;gap:8px}
+.ncl-list>li{display:grid;gap:6px}
+.ncl-change{font-weight:600}
+.ncl-annotations{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.ncl-annotations li{color:#5c6e66;font-size:12px}
+.ncl-annotation-date{color:#5c6e66;font-size:12px;margin-left:6px}
+.ncl-form{display:grid;gap:8px;margin-top:10px}
+.ncl-form label{display:grid;gap:4px;font-size:12px;font-weight:600}
+.ncl-annotate{display:grid;gap:6px}
+.ncl-annotate label{display:grid;gap:4px;font-size:12px;font-weight:600}
+.ncl-current{font-weight:600}
+.ncl-summary{color:#5c6e66;font-size:12px}
+.ncl-none{color:#5c6e66;font-size:12px}
 .mvh-none{color:#5c6e66;font-size:12px}
 [data-theme="dark"] .mvh-annotations li,[data-theme="dark"] .mvh-annotation-date,[data-theme="dark"] .mvh-none{color:var(--dk-muted)}
 [data-theme="dark"] .hhl-open{color:var(--dk-ink)}

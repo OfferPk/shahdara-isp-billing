@@ -666,6 +666,7 @@ import { fixCollectInfo, runResolveAndCollect } from './fix-and-collect-bridge.j
 import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor, renderCustomWaTemplate } from './whatsapp-templates.js?v=1.11.0';
 import { HOUSEHOLD_LINK_STORE_KEY, normalizeHouseholdLinkList, recordHouseholdLink, removeHouseholdLink, householdLinkSectionHtml } from './household-link.js';
 import { MOVE_HISTORY_STORE_KEY, normalizeMoveHistoryList, recordMoveHistoryEntry, annotateMoveHistoryEntry, moveHouseHistorySectionHtml } from './move-house-history.js';
+import { NUMBER_CHANGE_STORE_KEY, normalizeNumberChangeList, recordNumberChangeEntry, annotateNumberChangeEntry, currentNumberForCustomer, numberChangeLogSectionHtml } from './number-change-log.js';
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
 // recovered, the device comes BACK into stock. This runs AFTER the
@@ -4985,7 +4986,11 @@ function renderCustomerProfileView(customer) {
   // records, moves no dues, and changes no bill.
   const householdLinkSectionMarkup = householdLinkSectionHtml(customer, loadHouseholdLinks(), state.customers ?? []);
   const moveHouseHistorySectionMarkup = moveHouseHistorySectionHtml(customer, loadMoveHistory());
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  // Plan 358 — Contact number change log: the old number is kept with
+  // the date it changed, so a reminder sent to the wrong number can be
+  // explained. The current number is always the latest entry.
+  const numberChangeLogSectionMarkup = numberChangeLogSectionHtml(customer, loadNumberChangeLog());
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
@@ -5517,6 +5522,51 @@ function renderCustomerProfileView(customer) {
         saveMoveHistory(next);
         renderDetail();
         toast('Note added to the move.');
+      });
+    });
+  }
+  // Plan 358: wire the contact number change log on the profile — add
+  // form and per-entry annotate forms. Logging a change never changes
+  // any bill, payment, or reminder record, and a change entry is never
+  // edited, only annotated. The old-number field starts from the
+  // number the log says is current (else the number on the profile),
+  // so the operator types only the new number.
+  const numberChangeLogSectionEl = $('#customerProfileView').querySelector('.profile-number-change-log');
+  if (numberChangeLogSectionEl) {
+    const numberChangeLogDate = numberChangeLogSectionEl.querySelector('#nclDate');
+    if (numberChangeLogDate && !numberChangeLogDate.value) numberChangeLogDate.value = localDate();
+    const numberChangeLogOld = numberChangeLogSectionEl.querySelector('#nclOldNumber');
+    if (numberChangeLogOld && !numberChangeLogOld.value) numberChangeLogOld.value = currentNumberForCustomer(loadNumberChangeLog(), customer.id) || customer.phone || '';
+    numberChangeLogSectionEl.querySelector('#nclForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const before = loadNumberChangeLog();
+      const next = recordNumberChangeEntry(before, {
+        id: `NCL-${Date.now()}`,
+        customerId: customer.id,
+        oldNumber: numberChangeLogOld?.value ?? '',
+        newNumber: numberChangeLogSectionEl.querySelector('#nclNewNumber')?.value ?? '',
+        changeDate: numberChangeLogDate?.value ?? '',
+        recordedBy: numberChangeLogSectionEl.querySelector('#nclRecordedBy')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Number change not recorded: give the old number, the new number, and a real change date.'); return; }
+      saveNumberChangeLog(next);
+      renderDetail();
+      toast('Number change recorded.');
+    });
+    numberChangeLogSectionEl.querySelectorAll('.ncl-annotate').forEach(form => {
+      const annotateDate = form.querySelector('.ncl-annotate-date');
+      if (annotateDate && !annotateDate.value) annotateDate.value = localDate();
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const before = loadNumberChangeLog();
+        const next = annotateNumberChangeEntry(before,
+          form.getAttribute('data-number-change-annotate') ?? '',
+          form.querySelector('input[type="text"]')?.value ?? '',
+          annotateDate?.value ?? '');
+        if (next === before) { toast('Note not added: write the note and pick a real date.'); return; }
+        saveNumberChangeLog(next);
+        renderDetail();
+        toast('Note added to the number change.');
       });
     });
   }
@@ -34031,6 +34081,16 @@ function loadMoveHistory() {
 }
 function saveMoveHistory(list) {
   try { localStorage.setItem(MOVE_HISTORY_STORE_KEY, JSON.stringify(normalizeMoveHistoryList(list))); } catch { /* Move history only: a failed save leaves the previous list in place */ }
+}
+
+// Contact number change log (Plan 358): one entry per number change.
+// Logging a change never changes any bill, payment, or reminder
+// record; it changes no contact preference.
+function loadNumberChangeLog() {
+  try { return normalizeNumberChangeList(JSON.parse(localStorage.getItem(NUMBER_CHANGE_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveNumberChangeLog(list) {
+  try { localStorage.setItem(NUMBER_CHANGE_STORE_KEY, JSON.stringify(normalizeNumberChangeList(list))); } catch { /* Number change log only: a failed save leaves the previous list in place */ }
 }
 
 let monthlyKpiTargetBound = false;

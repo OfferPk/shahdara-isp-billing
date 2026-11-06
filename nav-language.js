@@ -3321,6 +3321,11 @@ export const TRANSLATIONS = {
     prof_rvl_hist_reverses: 'Reverses {ref}',
     prof_rvl_hist_reverses_unknown: 'Reverses an earlier payment',
     prof_rvl_hist_by: 'by',
+    // Plan 386: the overpayment choice — the choice and the extra
+    // amount the customer agreed at the counter, in plain words.
+    prof_opc_hist_extra: 'Extra',
+    prof_opc_hist_advance: 'as advance',
+    prof_opc_hist_credit: 'held as credit',
     prof_upstream_archived_suffix: ' (archived)',
     prof_incident_eyebrow: 'MANUAL SERVICE LOG',
     prof_incident_heading: 'Complaints & outages',
@@ -7510,6 +7515,10 @@ export const TRANSLATIONS = {
     prof_rvl_hist_reverses: '{ref} کی واپسی',
     prof_rvl_hist_reverses_unknown: 'پہلی ادائیگی کی واپسی',
     prof_rvl_hist_by: 'بذریعہ',
+    // Plan 386: the overpayment choice.
+    prof_opc_hist_extra: 'اضافی',
+    prof_opc_hist_advance: 'ایڈوانس کے طور پر',
+    prof_opc_hist_credit: 'کریڈٹ بیلنس کے طور پر',
     prof_upstream_archived_suffix: ' (آرکائیو شدہ)',
     prof_incident_eyebrow: 'دستی سروس لاگ',
     prof_incident_heading: 'شکایات اور بندش',

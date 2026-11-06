@@ -35,6 +35,7 @@ import {
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
 import { packageSuccessMessageOrDefault } from './package-success-message.js';
+import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -1614,7 +1615,8 @@ export function setupQuickCollectModal({
   onToast,
   onSelectCustomer,
   onEditCustomer,
-  onCollected
+  onCollected,
+  loadHandlingNotes
 }) {
   const modal = document.getElementById('quickCollectModal');
   if (!modal) {
@@ -1690,6 +1692,16 @@ export function setupQuickCollectModal({
   // Owner feature: Change Package host in the payment step (null when
   // the host page predates it).
   const packageBox = typeof document !== 'undefined' ? document.getElementById('quickCollectPackageBox') : null;
+
+  // Plan 361: handling-note alert host (null when the host page
+  // predates it). The note is shown on the payment entry screen
+  // before saving; a customer without one shows nothing extra.
+  const handlingNoteBox = typeof document !== 'undefined' ? document.getElementById('quickCollectHandlingNoteBox') : null;
+  function renderHandlingNoteBox(customerId) {
+    if (!handlingNoteBox) return;
+    const notes = typeof loadHandlingNotes === 'function' ? loadHandlingNotes() : [];
+    handlingNoteBox.innerHTML = handlingNoteAlertHtml(handlingNoteForCustomer(notes, customerId)?.text ?? '', t('prof_handling_heading'));
+  }
 
   // OWNER-CASH-SHOP: "Cash received at" sub-row hosts (null when the
   // host page predates them — every use below is guarded).
@@ -2585,6 +2597,9 @@ export function setupQuickCollectModal({
 
       // Owner feature: Change Package row (current package + picker).
       renderPackageBox(customerId);
+
+      // Plan 361: handling note for this customer, shown before saving.
+      renderHandlingNoteBox(customerId);
 
       // SISP-126: Remainder Waada starts un-chosen for every customer;
       // the row itself appears only if the prefilled amount is a partial.

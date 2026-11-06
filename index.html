@@ -11689,6 +11689,34 @@
 <div id="crmBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="iraHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="iraHeading">Inactive record archive note</h3>
+<p class="chart-caption">One archive note per inactive record: the record reference, the reason it is inactive, the archive date, the archiver, and the retrieval reference. Archived records leave live lists but stay retrievable by reference, and their history stays intact and visible. An archive note never deletes any customer, bill, or payment record.</p>
+<p id="iraSummary"></p>
+</div>
+<div>
+<button id="iraExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export archive notes CSV</button>
+</div>
+</div>
+<h4>Record an archive note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Archive date <input id="iraArchiveDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Record reference <input id="iraRecordRef" type="text" style="width: 140px;" placeholder="e.g. CUST-9"></label>
+<label style="font-size: 12px;">Reason inactive <input id="iraReason" type="text" style="width: 200px;" placeholder="e.g. Customer moved away"></label>
+<label style="font-size: 12px;">Archiver <input id="iraArchiver" type="text" style="width: 120px;" placeholder="e.g. Owner"></label>
+<label style="font-size: 12px;">Retrieval reference <input id="iraRetrievalRef" type="text" style="width: 160px;" placeholder="e.g. ARCH-2026-11-001"></label>
+<button id="iraSaveBtn" class="secondary-button btn-sm" type="button">Record archive note</button>
+</div>
+<h4>Look up an archived record</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Record reference <input id="iraLookupRef" type="text" style="width: 140px;" placeholder="e.g. CUST-9"></label>
+<button id="iraLookupBtn" class="secondary-button btn-sm" type="button">Look up</button>
+</div>
+<div id="iraLookupBody"></div>
+<h4>All archive notes</h4>
+<div id="iraBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

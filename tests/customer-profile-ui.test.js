@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createInitialState, saveBillMonth, addPayment, calculatePaymentAllocations, listTransactions } from '../core.js';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, createReceiptWhatsAppDraft, createWhatsAppFollowupDraft, resolveReceiptWhatsAppAction } from '../profile-ui.js';
+import { receiptTermsNoteText } from '../receipt-terms.js';
 
 const read = name => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
 const index = read('index.html');
@@ -44,7 +45,13 @@ const fullPaidTemplate = `🧾 SHAHDARA ISP — PAYMENT RECEIPT
 ━━━━━━━━━━━━━━
 📅 Next Bill Due: Nov 5 2026
 
-⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰`;
+⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰` + '\n\n' + receiptTermsNoteText();
+
+// Receipt polish 7: the approved template above is the draft with the
+// terms block appended — the exact terms wording is pinned in
+// polish7-receipt-terms.test.js, so this file never re-types the
+// support number (the privacy ratchet allows it only in
+// receipt-terms.js itself).
 
 test('customer profiles open in read-only mode and existing fields are revealed only by Edit', () => {
   assert.match(index, /id="customerProfileView"[^>]*class="customer-profile-view"/);

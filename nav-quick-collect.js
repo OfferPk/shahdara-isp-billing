@@ -83,6 +83,7 @@ import {
   formatDigitalPaymentWhatsAppText
 } from './digital-payments-settings.js';
 import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } from './receipt-footer-studio.js';
+import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
@@ -1146,6 +1147,11 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     L.thanks,
     L.ops,
     formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings()) ? `ℹ️ ${formatDigitalPaymentReceiptNote(getDigitalPaymentsSettings())}` : null,
+    // Receipt polish 7: the terms phrase + support line ride every
+    // WhatsApp receipt draft, ahead of the owner-configured footer
+    // so the footer still closes the draft verbatim.
+    '',
+    receiptTermsNoteText(),
     // SISP-96: owner-configured receipt footer (ONE builder in
     // receipt-footer-studio.js), verbatim above the closing divider.
     // Empty string when unconfigured -> filtered out, draft unchanged.
@@ -1563,6 +1569,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           <strong class="qc-meta-val">${escapeHtml(receipt.paidBy)}</strong>
         </div>` : ''}
       </div>
+      ${receiptTermsNoteHtml()}
     </div>
   `;
 }

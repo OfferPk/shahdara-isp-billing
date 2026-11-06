@@ -28,6 +28,7 @@ import {
   resolveReceiptWhatsAppAction
 } from './profile-ui.js';
 import { formatWhatsAppUrl } from './form-validation.js';
+import { receiptTermsNoteText } from './receipt-terms.js';
 
 export const RECEIPT_SHARED_STORAGE_KEY = 'shahdara_receipts_shared_v1';
 
@@ -212,7 +213,12 @@ export async function executeReceiptWhatsAppShare(customer, receipt, options = {
     `💳 Method: ${receipt?.method || 'Cash'}`,
     `📆 Billing Month: ${receipt?.month || ''}`,
     '',
-    'شکریہ! ادائیگی موصول ہو چکی ہے۔'
+    'شکریہ! ادائیگی موصول ہو چکی ہے۔',
+    '',
+    // Receipt polish 7: the clipboard fallback is the message the
+    // operator pastes into WhatsApp by hand, so it carries the same
+    // terms phrase + support line as the real draft.
+    receiptTermsNoteText()
   ].join('\n');
 
   let wasCopied = false;

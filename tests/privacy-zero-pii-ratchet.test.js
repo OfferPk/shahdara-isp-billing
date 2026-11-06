@@ -29,15 +29,19 @@
 // or 6+ identical digits in a row (0000000). Every pristine-main hit
 // passes by this rule EXCEPT the two disclosed exemptions below.
 //
-// DISCLOSED EXEMPTIONS (not silent — see the phase report): exactly two
-// non-pattern numbers exist on pristine main, both in ONE doc comment in
-// easypaisa-parser.js illustrating the Easypaisa statement-CSV format
-// (the sibling SMS example in the same file uses the fictional sender
-// "JOHN DOE"). No name, address or customer record is attached to them
-// and they are not part of any roster. They are exempted BY VALUE + FILE
-// below so the ratchet passes on main; the parent/owner may still choose
-// to scrub the doc example in a follow-up. Any OTHER non-pattern number,
-// in any shipped file, fails this test.
+// DISCLOSED EXEMPTIONS (not silent — see the phase report): exactly
+// three non-pattern numbers exist on main. Two are in ONE doc comment
+// in easypaisa-parser.js illustrating the Easypaisa statement-CSV
+// format (the sibling SMS example in the same file uses the fictional
+// sender "JOHN DOE"). The third is the business's published
+// technical-support contact in receipt-terms.js (receipt polish 7):
+// the owner asked for it printed on every bill receipt, so it must
+// appear in shipped source — it is not a subscriber number, no name,
+// address or customer record is attached to it, and it is not part of
+// any roster. All three are exempted BY VALUE + FILE below so the
+// ratchet passes on main; the parent/owner may still choose to scrub
+// the doc example in a follow-up. Any OTHER non-pattern number, in
+// any shipped file, fails this test.
 //
 // Canary fixtures below are invented for this test ("Canary Test Person"
 // and digit strings checked to be non-pattern): they prove the ratchet
@@ -81,10 +85,16 @@ export function isPatternFakeNumber(raw) {
 }
 
 // Disclosed exemptions: { file, value } pairs that are known documentation
-// examples, NOT subscriber PII (justification in the header comment).
+// examples or the published business support contact, NOT subscriber PII
+// (justification in the header comment).
 const KNOWN_DOC_EXAMPLES = [
   { file: 'easypaisa-parser.js', value: '03055669955' },
-  { file: 'easypaisa-parser.js', value: '03335001667' }
+  { file: 'easypaisa-parser.js', value: '03335001667' },
+  // Receipt polish 7: the business's published technical-support
+  // contact, printed on every receipt at the owner's request — not
+  // subscriber PII. The number lives only in receipt-terms.js; every
+  // other surface imports it from there, never re-types it.
+  { file: 'receipt-terms.js', value: '+92 341 5277081' }
 ];
 const isKnownDocExample = (file, value) =>
   KNOWN_DOC_EXAMPLES.some((entry) => entry.file === file && entry.value === value);
@@ -176,14 +186,13 @@ test('privacy ratchet: no non-fake phone/CNIC numbers anywhere in the shipped so
     `non-placeholder phone/CNIC numbers in shipped source (real subscriber PII must never be committed):\n${violations.join('\n')}`);
 });
 
-test('privacy ratchet: the disclosed doc-example exemptions are exactly the two easypaisa values', async () => {
-  // If a future change removes or alters the doc example, shrink this list —
-  // the ratchet must never carry stale exemptions silently.
-  const source = readSource('easypaisa-parser.js');
-  for (const { value } of KNOWN_DOC_EXAMPLES) {
-    assert.ok(source.includes(value), `exempted example ${value} no longer present — remove its exemption`);
+test('privacy ratchet: the disclosed exemptions are exactly the known values, each present in its own file', async () => {
+  // If a future change removes or alters an exempted value, shrink this
+  // list — the ratchet must never carry stale exemptions silently.
+  for (const { file, value } of KNOWN_DOC_EXAMPLES) {
+    assert.ok(readSource(file).includes(value), `exempted value ${value} no longer present in ${file} — remove its exemption`);
   }
-  assert.equal(KNOWN_DOC_EXAMPLES.length, 2);
+  assert.equal(KNOWN_DOC_EXAMPLES.length, 3);
 });
 
 // ---------------------------------------------------------------------------

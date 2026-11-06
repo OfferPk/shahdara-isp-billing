@@ -238,7 +238,15 @@ test('Plan 372: app.js wires the tick after the last-interaction line and before
   assert.ok(appSrc.includes('loadProfileVerificationTicks'));
   assert.ok(appSrc.includes('saveProfileVerificationTicks'));
   assert.ok(appSrc.includes('profileVerificationTickSectionMarkup'));
-  assert.ok(appSrc.includes('${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${householdLinkSectionMarkup}'));
+  // Order, not adjacency: the Plan 373 temporarily-away flag section
+  // now sits between the verification tick and the household link, so
+  // the tick is still after the last-interaction line and still before
+  // the household link.
+  const lastAt = appSrc.indexOf('${lastInteractionLineMarkup}');
+  const tickAt = appSrc.indexOf('${profileVerificationTickSectionMarkup}');
+  const awayAt = appSrc.indexOf('${temporarilyAwayFlagSectionMarkup}');
+  const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}');
+  assert.ok(lastAt > 0 && tickAt > lastAt && awayAt > tickAt && householdAt > awayAt);
   assert.ok(appSrc.includes('profileVerificationTickSectionEl'));
   assert.ok(appSrc.includes("querySelector('#pvtForm')"));
   assert.ok(appSrc.includes("querySelector('#pvtRemoveBtn')"));

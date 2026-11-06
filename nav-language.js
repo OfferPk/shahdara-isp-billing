@@ -3314,6 +3314,13 @@ export const TRANSLATIONS = {
     prof_sdc_hist_correction: 'Correction',
     prof_sdc_hist_should_be: 'should be',
     prof_sdc_hist_by: 'by',
+    // Plan 384: the reversal link — the original shows its reversal
+    // and the reversal shows its original, in plain words.
+    prof_rvl_hist_reversed_by: 'Reversed by {ref}',
+    prof_rvl_hist_reversed_unknown: 'Reversed',
+    prof_rvl_hist_reverses: 'Reverses {ref}',
+    prof_rvl_hist_reverses_unknown: 'Reverses an earlier payment',
+    prof_rvl_hist_by: 'by',
     prof_upstream_archived_suffix: ' (archived)',
     prof_incident_eyebrow: 'MANUAL SERVICE LOG',
     prof_incident_heading: 'Complaints & outages',
@@ -7497,6 +7504,12 @@ export const TRANSLATIONS = {
     prof_sdc_hist_correction: 'درستگی',
     prof_sdc_hist_should_be: 'ہونا چاہیے',
     prof_sdc_hist_by: 'بذریعہ',
+    // Plan 384: the reversal link.
+    prof_rvl_hist_reversed_by: '{ref} سے واپس کیا گیا',
+    prof_rvl_hist_reversed_unknown: 'واپس کیا گیا',
+    prof_rvl_hist_reverses: '{ref} کی واپسی',
+    prof_rvl_hist_reverses_unknown: 'پہلی ادائیگی کی واپسی',
+    prof_rvl_hist_by: 'بذریعہ',
     prof_upstream_archived_suffix: ' (آرکائیو شدہ)',
     prof_incident_eyebrow: 'دستی سروس لاگ',
     prof_incident_heading: 'شکایات اور بندش',

@@ -213,17 +213,19 @@ test('Plan 366: wiring — import, load/save, section after the handling note, b
   assert.ok(appSrc.includes('loadSpokenLanguageNotes'));
   assert.ok(appSrc.includes('saveSpokenLanguageNotes'));
   assert.ok(appSrc.includes('spokenLanguageNoteSectionMarkup'));
-  // Order, not adjacency: the Plan 367 gate access section now sits
-  // between the spoken language note and the header strip, so the spoken
-  // language section is still after the handling note and still before
-  // the strip.
+  // Order, not adjacency: the Plan 367 gate access section and the
+  // Plan 368 emergency contact section now sit between the spoken
+  // language note and the header strip, so the spoken language
+  // section is still after the handling note and still before the
+  // strip.
   const handlingAt = appSrc.indexOf('${handlingNoteSectionMarkup}');
   const spokenAt = appSrc.indexOf('${spokenLanguageNoteSectionMarkup}');
   const gateAt = appSrc.indexOf('${gateAccessInstructionSectionMarkup}');
+  const emergencyAt = appSrc.indexOf('${customerEmergencyContactSectionMarkup}');
   const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
-  assert.ok(handlingAt !== -1 && spokenAt !== -1 && gateAt !== -1 && stripAt !== -1);
+  assert.ok(handlingAt !== -1 && spokenAt !== -1 && gateAt !== -1 && emergencyAt !== -1 && stripAt !== -1);
   assert.ok(
-    handlingAt < spokenAt && spokenAt < gateAt && gateAt < stripAt,
+    handlingAt < spokenAt && spokenAt < gateAt && gateAt < emergencyAt && emergencyAt < stripAt,
     'spoken language section sits after the handling note and before the header strip',
   );
   assert.ok(appSrc.includes('slnForm'));

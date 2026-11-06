@@ -11578,6 +11578,35 @@
 <div id="pqlBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="rclHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rclHeading">Report recipient list</h3>
+<p class="chart-caption">One recipient list per report: the report name, its recipients by role or name, the delivery method, and the date it was set. A report with no recipients is flagged. The list never sends any report and never changes any bill, payment, or report content.</p>
+<p id="rclSummary"></p>
+</div>
+<div>
+<button id="rclExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export recipient list CSV</button>
+</div>
+</div>
+<h4>Record a recipient list</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Report name <input id="rclReportName" type="text" style="width: 180px;" placeholder="e.g. Monthly collections"></label>
+<label style="font-size: 12px;">Recipients <input id="rclRecipients" type="text" style="width: 180px;" placeholder="e.g. Owner, Accountant"></label>
+<label style="font-size: 12px;">Delivery method <select id="rclDeliveryMethod" style="width: 160px;"><option value="in person">In person</option><option value="paper kept at shop">Paper kept at shop</option></select></label>
+<label style="font-size: 12px;">Date set <input id="rclDateSet" type="date" style="width: 140px;"></label>
+<button id="rclSaveBtn" class="secondary-button btn-sm" type="button">Record list</button>
+</div>
+<h4>Change recipients for a report</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Report name <input id="rclSetReportName" type="text" style="width: 180px;" placeholder="e.g. Monthly collections"></label>
+<label style="font-size: 12px;">Recipients <input id="rclSetRecipients" type="text" style="width: 180px;" placeholder="e.g. Owner, Saad"></label>
+<button id="rclSetBtn" class="secondary-button btn-sm" type="button">Set recipients</button>
+</div>
+<h4>Reports with no recipients — flagged</h4>
+<div id="rclFlaggedBody"></div>
+<h4>All recipient lists</h4>
+<div id="rclBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

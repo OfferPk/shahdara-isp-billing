@@ -13736,3 +13736,15 @@ dialog::backdrop {
 .pcd-form select,.pcd-form input{height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
 .pcd-form .primary-button,.pcd-form .secondary-button{justify-self:start}
 .pcd-route-line{margin-top:2px;font-size:11px;color:#5c6e66;font-style:italic}
+.dmb-list{list-style:none;margin:8px 0;padding:0;display:grid;gap:8px}
+.dmb-list>li{display:grid;gap:2px}
+.dmb-month{font-weight:600}
+.dmb-billed{color:#5c6e66;font-size:12px}
+.dmb-paid{color:#5c6e66;font-size:12px}
+.dmb-owed{color:#5c6e66;font-size:12px}
+.dmb-settled{font-weight:600}
+.dmb-not-priced{color:#5c6e66;font-size:12px}
+.dmb-additional{color:#5c6e66;font-size:12px}
+.dmb-total{font-weight:600}
+.dmb-none{color:#5c6e66;font-size:12px}
+.profile-dues-breakdown{margin:0 0 10px}

@@ -552,6 +552,7 @@ import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordS
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
+import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
 import { normalizePartPaymentReceiptNoteList, recordPartPaymentReceiptNote, removePartPaymentReceiptNote, findPartPaymentReceiptNote, receiptNotesForCustomer, receiptNotesSorted, receiptNoteAllHtml, receiptNoteSummaryText, receiptNoteCsv, receiptNoteFilename, receiptsMissingReceiptNotes, reconcileReceiptNote } from './part-payment-receipt-note.js';
@@ -14470,6 +14471,7 @@ function renderAnalytics() {
   renderCustomerRecordMerges();
   renderInactiveRecordArchives();
   renderScaleReadinessChecklists();
+  renderWadaDashboard();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -34074,6 +34076,28 @@ function renderScaleReadinessChecklists() {
       saveScaleReadinessChecklists(next);
       renderScaleReadinessChecklists();
     });
+  }
+}
+let wadaDashboardBound = false;
+function renderWadaDashboard() {
+  const bodyEl = $('#wdbBody');
+  if (!bodyEl) return;
+  const all = loadWadaRecords();
+  const customers = (state.customers || []).map((c) => ({ id: c.id, name: c.name }));
+  const rows = wadaDashboardCustomers(all, customers);
+  const query = $('#wdbSearch')?.value ?? '';
+  const shown = wadaDashboardSearchRows(rows, query);
+  const totals = wadaDashboardTotals(all);
+  bodyEl.innerHTML = totals.total ? wadaDashboardHtml(totals, shown) : '<p>No wadas recorded yet.</p>';
+  const summaryEl = $('#wdbSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${wadaDashboardSummaryText(totals)} The dashboard only reads wada records and never changes any wada, bill, payment, or customer record.`;
+  }
+  if (!wadaDashboardBound) {
+    wadaDashboardBound = true;
+    $('#wdbExportBtn')?.addEventListener('click', () => { downloadCsvFile(wadaDashboardFilename(), wadaDashboardCsv(wadaDashboardCustomers(loadWadaRecords(), (state.customers || []).map((c) => ({ id: c.id, name: c.name }))))) ; });
+    $('#wdbSearchBtn')?.addEventListener('click', () => { renderWadaDashboard(); });
+    $('#wdbSearch')?.addEventListener('input', () => { renderWadaDashboard(); });
   }
 }
 function renderDuplicationCheck() {

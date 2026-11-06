@@ -666,6 +666,7 @@ import { fixCollectInfo, runResolveAndCollect } from './fix-and-collect-bridge.j
 import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor, renderCustomWaTemplate } from './whatsapp-templates.js?v=1.11.0';
 import { HANDLING_NOTE_STORE_KEY, normalizeHandlingNoteList, recordHandlingNote, removeHandlingNote, handlingNoteForCustomer, handlingNoteSectionHtml } from './handling-note.js';
 import { SPOKEN_LANGUAGE_NOTE_STORE_KEY, normalizeSpokenLanguageNoteList, recordSpokenLanguageNote, removeSpokenLanguageNote, spokenLanguageNoteForCustomer, spokenLanguageNoteSectionHtml } from './spoken-language-note.js';
+import { GATE_ACCESS_INSTRUCTION_STORE_KEY, normalizeGateAccessInstructionList, recordGateAccessInstruction, removeGateAccessInstruction, gateAccessInstructionForCustomer, gateAccessInstructionSectionHtml } from './gate-access-instruction.js';
 import { HOUSEHOLD_LINK_STORE_KEY, normalizeHouseholdLinkList, recordHouseholdLink, removeHouseholdLink, householdLinkSectionHtml } from './household-link.js';
 import { MOVE_HISTORY_STORE_KEY, normalizeMoveHistoryList, recordMoveHistoryEntry, annotateMoveHistoryEntry, moveHouseHistorySectionHtml } from './move-house-history.js';
 import { NUMBER_CHANGE_STORE_KEY, normalizeNumberChangeList, recordNumberChangeEntry, annotateNumberChangeEntry, currentNumberForCustomer, numberChangeLogSectionHtml } from './number-change-log.js';
@@ -5056,7 +5057,20 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_spoken_lang_remove'),
     none: t('prof_spoken_lang_none'),
   });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  // Plan 367 — Customer gate and access instruction: how to reach the
+  // customer at the door, shown at the top of the profile and beside
+  // the customer on the visit list. Instruction note only: it never
+  // changes any visit, ticket, bill, or payment record by itself.
+  const gateAccessInstructionSectionMarkup = gateAccessInstructionSectionHtml(customer, loadGateAccessInstructions(), {
+    heading: t('prof_gate_access_heading'),
+    placeholder: t('prof_gate_access_placeholder'),
+    notedBy: t('prof_gate_access_noted_by'),
+    date: t('prof_gate_access_date'),
+    save: t('save'),
+    remove: t('prof_gate_access_remove'),
+    none: t('prof_gate_access_none'),
+  });
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
@@ -5748,6 +5762,36 @@ function renderCustomerProfileView(customer) {
       saveSpokenLanguageNotes(removeSpokenLanguageNote(loadSpokenLanguageNotes(), customer.id));
       renderDetail();
       toast('Spoken language removed.');
+    });
+  }
+  // Plan 367: wire the gate and access instruction on the profile — one
+  // edit form. Editing or removing the instruction changes only that
+  // instruction; it never changes any visit, ticket, bill, or payment
+  // record.
+  const gateAccessInstructionSectionEl = $('#customerProfileView').querySelector('.profile-gate-access-instruction');
+  if (gateAccessInstructionSectionEl) {
+    const gateAccessInstructionDate = gateAccessInstructionSectionEl.querySelector('#gaiDate');
+    if (gateAccessInstructionDate && !gateAccessInstructionDate.value) gateAccessInstructionDate.value = localDate();
+    gateAccessInstructionSectionEl.querySelector('#gaiForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const instruction = gateAccessInstructionSectionEl.querySelector('#gaiInstruction')?.value ?? '';
+      if (!instruction.trim()) { toast('Gate access instruction not saved: write the instruction first.'); return; }
+      const before = loadGateAccessInstructions();
+      const next = recordGateAccessInstruction(before, {
+        id: gateAccessInstructionForCustomer(before, customer.id)?.id ?? `GAI-${Date.now()}`,
+        customerId: customer.id,
+        instruction,
+        notedBy: gateAccessInstructionSectionEl.querySelector('#gaiBy')?.value ?? '',
+        notedDate: gateAccessInstructionDate?.value ?? '',
+      });
+      saveGateAccessInstructions(next);
+      renderDetail();
+      toast('Gate access instruction saved.');
+    });
+    gateAccessInstructionSectionEl.querySelector('#gaiRemoveBtn')?.addEventListener('click', () => {
+      saveGateAccessInstructions(removeGateAccessInstruction(loadGateAccessInstructions(), customer.id));
+      renderDetail();
+      toast('Gate access instruction removed.');
     });
   }
   // Plan 365: wire the preferred collection day note on the profile —
@@ -34420,6 +34464,16 @@ function loadSpokenLanguageNotes() {
 }
 function saveSpokenLanguageNotes(list) {
   try { localStorage.setItem(SPOKEN_LANGUAGE_NOTE_STORE_KEY, JSON.stringify(normalizeSpokenLanguageNoteList(list))); } catch { /* Spoken language note only: a failed save leaves the previous list in place */ }
+}
+
+// Customer gate and access instruction (Plan 367): one short instruction
+// per customer, shown at the top of the profile and beside the customer
+// on the visit list. Editing or removing it changes only that note.
+function loadGateAccessInstructions() {
+  try { return normalizeGateAccessInstructionList(JSON.parse(localStorage.getItem(GATE_ACCESS_INSTRUCTION_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveGateAccessInstructions(list) {
+  try { localStorage.setItem(GATE_ACCESS_INSTRUCTION_STORE_KEY, JSON.stringify(normalizeGateAccessInstructionList(list))); } catch { /* Gate access instruction only: a failed save leaves the previous list in place */ }
 }
 
 let monthlyKpiTargetBound = false;

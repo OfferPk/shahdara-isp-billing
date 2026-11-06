@@ -528,6 +528,7 @@ import { normalizeComplaintEscalationOwnerNoteList, recordComplaintEscalationOwn
 import { validAnnualLeavePlanDay, foldAnnualLeavePlanYear, parseAnnualLeavePlanBlocks, normalizeAnnualLeavePlanList, recordAnnualLeavePlan, removeAnnualLeavePlan, setAnnualLeavePlanStatus, annualLeavePlanPlansForYear, annualLeavePlanPlansForStaff, annualLeavePlanStaffMembers, annualLeavePlanYears, annualLeavePlanClashes, annualLeavePlanSummaryText, annualLeavePlanYearHtml, annualLeavePlanAllHtml, annualLeavePlanCsv, annualLeavePlanFilename } from './annual-leave-plan.js';
 import { validStaffRecognitionDay, normalizeStaffRecognitionNoteList, recordStaffRecognitionNote, removeStaffRecognitionNote, staffRecognitionNotesForStaff, staffRecognitionStaffMembers, staffRecognitionSummaryText, staffRecognitionAllHtml, staffRecognitionNotesForStaffHtml, staffRecognitionCsv, staffRecognitionFilename } from './staff-recognition.js';
 import { validExportVerificationDay, foldExportVerificationResult, normalizeExportVerificationChecklistList, recordExportVerificationChecklist, removeExportVerificationChecklist, exportVerificationChecklistsForExport, exportVerificationExportRefs, exportVerificationSummaryText, exportVerificationAllHtml, exportVerificationChecklistsForExportHtml, uncheckedExportVerificationChecklistsHtml, exportVerificationCsv, exportVerificationFilename } from './export-verification.js';
+import { validExportFormatVersionDay, normalizeExportFormatVersionList, recordExportFormatVersion, exportFormatVersionsForFormat, currentExportFormatVersion, exportFormatNames, exportFormatVersionSummaryText, exportFormatVersionsHtml, exportFormatVersionCsv, exportFormatVersionFilename, normalizeExportFormatStampList, stampExportFormat, exportFormatStampsHtml } from './export-format-version.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14412,6 +14413,7 @@ function renderAnalytics() {
   renderRetentionReview();
   renderBackupMediaRegister();
   renderRestoreVerificationNote();
+  renderExportFormatVersions();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32982,6 +32984,84 @@ function renderRestoreVerificationNote() {
       if (next.length === before.length) { toast('Note not removed: the id must match a note.'); return; }
       saveRestoreVerifications(next);
       renderRestoreVerificationNote();
+    });
+  }
+}
+let exportFormatVersionBound = false;
+const EXPORT_FORMAT_VERSION_KEY = 'shahdara_export_format_versions_v1';
+const EXPORT_FORMAT_STAMP_KEY = 'shahdara_export_format_stamps_v1';
+function loadExportFormatVersions() {
+  try { return normalizeExportFormatVersionList(JSON.parse(localStorage.getItem(EXPORT_FORMAT_VERSION_KEY) || '[]')); } catch { return []; }
+}
+function saveExportFormatVersions(list) {
+  try { localStorage.setItem(EXPORT_FORMAT_VERSION_KEY, JSON.stringify(normalizeExportFormatVersionList(list))); } catch { /* Export format version only: a failed save leaves the previous list in place */ }
+}
+function loadExportFormatStamps() {
+  try { return normalizeExportFormatStampList(JSON.parse(localStorage.getItem(EXPORT_FORMAT_STAMP_KEY) || '[]')); } catch { return []; }
+}
+function saveExportFormatStamps(list) {
+  try { localStorage.setItem(EXPORT_FORMAT_STAMP_KEY, JSON.stringify(normalizeExportFormatStampList(list))); } catch { /* Export format stamp only: a failed save leaves the previous list in place */ }
+}
+
+// Export format version note (Plan 333): one version note per export
+// format — the format name, the version, the fields included, the
+// date it was adopted, and the older versions it superseded. Each
+// format shows its current version and field list, and an export
+// names the format version it used. Superseded versions stay listed
+// and are never deleted. A note never changes any export file, bill,
+// or payment by itself.
+function renderExportFormatVersions() {
+  const listEl = $('#efvBody');
+  if (!listEl) return;
+  const all = loadExportFormatVersions();
+  listEl.innerHTML = all.length ? exportFormatVersionsHtml(all) : '<p>No export format versions recorded.</p>';
+  const summaryEl = $('#efvSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${exportFormatVersionSummaryText(all)} A note never changes any export file, bill, or payment by itself.`;
+  }
+  const currentEl = $('#efvCurrentBody');
+  if (currentEl) {
+    const formats = exportFormatNames(all);
+    currentEl.innerHTML = formats.length
+      ? `<ul>${formats.map((format) => {
+        const current = currentExportFormatVersion(all, format);
+        return `<li>${escapeHtml(format)} — current ${escapeHtml(current.version)} (adopted ${escapeHtml(current.dateAdopted)}): ${escapeHtml(current.fields.join(', '))}</li>`;
+      }).join('')}</ul>`
+      : '<p>No formats recorded yet.</p>';
+  }
+  const stampsEl = $('#efvStampsBody');
+  if (stampsEl) {
+    stampsEl.innerHTML = exportFormatStampsHtml(loadExportFormatStamps());
+  }
+  if (!exportFormatVersionBound) {
+    exportFormatVersionBound = true;
+    $('#efvExportBtn')?.addEventListener('click', () => { downloadCsvFile(exportFormatVersionFilename(), exportFormatVersionCsv(loadExportFormatVersions())); });
+    $('#efvRecordBtn')?.addEventListener('click', () => {
+      const before = loadExportFormatVersions();
+      const next = recordExportFormatVersion(before, {
+        id: `EFV-${Date.now()}`,
+        format: $('#efvFormat')?.value ?? '',
+        version: $('#efvVersion')?.value ?? '',
+        fields: $('#efvFields')?.value ?? '',
+        dateAdopted: $('#efvDate')?.value ?? '',
+        supersededVersions: $('#efvSuperseded')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Note not recorded: give a format name, a version, at least one field, and a strict adoption date — and a version is recorded only once per format.'); return; }
+      saveExportFormatVersions(next);
+      renderExportFormatVersions();
+    });
+    $('#efvStampBtn')?.addEventListener('click', () => {
+      const before = loadExportFormatStamps();
+      const next = stampExportFormat(before, loadExportFormatVersions(), {
+        id: `EFS-${Date.now()}`,
+        exportRef: $('#efvStampRef')?.value ?? '',
+        format: $('#efvStampFormat')?.value ?? '',
+        version: $('#efvStampVersion')?.value ?? '',
+        date: $('#efvStampDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Export not stamped: the format and version must already be recorded, and each export names one version.'); return; }
+      saveExportFormatStamps(next);
+      renderExportFormatVersions();
     });
   }
 }

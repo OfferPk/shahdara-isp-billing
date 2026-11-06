@@ -11208,6 +11208,39 @@
 <div id="rvnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="efvHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="efvHeading">Export format version note</h3>
+<p class="chart-caption">One version note per export format: the format name, the version, the fields included, the date it was adopted, and the older versions it superseded. Each format shows its current version and field list, and an export names the format version it used. Superseded versions stay listed and are never deleted. A note never changes any export file, bill, or payment by itself.</p>
+<p id="efvSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="efvExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export format versions CSV</button>
+</div></div>
+<h4>Record a format version</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Format <input id="efvFormat" type="text" style="width: 160px;" placeholder="e.g. Customer list CSV"></label>
+<label style="font-size: 12px;">Version <input id="efvVersion" type="text" style="width: 90px;" placeholder="e.g. v3"></label>
+<label style="font-size: 12px;">Fields <input id="efvFields" type="text" style="width: 260px;" placeholder="comma-separated, e.g. id, name, phone"></label>
+<label style="font-size: 12px;">Date adopted <input id="efvDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Superseded versions <input id="efvSuperseded" type="text" style="width: 140px;" placeholder="comma-separated, e.g. v2, v1"></label>
+<button id="efvRecordBtn" class="secondary-button btn-sm" type="button">Record version</button>
+</div>
+<h4>Stamp an export with its format version</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Export file <input id="efvStampRef" type="text" style="width: 200px;" placeholder="e.g. customers-2026-11-05.csv"></label>
+<label style="font-size: 12px;">Format <input id="efvStampFormat" type="text" style="width: 160px;"></label>
+<label style="font-size: 12px;">Version <input id="efvStampVersion" type="text" style="width: 90px;"></label>
+<label style="font-size: 12px;">Date <input id="efvStampDate" type="date" style="width: 140px;"></label>
+<button id="efvStampBtn" class="secondary-button btn-sm" type="button">Stamp export</button>
+</div>
+<h4>Current version per format</h4>
+<div id="efvCurrentBody"></div>
+<h4>Stamped exports</h4>
+<div id="efvStampsBody"></div>
+<h4>All format versions</h4>
+<div id="efvBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

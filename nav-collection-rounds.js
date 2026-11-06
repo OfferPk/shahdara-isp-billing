@@ -19,6 +19,7 @@ export const FIELD_ROUTE_ORDER_KEY = 'shahdara_field_route_order';
 import { sequenceRouteStops } from './route-sequencing.js';
 import { buildDayTargetProgress, getDayTarget, setDayTarget, clearDayTarget } from './day-target.js';
 import { fieldViewRouteOutcomeButtons } from './field-view.js';
+import { loadPreferredCollectionDayList, preferredCollectionDayForCustomer, preferredCollectionDayLineHtml } from './preferred-collection-day.js';
 
 export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
@@ -1053,6 +1054,11 @@ export function setupFieldRouteSheet({
     });
     lastRouteData = routeData;
 
+    // Plan 365: the preferred collection day notes, read once per
+    // recalculation — so Saad sees beside each customer the day that
+    // customer prefers to be visited. A customer without one shows
+    // nothing extra.
+    const pcdNotes = loadPreferredCollectionDayList(storage);
     // Plan S: hand the freshly calculated route figures to the app so
     // the day-flow strip (promised + handover expected) renders from
     // exactly these numbers, never from a second calculation.
@@ -1158,6 +1164,8 @@ export function setupFieldRouteSheet({
                </div>`
             : '';
 
+          const preferredDayInfo = preferredCollectionDayLineHtml(preferredCollectionDayForCustomer(pcdNotes, stop.id));
+
           card.innerHTML = `
             <div class="route-card-left">
               <div class="route-card-header">
@@ -1173,6 +1181,7 @@ export function setupFieldRouteSheet({
               </div>
               ${promiseDetails}
               ${visitNoteInfo}
+              ${preferredDayInfo}
               <div class="route-card-contact-row">
                 ${stop.phoneUrl ? `<a href="${stop.phoneUrl}" class="action-btn-sm" aria-label="Call ${escapeHtml(stop.name)}">📞 Call</a>` : ''}
                 ${stop.alternatePhoneUrl ? `<a href="${stop.alternatePhoneUrl}" class="action-btn-sm" aria-label="Call alternate number for ${escapeHtml(stop.name)}">📞 Alt Call</a>` : ''}

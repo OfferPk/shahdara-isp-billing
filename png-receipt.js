@@ -26,6 +26,7 @@ import { receiptHistoryHeading } from './receipt.js';
 import { buildReceiptFooterLines } from './receipt-footer-studio.js';
 import { brandTitleLine, DOCUMENT_TITLES, sanitizeBrand } from './document-branding.js';
 import { receiptCodeForReceipt } from './receipt-verifier.js';
+import { transactionPayerNameOf } from './transaction-payer-name.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
 
 export const PNG_RECEIPT_WIDTH = 1600; // 800 CSS pt @ HiDPI 2x
@@ -116,7 +117,9 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   const method = text(receipt.paymentMethod)
     + (text(receipt.transactionId) ? ` (Txn: ${text(receipt.transactionId)})` : '')
     // SISP-63: sender proof metadata rides the same line as the Txn id.
-    + (text(receipt.senderLabel) ? ` · Sender: ${text(receipt.senderLabel)}` : '');
+    + (text(receipt.senderLabel) ? ` · Sender: ${text(receipt.senderLabel)}` : '')
+    // Plan 378: the payer name rides the same line as the sender.
+    + (transactionPayerNameOf(receipt) ? ` · Paid by: ${transactionPayerNameOf(receipt)}` : '');
 
   const financial = [];
   if (breakdown) {

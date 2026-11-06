@@ -7773,6 +7773,14 @@ html, body {
   color: #15803d;
 }
 
+/* Plan 376 — transaction entry pre-fill line under the amount field:
+   names the oldest open bill the starting amount came from. No colour
+   of its own, so no new hex colour is introduced. */
+.txp-prefill-line {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
 .qc-quick-amount-chips {
   display: flex;
   flex-wrap: wrap;

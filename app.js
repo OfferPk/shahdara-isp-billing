@@ -535,6 +535,7 @@ import { validScreenHelpNoteDay, foldScreenHelpNoteStatus, normalizeScreenHelpNo
 import { validOperatorNotePinDay, normalizeOperatorNotePinList, findOperatorNotePin, recordOperatorNotePin, unpinOperatorNotePin, activeOperatorNotePins, operatorNotePinsInDisplayOrder, operatorNotePinSummaryText, operatorNotePinText, operatorNotePinHtml, operatorNotePinsHtml, activeOperatorNotePinsHtml, operatorNotePinsInDisplayOrderHtml, operatorNotePinCsv, operatorNotePinFilename } from './operator-note-pin.js';
 import { validDashboardWidgetOrderDay, normalizeDashboardWidgetOrderWidgets, normalizeDashboardWidgetOrderPreferenceList, dashboardWidgetOrderForOperator, dashboardWidgetOrderHistoryForOperator, recordDashboardWidgetOrderPreference, resetDashboardWidgetOrder, dashboardWidgetsInPreferredOrder, dashboardWidgetOrderSummaryText, dashboardWidgetOrderText, dashboardWidgetOrderHtml, dashboardWidgetOrdersHtml, dashboardWidgetOrderCurrentHtml, dashboardWidgetsInPreferredOrderHtml, dashboardWidgetOrderCsv, dashboardWidgetOrderFilename } from './dashboard-widget-order.js';
 import { validReportSchedulingNoteDay, foldReportSchedulingNoteCycle, normalizeReportSchedulingNoteList, recordReportSchedulingNote, reportSchedulingNoteForReport, reportSchedulingNoteOverdue, reportSchedulingNoteDueList, markReportSchedulingNoteProduced, reportSchedulingNoteSummaryText, reportSchedulingNoteText, reportSchedulingNoteHtml, reportSchedulingNotesHtml, reportSchedulingNoteDueHtml, reportSchedulingNoteCsv, reportSchedulingNoteFilename } from './report-scheduling-note.js';
+import { validAnonymisationNoteDay, normalizeAnonymisationNoteFields, normalizeAnonymisationNoteList, recordAnonymisationNote, anonymisationNoteForCopy, anonymisationNotesForHolder, unapprovedAnonymisationCopies, anonymisationNoteSummaryText, anonymisationNotesHtml, anonymisationNoteUnapprovedHtml, anonymisationNoteCsv, anonymisationNoteFilename } from './data-anonymisation-note.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14426,6 +14427,7 @@ function renderAnalytics() {
   renderOperatorNotePins();
   renderDashboardWidgetOrders();
   renderReportSchedulingNotes();
+  renderDataAnonymisationNotes();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33437,6 +33439,55 @@ function renderReportSchedulingNotes() {
       saveReportSchedulingNotes(next);
       renderReportSchedulingNotes();
     });
+  }
+}
+const DATA_ANONYMISATION_NOTE_KEY = 'shahdara_dan_notes_v1';
+function loadDataAnonymisationNotes() {
+  try { return normalizeAnonymisationNoteList(JSON.parse(localStorage.getItem(DATA_ANONYMISATION_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveDataAnonymisationNotes(list) {
+  try { localStorage.setItem(DATA_ANONYMISATION_NOTE_KEY, JSON.stringify(normalizeAnonymisationNoteList(list))); } catch { /* Anonymisation notes only: a failed save leaves the previous list in place */ }
+}
+
+// Data anonymisation note (Plan 340): one note per demo or training copy
+// — the copy reference, the fields anonymised, the method in plain words,
+// the date the copy was made, and the holder. A copy with no note is
+// flagged as unapproved for training use. The note only describes a copy:
+// it never creates a copy and never changes any live customer, bill, or
+// payment record.
+let anonymisationNoteBound = false;
+function renderDataAnonymisationNotes() {
+  const listEl = $('#danBody');
+  if (!listEl) return;
+  const all = loadDataAnonymisationNotes();
+  listEl.innerHTML = all.length ? anonymisationNotesHtml(all) : '<p>No anonymisation notes yet.</p>';
+  const refs = $('#danCheckRefs')?.value ?? '';
+  const summaryEl = $('#danSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${anonymisationNoteSummaryText(all, refs)} A note only describes a copy and never changes any live customer, bill, or payment record by itself.`;
+  }
+  const unapprovedEl = $('#danUnapprovedBody');
+  if (unapprovedEl) {
+    unapprovedEl.innerHTML = anonymisationNoteUnapprovedHtml(all, refs);
+  }
+  if (!anonymisationNoteBound) {
+    anonymisationNoteBound = true;
+    $('#danExportBtn')?.addEventListener('click', () => { downloadCsvFile(anonymisationNoteFilename(), anonymisationNoteCsv(loadDataAnonymisationNotes())); });
+    $('#danSaveBtn')?.addEventListener('click', () => {
+      const before = loadDataAnonymisationNotes();
+      const next = recordAnonymisationNote(before, {
+        id: `DAN-${Date.now()}`,
+        copyRef: $('#danCopyRef')?.value ?? '',
+        fields: $('#danFields')?.value ?? '',
+        method: $('#danMethod')?.value ?? '',
+        dateMade: $('#danDateMade')?.value ?? '',
+        holder: $('#danHolder')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Note not saved: give the copy reference, at least one anonymised field, the method, a strict date made, and the holder.'); return; }
+      saveDataAnonymisationNotes(next);
+      renderDataAnonymisationNotes();
+    });
+    $('#danCheckBtn')?.addEventListener('click', () => { renderDataAnonymisationNotes(); });
   }
 }
 let duplicationCheckBound = false;

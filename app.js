@@ -546,6 +546,7 @@ import { normalizeDataQualityReviewList, recordDataQualityReview, dataQualityRev
 import { normalizeCustomerRecordMergeList, recordCustomerRecordMerge, customerRecordMergedAway, customerRecordMergeSummaryText, customerRecordMergesHtml, customerRecordMergedAwayHtml, customerRecordMergeCsv, customerRecordMergeFilename } from './customer-record-merge-note.js';
 import { normalizeInactiveRecordArchiveList, recordInactiveRecordArchive, inactiveRecordArchiveFor, inactiveRecordArchiveSummaryText, inactiveRecordArchivesHtml, inactiveRecordArchiveCsv, inactiveRecordArchiveFilename } from './inactive-record-archive.js';
 import { normalizeScaleReadinessChecklistList, recordScaleReadinessChecklist, scaleReadinessChecklistSummaryText, scaleReadinessChecklistsHtml, scaleReadinessChecklistGapsHtml, scaleReadinessChecklistCsv, scaleReadinessChecklistFilename } from './scale-readiness-checklist.js';
+import { RECENTLY_VIEWED_STORE_KEY, normalizeRecentlyViewedList, recentlyViewedEntry, recordRecentlyViewed, recentlyViewedRows, recentlyViewedSummaryText, recentlyViewedHtml, recentlyViewedCsv, recentlyViewedFilename } from './recently-viewed-customers.js';
 import { buildProfileHeaderStrip, profileHeaderStripHtml } from './profile-header-strip.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
@@ -6234,6 +6235,23 @@ function selectCustomer(id, { pushHistory = true } = {}) {
   switchView('customers', { pushHistory: false });
   selectedCustomerId = id;
   const currentCust = state.customers.find(c => c.id === id);
+  // Plan 354 — Recently viewed customers: record every profile opening
+  // on this device only, so the operator returns to the same few
+  // profiles with one tap. The fast search sheet already keeps this
+  // list and shows it with no query; recording here is the missing
+  // piece, because profiles opened from the customer list, the
+  // dashboard, or any other place never reached the sheet.
+  try {
+    if (currentCust) {
+      const viewedAllocations = calculatePaymentAllocations(state);
+      let viewedDuesCents = 0;
+      for (const b of (currentCust.bills ?? [])) {
+        const s = viewedAllocations.forMonth(currentCust.id, b.month);
+        if (s && s.balanceDueCents > 0) viewedDuesCents += s.balanceDueCents;
+      }
+      saveRecentlyViewed(recordRecentlyViewed(loadRecentlyViewed(), recentlyViewedEntry(currentCust, viewedDuesCents, new Date().toISOString())));
+    }
+  } catch { /* Recently viewed only: a failed record never blocks opening the profile */ }
   mobileBreadcrumbs?.pushCrumb({
     id: `customer-${id}`,
     label: currentCust ? currentCust.name : 'Customer Detail',
@@ -14474,6 +14492,7 @@ function renderAnalytics() {
   renderScaleReadinessChecklists();
   renderWadaDashboard();
   renderInstallationDashboard();
+  renderRecentlyViewedCustomers();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33877,6 +33896,16 @@ function saveScaleReadinessChecklists(list) {
   try { localStorage.setItem(SCALE_READINESS_CHECKLIST_KEY, JSON.stringify(normalizeScaleReadinessChecklistList(list))); } catch { /* Scale readiness only: a failed save leaves the previous list in place */ }
 }
 
+// Recently viewed customers (Plan 354): the same on-device list the
+// fast search sheet shows with no query. Recording a view never
+// changes any customer, bill, or payment record.
+function loadRecentlyViewed() {
+  try { return normalizeRecentlyViewedList(JSON.parse(localStorage.getItem(RECENTLY_VIEWED_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveRecentlyViewed(list) {
+  try { localStorage.setItem(RECENTLY_VIEWED_STORE_KEY, JSON.stringify(normalizeRecentlyViewedList(list))); } catch { /* Recently viewed only: a failed save leaves the previous list in place */ }
+}
+
 let monthlyKpiTargetBound = false;
 let monthlyKpiTargetComparisonView = '';
 function renderMonthlyKpiTargets() {
@@ -34116,6 +34145,45 @@ function renderInstallationDashboard() {
   if (!installationDashboardBound) {
     installationDashboardBound = true;
     $('#idaExportBtn')?.addEventListener('click', () => { downloadCsvFile(installationFeeFilename(), installationFeeCsv(installationFeeRows(state.customers || []))); });
+  }
+}
+let recentlyViewedBound = false;
+function recentlyViewedLiveRows() {
+  const stored = loadRecentlyViewed();
+  const customers = state.customers || [];
+  const listed = new Set(stored.map(entry => entry.id));
+  const allocations = calculatePaymentAllocations(state);
+  const duesById = {};
+  for (const c of customers) {
+    if (!listed.has(c.id)) continue;
+    let cents = 0;
+    for (const b of (c.bills ?? [])) {
+      const s = allocations.forMonth(c.id, b.month);
+      if (s && s.balanceDueCents > 0) cents += s.balanceDueCents;
+    }
+    duesById[c.id] = cents;
+  }
+  return recentlyViewedRows(stored, customers, duesById);
+}
+function renderRecentlyViewedCustomers() {
+  const bodyEl = $('#rvcBody');
+  if (!bodyEl) return;
+  const rows = recentlyViewedLiveRows();
+  bodyEl.innerHTML = rows.length ? recentlyViewedHtml(rows) : '<p>No recently viewed customers yet.</p>';
+  const summaryEl = $('#rvcSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${recentlyViewedSummaryText(rows)} The list only records viewing and never changes any customer, bill, or payment record.`;
+  }
+  const clearBtn = $('#rvcClearBtn');
+  if (clearBtn) clearBtn.hidden = rows.length === 0;
+  if (!recentlyViewedBound) {
+    recentlyViewedBound = true;
+    $('#rvcExportBtn')?.addEventListener('click', () => { downloadCsvFile(recentlyViewedFilename(), recentlyViewedCsv(recentlyViewedLiveRows())); });
+    clearBtn?.addEventListener('click', () => { saveRecentlyViewed([]); renderRecentlyViewedCustomers(); });
+    bodyEl.addEventListener('click', (event) => {
+      const btn = event.target.closest('[data-rvc-customer-id]');
+      if (btn) selectCustomer(btn.dataset.rvcCustomerId);
+    });
   }
 }
 function renderDuplicationCheck() {

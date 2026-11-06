@@ -544,6 +544,7 @@ import { normalizeReportRecipientListList, recordReportRecipientList, setReportR
 import { normalizeMonthlyKpiTargetFigure, normalizeMonthlyKpiTargetList, recordMonthlyKpiTarget, monthlyKpiTargetLate, monthlyKpiTargetComparison, monthlyKpiTargetSummaryText, monthlyKpiTargetsHtml, monthlyKpiTargetLateHtml, monthlyKpiTargetComparisonHtml, monthlyKpiTargetCsv, monthlyKpiTargetFilename } from './monthly-kpi-target.js';
 import { normalizeDataQualityReviewList, recordDataQualityReview, dataQualityReviewCarriedForward, dataQualityReviewSummaryText, dataQualityReviewRoundsHtml, dataQualityReviewCarriedForwardHtml, dataQualityReviewCsv, dataQualityReviewFilename } from './data-quality-review.js';
 import { normalizeCustomerRecordMergeList, recordCustomerRecordMerge, customerRecordMergedAway, customerRecordMergeSummaryText, customerRecordMergesHtml, customerRecordMergedAwayHtml, customerRecordMergeCsv, customerRecordMergeFilename } from './customer-record-merge-note.js';
+import { normalizeInactiveRecordArchiveList, recordInactiveRecordArchive, inactiveRecordArchiveFor, inactiveRecordArchiveSummaryText, inactiveRecordArchivesHtml, inactiveRecordArchiveCsv, inactiveRecordArchiveFilename } from './inactive-record-archive.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14444,6 +14445,7 @@ function renderAnalytics() {
   renderMonthlyKpiTargets();
   renderDataQualityReviews();
   renderCustomerRecordMerges();
+  renderInactiveRecordArchives();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33828,6 +33830,15 @@ function loadCustomerRecordMerges() {
 function saveCustomerRecordMerges(list) {
   try { localStorage.setItem(CUSTOMER_RECORD_MERGE_KEY, JSON.stringify(normalizeCustomerRecordMergeList(list))); } catch { /* Customer record merge only: a failed save leaves the previous list in place */ }
 }
+// Inactive record archive notes: a note only records the archive; archived
+// records leave live lists but stay retrievable, and nothing is ever deleted.
+const INACTIVE_RECORD_ARCHIVE_KEY = 'shahdara_ira_notes_v1';
+function loadInactiveRecordArchives() {
+  try { return normalizeInactiveRecordArchiveList(JSON.parse(localStorage.getItem(INACTIVE_RECORD_ARCHIVE_KEY) || '[]')); } catch { return []; }
+}
+function saveInactiveRecordArchives(list) {
+  try { localStorage.setItem(INACTIVE_RECORD_ARCHIVE_KEY, JSON.stringify(normalizeInactiveRecordArchiveList(list))); } catch { /* Inactive record archive only: a failed save leaves the previous list in place */ }
+}
 
 let monthlyKpiTargetBound = false;
 let monthlyKpiTargetComparisonView = '';
@@ -33949,6 +33960,48 @@ function renderCustomerRecordMerges() {
       if (next.length === before.length) { toast('Merge not recorded: give two different records, an operator, an approver, a strict merge date, and whole-rupee merged dues.'); return; }
       saveCustomerRecordMerges(next);
       renderCustomerRecordMerges();
+    });
+  }
+}
+let inactiveRecordArchiveBound = false;
+let inactiveRecordArchiveLookupView = '';
+function renderInactiveRecordArchives() {
+  const listEl = $('#iraBody');
+  if (!listEl) return;
+  const all = loadInactiveRecordArchives();
+  listEl.innerHTML = all.length ? inactiveRecordArchivesHtml(all) : '<p>No inactive records archived yet.</p>';
+  const summaryEl = $('#iraSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${inactiveRecordArchiveSummaryText(all)} An archived record leaves live lists but stays retrievable by reference, and nothing is ever deleted.`;
+  }
+  const lookupEl = $('#iraLookupBody');
+  if (lookupEl) {
+    lookupEl.innerHTML = inactiveRecordArchiveLookupView || '<p>Look up an archived record by its reference to see its archive note.</p>';
+  }
+  if (!inactiveRecordArchiveBound) {
+    inactiveRecordArchiveBound = true;
+    $('#iraExportBtn')?.addEventListener('click', () => { downloadCsvFile(inactiveRecordArchiveFilename(), inactiveRecordArchiveCsv(loadInactiveRecordArchives())); });
+    $('#iraSaveBtn')?.addEventListener('click', () => {
+      const before = loadInactiveRecordArchives();
+      const next = recordInactiveRecordArchive(before, {
+        id: `IRA-${Date.now()}`,
+        recordRef: $('#iraRecordRef')?.value ?? '',
+        reasonInactive: $('#iraReason')?.value ?? '',
+        archiveDate: $('#iraArchiveDate')?.value ?? '',
+        archiver: $('#iraArchiver')?.value ?? '',
+        retrievalRef: $('#iraRetrievalRef')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Archive note not recorded: give a record reference, a reason, a strict archive date, and an archiver.'); return; }
+      saveInactiveRecordArchives(next);
+      renderInactiveRecordArchives();
+    });
+    $('#iraLookupBtn')?.addEventListener('click', () => {
+      const ref = $('#iraLookupRef')?.value ?? '';
+      const found = inactiveRecordArchiveFor(loadInactiveRecordArchives(), ref);
+      inactiveRecordArchiveLookupView = found
+        ? `<p>${escapeHtml(inactiveRecordArchiveText(found))} Kept as archived, never deleted.</p>`
+        : '<p>No archive note for that reference — the record is still live.</p>';
+      renderInactiveRecordArchives();
     });
   }
 }

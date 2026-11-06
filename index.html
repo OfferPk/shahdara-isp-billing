@@ -11299,6 +11299,35 @@
 <div id="apnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="shnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="shnHeading">Screen help note register</h3>
+<p class="chart-caption">One register entry per screen: whether its help note is present or missing, the help note reference, and the date checked. Screens without a help note appear on a gaps list, and coverage counts reconcile to the screens listed. The register records coverage only and never writes any help text or changes any screen, bill, or payment by itself.</p>
+<p id="shnSummary"></p>
+</div>
+<div>
+<button id="shnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export help note register CSV</button>
+</div>
+</div>
+<h4>Record or re-check a screen</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Screen <input id="shnScreen" type="text" style="width: 180px;" placeholder="e.g. Customer profile"></label>
+<label style="font-size: 12px;">Help note <select id="shnStatus" style="width: 130px;"><option value="present">Present</option><option value="missing">Missing</option></select></label>
+<label style="font-size: 12px;">Reference <input id="shnReference" type="text" style="width: 180px;" placeholder="e.g. Handbook section 4"></label>
+<label style="font-size: 12px;">Date checked <input id="shnDate" type="date" style="width: 140px;"></label>
+<button id="shnRecordBtn" class="secondary-button btn-sm" type="button">Record screen</button>
+<button id="shnRecheckBtn" class="secondary-button btn-sm" type="button">Re-check screen</button>
+</div>
+<h4>Screens without a help note</h4>
+<div id="shnGapsBody"></div>
+<h4>Coverage for screens to check</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Screens, one per line <textarea id="shnScreens" rows="4" style="width: 260px;" placeholder="Customer profile&#10;Billing dashboard"></textarea></label>
+<button id="shnCoverageBtn" class="secondary-button btn-sm" type="button">Show coverage</button>
+</div>
+<div id="shnCoverageBody"></div>
+<div id="shnBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

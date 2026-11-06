@@ -61,6 +61,9 @@ export const RECEIPT_URDU_LABELS = {
   'Txn ID': 'ٹرانزیکشن نمبر',
   'Sender / بھیجنے والا': 'بھیجنے والا',
   Sender: 'بھیجنے والا',
+  // Plan 378: the payer name line on the printed receipt.
+  'Paid by / ادا کنندہ': 'ادا کنندہ',
+  'Paid by': 'ادا کنندہ',
   'Billed / بل رقم': 'بل رقم',
   'Monthly Fee / ماہانہ واجبات': 'ماہانہ واجبات',
   'Late Surcharge': 'تاخیری فیس',

@@ -17,6 +17,7 @@ import { evaluateStarTimelyPayer, starReceiptThankYouNote } from './star-subscri
 import { brandHeaderContentHtml, brandHeaderHtml, documentFooterHtml } from './document-branding.js';
 import { receiptCodeForReceipt, receiptVerificationCode, verificationStampText } from './receipt-verifier.js';
 import { applyReceiptScript } from './receipt-script.js';
+import { transactionPayerNameOf, transactionPayerReceiptField, transactionPayerReceiptFieldHtml } from './transaction-payer-name.js';
 import { renderCustomWaTemplate } from './whatsapp-templates.js';
 import { receiptTermsNoteHtml } from './receipt-terms.js';
 
@@ -307,6 +308,10 @@ export function buildPaymentReceipt(customer, bill, payment) {
     paymentDate:validStoredDate(payment.date),
     transactionId,
     senderLabel,
+    // Plan 378: the payer name, carried on the receipt object so every
+    // printed layout can show who actually paid. '' when the payment
+    // records no payer name — those receipts show only the customer.
+    paidBy: transactionPayerNameOf(payment),
     receiptNumber: permanentReceiptNumber,
     permanentReceiptNumber,
     // SISP-83: 'XXXX-XX' — stamped on every layout as "VER: XXXX-XX".
@@ -668,6 +673,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Method / طریقہ:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
     ${receipt.transactionId ? `<div class="receipt-field"><dt>Txn ID:</dt><dd>${escapeHtml(receipt.transactionId)}</dd></div>` : ''}
     ${receipt.senderLabel ? `<div class="receipt-field"><dt>Sender:</dt><dd>${escapeHtml(receipt.senderLabel)}</dd></div>` : ''}
+    ${transactionPayerReceiptFieldHtml(receipt, 'Paid by')}
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Billed / بل رقم:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
@@ -720,6 +726,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Payment Method / طریقہ کار:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
     ${receipt.transactionId ? `<div class="receipt-field"><dt>Transaction ID / ٹرانزیکشن نمبر:</dt><dd>${escapeHtml(receipt.transactionId)}</dd></div>` : ''}
     ${receipt.senderLabel ? `<div class="receipt-field"><dt>Sender / بھیجنے والا:</dt><dd>${escapeHtml(receipt.senderLabel)}</dd></div>` : ''}
+    ${transactionPayerReceiptFieldHtml(receipt, 'Paid by / ادا کنندہ')}
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Monthly Fee / ماہانہ واجبات:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge / تاخیری فیس:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
@@ -768,6 +775,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ['Payment Date / تاریخ ادائیگی', receipt.paymentDate],
     ['Transaction ID', receipt.transactionId],
     ...(receipt.senderLabel ? [['Sender / بھیجنے والا', receipt.senderLabel]] : []),
+    ...transactionPayerReceiptField(receipt),
     ['Package / پیکیج', receipt.package],
     ['Internet Speed', receipt.speedMbps ? `${receipt.speedMbps} Mbps` : ''],
     ['Package Duration', receipt.packageDuration],

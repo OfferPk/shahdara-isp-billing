@@ -11745,6 +11745,22 @@
 <div id="sclBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="wdbHeading"><div class="table-heading"><div><p class="eyebrow">CUSTOMER TRUST</p>
+<h3 id="wdbHeading">Wada dashboard</h3>
+<p class="chart-caption">Every wada, counted: how many customers made a wada, how many were kept and how many broken, with a pie chart and a per-customer search. Each kept wada is +5 points and each broken wada is −5 points; 100 points or more reads as Trusted in green, below 100 reads red with the chance of keeping a wada from that customer's history. The dashboard only reads wada records and never changes any wada, bill, payment, or customer record.</p>
+<p id="wdbSummary"></p>
+</div>
+<div>
+<button id="wdbExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export wada dashboard CSV</button>
+</div>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Search customer <input id="wdbSearch" type="text" style="width: 200px;" placeholder="e.g. customer name"></label>
+<button id="wdbSearchBtn" class="secondary-button btn-sm" type="button">Search</button>
+</div>
+<div id="wdbBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

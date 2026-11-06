@@ -572,6 +572,7 @@ import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordS
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions, promisePaymentLinkMarkup, promiseFulfilmentLineHtml } from './promise-payment-link.js';
+import { FULL_HISTORY_EMPTY_TEXT, fullHistoryEntries, fullHistoryListHtml, fullHistorySummaryText } from './full-history-list.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4165,6 +4166,26 @@ function billPackageSelectorMarkup(bill, month) {
   const options = BILL_PACKAGES.map(plan => `<option value="${plan.id}" ${savedPlan?.packageId === plan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('');
   return `<label class="field-label full" for="package-${month}">${t('prof_hist_pkg_label')} <span class="optional-label">${t('prof_hist_pkg_opt')}</span></label><select id="package-${month}" class="full" name="packageId" data-bill-package aria-describedby="package-help-${month}"><option value="" ${savedPlan ? '' : 'selected'}>${t('prof_hist_pkg_none')}</option>${options}</select><p id="package-help-${month}" class="field-help full">${t('prof_hist_pkg_help')}</p>`;
 }
+// Plan 401 — Full transaction history list per customer. Read-only:
+// every payment, charge, credit and refund for this customer in date
+// order, composed from the bills already on the customer record plus
+// the credit entries and refund records already stored on this
+// device. It lists only and changes nothing.
+function renderFullHistory(customer) {
+  const host = $('#fhlFullHistoryList');
+  if (!host) return;
+  const entries = fullHistoryEntries({
+    customerId: customer.id,
+    bills: customer.bills ?? [],
+    creditEntries: loadCreditEntries(),
+    refundRecords: loadRefunds(),
+  });
+  host.innerHTML = entries.length === 0
+    ? `<p class="notice">${escapeHtml(FULL_HISTORY_EMPTY_TEXT)}</p>`
+    : fullHistoryListHtml(entries);
+  const summary = $('#fhlFullHistorySummary');
+  if (summary) summary.textContent = fullHistorySummaryText(entries);
+}
 function renderHistory(customer) {
   const monthList = monthsForHistory();
   const byMonth = new Map(customer.bills.map(bill => [bill.month, bill]));
@@ -7344,6 +7365,7 @@ function renderDetail() {
   renderUptimePanel(customer);
   renderIncidents(customer);
   renderHistory(customer);
+  renderFullHistory(customer);
 }
 function editCustomerProfile(id, { focus } = {}) {
   if (!state.customers.some(customer => customer.id === id)) return;

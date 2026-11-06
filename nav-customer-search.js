@@ -21,6 +21,10 @@ import {
 import { formatWhatsAppUrl } from './form-validation.js';
 import { fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
 import { partialPhoneMatches } from './partial-phone-search.js';
+// Plan 353: mohalla-first combined filter — pick a mohalla, then search
+// names within that mohalla only, from the app's own mohalla list.
+import { mohallaNameMatches, mohallaFilterOptionsHtml } from './mohalla-name-filter.js';
+import { DEFAULT_MOHALLAS } from './phase3.js';
 import { trapModalFocus } from './nav-accessibility.js';
 
 export const RECENT_CUSTOMERS_STORAGE_KEY = 'shahdara_recent_customers_v1';
@@ -135,7 +139,10 @@ export function clearRecentCustomers(storage = (typeof localStorage !== 'undefin
  */
 export function searchFastCustomers(state, {
   query = '',
-  statusFilter = 'all'
+  statusFilter = 'all',
+  // Plan 353: a chosen mohalla narrows the search to that mohalla only;
+  // blank means the full list.
+  mohalla = ''
 } = {}, referenceDate = new Date()) {
   if (!state || !Array.isArray(state.customers)) return [];
 
@@ -147,6 +154,10 @@ export function searchFastCustomers(state, {
 
   for (const customer of state.customers) {
     if (customer.archived) continue;
+
+    // Plan 353: mohalla first — a chosen mohalla narrows every later
+    // match to that mohalla only; blank means the full list.
+    if (!mohallaNameMatches(customer, mohalla)) continue;
 
     // Evaluate billing status for current month and aggregate dues
     const currentBill = (customer.bills ?? []).find(b => b.month === currentMonth);
@@ -330,6 +341,10 @@ export function setupFastCustomerSearchModal({
   const closeBtn = document.getElementById('closeMobileCustomerSearchModalBtn');
   const searchInput = document.getElementById('fastCustomerSearchInput');
   const searchClearBtn = document.getElementById('fastCustomerSearchClearBtn');
+  // Plan 353: mohalla-first filter select — options come from the app's
+  // own mohalla list so the sheet never carries a second list.
+  const mohallaSelect = document.getElementById('fastCustomerSearchMohallaSelect');
+  if (mohallaSelect) mohallaSelect.innerHTML = mohallaFilterOptionsHtml(DEFAULT_MOHALLAS, '');
   const statusChips = modal.querySelectorAll('.fcs-status-chip');
   const resultsContainer = document.getElementById('fastCustomerSearchResults');
   const countBadge = document.getElementById('fastCustomerSearchCountBadge');
@@ -395,8 +410,11 @@ export function setupFastCustomerSearchModal({
 
     const query = searchInput?.value ?? '';
     const hasQuery = Boolean(query.trim());
+    // Plan 353: a chosen mohalla shows filtered results, never the
+    // recent list — clearing it returns to recents / the full list.
+    const mohallaValue = mohallaSelect?.value ?? '';
 
-    if (!hasQuery && activeStatusFilter === 'all') {
+    if (!hasQuery && activeStatusFilter === 'all' && !mohallaValue) {
       // Show recent customers
       const recents = getRecentCustomers(state);
       if (sectionTitle) sectionTitle.textContent = `Recent Customers (${recents.length})`;
@@ -414,7 +432,8 @@ export function setupFastCustomerSearchModal({
       if (clearRecentBtn) clearRecentBtn.hidden = true;
       const results = searchFastCustomers(state, {
         query,
-        statusFilter: activeStatusFilter
+        statusFilter: activeStatusFilter,
+        mohalla: mohallaValue
       });
 
       if (sectionTitle) sectionTitle.textContent = `Search Results (${results.length})`;
@@ -443,6 +462,8 @@ export function setupFastCustomerSearchModal({
     });
     if (searchInput) searchInput.value = '';
     if (searchClearBtn) searchClearBtn.hidden = true;
+    // Plan 353: the mohalla filter starts cleared on every open.
+    if (mohallaSelect) mohallaSelect.value = '';
     render();
 
     if (typeof modal.showModal === 'function') {
@@ -492,6 +513,11 @@ export function setupFastCustomerSearchModal({
     if (searchInput) searchInput.value = '';
     searchClearBtn.hidden = true;
     searchInput?.focus();
+    render();
+  });
+
+  // Plan 353: changing the mohalla re-renders the results at once.
+  mohallaSelect?.addEventListener('change', () => {
     render();
   });
 

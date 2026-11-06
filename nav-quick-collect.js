@@ -87,6 +87,7 @@ import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } fro
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { oldestOpenBillPrefill, transactionPrefillLineHtml } from './transaction-prefill.js';
 import { amountInWordsLineText } from './amount-in-words.js';
+import { nextReceiptNumberLineText } from './next-receipt-number.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
@@ -1690,6 +1691,9 @@ export function setupQuickCollectModal({
   // Plan 377: the live amount-in-words line beside the amount field
   // (null when the host page predates it).
   const wordsLine = typeof document !== 'undefined' ? document.getElementById('quickCollectAmountWordsLine') : null;
+  // Plan 381: the next-receipt-number preview line under the amount
+  // field (null when the host page predates it).
+  const nextReceiptLine = typeof document !== 'undefined' ? document.getElementById('quickCollectNextReceiptLine') : null;
 
   // Plan 377: the words always match the digits currently typed —
   // typing, a chip tap, a concession, or a pre-fill — so an extra
@@ -1700,6 +1704,20 @@ export function setupQuickCollectModal({
     const text = amountInput ? amountInWordsLineText(amountInput.value) : '';
     wordsLine.textContent = text;
     wordsLine.hidden = text === '';
+  }
+  // Plan 381: the preview always names the number THIS payment will
+  // receive — the active customer's record against the month
+  // currently picked — so a month switch re-numbers the preview
+  // before anything is saved. Read-only: rendering never reserves
+  // or consumes a number, and a customer with no usable number
+  // shows nothing extra.
+  function renderNextReceiptLine() {
+    if (!nextReceiptLine) return;
+    const month = monthSelect?.value || activeDefaults?.targetMonth;
+    const customer = activeDefaults?.customer ?? null;
+    const line = customer && month ? nextReceiptNumberLineText(customer, month) : '';
+    nextReceiptLine.textContent = line;
+    nextReceiptLine.hidden = line === '';
   }
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
@@ -2024,6 +2042,9 @@ export function setupQuickCollectModal({
     // switch resets it and re-plans against the newly picked bill.
     waiverTicked = false;
     if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect.value);
+    // Plan 381: the preview belongs to the picked month too — a month
+    // switch re-numbers it before anything is saved.
+    renderNextReceiptLine();
   });
 
   // SISP-101: the waiver gate depends on the amount being collected, so
@@ -2587,6 +2608,10 @@ export function setupQuickCollectModal({
       // Plan 377: the form opens with the suggested amount already
       // typed, so the words start shown, not blank.
       renderAmountWordsLine();
+      // Plan 381: the form opens with the number this payment will
+      // receive already shown, so the operator can answer the
+      // customer before anything is saved.
+      renderNextReceiptLine();
       if (dateInput) {
         dateInput.value = activeDefaults.todayDate;
         dateInput.max = activeDefaults.todayDate;

@@ -454,7 +454,14 @@ test('store: the view holds no store of its own', () => {
 test('wiring: app.js imports the module and shows the section after the number-change log', () => {
   assert.ok(appSrc.includes("from './package-history-view.js'"));
   assert.ok(appSrc.includes('packageHistoryViewSectionHtml(customer, {'));
-  assert.ok(appSrc.includes('${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}'));
+  // Order, not adjacency: the mohalla change record (Plan 374) now
+  // sits between the number-change log and the package history, so
+  // the history is still after the log and still before the field
+  // groups.
+  const logAt = appSrc.indexOf('${numberChangeLogSectionMarkup}');
+  const recordAt = appSrc.indexOf('${mohallaChangeRecordSectionMarkup}');
+  const packageAt = appSrc.indexOf('${packageHistorySectionMarkup}');
+  assert.ok(logAt > 0 && recordAt > logAt && packageAt > recordAt);
 });
 
 test('wiring: the profile order assertion still holds — banner, strip, then groups', () => {

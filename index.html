@@ -26704,6 +26704,13 @@
                 </select>
               </div>
             </div>
+            <!-- Plan 399: the promise this payment fulfils — the customer's still-unpaid promises, earliest promised first. The link links only: it closes nothing by itself. A customer with no open promise offers only "No promise". -->
+            <div class="qc-form-row" style="margin-top:8px;">
+              <div class="qc-field-group">
+                <label for="quickCollectPromiseLinkSelect" class="qc-label">Fulfils promise</label>
+                <select id="quickCollectPromiseLinkSelect" class="qc-input"><option value="">No promise</option></select>
+              </div>
+            </div>
             <div class="qc-field-group" id="quickCollectContributorField" style="margin-top:8px;" hidden>
               <label for="quickCollectContributorSelect" class="qc-label" data-i18n="contrib_qc_label">Paid by / kis ne diya</label>
               <select id="quickCollectContributorSelect" class="qc-input"></select>

@@ -13679,6 +13679,16 @@ dialog::backdrop {
 .chn-form textarea{min-height:64px;resize:vertical;border:1px solid var(--line);border-radius:9px;background:#fff;padding:8px 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif}
 .chn-form input{height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
 .chn-form .primary-button,.chn-form .secondary-button{justify-self:start}
+.profile-spoken-language-note h4{margin:0 0 6px;font:700 15px Manrope,sans-serif}
+.profile-spoken-language-note p{font-size:11px;line-height:1.5;color:#5c6e66;margin:0 0 8px}
+.sln-current{font-size:12px;color:var(--ink)}
+.sln-current strong{font-weight:700}
+.sln-meta{font-size:11px;color:#5c6e66}
+.sln-none{font-size:11px;color:#5c6e66}
+.sln-form{display:grid;gap:8px}
+.sln-form label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:700;color:var(--muted)}
+.sln-form input{height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
+.sln-form .primary-button,.sln-form .secondary-button{justify-self:start}
 .qc-handling-note-box:empty{display:none}
 .chn-alert{background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:10px 12px;margin:0 0 10px}
 .chn-alert strong{font-size:12px}

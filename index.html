@@ -26602,6 +26602,27 @@
                 <input id="quickCollectPaidByInput" type="text" maxlength="100" placeholder="e.g. Self, Brother, Shop Cashier" class="qc-input">
               </div>
             </div>
+            <!-- Plan 379: the collection note — who collected the payment, where it was taken, and in which mohalla. All three are optional; a collection without a note records none. -->
+            <div class="qc-form-row" style="margin-top:8px;">
+              <div class="qc-field-group">
+                <label for="quickCollectCollectedByInput" class="qc-label">Collected by (optional)</label>
+                <input id="quickCollectCollectedByInput" type="text" maxlength="100" placeholder="e.g. Collector One" class="qc-input">
+              </div>
+
+              <div class="qc-field-group">
+                <label for="quickCollectCollectionPlaceSelect" class="qc-label">Collected at (optional)</label>
+                <select id="quickCollectCollectionPlaceSelect" class="qc-input">
+                  <option value="">—</option>
+                  <option value="shop">Shop</option>
+                  <option value="field">Field</option>
+                </select>
+              </div>
+
+              <div class="qc-field-group">
+                <label for="quickCollectCollectionMohallaInput" class="qc-label">Collected in mohalla (optional)</label>
+                <input id="quickCollectCollectionMohallaInput" type="text" maxlength="60" placeholder="e.g. Mohalla A" class="qc-input">
+              </div>
+            </div>
             <div class="qc-field-group" id="quickCollectContributorField" style="margin-top:8px;" hidden>
               <label for="quickCollectContributorSelect" class="qc-label" data-i18n="contrib_qc_label">Paid by / kis ne diya</label>
               <select id="quickCollectContributorSelect" class="qc-input"></select>

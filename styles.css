@@ -13667,3 +13667,19 @@ dialog::backdrop {
 .global-result-action{border:1px solid #dce6e1;background:#fff;color:#426459;border-radius:7px;padding:7px 10px;font:600 11px 'DM Sans',sans-serif;cursor:pointer}
 .global-result-action:hover{background:#f2f8f5}
 @media(max-width:620px){.wada-quick-form{grid-template-columns:1fr 1fr}.wada-banner-row{flex-wrap:wrap}}
+
+.profile-handling-note h4{margin:0 0 6px;font:700 15px Manrope,sans-serif}
+.profile-handling-note p{font-size:11px;line-height:1.5;color:#5c6e66;margin:0 0 8px}
+.chn-current{font-size:12px;color:var(--ink)}
+.chn-current strong{font-weight:700}
+.chn-meta{font-size:11px;color:#5c6e66}
+.chn-none{font-size:11px;color:#5c6e66}
+.chn-form{display:grid;gap:8px}
+.chn-form label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:700;color:var(--muted)}
+.chn-form textarea{min-height:64px;resize:vertical;border:1px solid var(--line);border-radius:9px;background:#fff;padding:8px 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif}
+.chn-form input{height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
+.chn-form .primary-button,.chn-form .secondary-button{justify-self:start}
+.qc-handling-note-box:empty{display:none}
+.chn-alert{background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:10px 12px;margin:0 0 10px}
+.chn-alert strong{font-size:12px}
+.chn-alert p{margin:4px 0 0;font-size:12px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}

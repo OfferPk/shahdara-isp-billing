@@ -520,6 +520,7 @@ import { validReportPackMonth, validReportPackDay, normalizeReportPackChecklistL
 import { validQuarterlySnapshotMonth, normalizeQuarterlyMonthlyFigureList, recordQuarterlyMonthlyFigure, removeQuarterlyMonthlyFigure, buildQuarterlySnapshots, quarterlySnapshotsSummaryText, quarterlySnapshotAllHtml, quarterlySnapshotCsv, quarterlySnapshotFilename } from './quarterly-snapshot.js';
 import { validRetentionReviewDay, normalizeRetentionReviewList, recordRetentionReview, removeRetentionReview, retentionReviewSummaryText, retentionReviewsHtml, overdueRetentionReviewsHtml, retentionReviewCsv, retentionReviewFilename } from './retention-review.js';
 import { validBackupMediaDay, normalizeBackupMediaList, recordBackupMedium, removeBackupMedium, setBackupMediumCondition, addBackupToMedium, backupMediaSummaryText, backupMediaHtml, retiredBackupMedia, watchBackupMedia, backupMediaCsv, backupMediaFilename } from './backup-media-register.js';
+import { validRestoreVerificationDay, normalizeRestoreVerificationList, recordRestoreVerification, removeRestoreVerification, verifyRestoreVerification, unverifiedRestoreVerifications, restoreVerificationSummaryText, restoreVerificationHtml, restoreVerificationCsv, restoreVerificationFilename } from './restore-verification.js';
 import { validAbsenceHandoverChecklistDay, normalizeAbsenceHandoverChecklistList, recordAbsenceHandoverChecklist, removeAbsenceHandoverChecklist, setAbsenceHandoverChecklistStepDone, absenceHandoverChecklistsForPerson, absenceHandoverChecklistCoveringPeople, absenceHandoverChecklistSummaryText, absenceHandoverChecklistAllHtml, absenceHandoverChecklistsForPersonHtml, absenceHandoverChecklistCsv, absenceHandoverChecklistFilename } from './absence-handover-checklist.js';
 import { normalizeShopDiaryEntryList, recordShopDiaryEntry, removeShopDiaryEntry, shopDiaryEntriesForPerson, shopDiaryEnteredByPeople, shopDiarySummaryText, shopDiaryAllHtml, shopDiaryEntriesForPersonHtml, shopDiaryCsv, shopDiaryFilename } from './shop-diary.js';
 import { normalizeDutyRosterEntryList, recordDutyRosterEntry, removeDutyRosterEntry, dutyRosterWeeks, dutyRosterWeekCoverage, dutyRosterStaff, dutyRosterSummaryText, dutyRosterWeekHtml, dutyRosterEntriesForStaffHtml, dutyRosterCsv, dutyRosterFilename } from './duty-roster.js';
@@ -14410,6 +14411,7 @@ function renderAnalytics() {
   renderQuarterlySnapshot();
   renderRetentionReview();
   renderBackupMediaRegister();
+  renderRestoreVerificationNote();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -32908,6 +32910,78 @@ function renderBackupMediaRegister() {
       if (next.length === before.length) { toast('Medium not removed: retired media stay listed, and the id must match a medium.'); return; }
       saveBackupMedia(next);
       renderBackupMediaRegister();
+    });
+  }
+}
+let restoreVerificationNoteBound = false;
+const RESTORE_VERIFICATION_KEY = 'shahdara_restore_verifications_v1';
+function loadRestoreVerifications() {
+  try { return normalizeRestoreVerificationList(JSON.parse(localStorage.getItem(RESTORE_VERIFICATION_KEY) || '[]')); } catch { return []; }
+}
+function saveRestoreVerifications(list) {
+  try { localStorage.setItem(RESTORE_VERIFICATION_KEY, JSON.stringify(normalizeRestoreVerificationList(list))); } catch { /* Restore verification only: a failed save leaves the previous list in place */ }
+}
+
+// Restore verification note (Plan 332): one verification note per
+// restore — the restore date, the source, the record counts before
+// and after, and the verifier. Counts are shown side by side and
+// must match, or the mismatch is named; a restore whose check is
+// still pending stays flagged as unverified. A note never changes
+// any restored record, bill, or payment by itself.
+function renderRestoreVerificationNote() {
+  const listEl = $('#rvnBody');
+  if (!listEl) return;
+  const all = loadRestoreVerifications();
+  listEl.innerHTML = all.length ? restoreVerificationHtml(all) : '<p>No restore verifications recorded.</p>';
+  const summaryEl = $('#rvnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${restoreVerificationSummaryText(all)} A note never changes any restored record, bill, or payment by itself.`;
+  }
+  const unverifiedEl = $('#rvnUnverifiedBody');
+  if (unverifiedEl) {
+    const open = unverifiedRestoreVerifications(all);
+    unverifiedEl.innerHTML = open.length
+      ? `<ul>${open.map((entry) => `<li>${escapeHtml(entry.restoreDate)} — restored from ${escapeHtml(entry.source)}, checked by ${escapeHtml(entry.verifier)} (${escapeHtml(entry.id)})</li>`).join('')}</ul>`
+      : '<p>No unverified restores.</p>';
+  }
+  if (!restoreVerificationNoteBound) {
+    restoreVerificationNoteBound = true;
+    $('#rvnExportBtn')?.addEventListener('click', () => { downloadCsvFile(restoreVerificationFilename(), restoreVerificationCsv(loadRestoreVerifications())); });
+    $('#rvnRecordBtn')?.addEventListener('click', () => {
+      const before = loadRestoreVerifications();
+      const next = recordRestoreVerification(before, {
+        id: `RVN-${Date.now()}`,
+        restoreDate: $('#rvnDate')?.value ?? '',
+        source: $('#rvnSource')?.value ?? '',
+        countsBefore: {
+          customers: $('#rvnBeforeCustomers')?.value ?? '',
+          bills: $('#rvnBeforeBills')?.value ?? '',
+          payments: $('#rvnBeforePayments')?.value ?? '',
+        },
+        countsAfter: {
+          customers: $('#rvnAfterCustomers')?.value ?? '',
+          bills: $('#rvnAfterBills')?.value ?? '',
+          payments: $('#rvnAfterPayments')?.value ?? '',
+        },
+        verifier: $('#rvnVerifier')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Note not recorded: give a restore date, a source, whole-number counts before and after, and a verifier.'); return; }
+      saveRestoreVerifications(next);
+      renderRestoreVerificationNote();
+    });
+    $('#rvnVerifyBtn')?.addEventListener('click', () => {
+      const before = loadRestoreVerifications();
+      const next = verifyRestoreVerification(before, $('#rvnVerifyId')?.value ?? '');
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Note not verified: the id must match a note.'); return; }
+      saveRestoreVerifications(next);
+      renderRestoreVerificationNote();
+    });
+    $('#rvnRemoveBtn')?.addEventListener('click', () => {
+      const before = loadRestoreVerifications();
+      const next = removeRestoreVerification(before, $('#rvnRemoveId')?.value ?? '');
+      if (next.length === before.length) { toast('Note not removed: the id must match a note.'); return; }
+      saveRestoreVerifications(next);
+      renderRestoreVerificationNote();
     });
   }
 }

@@ -2378,6 +2378,14 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // attached at save time; there is deliberately no replace/remove
     // path short of voiding and re-recording the payment.
     screenshot: fields.screenshot !== undefined ? fields.screenshot : existingPayment.screenshot,
+    // Plan 380: the method-detail reference rides the correction the
+    // same way the sender proof does — an explicit new reference
+    // replaces it, an emptied reference clears it, and saying nothing
+    // about it keeps the reference the payment already carries, so a
+    // correction can never silently strip the trace for a transfer.
+    transactionId: fields.transactionId !== undefined ? fields.transactionId : existingPayment.transactionId,
+    reference: fields.reference !== undefined ? fields.reference : existingPayment.reference,
+    referenceOverrideReason: fields.referenceOverrideReason !== undefined ? fields.referenceOverrideReason : existingPayment.referenceOverrideReason,
     // SISP-63: sender proof metadata — same carry-over rule: a caller
     // that does not pass the sender fields (e.g. a form without them)
     // must never silently strip who sent the payment.
@@ -3250,6 +3258,13 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     amount: Number(payment.amount),
     method: payment.method,
     paidBy: String(payment.paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100),
+    // Plan 380: the method-detail note rides the transaction row so the
+    // Transactions list can show the wallet/bank reference and the
+    // sender's last digits where given — sanitized the same way as the
+    // payer name, the reference capped at the 64 the validator keeps.
+    transactionId: String(payment.transactionId ?? payment.reference ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 64),
+    senderTitle: String(payment.senderTitle ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100),
+    senderDigits: String(payment.senderDigits ?? '').replace(/\D/g, '').slice(-4),
     // Plan 379: the collection note rides the transaction row so the
     // Transactions list can show who collected the payment, where, and
     // in which mohalla — sanitized the same way as the payer name.

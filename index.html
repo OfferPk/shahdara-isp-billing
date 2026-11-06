@@ -11486,6 +11486,37 @@
 <div id="tdsBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="vucHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="vucHeading">Version upgrade checklist</h3>
+<p class="chart-caption">One upgrade checklist per version change: the version before, the version after, the steps in order, the checker, and the date. An upgrade is complete only when every step is ticked; a skipped step stays flagged, not hidden. A checklist only records the upgrade sequence: it never installs, changes, or rolls back any app version by itself.</p>
+<p id="vucSummary"></p>
+</div>
+<div>
+<button id="vucExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export upgrade checklists CSV</button>
+</div>
+</div>
+<h4>Save an upgrade checklist</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">From version <input id="vucFromVersion" type="text" style="width: 100px;" placeholder="e.g. 1.10.0"></label>
+<label style="font-size: 12px;">To version <input id="vucToVersion" type="text" style="width: 100px;" placeholder="e.g. 1.11.0"></label>
+<label style="font-size: 12px;">Steps, one per line <textarea id="vucSteps" style="width: 220px; height: 56px;" placeholder="Back up the shop device&#10;Install the new version&#10;Verify the ledger opens"></textarea></label>
+<label style="font-size: 12px;">Checker <input id="vucChecker" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Date <input id="vucDate" type="date" style="width: 140px;"></label>
+<button id="vucSaveBtn" class="secondary-button btn-sm" type="button">Save checklist</button>
+</div>
+<h4>Tick or skip a step</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Checklist id <input id="vucTickId" type="text" style="width: 140px;" placeholder="e.g. VUC-1"></label>
+<label style="font-size: 12px;">Step number <input id="vucStepNumber" type="number" min="1" style="width: 80px;" placeholder="e.g. 1"></label>
+<button id="vucTickBtn" class="secondary-button btn-sm" type="button">Tick step done</button>
+<button id="vucSkipBtn" class="secondary-button btn-sm" type="button">Skip step</button>
+</div>
+<h4>Incomplete upgrade checklists</h4>
+<div id="vucOpenBody"></div>
+<h4>All upgrade checklists</h4>
+<div id="vucBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

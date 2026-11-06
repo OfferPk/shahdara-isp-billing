@@ -330,6 +330,19 @@ async function withController(state, fn) {
 const recordedMethods = (state) =>
   state.customers.flatMap((c) => c.bills.flatMap((b) => b.payments.map((p) => p.method)));
 
+// Plan 382: the save confirmation summary is shown before the payment
+// posts — a submit alone records nothing; the operator confirms the
+// same figures, then the form posts. The mock form has no native
+// requestSubmit, so the test resubmits after confirming, exactly as
+// the real form's requestSubmit re-entry would.
+async function submitAndConfirm(getEl, getState) {
+  await getEl('quickCollectPaymentForm').dispatch('submit');
+  assert.deepEqual(recordedMethods(getState()), [],
+    'Plan 382: the first submit shows the summary — nothing posts yet');
+  await getEl('quickCollectConfirmSaveBtn').click();
+  await getEl('quickCollectPaymentForm').dispatch('submit');
+}
+
 test('QC controller: sub-row shows for Cash with Owner Office default; Hassan Balla chip records the new method', async () => {
   await withController(qcFixtureState(), async ({ controller, getEl, getState }) => {
     controller.open('seed-001');
@@ -349,7 +362,7 @@ test('QC controller: sub-row shows for Cash with Owner Office default; Hassan Ba
     assert.equal(getEl('quickCollectMethodSelect').value, 'Cash at Hassan Balla shop');
     assert.deepEqual(chips.map((c) => c.getAttribute('aria-checked')), ['false', 'false', 'true']);
 
-    await getEl('quickCollectPaymentForm').dispatch('submit');
+    await submitAndConfirm(getEl, getState);
     assert.deepEqual(recordedMethods(getState()), ['Cash at Hassan Balla shop'],
       'the save records the unified shop method through executeQuickCollection');
   });
@@ -358,7 +371,7 @@ test('QC controller: sub-row shows for Cash with Owner Office default; Hassan Ba
 test('QC controller: untouched chips record plain Cash (Owner Office); Waseem chip records its shop method', async () => {
   await withController(qcFixtureState(), async ({ controller, getEl, getState }) => {
     controller.open('seed-001');
-    await getEl('quickCollectPaymentForm').dispatch('submit');
+    await submitAndConfirm(getEl, getState);
     assert.deepEqual(recordedMethods(getState()), ['Cash']);
   });
 
@@ -367,7 +380,7 @@ test('QC controller: untouched chips record plain Cash (Owner Office); Waseem ch
     const chips = getEl('quickCollectShopChips').children;
     await chips[1].click();
     assert.equal(getEl('quickCollectMethodSelect').value, 'Cash at Waseem Abbasi shop');
-    await getEl('quickCollectPaymentForm').dispatch('submit');
+    await submitAndConfirm(getEl, getState);
     assert.deepEqual(recordedMethods(getState()), ['Cash at Waseem Abbasi shop']);
   });
 });
@@ -381,7 +394,7 @@ test('QC controller: a non-Cash method hides the sub-row and records exactly as 
     assert.equal(getEl('quickCollectShopRow').hidden, true, 'sub-row hides for non-Cash methods');
 
     getEl('quickCollectTransactionIdInput').value = 'TID-SYNTH-001';
-    await getEl('quickCollectPaymentForm').dispatch('submit');
+    await submitAndConfirm(getEl, getState);
     assert.deepEqual(recordedMethods(getState()), ['JazzCash'], 'non-Cash recording untouched');
 
     // Re-selecting Cash brings the row back with the Owner Office default.

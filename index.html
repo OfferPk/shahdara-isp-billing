@@ -26782,6 +26782,27 @@
         </form>
       </div>
 
+      <!-- Step 2b (Plan 382): Save confirmation summary — shown before
+           the payment posts, so the operator reviews the exact figures
+           first. Confirm posts the payment; Back returns to the form
+           with every entry intact. -->
+      <div id="quickCollectStepConfirm" class="qc-step" hidden>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span class="qc-step-badge">Review before saving</span>
+        </div>
+        <h3 class="qc-confirm-heading" tabindex="-1">Check before saving</h3>
+        <p class="qc-confirm-sub">Please check these details — nothing is saved until you confirm.</p>
+        <div id="quickCollectConfirmSummary" class="scs-summary-box" aria-live="polite"></div>
+        <div class="qc-form-actions">
+          <button id="quickCollectConfirmSaveBtn" class="primary-button qc-confirm-btn" type="button">
+            ✓ Confirm &amp; Save Payment
+          </button>
+          <button id="quickCollectConfirmBackBtn" class="secondary-button" type="button">
+            ← Back to edit
+          </button>
+        </div>
+      </div>
+
       <!-- Step 3: Success Screen with Receipt Slip -->
       <div id="quickCollectStepSuccess" class="qc-step" role="region" aria-label="Payment Confirmation and Receipt" hidden>
         <div class="qc-success-banner" role="status">

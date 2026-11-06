@@ -94,6 +94,7 @@ import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
 import { overpaymentExtraCents } from './overpayment-choice.js';
+import { requiresLargeCashApproval, LARGE_CASH_DEFAULT_THRESHOLD_CENTS } from './large-cash-approval.js';
 import { underpaymentWarning, underpaymentWarningLineText } from './underpayment-warning.js';
 import { openSuspensionFor, suspendedWarningLineText } from './suspended-warning.js';
 import { formatWhatsAppUrl } from './form-validation.js';
@@ -655,6 +656,8 @@ export function executeQuickCollection(state, {
   overpaymentDuesCents,
   excessCashNote,
   excessCashDuesCents,
+  largeCashApproval,
+  largeCashThresholdCents,
   transactionId,
   senderTitle,
   senderDigits,
@@ -840,6 +843,14 @@ export function executeQuickCollection(state, {
     // note applies nothing automatically.
     excessCashNote: excessCashNote || undefined,
     excessCashDuesCents: Number.isFinite(Number(excessCashDuesCents)) ? Math.round(Number(excessCashDuesCents)) : undefined,
+    // Plan 397: the large-cash approval rides the payment — the
+    // owner's initials or name that approved a cash payment above
+    // the operator-set threshold. Core's validatePayment enforces
+    // the threshold rule (the threshold rides along for that check
+    // only and is never stored), so a payment below the threshold
+    // stores nothing; the approval applies nothing by itself.
+    largeCashApproval: largeCashApproval || undefined,
+    largeCashThresholdCents: Number.isFinite(Number(largeCashThresholdCents)) ? Math.round(Number(largeCashThresholdCents)) : undefined,
     paidByContributor: contributorStamp ?? undefined,
     transactionId: cleanTxnId || undefined,
     // SISP-63: sender proof metadata rides alongside the TID; core's
@@ -1737,6 +1748,11 @@ export function setupQuickCollectModal({
   // predates it) — what the extra over the dues is for, in plain
   // words: advance, credit, or change to return.
   const excessCashPurposeSelect = document.getElementById('quickCollectExcessCashPurposeSelect');
+  // Plan 397: the large-cash approval fields (null when the host page
+  // predates them) — the operator-set threshold for cash that needs
+  // the owner's approval, and the approver's initials or name.
+  const largeCashThresholdInput = document.getElementById('quickCollectLargeCashThreshold');
+  const largeCashApproverInput = document.getElementById('quickCollectLargeCashApprover');
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2953,6 +2969,12 @@ export function setupQuickCollectModal({
       // like the payer fields — a purpose picked for one customer
       // never carries over to the next.
       if (excessCashPurposeSelect) excessCashPurposeSelect.value = '';
+      // Plan 397: the threshold starts at the standing default and the
+      // approver starts blank on every open, like the payer fields —
+      // an approval given for one customer never carries over to the
+      // next.
+      if (largeCashThresholdInput) largeCashThresholdInput.value = String(LARGE_CASH_DEFAULT_THRESHOLD_CENTS / 100);
+      if (largeCashApproverInput) largeCashApproverInput.value = '';
 
       // Populate billing month select
       if (monthSelect) {
@@ -3692,6 +3714,19 @@ export function setupQuickCollectModal({
         }
         duplicatePaymentBypassedKey = null;
       }
+      // Plan 397: large cash needs the owner's approval — a cash
+      // payment above the operator-set threshold cannot post without
+      // the approver's name recorded. Checked here, before the
+      // confirm summary, so the operator is sent back to the
+      // approver field instead of confirming figures that cannot
+      // post; core's validator re-checks it before anything records.
+      const largeCashThresholdCents = Math.round((Number(largeCashThresholdInput?.value) || 0) * 100);
+      const largeCashApprover = (largeCashApproverInput?.value || '').trim();
+      if (requiresLargeCashApproval(isCashPaymentMethod(methodVal), Math.round(amountVal * 100), largeCashThresholdCents) && !largeCashApprover) {
+        if (typeof onToast === 'function') onToast('Large cash payments need the owner\'s approval recorded — enter the approver\'s name.', { type: 'error' });
+        largeCashApproverInput?.focus();
+        return;
+      }
       // Plan 382: confirm-before-posting — every guard above has
       // passed, so show the summary of the exact figures about to
       // post. The payment posts only after the operator confirms the
@@ -3901,6 +3936,8 @@ export function setupQuickCollectModal({
         overpaymentDuesCents: selectedOverpaymentChoice ? overpaymentDuesCents : undefined,
         excessCashNote: selectedExcessCashPurpose || undefined,
         excessCashDuesCents: selectedExcessCashPurpose ? excessCashDuesCents : undefined,
+        largeCashApproval: largeCashApprover || undefined,
+        largeCashThresholdCents: largeCashThresholdCents,
         paidByContributorId: contributorSelect && contributorField && !contributorField.hidden ? (contributorSelect.value || undefined) : undefined,
         transactionId: txnIdVal,
         senderTitle: (senderNameInput?.value || '').trim(),

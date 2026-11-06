@@ -670,6 +670,7 @@ import { MOVE_HISTORY_STORE_KEY, normalizeMoveHistoryList, recordMoveHistoryEntr
 import { NUMBER_CHANGE_STORE_KEY, normalizeNumberChangeList, recordNumberChangeEntry, annotateNumberChangeEntry, currentNumberForCustomer, numberChangeLogSectionHtml } from './number-change-log.js';
 import { packageHistoryViewSectionHtml } from './package-history-view.js';
 import { serviceTenureSectionHtml } from './service-tenure.js';
+import { buildProfilePrintCardHtml } from './profile-print-card.js';
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
 // recovered, the device comes BACK into stock. This runs AFTER the
@@ -5038,7 +5039,7 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_handling_remove'),
     none: t('prof_handling_none'),
   });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
@@ -5048,6 +5049,40 @@ function renderCustomerProfileView(customer) {
   });
   // SISP-14: QR Khata Card button on the profile.
   $('#customerProfileView').querySelector('#profileQrCardButton')?.addEventListener('click', () => openQrKhataCard(customer));
+  // Plan 362 — Customer profile print card: one single-page card for
+  // the shop file, printed from the profile with a print date. It is
+  // a printout only and changes no record.
+  $('#customerProfileView').querySelector('#profilePrintCardButton')?.addEventListener('click', () => {
+    const cardHtml = buildProfilePrintCardHtml({
+      customerId: customer.id,
+      customerName: customer.name || customer.customerName,
+      customerNumber: customer.customerNumber,
+      businessName: state.settings?.businessName || 'Shahdara ISP',
+      knownAs: knownAsNameFor(customer),
+      mohalla: customer.mohalla || customer.area || '',
+      packageLabel: stripPackagePlan ? stripPackagePlan.label : customer.packageSpeed,
+      packagePrice: (customer.monthlySellingAmount !== null && customer.monthlySellingAmount !== undefined && String(customer.monthlySellingAmount).trim() !== '')
+        ? customer.monthlySellingAmount : (stripPackagePlan ? stripPackagePlan.price : null),
+      outstanding: balanceReplyCurrent ? balanceReplyCurrent.outstanding : null,
+      lastPayment: balanceReplyCurrent ? balanceReplyCurrent.lastPayment : null,
+      contactNumber: phone,
+      handlingNote: handlingNoteForCustomer(loadHandlingNotes(), customer.id)?.text ?? '',
+      printDate: localDate(),
+    }, formatAmount);
+    if (!cardHtml) {
+      toast('Print card unavailable — the print date is missing.');
+      return;
+    }
+    const win = window.open('', '_blank');
+    if (!win) {
+      toast('Print window blocked — allow pop-ups for this site and try again.');
+      return;
+    }
+    win.document.write(cardHtml);
+    win.document.close();
+    win.focus();
+    win.print();
+  });
   // Plan 18: show the first-bill preview for this customer. Only a
   // READY preview counts as shown — an incomplete attempt (no monthly
   // price, bad start date) is never recorded as a shown preview.

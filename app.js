@@ -541,6 +541,7 @@ import { normalizeVersionUpgradeChecklistList, recordVersionUpgradeChecklist, ti
 import { normalizeDeviceCompatibilityNoteList, recordDeviceCompatibilityNote, deviceCompatibilityNoteForPair, deviceCompatibilityNotesForDevice, deviceCompatibilityNoteSummaryText, deviceCompatibilityNotesHtml, deviceCompatibilityNotesForDeviceHtml, deviceCompatibilityPairText, deviceCompatibilityNoteCsv, deviceCompatibilityNoteFilename } from './device-compatibility-note.js';
 import { normalizePrintQueueJobList, recordPrintQueueJob, markPrintQueueJobPrinted, markPrintQueueJobFailed, printQueueJobSummaryText, printQueueJobsHtml, printQueueOpenJobsHtml, printQueueJobCsv, printQueueJobFilename } from './print-queue-log.js';
 import { normalizeReportRecipientListList, recordReportRecipientList, setReportRecipients, reportRecipientListsWithoutRecipients, reportRecipientListSummaryText, reportRecipientListsHtml, reportRecipientListCsv, reportRecipientListFilename } from './report-recipient-list.js';
+import { normalizeMonthlyKpiTargetFigure, normalizeMonthlyKpiTargetList, recordMonthlyKpiTarget, monthlyKpiTargetLate, monthlyKpiTargetComparison, monthlyKpiTargetSummaryText, monthlyKpiTargetsHtml, monthlyKpiTargetLateHtml, monthlyKpiTargetComparisonHtml, monthlyKpiTargetCsv, monthlyKpiTargetFilename } from './monthly-kpi-target.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14438,6 +14439,7 @@ function renderAnalytics() {
   renderDeviceCompatibilityNotes();
   renderPrintQueueLog();
   renderReportRecipientLists();
+  renderMonthlyKpiTargets();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33792,6 +33794,69 @@ function renderReportRecipientLists() {
       if (next === before) { toast('Recipients not set: give a listed report name.'); return; }
       saveReportRecipientLists(next);
       renderReportRecipientLists();
+    });
+  }
+}
+// Monthly KPI targets: a target set after the month ends is flagged late;
+// targets never change any actual figure, bill, or payment.
+const MONTHLY_KPI_TARGET_KEY = 'shahdara_mkt_targets_v1';
+function loadMonthlyKpiTargets() {
+  try { return normalizeMonthlyKpiTargetList(JSON.parse(localStorage.getItem(MONTHLY_KPI_TARGET_KEY) || '[]')); } catch { return []; }
+}
+function saveMonthlyKpiTargets(list) {
+  try { localStorage.setItem(MONTHLY_KPI_TARGET_KEY, JSON.stringify(normalizeMonthlyKpiTargetList(list))); } catch { /* Monthly KPI target only: a failed save leaves the previous list in place */ }
+}
+
+let monthlyKpiTargetBound = false;
+let monthlyKpiTargetComparisonView = '';
+function renderMonthlyKpiTargets() {
+  const listEl = $('#mktBody');
+  if (!listEl) return;
+  const all = loadMonthlyKpiTargets();
+  listEl.innerHTML = all.length ? monthlyKpiTargetsHtml(all) : '<p>No monthly KPI targets recorded yet.</p>';
+  const summaryEl = $('#mktSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${monthlyKpiTargetSummaryText(all)} A target never changes any actual figure, bill, or payment.`;
+  }
+  const lateEl = $('#mktLateBody');
+  if (lateEl) {
+    const late = monthlyKpiTargetLate(all);
+    lateEl.innerHTML = late.length ? monthlyKpiTargetLateHtml(all) : '<p>No targets set late.</p>';
+  }
+  const compareEl = $('#mktCompareBody');
+  if (compareEl) {
+    compareEl.innerHTML = monthlyKpiTargetComparisonView || '<p>Enter a KPI name, month, and actual figure to compare it with its target.</p>';
+  }
+  if (!monthlyKpiTargetBound) {
+    monthlyKpiTargetBound = true;
+    $('#mktExportBtn')?.addEventListener('click', () => { downloadCsvFile(monthlyKpiTargetFilename(), monthlyKpiTargetCsv(loadMonthlyKpiTargets())); });
+    $('#mktSaveBtn')?.addEventListener('click', () => {
+      const before = loadMonthlyKpiTargets();
+      const next = recordMonthlyKpiTarget(before, {
+        id: `MKT-${Date.now()}`,
+        kpiName: $('#mktKpiName')?.value ?? '',
+        targetFigure: $('#mktTargetFigure')?.value ?? '',
+        month: $('#mktMonth')?.value ?? '',
+        setBy: $('#mktSetBy')?.value ?? '',
+        dateSet: $('#mktDateSet')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Target not recorded: give the KPI name, a whole-number target, a month, who set it, and a strict date set.'); return; }
+      saveMonthlyKpiTargets(next);
+      renderMonthlyKpiTargets();
+    });
+    $('#mktCompareBtn')?.addEventListener('click', () => {
+      const kpiName = $('#mktCompareKpiName')?.value ?? '';
+      const month = $('#mktCompareMonth')?.value ?? '';
+      const actualFigure = $('#mktCompareActual')?.value ?? '';
+      if (normalizeMonthlyKpiTargetFigure(actualFigure) === null) { toast('Compare needs a whole-number actual figure.'); return; }
+      const entries = monthlyKpiTargetComparison(loadMonthlyKpiTargets(), [{ kpiName, month, figure: actualFigure }]);
+      const wanted = entries.find((entry) => entry.target.kpiName.toLowerCase() === kpiName.trim().toLowerCase() && entry.target.month === month);
+      if (!wanted) {
+        monthlyKpiTargetComparisonView = '<p>No target recorded for that KPI and month.</p>';
+      } else {
+        monthlyKpiTargetComparisonView = monthlyKpiTargetComparisonHtml([wanted.target], [{ kpiName, month, figure: actualFigure }]);
+      }
+      renderMonthlyKpiTargets();
     });
   }
 }

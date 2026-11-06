@@ -13500,6 +13500,20 @@ dialog::backdrop {
 .customer-known-as{display:block;font-size:11px;font-weight:500;color:#5c6e66;margin-top:2px}
 .global-result-known-as{display:block;font-size:11px;color:#5c6e66;margin-top:2px}
 .fcs-known-as{display:block;font-size:11px;color:#5c6e66;margin-top:2px}
+/* Plan 356 — Household link note on the profile: linked member, relationship, date, add form. */
+.profile-household-link .hhl-summary{font-weight:600}
+.hhl-list{list-style:none;margin:8px 0;padding:0;display:grid;gap:8px}
+.hhl-list li{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.hhl-open{background:none;border:0;padding:0;color:#1d6fb8;font:600 13px 'DM Sans',sans-serif;cursor:pointer;text-decoration:underline}
+.hhl-name{font-weight:600}
+.hhl-relationship{color:#5c6e66;font-size:12px}
+.hhl-date{color:#5c6e66;font-size:12px}
+.hhl-remove{font-size:11px;padding:4px 10px}
+.hhl-form{display:grid;gap:8px;margin-top:10px}
+.hhl-form label{display:grid;gap:4px;font-size:12px;font-weight:600}
+.hhl-none{color:#5c6e66;font-size:12px}
+[data-theme="dark"] .hhl-relationship,[data-theme="dark"] .hhl-date,[data-theme="dark"] .hhl-none{color:var(--dk-muted)}
+[data-theme="dark"] .hhl-open{color:var(--dk-ink)}
 @media(max-width:620px){
 .profile-info-group .profile-readonly-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
 .profile-info-group .profile-readonly-field{padding:7px 8px}

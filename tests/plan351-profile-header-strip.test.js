@@ -230,7 +230,16 @@ test('wiring: the strip is built from the profile balance figures in renderCusto
 });
 
 test('wiring: the strip sits at the top of the profile, after the wada banner and before the field groups', () => {
-  assert.ok(appJs.includes('${wadaProfileBannerHtml(customer)}${profileHeaderStripSectionHtml}${profileInfoGroupsHtml}'));
+  // Order check, not exact adjacency: Plan 356 inserts the household
+  // link section between the strip and the field groups, so the strip
+  // is no longer glued to the groups — it still sits after the wada
+  // banner and before the field groups, which is the intent here.
+  const bannerAt = appJs.indexOf('${wadaProfileBannerHtml(customer)}');
+  const stripAt = appJs.indexOf('${profileHeaderStripSectionHtml}', bannerAt);
+  const groupsAt = appJs.indexOf('${profileInfoGroupsHtml}', stripAt);
+  assert.ok(bannerAt > 0, 'wada banner is in the profile template');
+  assert.ok(stripAt > bannerAt, 'strip sits after the wada banner');
+  assert.ok(groupsAt > stripAt, 'strip sits before the field groups');
 });
 
 test('wiring: no store is added for the strip — it is composed live, never saved', () => {

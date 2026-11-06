@@ -3398,6 +3398,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     billDueDate: bill.dueDate ?? null,
     status: billStatusWithAllocations(customer, bill, allocations),
     date: payment.date,
+    // Plan 396: the recorded-at stamp rides the transaction row so
+    // the on-device queue can show the time a payment was recorded
+    // and order today newest first — sanitized the same way as the
+    // payer name and capped at the same 64.
+    recordedAt: String(payment.recordedAt ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 64),
     amount: Number(payment.amount),
     method: payment.method,
     paidBy: String(payment.paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100),

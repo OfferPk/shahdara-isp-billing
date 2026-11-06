@@ -13915,3 +13915,14 @@ dialog::backdrop {
 .rns-search{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:end}
 .rns-search label{flex:1;min-width:200px}
 .rns-result{grid-column:1/-1;font-size:12px;line-height:1.5;color:var(--ink);margin:0}
+.oqs-queue{margin:0 0 13px;padding:12px;background:#f7faf8;border-radius:11px}
+.oqs-heading{margin:0 0 4px;font:700 14px Manrope,sans-serif;color:var(--ink)}
+.oqs-summary{margin:0 0 8px;font-size:11px;color:#5c6e66}
+.oqs-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.oqs-row{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline;background:#fff;border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:11px}
+.oqs-customer{font-weight:700;color:var(--ink)}
+.oqs-amount{font-weight:700;color:var(--green)}
+.oqs-meta{color:#5c6e66}
+.oqs-void{color:#b33c33;font-weight:700}
+.oqs-mark{margin-left:auto;color:#5c6e66;font-size:10px}
+.oqs-empty{margin:0;font-size:11px;color:#5c6e66}

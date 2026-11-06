@@ -559,6 +559,7 @@ import { urduNoteMarkup } from './urdu-note.js';
 import { crossPaymentNoteMarkup, crossPaymentsMadeBy, crossPaymentsMadeSectionHtml } from './cross-payment-note.js';
 import { normalizeReceiptNumber, findTransactionByReceiptNumber, receiptNumberSearchLineText, receiptNumberSearchRowMarkup } from './receipt-number-search.js';
 import { billMonthChoiceOf, normalizeBillMonthChoice, billMonthSelectOptions, billMonthChoiceLineText } from './bill-month-selector.js?v=1.11.0';
+import { todayQueueEntries, offlineQueueSectionHtml } from './offline-queue-status.js';
 import { paymentMethodDetailMarkup, paymentMethodReferenceMarkup } from './payment-method-detail.js';
 import { latestMessageDateForCustomer, latestVisitDateForCustomer, lastInteractionFor, lastInteractionLineHtml } from './last-interaction-line.js';
 import { profileFreshnessStampHtml } from './profile-freshness-stamp.js';
@@ -4397,6 +4398,14 @@ function renderTransactions() {
   const dateSorted = transactionSortBy === 'date-desc' || transactionSortBy === 'date-asc';
   const dayGroups = dateSorted ? groupByDay(transactions) : null;
   const todayKey = pktDateKey();
+  // Plan 396: today's recorded transactions on this device — the
+  // on-device queue view. Lists only; it syncs nothing and never
+  // changes any bill, payment, or customer record. It always shows
+  // today, whatever the list filters say.
+  const queueSection = $('#oqsQueueSection');
+  if (queueSection) {
+    queueSection.innerHTML = offlineQueueSectionHtml(todayQueueEntries(listTransactions(state), todayKey, { deriveReceiptNumber: generateReceiptNumber }));
+  }
   let lastDay = null;
   // Plan F: one customer index per render, not one roster scan per
   // visible row. Grouping/summary above still scans the filtered

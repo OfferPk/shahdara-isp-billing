@@ -338,7 +338,12 @@ test('wiring: profile banner sits at the top of the profile view', () => {
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   assert.equal(app.includes('wada-record.js'), true, 'module must be imported');
   assert.equal(app.includes("const WADA_RECORD_KEY = 'shahdara_wada_records_v1'"), true);
-  assert.equal(app.includes('${wadaProfileBannerHtml(customer)}${profileInfoGroupsHtml}'), true, 'banner must render before the profile info groups');
+  // Plan 351: the at-a-glance header strip sits between the banner and
+  // the info groups, so the banner is still before the groups — check
+  // the order, not adjacency.
+  const bannerAt = app.indexOf('${wadaProfileBannerHtml(customer)}');
+  const groupsAt = app.indexOf('${profileInfoGroupsHtml}');
+  assert.ok(bannerAt !== -1 && groupsAt !== -1 && bannerAt < groupsAt, 'banner must render before the profile info groups');
   for (const id of ['wadaQuickDate', 'wadaQuickAmount', 'wadaQuickNote', 'wadaQuickSaveBtn']) {
     assert.equal(app.includes(`id="${id}"`), true, `missing ${id}`);
   }

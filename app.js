@@ -557,6 +557,7 @@ import { overpaymentChoiceMarkup } from './overpayment-choice.js';
 import { urduNoteMarkup } from './urdu-note.js';
 import { crossPaymentNoteMarkup, crossPaymentsMadeBy, crossPaymentsMadeSectionHtml } from './cross-payment-note.js';
 import { normalizeReceiptNumber, findTransactionByReceiptNumber, receiptNumberSearchLineText, receiptNumberSearchRowMarkup } from './receipt-number-search.js';
+import { billMonthChoiceOf, normalizeBillMonthChoice, billMonthSelectOptions, billMonthChoiceLineText } from './bill-month-selector.js?v=1.11.0';
 import { paymentMethodDetailMarkup, paymentMethodReferenceMarkup } from './payment-method-detail.js';
 import { latestMessageDateForCustomer, latestVisitDateForCustomer, lastInteractionFor, lastInteractionLineHtml } from './last-interaction-line.js';
 import { profileFreshnessStampHtml } from './profile-freshness-stamp.js';
@@ -1473,6 +1474,9 @@ function collectionPlaceNoteFieldsMarkup(prefix, payment = {}) {
 // right-to-left Urdu.
 function urduNoteFieldMarkup(prefix, payment = {}) {
   return `<div class="form-cell"><label class="field-label full" for="${prefix}-urdu-note">Note in Urdu / اردو میں نوٹ <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-urdu-note" class="full" name="urduNote" type="text" maxlength="200" autocomplete="off" dir="rtl" lang="ur" placeholder="مثلاً: اگلے مہینے ادا کریں گے" value="${escapeHtml(payment?.urduNote ?? '')}"></div>`;
+}
+function billMonthSelectorFieldMarkup(prefix, months, selectedMonth) {
+  return `<div class="form-cell"><label class="field-label full" for="${prefix}-bill-month">Bill month <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-bill-month" class="full" name="billMonth">${billMonthSelectOptions(months, selectedMonth)}</select><p class="field-help bms-choice-line" hidden></p></div>`;
 }
 // SISP-63: sender proof metadata on the payment row — who sent a
 // digital payment and the last 4 digits it came from, next to the
@@ -4148,7 +4152,7 @@ function renderHistory(customer) {
     const savedPackage = validateBillPackageSnapshot(bill?.packageSnapshot);
     const packageSelector = billPackageSelectorMarkup(bill, month);
     const archivedWithoutBill = customer.archived && !bill;
-    const formsMarkup = archivedWithoutBill ? `<p class="notice">${t('prof_hist_archived_notice')}</p>` : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? t('prof_hist_bill_update') : t('prof_hist_bill_record')}</h4><div class="form-grid">${packageSelector}<div class="form-cell"><label class="field-label full" for="due-${month}">${t('prof_hist_bill_amount_label')} <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}></div><div class="form-cell"><label class="field-label full" for="due-date-${month}">${t('prof_hist_due_date_label')}</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"></div><p class="field-help full">${t('prof_hist_due_help')}</p><button class="primary-button" type="submit">${bill ? t('prof_hist_bill_save') : t('prof_hist_bill_record_btn')}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>${t('prof_hist_pay_title')}</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">${t('prof_hist_pay_guidance')}</p><div class="form-grid"><div class="form-cell"><label class="field-label full" for="amount-${month}">${t('prof_hist_pay_amount_label')}</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_amount_ph')}" required></div><div class="form-cell"><label class="field-label full" for="method-${month}">${t('prof_hist_pay_method_label')}</label><select id="method-${month}" class="full" name="method" required><option value="">${t('prof_hist_pay_method_choose')}</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select></div><div class="form-cell">${paidByFieldMarkup(`paid-by-${month}`)}</div>${collectionPlaceNoteFieldsMarkup(`cpl-${month}`)}${urduNoteFieldMarkup(`urn-${month}`)}${crossPaymentNoteFieldsMarkup(`xpn-${month}`, customer.id, state.customers)}<div class="form-cell"><label class="field-label full" for="date-${month}">${t('prof_hist_pay_date_label')}</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required></div><div class="form-cell"><label class="field-label full" for="txnid-${month}">${t('prof_hist_pay_txn_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="${t('prof_hist_pay_txn_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-name-${month}">${t('spay_sender_name_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-name-${month}" class="full" name="senderTitle" type="text" maxlength="100" placeholder="${t('spay_sender_name_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-digits-${month}">${t('spay_sender_digits_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-digits-${month}" class="full" name="senderDigits" type="text" inputmode="numeric" maxlength="19" placeholder="${t('spay_sender_digits_ph')}"></div><div class="form-cell"><label class="field-label full" for="proof-${month}">${t('proof_attach_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="proof-${month}" class="full" name="proofScreenshot" type="file" accept="image/*"></div><div class="form-cell"><label class="field-label full" for="discount-${month}">${t('prof_hist_pay_discount_label')} <span class="optional-label">${t('prof_hist_discount_opt')}</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_discount_ph')}"></div><label class="field-label full" for="discount-reason-${month}">${t('prof_hist_pay_discount_reason')} <span class="optional-label">${t('prof_optional')}</span></label><input id="discount-reason-${month}" class="full" name="discountReason" type="text" maxlength="100" placeholder="${t('prof_hist_pay_discount_reason_ph')}">${billKistTotal(bill) > 0 ? `<label class="field-label full"><input type="checkbox" name="fifoPrioritizeKist"> ${t('prof_hist_fifo_first')} <span class="optional-label">${t('prof_hist_fifo_first_note')}</span></label>` : ''}<div class="profile-remwaada-row full" id="profile-remwaada-${month}" hidden></div><button class="primary-button" type="submit">${t('prof_hist_pay_submit')}</button></div></form></div>`;
+    const formsMarkup = archivedWithoutBill ? `<p class="notice">${t('prof_hist_archived_notice')}</p>` : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? t('prof_hist_bill_update') : t('prof_hist_bill_record')}</h4><div class="form-grid">${packageSelector}<div class="form-cell"><label class="field-label full" for="due-${month}">${t('prof_hist_bill_amount_label')} <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}></div><div class="form-cell"><label class="field-label full" for="due-date-${month}">${t('prof_hist_due_date_label')}</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"></div><p class="field-help full">${t('prof_hist_due_help')}</p><button class="primary-button" type="submit">${bill ? t('prof_hist_bill_save') : t('prof_hist_bill_record_btn')}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>${t('prof_hist_pay_title')}</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">${t('prof_hist_pay_guidance')}</p><div class="form-grid"><div class="form-cell"><label class="field-label full" for="amount-${month}">${t('prof_hist_pay_amount_label')}</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_amount_ph')}" required></div><div class="form-cell"><label class="field-label full" for="method-${month}">${t('prof_hist_pay_method_label')}</label><select id="method-${month}" class="full" name="method" required><option value="">${t('prof_hist_pay_method_choose')}</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select></div>${billMonthSelectorFieldMarkup(`bms-${month}`, monthsForHistory(), month)}<div class="form-cell">${paidByFieldMarkup(`paid-by-${month}`)}</div>${collectionPlaceNoteFieldsMarkup(`cpl-${month}`)}${urduNoteFieldMarkup(`urn-${month}`)}${crossPaymentNoteFieldsMarkup(`xpn-${month}`, customer.id, state.customers)}<div class="form-cell"><label class="field-label full" for="date-${month}">${t('prof_hist_pay_date_label')}</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required></div><div class="form-cell"><label class="field-label full" for="txnid-${month}">${t('prof_hist_pay_txn_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="${t('prof_hist_pay_txn_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-name-${month}">${t('spay_sender_name_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-name-${month}" class="full" name="senderTitle" type="text" maxlength="100" placeholder="${t('spay_sender_name_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-digits-${month}">${t('spay_sender_digits_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-digits-${month}" class="full" name="senderDigits" type="text" inputmode="numeric" maxlength="19" placeholder="${t('spay_sender_digits_ph')}"></div><div class="form-cell"><label class="field-label full" for="proof-${month}">${t('proof_attach_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="proof-${month}" class="full" name="proofScreenshot" type="file" accept="image/*"></div><div class="form-cell"><label class="field-label full" for="discount-${month}">${t('prof_hist_pay_discount_label')} <span class="optional-label">${t('prof_hist_discount_opt')}</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_discount_ph')}"></div><label class="field-label full" for="discount-reason-${month}">${t('prof_hist_pay_discount_reason')} <span class="optional-label">${t('prof_optional')}</span></label><input id="discount-reason-${month}" class="full" name="discountReason" type="text" maxlength="100" placeholder="${t('prof_hist_pay_discount_reason_ph')}">${billKistTotal(bill) > 0 ? `<label class="field-label full"><input type="checkbox" name="fifoPrioritizeKist"> ${t('prof_hist_fifo_first')} <span class="optional-label">${t('prof_hist_fifo_first_note')}</span></label>` : ''}<div class="profile-remwaada-row full" id="profile-remwaada-${month}" hidden></div><button class="primary-button" type="submit">${t('prof_hist_pay_submit')}</button></div></form></div>`;
     return `<details class="month-card" data-month-card="${month}" ${isOpen ? 'open' : ''}><summary><span class="month-label">${escapeHtml(displayMonthName(month))}</span><span class="history-count">${bill ? ((bill.payments?.length ?? 0) === 1 ? t('prof_hist_payments_1', null, { count: bill.payments?.length ?? 0 }) : t('prof_hist_payments_n', null, { count: bill.payments?.length ?? 0 })) : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="${t('prof_hist_payments_for', null, { month: displayMonthName(month) })}">${payments}</ul></div></details>`;
   }).join('');
   historyContainer.querySelectorAll('form[data-kind="bill"]').forEach(form => form.addEventListener('submit', onBillSubmit));
@@ -4205,6 +4209,21 @@ function renderHistory(customer) {
       amountInput.addEventListener('input', renderRemRow);
       dateInput?.addEventListener('change', renderRemRow);
       renderRemRow();
+    // Plan 394: bill-month selector live line. When the operator picks
+    // a month other than this card's month, name it plainly; picking
+    // the card's month again hides the line.
+    const billMonthSelect = form.querySelector('[name="billMonth"]');
+    const billMonthLine = form.querySelector('.bms-choice-line');
+    if (billMonthSelect && billMonthLine) {
+      const renderBillMonthLine = () => {
+        const chosen = normalizeBillMonthChoice(billMonthSelect.value, form.dataset.month);
+        const line = chosen && chosen !== form.dataset.month ? billMonthChoiceLineText(chosen) : '';
+        billMonthLine.textContent = line;
+        billMonthLine.hidden = !line;
+      };
+      billMonthSelect.addEventListener('change', renderBillMonthLine);
+      renderBillMonthLine();
+    }
     }
   });
   historyContainer.querySelectorAll('[data-edit-payment]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.editPayment, 'history')));
@@ -8812,12 +8831,16 @@ async function onPaymentSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
   const customerId = selectedCustomerId;
+  // Plan 394: the bill month this payment is for — the selector's
+  // choice when one is picked, else this card's month, so a payment
+  // with no choice lands exactly where it always did.
+  const payMonth = billMonthChoiceOf(data, form.dataset.month);
   const submitBtn = form.querySelector('button[type="submit"]');
   try {
     // Advance guard (owner rule): a normal payment is never recorded
     // against an already-paid bill — money received early goes through
     // the Advance payment button so it stays tagged as advance credit.
-    if (normalPaymentBlockReason(state, customerId, form.dataset.month) === 'fully-paid') {
+    if (normalPaymentBlockReason(state, customerId, payMonth) === 'fully-paid') {
       toast(t('adv_blocked_paid'), { type: 'error', title: 'Payment not saved' });
       return;
     }
@@ -8851,9 +8874,9 @@ async function onPaymentSubmit(event) {
       catch { toast(t('proof_too_large'), { type: 'error', title: 'Payment not saved' }); return; }
     }
     if (submitBtn) { submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); }
-    const beforeIds = new Set((state.customers.find(c => c.id === customerId)?.bills.find(b => b.month === form.dataset.month)?.payments || []).map(p => p.id));
+    const beforeIds = new Set((state.customers.find(c => c.id === customerId)?.bills.find(b => b.month === payMonth)?.payments || []).map(p => p.id));
     const stateBeforePayment = state;
-    state = addPayment(state, customerId, form.dataset.month, {
+    state = addPayment(state, customerId, payMonth, {
       date: data.get('date'),
       amount: data.get('amount'),
       method: data.get('method'),
@@ -8883,9 +8906,9 @@ async function onPaymentSubmit(event) {
     // toggle choice and, when this payment fully covers the month's kist,
     // advance stored monthsPaid. Runs once per submit, before save, and
     // is a no-op for unpriced bills or an already-marked payment.
-    const fifoAdded = state.customers.find(c => c.id === customerId)?.bills.find(b => b.month === form.dataset.month)?.payments.find(p => !beforeIds.has(p.id));
+    const fifoAdded = state.customers.find(c => c.id === customerId)?.bills.find(b => b.month === payMonth)?.payments.find(p => !beforeIds.has(p.id));
     if (fifoAdded) {
-      state = applyFifoPaymentEventToState(state, customerId, form.dataset.month, fifoAdded.id, { prioritizeKistFirst: data.get('fifoPrioritizeKist') === 'on' });
+      state = applyFifoPaymentEventToState(state, customerId, payMonth, fifoAdded.id, { prioritizeKistFirst: data.get('fifoPrioritizeKist') === 'on' });
     }
     // Auto package follow (owner feature, 2026-10-29): a payment that
     // created-and-settled an unpriced month moves the customer's package
@@ -8893,7 +8916,7 @@ async function onPaymentSubmit(event) {
     // pre-payment state; priced-bill payments never move it).
     let autoPackageNote = null;
     if (fifoAdded) {
-      const followed = autoPackageFromPayment(stateBeforePayment, state, customerId, form.dataset.month, fifoAdded.id);
+      const followed = autoPackageFromPayment(stateBeforePayment, state, customerId, payMonth, fifoAdded.id);
       state = followed.nextState;
       autoPackageNote = followed.autoPackage;
     }
@@ -8914,7 +8937,7 @@ async function onPaymentSubmit(event) {
           return (summary && summary.balanceDueCents != null) ? sum + summary.balanceDueCents : sum;
         }, 0);
         if (outstandingCents > 0) {
-          const stamped = stampRemainderWaada(afterCustomer, form.dataset.month, fifoAdded.id, { promiseDate: pickedDate, promiseAmount: outstandingCents / 100 });
+          const stamped = stampRemainderWaada(afterCustomer, payMonth, fifoAdded.id, { promiseDate: pickedDate, promiseAmount: outstandingCents / 100 });
           if (stamped) state = { ...state, customers: state.customers.map(c => c.id === customerId ? stamped : c) };
         }
       }
@@ -8922,14 +8945,14 @@ async function onPaymentSubmit(event) {
     save();
     renderDetail();
     const paidCustomer = state.customers.find(c => c.id === customerId);
-    const added = paidCustomer?.bills.find(b => b.month === form.dataset.month)?.payments.find(p => !beforeIds.has(p.id));
+    const added = paidCustomer?.bills.find(b => b.month === payMonth)?.payments.find(p => !beforeIds.has(p.id));
     // Plan 31: the profile payment just recorded goes into the audit log.
-    if (added) recordAudit('payment_recorded', { recordRef: `${customerId}/${form.dataset.month}/${added.id}`, customerId, customerName: paidCustomer?.name || '', detail: `${formatAmount(added.amount)} · ${added.method || ''}`.trim() });
+    if (added) recordAudit('payment_recorded', { recordRef: `${customerId}/${payMonth}/${added.id}`, customerId, customerName: paidCustomer?.name || '', detail: `${formatAmount(added.amount)} · ${added.method || ''}`.trim() });
     const actions = added ? [
-      { label:'Undo', onAction: () => { try { state = deletePayment(state, customerId, form.dataset.month, added.id); save(); if (selectedCustomerId === customerId) renderDetail(); toast('Payment undone. Ledger restored.', { type:'info', title:'Undone' }); } catch (err) { toast(err.message); } } },
-      { label:'Receipt', onAction: () => printPaymentReceipt(customerId, form.dataset.month, added.id) }
+      { label:'Undo', onAction: () => { try { state = deletePayment(state, customerId, payMonth, added.id); save(); if (selectedCustomerId === customerId) renderDetail(); toast('Payment undone. Ledger restored.', { type:'info', title:'Undone' }); } catch (err) { toast(err.message); } } },
+      { label:'Receipt', onAction: () => printPaymentReceipt(customerId, payMonth, added.id) }
     ] : [];
-    toast(added ? `${formatAmount(added.amount)} received from #${paidCustomer.customerNumber} ${paidCustomer.name} for ${monthName(form.dataset.month)}. Payment recorded on this device.${autoPackageNote ? ` ${t('pkg_auto_set_note', null, { amount: Number(autoPackageNote.fee).toLocaleString('en-PK') })}` : ''}` : 'Payment recorded on this device.', { type:'success', title:'Payment recorded', actions });
+    toast(added ? `${formatAmount(added.amount)} received from #${paidCustomer.customerNumber} ${paidCustomer.name} for ${monthName(payMonth)}. Payment recorded on this device.${autoPackageNote ? ` ${t('pkg_auto_set_note', null, { amount: Number(autoPackageNote.fee).toLocaleString('en-PK') })}` : ''}` : 'Payment recorded on this device.', { type:'success', title:'Payment recorded', actions });
   }
   catch (error) { toast(error.message, { type:'error', title:'Payment not saved' }); }
   finally { if (submitBtn && submitBtn.isConnected) { submitBtn.disabled = false; submitBtn.removeAttribute('aria-busy'); } }

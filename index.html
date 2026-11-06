@@ -11328,6 +11328,41 @@
 <div id="shnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="onpHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="onpHeading">Operator note pinning</h3>
+<p class="chart-caption">One pin record per pinned note: the note reference, who pinned it, the date pinned, and the unpin date or reason. Pinned notes appear first on the list in pinned order, so a standing warning or reminder stays visible instead of sinking under newer notes. Unpinning removes the pin and leaves the note intact. Pinning only changes display order and never changes any note content, bill, payment, or customer record by itself.</p>
+<p id="onpSummary"></p>
+</div>
+<div>
+<button id="onpExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export note pins CSV</button>
+</div>
+</div>
+<h4>Pin a note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note reference <input id="onpNoteRef" type="text" style="width: 220px;" placeholder="e.g. Fragile segment — Mohalla 4"></label>
+<label style="font-size: 12px;">Pinned by <input id="onpPinnedBy" type="text" style="width: 140px;" placeholder="e.g. Bike"></label>
+<label style="font-size: 12px;">Date pinned <input id="onpDate" type="date" style="width: 140px;"></label>
+<button id="onpPinBtn" class="secondary-button btn-sm" type="button">Pin note</button>
+</div>
+<h4>Unpin a note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note reference <input id="onpUnpinRef" type="text" style="width: 220px;" placeholder="e.g. Fragile segment — Mohalla 4"></label>
+<label style="font-size: 12px;">Unpin date <input id="onpUnpinDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Reason <input id="onpUnpinReason" type="text" style="width: 180px;" placeholder="e.g. Segment repaired"></label>
+<button id="onpUnpinBtn" class="secondary-button btn-sm" type="button">Unpin note</button>
+</div>
+<h4>Pinned notes first</h4>
+<div id="onpPinnedBody"></div>
+<h4>Notes in display order</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Notes, one per line <textarea id="onpNotes" rows="4" style="width: 260px;" placeholder="Fragile segment — Mohalla 4&#10;Customer needs care on visits"></textarea></label>
+<button id="onpOrderBtn" class="secondary-button btn-sm" type="button">Show order</button>
+</div>
+<div id="onpOrderBody"></div>
+<h4>All pin records</h4>
+<div id="onpBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

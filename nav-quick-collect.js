@@ -36,6 +36,7 @@ import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-c
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
 import { packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
+import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
 import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
@@ -659,6 +660,7 @@ export function executeQuickCollection(state, {
   largeCashApproval,
   largeCashThresholdCents,
   categoryTag,
+  promiseLink,
   transactionId,
   senderTitle,
   senderDigits,
@@ -858,6 +860,12 @@ export function executeQuickCollection(state, {
     // meaningful tags are stored), so a collection without a tag
     // stores nothing extra.
     categoryTag: categoryTag || undefined,
+    // Plan 399: the promise-payment link rides the payment — the
+    // promise this payment fulfils. Core's validatePayment
+    // sanitizes it (a link needs a promise id and a strict date,
+    // dated by the payment day), so a collection without a link
+    // stores nothing extra.
+    promiseLink: promiseLink || undefined,
     paidByContributor: contributorStamp ?? undefined,
     transactionId: cleanTxnId || undefined,
     // SISP-63: sender proof metadata rides alongside the TID; core's
@@ -1694,7 +1702,8 @@ export function setupQuickCollectModal({
   onSelectCustomer,
   onEditCustomer,
   onCollected,
-  loadHandlingNotes
+  loadHandlingNotes,
+  loadCollectionPromises
 }) {
   const modal = document.getElementById('quickCollectModal');
   if (!modal) {
@@ -1764,6 +1773,11 @@ export function setupQuickCollectModal({
   // predates it) — the kind of transaction in plain words, set at
   // entry and used only for filtering.
   const categoryTagSelect = document.getElementById('quickCollectCategoryTagSelect');
+  // Plan 399: the promise picker (null when the host page
+  // predates it) — the customer's still-unpaid promises, listed
+  // on every open so the payment can be linked to the promise it
+  // fulfils at entry time.
+  const promiseLinkSelect = document.getElementById('quickCollectPromiseLinkSelect');
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2976,6 +2990,16 @@ export function setupQuickCollectModal({
       }
       if (crossPayerNameInput) crossPayerNameInput.value = '';
       if (crossRelationshipInput) crossRelationshipInput.value = '';
+      // Plan 399: the promise picker lists this customer's
+      // still-unpaid promises, earliest promised first — the
+      // promises this payment can fulfil. The picker starts blank
+      // on every open, like the payer fields — a promise picked
+      // for one customer never carries over to the next.
+      if (promiseLinkSelect) {
+        const pickedCustomer = state.customers.find(c => c.id === customerId);
+        promiseLinkSelect.innerHTML = promisePaymentLinkSelectOptions(openPromisesForCustomer(typeof loadCollectionPromises === 'function' ? loadCollectionPromises() : [], pickedCustomer));
+        promiseLinkSelect.value = '';
+      }
       // Plan 395: the excess cash purpose starts blank on every open,
       // like the payer fields — a purpose picked for one customer
       // never carries over to the next.
@@ -3616,6 +3640,10 @@ export function setupQuickCollectModal({
       // as no tag (the payment reads as 'other'), exactly like the
       // payer field.
       const categoryTagVal = categoryTagSelect?.value || '';
+      // Plan 399: the picked promise id, read beside the category
+      // tag — the promise this payment fulfils. Empty reads as no
+      // link, exactly like the payer field.
+      const promiseLinkVal = promiseLinkSelect?.value || '';
       // Plan 393: the cross-payment note values, read beside the payer
       // name — a picked payer customer, a typed payer name, and the
       // relationship in plain words. The typed name wins; else the
@@ -3959,6 +3987,7 @@ export function setupQuickCollectModal({
         largeCashApproval: largeCashApprover || undefined,
         largeCashThresholdCents: largeCashThresholdCents,
         categoryTag: categoryTagVal || undefined,
+        promiseLink: promiseLinkVal ? { promiseId: promiseLinkVal } : undefined,
         paidByContributorId: contributorSelect && contributorField && !contributorField.hidden ? (contributorSelect.value || undefined) : undefined,
         transactionId: txnIdVal,
         senderTitle: (senderNameInput?.value || '').trim(),

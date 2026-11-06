@@ -676,6 +676,7 @@ import { PROFILE_QUICK_ACTIONS, profileQuickActionTarget, profileQuickActionsRow
 import { HOUSEHOLD_LINK_STORE_KEY, normalizeHouseholdLinkList, recordHouseholdLink, removeHouseholdLink, householdLinkSectionHtml } from './household-link.js';
 import { MOVE_HISTORY_STORE_KEY, normalizeMoveHistoryList, recordMoveHistoryEntry, annotateMoveHistoryEntry, moveHouseHistorySectionHtml } from './move-house-history.js';
 import { NUMBER_CHANGE_STORE_KEY, normalizeNumberChangeList, recordNumberChangeEntry, annotateNumberChangeEntry, currentNumberForCustomer, numberChangeLogSectionHtml } from './number-change-log.js';
+import { MOHALLA_CHANGE_STORE_KEY, normalizeMohallaChangeList, recordMohallaChangeEntry, annotateMohallaChangeEntry, currentMohallaForCustomer, mohallaChangeRecordSectionHtml } from './mohalla-change-record.js';
 import { packageHistoryViewSectionHtml } from './package-history-view.js';
 import { serviceTenureSectionHtml } from './service-tenure.js';
 import { buildProfilePrintCardHtml } from './profile-print-card.js';
@@ -5085,6 +5086,27 @@ function renderCustomerProfileView(customer) {
   // the date it changed, so a reminder sent to the wrong number can be
   // explained. The current number is always the latest entry.
   const numberChangeLogSectionMarkup = numberChangeLogSectionHtml(customer, loadNumberChangeLog());
+  // Plan 374 — Mohalla change record: when a customer moves from one
+  // mohalla to another, the move is kept here with the date, so every
+  // customer sits on exactly one mohalla's list. The current mohalla
+  // is always the latest entry. A change entry is never edited, only
+  // annotated; recording a change never changes any bill, payment,
+  // or dues.
+  const mohallaChangeRecordSectionMarkup = mohallaChangeRecordSectionHtml(customer, loadMohallaChangeRecord(), {
+    heading: t('prof_mcr_heading'),
+    intro: t('prof_mcr_intro'),
+    oldMohalla: t('prof_mcr_old_mohalla'),
+    newMohalla: t('prof_mcr_new_mohalla'),
+    date: t('prof_mcr_date'),
+    recordedBy: t('prof_mcr_recorded_by'),
+    recordedByPlaceholder: t('prof_mcr_recorded_by_placeholder'),
+    save: t('prof_mcr_save'),
+    addNote: t('prof_mcr_add_note'),
+    annotatePlaceholder: t('prof_mcr_annotate_placeholder'),
+    current: t('prof_mcr_current'),
+    none: t('prof_mcr_none'),
+    noChangeCurrent: t('prof_mcr_no_change_current'),
+  });
   // Plan 359 — Customer package history view: every package this
   // customer has been on, with the dates and the price at the time,
   // composed from the package changes already recorded on the
@@ -5185,7 +5207,7 @@ function renderCustomerProfileView(customer) {
     message: t('prof_quick_action_message'),
     balance: t('prof_quick_action_balance'),
   });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
@@ -6117,6 +6139,49 @@ function renderCustomerProfileView(customer) {
         saveNumberChangeLog(next);
         renderDetail();
         toast('Note added to the number change.');
+      });
+    });
+  }
+  // Plan 374 — Mohalla change record: the old-mohalla field starts
+  // from the mohalla the record says is current (else the mohalla on
+  // the profile), so the operator types only the new mohalla. A
+  // change entry is never edited, only annotated.
+  const mohallaChangeRecordSectionEl = $('#customerProfileView').querySelector('.profile-mohalla-change-record');
+  if (mohallaChangeRecordSectionEl) {
+    const mohallaChangeRecordDate = mohallaChangeRecordSectionEl.querySelector('#mcrDate');
+    if (mohallaChangeRecordDate && !mohallaChangeRecordDate.value) mohallaChangeRecordDate.value = localDate();
+    const mohallaChangeRecordOld = mohallaChangeRecordSectionEl.querySelector('#mcrOldMohalla');
+    if (mohallaChangeRecordOld && !mohallaChangeRecordOld.value) mohallaChangeRecordOld.value = currentMohallaForCustomer(loadMohallaChangeRecord(), customer.id) || customer.mohalla || '';
+    mohallaChangeRecordSectionEl.querySelector('#mcrForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const before = loadMohallaChangeRecord();
+      const next = recordMohallaChangeEntry(before, {
+        id: `MCR-${Date.now()}`,
+        customerId: customer.id,
+        oldMohalla: mohallaChangeRecordOld?.value ?? '',
+        newMohalla: mohallaChangeRecordSectionEl.querySelector('#mcrNewMohalla')?.value ?? '',
+        changeDate: mohallaChangeRecordDate?.value ?? '',
+        recordedBy: mohallaChangeRecordSectionEl.querySelector('#mcrRecordedBy')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Mohalla change not recorded: give the old mohalla, the new mohalla, and a real change date.'); return; }
+      saveMohallaChangeRecord(next);
+      renderDetail();
+      toast('Mohalla change recorded.');
+    });
+    mohallaChangeRecordSectionEl.querySelectorAll('.mcr-annotate').forEach(form => {
+      const annotateDate = form.querySelector('.mcr-annotate-date');
+      if (annotateDate && !annotateDate.value) annotateDate.value = localDate();
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const before = loadMohallaChangeRecord();
+        const next = annotateMohallaChangeEntry(before,
+          form.getAttribute('data-mohalla-change-annotate') ?? '',
+          form.querySelector('input[type="text"]')?.value ?? '',
+          annotateDate?.value ?? '');
+        if (next === before) { toast('Note not added: write the note and pick a real date.'); return; }
+        saveMohallaChangeRecord(next);
+        renderDetail();
+        toast('Note added to the mohalla change.');
       });
     });
   }
@@ -34658,6 +34723,15 @@ function loadNumberChangeLog() {
 }
 function saveNumberChangeLog(list) {
   try { localStorage.setItem(NUMBER_CHANGE_STORE_KEY, JSON.stringify(normalizeNumberChangeList(list))); } catch { /* Number change log only: a failed save leaves the previous list in place */ }
+}
+
+// Mohalla change record (Plan 374): one entry per mohalla move.
+// Recording a change never changes any bill, payment, or dues.
+function loadMohallaChangeRecord() {
+  try { return normalizeMohallaChangeList(JSON.parse(localStorage.getItem(MOHALLA_CHANGE_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveMohallaChangeRecord(list) {
+  try { localStorage.setItem(MOHALLA_CHANGE_STORE_KEY, JSON.stringify(normalizeMohallaChangeList(list))); } catch { /* Mohalla change record only: a failed save leaves the previous list in place */ }
 }
 
 // Per-field change history (Plan 364): one entry per field change on a

@@ -650,6 +650,7 @@ export function executeQuickCollection(state, {
   collectionPlace,
   collectionMohalla,
   urduNote,
+  crossPayment,
   overpaymentChoice,
   overpaymentDuesCents,
   transactionId,
@@ -814,6 +815,12 @@ export function executeQuickCollection(state, {
     // Core's validatePayment sanitizes it (one line, capped at 200),
     // so a collection without a note stores nothing extra.
     urduNote: urduNote ? String(urduNote).trim() : undefined,
+    // Plan 393: the cross-payment note rides the payment — who paid
+    // for this customer's account, and their relationship in plain
+    // words. Core's validatePayment sanitizes it (payer name and
+    // relationship capped, payer link kept only as an id), so a
+    // normal payment stores nothing extra.
+    crossPayment: crossPayment ?? undefined,
     // Plan 386: the overpayment choice rides the payment — the
     // operator's explicit advance-or-credit choice for the extra
     // over the dues, recorded with the transaction. Core's
@@ -1710,6 +1717,12 @@ export function setupQuickCollectModal({
   // predates it) — one optional note on the transaction, written in
   // Urdu script and shown exactly as written.
   const urduNoteInput = document.getElementById('quickCollectUrduNoteInput');
+  // Plan 393: the cross-payment note fields (null when the host page
+  // predates them) — who paid for another customer's account, and
+  // their relationship in plain words.
+  const crossPayerSelect = document.getElementById('quickCollectCrossPayerSelect');
+  const crossPayerNameInput = document.getElementById('quickCollectCrossPayerNameInput');
+  const crossRelationshipInput = document.getElementById('quickCollectCrossRelationshipInput');
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2910,6 +2923,19 @@ export function setupQuickCollectModal({
         }
       }
 
+      // Plan 393: the cross-payment payer picker lists the other
+      // customers (the account holder is never their own cross-payer).
+      // The blank option means the account holder paid; a picked payer
+      // plus the name and relationship fields record the note. The name
+      // and relationship start empty on every open, like the payer field.
+      if (crossPayerSelect) {
+        const others = (state.customers || []).filter((entry) => entry && entry.id && entry.id !== customerId);
+        crossPayerSelect.innerHTML = `<option value="">Account holder paid</option>` + others.map((entry) => `<option value="${escapeHtml(entry.id)}">#${escapeHtml(entry.customerNumber ?? '?')} ${escapeHtml(entry.name || entry.customerName || '')}</option>`).join('');
+        crossPayerSelect.value = '';
+      }
+      if (crossPayerNameInput) crossPayerNameInput.value = '';
+      if (crossRelationshipInput) crossRelationshipInput.value = '';
+
       // Populate billing month select
       if (monthSelect) {
         const historyMonths = monthsForHistory();
@@ -3530,6 +3556,17 @@ export function setupQuickCollectModal({
       // Plan 389: the Urdu-script note value, read beside the payer
       // name — empty reads as no note, exactly like the payer field.
       const urduNoteVal = urduNoteInput?.value || '';
+      // Plan 393: the cross-payment note values, read beside the payer
+      // name — a picked payer customer, a typed payer name, and the
+      // relationship in plain words. The typed name wins; else the
+      // picked payer customer's name is used. A note with no payer
+      // name is no note at all, even when a relationship was typed.
+      const crossPayerIdVal = crossPayerSelect?.value || '';
+      const crossPayerNameVal = crossPayerNameInput?.value || '';
+      const crossRelationshipVal = crossRelationshipInput?.value || '';
+      const crossPayerCustomer = crossPayerIdVal ? (state.customers || []).find((entry) => entry && entry.id === crossPayerIdVal) : null;
+      const crossPayerName = (crossPayerNameVal || '').trim() || (crossPayerCustomer ? (crossPayerCustomer.name || crossPayerCustomer.customerName || '') : '');
+      const crossPaymentVal = crossPayerName ? { payerName: crossPayerName, payerCustomerId: crossPayerIdVal || undefined, relationship: (crossRelationshipVal || '').trim() || undefined } : undefined;
 
       const isDig = isDigitalPaymentMethod(methodVal);
       const txnIdVal = (transactionIdInput?.value || '').trim();
@@ -3821,6 +3858,7 @@ export function setupQuickCollectModal({
         collectionPlace: collectionPlaceVal || undefined,
         collectionMohalla: collectionMohallaVal || undefined,
         urduNote: urduNoteVal || undefined,
+        crossPayment: crossPaymentVal || undefined,
         overpaymentChoice: selectedOverpaymentChoice || undefined,
         overpaymentDuesCents: selectedOverpaymentChoice ? overpaymentDuesCents : undefined,
         paidByContributorId: contributorSelect && contributorField && !contributorField.hidden ? (contributorSelect.value || undefined) : undefined,

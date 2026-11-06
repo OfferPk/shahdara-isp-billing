@@ -66,6 +66,7 @@ import { normalizeSameDayCorrectionNote, sameDayCorrectionNoteOf } from './same-
 import { normalizeReversalLink, reversalLinkOf } from './reversal-link.js';
 import { normalizeOverpaymentChoice, overpaymentChoiceOf } from './overpayment-choice.js';
 import { normalizeUrduNote, urduNoteOf } from './urdu-note.js';
+import { normalizeCrossPaymentNote, crossPaymentNoteOf } from './cross-payment-note.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
@@ -1973,7 +1974,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, urduNote, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -2089,6 +2090,13 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   // and capped at 200, the same cap as the generic payment note;
   // a payment without one stores nothing extra.
   const cleanUrduNote = normalizeUrduNote(urduNote);
+  // Plan 393: the cross-payment note rides the payment — who paid
+  // for this customer's account, and their relationship in plain
+  // words. A note with no usable payer name reads as no note, so a
+  // normal payment stores nothing extra; the note moves no dues
+  // between customers and never changes any bill, payment total,
+  // credit transfer, or customer record by itself.
+  const cleanCrossPayment = normalizeCrossPaymentNote(crossPayment);
   // SISP-63: sender proof metadata — WHO sent a digital payment (the
   // sender's wallet/account title) and the last 4 digits of the account
   // or mobile it came from, recorded ALONGSIDE the TID (SISP-21) so a
@@ -2151,6 +2159,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(lateFeeWaiverTerms ?? {}),
     ...(cleanNote ? { note: cleanNote } : {}),
     ...(cleanUrduNote ? { urduNote: cleanUrduNote } : {}),
+    ...(cleanCrossPayment ? { crossPayment: cleanCrossPayment } : {}),
     ...(ticketChargeLines.length > 0 ? { ticketCharges: ticketChargeLines } : {}),
     ...(addonChargeLines.length > 0 ? { addonCharges: addonChargeLines } : {}),
     ...(manualBaqayaLines.length > 0 ? { manualBaqayaSettlements: manualBaqayaLines } : {}),
@@ -2477,6 +2486,12 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // so a correction can never silently strip the note the operator
     // wrote in Urdu script at entry time.
     urduNote: fields.urduNote !== undefined ? fields.urduNote : existingPayment.urduNote,
+    // Plan 393: the cross-payment note rides the correction the same
+    // way the Urdu-script note does — an explicit new note replaces
+    // it, an emptied note (null) clears it, and saying nothing about
+    // it keeps the note the payment already carries, so a correction
+    // can never silently strip who paid for whose account.
+    crossPayment: fields.crossPayment !== undefined ? fields.crossPayment : existingPayment.crossPayment,
     walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified,
     // Payment proof screenshot: the correction form carries no proof
     // picker either, so a correction must never silently drop an
@@ -3403,6 +3418,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     // beside the entry — sanitized by the same reader the display
     // uses, so a damaged record reads as no note.
     urduNote: urduNoteOf(payment),
+    // Plan 393: the cross-payment note rides the transaction row so
+    // the Transactions list and the payer's own profile can show who
+    // paid for whose account — sanitized by the same reader the
+    // display uses, so a damaged record reads as no note.
+    crossPayment: crossPaymentNoteOf(payment),
     allocation:allocations.byPaymentId.get(payment.id)
   })))).filter(row => transactionMatchesQuery(row, query) && (!date || row.date === date) && (windowDays === null || (row.date >= fromDate && row.date <= throughDate)))
     .sort((a, b) => b.date.localeCompare(a.date) || a.customerName.localeCompare(b.customerName) || b.month.localeCompare(a.month) || a.paymentId.localeCompare(b.paymentId));

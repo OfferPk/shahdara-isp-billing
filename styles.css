@@ -7791,6 +7791,14 @@ html, body {
   font-style: italic;
 }
 
+/* Plan 381 — next-receipt-number preview line under the amount field:
+   the number this payment will receive, shown before saving. No
+   colour of its own, so no new hex colour is introduced. */
+.nrn-preview-line {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
 .qc-quick-amount-chips {
   display: flex;
   flex-wrap: wrap;

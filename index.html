@@ -26666,6 +26666,18 @@
                 <input id="quickCollectCrossRelationshipInput" type="text" maxlength="60" placeholder="e.g. son, father, neighbour" class="qc-input">
               </div>
             </div>
+            <!-- Plan 395: the excess cash note — when the customer hands over more cash than the dues, what the extra is for in plain words: advance, credit, or change to return. Optional; a payment that does not exceed the dues records no note, and the note applies nothing by itself. -->
+            <div class="qc-form-row" style="margin-top:8px;">
+              <div class="qc-field-group">
+                <label for="quickCollectExcessCashPurposeSelect" class="qc-label">Extra cash is for (optional)</label>
+                <select id="quickCollectExcessCashPurposeSelect" class="qc-input">
+                  <option value="">—</option>
+                  <option value="advance">Advance — toward future bills</option>
+                  <option value="credit">Credit — hold as credit balance</option>
+                  <option value="change">Change to return</option>
+                </select>
+              </div>
+            </div>
             <div class="qc-field-group" id="quickCollectContributorField" style="margin-top:8px;" hidden>
               <label for="quickCollectContributorSelect" class="qc-label" data-i18n="contrib_qc_label">Paid by / kis ne diya</label>
               <select id="quickCollectContributorSelect" class="qc-input"></select>

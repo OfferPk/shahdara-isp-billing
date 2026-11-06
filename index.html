@@ -11717,6 +11717,34 @@
 <div id="iraBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="sclHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="sclHeading">Scale readiness checklist (100 to 250 customers)</h3>
+<p class="chart-caption">One readiness checklist per review: ports free, stock levels, collector capacity, route coverage, and backup health, each marked ready or as a named gap with a note. A checklist with any gap is marked not ready overall. The checklist only records readiness for the second OLT decision — it never installs equipment, hires anyone, or changes any port, stock, staff, bill, or payment record.</p>
+<p id="sclSummary"></p>
+</div>
+<div>
+<button id="sclExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export readiness checklists CSV</button>
+</div>
+</div>
+<h4>Record a readiness checklist</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Review date <input id="sclReviewDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Reviewer <input id="sclReviewer" type="text" style="width: 120px;" placeholder="e.g. Owner"></label>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; margin: 8px 0;">
+<label style="font-size: 12px;">Ports free <select id="sclPortsFreeStatus" style="width: 110px;"><option value="ready">Ready</option><option value="gap">Gap</option></select> <input id="sclPortsFreeNote" type="text" style="width: 240px;" placeholder="Gap note, e.g. Only 3 ports free"></label>
+<label style="font-size: 12px;">Stock levels <select id="sclStockLevelsStatus" style="width: 110px;"><option value="ready">Ready</option><option value="gap">Gap</option></select> <input id="sclStockLevelsNote" type="text" style="width: 240px;" placeholder="Gap note, e.g. ONU stock low"></label>
+<label style="font-size: 12px;">Collector capacity <select id="sclCollectorCapacityStatus" style="width: 110px;"><option value="ready">Ready</option><option value="gap">Gap</option></select> <input id="sclCollectorCapacityNote" type="text" style="width: 240px;" placeholder="Gap note, e.g. One collector short"></label>
+<label style="font-size: 12px;">Route coverage <select id="sclRouteCoverageStatus" style="width: 110px;"><option value="ready">Ready</option><option value="gap">Gap</option></select> <input id="sclRouteCoverageNote" type="text" style="width: 240px;" placeholder="Gap note, e.g. Two streets uncovered"></label>
+<label style="font-size: 12px;">Backup health <select id="sclBackupHealthStatus" style="width: 110px;"><option value="ready">Ready</option><option value="gap">Gap</option></select> <input id="sclBackupHealthNote" type="text" style="width: 240px;" placeholder="Gap note, e.g. Battery weak"></label>
+</div>
+<button id="sclSaveBtn" class="secondary-button btn-sm" type="button">Record readiness checklist</button>
+<h4>Named gaps</h4>
+<div id="sclGapsBody"></div>
+<h4>All readiness checklists</h4>
+<div id="sclBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

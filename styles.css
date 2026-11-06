@@ -13688,3 +13688,8 @@ dialog::backdrop {
 .mfc-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .mfc-jump{display:block;width:100%;text-align:left;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:7px;padding:7px 10px;font:600 11px 'DM Sans',sans-serif;cursor:pointer}
 .mfc-all-filled{font-size:11px;color:#5c6e66;margin:0}
+.fch-history{margin:0 0 10px}
+.fch-summary{font-size:11px;color:#5c6e66;margin:0 0 6px}
+.fch-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.fch-list li{font-size:12px;color:var(--ink)}
+.fch-none{font-size:11px;color:#5c6e66;margin:0}

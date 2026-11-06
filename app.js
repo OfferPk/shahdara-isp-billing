@@ -573,6 +573,7 @@ import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarra
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions, promisePaymentLinkMarkup, promiseFulfilmentLineHtml } from './promise-payment-link.js';
 import { FULL_HISTORY_EMPTY_TEXT, fullHistoryEntries, fullHistoryListHtml, fullHistorySummaryText } from './full-history-list.js';
+import { normalizeHistoryTypeFilter, filterHistoryEntriesByType, historyTypeFilterSelectMarkup, historyTypeFilterEmptyText, historyTypeFilterSummaryText } from './history-type-filter.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4171,6 +4172,11 @@ function billPackageSelectorMarkup(bill, month) {
 // order, composed from the bills already on the customer record plus
 // the credit entries and refund records already stored on this
 // device. It lists only and changes nothing.
+// Plan 402 — History filter by transaction type. One type filter on
+// the customer history; it filters only and changes nothing. The
+// chosen type lives only while the profile is open, and re-rendering
+// the profile keeps the choice.
+let fullHistoryTypeFilter = 'all';
 function renderFullHistory(customer) {
   const host = $('#fhlFullHistoryList');
   if (!host) return;
@@ -4180,11 +4186,28 @@ function renderFullHistory(customer) {
     creditEntries: loadCreditEntries(),
     refundRecords: loadRefunds(),
   });
-  host.innerHTML = entries.length === 0
-    ? `<p class="notice">${escapeHtml(FULL_HISTORY_EMPTY_TEXT)}</p>`
-    : fullHistoryListHtml(entries);
+  const filterHost = $('#htfHistoryTypeFilterHost');
+  if (filterHost) {
+    const current = $('#htfHistoryTypeFilter');
+    if (current) fullHistoryTypeFilter = normalizeHistoryTypeFilter(current.value);
+    filterHost.innerHTML = historyTypeFilterSelectMarkup(entries, fullHistoryTypeFilter);
+    const select = $('#htfHistoryTypeFilter');
+    if (select) select.addEventListener('change', () => {
+      fullHistoryTypeFilter = normalizeHistoryTypeFilter(select.value);
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+  }
+  const shown = filterHistoryEntriesByType(entries, fullHistoryTypeFilter);
+  host.innerHTML = shown.length === 0
+    ? `<p class="notice">${escapeHtml(historyTypeFilterEmptyText(fullHistoryTypeFilter))}</p>`
+    : fullHistoryListHtml(shown);
   const summary = $('#fhlFullHistorySummary');
-  if (summary) summary.textContent = fullHistorySummaryText(entries);
+  if (summary) {
+    summary.textContent = fullHistoryTypeFilter === 'all'
+      ? fullHistorySummaryText(entries)
+      : historyTypeFilterSummaryText(shown, entries, fullHistoryTypeFilter);
+  }
 }
 function renderHistory(customer) {
   const monthList = monthsForHistory();

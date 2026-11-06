@@ -673,6 +673,7 @@ import { serviceTenureSectionHtml } from './service-tenure.js';
 import { buildProfilePrintCardHtml } from './profile-print-card.js';
 import { missingProfileFields, missingFieldsChecklistHtml } from './missing-fields-checklist.js';
 import { FIELD_CHANGE_STORE_KEY, normalizeFieldChangeList, recordFieldChanges, fieldChangesForSave, fieldChangesForCustomer, fieldChangeHistorySectionHtml } from './field-change-history.js';
+import { PREFERRED_COLLECTION_DAY_STORE_KEY, normalizePreferredCollectionDayList, normalizePreferredCollectionDay, recordPreferredCollectionDay, removePreferredCollectionDay, preferredCollectionDayForCustomer, preferredCollectionDaySectionHtml } from './preferred-collection-day.js';
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
 // recovered, the device comes BACK into stock. This runs AFTER the
@@ -5090,6 +5091,27 @@ function renderCustomerProfileView(customer) {
     none: t('prof_fch_none'),
     notSet: t('prof_fch_not_set'),
   }));
+  // Plan 365 — Preferred collection day note: the weekday or date of
+  // the month the customer prefers Saad to call, plus a short reason.
+  // Shown here and beside the customer on the collection round list.
+  // It sets no due date and no visit time window.
+  const pcdAnchor = $('#customerProfileView').querySelector('.profile-field-change-history') || $('#customerProfileView').querySelector('.stv-section');
+  pcdAnchor?.insertAdjacentHTML('afterend', preferredCollectionDaySectionHtml(customer, loadPreferredCollectionDayNotes(), {
+    heading: t('prof_pcd_heading'),
+    intro: t('prof_pcd_intro'),
+    none: t('prof_pcd_none'),
+    kind: t('prof_pcd_kind'),
+    kindWeekday: t('prof_pcd_kind_weekday'),
+    kindDayOfMonth: t('prof_pcd_kind_day_of_month'),
+    weekday: t('prof_pcd_weekday'),
+    dayOfMonth: t('prof_pcd_day_of_month'),
+    reason: t('prof_pcd_reason'),
+    reasonPlaceholder: t('prof_pcd_reason_placeholder'),
+    notedBy: t('prof_pcd_noted_by'),
+    date: t('prof_pcd_date'),
+    save: t('save'),
+    remove: t('prof_pcd_remove'),
+  }));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
@@ -5683,6 +5705,50 @@ function renderCustomerProfileView(customer) {
       saveHandlingNotes(removeHandlingNote(loadHandlingNotes(), customer.id));
       renderDetail();
       toast('Handling note removed.');
+    });
+  }
+  // Plan 365: wire the preferred collection day note on the profile —
+  // one edit form. Editing or removing the note changes only that
+  // note; it never changes any bill, payment, due date, or visit
+  // record.
+  const pcdSectionEl = $('#customerProfileView').querySelector('.profile-preferred-collection-day');
+  if (pcdSectionEl) {
+    const pcdDate = pcdSectionEl.querySelector('#pcdDate');
+    if (pcdDate && !pcdDate.value) pcdDate.value = localDate();
+    const pcdKind = pcdSectionEl.querySelector('#pcdKind');
+    const pcdWeekdayField = pcdSectionEl.querySelector('.pcd-weekday-field');
+    const pcdDayField = pcdSectionEl.querySelector('.pcd-dayofmonth-field');
+    const syncPcdKind = () => {
+      const isWeekday = pcdKind?.value !== 'dayOfMonth';
+      if (pcdWeekdayField) pcdWeekdayField.hidden = !isWeekday;
+      if (pcdDayField) pcdDayField.hidden = isWeekday;
+    };
+    syncPcdKind();
+    pcdKind?.addEventListener('change', syncPcdKind);
+    pcdSectionEl.querySelector('#pcdForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const reason = pcdSectionEl.querySelector('#pcdReason')?.value ?? '';
+      if (!reason.trim()) { toast('Preferred collection day not saved: write the reason first.'); return; }
+      const kind = pcdKind?.value === 'dayOfMonth' ? 'dayOfMonth' : 'weekday';
+      const fresh = normalizePreferredCollectionDay({
+        id: preferredCollectionDayForCustomer(loadPreferredCollectionDayNotes(), customer.id)?.id ?? `PCD-${Date.now()}`,
+        customerId: customer.id,
+        kind,
+        weekday: kind === 'weekday' ? Number(pcdSectionEl.querySelector('#pcdWeekday')?.value) : null,
+        dayOfMonth: kind === 'dayOfMonth' ? Number(pcdSectionEl.querySelector('#pcdDayOfMonth')?.value) : null,
+        reason,
+        notedBy: pcdSectionEl.querySelector('#pcdBy')?.value ?? '',
+        notedDate: pcdDate?.value ?? '',
+      });
+      if (!fresh) { toast('Preferred collection day not saved: pick a real weekday or a date from 1 to 31.'); return; }
+      savePreferredCollectionDayNotes(recordPreferredCollectionDay(loadPreferredCollectionDayNotes(), fresh));
+      renderDetail();
+      toast('Preferred collection day saved.');
+    });
+    pcdSectionEl.querySelector('#pcdRemoveBtn')?.addEventListener('click', () => {
+      savePreferredCollectionDayNotes(removePreferredCollectionDay(loadPreferredCollectionDayNotes(), customer.id));
+      renderDetail();
+      toast('Preferred collection day removed.');
     });
   }
   // Plan 358: wire the contact number change log on the profile — add
@@ -34278,6 +34344,19 @@ function loadFieldChanges() {
 }
 function saveFieldChanges(list) {
   try { localStorage.setItem(FIELD_CHANGE_STORE_KEY, JSON.stringify(normalizeFieldChangeList(list))); } catch { /* Field change history only: a failed save leaves the previous list in place */ }
+}
+
+// Customer preferred collection day note (Plan 365): one note per
+// customer — the weekday or date of the month the customer prefers
+// Saad to call, plus a short reason. Shown on the profile and on
+// the collection round list. It sets no due date and no visit time
+// window, and never changes any bill, payment, due date, or visit
+// record.
+function loadPreferredCollectionDayNotes() {
+  try { return normalizePreferredCollectionDayList(JSON.parse(localStorage.getItem(PREFERRED_COLLECTION_DAY_STORE_KEY) || '[]')); } catch { return []; }
+}
+function savePreferredCollectionDayNotes(list) {
+  try { localStorage.setItem(PREFERRED_COLLECTION_DAY_STORE_KEY, JSON.stringify(normalizePreferredCollectionDayList(list))); } catch { /* Preferred collection day only: a failed save leaves the previous list in place */ }
 }
 
 // Customer handling note (Plan 361): one display note per customer,

@@ -533,6 +533,7 @@ import { validExportFormatVersionDay, normalizeExportFormatVersionList, recordEx
 import { validDataConflictDay, foldDataConflictResolution, normalizeDataConflictList, recordDataConflict, resolveDataConflict, openDataConflicts, dataConflictSummaryText, dataConflictsHtml, openDataConflictsHtml, dataConflictCsv, dataConflictFilename } from './offline-data-conflict.js';
 import { validScreenHelpNoteDay, foldScreenHelpNoteStatus, normalizeScreenHelpNoteList, findScreenHelpNote, recordScreenHelpNote, updateScreenHelpNoteCheck, screenHelpNoteScreens, screenHelpNoteGaps, screenHelpNoteCoverage, screenHelpNoteSummaryText, screenHelpNoteText, screenHelpNoteHtml, screenHelpNotesHtml, screenHelpNoteGapsHtml, screenHelpNoteCoverageHtml, screenHelpNoteCsv, screenHelpNoteFilename } from './screen-help-note.js';
 import { validOperatorNotePinDay, normalizeOperatorNotePinList, findOperatorNotePin, recordOperatorNotePin, unpinOperatorNotePin, activeOperatorNotePins, operatorNotePinsInDisplayOrder, operatorNotePinSummaryText, operatorNotePinText, operatorNotePinHtml, operatorNotePinsHtml, activeOperatorNotePinsHtml, operatorNotePinsInDisplayOrderHtml, operatorNotePinCsv, operatorNotePinFilename } from './operator-note-pin.js';
+import { validDashboardWidgetOrderDay, normalizeDashboardWidgetOrderWidgets, normalizeDashboardWidgetOrderPreferenceList, dashboardWidgetOrderForOperator, dashboardWidgetOrderHistoryForOperator, recordDashboardWidgetOrderPreference, resetDashboardWidgetOrder, dashboardWidgetsInPreferredOrder, dashboardWidgetOrderSummaryText, dashboardWidgetOrderText, dashboardWidgetOrderHtml, dashboardWidgetOrdersHtml, dashboardWidgetOrderCurrentHtml, dashboardWidgetsInPreferredOrderHtml, dashboardWidgetOrderCsv, dashboardWidgetOrderFilename } from './dashboard-widget-order.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14422,6 +14423,7 @@ function renderAnalytics() {
   renderAppPerformanceNotes();
   renderScreenHelpNotes();
   renderOperatorNotePins();
+  renderDashboardWidgetOrders();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33305,6 +33307,75 @@ function renderOperatorNotePins() {
       if (JSON.stringify(next) === JSON.stringify(before)) { toast('Note not unpinned: the note must have an active pin, and an unpin date or a reason is needed.'); return; }
       saveOperatorNotePins(next);
       renderOperatorNotePins();
+    });
+  }
+}
+let dashboardWidgetOrderBound = false;
+const DASHBOARD_WIDGET_ORDER_KEY = 'shahdara_dwo_prefs_v1';
+function loadDashboardWidgetOrders() {
+  try { return normalizeDashboardWidgetOrderPreferenceList(JSON.parse(localStorage.getItem(DASHBOARD_WIDGET_ORDER_KEY) || '[]')); } catch { return []; }
+}
+function saveDashboardWidgetOrders(list) {
+  try { localStorage.setItem(DASHBOARD_WIDGET_ORDER_KEY, JSON.stringify(normalizeDashboardWidgetOrderPreferenceList(list))); } catch { /* Dashboard widget order only: a failed save leaves the previous list in place */ }
+}
+
+// Dashboard widget order preference (Plan 338): one order preference per
+// operator — the widget list in preferred order, the operator, and the
+// date set. Recording a new preference supersedes the previous one as the
+// current order, and resetting restores the default order by recording a
+// reset entry, so the history is never deleted. The preference only
+// reorders display and never changes any bill, payment, customer, or
+// widget figure by itself.
+function renderDashboardWidgetOrders() {
+  const listEl = $('#dwoBody');
+  if (!listEl) return;
+  const all = loadDashboardWidgetOrders();
+  listEl.innerHTML = all.length ? dashboardWidgetOrdersHtml(all) : '<p>No widget orders saved.</p>';
+  const summaryEl = $('#dwoSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${dashboardWidgetOrderSummaryText(all)} A preference only reorders display and never changes any bill, payment, customer, or widget figure by itself.`;
+  }
+  const operator = ($('#dwoOperator')?.value ?? '').trim();
+  const currentEl = $('#dwoCurrentBody');
+  if (currentEl) {
+    currentEl.innerHTML = operator ? dashboardWidgetOrderCurrentHtml(all, operator) : '<p>Give the operator to see their current order.</p>';
+  }
+  const widgets = normalizeDashboardWidgetOrderWidgets(($('#dwoWidgets')?.value ?? '').split('\n'));
+  const orderEl = $('#dwoOrderBody');
+  if (orderEl) {
+    const pref = operator ? dashboardWidgetOrderForOperator(all, operator) : null;
+    orderEl.innerHTML = widgets.length ? dashboardWidgetsInPreferredOrderHtml(widgets, pref) : '<p>Give the widgets to order, one per line, to see them in the saved order.</p>';
+  }
+  const historyEl = $('#dwoHistoryBody');
+  if (historyEl) {
+    const history = operator ? dashboardWidgetOrderHistoryForOperator(all, operator) : [];
+    historyEl.innerHTML = history.length ? dashboardWidgetOrdersHtml(history) : '<p>No saved orders for this operator yet.</p>';
+  }
+  if (!dashboardWidgetOrderBound) {
+    dashboardWidgetOrderBound = true;
+    $('#dwoExportBtn')?.addEventListener('click', () => { downloadCsvFile(dashboardWidgetOrderFilename(), dashboardWidgetOrderCsv(loadDashboardWidgetOrders())); });
+    $('#dwoOrderBtn')?.addEventListener('click', () => { renderDashboardWidgetOrders(); });
+    $('#dwoSaveBtn')?.addEventListener('click', () => {
+      const before = loadDashboardWidgetOrders();
+      const next = recordDashboardWidgetOrderPreference(before, {
+        id: `DWO-${Date.now()}`,
+        operator: $('#dwoOperator')?.value ?? '',
+        widgets: $('#dwoWidgetList')?.value ?? '',
+        dateSet: $('#dwoDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Order not saved: give the operator, at least one widget, and a strict date set.'); return; }
+      saveDashboardWidgetOrders(next);
+      renderDashboardWidgetOrders();
+    });
+    $('#dwoResetBtn')?.addEventListener('click', () => {
+      const before = loadDashboardWidgetOrders();
+      const next = resetDashboardWidgetOrder(before, $('#dwoResetOperator')?.value ?? '', {
+        id: `DWO-${Date.now()}`,
+        resetDate: $('#dwoResetDate')?.value ?? '',
+      });
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Order not reset: the operator must have a saved order, and a strict reset date is needed.'); return; }
+      saveDashboardWidgetOrders(next);
+      renderDashboardWidgetOrders();
     });
   }
 }

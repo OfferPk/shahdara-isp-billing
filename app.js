@@ -574,6 +574,7 @@ import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollecti
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions, promisePaymentLinkMarkup, promiseFulfilmentLineHtml } from './promise-payment-link.js';
 import { FULL_HISTORY_EMPTY_TEXT, fullHistoryEntries, fullHistoryListHtml, fullHistorySummaryText } from './full-history-list.js';
 import { normalizeHistoryTypeFilter, filterHistoryEntriesByType, historyTypeFilterSelectMarkup, historyTypeFilterEmptyText, historyTypeFilterSummaryText } from './history-type-filter.js';
+import { HISTORY_DATE_RANGE_EMPTY_TEXT, normalizeHistoryDateRange, historyDateRangeActive, filterHistoryEntriesByDateRange, historyDateRangeFilterMarkup, historyDateRangeSummaryText } from './history-date-range-filter.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4176,7 +4177,13 @@ function billPackageSelectorMarkup(bill, month) {
 // the customer history; it filters only and changes nothing. The
 // chosen type lives only while the profile is open, and re-rendering
 // the profile keeps the choice.
+// Plan 403 — History filter by date range. One date-range filter on
+// the customer history, alongside the type filter; it filters only
+// and changes nothing. The chosen dates live only while the profile
+// is open, and re-rendering the profile keeps the choice.
 let fullHistoryTypeFilter = 'all';
+let fullHistoryDateFrom = '';
+let fullHistoryDateTo = '';
 function renderFullHistory(customer) {
   const host = $('#fhlFullHistoryList');
   if (!host) return;
@@ -4198,15 +4205,49 @@ function renderFullHistory(customer) {
       if (currentCustomer) renderFullHistory(currentCustomer);
     });
   }
-  const shown = filterHistoryEntriesByType(entries, fullHistoryTypeFilter);
+  const rangeHost = $('#hdrHistoryDateRangeHost');
+  if (rangeHost) {
+    const fromInput = $('#hdrHistoryDateFrom');
+    const toInput = $('#hdrHistoryDateTo');
+    const currentRange = normalizeHistoryDateRange(fromInput ? fromInput.value : '', toInput ? toInput.value : '');
+    fullHistoryDateFrom = currentRange.from;
+    fullHistoryDateTo = currentRange.to;
+    rangeHost.innerHTML = historyDateRangeFilterMarkup(fullHistoryDateFrom, fullHistoryDateTo);
+    const newFrom = $('#hdrHistoryDateFrom');
+    if (newFrom) newFrom.addEventListener('change', () => {
+      fullHistoryDateFrom = normalizeHistoryDateRange(newFrom.value, fullHistoryDateTo).from;
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+    const newTo = $('#hdrHistoryDateTo');
+    if (newTo) newTo.addEventListener('change', () => {
+      fullHistoryDateTo = normalizeHistoryDateRange(fullHistoryDateFrom, newTo.value).to;
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+    const clearButton = $('#hdrHistoryDateRangeClear');
+    if (clearButton) clearButton.addEventListener('click', () => {
+      fullHistoryDateFrom = '';
+      fullHistoryDateTo = '';
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+  }
+  const shown = filterHistoryEntriesByDateRange(
+    filterHistoryEntriesByType(entries, fullHistoryTypeFilter),
+    fullHistoryDateFrom,
+    fullHistoryDateTo,
+  );
   host.innerHTML = shown.length === 0
-    ? `<p class="notice">${escapeHtml(historyTypeFilterEmptyText(fullHistoryTypeFilter))}</p>`
+    ? `<p class="notice">${escapeHtml(historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : historyTypeFilterEmptyText(fullHistoryTypeFilter))}</p>`
     : fullHistoryListHtml(shown);
   const summary = $('#fhlFullHistorySummary');
   if (summary) {
-    summary.textContent = fullHistoryTypeFilter === 'all'
-      ? fullHistorySummaryText(entries)
-      : historyTypeFilterSummaryText(shown, entries, fullHistoryTypeFilter);
+    summary.textContent = historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo)
+      ? historyDateRangeSummaryText(shown, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)
+      : fullHistoryTypeFilter === 'all'
+        ? fullHistorySummaryText(entries)
+        : historyTypeFilterSummaryText(shown, entries, fullHistoryTypeFilter);
   }
 }
 function renderHistory(customer) {

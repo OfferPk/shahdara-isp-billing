@@ -665,6 +665,7 @@ import {
 import { fixCollectInfo, runResolveAndCollect } from './fix-and-collect-bridge.js';
 import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor, renderCustomWaTemplate } from './whatsapp-templates.js?v=1.11.0';
 import { HOUSEHOLD_LINK_STORE_KEY, normalizeHouseholdLinkList, recordHouseholdLink, removeHouseholdLink, householdLinkSectionHtml } from './household-link.js';
+import { MOVE_HISTORY_STORE_KEY, normalizeMoveHistoryList, recordMoveHistoryEntry, annotateMoveHistoryEntry, moveHouseHistorySectionHtml } from './move-house-history.js';
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
 // recovered, the device comes BACK into stock. This runs AFTER the
@@ -4983,7 +4984,8 @@ function renderCustomerProfileView(customer) {
   // remove button per link. A link is a reference only; it merges no
   // records, moves no dues, and changes no bill.
   const householdLinkSectionMarkup = householdLinkSectionHtml(customer, loadHouseholdLinks(), state.customers ?? []);
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  const moveHouseHistorySectionMarkup = moveHouseHistorySectionHtml(customer, loadMoveHistory());
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
@@ -5475,6 +5477,48 @@ function renderCustomerProfileView(customer) {
       renderDetail();
       toast('Household link removed.');
     }));
+  }
+  // Plan 357: wire the move-house history note on the profile — add
+  // form and per-entry annotate forms. A move is history only: adding
+  // a move or a note never changes any bill, payment, or dues, and a
+  // move entry is never edited, only annotated.
+  const moveHouseHistorySectionEl = $('#customerProfileView').querySelector('.profile-move-house-history');
+  if (moveHouseHistorySectionEl) {
+    const moveHouseHistoryDate = moveHouseHistorySectionEl.querySelector('#mvhDate');
+    if (moveHouseHistoryDate && !moveHouseHistoryDate.value) moveHouseHistoryDate.value = localDate();
+    moveHouseHistorySectionEl.querySelector('#mvhForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const before = loadMoveHistory();
+      const next = recordMoveHistoryEntry(before, {
+        id: `MVH-${Date.now()}`,
+        customerId: customer.id,
+        oldMohalla: moveHouseHistorySectionEl.querySelector('#mvhOldMohalla')?.value ?? '',
+        oldAddress: moveHouseHistorySectionEl.querySelector('#mvhOldAddress')?.value ?? '',
+        newMohalla: moveHouseHistorySectionEl.querySelector('#mvhNewMohalla')?.value ?? '',
+        newAddress: moveHouseHistorySectionEl.querySelector('#mvhNewAddress')?.value ?? '',
+        moveDate: moveHouseHistoryDate?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Move not recorded: give at least one old or new mohalla or address, and a real move date.'); return; }
+      saveMoveHistory(next);
+      renderDetail();
+      toast('Move recorded.');
+    });
+    moveHouseHistorySectionEl.querySelectorAll('.mvh-annotate').forEach(form => {
+      const annotateDate = form.querySelector('.mvh-annotate-date');
+      if (annotateDate && !annotateDate.value) annotateDate.value = localDate();
+      form.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const before = loadMoveHistory();
+        const next = annotateMoveHistoryEntry(before,
+          form.getAttribute('data-move-history-annotate') ?? '',
+          form.querySelector('input[type="text"]')?.value ?? '',
+          annotateDate?.value ?? '');
+        if (next === before) { toast('Note not added: write the note and pick a real date.'); return; }
+        saveMoveHistory(next);
+        renderDetail();
+        toast('Note added to the move.');
+      });
+    });
   }
   // SISP-15: profile button opens the register pre-filtered to this customer.
   const profileComplaintBtn = $('#customerProfileView').querySelector('#profileOpenComplaintRegisterBtn');
@@ -33977,6 +34021,16 @@ function loadHouseholdLinks() {
 }
 function saveHouseholdLinks(list) {
   try { localStorage.setItem(HOUSEHOLD_LINK_STORE_KEY, JSON.stringify(normalizeHouseholdLinkList(list))); } catch { /* Household link only: a failed save leaves the previous list in place */ }
+}
+
+// Move-house history notes (Plan 357): one history entry per move.
+// Recording a move never changes any bill, payment, or dues; a move
+// entry is never edited, only annotated.
+function loadMoveHistory() {
+  try { return normalizeMoveHistoryList(JSON.parse(localStorage.getItem(MOVE_HISTORY_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveMoveHistory(list) {
+  try { localStorage.setItem(MOVE_HISTORY_STORE_KEY, JSON.stringify(normalizeMoveHistoryList(list))); } catch { /* Move history only: a failed save leaves the previous list in place */ }
 }
 
 let monthlyKpiTargetBound = false;

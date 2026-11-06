@@ -653,6 +653,8 @@ export function executeQuickCollection(state, {
   crossPayment,
   overpaymentChoice,
   overpaymentDuesCents,
+  excessCashNote,
+  excessCashDuesCents,
   transactionId,
   senderTitle,
   senderDigits,
@@ -830,6 +832,14 @@ export function executeQuickCollection(state, {
     // nothing; the choice applies nothing automatically.
     overpaymentChoice: overpaymentChoice || undefined,
     overpaymentDuesCents: Number.isFinite(Number(overpaymentDuesCents)) ? Math.round(Number(overpaymentDuesCents)) : undefined,
+    // Plan 395: the excess cash note rides the payment — the extra
+    // over the dues and its stated purpose in plain words. Core's
+    // validatePayment enforces the amount-above-dues rule (the dues
+    // ride along for that check only and are never stored), so a note
+    // on a payment that does not exceed the dues stores nothing; the
+    // note applies nothing automatically.
+    excessCashNote: excessCashNote || undefined,
+    excessCashDuesCents: Number.isFinite(Number(excessCashDuesCents)) ? Math.round(Number(excessCashDuesCents)) : undefined,
     paidByContributor: contributorStamp ?? undefined,
     transactionId: cleanTxnId || undefined,
     // SISP-63: sender proof metadata rides alongside the TID; core's
@@ -1723,6 +1733,10 @@ export function setupQuickCollectModal({
   const crossPayerSelect = document.getElementById('quickCollectCrossPayerSelect');
   const crossPayerNameInput = document.getElementById('quickCollectCrossPayerNameInput');
   const crossRelationshipInput = document.getElementById('quickCollectCrossRelationshipInput');
+  // Plan 395: the excess cash purpose select (null when the host page
+  // predates it) — what the extra over the dues is for, in plain
+  // words: advance, credit, or change to return.
+  const excessCashPurposeSelect = document.getElementById('quickCollectExcessCashPurposeSelect');
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2935,6 +2949,10 @@ export function setupQuickCollectModal({
       }
       if (crossPayerNameInput) crossPayerNameInput.value = '';
       if (crossRelationshipInput) crossRelationshipInput.value = '';
+      // Plan 395: the excess cash purpose starts blank on every open,
+      // like the payer fields — a purpose picked for one customer
+      // never carries over to the next.
+      if (excessCashPurposeSelect) excessCashPurposeSelect.value = '';
 
       // Populate billing month select
       if (monthSelect) {
@@ -3842,6 +3860,26 @@ export function setupQuickCollectModal({
           }
         }
       }
+      // Plan 395: the excess cash note for this payment — the purpose
+      // picked for the extra over the customer's total dues, read live
+      // at submit from the same allocation state the preview reads,
+      // so a figure typed after the last render still counts. The
+      // validator re-checks it before anything records. Only the
+      // single-payment path carries it; a split payment records two
+      // ordinary legs of its own.
+      let selectedExcessCashPurpose = '';
+      let excessCashDuesCents = 0;
+      {
+        selectedExcessCashPurpose = excessCashPurposeSelect?.value || '';
+        if (selectedExcessCashPurpose) {
+          const submitAllocations = calculatePaymentAllocations(state);
+          const submitCustomer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+          for (const bill of (submitCustomer?.bills ?? [])) {
+            const remaining = submitAllocations.forMonth(activeCustomerId, bill.month)?.balanceDueCents ?? 0;
+            if (remaining > 0) excessCashDuesCents += remaining;
+          }
+        }
+      }
       const { nextState, receipt, nextTickets } = executeQuickCollection(state, {
         customerId: activeCustomerId,
         month: monthVal,
@@ -3861,6 +3899,8 @@ export function setupQuickCollectModal({
         crossPayment: crossPaymentVal || undefined,
         overpaymentChoice: selectedOverpaymentChoice || undefined,
         overpaymentDuesCents: selectedOverpaymentChoice ? overpaymentDuesCents : undefined,
+        excessCashNote: selectedExcessCashPurpose || undefined,
+        excessCashDuesCents: selectedExcessCashPurpose ? excessCashDuesCents : undefined,
         paidByContributorId: contributorSelect && contributorField && !contributorField.hidden ? (contributorSelect.value || undefined) : undefined,
         transactionId: txnIdVal,
         senderTitle: (senderNameInput?.value || '').trim(),

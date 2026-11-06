@@ -13540,6 +13540,19 @@ dialog::backdrop {
 .ncl-current{font-weight:600}
 .ncl-summary{color:#5c6e66;font-size:12px}
 .ncl-none{color:#5c6e66;font-size:12px}
+.mcr-list{list-style:none;margin:8px 0;padding:0;display:grid;gap:8px}
+.mcr-list>li{display:grid;gap:6px}
+.mcr-change{font-weight:600}
+.mcr-annotations{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.mcr-annotations li{color:#5c6e66;font-size:12px}
+.mcr-annotation-date{color:#5c6e66;font-size:12px;margin-left:6px}
+.mcr-form{display:grid;gap:8px;margin-top:10px}
+.mcr-form label{display:grid;gap:4px;font-size:12px;font-weight:600}
+.mcr-annotate{display:grid;gap:6px}
+.mcr-annotate label{display:grid;gap:4px;font-size:12px;font-weight:600}
+.mcr-current{font-weight:600}
+.mcr-summary{color:#5c6e66;font-size:12px}
+.mcr-none{color:#5c6e66;font-size:12px}
 .phv-list{list-style:none;margin:8px 0;padding:0;display:grid;gap:8px}
 .phv-list>li{display:grid;gap:2px}
 .phv-package{font-weight:600}

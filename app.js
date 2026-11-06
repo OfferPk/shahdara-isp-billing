@@ -538,6 +538,7 @@ import { validReportSchedulingNoteDay, foldReportSchedulingNoteCycle, normalizeR
 import { validAnonymisationNoteDay, normalizeAnonymisationNoteFields, normalizeAnonymisationNoteList, recordAnonymisationNote, anonymisationNoteForCopy, anonymisationNotesForHolder, unapprovedAnonymisationCopies, anonymisationNoteSummaryText, anonymisationNotesHtml, anonymisationNoteUnapprovedHtml, anonymisationNoteCsv, anonymisationNoteFilename } from './data-anonymisation-note.js';
 import { validTestDataSeparationDay, normalizeTestDataSeparationRecords, normalizeTestDataSeparationNoteList, recordTestDataSeparationNote, testDataSeparationNoteForSet, openTestDataSeparationNotes, clearTestDataSeparationNote, splitTestDataRecords, testDataSeparationNoteSummaryText, testDataSeparationNotesHtml, testDataSeparationOpenHtml, testDataSeparationNoteCsv, testDataSeparationNoteFilename } from './test-data-separation-note.js';
 import { normalizeVersionUpgradeChecklistList, recordVersionUpgradeChecklist, tickVersionUpgradeChecklistStep, skipVersionUpgradeChecklistStep, versionUpgradeChecklistSummaryText, versionUpgradeChecklistsHtml, versionUpgradeChecklistIncompleteHtml, versionUpgradeChecklistCsv, versionUpgradeChecklistFilename } from './version-upgrade-checklist.js';
+import { normalizeDeviceCompatibilityNoteList, recordDeviceCompatibilityNote, deviceCompatibilityNoteForPair, deviceCompatibilityNotesForDevice, deviceCompatibilityNoteSummaryText, deviceCompatibilityNotesHtml, deviceCompatibilityNotesForDeviceHtml, deviceCompatibilityPairText, deviceCompatibilityNoteCsv, deviceCompatibilityNoteFilename } from './device-compatibility-note.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14432,6 +14433,7 @@ function renderAnalytics() {
   renderDataAnonymisationNotes();
   renderTestDataSeparationNotes();
   renderVersionUpgradeChecklists();
+  renderDeviceCompatibilityNotes();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33609,6 +33611,64 @@ function renderVersionUpgradeChecklists() {
       if (next === before) { toast('Step not skipped: give a saved checklist id and a step number on that checklist.'); return; }
       saveVersionUpgradeChecklists(next);
       renderVersionUpgradeChecklists();
+    });
+  }
+}
+const DEVICE_COMPATIBILITY_NOTE_KEY = 'shahdara_dcn_notes_v1';
+function loadDeviceCompatibilityNotes() {
+  try { return normalizeDeviceCompatibilityNoteList(JSON.parse(localStorage.getItem(DEVICE_COMPATIBILITY_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveDeviceCompatibilityNotes(list) {
+  try { localStorage.setItem(DEVICE_COMPATIBILITY_NOTE_KEY, JSON.stringify(normalizeDeviceCompatibilityNoteList(list))); } catch { /* Compatibility notes only: a failed save leaves the previous list in place */ }
+}
+
+// Device compatibility note (Plan 343): one note per device and app version
+// pair — the device, the app version, whether it works well, works with
+// issues, or does not work, an issue note in plain words, and the date
+// tested. A device lookup shows its tested app versions with results, and
+// an untested pair says so plainly. The note only records test results:
+// it never changes any device, app version, bill, or payment record, and
+// it never changes how the app behaves.
+let deviceCompatibilityNoteBound = false;
+function renderDeviceCompatibilityNotes() {
+  const listEl = $('#dcnBody');
+  if (!listEl) return;
+  const all = loadDeviceCompatibilityNotes();
+  listEl.innerHTML = all.length ? deviceCompatibilityNotesHtml(all) : '<p>No device compatibility notes yet.</p>';
+  const summaryEl = $('#dcnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${deviceCompatibilityNoteSummaryText(all)} A note only records test results and never changes how the app behaves.`;
+  }
+  if (!deviceCompatibilityNoteBound) {
+    deviceCompatibilityNoteBound = true;
+    $('#dcnExportBtn')?.addEventListener('click', () => { downloadCsvFile(deviceCompatibilityNoteFilename(), deviceCompatibilityNoteCsv(loadDeviceCompatibilityNotes())); });
+    $('#dcnSaveBtn')?.addEventListener('click', () => {
+      const before = loadDeviceCompatibilityNotes();
+      const next = recordDeviceCompatibilityNote(before, {
+        id: `DCN-${Date.now()}`,
+        device: $('#dcnDevice')?.value ?? '',
+        appVersion: $('#dcnAppVersion')?.value ?? '',
+        result: $('#dcnResult')?.value ?? '',
+        issueNote: $('#dcnIssueNote')?.value ?? '',
+        dateTested: $('#dcnDateTested')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Note not saved: give the device, the app version, a result, and a strict date tested. A device and version pair can only be noted once.'); return; }
+      saveDeviceCompatibilityNotes(next);
+      renderDeviceCompatibilityNotes();
+    });
+    $('#dcnLookupBtn')?.addEventListener('click', () => {
+      const all = loadDeviceCompatibilityNotes();
+      const device = $('#dcnLookupDevice')?.value ?? '';
+      const version = $('#dcnLookupVersion')?.value ?? '';
+      const lookupEl = $('#dcnLookupBody');
+      if (!lookupEl) return;
+      if (!device.trim() || !version.trim()) { lookupEl.textContent = 'Give a device and an app version to look up.'; return; }
+      const note = deviceCompatibilityNoteForPair(all, device, version);
+      lookupEl.textContent = deviceCompatibilityPairText(all, device, version);
+      const deviceEl = $('#dcnDeviceBody');
+      if (deviceEl) {
+        deviceEl.innerHTML = note ? deviceCompatibilityNotesForDeviceHtml(all, device) : '<p>Not tested: this device has no compatibility notes for that app version.</p>';
+      }
     });
   }
 }

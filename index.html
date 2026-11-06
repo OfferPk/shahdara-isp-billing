@@ -11663,6 +11663,32 @@
 <div id="dqrBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="crmHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="crmHeading">Customer record merge note</h3>
+<p class="chart-caption">One audit-trailed merge note per merge of two records for the same customer: the surviving record, the record merged away, the fields carried over, the operator, the approver, and the date. A merge without an approver is refused. The merged-away record stays visible as merged, never deleted, and merged dues reconcile to the sum of both records. A merge note never deletes a record and never silently changes any bill or payment total.</p>
+<p id="crmSummary"></p>
+</div>
+<div>
+<button id="crmExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export merge notes CSV</button>
+</div>
+</div>
+<h4>Record a merge</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Merge date <input id="crmMergeDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Surviving record <input id="crmSurviving" type="text" style="width: 140px;" placeholder="e.g. CUST-1"></label>
+<label style="font-size: 12px;">Merged-away record <input id="crmMergedAway" type="text" style="width: 140px;" placeholder="e.g. CUST-2"></label>
+<label style="font-size: 12px;">Fields carried over, comma-separated <input id="crmFields" type="text" style="width: 200px;" placeholder="e.g. Phone, Mohalla"></label>
+<label style="font-size: 12px;">Operator <input id="crmOperator" type="text" style="width: 120px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Approver <input id="crmApprover" type="text" style="width: 120px;" placeholder="e.g. Owner"></label>
+<label style="font-size: 12px;">Merged dues (Rs) <input id="crmMergedDues" type="text" inputmode="numeric" style="width: 110px;" placeholder="e.g. 3000"></label>
+<button id="crmSaveBtn" class="secondary-button btn-sm" type="button">Record merge note</button>
+</div>
+<h4>Merged away — kept as merged, never deleted</h4>
+<div id="crmMergedAwayBody"></div>
+<h4>All merge notes</h4>
+<div id="crmBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

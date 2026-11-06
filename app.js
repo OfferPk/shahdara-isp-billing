@@ -543,6 +543,7 @@ import { normalizePrintQueueJobList, recordPrintQueueJob, markPrintQueueJobPrint
 import { normalizeReportRecipientListList, recordReportRecipientList, setReportRecipients, reportRecipientListsWithoutRecipients, reportRecipientListSummaryText, reportRecipientListsHtml, reportRecipientListCsv, reportRecipientListFilename } from './report-recipient-list.js';
 import { normalizeMonthlyKpiTargetFigure, normalizeMonthlyKpiTargetList, recordMonthlyKpiTarget, monthlyKpiTargetLate, monthlyKpiTargetComparison, monthlyKpiTargetSummaryText, monthlyKpiTargetsHtml, monthlyKpiTargetLateHtml, monthlyKpiTargetComparisonHtml, monthlyKpiTargetCsv, monthlyKpiTargetFilename } from './monthly-kpi-target.js';
 import { normalizeDataQualityReviewList, recordDataQualityReview, dataQualityReviewCarriedForward, dataQualityReviewSummaryText, dataQualityReviewRoundsHtml, dataQualityReviewCarriedForwardHtml, dataQualityReviewCsv, dataQualityReviewFilename } from './data-quality-review.js';
+import { normalizeCustomerRecordMergeList, recordCustomerRecordMerge, customerRecordMergedAway, customerRecordMergeSummaryText, customerRecordMergesHtml, customerRecordMergedAwayHtml, customerRecordMergeCsv, customerRecordMergeFilename } from './customer-record-merge-note.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14442,6 +14443,7 @@ function renderAnalytics() {
   renderReportRecipientLists();
   renderMonthlyKpiTargets();
   renderDataQualityReviews();
+  renderCustomerRecordMerges();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33817,6 +33819,15 @@ function loadDataQualityReviews() {
 function saveDataQualityReviews(list) {
   try { localStorage.setItem(DATA_QUALITY_REVIEW_KEY, JSON.stringify(normalizeDataQualityReviewList(list))); } catch { /* Data quality review only: a failed save leaves the previous list in place */ }
 }
+// Customer record merge notes: a note only records the merge; merges never
+// delete a record and never silently change any bill or payment total.
+const CUSTOMER_RECORD_MERGE_KEY = 'shahdara_crm_merges_v1';
+function loadCustomerRecordMerges() {
+  try { return normalizeCustomerRecordMergeList(JSON.parse(localStorage.getItem(CUSTOMER_RECORD_MERGE_KEY) || '[]')); } catch { return []; }
+}
+function saveCustomerRecordMerges(list) {
+  try { localStorage.setItem(CUSTOMER_RECORD_MERGE_KEY, JSON.stringify(normalizeCustomerRecordMergeList(list))); } catch { /* Customer record merge only: a failed save leaves the previous list in place */ }
+}
 
 let monthlyKpiTargetBound = false;
 let monthlyKpiTargetComparisonView = '';
@@ -33902,6 +33913,42 @@ function renderDataQualityReviews() {
       if (next.length === before.length) { toast('Round not recorded: give a strict round date, a reviewer, and at least one area checked.'); return; }
       saveDataQualityReviews(next);
       renderDataQualityReviews();
+    });
+  }
+}
+let customerRecordMergeBound = false;
+function renderCustomerRecordMerges() {
+  const listEl = $('#crmBody');
+  if (!listEl) return;
+  const all = loadCustomerRecordMerges();
+  listEl.innerHTML = all.length ? customerRecordMergesHtml(all) : '<p>No customer record merges recorded yet.</p>';
+  const summaryEl = $('#crmSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${customerRecordMergeSummaryText(all)} A merge note only records the merge; it never deletes a record and never silently changes any bill or payment total.`;
+  }
+  const awayEl = $('#crmMergedAwayBody');
+  if (awayEl) {
+    const away = customerRecordMergedAway(all);
+    awayEl.innerHTML = away.length ? customerRecordMergedAwayHtml(all) : '<p>No records merged away yet.</p>';
+  }
+  if (!customerRecordMergeBound) {
+    customerRecordMergeBound = true;
+    $('#crmExportBtn')?.addEventListener('click', () => { downloadCsvFile(customerRecordMergeFilename(), customerRecordMergeCsv(loadCustomerRecordMerges())); });
+    $('#crmSaveBtn')?.addEventListener('click', () => {
+      const before = loadCustomerRecordMerges();
+      const next = recordCustomerRecordMerge(before, {
+        id: `CRM-${Date.now()}`,
+        survivingRecord: $('#crmSurviving')?.value ?? '',
+        mergedAwayRecord: $('#crmMergedAway')?.value ?? '',
+        fieldsCarriedOver: $('#crmFields')?.value ?? '',
+        operator: $('#crmOperator')?.value ?? '',
+        approver: $('#crmApprover')?.value ?? '',
+        mergeDate: $('#crmMergeDate')?.value ?? '',
+        mergedDues: $('#crmMergedDues')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Merge not recorded: give two different records, an operator, an approver, a strict merge date, and whole-rupee merged dues.'); return; }
+      saveCustomerRecordMerges(next);
+      renderCustomerRecordMerges();
     });
   }
 }

@@ -551,6 +551,7 @@ import { knownAsNameFor, knownAsLabelKeyFor } from './known-as-name.js';
 import { buildProfileHeaderStrip, profileHeaderStripHtml } from './profile-header-strip.js';
 import { duesBreakdownSectionHtml } from './dues-breakdown-by-month.js';
 import { latestMessageDateForCustomer, latestVisitDateForCustomer, lastInteractionFor, lastInteractionLineHtml } from './last-interaction-line.js';
+import { PROFILE_VERIFICATION_TICK_STORE_KEY, normalizeProfileVerificationTickList, recordProfileVerificationTick, removeProfileVerificationTick, profileVerificationTickForCustomer, profileVerificationTickSectionHtml } from './profile-verification-tick.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -5035,6 +5036,26 @@ function renderCustomerProfileView(customer) {
     message: t('prof_lil_message'),
     none: t('prof_lil_none'),
   });
+  // Plan 372 — Customer profile verification tick: verified by whom,
+  // on what date, and which of the four fields were checked that day.
+  // It verifies the record only and changes no bill, payment, or
+  // customer field by itself.
+  const profileVerificationTickSectionMarkup = profileVerificationTickSectionHtml(customer, loadProfileVerificationTicks(), {
+    heading: t('prof_pvt_heading'),
+    intro: t('prof_pvt_intro'),
+    verifiedBy: t('prof_pvt_verified_by'),
+    date: t('prof_pvt_date'),
+    fieldsHeading: t('prof_pvt_fields'),
+    fields: {
+      name: t('prof_pvt_field_name'),
+      number: t('prof_pvt_field_number'),
+      mohalla: t('prof_pvt_field_mohalla'),
+      package: t('prof_pvt_field_package'),
+    },
+    save: t('save'),
+    remove: t('prof_pvt_remove'),
+    none: t('prof_pvt_none'),
+  });
   // Plan 356 — Household link note: the other household member's name
   // and relationship beside this profile, with an add form and a
   // remove button per link. A link is a reference only; it merges no
@@ -5145,7 +5166,7 @@ function renderCustomerProfileView(customer) {
     message: t('prof_quick_action_message'),
     balance: t('prof_quick_action_balance'),
   });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
@@ -5897,6 +5918,38 @@ function renderCustomerProfileView(customer) {
       saveGateAccessInstructions(removeGateAccessInstruction(loadGateAccessInstructions(), customer.id));
       renderDetail();
       toast('Gate access instruction removed.');
+    });
+  }
+  // Plan 372: wire the profile verification tick on the profile — one
+  // edit form. Recording or removing a tick changes only that tick; it
+  // never changes any bill, payment, or customer field.
+  const profileVerificationTickSectionEl = $('#customerProfileView').querySelector('.profile-verification-tick');
+  if (profileVerificationTickSectionEl) {
+    const profileVerificationTickDate = profileVerificationTickSectionEl.querySelector('#pvtDate');
+    if (profileVerificationTickDate && !profileVerificationTickDate.value) profileVerificationTickDate.value = localDate();
+    profileVerificationTickSectionEl.querySelector('#pvtForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const verifiedBy = profileVerificationTickSectionEl.querySelector('#pvtBy')?.value ?? '';
+      if (!verifiedBy.trim()) { toast('Profile verification not saved: write who verified it first.'); return; }
+      if (!profileVerificationTickDate?.value) { toast('Profile verification not saved: pick the verification date first.'); return; }
+      const fieldsChecked = [...profileVerificationTickSectionEl.querySelectorAll('input[name="pvtField"]:checked')].map((input) => input.value);
+      if (fieldsChecked.length === 0) { toast('Profile verification not saved: check at least one field.'); return; }
+      const before = loadProfileVerificationTicks();
+      const next = recordProfileVerificationTick(before, {
+        id: profileVerificationTickForCustomer(before, customer.id)?.id ?? `PVT-${Date.now()}`,
+        customerId: customer.id,
+        verifiedBy,
+        verifiedDate: profileVerificationTickDate.value,
+        fieldsChecked,
+      });
+      saveProfileVerificationTicks(next);
+      renderDetail();
+      toast('Profile verification saved.');
+    });
+    profileVerificationTickSectionEl.querySelector('#pvtRemoveBtn')?.addEventListener('click', () => {
+      saveProfileVerificationTicks(removeProfileVerificationTick(loadProfileVerificationTicks(), customer.id));
+      renderDetail();
+      toast('Profile verification removed.');
     });
   }
   // Plan 368: wire the emergency contact on the profile — one edit
@@ -34608,6 +34661,17 @@ function loadGateAccessInstructions() {
 }
 function saveGateAccessInstructions(list) {
   try { localStorage.setItem(GATE_ACCESS_INSTRUCTION_STORE_KEY, JSON.stringify(normalizeGateAccessInstructionList(list))); } catch { /* Gate access instruction only: a failed save leaves the previous list in place */ }
+}
+
+// Customer profile verification tick (Plan 372): one tick per profile
+// (verified by whom, on what date, which fields were checked). It
+// verifies the record only and changes no bill, payment, or customer
+// field.
+function loadProfileVerificationTicks() {
+  try { return normalizeProfileVerificationTickList(JSON.parse(localStorage.getItem(PROFILE_VERIFICATION_TICK_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveProfileVerificationTicks(list) {
+  try { localStorage.setItem(PROFILE_VERIFICATION_TICK_STORE_KEY, JSON.stringify(normalizeProfileVerificationTickList(list))); } catch { /* Profile verification tick only: a failed save leaves the previous list in place */ }
 }
 
 // Customer emergency contact (Plan 368): one second person to call

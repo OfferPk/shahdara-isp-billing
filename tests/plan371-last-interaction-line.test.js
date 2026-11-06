@@ -195,7 +195,14 @@ test('Plan 371: app.js wires the line after the dues breakdown and before the ho
   assert.ok(appSrc.includes('latestMessageDateForCustomer('));
   assert.ok(appSrc.includes('lastInteractionFor('));
   assert.ok(appSrc.includes('lastInteractionLineHtml('));
-  assert.ok(appSrc.includes('${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${householdLinkSectionMarkup}'));
+  // Order, not adjacency: the Plan 372 verification tick section now
+  // sits between the last-interaction line and the household link, so
+  // the line is still after the dues breakdown and still before the
+  // household link.
+  const duesAt = appSrc.indexOf('${duesBreakdownSectionMarkup}');
+  const lastAt = appSrc.indexOf('${lastInteractionLineMarkup}');
+  const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}');
+  assert.ok(duesAt > 0 && lastAt > duesAt && householdAt > lastAt);
 });
 
 test('Plan 371: language tables carry the last-interaction labels in both languages', () => {

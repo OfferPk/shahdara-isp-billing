@@ -13704,6 +13704,20 @@ dialog::backdrop {
 .gai-form input{height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
 .gai-form .primary-button,.gai-form .secondary-button{justify-self:start}
 .gai-route-line{margin-top:2px;font-size:11px;color:#5c6e66}
+.profile-verification-tick h4{margin:0 0 6px;font:700 15px Manrope,sans-serif}
+.profile-verification-tick p{font-size:11px;line-height:1.5;color:#5c6e66;margin:0 0 8px}
+.pvt-current{font-size:12px;color:var(--ink)}
+.pvt-current strong{font-weight:700}
+.pvt-meta{font-size:11px;color:#5c6e66}
+.pvt-none{font-size:11px;color:#5c6e66}
+.pvt-form{display:grid;gap:8px}
+.pvt-form label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:700;color:var(--muted)}
+.pvt-form input{height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
+.pvt-form .primary-button,.pvt-form .secondary-button{justify-self:start}
+.pvt-fields{display:grid;gap:6px;border:1px solid var(--line);border-radius:9px;padding:10px}
+.pvt-fields legend{font-size:10px;font-weight:700;color:var(--muted)}
+.pvt-form .pvt-field{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:12px;font-weight:500;color:var(--ink)}
+.pvt-form .pvt-field input{height:auto;width:auto}
 .profile-customer-emergency-contact h4{margin:0 0 6px;font:700 15px Manrope,sans-serif}
 .profile-customer-emergency-contact p{font-size:11px;line-height:1.5;color:#5c6e66;margin:0 0 8px}
 .emc-current{font-size:12px;color:var(--ink)}

@@ -11457,6 +11457,35 @@
 <div id="danBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="tdsHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="tdsHeading">Test data separation note</h3>
+<p class="chart-caption">One separation note per test data set: the set reference, the records included, the marked-as-test method in plain words, the date the set was created, and the date it was cleared. Test records are listed separately from live records and excluded from live totals. A note only marks test data: it never creates test data, never converts test data to live data, and never changes any live customer, bill, or payment record.</p>
+<p id="tdsSummary"></p>
+</div>
+<div>
+<button id="tdsExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export separation notes CSV</button>
+</div>
+</div>
+<h4>Save a separation note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Set reference <input id="tdsSetRef" type="text" style="width: 140px;" placeholder="e.g. SET-1"></label>
+<label style="font-size: 12px;">Records included <input id="tdsRecords" type="text" style="width: 200px;" placeholder="e.g. CUST-T1, BILL-T1"></label>
+<label style="font-size: 12px;">Marked-as-test method <input id="tdsMethod" type="text" style="width: 200px;" placeholder="e.g. marked with TEST prefix"></label>
+<label style="font-size: 12px;">Date created <input id="tdsDateCreated" type="date" style="width: 140px;"></label>
+<button id="tdsSaveBtn" class="secondary-button btn-sm" type="button">Save note</button>
+</div>
+<h4>Clear a test set</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="tdsClearId" type="text" style="width: 140px;" placeholder="e.g. TDS-1"></label>
+<label style="font-size: 12px;">Date cleared <input id="tdsDateCleared" type="date" style="width: 140px;"></label>
+<button id="tdsClearBtn" class="secondary-button btn-sm" type="button">Mark cleared</button>
+</div>
+<h4>Open test sets</h4>
+<div id="tdsOpenBody"></div>
+<h4>All separation notes</h4>
+<div id="tdsBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

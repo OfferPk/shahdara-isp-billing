@@ -238,8 +238,15 @@ test('Plan 361: app.js wires the module, store, profile section and bindings', (
   assert.ok(appSrc.includes('loadHandlingNotes'));
   assert.ok(appSrc.includes('saveHandlingNotes'));
   assert.ok(appSrc.includes('handlingNoteSectionMarkup'));
+  // Order, not adjacency: the Plan 366 spoken-language section now sits
+  // between the handling note and the header strip, so the handling note
+  // is still right after the wada banner and still before the strip.
+  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
+  const handlingAt = appSrc.indexOf('${handlingNoteSectionMarkup}');
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  assert.ok(bannerAt !== -1 && handlingAt !== -1 && stripAt !== -1);
   assert.ok(
-    appSrc.includes('${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${profileHeaderStripSectionHtml}'),
+    bannerAt < handlingAt && handlingAt < stripAt,
     'handling note section sits right after the wada banner, before the header strip',
   );
   assert.ok(appSrc.includes('chnForm'));

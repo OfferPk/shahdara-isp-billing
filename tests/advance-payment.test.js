@@ -275,7 +275,12 @@ test('wiring: dialog, buttons, badge style and build entry are in place', () => 
   assert.ok(app.includes('setupAdvancePaymentDialog'));
   assert.ok(app.includes("t('adv_badge')"));
   // Both operator entry points enforce the guard through the one helper.
-  assert.ok(app.includes("normalPaymentBlockReason(state, customerId, form.dataset.month)"), 'profile payment form guard wired');
+  // Plan 394: the profile form's guard checks the chosen bill month
+  // (payMonth) — the payment lands on the chosen bill, so the
+  // fully-paid check must look at that bill, not the card's month.
+  // With no choice payMonth is the card's month, so the guard is
+  // unchanged for every payment without a selector choice.
+  assert.ok(app.includes("normalPaymentBlockReason(state, customerId, payMonth)"), 'profile payment form guard wired');
   const qc = readFileSync(new URL('../nav-quick-collect.js', import.meta.url), 'utf8');
   assert.ok(qc.includes("from './advance-payment.js'"));
   assert.ok(qc.includes("normalPaymentBlockReason(state, activeCustomerId, monthVal)"), 'quick collect guard wired');

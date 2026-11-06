@@ -11607,6 +11607,38 @@
 <div id="rclBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="mktHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="mktHeading">Monthly KPI target record</h3>
+<p class="chart-caption">One target record per KPI per month: the KPI name, the target figure, the month, who set it, and the date it was set. A target set after the month ends is flagged as late. Each target sits beside its actual figure with the difference shown. A target never changes any actual figure, bill, or payment.</p>
+<p id="mktSummary"></p>
+</div>
+<div>
+<button id="mktExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export KPI targets CSV</button>
+</div>
+</div>
+<h4>Record a monthly KPI target</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">KPI name <input id="mktKpiName" type="text" style="width: 180px;" placeholder="e.g. Collections"></label>
+<label style="font-size: 12px;">Target figure <input id="mktTargetFigure" type="text" style="width: 120px;" placeholder="e.g. 180000"></label>
+<label style="font-size: 12px;">Month <input id="mktMonth" type="month" style="width: 140px;"></label>
+<label style="font-size: 12px;">Set by <input id="mktSetBy" type="text" style="width: 140px;" placeholder="e.g. Owner"></label>
+<label style="font-size: 12px;">Date set <input id="mktDateSet" type="date" style="width: 140px;"></label>
+<button id="mktSaveBtn" class="secondary-button btn-sm" type="button">Record target</button>
+</div>
+<h4>Compare a target with its actual figure</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">KPI name <input id="mktCompareKpiName" type="text" style="width: 180px;" placeholder="e.g. Collections"></label>
+<label style="font-size: 12px;">Month <input id="mktCompareMonth" type="month" style="width: 140px;"></label>
+<label style="font-size: 12px;">Actual figure <input id="mktCompareActual" type="text" style="width: 120px;" placeholder="e.g. 175000"></label>
+<button id="mktCompareBtn" class="secondary-button btn-sm" type="button">Compare</button>
+</div>
+<div id="mktCompareBody"></div>
+<h4>Targets set late — flagged</h4>
+<div id="mktLateBody"></div>
+<h4>All monthly KPI targets</h4>
+<div id="mktBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

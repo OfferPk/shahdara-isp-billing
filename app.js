@@ -671,6 +671,7 @@ import { NUMBER_CHANGE_STORE_KEY, normalizeNumberChangeList, recordNumberChangeE
 import { packageHistoryViewSectionHtml } from './package-history-view.js';
 import { serviceTenureSectionHtml } from './service-tenure.js';
 import { buildProfilePrintCardHtml } from './profile-print-card.js';
+import { missingProfileFields, missingFieldsChecklistHtml } from './missing-fields-checklist.js';
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
 // recovered, the device comes BACK into stock. This runs AFTER the
@@ -5042,7 +5043,32 @@ function renderCustomerProfileView(customer) {
   $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
-  $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
+  $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
+  // Plan 363 — Missing-fields checklist: the counter says how many
+  // fields are filled; this lists WHICH ones are still empty, by the
+  // name the form itself shows, with a tap-to-jump action to each
+  // field. It lists only — it fills nothing and scores nothing — and
+  // it is computed from the same field list and the same filled rule
+  // as the counter, so the two can never disagree.
+  const missingFields = missingProfileFields(customer, Object.entries(PROFILE_FIELD_SAVE_MAP).map(([controlId, fieldKey]) => ({ controlId, fieldKey })));
+  const missingFieldLabels = {};
+  for (const { controlId, fieldKey } of missingFields) {
+    const labelEl = document.getElementById(controlId)?.closest('.profile-field');
+    missingFieldLabels[controlId] = labelEl ? profileFieldMainLabel(labelEl) : fieldKey;
+  }
+  $('#customerProfileView').querySelector('.profile-completion-counter')?.insertAdjacentHTML('afterend', missingFieldsChecklistHtml(missingFields, missingFieldLabels, {
+    heading: t('prof_missing_fields_heading'),
+    allFilled: t('prof_missing_fields_all_filled'),
+  }));
+  $('#customerProfileView').querySelector('.mfc-checklist')?.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-missing-field]');
+    if (!button) return;
+    profileEditMode = true;
+    $('#customerProfileView').hidden = true;
+    $('#customerProfileForm').hidden = false;
+    jumpToProfileErrorTarget({ kind: 'field', id: button.dataset.missingField });
+  });
+  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();

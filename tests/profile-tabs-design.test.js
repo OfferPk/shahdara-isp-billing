@@ -33,19 +33,21 @@ test('profile tabs: month forms use form-cell wrappers, all fields kept', () => 
   // place, mohalla) = 12, plus the Plan 389 Urdu-script note field
   // = 13, plus the Plan 393 cross-payment note fields (payer
   // customer, payer name, relationship) = 16, plus the Plan 394
-  // bill-month selector field = 17, so 2 + 17 = 19.
-  assert.equal(cells.length, 19, `expected 19 form-cell wrappers, found ${cells.length}`);
+  // bill-month selector field = 17, plus the Plan 397 large-cash
+  // approval fields (threshold, approver) = 19, so 2 + 19 = 21.
+  assert.equal(cells.length, 21, `expected 21 form-cell wrappers, found ${cells.length}`);
   for (const name of ['name="dueAmount"', 'name="dueDate"', 'name="packageId"',
     'name="amount"', 'name="method"', 'name="paidBy"', 'name="date"',
     'name="transactionId"', 'name="senderTitle"', 'name="senderDigits"',
     'name="proofScreenshot"', 'name="discount"', 'name="discountReason"',
     'name="collectedBy"', 'name="collectionPlace"', 'name="collectionMohalla"',
     'name="urduNote"', 'name="crossPayerCustomerId"', 'name="crossPayerName"',
-    'name="crossRelationship"', 'name="billMonth"']) {
+    'name="crossRelationship"', 'name="billMonth"', 'name="largeCashThreshold"',
+    'name="largeCashApprover"']) {
     assert.ok(appJs.includes(name), `month form lost field ${name}`);
   }
   for (const id of ['due-', 'due-date-', 'package-', 'amount-', 'method-',
-    'paid-by-', 'date-', 'txnid-', 'sender-name-', 'sender-digits-', 'proof-', 'discount-', 'discount-reason-', 'cpl-', 'urn-', 'xpn-', 'bms-']) {
+    'paid-by-', 'date-', 'txnid-', 'sender-name-', 'sender-digits-', 'proof-', 'discount-', 'discount-reason-', 'cpl-', 'urn-', 'xpn-', 'bms-', 'lca-']) {
     assert.ok(appJs.includes(id), `month form lost id prefix ${id}`);
   }
   // phase 3: month-form labels render via t() (English values pinned in urdu-auto-phase3.test.js)

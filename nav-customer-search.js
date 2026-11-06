@@ -20,6 +20,7 @@ import {
 } from './core.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { fuzzyCustomerNameMatches } from './fuzzy-alias-search.js';
+import { partialPhoneMatches } from './partial-phone-search.js';
 import { trapModalFocus } from './nav-accessibility.js';
 
 export const RECENT_CUSTOMERS_STORAGE_KEY = 'shahdara_recent_customers_v1';
@@ -180,6 +181,11 @@ export function searchFastCustomers(state, {
         numStr.includes(normalized) ||
         `#${numStr}`.includes(normalized) ||
         (customer.phone && customer.phone.toLowerCase().includes(normalized)) ||
+        // Plan 352: digit-normalized partial phone search — the typed
+        // digits match any substring of the stored number whatever the
+        // stored or typed formatting, so "2345678" finds a number
+        // stored as "0301-234 5678" or "+92 301 2345678".
+        partialPhoneMatches(customer, query) ||
         (customer.area && customer.area.toLowerCase().includes(normalized)) ||
         (customer.mohalla && customer.mohalla.toLowerCase().includes(normalized)) ||
         (customer.address && customer.address.toLowerCase().includes(normalized)) ||

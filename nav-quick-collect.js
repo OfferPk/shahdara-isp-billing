@@ -86,6 +86,7 @@ import {
 import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } from './receipt-footer-studio.js';
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { oldestOpenBillPrefill, transactionPrefillLineHtml } from './transaction-prefill.js';
+import { amountInWordsLineText } from './amount-in-words.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
@@ -1669,6 +1670,20 @@ export function setupQuickCollectModal({
   // Plan 376: the offered pre-fill line under the amount field (null
   // when the host page predates it).
   const prefillLine = typeof document !== 'undefined' ? document.getElementById('quickCollectPrefillLine') : null;
+  // Plan 377: the live amount-in-words line beside the amount field
+  // (null when the host page predates it).
+  const wordsLine = typeof document !== 'undefined' ? document.getElementById('quickCollectAmountWordsLine') : null;
+
+  // Plan 377: the words always match the digits currently typed —
+  // typing, a chip tap, a concession, or a pre-fill — so an extra
+  // zero is caught before the receipt is printed. Clearing the field
+  // clears the words; the display never changes any amount.
+  function renderAmountWordsLine() {
+    if (!wordsLine) return;
+    const text = amountInput ? amountInWordsLineText(amountInput.value) : '';
+    wordsLine.textContent = text;
+    wordsLine.hidden = text === '';
+  }
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
 
@@ -2000,6 +2015,8 @@ export function setupQuickCollectModal({
   amountInput?.addEventListener('input', () => {
     if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
   });
+  // Plan 377: the words follow every keystroke in the amount field.
+  amountInput?.addEventListener('input', () => renderAmountWordsLine());
   advanceCheckbox?.addEventListener('change', () => {
     // An advance collection can never carry a waiver (see
     // executeQuickCollection) — the box hides while Advance is ticked.
@@ -2293,6 +2310,9 @@ export function setupQuickCollectModal({
           if (amountInput && typeof netBalanceCents === 'number') {
             amountInput.value = netDueAfterConcession(netBalanceCents / 100, effective.suggestedAmount).toFixed(2);
           }
+          // Plan 377: the concession sets the amount after the form
+          // opened, so the words refresh explicitly.
+          renderAmountWordsLine();
           if (typeof onToast === 'function') onToast(`Outage concession of PKR ${effective.suggestedAmount} applied to bill ${month}.`);
         } catch (err) {
           if (typeof onToast === 'function') onToast(err.message);
@@ -2376,6 +2396,9 @@ export function setupQuickCollectModal({
           if (typeof targetCents === 'number' && targetCents > 0) {
             amountInput.value = (targetCents / 100).toFixed(2);
           }
+          // Plan 377: the waiver tick sets the amount programmatically
+          // (no input event), so the words refresh explicitly.
+          renderAmountWordsLine();
           renderWaiverBox(customerId, month);
         });
       } else {
@@ -2544,6 +2567,9 @@ export function setupQuickCollectModal({
         prefillLine.innerHTML = prefillHtml;
         prefillLine.hidden = prefillHtml === '';
       }
+      // Plan 377: the form opens with the suggested amount already
+      // typed, so the words start shown, not blank.
+      renderAmountWordsLine();
       if (dateInput) {
         dateInput.value = activeDefaults.todayDate;
         dateInput.max = activeDefaults.todayDate;
@@ -2909,6 +2935,8 @@ export function setupQuickCollectModal({
       // SISP-101: chips set the amount programmatically (no input
       // event), so the waiver gate re-plans explicitly.
       if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
+      // Plan 377: a chip-set amount refreshes the words the same way.
+      renderAmountWordsLine();
       amountInput.focus();
       // SISP-126: a chip-set amount can reveal/clear the remainder row.
       renderRemainderWaadaRow();
@@ -2924,6 +2952,9 @@ export function setupQuickCollectModal({
     const tendered = Number(chip.getAttribute('data-loose-tender'));
     if (!Number.isFinite(tendered) || tendered <= 0) return;
     amountInput.value = tendered.toFixed(2);
+    // Plan 377: a loose-change tap fills the amount, so the words
+    // refresh explicitly.
+    renderAmountWordsLine();
     amountInput.focus();
   });
   // The chips belong to the dues flow only; the Advance tag hides them.

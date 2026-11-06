@@ -86,9 +86,10 @@ import {
 import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } from './receipt-footer-studio.js';
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { oldestOpenBillPrefill, transactionPrefillLineHtml } from './transaction-prefill.js';
-import { amountInWordsLineText } from './amount-in-words.js';
+import { amountInWords, amountInWordsLineText } from './amount-in-words.js';
 import { nextReceiptNumberLineText } from './next-receipt-number.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
+import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
@@ -1655,6 +1656,9 @@ export function setupQuickCollectModal({
   const stepPick = document.getElementById('quickCollectStepPick');
   const stepForm = document.getElementById('quickCollectStepForm');
   const stepSuccess = document.getElementById('quickCollectStepSuccess');
+  // Plan 382: the save confirmation step between the form and the
+  // success screen (null when the host page predates it).
+  const stepConfirm = document.getElementById('quickCollectStepConfirm');
 
   const searchInput = document.getElementById('quickCollectSearchInput');
   const searchClearBtn = document.getElementById('quickCollectSearchClearBtn');
@@ -1694,6 +1698,12 @@ export function setupQuickCollectModal({
   // Plan 381: the next-receipt-number preview line under the amount
   // field (null when the host page predates it).
   const nextReceiptLine = typeof document !== 'undefined' ? document.getElementById('quickCollectNextReceiptLine') : null;
+  // Plan 382: the save confirmation summary hosts (null when the
+  // host page predates them) — the summary panel and its Confirm /
+  // Back buttons, shown before the payment posts.
+  const confirmSummaryBox = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSummary') : null;
+  const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
+  const confirmBackBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmBackBtn') : null;
 
   // Plan 377: the words always match the digits currently typed —
   // typing, a chip tap, a concession, or a pre-fill — so an extra
@@ -1718,6 +1728,36 @@ export function setupQuickCollectModal({
     const line = customer && month ? nextReceiptNumberLineText(customer, month) : '';
     nextReceiptLine.textContent = line;
     nextReceiptLine.hidden = line === '';
+  }
+  // Plan 382: the save confirmation summary — built from the same
+  // reads the submit handler posts with, so the figures the operator
+  // confirms are exactly the figures the save will record. Returns
+  // null when the entry has nothing worth confirming; the submit
+  // flow then proceeds exactly as before. A split payment carries
+  // its second leg beside the main payment.
+  function buildSaveConfirmationSummary() {
+    if (!activeDefaults || !activeCustomerId) return null;
+    const amountVal = Number(amountInput?.value);
+    const legs = [];
+    if (splitToggle?.checked) {
+      legs.push({
+        amount: Number(splitAmountInput?.value),
+        amountWords: amountInWords(Number(splitAmountInput?.value)),
+        method: splitMethodSelect?.value || 'Easypaisa',
+      });
+    }
+    return normalizeSaveConfirmationSummary({
+      customerId: activeCustomerId,
+      customerName: activeDefaults.name,
+      mohalla: activeDefaults.area,
+      amount: amountVal,
+      amountWords: amountInWords(amountVal),
+      method: methodSelect?.value || 'Cash',
+      billMonth: monthSelect?.value || activeDefaults.targetMonth,
+      advance: !!advanceCheckbox?.checked,
+      advanceTargetMonth: advanceTargetSelect?.value || '',
+      legs,
+    });
   }
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
@@ -1821,6 +1861,11 @@ export function setupQuickCollectModal({
   // SISP-146: the double-tap guard's one confirmed bypass (key of
   // customer|amount|method|earlier payment id) — see the submit handler.
   let duplicatePaymentBypassedKey = null;
+  // Plan 382: the save confirmation's one confirmed arming — the key
+  // of the summary the operator just confirmed. The save flow posts
+  // only while the form's current summary still carries this key;
+  // any edit after the summary was shown re-shows it instead.
+  let saveConfirmationArmedKey = null;
 
   let currentScreenshotDataUrl = '';
 
@@ -2125,6 +2170,7 @@ export function setupQuickCollectModal({
   function showStep(stepName) {
     if (stepPick) stepPick.hidden = (stepName !== 'pick');
     if (stepForm) stepForm.hidden = (stepName !== 'form');
+    if (stepConfirm) stepConfirm.hidden = (stepName !== 'confirm');
     if (stepSuccess) stepSuccess.hidden = (stepName !== 'success');
   }
 
@@ -3009,6 +3055,22 @@ export function setupQuickCollectModal({
     searchInput?.focus();
   });
 
+  // Plan 382: the confirm step's buttons. Confirm arms the summary's
+  // key for the current form values and resubmits — the save flow
+  // posts only when the armed key still matches. Back returns to the
+  // form with every entry intact; nothing is posted.
+  confirmSaveBtn?.addEventListener('click', () => {
+    const summary = buildSaveConfirmationSummary();
+    if (!summary) { showStep('form'); return; }
+    saveConfirmationArmedKey = saveConfirmationSummaryKey(summary);
+    if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
+  });
+  confirmBackBtn?.addEventListener('click', () => {
+    saveConfirmationArmedKey = null;
+    showStep('form');
+    amountInput?.focus();
+  });
+
   // SISP-121: the success card shows the COMBINED receipt after a split
   // collection (activeReceipt.splitTender), the ordinary card otherwise.
   // Polish 6 (B): the combined card gets the same on-screen Area select
@@ -3319,6 +3381,20 @@ export function setupQuickCollectModal({
         }
         duplicatePaymentBypassedKey = null;
       }
+      // Plan 382: confirm-before-posting — every guard above has
+      // passed, so show the summary of the exact figures about to
+      // post. The payment posts only after the operator confirms the
+      // same figures; any edit after the summary was shown re-shows
+      // it with the new figures. A null summary (nothing worth
+      // confirming) proceeds exactly as before.
+      const pendingSummary = buildSaveConfirmationSummary();
+      if (pendingSummary && saveConfirmationSummaryKey(pendingSummary) !== saveConfirmationArmedKey) {
+        if (confirmSummaryBox) confirmSummaryBox.innerHTML = saveConfirmationSummaryHtml(pendingSummary);
+        showStep('confirm');
+        confirmSaveBtn?.focus();
+        return;
+      }
+      saveConfirmationArmedKey = null;
       // SISP-121: split tender — leg 1 is the main form above (its TID
       // checks and duplicate card already ran), leg 2 is the split
       // block. Recording happens ONLY through

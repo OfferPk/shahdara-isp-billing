@@ -62,6 +62,7 @@ import { sanitizeDisconnectDetails, sanitizeDisconnectHistory, sanitizeDisconnec
 import { sanitizeSignalReadings } from './signal-history.js';
 import { sanitizeReceiptLang, sanitizeReceiptChannel, prefersSmsForChannel } from './receipt-preferences.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
+import { normalizeSameDayCorrectionNote, sameDayCorrectionNoteOf } from './same-day-correction-note.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
@@ -1954,7 +1955,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -1987,6 +1988,18 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   const cleanPlace = normalizeCollectionPlace(place);
   const collectionMohallaClean = String(collectionMohalla ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
   if (collectionMohallaClean.length > 60) throw new Error('Collection mohalla must be 60 characters or fewer.');
+  // Plan 383: the same-day correction note — what was wrong, what it
+  // should be, who recorded it, and the date — attached to the payment
+  // as a note, never rewriting the original entry. The note is
+  // refused (loudly, not silently dropped) when it carries words but
+  // its date is not the payment's day: a note dated after the
+  // transaction day cannot be recorded, and a payment whose date is
+  // being moved away from its note's day must have the note cleared
+  // first. An empty note is no note at all and reads as absent.
+  const correctionHasText = sameDayCorrection && typeof sameDayCorrection === 'object'
+    && (String(sameDayCorrection.wrong ?? '').trim() || String(sameDayCorrection.shouldBe ?? '').trim());
+  const cleanCorrection = normalizeSameDayCorrectionNote(sameDayCorrection, date);
+  if (correctionHasText && !cleanCorrection) throw new Error('A correction note can only be recorded on the day of the payment. Clear the note to change the payment date.');
   let validDiscount = 0;
   if (discount !== undefined && discount !== null && discount !== '') {
     const dNum = Number(discount);
@@ -2086,6 +2099,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(collector ? { collectedBy: collector } : {}),
     ...(cleanPlace ? { collectionPlace: cleanPlace } : {}),
     ...(collectionMohallaClean ? { collectionMohalla: collectionMohallaClean } : {}),
+    ...(cleanCorrection ? { sameDayCorrection: cleanCorrection } : {}),
     ...(contributorStamp ? { paidByContributor: contributorStamp } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -2371,6 +2385,14 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     collectedBy: fields.collectedBy !== undefined ? fields.collectedBy : existingPayment.collectedBy,
     collectionPlace: fields.collectionPlace !== undefined ? fields.collectionPlace : existingPayment.collectionPlace,
     collectionMohalla: fields.collectionMohalla !== undefined ? fields.collectionMohalla : existingPayment.collectionMohalla,
+    // Plan 383: the same-day correction note rides the correction the
+    // same way the collection note does — an explicit new note
+    // replaces it, an emptied note (null) clears it, and saying
+    // nothing about it keeps the note the payment already carries,
+    // so a correction can never silently strip the note. The
+    // validator above still refuses a note whose date is not the
+    // (possibly corrected) payment date.
+    sameDayCorrection: fields.sameDayCorrection !== undefined ? fields.sameDayCorrection : existingPayment.sameDayCorrection,
     walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified,
     // Payment proof screenshot: the correction form carries no proof
     // picker either, so a correction must never silently drop an
@@ -3271,6 +3293,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     collectedBy: String(payment.collectedBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100),
     collectionPlace: normalizeCollectionPlace(payment.collectionPlace),
     collectionMohalla: String(payment.collectionMohalla ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 60),
+    // Plan 383: the same-day correction note rides the transaction row
+    // so the Transactions list can show the note beside the original
+    // entry, with its date — sanitized by the same reader the display
+    // uses, so a damaged record reads as no note.
+    sameDayCorrection: sameDayCorrectionNoteOf(payment),
     allocation:allocations.byPaymentId.get(payment.id)
   })))).filter(row => transactionMatchesQuery(row, query) && (!date || row.date === date) && (windowDays === null || (row.date >= fromDate && row.date <= throughDate)))
     .sort((a, b) => b.date.localeCompare(a.date) || a.customerName.localeCompare(b.customerName) || b.month.localeCompare(a.month) || a.paymentId.localeCompare(b.paymentId));

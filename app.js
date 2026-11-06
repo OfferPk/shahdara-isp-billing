@@ -676,6 +676,7 @@ import {
 import { fixCollectInfo, runResolveAndCollect } from './fix-and-collect-bridge.js';
 import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS, WA_PLACEHOLDER_KEYS, getWaTemplates, getStoredWaTemplates, saveWaTemplates, updateWaTemplate, renderWaTemplateFor, renderCustomWaTemplate } from './whatsapp-templates.js?v=1.11.0';
 import { HANDLING_NOTE_STORE_KEY, normalizeHandlingNoteList, recordHandlingNote, removeHandlingNote, handlingNoteForCustomer, handlingNoteSectionHtml } from './handling-note.js';
+import { STANDING_INSTRUCTION_STORE_KEY, normalizeStandingInstructionList, recordStandingInstruction, removeStandingInstruction, standingInstructionForCustomer, standingInstructionSectionHtml } from './standing-instruction-note.js';
 import { SPOKEN_LANGUAGE_NOTE_STORE_KEY, normalizeSpokenLanguageNoteList, recordSpokenLanguageNote, removeSpokenLanguageNote, spokenLanguageNoteForCustomer, spokenLanguageNoteSectionHtml } from './spoken-language-note.js';
 import { GATE_ACCESS_INSTRUCTION_STORE_KEY, normalizeGateAccessInstructionList, recordGateAccessInstruction, removeGateAccessInstruction, gateAccessInstructionForCustomer, gateAccessInstructionSectionHtml } from './gate-access-instruction.js';
 import { CUSTOMER_EMERGENCY_CONTACT_STORE_KEY, normalizeCustomerEmergencyContactList, recordCustomerEmergencyContact, removeCustomerEmergencyContact, customerEmergencyContactForCustomer, customerEmergencyContactSectionHtml } from './customer-emergency-contact.js';
@@ -5275,6 +5276,23 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_handling_remove'),
     none: t('prof_handling_none'),
   });
+  // Plan 390 — Transaction standing instruction note: the usual amount,
+  // usual day of the month, and usual method for a regular monthly
+  // payer, shown at the top of the profile so the operator expects
+  // them on their usual day. A note only: it never auto-debits,
+  // auto-records, or auto-sends anything, and it never changes any
+  // bill, payment, arrears plan, or customer record by itself.
+  const standingInstructionSectionMarkup = standingInstructionSectionHtml(customer, loadStandingInstructionNotes(), {
+    heading: t('prof_sin_heading'),
+    amount: t('prof_sin_amount'),
+    day: t('prof_sin_day'),
+    method: t('prof_sin_method'),
+    notedBy: t('prof_sin_noted_by'),
+    date: t('prof_sin_date'),
+    save: t('save'),
+    remove: t('prof_sin_remove'),
+    none: t('prof_sin_none'),
+  });
   // Plan 366 — Customer spoken language note: the language the customer
   // speaks comfortably, shown at the top of the profile so Saad greets
   // each household in the right language. Profile note only: it never
@@ -5330,7 +5348,7 @@ function renderCustomerProfileView(customer) {
     message: t('prof_quick_action_message'),
     balance: t('prof_quick_action_balance'),
   });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileFreshnessStampMarkup}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${standingInstructionSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileFreshnessStampMarkup}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
@@ -6023,6 +6041,41 @@ function renderCustomerProfileView(customer) {
       saveHandlingNotes(removeHandlingNote(loadHandlingNotes(), customer.id));
       renderDetail();
       toast('Handling note removed.');
+    });
+  }
+  // Plan 390: wire the standing instruction note on the profile — one
+  // edit form. Editing or removing the note changes only that note;
+  // it never auto-debits, auto-records, or auto-sends anything, and
+  // it never changes any bill, payment, arrears plan, or customer
+  // record.
+  const standingInstructionSectionEl = $('#customerProfileView').querySelector('.profile-standing-instruction');
+  if (standingInstructionSectionEl) {
+    const standingInstructionDate = standingInstructionSectionEl.querySelector('#sinDate');
+    if (standingInstructionDate && !standingInstructionDate.value) standingInstructionDate.value = localDate();
+    standingInstructionSectionEl.querySelector('#sinForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const amountRupees = Number(standingInstructionSectionEl.querySelector('#sinAmount')?.value ?? '');
+      const dayOfMonth = Number(standingInstructionSectionEl.querySelector('#sinDay')?.value ?? '');
+      if (!Number.isFinite(amountRupees) || amountRupees <= 0) { toast('Standing instruction not saved: write the usual amount first.'); return; }
+      if (!Number.isInteger(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31) { toast('Standing instruction not saved: write a day of the month from 1 to 31.'); return; }
+      const before = loadStandingInstructionNotes();
+      const next = recordStandingInstruction(before, {
+        id: standingInstructionForCustomer(before, customer.id)?.id ?? `SIN-${Date.now()}`,
+        customerId: customer.id,
+        amountCents: Math.round(amountRupees * 100),
+        dayOfMonth,
+        method: standingInstructionSectionEl.querySelector('#sinMethod')?.value ?? '',
+        recordedBy: standingInstructionSectionEl.querySelector('#sinBy')?.value ?? '',
+        recordedDate: standingInstructionDate?.value ?? '',
+      });
+      saveStandingInstructionNotes(next);
+      renderDetail();
+      toast('Standing instruction saved.');
+    });
+    standingInstructionSectionEl.querySelector('#sinRemoveBtn')?.addEventListener('click', () => {
+      saveStandingInstructionNotes(removeStandingInstruction(loadStandingInstructionNotes(), customer.id));
+      renderDetail();
+      toast('Standing instruction removed.');
     });
   }
   // Plan 366: wire the spoken language note on the profile — one edit
@@ -11597,6 +11650,10 @@ window.quickCollectModalController = setupQuickCollectModal({
   // note before saving, so the one instruction that matters is read
   // before the money moves.
   loadHandlingNotes: () => loadHandlingNotes(),
+  // Plan 390: the transaction entry screen reads the customer's
+  // standing instruction before saving, so the operator expects the
+  // regulars on their usual day.
+  loadStandingInstructionNotes: () => loadStandingInstructionNotes(),
   // SISP-141: the floating 10s undo toast (presenter above) owns the
   // post-collection confirmation for this host. SISP-187: the same
   // actually-saved payment is also reported to the QR scanner, whose
@@ -34917,6 +34974,18 @@ function loadHandlingNotes() {
 }
 function saveHandlingNotes(list) {
   try { localStorage.setItem(HANDLING_NOTE_STORE_KEY, JSON.stringify(normalizeHandlingNoteList(list))); } catch { /* Handling note only: a failed save leaves the previous list in place */ }
+}
+
+// Transaction standing instruction note (Plan 390): one note per
+// customer — the usual amount, usual day of the month, and usual
+// method, in plain words. A note only: it never auto-debits,
+// auto-records, or auto-sends anything, and it never changes any
+// bill, payment, arrears plan, or customer record by itself.
+function loadStandingInstructionNotes() {
+  try { return normalizeStandingInstructionList(JSON.parse(localStorage.getItem(STANDING_INSTRUCTION_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveStandingInstructionNotes(list) {
+  try { localStorage.setItem(STANDING_INSTRUCTION_STORE_KEY, JSON.stringify(normalizeStandingInstructionList(list))); } catch { /* Standing instruction only: a failed save leaves the previous list in place */ }
 }
 
 // Customer spoken language note (Plan 366): one profile note per

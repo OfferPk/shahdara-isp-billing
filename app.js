@@ -531,6 +531,7 @@ import { validStaffRecognitionDay, normalizeStaffRecognitionNoteList, recordStaf
 import { validExportVerificationDay, foldExportVerificationResult, normalizeExportVerificationChecklistList, recordExportVerificationChecklist, removeExportVerificationChecklist, exportVerificationChecklistsForExport, exportVerificationExportRefs, exportVerificationSummaryText, exportVerificationAllHtml, exportVerificationChecklistsForExportHtml, uncheckedExportVerificationChecklistsHtml, exportVerificationCsv, exportVerificationFilename } from './export-verification.js';
 import { validExportFormatVersionDay, normalizeExportFormatVersionList, recordExportFormatVersion, exportFormatVersionsForFormat, currentExportFormatVersion, exportFormatNames, exportFormatVersionSummaryText, exportFormatVersionsHtml, exportFormatVersionCsv, exportFormatVersionFilename, normalizeExportFormatStampList, stampExportFormat, exportFormatStampsHtml } from './export-format-version.js';
 import { validDataConflictDay, foldDataConflictResolution, normalizeDataConflictList, recordDataConflict, resolveDataConflict, openDataConflicts, dataConflictSummaryText, dataConflictsHtml, openDataConflictsHtml, dataConflictCsv, dataConflictFilename } from './offline-data-conflict.js';
+import { validScreenHelpNoteDay, foldScreenHelpNoteStatus, normalizeScreenHelpNoteList, findScreenHelpNote, recordScreenHelpNote, updateScreenHelpNoteCheck, screenHelpNoteScreens, screenHelpNoteGaps, screenHelpNoteCoverage, screenHelpNoteSummaryText, screenHelpNoteText, screenHelpNoteHtml, screenHelpNotesHtml, screenHelpNoteGapsHtml, screenHelpNoteCoverageHtml, screenHelpNoteCsv, screenHelpNoteFilename } from './screen-help-note.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14418,6 +14419,7 @@ function renderAnalytics() {
   renderExportFormatVersions();
   renderDataConflicts();
   renderAppPerformanceNotes();
+  renderScreenHelpNotes();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33174,6 +33176,72 @@ function renderAppPerformanceNotes() {
       if (next.length === before.length) { toast('Performance note not recorded: give the screen, the symptom in plain words, and a strict date.'); return; }
       saveAppPerformanceNotes(next);
       renderAppPerformanceNotes();
+    });
+  }
+}
+let screenHelpNoteBound = false;
+const SCREEN_HELP_NOTE_KEY = 'shahdara_shn_entries_v1';
+function loadScreenHelpNotes() {
+  try { return normalizeScreenHelpNoteList(JSON.parse(localStorage.getItem(SCREEN_HELP_NOTE_KEY) || '[]')); } catch { return []; }
+}
+function saveScreenHelpNotes(list) {
+  try { localStorage.setItem(SCREEN_HELP_NOTE_KEY, JSON.stringify(normalizeScreenHelpNoteList(list))); } catch { /* Screen help note register only: a failed save leaves the previous list in place */ }
+}
+
+// Screen help note register (Plan 336): one register entry per screen —
+// the screen name, whether its help note is present or missing, the help
+// note reference, and the date checked. Screens without a help note
+// appear on a gaps list, and coverage counts reconcile to the screens
+// listed. The register records coverage only and never writes any help
+// text, never changes any screen, and recording or re-checking an entry
+// never changes any bill, payment, or customer record by itself.
+function renderScreenHelpNotes() {
+  const listEl = $('#shnBody');
+  if (!listEl) return;
+  const all = loadScreenHelpNotes();
+  listEl.innerHTML = all.length ? screenHelpNotesHtml(all) : '<p>No screens registered in the help note register.</p>';
+  const summaryEl = $('#shnSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${screenHelpNoteSummaryText(all)} The register records coverage only and never changes any help text, screen, bill, or payment by itself.`;
+  }
+  const screens = ($('#shnScreens')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  const gapsEl = $('#shnGapsBody');
+  if (gapsEl) {
+    gapsEl.innerHTML = screenHelpNoteGapsHtml(all, screens);
+  }
+  const coverageEl = $('#shnCoverageBody');
+  if (coverageEl) {
+    coverageEl.innerHTML = screens.length ? screenHelpNoteCoverageHtml(all, screens) : '<p>Give the screens to check, one per line, to see coverage.</p>';
+  }
+  if (!screenHelpNoteBound) {
+    screenHelpNoteBound = true;
+    $('#shnExportBtn')?.addEventListener('click', () => { downloadCsvFile(screenHelpNoteFilename(), screenHelpNoteCsv(loadScreenHelpNotes())); });
+    $('#shnCoverageBtn')?.addEventListener('click', () => { renderScreenHelpNotes(); });
+    $('#shnRecordBtn')?.addEventListener('click', () => {
+      const before = loadScreenHelpNotes();
+      const next = recordScreenHelpNote(before, {
+        id: `SHN-${Date.now()}`,
+        screen: $('#shnScreen')?.value ?? '',
+        status: $('#shnStatus')?.value ?? 'missing',
+        reference: $('#shnReference')?.value ?? '',
+        dateChecked: $('#shnDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Screen not registered: give the screen name and a strict date checked — one entry per screen.'); return; }
+      saveScreenHelpNotes(next);
+      renderScreenHelpNotes();
+    });
+    $('#shnRecheckBtn')?.addEventListener('click', () => {
+      const before = loadScreenHelpNotes();
+      const next = updateScreenHelpNoteCheck(before, {
+        id: `SHN-${Date.now()}`,
+        screen: $('#shnScreen')?.value ?? '',
+        status: $('#shnStatus')?.value ?? 'missing',
+        reference: $('#shnReference')?.value ?? '',
+        dateChecked: $('#shnDate')?.value ?? '',
+      });
+      if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Check not updated: the screen must already be registered — record it first, then re-check.'); return; }
+      saveScreenHelpNotes(next);
+      renderScreenHelpNotes();
     });
   }
 }

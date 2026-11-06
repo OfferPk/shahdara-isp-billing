@@ -11271,6 +11271,34 @@
 <div id="odcBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="apnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="apnHeading">App performance note</h3>
+<p class="chart-caption">One note per observation of a slow screen or a long wait: the screen, the device, the symptom in plain words, the date, and how often it happens. Notes group by screen with counts over a period, so the screens that actually waste field time are visible. Recording a note never changes any screen, bill, payment, or customer record by itself.</p>
+<p id="apnSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="apnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export performance notes CSV</button>
+</div></div>
+<h4>Record a performance note</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Screen <input id="apnScreen" type="text" style="width: 180px;" placeholder="e.g. Customer profile"></label>
+<label style="font-size: 12px;">Device <input id="apnDevice" type="text" style="width: 140px;" placeholder="e.g. Saad phone"></label>
+<label style="font-size: 12px;">Symptom <input id="apnSymptom" type="text" style="width: 260px;" placeholder="e.g. Profile opens slowly after tapping a customer"></label>
+<label style="font-size: 12px;">Date <input id="apnDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">How often <select id="apnFrequency" style="width: 130px;"><option value="once">Once</option><option value="sometimes">Sometimes</option><option value="often">Often</option><option value="every time">Every time</option></select></label>
+<button id="apnRecordBtn" class="secondary-button btn-sm" type="button">Record note</button>
+</div>
+<h4>Counts per screen over a period</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">From <input id="apnFrom" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">To <input id="apnTo" type="date" style="width: 140px;"></label>
+<button id="apnCountsBtn" class="secondary-button btn-sm" type="button">Show counts</button>
+</div>
+<div id="apnCountsBody"></div>
+<h4>All performance notes by screen</h4>
+<div id="apnBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

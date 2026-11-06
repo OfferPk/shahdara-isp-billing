@@ -13538,6 +13538,16 @@ dialog::backdrop {
 .ncl-current{font-weight:600}
 .ncl-summary{color:#5c6e66;font-size:12px}
 .ncl-none{color:#5c6e66;font-size:12px}
+.phv-list{list-style:none;margin:8px 0;padding:0;display:grid;gap:8px}
+.phv-list>li{display:grid;gap:2px}
+.phv-package{font-weight:600}
+.phv-price{color:#5c6e66;font-size:12px}
+.phv-dates{color:#5c6e66;font-size:12px}
+.phv-current{font-weight:600}
+.phv-gap{color:#5c6e66;font-size:12px}
+.phv-summary{color:#5c6e66;font-size:12px}
+.phv-undated{color:#5c6e66;font-size:12px}
+.phv-none{color:#5c6e66;font-size:12px}
 .mvh-none{color:#5c6e66;font-size:12px}
 [data-theme="dark"] .mvh-annotations li,[data-theme="dark"] .mvh-annotation-date,[data-theme="dark"] .mvh-none{color:var(--dk-muted)}
 [data-theme="dark"] .hhl-open{color:var(--dk-ink)}

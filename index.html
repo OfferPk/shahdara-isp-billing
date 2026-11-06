@@ -26649,6 +26649,23 @@
                 <input id="quickCollectUrduNoteInput" type="text" maxlength="200" placeholder="مثلاً: اگلے مہینے ادا کریں گے" class="qc-input" dir="rtl" lang="ur">
               </div>
             </div>
+            <!-- Plan 393: the cross-payment note — when someone pays for another customer's account: who paid, for whose account, and their relationship. All three are optional; a payment without one records none. -->
+            <div class="qc-form-row" style="margin-top:8px;">
+              <div class="qc-field-group">
+                <label for="quickCollectCrossPayerSelect" class="qc-label">Paid for another customer? (optional)</label>
+                <select id="quickCollectCrossPayerSelect" class="qc-input"></select>
+              </div>
+
+              <div class="qc-field-group">
+                <label for="quickCollectCrossPayerNameInput" class="qc-label">Payer name (optional)</label>
+                <input id="quickCollectCrossPayerNameInput" type="text" maxlength="100" placeholder="e.g. Ahmed" class="qc-input">
+              </div>
+
+              <div class="qc-field-group">
+                <label for="quickCollectCrossRelationshipInput" class="qc-label">Relationship (optional)</label>
+                <input id="quickCollectCrossRelationshipInput" type="text" maxlength="60" placeholder="e.g. son, father, neighbour" class="qc-input">
+              </div>
+            </div>
             <div class="qc-field-group" id="quickCollectContributorField" style="margin-top:8px;" hidden>
               <label for="quickCollectContributorSelect" class="qc-label" data-i18n="contrib_qc_label">Paid by / kis ne diya</label>
               <select id="quickCollectContributorSelect" class="qc-input"></select>

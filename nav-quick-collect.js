@@ -85,6 +85,7 @@ import {
 } from './digital-payments-settings.js';
 import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } from './receipt-footer-studio.js';
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
+import { oldestOpenBillPrefill, transactionPrefillLineHtml } from './transaction-prefill.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
@@ -386,7 +387,15 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
   const currentMonth = monthsForHistory(referenceDate)[0];
   const bills = [...(customer.bills ?? [])].sort((a, b) => a.month.localeCompare(b.month));
 
-  let earliestUnpaidMonth = null;
+  // Plan 376: the transaction entry pre-fill — the customer's oldest
+  // open bill, its amount and its month — is the single source of the
+  // offered starting amount. It comes from the allocation engine's
+  // own figures, so the offered amount is the amount still open on
+  // that bill.
+  const prefill = oldestOpenBillPrefill(customer, allocations);
+  const earliestUnpaidMonth = prefill ? prefill.month : null;
+  const targetDue = prefill ? prefill.amount : 0;
+
   let totalDuesCents = 0;
   let currentMonthBalanceCents = 0;
   for (const bill of bills) {
@@ -394,9 +403,6 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     const balance = summary?.balanceDueCents;
     if (typeof balance === 'number' && balance > 0) {
       totalDuesCents += balance;
-      if (!earliestUnpaidMonth) {
-        earliestUnpaidMonth = bill.month;
-      }
     }
     if (bill.month === currentMonth && typeof balance === 'number') {
       currentMonthBalanceCents = balance;
@@ -404,9 +410,6 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
   }
 
   const targetMonth = earliestUnpaidMonth || currentMonth;
-  const targetSummary = allocations.forMonth(customer.id, targetMonth);
-  const targetDueCents = targetSummary?.balanceDueCents;
-  const targetDue = (typeof targetDueCents === 'number' && targetDueCents > 0) ? (targetDueCents / 100) : 0;
   const totalDues = Math.max(0, totalDuesCents / 100);
 
   // Suggested amount is remaining balance due on the target bill (or total dues if target due is 0)
@@ -414,9 +417,11 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
   if (suggestedAmount <= 0 && totalDues > 0) {
     suggestedAmount = totalDues;
   }
-  if (suggestedAmount <= 0 && typeof customer.monthlySellingAmount === 'number' && customer.monthlySellingAmount > 0) {
-    suggestedAmount = customer.monthlySellingAmount;
-  }
+  // Plan 376: a customer with no open bill offers nothing — the
+  // package price is never offered as a bill figure. (The monthly
+  // selling amount used to be the last fallback here; an advance for
+  // a fully-paid customer is typed by the operator instead, with the
+  // Advance tag still pre-ticked below.)
 
   // Find customer's last-used payment method & payer note
   let lastMethod = 'Cash';
@@ -481,6 +486,7 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     targetMonth,
     suggestedAmount,
     balanceDue: targetDue,
+    prefill,
     currentMonthBalance: Math.max(0, currentMonthBalanceCents / 100),
     totalDues,
     ticketChargeLines,
@@ -1660,6 +1666,9 @@ export function setupQuickCollectModal({
   const advanceCheckbox = document.getElementById('quickCollectAdvanceCheckbox');
   const advanceTargetSelect = document.getElementById('quickCollectAdvanceTargetMonth');
   const dueAmountVal = document.getElementById('quickCollectDueAmountVal');
+  // Plan 376: the offered pre-fill line under the amount field (null
+  // when the host page predates it).
+  const prefillLine = typeof document !== 'undefined' ? document.getElementById('quickCollectPrefillLine') : null;
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
 
@@ -2525,6 +2534,15 @@ export function setupQuickCollectModal({
       if (amountInput) {
         amountInput.value = activeDefaults.suggestedAmount > 0 ? activeDefaults.suggestedAmount.toFixed(2) : '';
         amountInput.max = '999999';
+      }
+      // Plan 376: name the bill the starting amount came from, so the
+      // operator sees the figure is the oldest open bill's — not a
+      // typed-from-memory figure. Hidden when no bill is open: a
+      // customer with no open bill offers nothing.
+      if (prefillLine) {
+        const prefillHtml = transactionPrefillLineHtml(activeDefaults.prefill, { line: t('txp_line') });
+        prefillLine.innerHTML = prefillHtml;
+        prefillLine.hidden = prefillHtml === '';
       }
       if (dateInput) {
         dateInput.value = activeDefaults.todayDate;

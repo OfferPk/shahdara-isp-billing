@@ -542,6 +542,7 @@ import { normalizeDeviceCompatibilityNoteList, recordDeviceCompatibilityNote, de
 import { normalizePrintQueueJobList, recordPrintQueueJob, markPrintQueueJobPrinted, markPrintQueueJobFailed, printQueueJobSummaryText, printQueueJobsHtml, printQueueOpenJobsHtml, printQueueJobCsv, printQueueJobFilename } from './print-queue-log.js';
 import { normalizeReportRecipientListList, recordReportRecipientList, setReportRecipients, reportRecipientListsWithoutRecipients, reportRecipientListSummaryText, reportRecipientListsHtml, reportRecipientListCsv, reportRecipientListFilename } from './report-recipient-list.js';
 import { normalizeMonthlyKpiTargetFigure, normalizeMonthlyKpiTargetList, recordMonthlyKpiTarget, monthlyKpiTargetLate, monthlyKpiTargetComparison, monthlyKpiTargetSummaryText, monthlyKpiTargetsHtml, monthlyKpiTargetLateHtml, monthlyKpiTargetComparisonHtml, monthlyKpiTargetCsv, monthlyKpiTargetFilename } from './monthly-kpi-target.js';
+import { normalizeDataQualityReviewList, recordDataQualityReview, dataQualityReviewCarriedForward, dataQualityReviewSummaryText, dataQualityReviewRoundsHtml, dataQualityReviewCarriedForwardHtml, dataQualityReviewCsv, dataQualityReviewFilename } from './data-quality-review.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14440,6 +14441,7 @@ function renderAnalytics() {
   renderPrintQueueLog();
   renderReportRecipientLists();
   renderMonthlyKpiTargets();
+  renderDataQualityReviews();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33806,6 +33808,15 @@ function loadMonthlyKpiTargets() {
 function saveMonthlyKpiTargets(list) {
   try { localStorage.setItem(MONTHLY_KPI_TARGET_KEY, JSON.stringify(normalizeMonthlyKpiTargetList(list))); } catch { /* Monthly KPI target only: a failed save leaves the previous list in place */ }
 }
+// Data quality review rounds: a round is a review event only; rounds never
+// change any customer, bill, or payment record.
+const DATA_QUALITY_REVIEW_KEY = 'shahdara_dqr_rounds_v1';
+function loadDataQualityReviews() {
+  try { return normalizeDataQualityReviewList(JSON.parse(localStorage.getItem(DATA_QUALITY_REVIEW_KEY) || '[]')); } catch { return []; }
+}
+function saveDataQualityReviews(list) {
+  try { localStorage.setItem(DATA_QUALITY_REVIEW_KEY, JSON.stringify(normalizeDataQualityReviewList(list))); } catch { /* Data quality review only: a failed save leaves the previous list in place */ }
+}
 
 let monthlyKpiTargetBound = false;
 let monthlyKpiTargetComparisonView = '';
@@ -33857,6 +33868,40 @@ function renderMonthlyKpiTargets() {
         monthlyKpiTargetComparisonView = monthlyKpiTargetComparisonHtml([wanted.target], [{ kpiName, month, figure: actualFigure }]);
       }
       renderMonthlyKpiTargets();
+    });
+  }
+}
+let dataQualityReviewBound = false;
+function renderDataQualityReviews() {
+  const listEl = $('#dqrBody');
+  if (!listEl) return;
+  const all = loadDataQualityReviews();
+  listEl.innerHTML = all.length ? dataQualityReviewRoundsHtml(all) : '<p>No data quality review rounds recorded yet.</p>';
+  const summaryEl = $('#dqrSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${dataQualityReviewSummaryText(all)} A round never changes any customer, bill, or payment record.`;
+  }
+  const carriedEl = $('#dqrCarriedBody');
+  if (carriedEl) {
+    const carried = dataQualityReviewCarriedForward(all);
+    carriedEl.innerHTML = carried.length ? dataQualityReviewCarriedForwardHtml(all) : '<p>No issues still open.</p>';
+  }
+  if (!dataQualityReviewBound) {
+    dataQualityReviewBound = true;
+    $('#dqrExportBtn')?.addEventListener('click', () => { downloadCsvFile(dataQualityReviewFilename(), dataQualityReviewCsv(loadDataQualityReviews())); });
+    $('#dqrSaveBtn')?.addEventListener('click', () => {
+      const before = loadDataQualityReviews();
+      const next = recordDataQualityReview(before, {
+        id: `DQR-${Date.now()}`,
+        roundDate: $('#dqrRoundDate')?.value ?? '',
+        reviewer: $('#dqrReviewer')?.value ?? '',
+        areasChecked: $('#dqrAreas')?.value ?? '',
+        issuesFound: $('#dqrIssuesFound')?.value ?? '',
+        issuesCleared: $('#dqrIssuesCleared')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Round not recorded: give a strict round date, a reviewer, and at least one area checked.'); return; }
+      saveDataQualityReviews(next);
+      renderDataQualityReviews();
     });
   }
 }

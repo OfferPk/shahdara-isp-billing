@@ -11639,6 +11639,30 @@
 <div id="mktBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="dqrHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="dqrHeading">Data quality review round</h3>
+<p class="chart-caption">One dated review round per review: the round date and reviewer, the areas checked, the issues found with references, and the issues cleared. Counts reconcile and issues never cleared in any round carry forward visibly. A round never changes any customer, bill, or payment record by itself.</p>
+<p id="dqrSummary"></p>
+</div>
+<div>
+<button id="dqrExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export review rounds CSV</button>
+</div>
+</div>
+<h4>Record a review round</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Round date <input id="dqrRoundDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Reviewer <input id="dqrReviewer" type="text" style="width: 140px;" placeholder="e.g. Owner"></label>
+<label style="font-size: 12px;">Areas checked, comma-separated <input id="dqrAreas" type="text" style="width: 220px;" placeholder="e.g. Bills, Customers"></label>
+<label style="font-size: 12px;">Issues found, one per line as "REF: description" <textarea id="dqrIssuesFound" rows="3" style="width: 260px;" placeholder="e.g. Q-1: wrong amount"></textarea></label>
+<label style="font-size: 12px;">Issues cleared, one reference per line <textarea id="dqrIssuesCleared" rows="3" style="width: 200px;" placeholder="e.g. Q-1"></textarea></label>
+<button id="dqrSaveBtn" class="secondary-button btn-sm" type="button">Record review round</button>
+</div>
+<h4>Still open — carried forward</h4>
+<div id="dqrCarriedBody"></div>
+<h4>All review rounds</h4>
+<div id="dqrBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

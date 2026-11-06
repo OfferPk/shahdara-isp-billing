@@ -540,6 +540,7 @@ import { validTestDataSeparationDay, normalizeTestDataSeparationRecords, normali
 import { normalizeVersionUpgradeChecklistList, recordVersionUpgradeChecklist, tickVersionUpgradeChecklistStep, skipVersionUpgradeChecklistStep, versionUpgradeChecklistSummaryText, versionUpgradeChecklistsHtml, versionUpgradeChecklistIncompleteHtml, versionUpgradeChecklistCsv, versionUpgradeChecklistFilename } from './version-upgrade-checklist.js';
 import { normalizeDeviceCompatibilityNoteList, recordDeviceCompatibilityNote, deviceCompatibilityNoteForPair, deviceCompatibilityNotesForDevice, deviceCompatibilityNoteSummaryText, deviceCompatibilityNotesHtml, deviceCompatibilityNotesForDeviceHtml, deviceCompatibilityPairText, deviceCompatibilityNoteCsv, deviceCompatibilityNoteFilename } from './device-compatibility-note.js';
 import { normalizePrintQueueJobList, recordPrintQueueJob, markPrintQueueJobPrinted, markPrintQueueJobFailed, printQueueJobSummaryText, printQueueJobsHtml, printQueueOpenJobsHtml, printQueueJobCsv, printQueueJobFilename } from './print-queue-log.js';
+import { normalizeReportRecipientListList, recordReportRecipientList, setReportRecipients, reportRecipientListsWithoutRecipients, reportRecipientListSummaryText, reportRecipientListsHtml, reportRecipientListCsv, reportRecipientListFilename } from './report-recipient-list.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14436,6 +14437,7 @@ function renderAnalytics() {
   renderVersionUpgradeChecklists();
   renderDeviceCompatibilityNotes();
   renderPrintQueueLog();
+  renderReportRecipientLists();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33737,6 +33739,62 @@ function renderPrintQueueLog() {
   }
 }
 let duplicationCheckBound = false;
+
+// Report recipient list (Plan 345): one recipient list per report, so
+// every report reaches the person who needs it — owner, accountant, or
+// collector — without relying on memory. A list names the report, its
+// recipients by role or name, the delivery method, and the date it was
+// set. A report with no recipients is flagged. The list only names
+// recipients: it never sends any report and never changes any bill,
+// payment, or report content.
+const REPORT_RECIPIENT_LIST_KEY = 'shahdara_rcl_lists_v1';
+function loadReportRecipientLists() {
+  try { return normalizeReportRecipientListList(JSON.parse(localStorage.getItem(REPORT_RECIPIENT_LIST_KEY) || '[]')); } catch { return []; }
+}
+function saveReportRecipientLists(list) {
+  try { localStorage.setItem(REPORT_RECIPIENT_LIST_KEY, JSON.stringify(normalizeReportRecipientListList(list))); } catch { /* Report recipient list only: a failed save leaves the previous list in place */ }
+}
+
+let reportRecipientListBound = false;
+function renderReportRecipientLists() {
+  const listEl = $('#rclBody');
+  if (!listEl) return;
+  const all = loadReportRecipientLists();
+  listEl.innerHTML = all.length ? reportRecipientListsHtml(all) : '<p>No report recipient lists recorded yet.</p>';
+  const summaryEl = $('#rclSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${reportRecipientListSummaryText(all)} The list never sends any report and never changes any bill, payment, or report content.`;
+  }
+  const flaggedEl = $('#rclFlaggedBody');
+  if (flaggedEl) {
+    const flagged = reportRecipientListsWithoutRecipients(all);
+    flaggedEl.innerHTML = flagged.length ? reportRecipientListsHtml(flagged) : '<p>No reports without recipients.</p>';
+  }
+  if (!reportRecipientListBound) {
+    reportRecipientListBound = true;
+    $('#rclExportBtn')?.addEventListener('click', () => { downloadCsvFile(reportRecipientListFilename(), reportRecipientListCsv(loadReportRecipientLists())); });
+    $('#rclSaveBtn')?.addEventListener('click', () => {
+      const before = loadReportRecipientLists();
+      const next = recordReportRecipientList(before, {
+        id: `RRL-${Date.now()}`,
+        reportName: $('#rclReportName')?.value ?? '',
+        recipients: $('#rclRecipients')?.value ?? '',
+        deliveryMethod: $('#rclDeliveryMethod')?.value ?? 'in person',
+        dateSet: $('#rclDateSet')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('List not recorded: give the report name and a strict date set.'); return; }
+      saveReportRecipientLists(next);
+      renderReportRecipientLists();
+    });
+    $('#rclSetBtn')?.addEventListener('click', () => {
+      const before = loadReportRecipientLists();
+      const next = setReportRecipients(before, $('#rclSetReportName')?.value ?? '', $('#rclSetRecipients')?.value ?? '');
+      if (next === before) { toast('Recipients not set: give a listed report name.'); return; }
+      saveReportRecipientLists(next);
+      renderReportRecipientLists();
+    });
+  }
+}
 function renderDuplicationCheck() {
   const listEl = $('#dpcBody');
   if (!listEl) return;

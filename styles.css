@@ -7807,6 +7807,14 @@ html, body {
   font-size: 12px;
 }
 
+/* Plan 400 — live daily entry summary on the entry screen: today's
+   transaction count and total on this device, refreshed after each
+   save. No colour of its own, so no new hex colour is introduced. */
+.des-summary {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
 .psp-preview ul {
   margin: 0;
   padding-left: 16px;

@@ -93,6 +93,7 @@ import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConf
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
 import { overpaymentExtraCents } from './overpayment-choice.js';
 import { underpaymentWarning, underpaymentWarningLineText } from './underpayment-warning.js';
+import { openSuspensionFor, suspendedWarningLineText } from './suspended-warning.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
@@ -1724,6 +1725,9 @@ export function setupQuickCollectModal({
   // Plan 387: the underpayment warning line under the amount field
   // (null when the host page predates it).
   const underpaymentWarningLine = typeof document !== 'undefined' ? document.getElementById('quickCollectUnderpaymentWarning') : null;
+  // Plan 388: the suspended-customer warning line under the amount field
+  // (null when the host page predates it).
+  const suspendedWarningLine = typeof document !== 'undefined' ? document.getElementById('quickCollectSuspendedWarning') : null;
   // Plan 382: the save confirmation summary hosts (null when the
   // host page predates them) — the summary panel and its Confirm /
   // Back buttons, shown before the payment posts.
@@ -1849,6 +1853,29 @@ export function setupQuickCollectModal({
     }
     underpaymentWarningLine.textContent = line;
     underpaymentWarningLine.hidden = line === '';
+  }
+  // Plan 388: the suspended-customer warning — shown on the entry form
+  // while the picked customer holds an open suspension record (Plan 83),
+  // so the operator can tell a returning customer at the moment of
+  // payment that reconnection is a separate step, before they walk home
+  // expecting the net to work. Warns only: the payment still records
+  // normally, and the warning never changes any suspension,
+  // reconnection, bill, or payment record by itself. The records come
+  // from the same loader the app itself uses (the Plan 361 handling-note
+  // idiom); when it is unavailable — for example in a test host without
+  // the app script — no warning is invented. Read-only: rendering warns
+  // nothing into any record. The warning depends on the customer only,
+  // so it renders once when the form opens for that customer.
+  function renderSuspendedWarning() {
+    if (!suspendedWarningLine) return;
+    let line = '';
+    if (activeCustomerId) {
+      const records = typeof loadSuspensions === 'function' ? loadSuspensions() : [];
+      const record = openSuspensionFor(records, activeCustomerId);
+      if (record) line = suspendedWarningLineText(record);
+    }
+    suspendedWarningLine.textContent = line;
+    suspendedWarningLine.hidden = line === '';
   }
   // Plan 382: the save confirmation summary — built from the same
   // reads the submit handler posts with, so the figures the operator
@@ -2826,6 +2853,9 @@ export function setupQuickCollectModal({
       // Plan 387: the form opens with the warning already shown for
       // the suggested amount when it falls short of the dues.
       renderUnderpaymentWarning();
+      // Plan 388: the form opens with the warning already shown when
+      // the picked customer holds an open suspension record.
+      renderSuspendedWarning();
       if (dateInput) {
         dateInput.value = activeDefaults.todayDate;
         dateInput.max = activeDefaults.todayDate;

@@ -532,6 +532,7 @@ import { validExportVerificationDay, foldExportVerificationResult, normalizeExpo
 import { validExportFormatVersionDay, normalizeExportFormatVersionList, recordExportFormatVersion, exportFormatVersionsForFormat, currentExportFormatVersion, exportFormatNames, exportFormatVersionSummaryText, exportFormatVersionsHtml, exportFormatVersionCsv, exportFormatVersionFilename, normalizeExportFormatStampList, stampExportFormat, exportFormatStampsHtml } from './export-format-version.js';
 import { validDataConflictDay, foldDataConflictResolution, normalizeDataConflictList, recordDataConflict, resolveDataConflict, openDataConflicts, dataConflictSummaryText, dataConflictsHtml, openDataConflictsHtml, dataConflictCsv, dataConflictFilename } from './offline-data-conflict.js';
 import { validScreenHelpNoteDay, foldScreenHelpNoteStatus, normalizeScreenHelpNoteList, findScreenHelpNote, recordScreenHelpNote, updateScreenHelpNoteCheck, screenHelpNoteScreens, screenHelpNoteGaps, screenHelpNoteCoverage, screenHelpNoteSummaryText, screenHelpNoteText, screenHelpNoteHtml, screenHelpNotesHtml, screenHelpNoteGapsHtml, screenHelpNoteCoverageHtml, screenHelpNoteCsv, screenHelpNoteFilename } from './screen-help-note.js';
+import { validOperatorNotePinDay, normalizeOperatorNotePinList, findOperatorNotePin, recordOperatorNotePin, unpinOperatorNotePin, activeOperatorNotePins, operatorNotePinsInDisplayOrder, operatorNotePinSummaryText, operatorNotePinText, operatorNotePinHtml, operatorNotePinsHtml, activeOperatorNotePinsHtml, operatorNotePinsInDisplayOrderHtml, operatorNotePinCsv, operatorNotePinFilename } from './operator-note-pin.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14420,6 +14421,7 @@ function renderAnalytics() {
   renderDataConflicts();
   renderAppPerformanceNotes();
   renderScreenHelpNotes();
+  renderOperatorNotePins();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33242,6 +33244,67 @@ function renderScreenHelpNotes() {
       if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Check not updated: the screen must already be registered — record it first, then re-check.'); return; }
       saveScreenHelpNotes(next);
       renderScreenHelpNotes();
+    });
+  }
+}
+let operatorNotePinBound = false;
+const OPERATOR_NOTE_PIN_KEY = 'shahdara_onp_pins_v1';
+function loadOperatorNotePins() {
+  try { return normalizeOperatorNotePinList(JSON.parse(localStorage.getItem(OPERATOR_NOTE_PIN_KEY) || '[]')); } catch { return []; }
+}
+function saveOperatorNotePins(list) {
+  try { localStorage.setItem(OPERATOR_NOTE_PIN_KEY, JSON.stringify(normalizeOperatorNotePinList(list))); } catch { /* Operator note pinning only: a failed save leaves the previous list in place */ }
+}
+
+// Operator note pinning (Plan 337): one pin record per pinned note —
+// the note reference, who pinned it, the date pinned, and the unpin
+// date or reason. Pinned notes appear first on the list in pinned
+// order. Unpinning removes the pin and leaves the note intact. Pinning
+// only changes display order and never changes any note content, bill,
+// payment, or customer record by itself.
+function renderOperatorNotePins() {
+  const listEl = $('#onpBody');
+  if (!listEl) return;
+  const all = loadOperatorNotePins();
+  listEl.innerHTML = all.length ? operatorNotePinsHtml(all) : '<p>No notes pinned.</p>';
+  const summaryEl = $('#onpSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${operatorNotePinSummaryText(all)} Pinning only changes display order and never changes any note content, bill, payment, or customer record by itself.`;
+  }
+  const pinnedEl = $('#onpPinnedBody');
+  if (pinnedEl) {
+    pinnedEl.innerHTML = activeOperatorNotePinsHtml(all);
+  }
+  const notes = ($('#onpNotes')?.value ?? '').split('\n').map((line) => line.trim()).filter(Boolean);
+  const orderEl = $('#onpOrderBody');
+  if (orderEl) {
+    orderEl.innerHTML = notes.length ? operatorNotePinsInDisplayOrderHtml(all, notes) : '<p>Give the notes to order, one per line, to see pinned notes first.</p>';
+  }
+  if (!operatorNotePinBound) {
+    operatorNotePinBound = true;
+    $('#onpExportBtn')?.addEventListener('click', () => { downloadCsvFile(operatorNotePinFilename(), operatorNotePinCsv(loadOperatorNotePins())); });
+    $('#onpOrderBtn')?.addEventListener('click', () => { renderOperatorNotePins(); });
+    $('#onpPinBtn')?.addEventListener('click', () => {
+      const before = loadOperatorNotePins();
+      const next = recordOperatorNotePin(before, {
+        id: `ONP-${Date.now()}`,
+        noteRef: $('#onpNoteRef')?.value ?? '',
+        pinnedBy: $('#onpPinnedBy')?.value ?? '',
+        datePinned: $('#onpDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Note not pinned: give the note reference, who pinned it, and a strict date pinned — one active pin per note.'); return; }
+      saveOperatorNotePins(next);
+      renderOperatorNotePins();
+    });
+    $('#onpUnpinBtn')?.addEventListener('click', () => {
+      const before = loadOperatorNotePins();
+      const next = unpinOperatorNotePin(before, $('#onpUnpinRef')?.value ?? '', {
+        unpinDate: $('#onpUnpinDate')?.value ?? '',
+        unpinReason: $('#onpUnpinReason')?.value ?? '',
+      });
+      if (JSON.stringify(next) === JSON.stringify(before)) { toast('Note not unpinned: the note must have an active pin, and an unpin date or a reason is needed.'); return; }
+      saveOperatorNotePins(next);
+      renderOperatorNotePins();
     });
   }
 }

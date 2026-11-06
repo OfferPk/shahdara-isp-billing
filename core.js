@@ -66,6 +66,7 @@ import { normalizeSameDayCorrectionNote, sameDayCorrectionNoteOf } from './same-
 import { normalizeReversalLink, reversalLinkOf } from './reversal-link.js';
 import { normalizeOverpaymentChoice, overpaymentChoiceOf } from './overpayment-choice.js';
 import { normalizeExcessCashNote, excessCashNoteOf } from './excess-cash-note.js';
+import { normalizeLargeCashApproval, largeCashApprovalOf, requiresLargeCashApproval } from './large-cash-approval.js';
 import { normalizeUrduNote, urduNoteOf } from './urdu-note.js';
 import { normalizeCrossPaymentNote, crossPaymentNoteOf } from './cross-payment-note.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
@@ -1975,7 +1976,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, excessCashNote, excessCashDuesCents, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, excessCashNote, excessCashDuesCents, largeCashApproval, largeCashThresholdCents, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -2019,6 +2020,18 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   // record and never touches any credit balance.
   const cleanExcessCashNote = normalizeExcessCashNote(excessCashNote, excessCashDuesCents, Math.round(cents * 100));
   if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
+  // Plan 397: the large-cash approval — the owner's initials or name
+  // that approved a cash payment above the operator-set threshold,
+  // recorded with the transaction before it posts. The threshold
+  // rides along for that check only and is never stored. The gate
+  // runs only when the caller passes a threshold (the entry forms
+  // always do); a caller that passes none — a correction carrying
+  // the approval the payment already has, or a historical path —
+  // keeps its behaviour, and a well-formed carried approval is kept
+  // by its shape. A cash payment above the threshold with no
+  // approval recorded cannot post.
+  const cleanLargeCashApproval = normalizeLargeCashApproval(largeCashApproval, { isCash: isCashPaymentMethod(method), amountCents: Math.round(cents * 100), thresholdCents: largeCashThresholdCents });
+  if (largeCashThresholdCents !== undefined && largeCashThresholdCents !== null && requiresLargeCashApproval(isCashPaymentMethod(method), Math.round(cents * 100), largeCashThresholdCents) && !cleanLargeCashApproval) throw new Error('Large cash payments need the owner\'s approval recorded.');
 
   const ref = String(transactionId ?? reference ?? '').trim().slice(0, 64);
   const overrideReason = String(referenceOverrideReason ?? '').trim().slice(0, 100);
@@ -2184,6 +2197,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(cleanReversalLink ? { reversalLink: cleanReversalLink } : {}),
     ...(cleanOverpaymentChoice ? { overpaymentChoice: cleanOverpaymentChoice } : {}),
     ...(cleanExcessCashNote ? { excessCashNote: cleanExcessCashNote } : {}),
+    ...(cleanLargeCashApproval ? { largeCashApproval: cleanLargeCashApproval } : {}),
     ...(contributorStamp ? { paidByContributor: contributorStamp } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -2501,6 +2515,15 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // shape (no dues are passed on a correction), so the recorded
     // extra stays exactly as it was entered.
     excessCashNote: fields.excessCashNote !== undefined ? fields.excessCashNote : existingPayment.excessCashNote,
+    // Plan 397: the large-cash approval rides the correction the same
+    // way the excess cash note does — an explicit new approval
+    // replaces it, an emptied approval (null) clears it, and saying
+    // nothing about it keeps the approval the payment already
+    // carries, so a correction can never silently strip the owner's
+    // approval. The validator keeps a carried approval by its shape
+    // (no threshold is passed on a correction), so the recorded
+    // approval stays exactly as it was entered.
+    largeCashApproval: fields.largeCashApproval !== undefined ? fields.largeCashApproval : existingPayment.largeCashApproval,
     // Plan 389: the Urdu-script note rides the correction the same
     // way the overpayment choice does — an explicit new note
     // replaces it, an emptied note (null) clears it, and saying
@@ -3445,6 +3468,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     // purpose beside the entry — sanitized by the same reader the
     // display uses, so a damaged record reads as no note.
     excessCashNote: excessCashNoteOf(payment),
+    // Plan 397: the large-cash approval rides the transaction row so
+    // the Transactions list can show the owner's approval beside the
+    // entry — sanitized by the same reader the display uses, so a
+    // damaged record reads as no approval.
+    largeCashApproval: largeCashApprovalOf(payment),
     // Plan 389: the Urdu-script note rides the transaction row so
     // the Transactions list can show the note exactly as written
     // beside the entry — sanitized by the same reader the display

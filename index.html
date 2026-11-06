@@ -11429,6 +11429,34 @@
 <div id="rsnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="danHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="danHeading">Data anonymisation note</h3>
+<p class="chart-caption">One anonymisation note per demo or training copy: the copy reference, the fields anonymised, the method in plain words, the date the copy was made, and the holder. A copy with no anonymisation note is flagged as unapproved for training use. A note only describes a copy: it never creates a copy and never changes any live customer, bill, or payment record.</p>
+<p id="danSummary"></p>
+</div>
+<div>
+<button id="danExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export anonymisation notes CSV</button>
+</div>
+</div>
+<h4>Save an anonymisation note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Copy reference <input id="danCopyRef" type="text" style="width: 140px;" placeholder="e.g. COPY-1"></label>
+<label style="font-size: 12px;">Fields anonymised <input id="danFields" type="text" style="width: 200px;" placeholder="e.g. name, phone, address"></label>
+<label style="font-size: 12px;">Method <input id="danMethod" type="text" style="width: 200px;" placeholder="e.g. replaced with fake values"></label>
+<label style="font-size: 12px;">Date made <input id="danDateMade" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Holder <input id="danHolder" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<button id="danSaveBtn" class="secondary-button btn-sm" type="button">Save note</button>
+</div>
+<h4>Check copies for training use</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Copy references <input id="danCheckRefs" type="text" style="width: 220px;" placeholder="e.g. COPY-1, COPY-2"></label>
+<button id="danCheckBtn" class="secondary-button btn-sm" type="button">Check copies</button>
+</div>
+<div id="danUnapprovedBody"></div>
+<h4>All anonymisation notes</h4>
+<div id="danBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

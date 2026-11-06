@@ -658,6 +658,7 @@ export function executeQuickCollection(state, {
   excessCashDuesCents,
   largeCashApproval,
   largeCashThresholdCents,
+  categoryTag,
   transactionId,
   senderTitle,
   senderDigits,
@@ -851,6 +852,12 @@ export function executeQuickCollection(state, {
     // stores nothing; the approval applies nothing by itself.
     largeCashApproval: largeCashApproval || undefined,
     largeCashThresholdCents: Number.isFinite(Number(largeCashThresholdCents)) ? Math.round(Number(largeCashThresholdCents)) : undefined,
+    // Plan 398: the category tag rides the payment — the kind of
+    // transaction in plain words, set at entry and used only for
+    // filtering. Core's validatePayment sanitizes it (only the four
+    // meaningful tags are stored), so a collection without a tag
+    // stores nothing extra.
+    categoryTag: categoryTag || undefined,
     paidByContributor: contributorStamp ?? undefined,
     transactionId: cleanTxnId || undefined,
     // SISP-63: sender proof metadata rides alongside the TID; core's
@@ -1753,6 +1760,10 @@ export function setupQuickCollectModal({
   // the owner's approval, and the approver's initials or name.
   const largeCashThresholdInput = document.getElementById('quickCollectLargeCashThreshold');
   const largeCashApproverInput = document.getElementById('quickCollectLargeCashApprover');
+  // Plan 398: the category tag select (null when the host page
+  // predates it) — the kind of transaction in plain words, set at
+  // entry and used only for filtering.
+  const categoryTagSelect = document.getElementById('quickCollectCategoryTagSelect');
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2975,6 +2986,10 @@ export function setupQuickCollectModal({
       // next.
       if (largeCashThresholdInput) largeCashThresholdInput.value = String(LARGE_CASH_DEFAULT_THRESHOLD_CENTS / 100);
       if (largeCashApproverInput) largeCashApproverInput.value = '';
+      // Plan 398: the category tag starts at the default (collection)
+      // on every open, like the payer fields — a tag picked for one
+      // customer never carries over to the next.
+      if (categoryTagSelect) categoryTagSelect.value = 'collection';
 
       // Populate billing month select
       if (monthSelect) {
@@ -3596,6 +3611,11 @@ export function setupQuickCollectModal({
       // Plan 389: the Urdu-script note value, read beside the payer
       // name — empty reads as no note, exactly like the payer field.
       const urduNoteVal = urduNoteInput?.value || '';
+      // Plan 398: the category tag value, read beside the payer
+      // name — the kind of transaction in plain words; empty reads
+      // as no tag (the payment reads as 'other'), exactly like the
+      // payer field.
+      const categoryTagVal = categoryTagSelect?.value || '';
       // Plan 393: the cross-payment note values, read beside the payer
       // name — a picked payer customer, a typed payer name, and the
       // relationship in plain words. The typed name wins; else the
@@ -3938,6 +3958,7 @@ export function setupQuickCollectModal({
         excessCashDuesCents: selectedExcessCashPurpose ? excessCashDuesCents : undefined,
         largeCashApproval: largeCashApprover || undefined,
         largeCashThresholdCents: largeCashThresholdCents,
+        categoryTag: categoryTagVal || undefined,
         paidByContributorId: contributorSelect && contributorField && !contributorField.hidden ? (contributorSelect.value || undefined) : undefined,
         transactionId: txnIdVal,
         senderTitle: (senderNameInput?.value || '').trim(),

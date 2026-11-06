@@ -11363,6 +11363,42 @@
 <div id="onpBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="dwoHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="dwoHeading">Dashboard widget order preference</h3>
+<p class="chart-caption">One order preference per operator: the widget list in preferred order, the operator, and the date set. Each operator's dashboard renders widgets in their saved order, so Saad in the field and the owner in the shop each open the app to the figures they actually use first. Resetting the order restores the default without deleting the preference history. The preference only reorders display and never changes any bill, payment, customer, or widget figure by itself.</p>
+<p id="dwoSummary"></p>
+</div>
+<div>
+<button id="dwoExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export widget orders CSV</button>
+</div>
+</div>
+<h4>Save an order preference</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Operator <input id="dwoOperator" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Widgets in preferred order, one per line <textarea id="dwoWidgetList" rows="4" style="width: 260px;" placeholder="Overdue list&#10;Collections today&#10;Due in 7 days"></textarea></label>
+<label style="font-size: 12px;">Date set <input id="dwoDate" type="date" style="width: 140px;"></label>
+<button id="dwoSaveBtn" class="secondary-button btn-sm" type="button">Save order</button>
+</div>
+<h4>Reset to the default order</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Operator <input id="dwoResetOperator" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<label style="font-size: 12px;">Reset date <input id="dwoResetDate" type="date" style="width: 140px;"></label>
+<button id="dwoResetBtn" class="secondary-button btn-sm" type="button">Reset order</button>
+</div>
+<h4>Current order for this operator</h4>
+<div id="dwoCurrentBody"></div>
+<h4>Widgets in saved order</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Widgets to order, one per line <textarea id="dwoWidgets" rows="4" style="width: 260px;" placeholder="Collections today&#10;Overdue list&#10;Due in 7 days&#10;New customers"></textarea></label>
+<button id="dwoOrderBtn" class="secondary-button btn-sm" type="button">Show order</button>
+</div>
+<div id="dwoOrderBody"></div>
+<h4>Order history for this operator</h4>
+<div id="dwoHistoryBody"></div>
+<h4>All order preferences</h4>
+<div id="dwoBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

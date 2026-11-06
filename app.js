@@ -552,6 +552,7 @@ import { buildProfileHeaderStrip, profileHeaderStripHtml } from './profile-heade
 import { duesBreakdownSectionHtml } from './dues-breakdown-by-month.js';
 import { latestMessageDateForCustomer, latestVisitDateForCustomer, lastInteractionFor, lastInteractionLineHtml } from './last-interaction-line.js';
 import { PROFILE_VERIFICATION_TICK_STORE_KEY, normalizeProfileVerificationTickList, recordProfileVerificationTick, removeProfileVerificationTick, profileVerificationTickForCustomer, profileVerificationTickSectionHtml } from './profile-verification-tick.js';
+import { TEMPORARILY_AWAY_FLAG_STORE_KEY, normalizeTemporarilyAwayFlagList, recordTemporarilyAwayFlag, removeTemporarilyAwayFlag, temporarilyAwayFlagForCustomer, temporarilyAwayFlagSectionHtml, isStrictTemporarilyAwayDate } from './temporarily-away-flag.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -5056,6 +5057,24 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_pvt_remove'),
     none: t('prof_pvt_none'),
   });
+  // Plan 373 — Customer temporarily-away flag: away from date,
+  // expected return date where known, and a short note. A flag only:
+  // it never changes any bill, payment, due date, or customer record
+  // by itself, and it is not a seasonal hold, an exit, or an archive.
+  const temporarilyAwayFlagSectionMarkup = temporarilyAwayFlagSectionHtml(customer, loadTemporarilyAwayFlags(), {
+    heading: t('prof_taw_heading'),
+    intro: t('prof_taw_intro'),
+    awayFrom: t('prof_taw_away_from'),
+    returnDate: t('prof_taw_return_date'),
+    note: t('prof_taw_note'),
+    notePlaceholder: t('prof_taw_note_placeholder'),
+    save: t('save'),
+    remove: t('prof_taw_remove'),
+    none: t('prof_taw_none'),
+    awayUntil: t('prof_taw_away_until'),
+    awaySince: t('prof_taw_away_since'),
+    noReturnDate: t('prof_taw_no_return_date'),
+  });
   // Plan 356 — Household link note: the other household member's name
   // and relationship beside this profile, with an add form and a
   // remove button per link. A link is a reference only; it merges no
@@ -5166,7 +5185,7 @@ function renderCustomerProfileView(customer) {
     message: t('prof_quick_action_message'),
     balance: t('prof_quick_action_balance'),
   });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
@@ -5950,6 +5969,37 @@ function renderCustomerProfileView(customer) {
       saveProfileVerificationTicks(removeProfileVerificationTick(loadProfileVerificationTicks(), customer.id));
       renderDetail();
       toast('Profile verification removed.');
+    });
+  }
+  // Plan 373: wire the temporarily-away flag on the profile — one
+  // edit form. Recording or clearing a flag changes only that flag;
+  // it never changes any bill, payment, due date, or customer record.
+  const temporarilyAwayFlagSectionEl = $('#customerProfileView').querySelector('.temporarily-away-flag');
+  if (temporarilyAwayFlagSectionEl) {
+    const temporarilyAwayFromDate = temporarilyAwayFlagSectionEl.querySelector('#tawFrom');
+    if (temporarilyAwayFromDate && !temporarilyAwayFromDate.value) temporarilyAwayFromDate.value = localDate();
+    temporarilyAwayFlagSectionEl.querySelector('#tawForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const awayFrom = temporarilyAwayFromDate?.value ?? '';
+      if (!isStrictTemporarilyAwayDate(awayFrom)) { toast('Temporarily-away flag not saved: pick the away-from date first.'); return; }
+      const returnDate = temporarilyAwayFlagSectionEl.querySelector('#tawUntil')?.value ?? '';
+      if (returnDate && (!isStrictTemporarilyAwayDate(returnDate) || returnDate < awayFrom)) { toast('Temporarily-away flag not saved: the return date must be on or after the away-from date.'); return; }
+      const before = loadTemporarilyAwayFlags();
+      const next = recordTemporarilyAwayFlag(before, {
+        id: temporarilyAwayFlagForCustomer(before, customer.id)?.id ?? `TAW-${Date.now()}`,
+        customerId: customer.id,
+        awayFrom,
+        returnDate,
+        note: temporarilyAwayFlagSectionEl.querySelector('#tawNote')?.value ?? '',
+      });
+      saveTemporarilyAwayFlags(next);
+      renderDetail();
+      toast('Temporarily-away flag saved.');
+    });
+    temporarilyAwayFlagSectionEl.querySelector('#tawRemoveBtn')?.addEventListener('click', () => {
+      saveTemporarilyAwayFlags(removeTemporarilyAwayFlag(loadTemporarilyAwayFlags(), customer.id));
+      renderDetail();
+      toast('Temporarily-away flag removed.');
     });
   }
   // Plan 368: wire the emergency contact on the profile — one edit
@@ -34672,6 +34722,17 @@ function loadProfileVerificationTicks() {
 }
 function saveProfileVerificationTicks(list) {
   try { localStorage.setItem(PROFILE_VERIFICATION_TICK_STORE_KEY, JSON.stringify(normalizeProfileVerificationTickList(list))); } catch { /* Profile verification tick only: a failed save leaves the previous list in place */ }
+}
+
+// Customer temporarily-away flag (Plan 373): one flag per profile
+// (away from date, expected return date where known, short note).
+// A flag only: it never changes any bill, payment, due date, or
+// customer record.
+function loadTemporarilyAwayFlags() {
+  try { return normalizeTemporarilyAwayFlagList(JSON.parse(localStorage.getItem(TEMPORARILY_AWAY_FLAG_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveTemporarilyAwayFlags(list) {
+  try { localStorage.setItem(TEMPORARILY_AWAY_FLAG_STORE_KEY, JSON.stringify(normalizeTemporarilyAwayFlagList(list))); } catch { /* Temporarily-away flag only: a failed save leaves the previous list in place */ }
 }
 
 // Customer emergency contact (Plan 368): one second person to call

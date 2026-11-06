@@ -53,6 +53,7 @@ import {
   calculatePaymentAllocations
 } from './core.js';
 import { buildPaymentReceipt, RECEIPT_URDU_NOTE } from './receipt.js';
+import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 import { normalizeTid } from './wallet-reconciliation.js';
 import { t } from './nav-language.js';
@@ -414,6 +415,8 @@ export function formatSplitTenderWhatsAppText(combined) {
     `📌 *Status:* ${combined.status === 'PAID' ? 'Paid in Full / مکمل ادا شدہ' : combined.status}`,
     '',
     'Shukriya! Thank you for your prompt payment.',
+    '',
+    receiptTermsNoteText(),
     '━━━━━━━━━━━━━━━━━━━━━━━━'
   ];
   return lines.join('\n');
@@ -459,6 +462,7 @@ export function generateSplitTenderReceiptHtml(combined, {
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">
     <strong>اہم معلوماتی نوٹ:</strong> ${escapeHtml(RECEIPT_URDU_NOTE)}
   </div>
+  ${receiptTermsNoteHtml()}
 </article>`;
 }
 
@@ -524,6 +528,7 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '') {
         </div>
         ${legRows}
       </div>
+      ${receiptTermsNoteHtml()}
     </div>
   `;
 }

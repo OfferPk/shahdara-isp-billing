@@ -11241,6 +11241,36 @@
 <div id="efvBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="odcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="odcHeading">Offline data conflict note</h3>
+<p class="chart-caption">One note per clash between the field-device copy and the shop copy: the record involved, the field that clashed, both values, the resolution chosen, who resolved it, and the date. Unresolved conflicts stay on an open list. Recording or resolving a note never overwrites any bill, payment, or customer record by itself — the resolution is applied through the normal correction path.</p>
+<p id="odcSummary"></p>
+</div>
+<div style="display: flex; gap: 8px; align-items: center;">
+<button id="odcExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export data conflicts CSV</button>
+</div></div>
+<h4>Record a conflict</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Record <input id="odcRecordRef" type="text" style="width: 220px;" placeholder="e.g. Customer CUST-12 — bill Nov 2026"></label>
+<label style="font-size: 12px;">Field <input id="odcField" type="text" style="width: 120px;" placeholder="e.g. amount"></label>
+<label style="font-size: 12px;">Field value <input id="odcFieldValue" type="text" style="width: 130px;" placeholder="e.g. Rs 3000"></label>
+<label style="font-size: 12px;">Shop value <input id="odcShopValue" type="text" style="width: 130px;" placeholder="e.g. Rs 2500"></label>
+<label style="font-size: 12px;">Date <input id="odcDate" type="date" style="width: 140px;"></label>
+<button id="odcRecordBtn" class="secondary-button btn-sm" type="button">Record conflict</button>
+</div>
+<h4>Resolve a conflict</h4>
+<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Note id <input id="odcResolveId" type="text" style="width: 160px;" placeholder="e.g. ODC-1730000000000"></label>
+<label style="font-size: 12px;">Resolution <select id="odcResolveChoice" style="width: 160px;"><option value="field">Field copy kept</option><option value="shop">Shop copy kept</option><option value="merged">Merged by hand</option></select></label>
+<label style="font-size: 12px;">Resolved by <input id="odcResolveBy" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<button id="odcResolveBtn" class="secondary-button btn-sm" type="button">Resolve conflict</button>
+</div>
+<h4>Unresolved conflicts</h4>
+<div id="odcOpenBody"></div>
+<h4>All conflicts</h4>
+<div id="odcBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

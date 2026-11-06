@@ -61,6 +61,7 @@ import { sanitizeRoundingTag } from './bill-rounding-helper.js';
 import { sanitizeDisconnectDetails, sanitizeDisconnectHistory, sanitizeDisconnectDateTime, DISCONNECT_HISTORY_LIMIT } from './churn-winback.js';
 import { sanitizeSignalReadings } from './signal-history.js';
 import { sanitizeReceiptLang, sanitizeReceiptChannel, prefersSmsForChannel } from './receipt-preferences.js';
+import { normalizeCollectionPlace } from './collection-place-note.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
@@ -1953,7 +1954,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -1972,6 +1973,20 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
 
   const payer = String(paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
   if (payer.length > 100) throw new Error('Paid by must be 100 characters or fewer.');
+  // Plan 379: the collection note — who collected the payment, where it
+  // was taken, and the mohalla where it was collected. The collector
+  // name caps at 100 chars (the same cap as the payer name) and the
+  // mohalla at 60 (the same cap as the mohalla-change record); the
+  // place folds to exactly 'shop' or 'field' and anything else is
+  // dropped, never stored raw, so a damaged record can never claim a
+  // third place. A payment without a note stays byte-identical to
+  // before — no note fields are written.
+  const collector = String(collectedBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
+  if (collector.length > 100) throw new Error('Collected by must be 100 characters or fewer.');
+  const place = String(collectionPlace ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().toLowerCase();
+  const cleanPlace = normalizeCollectionPlace(place);
+  const collectionMohallaClean = String(collectionMohalla ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
+  if (collectionMohallaClean.length > 60) throw new Error('Collection mohalla must be 60 characters or fewer.');
   let validDiscount = 0;
   if (discount !== undefined && discount !== null && discount !== '') {
     const dNum = Number(discount);
@@ -2068,6 +2083,9 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(manualBaqayaLines.length > 0 ? { manualBaqayaSettlements: manualBaqayaLines } : {}),
 
     ...(payer ? { paidBy:payer } : {}),
+    ...(collector ? { collectedBy: collector } : {}),
+    ...(cleanPlace ? { collectionPlace: cleanPlace } : {}),
+    ...(collectionMohallaClean ? { collectionMohalla: collectionMohallaClean } : {}),
     ...(contributorStamp ? { paidByContributor: contributorStamp } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -2346,6 +2364,13 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     waivedLateFee: fields.waivedLateFee !== undefined ? fields.waivedLateFee : existingPayment.waivedLateFee,
     // SISP-21: a correction form carries no verification toggle, so a
     // correction must never silently drop an existing verification.
+    // Plan 379: the collection note rides the correction the same way
+    // the payer name does — an explicit new note replaces it, an
+    // emptied note clears it, and saying nothing about it keeps the
+    // note the payment already carries.
+    collectedBy: fields.collectedBy !== undefined ? fields.collectedBy : existingPayment.collectedBy,
+    collectionPlace: fields.collectionPlace !== undefined ? fields.collectionPlace : existingPayment.collectionPlace,
+    collectionMohalla: fields.collectionMohalla !== undefined ? fields.collectionMohalla : existingPayment.collectionMohalla,
     walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified,
     // Payment proof screenshot: the correction form carries no proof
     // picker either, so a correction must never silently drop an
@@ -3225,6 +3250,12 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     amount: Number(payment.amount),
     method: payment.method,
     paidBy: String(payment.paidBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100),
+    // Plan 379: the collection note rides the transaction row so the
+    // Transactions list can show who collected the payment, where, and
+    // in which mohalla — sanitized the same way as the payer name.
+    collectedBy: String(payment.collectedBy ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100),
+    collectionPlace: normalizeCollectionPlace(payment.collectionPlace),
+    collectionMohalla: String(payment.collectionMohalla ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 60),
     allocation:allocations.byPaymentId.get(payment.id)
   })))).filter(row => transactionMatchesQuery(row, query) && (!date || row.date === date) && (windowDays === null || (row.date >= fromDate && row.date <= throughDate)))
     .sort((a, b) => b.date.localeCompare(a.date) || a.customerName.localeCompare(b.customerName) || b.month.localeCompare(a.month) || a.paymentId.localeCompare(b.paymentId));

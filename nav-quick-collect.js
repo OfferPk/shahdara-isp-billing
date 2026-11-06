@@ -87,6 +87,7 @@ import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } fro
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { oldestOpenBillPrefill, transactionPrefillLineHtml } from './transaction-prefill.js';
 import { amountInWordsLineText } from './amount-in-words.js';
+import { normalizeCollectionPlace } from './collection-place-note.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
@@ -637,6 +638,9 @@ export function executeQuickCollection(state, {
   date,
   method,
   paidBy,
+  collectedBy,
+  collectionPlace,
+  collectionMohalla,
   transactionId,
   senderTitle,
   senderDigits,
@@ -787,6 +791,13 @@ export function executeQuickCollection(state, {
     // validatePayment sanitizes it (strict 'YYYY-MM', advance-only).
     targetMonth: kind === 'advance' ? advanceTargetMonth : undefined,
     paidBy: paidBy ? String(paidBy).trim() : undefined,
+    // Plan 379: the collection note rides the payment — who collected
+    // it, where it was taken, and in which mohalla. Core's
+    // validatePayment sanitizes the three fields (caps, place fold),
+    // so a collection without a note stores nothing extra.
+    collectedBy: collectedBy ? String(collectedBy).trim() : undefined,
+    collectionPlace: normalizeCollectionPlace(collectionPlace) || undefined,
+    collectionMohalla: collectionMohalla ? String(collectionMohalla).trim() : undefined,
     paidByContributor: contributorStamp ?? undefined,
     transactionId: cleanTxnId || undefined,
     // SISP-63: sender proof metadata rides alongside the TID; core's
@@ -1661,6 +1672,12 @@ export function setupQuickCollectModal({
   const methodSelect = document.getElementById('quickCollectMethodSelect');
   const monthSelect = document.getElementById('quickCollectMonthSelect');
   const paidByInput = document.getElementById('quickCollectPaidByInput');
+  // Plan 379: the collection note fields (null when the host page
+  // predates them) — who collected the payment, where it was taken,
+  // and in which mohalla.
+  const collectedByInput = document.getElementById('quickCollectCollectedByInput');
+  const collectionPlaceSelect = document.getElementById('quickCollectCollectionPlaceSelect');
+  const collectionMohallaInput = document.getElementById('quickCollectCollectionMohallaInput');
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -3165,6 +3182,11 @@ export function setupQuickCollectModal({
       const methodVal = methodSelect?.value || 'Cash';
       const monthVal = monthSelect?.value || activeDefaults.targetMonth;
       const paidByVal = paidByInput?.value || '';
+      // Plan 379: the collection note values, read beside the payer
+      // name — empty reads as no note, exactly like the payer field.
+      const collectedByVal = collectedByInput?.value || '';
+      const collectionPlaceVal = normalizeCollectionPlace(collectionPlaceSelect?.value || '');
+      const collectionMohallaVal = collectionMohallaInput?.value || '';
 
       const isDig = isDigitalPaymentMethod(methodVal);
       const txnIdVal = (transactionIdInput?.value || '').trim();
@@ -3413,6 +3435,9 @@ export function setupQuickCollectModal({
         kind: advanceCheckbox?.checked ? 'advance' : undefined,
         advanceTargetMonth: advanceCheckbox?.checked ? (advanceTargetSelect?.value || undefined) : undefined,
         paidBy: paidByVal,
+        collectedBy: collectedByVal || undefined,
+        collectionPlace: collectionPlaceVal || undefined,
+        collectionMohalla: collectionMohallaVal || undefined,
         paidByContributorId: contributorSelect && contributorField && !contributorField.hidden ? (contributorSelect.value || undefined) : undefined,
         transactionId: txnIdVal,
         senderTitle: (senderNameInput?.value || '').trim(),

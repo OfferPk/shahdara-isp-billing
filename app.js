@@ -553,6 +553,7 @@ import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarra
 import { normalizeCollectionPromiseList, recordCollectionPromise, removeCollectionPromise, recordCollectionPromisePayment, collectionPromisesSorted, collectionPromisesForCustomer, collectionPromiseCountsForCustomer, collectionPromiseAllHtml, collectionPromiseSummaryText, collectionPromiseCsv, collectionPromiseFilename } from './collection-promise.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
+import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
 import { normalizePaymentFailureList, recordPaymentFailure, removePaymentFailure, paymentFailuresSorted, paymentFailuresForCustomer, paymentFailureCountsForCustomer, paymentFailureAllHtml, paymentFailureSummaryText, paymentFailureCsv, paymentFailureFilename } from './payment-failure.js';
 import { normalizeCorrectionApprovalList, recordCorrectionApproval, removeCorrectionApproval, approvalsSorted, approvalsForPeriod, approvalsMissingSecondApprover, correctionApprovalAllHtml, correctionApprovalSummaryText, correctionApprovalCsv, correctionApprovalFilename } from './correction-approval.js';
 import { normalizePartPaymentReceiptNoteList, recordPartPaymentReceiptNote, removePartPaymentReceiptNote, findPartPaymentReceiptNote, receiptNotesForCustomer, receiptNotesSorted, receiptNoteAllHtml, receiptNoteSummaryText, receiptNoteCsv, receiptNoteFilename, receiptsMissingReceiptNotes, reconcileReceiptNote } from './part-payment-receipt-note.js';
@@ -14472,6 +14473,7 @@ function renderAnalytics() {
   renderInactiveRecordArchives();
   renderScaleReadinessChecklists();
   renderWadaDashboard();
+  renderInstallationDashboard();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -34098,6 +34100,22 @@ function renderWadaDashboard() {
     $('#wdbExportBtn')?.addEventListener('click', () => { downloadCsvFile(wadaDashboardFilename(), wadaDashboardCsv(wadaDashboardCustomers(loadWadaRecords(), (state.customers || []).map((c) => ({ id: c.id, name: c.name }))))) ; });
     $('#wdbSearchBtn')?.addEventListener('click', () => { renderWadaDashboard(); });
     $('#wdbSearch')?.addEventListener('input', () => { renderWadaDashboard(); });
+  }
+}
+let installationDashboardBound = false;
+function renderInstallationDashboard() {
+  const bodyEl = $('#idaBody');
+  if (!bodyEl) return;
+  const rows = installationFeeRows(state.customers || []);
+  const totals = installationFeeTotals(rows);
+  bodyEl.innerHTML = totals.totalCustomers ? installationFeeHtml(totals, rows) : '<p>No customers recorded yet.</p>';
+  const summaryEl = $('#idaSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${installationFeeSummaryText(totals)} The dashboard only reads the installation fee on each customer record and never changes any installation, bill, payment, or customer record.`;
+  }
+  if (!installationDashboardBound) {
+    installationDashboardBound = true;
+    $('#idaExportBtn')?.addEventListener('click', () => { downloadCsvFile(installationFeeFilename(), installationFeeCsv(installationFeeRows(state.customers || []))); });
   }
 }
 function renderDuplicationCheck() {

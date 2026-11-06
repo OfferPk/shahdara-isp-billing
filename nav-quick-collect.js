@@ -30,13 +30,15 @@ import {
   planManualBaqayaSettlement,
   paymentSenderLabel,
   prepayTermsOf,
-  whatsappPhoneFor
+  whatsappPhoneFor,
+  listTransactions
 } from './core.js';
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
 import { packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
+import { dailyEntrySummary, dailyEntrySummaryText } from './daily-entry-summary.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
 import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
@@ -1778,6 +1780,10 @@ export function setupQuickCollectModal({
   // on every open so the payment can be linked to the promise it
   // fulfils at entry time.
   const promiseLinkSelect = document.getElementById('quickCollectPromiseLinkSelect');
+  // Plan 400: the live daily entry summary line (null when the host
+  // page predates it) — today's transaction count and total on this
+  // device, refreshed on every open and after each save.
+  const dailyEntrySummaryEl = typeof document !== 'undefined' ? document.getElementById('quickCollectDailyEntrySummary') : null;
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2426,6 +2432,20 @@ export function setupQuickCollectModal({
     if (duesCountEl) duesCountEl.textContent = allDues.length;
     if (highDuesCountEl) highDuesCountEl.textContent = highDues.length;
     if (allCountEl) allCountEl.textContent = all.length;
+    refreshDailyEntrySummary();
+  }
+
+  // Plan 400: refresh the live daily entry summary on the entry
+  // screen from the transactions recorded on this device. It runs
+  // inside updateCounts, so it refreshes on every open and after
+  // each save, from the fresh state. It summarises only — it
+  // settles nothing and changes no record.
+  function refreshDailyEntrySummary() {
+    if (!dailyEntrySummaryEl) return;
+    const state = getState();
+    if (!state || !Array.isArray(state.customers)) return;
+    const summary = dailyEntrySummary(listTransactions(state), getPakistanLocalDate());
+    dailyEntrySummaryEl.textContent = dailyEntrySummaryText(summary);
   }
 
   function renderList() {

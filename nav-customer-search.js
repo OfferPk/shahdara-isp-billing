@@ -24,6 +24,10 @@ import { partialPhoneMatches } from './partial-phone-search.js';
 // Plan 353: mohalla-first combined filter — pick a mohalla, then search
 // names within that mohalla only, from the app's own mohalla list.
 import { mohallaNameMatches, mohallaFilterOptionsHtml } from './mohalla-name-filter.js';
+// Plan 355: known-as name beside the formal name on search cards and in
+// the recent list — the father / reference name first, else the first
+// nickname; the sheet's own strings stay English, as elsewhere here.
+import { knownAsNameFor, knownAsLabelKeyFor, KNOWN_AS_FATHER_LABEL_KEY } from './known-as-name.js';
 import { DEFAULT_MOHALLAS } from './phase3.js';
 import { trapModalFocus } from './nav-accessibility.js';
 
@@ -211,6 +215,11 @@ export function searchFastCustomers(state, {
       id: customer.id,
       customerNumber: customer.customerNumber,
       name: customer.name,
+      // Plan 355: the known-as name rides with the result, so both the
+      // search cards and the recent list (mapped from these same results)
+      // show it beside the formal name.
+      knownAs: knownAsNameFor(customer),
+      knownAsLabelKey: knownAsLabelKeyFor(customer),
       phone: customer.phone || '',
       area: customer.area || 'Unassigned',
       mohalla: customer.mohalla || '',
@@ -270,6 +279,7 @@ export function renderFastCustomerSearchResultsHtml(customers, { isRecent = fals
               <strong class="fcs-name">${escapeHtml(c.name)}</strong>
               <span class="fcs-status-tag ${statusClass}">${escapeHtml(statusLabel)}</span>
             </div>
+            ${c.knownAs ? `<span class="fcs-known-as">${escapeHtml(c.knownAsLabelKey === KNOWN_AS_FATHER_LABEL_KEY ? 'Father / reference' : 'Also known as')}: ${escapeHtml(c.knownAs)}</span>` : ''}
             <div class="fcs-meta-row">
               <span class="fcs-area">${escapeHtml(c.area)}</span>
               ${c.phone ? `<span class="fcs-phone"> · ${escapeHtml(c.phone)}</span>` : ''}

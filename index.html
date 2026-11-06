@@ -11517,6 +11517,37 @@
 <div id="vucBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="dcnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="dcnHeading">Device compatibility note</h3>
+<p class="chart-caption">One compatibility note per device and app version pair: the device, the app version, whether it works well, works with issues, or does not work, an issue note in plain words, and the date tested. A device lookup shows its tested app versions with results, and an untested pair says so plainly. A note only records test results: it never changes any device, app version, bill, or payment record, and it never changes how the app behaves.</p>
+<p id="dcnSummary"></p>
+</div>
+<div>
+<button id="dcnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export compatibility notes CSV</button>
+</div>
+</div>
+<h4>Save a compatibility note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Device <input id="dcnDevice" type="text" style="width: 140px;" placeholder="e.g. Field Phone A"></label>
+<label style="font-size: 12px;">App version <input id="dcnAppVersion" type="text" style="width: 100px;" placeholder="e.g. 1.11.0"></label>
+<label style="font-size: 12px;">Result <select id="dcnResult" style="width: 150px;"><option value="works well">Works well</option><option value="works with issues">Works with issues</option><option value="does not work">Does not work</option></select></label>
+<label style="font-size: 12px;">Issue note <input id="dcnIssueNote" type="text" style="width: 180px;" placeholder="e.g. Receipt screen scrolls slowly"></label>
+<label style="font-size: 12px;">Date tested <input id="dcnDateTested" type="date" style="width: 140px;"></label>
+<button id="dcnSaveBtn" class="secondary-button btn-sm" type="button">Save note</button>
+</div>
+<h4>Look up a device and app version</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Device <input id="dcnLookupDevice" type="text" style="width: 140px;" placeholder="e.g. Field Phone A"></label>
+<label style="font-size: 12px;">App version <input id="dcnLookupVersion" type="text" style="width: 100px;" placeholder="e.g. 1.11.0"></label>
+<button id="dcnLookupBtn" class="secondary-button btn-sm" type="button">Look up</button>
+</div>
+<p id="dcnLookupBody"></p>
+<h4>Tested versions for this device</h4>
+<div id="dcnDeviceBody"></div>
+<h4>All compatibility notes</h4>
+<div id="dcnBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

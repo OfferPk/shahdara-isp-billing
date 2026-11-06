@@ -647,6 +647,7 @@ export function executeQuickCollection(state, {
   collectedBy,
   collectionPlace,
   collectionMohalla,
+  urduNote,
   overpaymentChoice,
   overpaymentDuesCents,
   transactionId,
@@ -806,6 +807,11 @@ export function executeQuickCollection(state, {
     collectedBy: collectedBy ? String(collectedBy).trim() : undefined,
     collectionPlace: normalizeCollectionPlace(collectionPlace) || undefined,
     collectionMohalla: collectionMohalla ? String(collectionMohalla).trim() : undefined,
+    // Plan 389: the Urdu-script note rides the payment — one optional
+    // note, written in Urdu script and shown exactly as written.
+    // Core's validatePayment sanitizes it (one line, capped at 200),
+    // so a collection without a note stores nothing extra.
+    urduNote: urduNote ? String(urduNote).trim() : undefined,
     // Plan 386: the overpayment choice rides the payment — the
     // operator's explicit advance-or-credit choice for the extra
     // over the dues, recorded with the transaction. Core's
@@ -1698,6 +1704,10 @@ export function setupQuickCollectModal({
   const collectedByInput = document.getElementById('quickCollectCollectedByInput');
   const collectionPlaceSelect = document.getElementById('quickCollectCollectionPlaceSelect');
   const collectionMohallaInput = document.getElementById('quickCollectCollectionMohallaInput');
+  // Plan 389: the Urdu-script note field (null when the host page
+  // predates it) — one optional note on the transaction, written in
+  // Urdu script and shown exactly as written.
+  const urduNoteInput = document.getElementById('quickCollectUrduNoteInput');
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -3487,6 +3497,9 @@ export function setupQuickCollectModal({
       const collectedByVal = collectedByInput?.value || '';
       const collectionPlaceVal = normalizeCollectionPlace(collectionPlaceSelect?.value || '');
       const collectionMohallaVal = collectionMohallaInput?.value || '';
+      // Plan 389: the Urdu-script note value, read beside the payer
+      // name — empty reads as no note, exactly like the payer field.
+      const urduNoteVal = urduNoteInput?.value || '';
 
       const isDig = isDigitalPaymentMethod(methodVal);
       const txnIdVal = (transactionIdInput?.value || '').trim();
@@ -3777,6 +3790,7 @@ export function setupQuickCollectModal({
         collectedBy: collectedByVal || undefined,
         collectionPlace: collectionPlaceVal || undefined,
         collectionMohalla: collectionMohallaVal || undefined,
+        urduNote: urduNoteVal || undefined,
         overpaymentChoice: selectedOverpaymentChoice || undefined,
         overpaymentDuesCents: selectedOverpaymentChoice ? overpaymentDuesCents : undefined,
         paidByContributorId: contributorSelect && contributorField && !contributorField.hidden ? (contributorSelect.value || undefined) : undefined,

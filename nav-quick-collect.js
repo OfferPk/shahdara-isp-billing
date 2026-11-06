@@ -37,6 +37,7 @@ import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-ca
 import { packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
+import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -3002,10 +3003,15 @@ export function setupQuickCollectModal({
           ? activeDefaults.currentMonthBalance
           : activeDefaults.suggestedAmount;
         const halfBal = Math.round(baseBal / 2);
+        // Plan 391: the package-price chip shows the customer's own
+        // package price when it is known, plain words when it is not.
+        const packagePrice = packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES);
         quickAmountChips.forEach(chip => {
           const type = chip.getAttribute('data-quick-amount');
           if (type === 'full') {
             chip.textContent = `Full (Rs ${baseBal > 0 ? baseBal.toLocaleString('en-PK') : '0'})`;
+          } else if (type === 'package') {
+            chip.textContent = packageChipLabel(packagePrice);
           } else if (type === 'current') {
             chip.textContent = `Monthly (Rs ${curBal > 0 ? curBal.toLocaleString('en-PK') : (baseBal > 0 ? baseBal.toLocaleString('en-PK') : '0')})`;
           } else if (type === 'half') {
@@ -3230,6 +3236,14 @@ export function setupQuickCollectModal({
 
       if (type === 'full') {
         amountInput.value = (baseBalance > 0 ? baseBalance : activeDefaults.suggestedAmount).toFixed(2);
+      } else if (type === 'package') {
+        // Plan 391: the package-price chip fills the customer's own
+        // package price; with no known price it fills nothing and
+        // leaves the amount field exactly as it was.
+        const price = resolveQuickAmount('package', { packagePrice: packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES) });
+        if (price !== null) {
+          amountInput.value = price.toFixed(2);
+        }
       } else if (type === 'current') {
         const cur = (activeDefaults.currentMonthBalance && activeDefaults.currentMonthBalance > 0)
           ? activeDefaults.currentMonthBalance

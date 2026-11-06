@@ -36,6 +36,7 @@ import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-c
 import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
 import { packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
+import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -1960,6 +1961,18 @@ export function setupQuickCollectModal({
     handlingNoteBox.innerHTML = handlingNoteAlertHtml(handlingNoteForCustomer(notes, customerId)?.text ?? '', t('prof_handling_heading'));
   }
 
+  // Plan 390: standing-instruction line host (null when the host page
+  // predates it). The note is shown on the transaction entry screen
+  // for that customer; a customer without one shows nothing extra.
+  const standingInstructionLine = typeof document !== 'undefined' ? document.getElementById('quickCollectStandingInstructionLine') : null;
+  function renderStandingInstructionLine(customerId) {
+    if (!standingInstructionLine) return;
+    const notes = typeof loadStandingInstructionNotes === 'function' ? loadStandingInstructionNotes() : [];
+    const markup = standingInstructionLineHtml(standingInstructionForCustomer(notes, customerId), { heading: t('prof_sin_heading') });
+    standingInstructionLine.innerHTML = markup;
+    standingInstructionLine.hidden = markup === '';
+  }
+
   // OWNER-CASH-SHOP: "Cash received at" sub-row hosts (null when the
   // host page predates them — every use below is guarded).
   const shopRowEl = typeof document !== 'undefined' ? document.getElementById('quickCollectShopRow') : null;
@@ -2940,6 +2953,9 @@ export function setupQuickCollectModal({
 
       // Plan 361: handling note for this customer, shown before saving.
       renderHandlingNoteBox(customerId);
+
+      // Plan 390: standing instruction for this customer, shown before saving.
+      renderStandingInstructionLine(customerId);
 
       // SISP-126: Remainder Waada starts un-chosen for every customer;
       // the row itself appears only if the prefilled amount is a partial.

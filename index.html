@@ -26542,6 +26542,12 @@
             <p id="quickCollectAmountWordsLine" class="aiw-words-line" hidden></p>
             <p id="quickCollectNextReceiptLine" class="nrn-preview-line" hidden></p>
             <div id="quickCollectSettlementPreview" class="psp-preview" hidden></div>
+            <fieldset id="quickCollectOverpaymentChoice" class="opc-choice" hidden>
+              <legend class="opc-choice-legend">Extra amount — how should it be kept?</legend>
+              <p class="opc-choice-extra">Extra <span id="quickCollectOverpaymentExtra">PKR 0</span> over the dues.</p>
+              <label class="opc-choice-option"><input type="radio" name="quickCollectOverpaymentChoice" value="advance"> Keep as advance — toward future bills</label>
+              <label class="opc-choice-option"><input type="radio" name="quickCollectOverpaymentChoice" value="credit"> Hold as credit balance</label>
+            </fieldset>
             <div class="qc-quick-amount-chips" aria-label="Suggested quick amounts">
               <button type="button" class="quick-amount-chip" data-quick-amount="full">Full Balance</button>
               <button type="button" class="quick-amount-chip" data-quick-amount="current">Current Month</button>

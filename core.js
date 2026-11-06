@@ -64,6 +64,7 @@ import { sanitizeReceiptLang, sanitizeReceiptChannel, prefersSmsForChannel } fro
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSameDayCorrectionNote, sameDayCorrectionNoteOf } from './same-day-correction-note.js';
 import { normalizeReversalLink, reversalLinkOf } from './reversal-link.js';
+import { normalizeOverpaymentChoice, overpaymentChoiceOf } from './overpayment-choice.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
@@ -1971,7 +1972,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -1991,6 +1992,18 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   const cleanReversalLink = normalizeReversalLink(reversalLink, date);
   if (reversalHasText && !cleanReversalLink) throw new Error('A reversal link needs the original payment and a valid date.');
   const cents = cleanReversalLink ? checkReversalPaymentAmount(amount) : checkPaymentAmount(amount);
+  // Plan 386: the overpayment choice — the operator's explicit
+  // advance-or-credit choice for the extra over the dues, recorded
+  // with the transaction. The validator is given the dues at entry
+  // time and keeps the choice only when the amount strictly exceeds
+  // them; a choice on a payment that does not exceed the dues stores
+  // nothing, and a missing choice stores nothing too. The dues ride
+  // along for that check only and are never stored. The choice
+  // applies nothing automatically — choosing "advance" creates no
+  // advance record and choosing "credit" touches no credit balance.
+  // (cents here is the normalized amount in rupees, despite the
+  // name — the choice module works in integer cents throughout.)
+  const cleanOverpaymentChoice = normalizeOverpaymentChoice(overpaymentChoice, overpaymentDuesCents, Math.round(cents * 100));
   if (!PAYMENT_METHODS.includes(method)) throw new Error('Choose a valid payment method.');
 
   const ref = String(transactionId ?? reference ?? '').trim().slice(0, 64);
@@ -2136,6 +2149,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(collectionMohallaClean ? { collectionMohalla: collectionMohallaClean } : {}),
     ...(cleanCorrection ? { sameDayCorrection: cleanCorrection } : {}),
     ...(cleanReversalLink ? { reversalLink: cleanReversalLink } : {}),
+    ...(cleanOverpaymentChoice ? { overpaymentChoice: cleanOverpaymentChoice } : {}),
     ...(contributorStamp ? { paidByContributor: contributorStamp } : {}),
     ...(validDiscount > 0 ? { discount: validDiscount } : {}),
     ...(cleanReason ? { discountReason: cleanReason } : {}),
@@ -2435,6 +2449,15 @@ export function correctPayment(state, customerId, month, paymentId, fields, refe
     // keeps the link the payment already carries, so a correction
     // can never silently strip the link to the original it reverses.
     reversalLink: fields.reversalLink !== undefined ? fields.reversalLink : existingPayment.reversalLink,
+    // Plan 386: the overpayment choice rides the correction the
+    // same way the reversal link does — an explicit new choice
+    // replaces it, an emptied choice (null) clears it, and saying
+    // nothing about it keeps the choice the payment already carries,
+    // so a correction can never silently strip the choice the
+    // customer agreed at the counter. The validator keeps a carried
+    // choice by its shape (no dues are passed on a correction), so
+    // the recorded extra stays exactly as it was entered.
+    overpaymentChoice: fields.overpaymentChoice !== undefined ? fields.overpaymentChoice : existingPayment.overpaymentChoice,
     walletVerified: fields.walletVerified !== undefined ? fields.walletVerified : existingPayment.walletVerified,
     // Payment proof screenshot: the correction form carries no proof
     // picker either, so a correction must never silently drop an
@@ -3345,6 +3368,11 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     // reversal its original — sanitized by the same reader the
     // display uses, so a damaged record reads as no link.
     reversalLink: reversalLinkOf(payment),
+    // Plan 386: the overpayment choice rides the transaction row so
+    // the Transactions list can show the choice and the extra amount
+    // beside the entry — sanitized by the same reader the display
+    // uses, so a damaged record reads as no choice.
+    overpaymentChoice: overpaymentChoiceOf(payment),
     allocation:allocations.byPaymentId.get(payment.id)
   })))).filter(row => transactionMatchesQuery(row, query) && (!date || row.date === date) && (windowDays === null || (row.date >= fromDate && row.date <= throughDate)))
     .sort((a, b) => b.date.localeCompare(a.date) || a.customerName.localeCompare(b.customerName) || b.month.localeCompare(a.month) || a.paymentId.localeCompare(b.paymentId));

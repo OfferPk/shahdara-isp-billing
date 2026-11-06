@@ -7812,6 +7812,28 @@ html, body {
   padding-left: 16px;
 }
 
+/* Plan 386 — overpayment choice box under the amount field: the
+   radio pair for the extra over the dues. Plain layout only, no
+   colour of its own, so no new hex colour is introduced. */
+.opc-choice {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.opc-choice-legend {
+  font-weight: 600;
+}
+
+.opc-choice-extra {
+  margin: 0 0 6px;
+}
+
+.opc-choice-option {
+  display: block;
+  margin: 4px 0 0;
+}
+
 /* Plan 382 — save confirmation summary panel: plain layout only, no
    colour of its own, so no new hex colour is introduced. */
 .scs-summary-box {

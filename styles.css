@@ -13496,6 +13496,10 @@ dialog::backdrop {
 .profile-readonly-field-wide{grid-column:1/-1}
 .profile-info-group .profile-readonly-field{padding:8px 9px}
 .detail-name-sub{margin:2px 0 0;color:#5c6e66;font-size:12px}
+.detail-known-as{margin:2px 0 0;color:#5c6e66;font-size:12px}
+.customer-known-as{display:block;font-size:11px;font-weight:500;color:#5c6e66;margin-top:2px}
+.global-result-known-as{display:block;font-size:11px;color:#5c6e66;margin-top:2px}
+.fcs-known-as{display:block;font-size:11px;color:#5c6e66;margin-top:2px}
 @media(max-width:620px){
 .profile-info-group .profile-readonly-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
 .profile-info-group .profile-readonly-field{padding:7px 8px}
@@ -13508,6 +13512,7 @@ dialog::backdrop {
 [data-theme="dark"] .package-history-list{color:var(--dk-muted)}
 [data-theme="dark"] .package-history-list li strong{color:var(--dk-ink)}
 [data-theme="dark"] .detail-name-sub{color:var(--dk-muted)}
+[data-theme="dark"] .detail-known-as,[data-theme="dark"] .customer-known-as,[data-theme="dark"] .global-result-known-as,[data-theme="dark"] .fcs-known-as{color:var(--dk-muted)}
 
 /* Profile tabs design: compact month summary cards, 2-col month forms,
    2-col billing metrics on phones, themed incident pill/form (dark mode). */

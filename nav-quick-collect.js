@@ -90,6 +90,7 @@ import { amountInWords, amountInWordsLineText } from './amount-in-words.js';
 import { nextReceiptNumberLineText } from './next-receipt-number.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
+import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
 import { formatWhatsAppUrl } from './form-validation.js';
 import { contributorSnapshotFor, subContributorsOf } from './shared-router-contributors.js';
 import { thermalPrinter, buildEscPosReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
@@ -1698,6 +1699,9 @@ export function setupQuickCollectModal({
   // Plan 381: the next-receipt-number preview line under the amount
   // field (null when the host page predates it).
   const nextReceiptLine = typeof document !== 'undefined' ? document.getElementById('quickCollectNextReceiptLine') : null;
+  // Plan 385: the live settlement preview under the amount field
+  // (null when the host page predates it).
+  const settlementPreviewBox = typeof document !== 'undefined' ? document.getElementById('quickCollectSettlementPreview') : null;
   // Plan 382: the save confirmation summary hosts (null when the
   // host page predates them) — the summary panel and its Confirm /
   // Back buttons, shown before the payment posts.
@@ -1728,6 +1732,39 @@ export function setupQuickCollectModal({
     const line = customer && month ? nextReceiptNumberLineText(customer, month) : '';
     nextReceiptLine.textContent = line;
     nextReceiptLine.hidden = line === '';
+  }
+  // Plan 385: the settlement preview always shows which bills the
+  // amount currently typed will settle — the target bill first, then
+  // later bills in month order, exactly as the allocation engine
+  // settles them on save — so the operator tells the customer the
+  // right months before anything is saved. Read-only: rendering
+  // settles nothing and changes no record. The balances come from
+  // the live allocation state, so a concession applied to a bill is
+  // already in the figures; a ticked late-fee waiver is not — the
+  // waiver lands on the bill only at save time.
+  function renderSettlementPreview() {
+    if (!settlementPreviewBox) return;
+    let html = '';
+    const amountCents = Math.round(Number(amountInput?.value || 0) * 100);
+    const month = monthSelect?.value || activeDefaults?.targetMonth;
+    if (activeCustomerId && month && amountCents > 0) {
+      const state = getState();
+      const customer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+      if (customer) {
+        const allocations = calculatePaymentAllocations(state);
+        const bills = [...(customer.bills ?? [])]
+          .sort((a, b) => a.month.localeCompare(b.month))
+          .map((bill) => ({
+            month: bill.month,
+            balanceDueCents: allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? 0,
+          }));
+        const advanceTarget = advanceCheckbox?.checked ? (advanceTargetSelect?.value || '') : '';
+        const preview = settlementPreview({ bills, targetMonth: month, amountCents, advanceTargetMonth: advanceTarget });
+        html = settlementPreviewMarkup(preview, advanceTarget);
+      }
+    }
+    settlementPreviewBox.innerHTML = html;
+    settlementPreviewBox.hidden = html === '';
   }
   // Plan 382: the save confirmation summary — built from the same
   // reads the submit handler posts with, so the figures the operator
@@ -2090,6 +2127,9 @@ export function setupQuickCollectModal({
     // Plan 381: the preview belongs to the picked month too — a month
     // switch re-numbers it before anything is saved.
     renderNextReceiptLine();
+    // Plan 385: the settlement preview belongs to the picked month
+    // too — a month switch re-settles it before anything is saved.
+    renderSettlementPreview();
   });
 
   // SISP-101: the waiver gate depends on the amount being collected, so
@@ -2100,11 +2140,20 @@ export function setupQuickCollectModal({
   });
   // Plan 377: the words follow every keystroke in the amount field.
   amountInput?.addEventListener('input', () => renderAmountWordsLine());
+  // Plan 385: the settlement preview follows every keystroke too —
+  // changing the amount re-settles it before anything is saved.
+  amountInput?.addEventListener('input', () => renderSettlementPreview());
   advanceCheckbox?.addEventListener('change', () => {
     // An advance collection can never carry a waiver (see
     // executeQuickCollection) — the box hides while Advance is ticked.
     if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
   });
+  // Plan 385: the Advance tag changes which bills the typed amount
+  // can reach — the reservation holds the leftover back — so the
+  // preview re-settles when it is ticked or cleared, and when its
+  // target month moves.
+  advanceCheckbox?.addEventListener('change', () => renderSettlementPreview());
+  advanceTargetSelect?.addEventListener('change', () => renderSettlementPreview());
 
   // SISP-126: the Remainder Waada row tracks the amount live (typing, and
   // the payment date / Advance toggle, which move the chip dates and the
@@ -2658,6 +2707,10 @@ export function setupQuickCollectModal({
       // receive already shown, so the operator can answer the
       // customer before anything is saved.
       renderNextReceiptLine();
+      // Plan 385: the form opens with the settlement preview already
+      // shown for the suggested amount, so the operator can tell the
+      // customer which months it settles before anything is saved.
+      renderSettlementPreview();
       if (dateInput) {
         dateInput.value = activeDefaults.todayDate;
         dateInput.max = activeDefaults.todayDate;
@@ -3025,6 +3078,8 @@ export function setupQuickCollectModal({
       if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
       // Plan 377: a chip-set amount refreshes the words the same way.
       renderAmountWordsLine();
+      // Plan 385: a chip-set amount re-settles the preview the same way.
+      renderSettlementPreview();
       amountInput.focus();
       // SISP-126: a chip-set amount can reveal/clear the remainder row.
       renderRemainderWaadaRow();
@@ -3043,6 +3098,9 @@ export function setupQuickCollectModal({
     // Plan 377: a loose-change tap fills the amount, so the words
     // refresh explicitly.
     renderAmountWordsLine();
+    // Plan 385: a loose-change tap fills the amount, so the preview
+    // refreshes explicitly too.
+    renderSettlementPreview();
     amountInput.focus();
   });
   // The chips belong to the dues flow only; the Advance tag hides them.

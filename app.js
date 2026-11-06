@@ -667,6 +667,7 @@ import { WA_TEMPLATES_STORAGE_KEY, WA_TEMPLATE_LABELS, WA_TEMPLATE_DESCRIPTIONS,
 import { HANDLING_NOTE_STORE_KEY, normalizeHandlingNoteList, recordHandlingNote, removeHandlingNote, handlingNoteForCustomer, handlingNoteSectionHtml } from './handling-note.js';
 import { SPOKEN_LANGUAGE_NOTE_STORE_KEY, normalizeSpokenLanguageNoteList, recordSpokenLanguageNote, removeSpokenLanguageNote, spokenLanguageNoteForCustomer, spokenLanguageNoteSectionHtml } from './spoken-language-note.js';
 import { GATE_ACCESS_INSTRUCTION_STORE_KEY, normalizeGateAccessInstructionList, recordGateAccessInstruction, removeGateAccessInstruction, gateAccessInstructionForCustomer, gateAccessInstructionSectionHtml } from './gate-access-instruction.js';
+import { CUSTOMER_EMERGENCY_CONTACT_STORE_KEY, normalizeCustomerEmergencyContactList, recordCustomerEmergencyContact, removeCustomerEmergencyContact, customerEmergencyContactForCustomer, customerEmergencyContactSectionHtml } from './customer-emergency-contact.js';
 import { HOUSEHOLD_LINK_STORE_KEY, normalizeHouseholdLinkList, recordHouseholdLink, removeHouseholdLink, householdLinkSectionHtml } from './household-link.js';
 import { MOVE_HISTORY_STORE_KEY, normalizeMoveHistoryList, recordMoveHistoryEntry, annotateMoveHistoryEntry, moveHouseHistorySectionHtml } from './move-house-history.js';
 import { NUMBER_CHANGE_STORE_KEY, normalizeNumberChangeList, recordNumberChangeEntry, annotateNumberChangeEntry, currentNumberForCustomer, numberChangeLogSectionHtml } from './number-change-log.js';
@@ -5070,7 +5071,23 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_gate_access_remove'),
     none: t('prof_gate_access_none'),
   });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  // Plan 368 — Customer emergency contact: the second person to call
+  // when the account holder cannot be reached, shown at the top of the
+  // profile only. Contact record only: it changes no billing contact
+  // and never changes any bill, payment, or other customer record.
+  const customerEmergencyContactSectionMarkup = customerEmergencyContactSectionHtml(customer, loadCustomerEmergencyContacts(), {
+    heading: t('prof_emc_heading'),
+    nameLabel: t('prof_emc_name'),
+    relationshipLabel: t('prof_emc_relationship'),
+    phoneLabel: t('prof_emc_phone'),
+    namePlaceholder: t('prof_emc_name_placeholder'),
+    relationshipPlaceholder: t('prof_emc_relationship_placeholder'),
+    phonePlaceholder: t('prof_emc_phone_placeholder'),
+    save: t('save'),
+    remove: t('prof_emc_remove'),
+    none: t('prof_emc_none'),
+  });
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
@@ -5792,6 +5809,35 @@ function renderCustomerProfileView(customer) {
       saveGateAccessInstructions(removeGateAccessInstruction(loadGateAccessInstructions(), customer.id));
       renderDetail();
       toast('Gate access instruction removed.');
+    });
+  }
+  // Plan 368: wire the emergency contact on the profile — one edit
+  // form. Editing or removing the contact changes only that contact;
+  // it never changes any bill, payment, or other customer record.
+  const customerEmergencyContactSectionEl = $('#customerProfileView').querySelector('.profile-customer-emergency-contact');
+  if (customerEmergencyContactSectionEl) {
+    customerEmergencyContactSectionEl.querySelector('#emcForm')?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      const name = customerEmergencyContactSectionEl.querySelector('#emcName')?.value ?? '';
+      const phone = customerEmergencyContactSectionEl.querySelector('#emcPhone')?.value ?? '';
+      if (!name.trim()) { toast('Emergency contact not saved: write the contact name first.'); return; }
+      if (!phone.trim()) { toast('Emergency contact not saved: write the phone number first.'); return; }
+      const before = loadCustomerEmergencyContacts();
+      const next = recordCustomerEmergencyContact(before, {
+        id: customerEmergencyContactForCustomer(before, customer.id)?.id ?? `EMC-${Date.now()}`,
+        customerId: customer.id,
+        name,
+        relationship: customerEmergencyContactSectionEl.querySelector('#emcRelationship')?.value ?? '',
+        phone,
+      });
+      saveCustomerEmergencyContacts(next);
+      renderDetail();
+      toast('Emergency contact saved.');
+    });
+    customerEmergencyContactSectionEl.querySelector('#emcRemoveBtn')?.addEventListener('click', () => {
+      saveCustomerEmergencyContacts(removeCustomerEmergencyContact(loadCustomerEmergencyContacts(), customer.id));
+      renderDetail();
+      toast('Emergency contact removed.');
     });
   }
   // Plan 365: wire the preferred collection day note on the profile —
@@ -34474,6 +34520,16 @@ function loadGateAccessInstructions() {
 }
 function saveGateAccessInstructions(list) {
   try { localStorage.setItem(GATE_ACCESS_INSTRUCTION_STORE_KEY, JSON.stringify(normalizeGateAccessInstructionList(list))); } catch { /* Gate access instruction only: a failed save leaves the previous list in place */ }
+}
+
+// Customer emergency contact (Plan 368): one second person to call
+// per customer, shown on the profile only. Editing or removing it
+// changes only that contact.
+function loadCustomerEmergencyContacts() {
+  try { return normalizeCustomerEmergencyContactList(JSON.parse(localStorage.getItem(CUSTOMER_EMERGENCY_CONTACT_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveCustomerEmergencyContacts(list) {
+  try { localStorage.setItem(CUSTOMER_EMERGENCY_CONTACT_STORE_KEY, JSON.stringify(normalizeCustomerEmergencyContactList(list))); } catch { /* Emergency contact only: a failed save leaves the previous list in place */ }
 }
 
 let monthlyKpiTargetBound = false;

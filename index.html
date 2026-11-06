@@ -11548,6 +11548,36 @@
 <div id="dcnBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="pqlHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="pqlHeading">Print queue log</h3>
+<p class="chart-caption">One queue entry per print job: the document reference, the template reference, the queued date, the status, and a retry note. Queued and failed jobs stay on an open list until a job is marked printed. Logging a job never creates a bill, a payment, or a document by itself.</p>
+<p id="pqlSummary"></p>
+</div>
+<div>
+<button id="pqlExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export print queue CSV</button>
+</div>
+</div>
+<h4>Log a print job</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Document reference <input id="pqlDocumentRef" type="text" style="width: 160px;" placeholder="e.g. RCPT-41-202611-01"></label>
+<label style="font-size: 12px;">Template reference <input id="pqlTemplateRef" type="text" style="width: 120px;" placeholder="e.g. RCPT-T1"></label>
+<label style="font-size: 12px;">Queued date <input id="pqlQueuedDate" type="date" style="width: 140px;"></label>
+<button id="pqlSaveBtn" class="secondary-button btn-sm" type="button">Log job</button>
+</div>
+<h4>Mark a job printed or failed</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Job id <input id="pqlMarkId" type="text" style="width: 120px;" placeholder="e.g. PQL-1"></label>
+<label style="font-size: 12px;">Printed date <input id="pqlPrintedDate" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Retry note <input id="pqlRetryNote" type="text" style="width: 180px;" placeholder="e.g. printer jammed"></label>
+<button id="pqlPrintedBtn" class="secondary-button btn-sm" type="button">Mark printed</button>
+<button id="pqlFailedBtn" class="secondary-button btn-sm" type="button">Mark failed</button>
+</div>
+<h4>Open jobs — queued and failed</h4>
+<div id="pqlOpenBody"></div>
+<h4>All print jobs</h4>
+<div id="pqlBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

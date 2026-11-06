@@ -539,6 +539,7 @@ import { validAnonymisationNoteDay, normalizeAnonymisationNoteFields, normalizeA
 import { validTestDataSeparationDay, normalizeTestDataSeparationRecords, normalizeTestDataSeparationNoteList, recordTestDataSeparationNote, testDataSeparationNoteForSet, openTestDataSeparationNotes, clearTestDataSeparationNote, splitTestDataRecords, testDataSeparationNoteSummaryText, testDataSeparationNotesHtml, testDataSeparationOpenHtml, testDataSeparationNoteCsv, testDataSeparationNoteFilename } from './test-data-separation-note.js';
 import { normalizeVersionUpgradeChecklistList, recordVersionUpgradeChecklist, tickVersionUpgradeChecklistStep, skipVersionUpgradeChecklistStep, versionUpgradeChecklistSummaryText, versionUpgradeChecklistsHtml, versionUpgradeChecklistIncompleteHtml, versionUpgradeChecklistCsv, versionUpgradeChecklistFilename } from './version-upgrade-checklist.js';
 import { normalizeDeviceCompatibilityNoteList, recordDeviceCompatibilityNote, deviceCompatibilityNoteForPair, deviceCompatibilityNotesForDevice, deviceCompatibilityNoteSummaryText, deviceCompatibilityNotesHtml, deviceCompatibilityNotesForDeviceHtml, deviceCompatibilityPairText, deviceCompatibilityNoteCsv, deviceCompatibilityNoteFilename } from './device-compatibility-note.js';
+import { normalizePrintQueueJobList, recordPrintQueueJob, markPrintQueueJobPrinted, markPrintQueueJobFailed, printQueueJobSummaryText, printQueueJobsHtml, printQueueOpenJobsHtml, printQueueJobCsv, printQueueJobFilename } from './print-queue-log.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14434,6 +14435,7 @@ function renderAnalytics() {
   renderTestDataSeparationNotes();
   renderVersionUpgradeChecklists();
   renderDeviceCompatibilityNotes();
+  renderPrintQueueLog();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33669,6 +33671,68 @@ function renderDeviceCompatibilityNotes() {
       if (deviceEl) {
         deviceEl.innerHTML = note ? deviceCompatibilityNotesForDeviceHtml(all, device) : '<p>Not tested: this device has no compatibility notes for that app version.</p>';
       }
+    });
+  }
+}
+const PRINT_QUEUE_LOG_KEY = 'shahdara_pql_jobs_v1';
+function loadPrintQueueJobs() {
+  try { return normalizePrintQueueJobList(JSON.parse(localStorage.getItem(PRINT_QUEUE_LOG_KEY) || '[]')); } catch { return []; }
+}
+function savePrintQueueJobs(list) {
+  try { localStorage.setItem(PRINT_QUEUE_LOG_KEY, JSON.stringify(normalizePrintQueueJobList(list))); } catch { /* Print queue only: a failed save leaves the previous list in place */ }
+}
+
+// Print queue log (Plan 344): one queue entry per print job — the document
+// reference, the template reference, the queued date, the status, and a
+// retry note. Queued and failed jobs stay on an open list until a job is
+// marked printed, and marking a job printed records its date. Logging a
+// job never creates a bill, a payment, or a document, and it never prints
+// anything by itself.
+let printQueueLogBound = false;
+function renderPrintQueueLog() {
+  const listEl = $('#pqlBody');
+  if (!listEl) return;
+  const all = loadPrintQueueJobs();
+  listEl.innerHTML = all.length ? printQueueJobsHtml(all) : '<p>No print jobs logged yet.</p>';
+  const summaryEl = $('#pqlSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${printQueueJobSummaryText(all)} Logging a job never creates a bill, a payment, or a document by itself.`;
+  }
+  const openEl = $('#pqlOpenBody');
+  if (openEl) {
+    openEl.innerHTML = printQueueOpenJobsHtml(all);
+  }
+  if (!printQueueLogBound) {
+    printQueueLogBound = true;
+    $('#pqlExportBtn')?.addEventListener('click', () => { downloadCsvFile(printQueueJobFilename(), printQueueJobCsv(loadPrintQueueJobs())); });
+    $('#pqlSaveBtn')?.addEventListener('click', () => {
+      const before = loadPrintQueueJobs();
+      const next = recordPrintQueueJob(before, {
+        id: `PQL-${Date.now()}`,
+        documentRef: $('#pqlDocumentRef')?.value ?? '',
+        templateRef: $('#pqlTemplateRef')?.value ?? '',
+        queuedDate: $('#pqlQueuedDate')?.value ?? '',
+        status: 'queued',
+        printedDate: '',
+        retryNote: '',
+      });
+      if (next.length === before.length) { toast('Job not logged: give the document reference and a strict queued date.'); return; }
+      savePrintQueueJobs(next);
+      renderPrintQueueLog();
+    });
+    $('#pqlPrintedBtn')?.addEventListener('click', () => {
+      const before = loadPrintQueueJobs();
+      const next = markPrintQueueJobPrinted(before, $('#pqlMarkId')?.value ?? '', $('#pqlPrintedDate')?.value ?? '');
+      if (next === before) { toast('Job not marked printed: give a saved job id and a printed date on or after its queued date.'); return; }
+      savePrintQueueJobs(next);
+      renderPrintQueueLog();
+    });
+    $('#pqlFailedBtn')?.addEventListener('click', () => {
+      const before = loadPrintQueueJobs();
+      const next = markPrintQueueJobFailed(before, $('#pqlMarkId')?.value ?? '', $('#pqlRetryNote')?.value ?? '');
+      if (next === before) { toast('Job not marked failed: give a saved job id that is not already printed.'); return; }
+      savePrintQueueJobs(next);
+      renderPrintQueueLog();
     });
   }
 }

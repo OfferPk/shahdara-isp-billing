@@ -529,6 +529,7 @@ import { validAnnualLeavePlanDay, foldAnnualLeavePlanYear, parseAnnualLeavePlanB
 import { validStaffRecognitionDay, normalizeStaffRecognitionNoteList, recordStaffRecognitionNote, removeStaffRecognitionNote, staffRecognitionNotesForStaff, staffRecognitionStaffMembers, staffRecognitionSummaryText, staffRecognitionAllHtml, staffRecognitionNotesForStaffHtml, staffRecognitionCsv, staffRecognitionFilename } from './staff-recognition.js';
 import { validExportVerificationDay, foldExportVerificationResult, normalizeExportVerificationChecklistList, recordExportVerificationChecklist, removeExportVerificationChecklist, exportVerificationChecklistsForExport, exportVerificationExportRefs, exportVerificationSummaryText, exportVerificationAllHtml, exportVerificationChecklistsForExportHtml, uncheckedExportVerificationChecklistsHtml, exportVerificationCsv, exportVerificationFilename } from './export-verification.js';
 import { validExportFormatVersionDay, normalizeExportFormatVersionList, recordExportFormatVersion, exportFormatVersionsForFormat, currentExportFormatVersion, exportFormatNames, exportFormatVersionSummaryText, exportFormatVersionsHtml, exportFormatVersionCsv, exportFormatVersionFilename, normalizeExportFormatStampList, stampExportFormat, exportFormatStampsHtml } from './export-format-version.js';
+import { validDataConflictDay, foldDataConflictResolution, normalizeDataConflictList, recordDataConflict, resolveDataConflict, openDataConflicts, dataConflictSummaryText, dataConflictsHtml, openDataConflictsHtml, dataConflictCsv, dataConflictFilename } from './offline-data-conflict.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14414,6 +14415,7 @@ function renderAnalytics() {
   renderBackupMediaRegister();
   renderRestoreVerificationNote();
   renderExportFormatVersions();
+  renderDataConflicts();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33062,6 +33064,64 @@ function renderExportFormatVersions() {
       if (next.length === before.length) { toast('Export not stamped: the format and version must already be recorded, and each export names one version.'); return; }
       saveExportFormatStamps(next);
       renderExportFormatVersions();
+    });
+  }
+}
+let dataConflictBound = false;
+const DATA_CONFLICT_KEY = 'shahdara_odc_notes_v1';
+function loadDataConflicts() {
+  try { return normalizeDataConflictList(JSON.parse(localStorage.getItem(DATA_CONFLICT_KEY) || '[]')); } catch { return []; }
+}
+function saveDataConflicts(list) {
+  try { localStorage.setItem(DATA_CONFLICT_KEY, JSON.stringify(normalizeDataConflictList(list))); } catch { /* Offline data conflict only: a failed save leaves the previous list in place */ }
+}
+
+// Offline data conflict note (Plan 334): one note per clash between the
+// field-device copy and the shop copy — the record involved, the field
+// that clashed, both values, the resolution chosen, who resolved it,
+// and the date. Unresolved conflicts stay on an open list. Recording
+// or resolving a note never overwrites any bill, payment, or customer
+// record by itself: the resolution is applied through the normal
+// correction path.
+function renderDataConflicts() {
+  const listEl = $('#odcBody');
+  if (!listEl) return;
+  const all = loadDataConflicts();
+  listEl.innerHTML = all.length ? dataConflictsHtml(all) : '<p>No offline data conflicts recorded.</p>';
+  const summaryEl = $('#odcSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${dataConflictSummaryText(all)} A note never overwrites any bill, payment, or customer record by itself.`;
+  }
+  const openEl = $('#odcOpenBody');
+  if (openEl) {
+    openEl.innerHTML = openDataConflictsHtml(all);
+  }
+  if (!dataConflictBound) {
+    dataConflictBound = true;
+    $('#odcExportBtn')?.addEventListener('click', () => { downloadCsvFile(dataConflictFilename(), dataConflictCsv(loadDataConflicts())); });
+    $('#odcRecordBtn')?.addEventListener('click', () => {
+      const before = loadDataConflicts();
+      const next = recordDataConflict(before, {
+        id: `ODC-${Date.now()}`,
+        recordRef: $('#odcRecordRef')?.value ?? '',
+        field: $('#odcField')?.value ?? '',
+        fieldValue: $('#odcFieldValue')?.value ?? '',
+        shopValue: $('#odcShopValue')?.value ?? '',
+        resolution: 'unresolved',
+        resolver: '',
+        date: $('#odcDate')?.value ?? '',
+      });
+      if (next.length === before.length) { toast('Conflict not recorded: give the record involved, the field, both values, and a strict date.'); return; }
+      saveDataConflicts(next);
+      renderDataConflicts();
+    });
+    $('#odcResolveBtn')?.addEventListener('click', () => {
+      const before = loadDataConflicts();
+      const choice = foldDataConflictResolution($('#odcResolveChoice')?.value ?? '');
+      const next = resolveDataConflict(before, $('#odcResolveId')?.value ?? '', choice, $('#odcResolveBy')?.value ?? '');
+      if (next === before || JSON.stringify(next) === JSON.stringify(before)) { toast('Conflict not resolved: give a note id from the open list, a resolution, and who resolved it — an already-resolved note stays as it is.'); return; }
+      saveDataConflicts(next);
+      renderDataConflicts();
     });
   }
 }

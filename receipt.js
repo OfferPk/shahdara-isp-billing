@@ -18,6 +18,7 @@ import { brandHeaderContentHtml, brandHeaderHtml, documentFooterHtml } from './d
 import { receiptCodeForReceipt, receiptVerificationCode, verificationStampText } from './receipt-verifier.js';
 import { applyReceiptScript } from './receipt-script.js';
 import { renderCustomWaTemplate } from './whatsapp-templates.js';
+import { receiptTermsNoteHtml } from './receipt-terms.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
 export const RECEIPT_URDU_NOTE = 'رسید برائے انٹرنیٹ بل ادائیگی - ادائیگی موصول ہوئی۔ شکریہ! بروقت سروس کے لیے ہر ماہ کی 5 تاریخ تک بل ادا فرمائیں۔';
@@ -695,6 +696,7 @@ export function generatePaymentReceiptHtml(receipt, {
   </dl>
   <div class="receipt-divider">--------------------------------</div>
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">${escapeHtml(RECEIPT_URDU_NOTE)}</div>
+  ${receiptTermsNoteHtml()}
   ${starThankYouReceiptHtml(receipt)}
   <footer class="receipt-terms">
     ${footerFor('* شکریہ! Shahdara ISP *')}
@@ -749,6 +751,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">
     <p><strong>نوٹ:</strong> ${escapeHtml(RECEIPT_URDU_NOTE)}</p>
   </div>
+  ${receiptTermsNoteHtml()}
   ${starThankYouReceiptHtml(receipt)}
   <footer class="receipt-terms">
     <p dir="rtl" lang="ur">${escapeHtml(PACKAGE_TERMS_NOTE).replaceAll('\n', '<br>')}</p>
@@ -835,6 +838,7 @@ export function generatePaymentReceiptHtml(receipt, {
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">
     <strong>اہم معلوماتی نوٹ:</strong> ${escapeHtml(RECEIPT_URDU_NOTE)}
   </div>
+  ${receiptTermsNoteHtml()}
   ${starThankYouReceiptHtml(receipt)}
   ${status === 'PAID' ? '<p class="receipt-reminder">⚠️ Please pay by the 5th of each calendar month to avoid service interruption. Thanks 🥰</p>' : ''}
   <footer class="receipt-terms">

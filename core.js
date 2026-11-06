@@ -3369,6 +3369,12 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
     // sender's last digits where given — sanitized the same way as the
     // payer name, the reference capped at the 64 the validator keeps.
     transactionId: String(payment.transactionId ?? payment.reference ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 64),
+    // Plan 392: the receipt number rides the transaction row so the
+    // Transactions list can find a transaction by its receipt number
+    // and show the number on the row — the stored number first, then
+    // the stored permanent number, sanitized the same way as the
+    // payer name and capped at the same 64.
+    receiptNumber: String(payment.receiptNumber ?? payment.permanentReceiptNumber ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 64),
     senderTitle: String(payment.senderTitle ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 100),
     senderDigits: String(payment.senderDigits ?? '').replace(/\D/g, '').slice(-4),
     // Plan 379: the collection note rides the transaction row so the

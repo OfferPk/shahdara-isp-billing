@@ -7417,6 +7417,12 @@
             <button id="clearTransactionFilters" class="secondary-button" type="button">Clear filters</button>
             <button id="exportTransactionsCsvBtn" class="secondary-button" type="button" title="Export transactions to CSV">Export CSV</button>
           </div>
+          <form id="rnsReceiptSearchForm" class="rns-search">
+            <label for="rnsReceiptInput">Find by receipt number<input id="rnsReceiptInput" type="text" autocomplete="off" placeholder="e.g. RCPT-41-202611-01"></label>
+            <button class="secondary-button" type="submit">Find receipt</button>
+            <button id="rnsReceiptClear" class="secondary-button" type="button">Clear</button>
+          </form>
+          <p id="rnsReceiptResult" class="rns-result" role="status" aria-live="polite" hidden></p>
         </div>
         <div id="transactionSummaryBar" class="transaction-summary-bar" aria-live="polite">
           <span class="tx-summary-item"><span class="tx-summary-label">Filtered total:</span> <strong id="txSummaryTotal">PKR 0</strong></span>

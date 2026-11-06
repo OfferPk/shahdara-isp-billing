@@ -13912,3 +13912,6 @@ dialog::backdrop {
 .dmb-total{font-weight:600}
 .dmb-none{color:#5c6e66;font-size:12px}
 .profile-dues-breakdown{margin:0 0 10px}
+.rns-search{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:end}
+.rns-search label{flex:1;min-width:200px}
+.rns-result{grid-column:1/-1;font-size:12px;line-height:1.5;color:var(--ink);margin:0}

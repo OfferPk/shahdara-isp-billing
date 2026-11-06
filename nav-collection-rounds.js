@@ -21,6 +21,7 @@ import { buildDayTargetProgress, getDayTarget, setDayTarget, clearDayTarget } fr
 import { fieldViewRouteOutcomeButtons } from './field-view.js';
 import { loadPreferredCollectionDayList, preferredCollectionDayForCustomer, preferredCollectionDayLineHtml } from './preferred-collection-day.js';
 import { loadGateAccessInstructionList, gateAccessInstructionForCustomer, gateAccessInstructionLineHtml } from './gate-access-instruction.js';
+import { loadTemporarilyAwayFlagList, temporarilyAwayFlagForCustomer, temporarilyAwayLineHtml, isTemporarilyAwayFlagActive } from './temporarily-away-flag.js';
 
 export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
@@ -1064,6 +1065,12 @@ export function setupFieldRouteSheet({
     // recalculation — so Saad sees beside each customer how to reach
     // them at the door. A customer without one shows nothing extra.
     const gaiNotes = loadGateAccessInstructionList(storage);
+    // Plan 373: the temporarily-away flags, read once per
+    // recalculation — so Saad sees beside each customer that they are
+    // away until a date, and no visit reminder goes out while they are
+    // away. A customer without one shows nothing extra.
+    const tawFlags = loadTemporarilyAwayFlagList(storage);
+    const todayStr = getTodayDateString();
     // Plan S: hand the freshly calculated route figures to the app so
     // the day-flow strip (promised + handover expected) renders from
     // exactly these numbers, never from a second calculation.
@@ -1153,7 +1160,15 @@ export function setupFieldRouteSheet({
             ? '<span class="role-badge" style="background: #64748b; color: white;">🔕 No answer</span>'
             : '';
 
-          const whatsappAction = stop.whatsappReminderUrl || stop.whatsappUrl
+          // Plan 373: a customer flagged away gets no visit reminder
+          // while the flag is active — Saad skips the empty house.
+          const awayFlag = temporarilyAwayFlagForCustomer(tawFlags, stop.id);
+          const awayInfo = temporarilyAwayLineHtml(awayFlag, todayStr);
+          const awayActive = isTemporarilyAwayFlagActive(awayFlag, todayStr);
+
+          const whatsappAction = awayActive
+            ? ''
+            : stop.whatsappReminderUrl || stop.whatsappUrl
             ? `<a href="${escapeHtml(stop.whatsappReminderUrl || stop.whatsappUrl)}" target="_blank" rel="noopener noreferrer" class="action-btn-sm" aria-label="WhatsApp reminder for ${escapeHtml(stop.name)}">💬 WhatsApp</a>`
             : `<button type="button" class="action-btn-sm" data-copy-reminder="${escapeHtml(stop.id)}" aria-label="Copy reminder text for ${escapeHtml(stop.name)}">📋 Reminder</button>`;
 
@@ -1190,6 +1205,7 @@ export function setupFieldRouteSheet({
               ${visitNoteInfo}
               ${preferredDayInfo}
               ${gateAccessInfo}
+              ${awayInfo}
               <div class="route-card-contact-row">
                 ${stop.phoneUrl ? `<a href="${stop.phoneUrl}" class="action-btn-sm" aria-label="Call ${escapeHtml(stop.name)}">📞 Call</a>` : ''}
                 ${stop.alternatePhoneUrl ? `<a href="${stop.alternatePhoneUrl}" class="action-btn-sm" aria-label="Call alternate number for ${escapeHtml(stop.name)}">📞 Alt Call</a>` : ''}

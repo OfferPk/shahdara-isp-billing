@@ -672,6 +672,7 @@ import { packageHistoryViewSectionHtml } from './package-history-view.js';
 import { serviceTenureSectionHtml } from './service-tenure.js';
 import { buildProfilePrintCardHtml } from './profile-print-card.js';
 import { missingProfileFields, missingFieldsChecklistHtml } from './missing-fields-checklist.js';
+import { FIELD_CHANGE_STORE_KEY, normalizeFieldChangeList, recordFieldChanges, fieldChangesForSave, fieldChangesForCustomer, fieldChangeHistorySectionHtml } from './field-change-history.js';
 
 // SISP-19 wiring into the SISP-18 stock book: when hardware is marked
 // recovered, the device comes BACK into stock. This runs AFTER the
@@ -5068,6 +5069,27 @@ function renderCustomerProfileView(customer) {
     $('#customerProfileForm').hidden = false;
     jumpToProfileErrorTarget({ kind: 'field', id: button.dataset.missingField });
   });
+  // Plan 364 — Per-field change history: every change to this profile
+  // with the old and new value, the date, and who recorded it, newest
+  // first. Labels resolve from the form itself, so the markup is built
+  // after the template lands in the DOM (same as the checklist above)
+  // and inserted after the tenure section, before the field groups.
+  const fieldChangeList = loadFieldChanges();
+  const fieldChangeEntries = fieldChangesForCustomer(fieldChangeList, customer.id);
+  const fieldChangeControlByKey = {};
+  for (const [controlId, fieldKey] of Object.entries(PROFILE_FIELD_SAVE_MAP)) fieldChangeControlByKey[fieldKey] = controlId;
+  const fieldChangeLabels = {};
+  for (const changeEntry of fieldChangeEntries) {
+    const controlId = fieldChangeControlByKey[changeEntry.field];
+    const labelEl = controlId ? document.getElementById(controlId)?.closest('.profile-field') : null;
+    fieldChangeLabels[changeEntry.field] = labelEl ? profileFieldMainLabel(labelEl) : changeEntry.field;
+  }
+  $('#customerProfileView').querySelector('.stv-section')?.insertAdjacentHTML('afterend', fieldChangeHistorySectionHtml(customer, fieldChangeList, fieldChangeLabels, {
+    heading: t('prof_fch_heading'),
+    intro: t('prof_fch_intro'),
+    none: t('prof_fch_none'),
+    notSet: t('prof_fch_not_set'),
+  }));
   $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
 
     $('#customerProfileForm').hidden = false;
@@ -9496,6 +9518,13 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       const savedIdx = state.customers.findIndex(c => c.id === selectedCustomerId);
       if (savedIdx >= 0) state.customers[savedIdx] = appendSignalReading(savedCustomer, { dbm: savedCustomer.lastRxDbm, source: 'manual' });
     }
+    // Plan 364 — Per-field change history: the profile form saves many
+    // fields at once, so diff the saved record against the record this
+    // save started from, over the same 69 profile fields the counter
+    // and the missing-fields checklist use. Only fields whose stored
+    // value actually changed get an entry.
+    const fieldChangeDrafts = fieldChangesForSave(currentCustomer, savedCustomer, { by: currentOperatorMode(), date: localDate(), fieldKeys: Object.values(PROFILE_FIELD_SAVE_MAP) });
+    if (fieldChangeDrafts.length) saveFieldChanges(recordFieldChanges(loadFieldChanges(), fieldChangeDrafts));
     // Plan 46: if a ready package change preview was kept for this
     // customer and it describes the change just saved, keep its note
     // on the new package-history entry and consume the kept preview.
@@ -9609,6 +9638,12 @@ async function saveProfileField(control, button, labelText) {
     save();
     renderCustomers();
     const saved = state.customers.find(c => c.id === customer.id);
+    // Plan 364 — Per-field change history: this save changed one field,
+    // so diff the saved record against the record the save started
+    // from and record the change (if any) with the operator mode and
+    // today's date. Recording never changes any other record.
+    const fieldChangeDrafts = fieldChangesForSave(customer, saved, { by: currentOperatorMode(), date: localDate(), fieldKeys: [entry.key] });
+    if (fieldChangeDrafts.length) saveFieldChanges(recordFieldChanges(loadFieldChanges(), fieldChangeDrafts));
     if (saved && (entry.key === 'name' || entry.key === 'nameUrdu')) {
       const detailNameEl = $('#detailName');
       if (detailNameEl) detailNameEl.textContent = displayCustomerName(saved, currentAppLanguage());
@@ -34233,6 +34268,16 @@ function loadNumberChangeLog() {
 }
 function saveNumberChangeLog(list) {
   try { localStorage.setItem(NUMBER_CHANGE_STORE_KEY, JSON.stringify(normalizeNumberChangeList(list))); } catch { /* Number change log only: a failed save leaves the previous list in place */ }
+}
+
+// Per-field change history (Plan 364): one entry per field change on a
+// customer profile, written by the profile save paths only. Recording
+// a change never changes any bill, payment, or customer record.
+function loadFieldChanges() {
+  try { return normalizeFieldChangeList(JSON.parse(localStorage.getItem(FIELD_CHANGE_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveFieldChanges(list) {
+  try { localStorage.setItem(FIELD_CHANGE_STORE_KEY, JSON.stringify(normalizeFieldChangeList(list))); } catch { /* Field change history only: a failed save leaves the previous list in place */ }
 }
 
 // Customer handling note (Plan 361): one display note per customer,

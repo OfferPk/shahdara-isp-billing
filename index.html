@@ -26679,6 +26679,17 @@
                 </select>
               </div>
             </div>
+            <!-- Plan 397: the large-cash approval — cash above the operator-set threshold needs the owner's initials or name recorded before it posts. The threshold defaults to PKR 10,000 (the module default); the approver starts blank on every open. -->
+            <div class="qc-form-row" style="margin-top:8px;">
+              <div class="qc-field-group">
+                <label for="quickCollectLargeCashThreshold" class="qc-label">Large cash threshold (PKR)</label>
+                <input id="quickCollectLargeCashThreshold" type="number" min="0" step="1" inputmode="numeric" value="10000" placeholder="10000" class="qc-input">
+              </div>
+              <div class="qc-field-group">
+                <label for="quickCollectLargeCashApprover" class="qc-label">Approved by (owner)</label>
+                <input id="quickCollectLargeCashApprover" type="text" maxlength="100" autocomplete="off" placeholder="e.g. owner initials" class="qc-input">
+              </div>
+            </div>
             <div class="qc-field-group" id="quickCollectContributorField" style="margin-top:8px;" hidden>
               <label for="quickCollectContributorSelect" class="qc-label" data-i18n="contrib_qc_label">Paid by / kis ne diya</label>
               <select id="quickCollectContributorSelect" class="qc-input"></select>

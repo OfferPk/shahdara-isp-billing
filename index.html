@@ -11399,6 +11399,36 @@
 <div id="dwoBody"></div>
 </section>
 
+<section class="analytics-panel" aria-labelledby="rsnHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
+<h3 id="rsnHeading">Report scheduling note</h3>
+<p class="chart-caption">One scheduling note per recurring report: the report name, the due cycle, the next due date, a recipient list reference, and the owner. Overdue reports appear on a dated due list, and recording a report as produced moves its next due date forward by its cycle. A note only records due dates: it sends nothing automatically, it never produces a report, and it never changes any bill, payment, or report content by itself.</p>
+<p id="rsnSummary"></p>
+</div>
+<div>
+<button id="rsnExportBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px;">Export scheduling notes CSV</button>
+</div>
+</div>
+<h4>Save a scheduling note</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Report name <input id="rsnReportName" type="text" style="width: 180px;" placeholder="e.g. Monthly collections summary"></label>
+<label style="font-size: 12px;">Due cycle <select id="rsnCycle"><option value="weekly">Weekly</option><option value="monthly" selected>Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select></label>
+<label style="font-size: 12px;">Next due date <input id="rsnNextDue" type="date" style="width: 140px;"></label>
+<label style="font-size: 12px;">Recipients <input id="rsnRecipients" type="text" style="width: 180px;" placeholder="e.g. Owner + accountant"></label>
+<label style="font-size: 12px;">Owner <input id="rsnOwner" type="text" style="width: 140px;" placeholder="e.g. Saad"></label>
+<button id="rsnSaveBtn" class="secondary-button btn-sm" type="button">Save note</button>
+</div>
+<h4>Mark a report produced</h4>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin: 8px 0;">
+<label style="font-size: 12px;">Report name <input id="rsnProducedReport" type="text" style="width: 180px;" placeholder="e.g. Monthly collections summary"></label>
+<label style="font-size: 12px;">Produced date <input id="rsnProducedDate" type="date" style="width: 140px;"></label>
+<button id="rsnProducedBtn" class="secondary-button btn-sm" type="button">Mark produced</button>
+</div>
+<h4>Due list</h4>
+<div id="rsnDueBody"></div>
+<h4>All scheduling notes</h4>
+<div id="rsnBody"></div>
+</section>
+
 <section class="analytics-panel" aria-labelledby="ahcHeading"><div class="table-heading"><div><p class="eyebrow">SHOP &amp; OWNER</p>
 <h3 id="ahcHeading">Owner absence handover checklist</h3>
 <p class="chart-caption">One handover checklist per cover period: the cover dates, the covering person, the checklist steps with done and missed steps visible, and notes. Each cover period shows its checklist with done and missed steps visible. Creating a checklist never changes any bill, payment, customer, or staff record by itself, and it grants no new permissions.</p>

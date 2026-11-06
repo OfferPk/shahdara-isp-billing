@@ -13700,6 +13700,16 @@ dialog::backdrop {
 .gai-form input{height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
 .gai-form .primary-button,.gai-form .secondary-button{justify-self:start}
 .gai-route-line{margin-top:2px;font-size:11px;color:#5c6e66}
+.profile-customer-emergency-contact h4{margin:0 0 6px;font:700 15px Manrope,sans-serif}
+.profile-customer-emergency-contact p{font-size:11px;line-height:1.5;color:#5c6e66;margin:0 0 8px}
+.emc-current{font-size:12px;color:var(--ink)}
+.emc-current strong{font-weight:700}
+.emc-meta{font-size:11px;color:#5c6e66}
+.emc-none{font-size:11px;color:#5c6e66}
+.emc-form{display:grid;gap:8px}
+.emc-form label{display:flex;flex-direction:column;gap:5px;font-size:10px;font-weight:700;color:var(--muted)}
+.emc-form input{height:38px;border:1px solid var(--line);border-radius:9px;background:#fff;padding:0 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif;min-width:0}
+.emc-form .primary-button,.emc-form .secondary-button{justify-self:start}
 .qc-handling-note-box:empty{display:none}
 .chn-alert{background:var(--amber-bg);color:var(--amber);border-radius:10px;padding:10px 12px;margin:0 0 10px}
 .chn-alert strong{font-size:12px}

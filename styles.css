@@ -1088,6 +1088,8 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .profile-readonly-field dt{margin:0 0 4px;color:#5b7067;font-size:10px;font-weight:700}
 .profile-readonly-field dd{margin:0;color:#1d382d;font-size:12px;line-height:1.4;overflow-wrap:anywhere;white-space:pre-wrap}
 .profile-contact-shortcuts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.profile-quick-actions{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}
+.pqa-btn{flex:1 1 auto}
 .profile-contact-actions{display:flex;gap:6px;flex-wrap:wrap}
 .profile-contact-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:38px;text-decoration:none}
 .profile-contact-actions a:focus-visible{outline:3px solid #397b5c;outline-offset:2px}

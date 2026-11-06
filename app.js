@@ -668,6 +668,7 @@ import { HANDLING_NOTE_STORE_KEY, normalizeHandlingNoteList, recordHandlingNote,
 import { SPOKEN_LANGUAGE_NOTE_STORE_KEY, normalizeSpokenLanguageNoteList, recordSpokenLanguageNote, removeSpokenLanguageNote, spokenLanguageNoteForCustomer, spokenLanguageNoteSectionHtml } from './spoken-language-note.js';
 import { GATE_ACCESS_INSTRUCTION_STORE_KEY, normalizeGateAccessInstructionList, recordGateAccessInstruction, removeGateAccessInstruction, gateAccessInstructionForCustomer, gateAccessInstructionSectionHtml } from './gate-access-instruction.js';
 import { CUSTOMER_EMERGENCY_CONTACT_STORE_KEY, normalizeCustomerEmergencyContactList, recordCustomerEmergencyContact, removeCustomerEmergencyContact, customerEmergencyContactForCustomer, customerEmergencyContactSectionHtml } from './customer-emergency-contact.js';
+import { PROFILE_QUICK_ACTIONS, profileQuickActionTarget, profileQuickActionsRowHtml } from './profile-quick-actions.js';
 import { HOUSEHOLD_LINK_STORE_KEY, normalizeHouseholdLinkList, recordHouseholdLink, removeHouseholdLink, householdLinkSectionHtml } from './household-link.js';
 import { MOVE_HISTORY_STORE_KEY, normalizeMoveHistoryList, recordMoveHistoryEntry, annotateMoveHistoryEntry, moveHouseHistorySectionHtml } from './move-house-history.js';
 import { NUMBER_CHANGE_STORE_KEY, normalizeNumberChangeList, recordNumberChangeEntry, annotateNumberChangeEntry, currentNumberForCustomer, numberChangeLogSectionHtml } from './number-change-log.js';
@@ -5087,7 +5088,20 @@ function renderCustomerProfileView(customer) {
     remove: t('prof_emc_remove'),
     none: t('prof_emc_none'),
   });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  // Plan 369 — Customer profile quick actions row: the four everyday
+  // actions, each opening its screen with this customer already
+  // selected. It adds no new action type and changes no record: the
+  // payment reuses the Quick Collect flow, the fault note reuses the
+  // complaint register, the message draft reuses the balance reply
+  // draft, and the balance view reuses the at-a-glance strip.
+  const profileQuickActionsRowMarkup = profileQuickActionsRowHtml(customer.id, {
+    heading: t('prof_quick_action_heading'),
+    payment: t('prof_quick_action_payment'),
+    fault: t('prof_quick_action_fault'),
+    message: t('prof_quick_action_message'),
+    balance: t('prof_quick_action_balance'),
+  });
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<div class="profile-view-actions"><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><button id="editProfileButton" class="text-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}<p class="profile-view-profit">${escapeHtml(t('prof_view_profit', null, { value: profit === null ? t('prof_not_set') : formatAmount(profit) }))}</p>${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
@@ -5198,6 +5212,36 @@ function renderCustomerProfileView(customer) {
     win.focus();
     win.print();
   });
+  // Plan 369 — Customer profile quick actions row: each button opens
+  // its screen with this customer already selected, so the operator
+  // never re-types the name. The row's own target map decides what
+  // each tap opens; a tap that opens nothing is a defect, so a missing
+  // opener or target shows a toast instead of doing nothing.
+  const quickActionsRow = $('#customerProfileView').querySelector('#pqaRow');
+  if (quickActionsRow) {
+    for (const action of PROFILE_QUICK_ACTIONS) {
+      const button = quickActionsRow.querySelector(`#${action.buttonId}`);
+      if (!button) continue;
+      button.addEventListener('click', () => {
+        const target = profileQuickActionTarget(action.key);
+        if (!target) { toast('Action unavailable — try again.'); return; }
+        if (target.kind === 'quick-collect') {
+          if (window.quickCollectModalController?.selectAndOpen) window.quickCollectModalController.selectAndOpen(customer.id);
+          else toast('Payment screen unavailable — try again.');
+          return;
+        }
+        if (target.kind === 'complaint-register') {
+          if (complaintRegisterModalController) complaintRegisterModalController.open({ customer: String(customer.id) });
+          else toast('Complaint register unavailable — try again.');
+          return;
+        }
+        const el = target.selector ? $('#customerProfileView').querySelector(target.selector) : null;
+        if (!el) { toast('Action unavailable — try again.'); return; }
+        if (target.kind === 'balance-reply') el.click();
+        el.scrollIntoView({ block: 'center' });
+      });
+    }
+  }
   // Plan 18: show the first-bill preview for this customer. Only a
   // READY preview counts as shown — an incomplete attempt (no monthly
   // price, bad start date) is never recorded as a shown preview.

@@ -545,6 +545,7 @@ import { normalizeMonthlyKpiTargetFigure, normalizeMonthlyKpiTargetList, recordM
 import { normalizeDataQualityReviewList, recordDataQualityReview, dataQualityReviewCarriedForward, dataQualityReviewSummaryText, dataQualityReviewRoundsHtml, dataQualityReviewCarriedForwardHtml, dataQualityReviewCsv, dataQualityReviewFilename } from './data-quality-review.js';
 import { normalizeCustomerRecordMergeList, recordCustomerRecordMerge, customerRecordMergedAway, customerRecordMergeSummaryText, customerRecordMergesHtml, customerRecordMergedAwayHtml, customerRecordMergeCsv, customerRecordMergeFilename } from './customer-record-merge-note.js';
 import { normalizeInactiveRecordArchiveList, recordInactiveRecordArchive, inactiveRecordArchiveFor, inactiveRecordArchiveSummaryText, inactiveRecordArchivesHtml, inactiveRecordArchiveCsv, inactiveRecordArchiveFilename } from './inactive-record-archive.js';
+import { normalizeScaleReadinessChecklistList, recordScaleReadinessChecklist, scaleReadinessChecklistSummaryText, scaleReadinessChecklistsHtml, scaleReadinessChecklistGapsHtml, scaleReadinessChecklistCsv, scaleReadinessChecklistFilename } from './scale-readiness-checklist.js';
 import { validDeviceBackupScheduleDay, foldDeviceBackupScheduleFrequency, normalizeDeviceBackupScheduleList, recordDeviceBackupSchedule, removeDeviceBackupSchedule, recordDeviceBackup, deviceBackupSchedulesForDevice, deviceBackupScheduleDevices, deviceBackupScheduleSummaryText, deviceBackupScheduleAllHtml, overdueDeviceBackupSchedulesHtml, deviceBackupScheduleCsv, deviceBackupScheduleFilename } from './device-backup-schedule.js';
 import { validSupplierPerformanceDate, normalizeSupplierPerformanceList, recordSupplierPerformanceNote, removeSupplierPerformanceNote, supplierPerformancesForSupplier, supplierPerformanceSummaryText, supplierPerformanceAllHtml, supplierPerformancesForSupplierHtml, supplierPerformanceCsv, supplierPerformanceFilename } from './supplier-performance.js';
 import { validWarrantyClaimLinkDate, normalizeWarrantyClaimLinkList, recordWarrantyClaimLink, removeWarrantyClaimLink, supersedeWarrantyClaimLink, warrantyClaimLinkSorted, warrantyClaimLinkForPart, warrantyClaimLinksForClaim, claimsWithoutLinkedPart, warrantyClaimLinkSummaryText, warrantyClaimLinkAllHtml, warrantyClaimLinkCsv, warrantyClaimLinkFilename } from './warranty-claim-link.js';
@@ -14446,6 +14447,7 @@ function renderAnalytics() {
   renderDataQualityReviews();
   renderCustomerRecordMerges();
   renderInactiveRecordArchives();
+  renderScaleReadinessChecklists();
   renderAbsenceHandoverChecklist();
   renderShopDiary();
   renderDutyRoster();
@@ -33839,6 +33841,15 @@ function loadInactiveRecordArchives() {
 function saveInactiveRecordArchives(list) {
   try { localStorage.setItem(INACTIVE_RECORD_ARCHIVE_KEY, JSON.stringify(normalizeInactiveRecordArchiveList(list))); } catch { /* Inactive record archive only: a failed save leaves the previous list in place */ }
 }
+// Scale readiness checklists: a checklist only records readiness; a gap
+// never changes any port, stock, staff, bill, or payment record.
+const SCALE_READINESS_CHECKLIST_KEY = 'shahdara_scl_checklists_v1';
+function loadScaleReadinessChecklists() {
+  try { return normalizeScaleReadinessChecklistList(JSON.parse(localStorage.getItem(SCALE_READINESS_CHECKLIST_KEY) || '[]')); } catch { return []; }
+}
+function saveScaleReadinessChecklists(list) {
+  try { localStorage.setItem(SCALE_READINESS_CHECKLIST_KEY, JSON.stringify(normalizeScaleReadinessChecklistList(list))); } catch { /* Scale readiness only: a failed save leaves the previous list in place */ }
+}
 
 let monthlyKpiTargetBound = false;
 let monthlyKpiTargetComparisonView = '';
@@ -34002,6 +34013,44 @@ function renderInactiveRecordArchives() {
         ? `<p>${escapeHtml(inactiveRecordArchiveText(found))} Kept as archived, never deleted.</p>`
         : '<p>No archive note for that reference — the record is still live.</p>';
       renderInactiveRecordArchives();
+    });
+  }
+}
+let scaleReadinessChecklistBound = false;
+function renderScaleReadinessChecklists() {
+  const listEl = $('#sclBody');
+  if (!listEl) return;
+  const all = loadScaleReadinessChecklists();
+  listEl.innerHTML = all.length ? scaleReadinessChecklistsHtml(all) : '<p>No scale readiness checklists recorded yet.</p>';
+  const summaryEl = $('#sclSummary');
+  if (summaryEl) {
+    summaryEl.textContent = `${scaleReadinessChecklistSummaryText(all)} A checklist with any gap is marked not ready overall, and a checklist never changes any port, stock, staff, bill, or payment record.`;
+  }
+  const gapsEl = $('#sclGapsBody');
+  if (gapsEl) {
+    const gapsHtml = scaleReadinessChecklistGapsHtml(all);
+    gapsEl.innerHTML = gapsHtml === '<ul></ul>' ? '<p>No gaps named.</p>' : gapsHtml;
+  }
+  if (!scaleReadinessChecklistBound) {
+    scaleReadinessChecklistBound = true;
+    $('#sclExportBtn')?.addEventListener('click', () => { downloadCsvFile(scaleReadinessChecklistFilename(), scaleReadinessChecklistCsv(loadScaleReadinessChecklists())); });
+    $('#sclSaveBtn')?.addEventListener('click', () => {
+      const before = loadScaleReadinessChecklists();
+      const next = recordScaleReadinessChecklist(before, {
+        id: `SCL-${Date.now()}`,
+        reviewDate: $('#sclReviewDate')?.value ?? '',
+        reviewer: $('#sclReviewer')?.value ?? '',
+        items: [
+          { area: 'portsFree', status: $('#sclPortsFreeStatus')?.value ?? '', note: $('#sclPortsFreeNote')?.value ?? '' },
+          { area: 'stockLevels', status: $('#sclStockLevelsStatus')?.value ?? '', note: $('#sclStockLevelsNote')?.value ?? '' },
+          { area: 'collectorCapacity', status: $('#sclCollectorCapacityStatus')?.value ?? '', note: $('#sclCollectorCapacityNote')?.value ?? '' },
+          { area: 'routeCoverage', status: $('#sclRouteCoverageStatus')?.value ?? '', note: $('#sclRouteCoverageNote')?.value ?? '' },
+          { area: 'backupHealth', status: $('#sclBackupHealthStatus')?.value ?? '', note: $('#sclBackupHealthNote')?.value ?? '' },
+        ],
+      });
+      if (next.length === before.length) { toast('Readiness checklist not recorded: give a strict review date, a reviewer, and every area marked ready or as a named gap.'); return; }
+      saveScaleReadinessChecklists(next);
+      renderScaleReadinessChecklists();
     });
   }
 }

@@ -41,6 +41,15 @@ import {
   normalizeCustomerStatusFilter,
   customerStatusFilterMatches,
 } from './customer-status-filter.js';
+// Plan 463: dues, status, and last payment on each search result
+// row — the account status in plain words and the latest payment
+// date, read from the customer's own records. The dues figure the
+// row already shows is the sheet's own total, and the enrichment
+// agrees with it exactly.
+import {
+  searchResultEnrichment,
+  searchResultEnrichmentHtml,
+} from './search-result-enrichment.js';
 // Plan 355: known-as name beside the formal name on search cards and in
 // the recent list — the father / reference name first, else the first
 // nickname; the sheet's own strings stay English, as elsewhere here.
@@ -410,6 +419,18 @@ export function searchFastCustomers(state, {
       }
     }
 
+    // Plan 463: the row's enrichment — the account status in plain
+    // words and the last payment date, from this customer's own
+    // records. The dues figure is the sheet's own total above; the
+    // enrichment carries it too, so the row and the enrichment
+    // agree exactly.
+    const enrichment = searchResultEnrichment(customer, {
+      allocations,
+      suspendedCustomerIds,
+      currentMonth,
+      referenceDate,
+    });
+
     const result = {
       id: customer.id,
       customerNumber: customer.customerNumber,
@@ -427,6 +448,11 @@ export function searchFastCustomers(state, {
       billingStatus: currentStatus,
       totalDues,
       currentDue,
+      // Plan 463: the account status in plain words and the last
+      // payment date ride with the row, so the renderer shows them
+      // beside the name and the dues without opening the profile.
+      accountStatusLabels: enrichment.statusLabels,
+      lastPaymentDate: enrichment.lastPaymentDate,
       monthlySellingAmount: customer.monthlySellingAmount || 0
     };
     if (isExactIdHit) exactIdHit = result;
@@ -503,6 +529,7 @@ export function renderFastCustomerSearchResultsHtml(customers, { isRecent = fals
               <span class="fcs-area">${escapeHtml(c.area)}</span>
               ${c.phone ? `<span class="fcs-phone"> · ${escapeHtml(c.phone)}</span>` : ''}
             </div>
+            ${searchResultEnrichmentHtml({ statusLabels: c.accountStatusLabels, lastPaymentDate: c.lastPaymentDate })}
           </div>
           <div class="fcs-dues-col">
             <span class="fcs-dues-label">${hasDues ? 'Due' : 'Balance'}</span>

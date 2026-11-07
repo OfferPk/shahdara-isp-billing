@@ -7886,6 +7886,21 @@ html, body {
   text-align: center;
 }
 
+/* Plan 447: the big name + mohalla confirmation line on the Quick
+   Collect payment form — the selected customer's name large enough
+   to catch a wrong-customer pick by eye, with mohalla and dues
+   beside it. Sizing only: the dues colour reuses the receipt
+   card's own balance classes, so no new colour enters the sheet. */
+.bnc-confirm-line {
+  margin: 10px 0 0;
+  font-size: 1.1rem;
+  line-height: 1.5;
+}
+
+.bnc-confirm-line .bnc-name {
+  font-size: 1.5rem;
+}
+
 .psp-preview ul {
   margin: 0;
   padding-left: 16px;

@@ -595,6 +595,7 @@ import { HISTORY_ENTRY_ANNOTATION_STORE_KEY, historyEntryAnnotationKey, normaliz
 import { historyShownHasStruckThrough, historyStruckThroughListHtml } from './history-struck-through.js';
 import { HISTORY_JUMP_TO_BILL_NO_BILL_TEXT, HISTORY_JUMP_TO_BILL_HIGHLIGHT_CLASS, historyJumpToBillIsPaymentEntry, historyJumpToBillShownEntry, historyJumpToBillTarget } from './history-jump-to-bill.js';
 import { HISTORY_JUMP_TO_RECEIPT_NO_RECEIPT_TEXT, HISTORY_JUMP_TO_RECEIPT_BUTTON_CLASS, historyJumpToReceiptIsPaymentEntry, historyJumpToReceiptShownEntry, historyJumpToReceiptTarget, historyJumpToReceiptButtonText } from './history-jump-to-receipt.js';
+import { HISTORY_SHARE_SUMMARY_DO_NOT_MESSAGE_TEXT, HISTORY_SHARE_SUMMARY_NO_NUMBER_TEXT, historyShareSummaryText, historyShareSummaryButtonMarkup, historyShareSummaryDraftHtml } from './history-share-summary.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4573,6 +4574,50 @@ function renderFullHistory(customer) {
       win.document.close();
       win.focus();
       win.print();
+    });
+  }
+  // Plan 424 — History share as a plain-text summary. One plain-text
+  // summary of the customer history — name, period, totals billed,
+  // paid, and still owed, plus the last five transactions — prepared
+  // as a draft the operator sends; it drafts only and sends nothing
+  // automatically. The summary is drawn from the full entries, not
+  // the shown rows: the period, the totals and the last five are
+  // whole-history facts, so a filter can never rewrite how much the
+  // customer still owes. The operator reads the draft first, then
+  // sending opens WhatsApp with the text prefilled, exactly like the
+  // monthly statement draft, and the operator sends it there.
+  const shareSummaryHost = $('#hsxHistoryShareSummaryHost');
+  if (shareSummaryHost) {
+    shareSummaryHost.innerHTML = historyShareSummaryButtonMarkup();
+    const shareButton = $('#hsxHistoryShareSummary');
+    if (shareButton) shareButton.addEventListener('click', () => {
+      if (entries.length === 0) {
+        toast('No transactions to share.');
+        return;
+      }
+      const text = historyShareSummaryText({ customerName: customer.name || customer.customerName, entries });
+      const resultEl = $('#hsxHistoryShareSummaryResult');
+      if (!text) {
+        if (resultEl) resultEl.innerHTML = '';
+        toast('No transactions to share.');
+        return;
+      }
+      if (resultEl) resultEl.innerHTML = historyShareSummaryDraftHtml(text);
+      const sendButton = $('#hsxHistoryShareSummarySend');
+      if (sendButton) sendButton.addEventListener('click', () => {
+        const sharePref = findContactPreference(loadContactPreferences(), customer.id);
+        if (sharePref && sharePref.doNotMessage) {
+          toast(HISTORY_SHARE_SUMMARY_DO_NOT_MESSAGE_TEXT);
+          return;
+        }
+        const wa = formatWhatsAppUrl(sharePref && sharePref.whatsappNumber ? sharePref.whatsappNumber : whatsappPhoneFor(customer), text);
+        if (!wa.validPhone || !wa.url) {
+          toast(HISTORY_SHARE_SUMMARY_NO_NUMBER_TEXT);
+          return;
+        }
+        window.open(wa.url, '_blank', 'noopener,noreferrer');
+        toast('History summary ready to send.');
+      });
     });
   }
   // Plan 411 — History missing-months gap view. One gap view on

@@ -113,6 +113,7 @@ import { nextReceiptNumberFor, nextReceiptNumberLineText } from './next-receipt-
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
+import { successNextStepsFromReceipt, successNextStepsHtml, successNextStepsNextDueDate } from './success-next-steps.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
 import { overpaymentExtraCents } from './overpayment-choice.js';
 import { requiresLargeCashApproval, LARGE_CASH_DEFAULT_THRESHOLD_CENTS } from './large-cash-approval.js';
@@ -1854,6 +1855,11 @@ export function setupQuickCollectModal({
   // Plan 433: the receipt preview host on the confirm step (null when
   // the host page predates it) — the receipt exactly as it will print.
   const receiptPreviewBox = typeof document !== 'undefined' ? document.getElementById('rpvReceiptPreview') : null;
+  // Plan 434: the success next-steps host on the success step (null
+  // when the host page predates it) — amount paid, still owed after
+  // this payment, next due date, and a collect-again action, shown
+  // beside the package success message.
+  const nextStepsBox = typeof document !== 'undefined' ? document.getElementById('snsSuccessNextSteps') : null;
   const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
   const confirmBackBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmBackBtn') : null;
   // Plan 432: the cash change calculator (null when the host page
@@ -3770,6 +3776,43 @@ export function setupQuickCollectModal({
       : renderQuickCollectReceiptCardHtml(activeReceipt);
   }
 
+  // Plan 434: the success next-steps panel — amount paid, still owed
+  // after this payment, next due date, and a collect-again action —
+  // rendered beside the package success message from the receipt the
+  // save just issued and the customer's own post-save record. It
+  // shows only: rendering posts nothing and changes no record. The
+  // still-owed figure is the receipt's own payable remainder; the
+  // next due date is the earliest due date among bills that still
+  // carry a balance, from the allocation engine's own figures. The
+  // collect-again tap reopens the payment form for the same
+  // customer; it records nothing by itself.
+  let nextStepsWired = false;
+  function renderSuccessNextSteps() {
+    if (!nextStepsBox) return;
+    if (!activeReceipt) {
+      nextStepsBox.innerHTML = '';
+      nextStepsBox.hidden = true;
+      return;
+    }
+    const postSaveState = getState();
+    const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+    const nextDueDate = postSaveState
+      ? successNextStepsNextDueDate(postSaveCustomer, calculatePaymentAllocations(postSaveState))
+      : null;
+    const nextSteps = successNextStepsFromReceipt(activeReceipt, nextDueDate);
+    const html = nextSteps ? successNextStepsHtml(nextSteps) : '';
+    nextStepsBox.innerHTML = html;
+    nextStepsBox.hidden = html === '';
+    if (!nextStepsWired && nextStepsBox) {
+      nextStepsWired = true;
+      nextStepsBox.addEventListener('click', (event) => {
+        if (!event.target?.closest?.('[data-sns-collect-again]')) return;
+        if (!activeCustomerId) return;
+        openCustomerCollectionForm(activeCustomerId);
+      });
+    }
+  }
+
   // Polish 4: the success line under the heading names the package that
   // the amount just collected pays for, or keeps the existing English
   // line when the amount matches no package.
@@ -4238,6 +4281,7 @@ export function setupQuickCollectModal({
           }
           renderActiveReceiptCard();
           applyPackageSuccessMessage(totalCollected);
+          renderSuccessNextSteps();
           showStep('success');
           updateCounts();
           announcePaymentSuccess(activeReceipt);
@@ -4409,6 +4453,7 @@ export function setupQuickCollectModal({
       // Render success screen
       renderActiveReceiptCard();
       applyPackageSuccessMessage(receipt.amount);
+      renderSuccessNextSteps();
 
       showStep('success');
       updateCounts();

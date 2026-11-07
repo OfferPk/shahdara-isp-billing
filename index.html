@@ -26496,6 +26496,20 @@
         </button>
       </div>
 
+      <!-- Plan 458: recent searches — the searches just run, latest
+           first with the text and the filter shown; one tap runs a
+           search again. Hidden entirely while the list is empty. -->
+      <div class="fcs-section-header" id="fastCustomerRecentSearchesHeader" style="display:none">
+        <h3 id="fastCustomerRecentSearchesTitle" class="fcs-section-title">Recent Searches</h3>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <button id="fastCustomerClearRecentSearchesBtn" class="fcs-clear-recent-btn" type="button" title="Clear recent searches">Clear</button>
+        </div>
+      </div>
+
+      <div id="fastCustomerRecentSearches" class="fcs-filter-row" role="region" aria-label="Recent searches" style="display:none">
+        <!-- Populated dynamically -->
+      </div>
+
       <div class="fcs-section-header">
         <h3 id="fastCustomerSearchSectionTitle" class="fcs-section-title">Recent Customers</h3>
         <div style="display:flex;align-items:center;gap:6px;">

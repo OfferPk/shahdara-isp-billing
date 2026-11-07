@@ -8,7 +8,7 @@ import {
   calculateMethodCollectionTotals, findDuplicatePaymentReference, findIdentityConflicts, findPhoneConflicts, paymentSenderLabel,
   buildNewCustomerReport, filterNewCustomerMonths, newCustomerQuickRanges,
   autoPackageFromPayment,
-  addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining, setManualBaqayaOutstanding,
+  addManualBaqayaEntry, updateManualBaqayaEntry, removeManualBaqayaEntry, manualBaqayaEntriesWithRemaining, manualBaqayaOutstandingCents, setManualBaqayaOutstanding,
   whatsappPhoneFor
 } from './core.js?v=1.11.0';
 import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigitalPaymentsSettings, DIGITAL_PAYMENTS_SETTINGS_KEY } from './digital-payments-settings.js?v=1.11.0';
@@ -25,6 +25,8 @@ import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveL
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry } from './profile-field-save.js?v=1.11.0';
+import { customerDeleteCleanCheck, customerDeleteRefusalText } from './customer-delete-clean-check.js?v=1.11.0';
+import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
 import { countProfileCompletion, countProfileCompletionFromControls } from './profile-completion.js?v=1.11.0';
 import { resolveProfileErrorTarget } from './profile-error-jump.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
@@ -11581,11 +11583,20 @@ $('#saveCustomerNameBtn')?.addEventListener('click', () => {
 $('#deleteCustomerButton').addEventListener('click', async () => {
   const customer = selectedCustomer();
   if (!customer) return;
-  // Plan 33: deleting is owner-only (the archive alternative inside is
-  // guarded separately by archiveSelectedCustomer).
+  // Plan 33: deleting is owner-only.
   if (collectorBlocked('customer-delete')) return;
-  const choice = await appConfirm({ tone:'danger', title:'Delete this customer?', subject:`#${customer.customerNumber} ${customer.name}`, message:'All bills, receipts, unused prepaid credit, contact/package data and complaint history are removed from this device. You can undo for a few seconds; after that, restore the safety snapshot saved just before deleting (in the backup controls), or a JSON backup. Archive keeps the history instead.', confirmLabel:'Delete customer', altLabel: customer.archived ? '' : 'Archive instead' });
-  if (choice === 'alt') { archiveSelectedCustomer(customer); return; }
+  // Polish #10: delete only when the money state is fully clean — no
+  // bills, payments, dues or manual baqaya. Otherwise refuse with the
+  // reason instead of deleting a customer who still has money on the
+  // account; the Archive button above stays the way to keep the history.
+  const baqayaCents = manualBaqayaOutstandingCents(customer);
+  const duesCents = stillOwesCents(customer, calculatePaymentAllocations(state), baqayaCents);
+  const cleanCheck = customerDeleteCleanCheck(customer, { duesCents, baqayaOutstandingCents: baqayaCents });
+  if (!cleanCheck.clean) {
+    toast(customerDeleteRefusalText(cleanCheck), { type: 'error', title: `#${customer.customerNumber} ${customer.name} — cannot delete`, duration: 6000 });
+    return;
+  }
+  const choice = await appConfirm({ tone:'danger', title:`Are you sure you want to delete ${customer.name}'s profile?`, subject:`#${customer.customerNumber}`, message:'This removes the profile from this device. Nothing is owed and no bills or payments are recorded, so nothing else is lost. You can undo for a few seconds.', confirmLabel:'Yes', cancelLabel:'No' });
   if (choice !== 'confirm' || selectedCustomer()?.id !== customer.id) return;
   await snapshotBeforeDestructiveAction();
   // Soft delete for the undo window: keep the exact record and its position so Undo restores it as it was.

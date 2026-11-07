@@ -595,6 +595,7 @@ import { normalizeLedgerMethodFilter, searchLedgerByMethod, ledgerMethodSummaryT
 import { normalizeLiveLedgerSearch, searchLedgerLive, ledgerLiveSearchSummaryText, ledgerLiveSearchEmptyText } from './ledger-live-search.js';
 import { normalizeLedgerBillMonth, searchLedgerByBillMonth, ledgerBillMonthSummaryText, ledgerBillMonthEmptyText, ledgerBillMonthRangeEmptyText } from './ledger-bill-month.js';
 import { normalizeLedgerCollectorFilter, searchLedgerByCollector, ledgerCollectors, ledgerCollectorSummaryText, ledgerCollectorEmptyText, ledgerCollectorRangeEmptyText } from './ledger-collector.js';
+import { normalizeLedgerRefine, searchLedgerByRefine, ledgerRefineSummaryText, ledgerRefineEmptyText } from './ledger-refine-search.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
@@ -5197,6 +5198,10 @@ let transactionAmountMax = '';
 // screen; '' means no live search. The search only goes live at three
 // or more characters (see normalizeLiveLedgerSearch).
 let transactionLiveSearch = '';
+// Plan 465: the refine box — the second term typed on the
+// Transactions screen; '' means no refine. The refine only goes
+// live at three or more characters (see normalizeLedgerRefine).
+let transactionRefine = '';
 // Plan 462: the collector filter — the collector name chosen on the
 // Transactions screen; '' means all collectors.
 let transactionCollectorFilter = '';
@@ -5315,6 +5320,15 @@ function renderTransactions() {
   if (collector) {
     transactions = searchLedgerByCollector(transactions, collector);
   }
+  // Plan 465: the refine box — a second term that narrows only the
+  // list the other filters already produced (a second name word, a
+  // mohalla, or a method); it never adds entries from outside that
+  // list, and the receipt-number search below still wins when it is
+  // active.
+  const refine = normalizeLedgerRefine(transactionRefine);
+  if (refine.active) {
+    transactions = searchLedgerByRefine(transactions, refine.query);
+  }
   if (receiptSearchPaymentId) {
     transactions = listTransactions(state).filter(tx => tx.paymentId === receiptSearchPaymentId);
   }
@@ -5412,12 +5426,28 @@ function renderTransactions() {
       collectorSummaryEl.textContent = '';
     }
   }
+  // Plan 465: when the refine box is live, the summary bar says
+  // the refine term, the count, and the total in PKR, and an empty
+  // refine says so plainly instead of the generic empty text.
+  const refineSummaryEl = $('#lrfRefineSummary');
+  if (refineSummaryEl) {
+    if (refine.active) {
+      refineSummaryEl.hidden = false;
+      refineSummaryEl.textContent = ledgerRefineSummaryText(transactions, refine.query);
+    } else {
+      refineSummaryEl.hidden = true;
+      refineSummaryEl.textContent = '';
+    }
+  }
   const emptyEl = $('#transactionsEmpty');
   if (emptyEl) {
-    // Plan 460: an empty live search names the typed text first —
-    // the typed query is the most recent narrowing action, before
-    // the method and the day and range chain below.
-    if (transactions.length === 0 && liveSearch.active) {
+    // Plan 465: an empty refine names the refine term first — the
+    // refine is the last filter applied, so its term is the most
+    // recent narrowing action, before the live search and the other
+    // filters in the chain below.
+    if (transactions.length === 0 && refine.active) {
+      emptyEl.textContent = ledgerRefineEmptyText(refine.query);
+    } else if (transactions.length === 0 && liveSearch.active) {
       emptyEl.textContent = ledgerLiveSearchEmptyText(liveSearch.query);
     } else if (transactions.length === 0 && billMonth) {
       // Plan 461: an empty bill month names the month — composed
@@ -10768,6 +10798,10 @@ $('#transactionAmountMax').addEventListener('input', event => { transactionAmoun
 // keystroke, no Search button to press; clearing the box (or
 // dropping below three characters) returns the full ledger.
 $('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+// Plan 465: the refine box — narrowing only the already-found list
+// on every keystroke; clearing the box (or dropping below three
+// characters) restores the full first list.
+$('#transactionRefineSearch').addEventListener('input', event => { transactionRefine = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionRecencyFilter').addEventListener('change', () => { transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionMethodFilter').addEventListener('change', event => { transactionMethodFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 // Plan 462: the collector select — choosing a collector
@@ -10847,6 +10881,10 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   const liveSearchInput = $('#transactionLiveSearch');
   if (liveSearchInput) liveSearchInput.value = '';
   transactionLiveSearch = '';
+  // Plan 465: clearing the filters also clears the refine box.
+  const refineInput = $('#transactionRefineSearch');
+  if (refineInput) refineInput.value = '';
+  transactionRefine = '';
   // Plan 461: clearing the filters also clears the bill month.
   const billMonthInput = $('#transactionBillMonth');
   if (billMonthInput) billMonthInput.value = '';

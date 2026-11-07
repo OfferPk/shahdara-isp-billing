@@ -8057,6 +8057,17 @@ html, body {
   margin-bottom: 8px;
 }
 
+.osb-saved-badge {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: #dcfce7;
+  color: #16a34a;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+}
+
 .qc-receipt-card {
   background: #f8fafc;
   border: 1px solid #e2e8f0;

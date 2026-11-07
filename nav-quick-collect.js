@@ -56,6 +56,7 @@ import {
   recentQuickPickHtml
 } from './recent-quick-pick.js';
 import { rememberedPaymentMethod } from './remembered-method.js';
+import { cashChangeLineText } from './cash-change-calculator.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -1851,6 +1852,12 @@ export function setupQuickCollectModal({
   const confirmSummaryBox = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSummary') : null;
   const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
   const confirmBackBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmBackBtn') : null;
+  // Plan 432: the cash change calculator (null when the host page
+  // predates it) — the box, the cash-received input, and the
+  // change-due line.
+  const cashChangeBox = typeof document !== 'undefined' ? document.getElementById('quickCollectCashChangeBox') : null;
+  const cashReceivedInput = typeof document !== 'undefined' ? document.getElementById('quickCollectCashReceivedInput') : null;
+  const cashChangeLine = typeof document !== 'undefined' ? document.getElementById('quickCollectCashChangeLine') : null;
 
   // Plan 377: the words always match the digits currently typed —
   // typing, a chip tap, a concession, or a pre-fill — so an extra
@@ -1861,6 +1868,23 @@ export function setupQuickCollectModal({
     const text = amountInput ? amountInWordsLineText(amountInput.value) : '';
     wordsLine.textContent = text;
     wordsLine.hidden = text === '';
+  }
+  // Plan 432: the change calculator shows only while a cash-family
+  // method is selected — change only exists for cash — and only
+  // while both figures are typed. Cash below the amount never shows
+  // a negative change: the line says plainly how much more is
+  // needed. It hides on a split payment (each leg is an ordinary
+  // payment of its own, so the amount field is only the first leg).
+  // Calculates only: rendering posts nothing and changes no record.
+  function renderCashChange() {
+    if (!cashChangeBox) return;
+    const method = methodSelect ? String(methodSelect.value || 'Cash') : 'Cash';
+    const show = isCashPaymentMethod(method) && !splitToggle?.checked;
+    cashChangeBox.hidden = !show;
+    if (!cashChangeLine) return;
+    const line = show ? cashChangeLineText(cashReceivedInput?.value, amountInput?.value) : '';
+    cashChangeLine.textContent = line;
+    cashChangeLine.hidden = line === '';
   }
   // Plan 381: the preview always names the number THIS payment will
   // receive — the active customer's record against the month
@@ -2296,6 +2320,10 @@ export function setupQuickCollectModal({
     const current = methodSelect ? String(methodSelect.value || 'Cash') : 'Cash';
     const cashFamily = isCashPaymentMethod(current);
     shopRowEl.hidden = !cashFamily;
+    // Plan 432: the calculator follows the same cash-family rule —
+    // a method change re-shows it or hides it. This runs before the
+    // early return so switching away from cash hides it too.
+    renderCashChange();
     if (!cashFamily) return;
     const activeShop = resolveShopCollector(current);
     // A shop method has no method chip of its own — keep Cash lit.
@@ -2395,6 +2423,12 @@ export function setupQuickCollectModal({
   // Plan 387: the warning follows every keystroke too — changing the
   // amount re-shows (or withdraws) it before anything is saved.
   amountInput?.addEventListener('input', () => renderUnderpaymentWarning());
+  // Plan 432: the change follows every keystroke too — changing the
+  // amount re-computes it before anything is saved.
+  amountInput?.addEventListener('input', () => renderCashChange());
+  // Plan 432: the change follows every keystroke in the cash field —
+  // the line updates as the cash figure is typed.
+  cashReceivedInput?.addEventListener('input', () => renderCashChange());
   advanceCheckbox?.addEventListener('change', () => {
     // An advance collection can never carry a waiver (see
     // executeQuickCollection) — the box hides while Advance is ticked.
@@ -2451,6 +2485,9 @@ export function setupQuickCollectModal({
   // Plan 387: splitting the payment hides the warning (each leg is an
   // ordinary payment of its own), and un-splitting re-shows it.
   splitToggle?.addEventListener('change', () => renderUnderpaymentWarning());
+  // Plan 432: splitting the payment hides the calculator (each leg is
+  // an ordinary payment of its own), and un-splitting re-shows it.
+  splitToggle?.addEventListener('change', () => renderCashChange());
   splitMethodSelect?.addEventListener('change', updateSplitVisibility);
 
   function updateCounts() {
@@ -2763,6 +2800,9 @@ export function setupQuickCollectModal({
           // Plan 377: the concession sets the amount after the form
           // opened, so the words refresh explicitly.
           renderAmountWordsLine();
+          // Plan 432: the concession sets the amount, so the change
+          // refreshes explicitly too.
+          renderCashChange();
           if (typeof onToast === 'function') onToast(`Outage concession of PKR ${effective.suggestedAmount} applied to bill ${month}.`);
         } catch (err) {
           if (typeof onToast === 'function') onToast(err.message);
@@ -2849,6 +2889,9 @@ export function setupQuickCollectModal({
           // Plan 377: the waiver tick sets the amount programmatically
           // (no input event), so the words refresh explicitly.
           renderAmountWordsLine();
+          // Plan 432: the waiver tick sets the amount, so the change
+          // refreshes explicitly too.
+          renderCashChange();
           renderWaiverBox(customerId, month);
         });
       } else {
@@ -3049,6 +3092,10 @@ export function setupQuickCollectModal({
         methodSelect.value = activeDefaults.defaultMethod ?? '';
       }
       syncMethodChips(activeDefaults.defaultMethod ?? '');
+      // Plan 432: the cash field starts empty for the new customer,
+      // and the calculator refreshes for the pre-selected method.
+      if (cashReceivedInput) cashReceivedInput.value = '';
+      renderCashChange();
       if (paidByInput) {
         paidByInput.value = activeDefaults.lastPaidBy || '';
       }
@@ -3618,6 +3665,8 @@ export function setupQuickCollectModal({
       if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
       // Plan 377: a chip-set amount refreshes the words the same way.
       renderAmountWordsLine();
+      // Plan 432: a chip-set amount re-computes the change the same way.
+      renderCashChange();
       // Plan 385: a chip-set amount re-settles the preview the same way.
       renderSettlementPreview();
       // Plan 386: a chip-set amount re-offers the choice the same way.
@@ -3642,6 +3691,9 @@ export function setupQuickCollectModal({
     // Plan 377: a loose-change tap fills the amount, so the words
     // refresh explicitly.
     renderAmountWordsLine();
+    // Plan 432: a loose-change tap fills the amount, so the change
+    // refreshes explicitly too.
+    renderCashChange();
     // Plan 385: a loose-change tap fills the amount, so the preview
     // refreshes explicitly too.
     renderSettlementPreview();

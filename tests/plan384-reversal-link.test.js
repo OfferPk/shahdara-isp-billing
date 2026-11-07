@@ -540,7 +540,12 @@ test('wiring: app and core import the module; both profile rows and the card sho
   const profileRows = appSrc.split('profileReversalLinkMarkup(payment, customer)').length - 1;
   assert.ok(profileRows >= 2, `expected the link on both profile history rows, found ${profileRows}`);
   assert.ok(appSrc.includes('transactionReversalLinkMarkup(transaction, customer)'), 'Transactions card shows the link');
-  assert.ok(!indexSrc.includes('reversal'), 'no new element id in index.html for this plan');
+  // Plan 435: the broad "no 'reversal' anywhere in index.html" pin
+  // is narrowed to this plan's own prefix — the sixty-second
+  // reversal undo button (Plan 435) legitimately carries the word
+  // "reversal" in its label. This plan still consumed no element
+  // id: its prefix stays free in the page and the styles.
+  assert.ok(!indexSrc.includes('rvl'), 'no new element id in index.html for this plan');
   assert.ok(!stylesSrc.includes('rvl'), 'no styles change for this plan');
 });
 

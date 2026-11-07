@@ -26608,6 +26608,15 @@
               <button type="button" class="quick-amount-chip" data-quick-amount="2000">2,000</button>
             </div>
             <div id="quickCollectLooseChangeChips" class="qc-loose-change-chips" aria-label="Loose change round-note tenders" hidden></div>
+            <!-- Plan 432: the cash change calculator — cash received,
+                 and the change due in plain words and figures. Shown
+                 only while a cash method is selected; it calculates
+                 only and posts nothing. -->
+            <div id="quickCollectCashChangeBox" class="chc-change-box" hidden>
+              <label for="quickCollectCashReceivedInput" class="qc-label">Cash received (PKR)</label>
+              <input id="quickCollectCashReceivedInput" type="number" step="0.01" min="0" inputmode="decimal" placeholder="Cash handed over" class="qc-input">
+              <p id="quickCollectCashChangeLine" class="chc-change-line" aria-live="polite" hidden></p>
+            </div>
           </div>
 
           <div id="quickCollectRemainderWaadaRow" class="qc-remainder-waada" hidden>

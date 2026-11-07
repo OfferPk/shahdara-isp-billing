@@ -332,12 +332,15 @@ test('Plan 386: the entry form imports the choice and renders it', () => {
   assert.ok(navSrc.includes('overpaymentChoiceBox.hidden = extraCents <= 0;'));
 });
 
-test('Plan 386: the choice refreshes on every keystroke, month, Advance, split, open, and chip', () => {
+test('Plan 386: the choice refreshes on every keystroke, month, Advance, split, open, chip, and keypad tap', () => {
   const calls = navSrc.match(/renderOverpaymentChoice\(\)/g) || [];
-  // Definition plus seven refresh sites: month change, amount input,
+  // Definition plus eight refresh sites: month change, amount input,
   // Advance toggle, split toggle, form open, quick-amount chip,
-  // loose-change chip.
-  assert.equal(calls.length, 8, `expected 8 renderOverpaymentChoice() sites, found ${calls.length}`);
+  // loose-change chip, amount keypad.
+  // Plan 442: the amount keypad is the eighth refresh site — a
+  // keypad tap sets the amount, so the choice re-offers like
+  // every other programmatic amount set.
+  assert.equal(calls.length, 9, `expected 9 renderOverpaymentChoice() sites, found ${calls.length}`);
 });
 
 test('Plan 386: the submit posts the choice and the dues through the collection path', () => {

@@ -24,6 +24,15 @@ import { partialPhoneMatches } from './partial-phone-search.js';
 // Plan 353: mohalla-first combined filter — pick a mohalla, then search
 // names within that mohalla only, from the app's own mohalla list.
 import { mohallaNameMatches, mohallaFilterOptionsHtml } from './mohalla-name-filter.js';
+// Plan 451: exact customer ID / connection ID lookup — a full ID typed
+// at the counter returns that one customer only, and an unknown ID
+// says so plainly; the sheet's partial matching is untouched otherwise.
+import {
+  customerIdLookupMatches,
+  customerIdLookupIsIdQuery,
+  customerIdLookupUnknownText,
+  customerIdLookupOpensProfileDirectly,
+} from './customer-id-lookup.js';
 // Plan 355: known-as name beside the formal name on search cards and in
 // the recent list — the father / reference name first, else the first
 // nickname; the sheet's own strings stay English, as elsewhere here.
@@ -155,6 +164,11 @@ export function searchFastCustomers(state, {
   const normalized = String(query ?? '').normalize('NFKC').trim().toLowerCase();
 
   const results = [];
+  // Plan 451: an exact customer ID / connection ID hit is returned on
+  // its own — a full ID never drags in look-alike numbers, and the
+  // record id is matched here at all. The hit still has to pass the
+  // mohalla and status filters above, exactly like any other result.
+  let exactIdHit = null;
 
   for (const customer of state.customers) {
     if (customer.archived) continue;
@@ -186,32 +200,40 @@ export function searchFastCustomers(state, {
     }
 
     // Apply text search query
+    // Plan 451: the exact-ID check runs first — when the typed query
+    // is a full customer ID or connection ID, this customer is the
+    // answer and the partial branches below never run for them.
+    let isExactIdHit = false;
     if (normalized) {
-      const numStr = String(customer.customerNumber ?? '');
-      const matches =
-        customer.name.toLowerCase().includes(normalized) ||
-        // SISP-165: father's/reference name + search aliases, with
-        // Roman-Urdu phonetic matching ("Fesal" finds "Faisal").
-        fuzzyCustomerNameMatches(customer, query) ||
-        numStr.includes(normalized) ||
-        `#${numStr}`.includes(normalized) ||
-        (customer.phone && customer.phone.toLowerCase().includes(normalized)) ||
-        // Plan 352: digit-normalized partial phone search — the typed
-        // digits match any substring of the stored number whatever the
-        // stored or typed formatting, so "2345678" finds a number
-        // stored as "0301-234 5678" or "+92 301 2345678".
-        partialPhoneMatches(customer, query) ||
-        (customer.area && customer.area.toLowerCase().includes(normalized)) ||
-        (customer.mohalla && customer.mohalla.toLowerCase().includes(normalized)) ||
-        (customer.address && customer.address.toLowerCase().includes(normalized)) ||
-        // SISP-74: the global search also finds a customer by PPPoE
-        // username, static IP, MAC address or router serial number.
-        identitySearchMatches(customer, normalized);
+      if (customerIdLookupMatches(customer, query)) {
+        isExactIdHit = true;
+      } else {
+        const numStr = String(customer.customerNumber ?? '');
+        const matches =
+          customer.name.toLowerCase().includes(normalized) ||
+          // SISP-165: father's/reference name + search aliases, with
+          // Roman-Urdu phonetic matching ("Fesal" finds "Faisal").
+          fuzzyCustomerNameMatches(customer, query) ||
+          numStr.includes(normalized) ||
+          `#${numStr}`.includes(normalized) ||
+          (customer.phone && customer.phone.toLowerCase().includes(normalized)) ||
+          // Plan 352: digit-normalized partial phone search — the typed
+          // digits match any substring of the stored number whatever the
+          // stored or typed formatting, so "2345678" finds a number
+          // stored as "0301-234 5678" or "+92 301 2345678".
+          partialPhoneMatches(customer, query) ||
+          (customer.area && customer.area.toLowerCase().includes(normalized)) ||
+          (customer.mohalla && customer.mohalla.toLowerCase().includes(normalized)) ||
+          (customer.address && customer.address.toLowerCase().includes(normalized)) ||
+          // SISP-74: the global search also finds a customer by PPPoE
+          // username, static IP, MAC address or router serial number.
+          identitySearchMatches(customer, normalized);
 
-      if (!matches) continue;
+        if (!matches) continue;
+      }
     }
 
-    results.push({
+    const result = {
       id: customer.id,
       customerNumber: customer.customerNumber,
       name: customer.name,
@@ -229,8 +251,13 @@ export function searchFastCustomers(state, {
       totalDues,
       currentDue,
       monthlySellingAmount: customer.monthlySellingAmount || 0
-    });
+    };
+    if (isExactIdHit) exactIdHit = result;
+    else results.push(result);
   }
+
+  // Plan 451: a single exact-ID hit is the whole answer.
+  if (exactIdHit) return [exactIdHit];
 
   // Sort: pending/partial accounts with highest dues first, then customer number
   results.sort((a, b) => {
@@ -249,15 +276,18 @@ export function searchFastCustomers(state, {
  * @param {Array<Object>} customers
  * @param {Object} [options={}]
  * @param {boolean} [options.isRecent=false]
+ * @param {string} [options.emptyText] - Plan 451: the plain message
+ *   shown when an ID-shaped query matches nobody; without it the
+ *   generic hint is shown, exactly as before.
  * @returns {string}
  */
-export function renderFastCustomerSearchResultsHtml(customers, { isRecent = false } = {}) {
+export function renderFastCustomerSearchResultsHtml(customers, { isRecent = false, emptyText = '' } = {}) {
   if (!customers || customers.length === 0) {
     return `
       <div class="fcs-empty-state" role="status">
         <span class="fcs-empty-icon" aria-hidden="true">${isRecent ? '🕒' : '🔍'}</span>
         <h4>${isRecent ? 'No recent customers' : 'No matching customers found'}</h4>
-        <p>${isRecent ? 'Search for any customer above to start your field work.' : 'Try searching with a shorter name, phone digits, or area.'}</p>
+        <p>${isRecent ? 'Search for any customer above to start your field work.' : escapeHtml(emptyText) || 'Try searching with a shorter name, phone digits, or area.'}</p>
       </div>
     `;
   }
@@ -363,6 +393,10 @@ export function setupFastCustomerSearchModal({
 
   let activeStatusFilter = 'all';
   let highlightedIndex = -1;
+  // Plan 451: the results of the last render, so Enter can tell an
+  // exact-ID single hit (which opens the profile directly) from any
+  // other single result.
+  let lastResults = [];
 
   function updateHighlight(newIndex, scroll = true) {
     if (!resultsContainer) return;
@@ -435,6 +469,7 @@ export function setupFastCustomerSearchModal({
       const fullList = searchFastCustomers(state, { query: '', statusFilter: 'all' });
       const fullMap = new Map(fullList.map(c => [c.id, c]));
       const recentFull = recents.map(r => fullMap.get(r.id)).filter(Boolean);
+      lastResults = recentFull;
 
       resultsContainer.innerHTML = renderFastCustomerSearchResultsHtml(recentFull, { isRecent: true });
     } else {
@@ -445,11 +480,17 @@ export function setupFastCustomerSearchModal({
         statusFilter: activeStatusFilter,
         mohalla: mohallaValue
       });
+      lastResults = results;
 
       if (sectionTitle) sectionTitle.textContent = `Search Results (${results.length})`;
       if (countBadge) countBadge.textContent = `${results.length} found`;
 
-      resultsContainer.innerHTML = renderFastCustomerSearchResultsHtml(results, { isRecent: false });
+      // Plan 451: an unknown ID says so plainly instead of the
+      // generic hint; any other empty search keeps that hint.
+      const emptyText = results.length === 0 && customerIdLookupIsIdQuery(query)
+        ? customerIdLookupUnknownText(query)
+        : '';
+      resultsContainer.innerHTML = renderFastCustomerSearchResultsHtml(results, { isRecent: false, emptyText });
     }
 
     // Keyboard navigation update (#312):
@@ -578,7 +619,13 @@ export function setupFastCustomerSearchModal({
         return;
       }
       if (targetCard) {
-        const action = e.shiftKey ? 'profile' : 'collect';
+        // Plan 451: an exact ID lookup opens the matching customer
+        // directly — Enter on the single exact-ID result goes to the
+        // profile, not Quick Collect. Any other result keeps the
+        // sheet's usual Enter action.
+        const action = customerIdLookupOpensProfileDirectly(searchInput?.value ?? '', lastResults)
+          ? 'profile'
+          : (e.shiftKey ? 'profile' : 'collect');
         triggerCardAction(targetCard, action);
       }
     }
@@ -615,7 +662,11 @@ export function setupFastCustomerSearchModal({
         targetCard = cards[0];
       }
       if (targetCard) {
-        const action = e.shiftKey ? 'profile' : 'collect';
+        // Plan 451: same as the search-input Enter above — an exact
+        // ID lookup opens the matching customer directly.
+        const action = customerIdLookupOpensProfileDirectly(searchInput?.value ?? '', lastResults)
+          ? 'profile'
+          : (e.shiftKey ? 'profile' : 'collect');
         triggerCardAction(targetCard, action);
       }
     }

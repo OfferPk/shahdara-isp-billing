@@ -12601,6 +12601,51 @@ dialog::backdrop {
   box-shadow: 0 2px 8px rgba(14, 91, 77, 0.25);
 }
 
+/* Plan 438: the three counter methods as big buttons — taller and
+   larger than the small chips, three across on the first line of the
+   row. Sizing only: every colour comes from the chip rules above,
+   so no new hex colour enters the file. */
+.quick-method-chip.bwb-big {
+  flex: 1 1 30%;
+  min-height: 56px;
+  min-width: 96px;
+  padding: 12px 8px;
+  font-size: 15px;
+}
+
+/* Plan 438: the Other button — the same size and colours as a small
+   method chip, copied declaration for declaration from the chip
+   rules above, so no new hex colour enters the file. It reveals the
+   full method list for anything the big three do not cover. */
+.bwb-other {
+  flex: 1 1 auto;
+  min-height: 44px;
+  min-width: 60px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line, #dce6e1);
+  background: #fafcfb;
+  color: var(--ink, #14211e);
+  font: 600 13px 'DM Sans', sans-serif;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  touch-action: manipulation;
+  transition: all 0.15s ease;
+}
+.bwb-other:hover {
+  background: #f0f6f3;
+  border-color: #60a68d;
+}
+.bwb-other.is-active {
+  background: var(--primary, #0e5b4d);
+  color: #ffffff;
+  border-color: var(--primary, #0e5b4d);
+  box-shadow: 0 2px 8px rgba(14, 91, 77, 0.25);
+}
+
 [data-theme="dark"] .quick-method-chip {
   background: #14241f;
   border-color: #253d35;

@@ -26638,11 +26638,12 @@
             <div class="qc-field-group">
               <label for="quickCollectMethodSelect" class="qc-label">Payment Method <span class="qc-required">*</span></label>
               <div class="qc-method-chips" role="radiogroup" aria-label="Payment method">
-                <button type="button" class="quick-method-chip is-active" data-method="Cash">💵 Cash</button>
-                <button type="button" class="quick-method-chip" data-method="JazzCash">📱 JazzCash</button>
-                <button type="button" class="quick-method-chip" data-method="Easypaisa">🟢 Easypaisa</button>
+                <button type="button" class="quick-method-chip is-active bwb-big" data-method="Cash">💵 Cash</button>
+                <button type="button" class="quick-method-chip bwb-big" data-method="JazzCash">📱 JazzCash</button>
+                <button type="button" class="quick-method-chip bwb-big" data-method="Easypaisa">🟢 Easypaisa</button>
                 <button type="button" class="quick-method-chip" data-method="Bank Transfer">🏦 Bank</button>
                 <button type="button" class="quick-method-chip" data-method="Raast">⚡ Raast</button>
+                <button type="button" class="bwb-other" id="bwbOtherMethodBtn" data-bwb-other="1" aria-label="Other payment method">⋯ Other</button>
               </div>
               <select id="quickCollectMethodSelect" required class="qc-input" style="display:none;"></select>
               <!-- OWNER-CASH-SHOP: where was this cash received? Shown only

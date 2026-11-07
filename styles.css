@@ -7901,6 +7901,39 @@ html, body {
   font-size: 1.5rem;
 }
 
+/* Plan 448 — end-of-day summary on the Quick Collect picker screen:
+   today's payments by method, with the cash total shown separately.
+   Layout only, no colour of its own, so no new hex colour is
+   introduced. */
+.eds-summary-button {
+  width: 100%;
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+
+.eds-summary {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+.eds-summary-line {
+  margin: 0 0 4px;
+}
+
+.eds-summary-methods {
+  margin: 0 0 4px;
+  padding-left: 16px;
+}
+
+.eds-cash-line {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.eds-close-button {
+  font-size: 0.85rem;
+}
+
 .psp-preview ul {
   margin: 0;
   padding-left: 16px;

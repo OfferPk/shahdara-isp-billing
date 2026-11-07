@@ -233,7 +233,9 @@ test('wiring: the render reads the post-save record through the allocation engin
 
 test('wiring: the line renders on both success paths — split and single', () => {
   const calls = wiringSrc.match(/renderStillOwesLine\(\);/g) || [];
-  assert.equal(calls.length, 2, `expected 2 render calls (split + single), found ${calls.length}`);
+  // Plan 449: the second-connection record is a third success path, so
+  // the line renders there too — split + single + second connection.
+  assert.equal(calls.length, 3, `expected 3 render calls (split + single + second connection), found ${calls.length}`);
 });
 
 test('page: the still-owes host sits at the top of the success step', () => {

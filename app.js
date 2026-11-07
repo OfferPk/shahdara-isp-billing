@@ -12472,6 +12472,10 @@ window.quickCollectModalController = setupQuickCollectModal({
   // still-unpaid promises, so the operator can link the payment
   // to the promise it fulfils at entry time.
   loadCollectionPromises: () => loadCollectionPromises(),
+  // Plan 449: the success screen reads the customer's active
+  // billing link after a save, so the other connection can be
+  // offered with its dues in the same pass.
+  loadBillingLinks: () => loadBillingLinks(),
   // SISP-141: the floating 10s undo toast (presenter above) owns the
   // post-collection confirmation for this host. SISP-187: the same
   // actually-saved payment is also reported to the QR scanner, whose

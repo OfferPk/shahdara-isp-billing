@@ -7934,6 +7934,42 @@ html, body {
   font-size: 0.85rem;
 }
 
+/* Plan 449 — second-connection step on the success screen: the
+   other connection, its suggested amount, and the running total
+   of the two payments. Plain layout only, no colour of its own,
+   so no new hex colour is introduced. */
+.scc-second-connection {
+  margin: 12px 0 0;
+  font-size: 0.95rem;
+}
+
+.scc-title {
+  margin: 0 0 4px;
+  font-size: 1.1rem;
+}
+
+.scc-dues {
+  margin: 0 0 8px;
+}
+
+.scc-amount {
+  width: 100%;
+  margin: 4px 0 8px;
+}
+
+.scc-method {
+  margin: 0 0 4px;
+}
+
+.scc-total {
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.scc-record-button {
+  margin: 0 8px 0 0;
+}
+
 .psp-preview ul {
   margin: 0;
   padding-left: 16px;

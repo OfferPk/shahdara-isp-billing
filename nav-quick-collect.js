@@ -141,8 +141,15 @@ import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConf
 import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
 import { successNextStepsFromReceipt, successNextStepsHtml, successNextStepsNextDueDate } from './success-next-steps.js';
 import { receiptShareDraftFor, receiptShareDraftHtml } from './receipt-share-draft.js';
-import { stillOwesLine, stillOwesLineHtml } from './quick-collect-still-owes.js';
+import { stillOwesCents, stillOwesLine, stillOwesLineHtml } from './quick-collect-still-owes.js';
 import { bigNameConfirmLine, bigNameConfirmLineHtml } from './quick-collect-big-name-confirm.js';
+import {
+  secondConnectionStep,
+  secondConnectionStepHtml,
+  secondConnectionSummaryText,
+  secondConnectionTotalCents,
+  secondConnectionValidAmountCents,
+} from './quick-collect-second-connection.js';
 import { QUICK_COLLECT_REVERSAL_UNDO_WINDOW_MS, QUICK_COLLECT_REVERSAL_UNDO_REASON, quickCollectReversalUndoAllowed, quickCollectReversalUndoSecondsLeft, quickCollectReversalUndoButtonText, quickCollectReversalUndoIsPlainPayment, quickCollectReversalUndoFields } from './quick-collect-reversal-undo.js';
 import { offlineSavedBadge, offlineSavedBadgeHtml, offlineSavedBadgeLatestTime } from './offline-saved-badge.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
@@ -727,7 +734,12 @@ export function executeQuickCollection(state, {
   advanceTargetMonth,
   paidByContributorId,
   remainderWaadaDate,
-  waiveLateFee
+  waiveLateFee,
+  // Plan 449: the connection this payment is recorded against — the
+  // second connection of a two-connection customer, named on the
+  // payment and its receipt so the pair of payments in one visit
+  // says which connection each belongs to.
+  connection
 }, referenceDate = new Date()) {
   if (!customerId) throw new Error('Customer ID is required.');
   const numAmount = Number(amount);
@@ -872,6 +884,10 @@ export function executeQuickCollection(state, {
     collectedBy: collectedBy ? String(collectedBy).trim() : undefined,
     collectionPlace: normalizeCollectionPlace(collectionPlace) || undefined,
     collectionMohalla: collectionMohalla ? String(collectionMohalla).trim() : undefined,
+    // Plan 449: the connection rides the payment — core's
+    // validatePayment sanitizes it (one line, capped at 60), so a
+    // collection without one stores nothing extra.
+    connection: connection ? String(connection).trim() : undefined,
     // Plan 389: the Urdu-script note rides the payment — one optional
     // note, written in Urdu script and shown exactly as written.
     // Core's validatePayment sanitizes it (one line, capped at 200),
@@ -1100,6 +1116,11 @@ export function executeQuickCollection(state, {
     // SISP-63: read back from the STORED payment so the receipt shows
     // exactly what validatePayment kept (sanitized, digital-only).
     senderTitle: newPayment?.senderTitle || '',
+    // Plan 449: read back from the STORED payment the same way, so
+    // the second connection's receipt names its connection — the
+    // pair of receipts in one visit says which connection each
+    // belongs to. An ordinary payment carries none and reads ''.
+    connection: newPayment?.connection || '',
     senderDigits: newPayment?.senderDigits || '',
     senderLabel: paymentSenderLabel(newPayment),
     referenceOverrideReason: cleanReason,
@@ -1650,6 +1671,11 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           <span class="qc-meta-label">Customer</span>
           <strong class="qc-meta-val">${escapeHtml(receipt.customerName)} (#${escapeHtml(String(receipt.customerNumber))})</strong>
         </div>
+        ${receipt.connection ? `
+        <div class="qc-receipt-item">
+          <span class="qc-meta-label">Connection</span>
+          <strong class="qc-meta-val">${escapeHtml(receipt.connection)}</strong>
+        </div>` : ''}
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Date &amp; Method</span>
           <strong class="qc-meta-val">${escapeHtml(receipt.date)} · ${escapeHtml(receipt.method)}</strong>
@@ -1761,7 +1787,12 @@ export function setupQuickCollectModal({
   onEditCustomer,
   onCollected,
   loadHandlingNotes,
-  loadCollectionPromises
+  loadCollectionPromises,
+  // Plan 449: the host's billing-link loader, read fresh whenever
+  // the second-connection step renders — a customer with an active
+  // link offers the other connection after the first payment. The
+  // option is optional: without it the step simply never shows.
+  loadBillingLinks
 }) {
   const modal = document.getElementById('quickCollectModal');
   if (!modal) {
@@ -1955,6 +1986,11 @@ export function setupQuickCollectModal({
   // entry form, shown again after the save while the saved payment's
   // method is a bank transfer or a cheque.
   const successPendingClearanceFlagEl = typeof document !== 'undefined' ? document.getElementById('pcfSuccessPendingClearanceFlag') : null;
+  // Plan 449: the second-connection step host on the success step
+  // (null when the host page predates it) — the customer's other
+  // connection with its dues, recordable in the same pass after the
+  // first payment, shown only while the pass still owes it.
+  const secondConnectionBox = typeof document !== 'undefined' ? document.getElementById('sccSecondConnectionStep') : null;
   const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
   // Plan 437: the form's own Save button (null when the host page
   // predates it) — disabled while a save is in progress, so a second
@@ -3886,6 +3922,10 @@ export function setupQuickCollectModal({
     activeCustomerId = null;
     activeDefaults = null;
     activeReceipt = null;
+    // Plan 449: closing drops the second-connection step with the
+    // rest of the save — the next opening offers it afresh.
+    secondConnectionRecorded = false;
+    hideSecondConnectionStep();
     duplicateBypassedForTxn = null;
     duplicatePaymentBypassedKey = null;
     // Plan 437: closing abandons any in-flight save — the guard can
@@ -4233,6 +4273,169 @@ export function setupQuickCollectModal({
     const flag = pendingClearanceFlagForReceipt(activeReceipt);
     successPendingClearanceFlagEl.textContent = flag;
     successPendingClearanceFlagEl.hidden = flag === '';
+  }
+
+  // Plan 449: the second-connection step — after the first
+  // connection's payment, the customer's other connection (from
+  // the active link record) with the dues still owed, recordable
+  // in the same pass. The step shows only while the pass still
+  // owes it: no active link, a split first receipt, nothing still
+  // owed, or a second payment already recorded in this pass all
+  // hide it. The amount is the operator's to change — the
+  // suggestion is the customer's remaining dues, because the app
+  // stores no per-connection bills to read the second connection's
+  // dues from. Recording reuses the existing save path with the
+  // first payment's method and date and the second connection's
+  // name, so the second payment is a separate record with its own
+  // receipt; the step itself changes no bill, payment total,
+  // connection, or link record.
+  let secondConnectionRecorded = false;
+  let secondConnectionWired = false;
+  let currentSecondConnectionStep = null;
+  function hideSecondConnectionStep() {
+    if (!secondConnectionBox) return;
+    currentSecondConnectionStep = null;
+    secondConnectionBox.innerHTML = '';
+    secondConnectionBox.hidden = true;
+  }
+  function renderSecondConnectionStep() {
+    if (!secondConnectionBox) return;
+    if (!activeReceipt || secondConnectionRecorded || activeReceipt.splitTender) {
+      hideSecondConnectionStep();
+      return;
+    }
+    const postSaveState = getState();
+    const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+    if (!postSaveCustomer) {
+      hideSecondConnectionStep();
+      return;
+    }
+    const links = typeof loadBillingLinks === 'function' ? loadBillingLinks() : [];
+    const baqayaCents = manualBaqayaOutstandingCents(postSaveCustomer);
+    const remainingCents = stillOwesCents(postSaveCustomer, calculatePaymentAllocations(postSaveState), baqayaCents);
+    const step = secondConnectionStep({
+      links,
+      customerId: activeCustomerId,
+      firstPayment: {
+        connection: activeReceipt.connection || '',
+        amountCents: Math.round(Number(activeReceipt.amount || 0) * 100),
+        method: activeReceipt.method || '',
+      },
+      remainingDuesCents: remainingCents,
+    });
+    if (!step) {
+      hideSecondConnectionStep();
+      return;
+    }
+    currentSecondConnectionStep = step;
+    secondConnectionBox.innerHTML = secondConnectionStepHtml(step);
+    secondConnectionBox.hidden = false;
+    if (!secondConnectionWired) {
+      secondConnectionWired = true;
+      secondConnectionBox.addEventListener('input', (event) => {
+        if (event?.target?.id !== 'sccSecondConnectionAmount') return;
+        const totalEl = document.getElementById('sccSecondConnectionTotal');
+        if (!totalEl || !currentSecondConnectionStep) return;
+        const typedCents = secondConnectionValidAmountCents({ amount: event.target.value });
+        totalEl.textContent = secondConnectionSummaryText(currentSecondConnectionStep, typedCents);
+      });
+      secondConnectionBox.addEventListener('click', (event) => {
+        if (event?.target?.id === 'sccSecondConnectionDismiss') {
+          hideSecondConnectionStep();
+          return;
+        }
+        if (event?.target?.id !== 'sccSecondConnectionRecord') return;
+        recordSecondConnectionPayment();
+      });
+    }
+  }
+  function recordSecondConnectionPayment() {
+    if (!activeReceipt || secondConnectionRecorded) return;
+    const recordBtn = document.getElementById('sccSecondConnectionRecord');
+    const amountInput = document.getElementById('sccSecondConnectionAmount');
+    const amountVal = Number(amountInput?.value);
+    if (!Number.isFinite(amountVal) || amountVal <= 0) {
+      if (typeof onToast === 'function') onToast('Enter a valid amount greater than zero for the second connection.', { type: 'error' });
+      amountInput?.focus();
+      return;
+    }
+    const firstReceipt = activeReceipt;
+    const postSaveState = getState();
+    const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+    if (!postSaveCustomer) {
+      if (typeof onToast === 'function') onToast('Customer not found.', { type: 'error' });
+      return;
+    }
+    // The first payment must still exist: undoing or reversing it
+    // after the step was offered leaves nothing to follow, so the
+    // step refuses instead of recording a lone second payment.
+    const firstStillThere = (postSaveCustomer.bills ?? []).some((bill) =>
+      (bill?.payments ?? []).some((p) => p?.id === firstReceipt.paymentId));
+    if (!firstStillThere) {
+      hideSecondConnectionStep();
+      if (typeof onToast === 'function') onToast('The first payment is no longer recorded, so the second connection cannot be recorded after it.', { type: 'error' });
+      return;
+    }
+    const links = typeof loadBillingLinks === 'function' ? loadBillingLinks() : [];
+    const baqayaCents = manualBaqayaOutstandingCents(postSaveCustomer);
+    const remainingCents = stillOwesCents(postSaveCustomer, calculatePaymentAllocations(postSaveState), baqayaCents);
+    const step = secondConnectionStep({
+      links,
+      customerId: activeCustomerId,
+      firstPayment: {
+        connection: firstReceipt.connection || '',
+        amountCents: Math.round(Number(firstReceipt.amount || 0) * 100),
+        method: firstReceipt.method || '',
+      },
+      remainingDuesCents: remainingCents,
+    });
+    if (!step) {
+      hideSecondConnectionStep();
+      return;
+    }
+    if (recordBtn) recordBtn.disabled = true;
+    try {
+      // The second payment reuses the first payment's method and
+      // date and the same target month — one visit, one method, one
+      // day — and carries the second connection's name, so the
+      // payment and its receipt say which connection they belong
+      // to. It carries no separate transaction reference: the
+      // reference (if any) stays on the first payment only.
+      const { nextState, receipt } = executeQuickCollection(postSaveState, {
+        customerId: activeCustomerId,
+        month: firstReceipt.month,
+        amount: amountVal,
+        date: firstReceipt.date,
+        method: firstReceipt.method,
+        connection: step.secondConnection,
+        tickets: loadTickets(),
+      });
+      secondConnectionRecorded = true;
+      activeReceipt = receipt;
+      if (typeof onSaveState === 'function') onSaveState(nextState);
+      renderActiveReceiptCard();
+      applyPackageSuccessMessage(receipt.amount);
+      renderSuccessNextSteps();
+      renderStillOwesLine();
+      renderOfflineSavedBadge();
+      renderReceiptShareDraft();
+      renderSuccessPendingClearanceFlag();
+      hideSecondConnectionStep();
+      updateCounts();
+      const totalCents = secondConnectionTotalCents(
+        Math.round(Number(firstReceipt.amount || 0) * 100),
+        Math.round(amountVal * 100)
+      );
+      if (typeof onToast === 'function') {
+        onToast(
+          `Second payment of PKR ${amountVal.toLocaleString('en-PK')} recorded for ${step.secondConnection}${totalCents !== null ? ` — total paid this visit PKR ${(totalCents / 100).toLocaleString('en-PK')}` : ''}.`,
+          { type: 'success', title: 'Second payment recorded' }
+        );
+      }
+    } catch (err) {
+      if (typeof onToast === 'function') onToast(err?.message || err, { type: 'error' });
+      if (recordBtn) recordBtn.disabled = false;
+    }
   }
 
   // Plan 434: the success next-steps panel — amount paid, still owed
@@ -5144,6 +5347,11 @@ export function setupQuickCollectModal({
       renderOfflineSavedBadge();
       renderReceiptShareDraft();
       renderSuccessPendingClearanceFlag();
+      // Plan 449: a fresh pass offers the second connection again —
+      // the flag from any earlier pass in this opening never carries
+      // over into the new receipt's step.
+      secondConnectionRecorded = false;
+      renderSecondConnectionStep();
 
       showStep('success');
       updateCounts();
@@ -5390,6 +5598,10 @@ export function setupQuickCollectModal({
     activeCustomerId = null;
     activeDefaults = null;
     activeReceipt = null;
+    // Plan 449: looping back to the picker drops the second-connection
+    // step with the rest of the save — the next save offers it afresh.
+    secondConnectionRecorded = false;
+    hideSecondConnectionStep();
     renderList();
     searchInput?.focus();
   });

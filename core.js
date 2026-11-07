@@ -1978,7 +1978,7 @@ export function prepayTermsOf(payment) {
 }
 
 export function validatePayment(fields, referenceDate = new Date(), options = {}) {
-  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, excessCashNote, excessCashDuesCents, largeCashApproval, largeCashThresholdCents, categoryTag, promiseLink, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
+  const { date, amount, method, paidBy, collectedBy, collectionPlace, collectionMohalla, connection, sameDayCorrection, reversalLink, overpaymentChoice, overpaymentDuesCents, excessCashNote, excessCashDuesCents, largeCashApproval, largeCashThresholdCents, categoryTag, promiseLink, urduNote, crossPayment, discount, discountReason, transactionId, reference, referenceOverrideReason, screenshot, walletVerified, ticketCharges, addonCharges, manualBaqayaSettlements, kind, note, targetMonth, prepayMonths, prepayGross, prepayRate, paidByContributor, senderTitle, senderDigits, lateFeeWaived, waivedAmount, waivedLateFee } = fields || {};
 
   const parsedDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? new Date(`${date}T00:00:00Z`) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0,10) !== date) throw new Error('Enter a valid payment date.');
@@ -2076,6 +2076,13 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
   const cleanPlace = normalizeCollectionPlace(place);
   const collectionMohallaClean = String(collectionMohalla ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
   if (collectionMohallaClean.length > 60) throw new Error('Collection mohalla must be 60 characters or fewer.');
+  // Plan 449: the connection a payment was recorded against — the
+  // second connection of a two-connection customer, named on the
+  // payment so the payment and its receipt say which connection
+  // they belong to. Folded to one line and capped at 60, the same
+  // cap as the collection mohalla; a payment without one stores
+  // nothing extra, so every existing record stays byte-identical.
+  const cleanConnection = String(connection ?? '').replace(/[\r\n\u2028\u2029]+/g, ' ').trim().slice(0, 60);
   // Plan 383: the same-day correction note — what was wrong, what it
   // should be, who recorded it, and the date — attached to the payment
   // as a note, never rewriting the original entry. The note is
@@ -2211,6 +2218,7 @@ export function validatePayment(fields, referenceDate = new Date(), options = {}
     ...(collector ? { collectedBy: collector } : {}),
     ...(cleanPlace ? { collectionPlace: cleanPlace } : {}),
     ...(collectionMohallaClean ? { collectionMohalla: collectionMohallaClean } : {}),
+    ...(cleanConnection ? { connection: cleanConnection } : {}),
     ...(cleanCorrection ? { sameDayCorrection: cleanCorrection } : {}),
     ...(cleanReversalLink ? { reversalLink: cleanReversalLink } : {}),
     ...(cleanOverpaymentChoice ? { overpaymentChoice: cleanOverpaymentChoice } : {}),

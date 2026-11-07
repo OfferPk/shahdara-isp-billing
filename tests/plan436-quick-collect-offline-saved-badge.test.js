@@ -168,7 +168,9 @@ test('wiring: the controller imports the badge module', () => {
 
 test('wiring: the badge renders on both save paths', () => {
   const calls = wiringSrc.match(/renderOfflineSavedBadge\(\)/g) || [];
-  assert.equal(calls.length, 3, `expected definition + 2 save-path calls, found ${calls.length}`);
+  // Plan 449: the second-connection record is a third save path, so the
+  // badge renders there too — definition + 3 save-path calls.
+  assert.equal(calls.length, 4, `expected definition + 3 save-path calls, found ${calls.length}`);
 });
 
 test('wiring: the render reads the saved payment recorded-at stamp and posts nothing', () => {

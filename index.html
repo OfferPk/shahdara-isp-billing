@@ -26448,7 +26448,7 @@
         </select>
       </div>
 
-      <div class="fcs-filter-row" role="tablist" aria-label="Filter subscribers by billing status">
+      <div class="fcs-filter-row" id="fcsBillingChips" role="tablist" aria-label="Filter subscribers by billing status">
         <button type="button" class="fcs-status-chip is-active" data-status="all" role="tab" aria-selected="true">
           All
         </button>
@@ -26460,6 +26460,30 @@
         </button>
         <button type="button" class="fcs-status-chip" data-status="paid" role="tab" aria-selected="false">
           Settled (Paid)
+        </button>
+      </div>
+
+      <!-- Plan 452: account-state filter — paid up, due, overdue,
+           suspended, new. Same chip styling as the billing row above;
+           one tap lists every customer in that state, "All" clears it. -->
+      <div class="fcs-filter-row" id="fcsAccountChips" role="tablist" aria-label="Filter subscribers by account status">
+        <button type="button" class="fcs-status-chip is-active" data-account-status="all" role="tab" aria-selected="true">
+          All
+        </button>
+        <button type="button" class="fcs-status-chip" data-account-status="paid-up" role="tab" aria-selected="false">
+          Paid up
+        </button>
+        <button type="button" class="fcs-status-chip" data-account-status="due" role="tab" aria-selected="false">
+          Due
+        </button>
+        <button type="button" class="fcs-status-chip" data-account-status="overdue" role="tab" aria-selected="false">
+          Overdue
+        </button>
+        <button type="button" class="fcs-status-chip" data-account-status="suspended" role="tab" aria-selected="false">
+          Suspended
+        </button>
+        <button type="button" class="fcs-status-chip" data-account-status="new" role="tab" aria-selected="false">
+          New
         </button>
       </div>
 

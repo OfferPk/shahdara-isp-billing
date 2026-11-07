@@ -39,6 +39,7 @@ import { packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
 import { dailyEntrySummary, dailyEntrySummaryText } from './daily-entry-summary.js';
+import { quickCollectRoundTotals, quickCollectRoundTotalsText } from './quick-collect-round-totals.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
 import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
 import {
@@ -1833,6 +1834,13 @@ export function setupQuickCollectModal({
   // page predates it) — today's transaction count and total on this
   // device, refreshed on every open and after each save.
   const dailyEntrySummaryEl = typeof document !== 'undefined' ? document.getElementById('quickCollectDailyEntrySummary') : null;
+  // Plan 439: the live round-total line (null when the host page
+  // predates it) — the payments taken this round: count and total
+  // amount on this device, refreshed on every open and after each
+  // save. A round starts when the sheet opens; the start instant
+  // lives in roundStartMs below and is never stored anywhere.
+  const roundTotalsEl = typeof document !== 'undefined' ? document.getElementById('rttRoundTotals') : null;
+  let roundStartMs = null;
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2606,6 +2614,7 @@ export function setupQuickCollectModal({
     if (highDuesCountEl) highDuesCountEl.textContent = highDues.length;
     if (allCountEl) allCountEl.textContent = all.length;
     refreshDailyEntrySummary();
+    refreshRoundTotals();
   }
 
   // Plan 400: refresh the live daily entry summary on the entry
@@ -2619,6 +2628,22 @@ export function setupQuickCollectModal({
     if (!state || !Array.isArray(state.customers)) return;
     const summary = dailyEntrySummary(listTransactions(state), getPakistanLocalDate());
     dailyEntrySummaryEl.textContent = dailyEntrySummaryText(summary);
+  }
+
+  // Plan 439: refresh the live round total on the picker screen from
+  // the transactions recorded on this device since this round
+  // started. It runs inside updateCounts, so it refreshes on every
+  // open and after each save, from the fresh state. The round start
+  // is set when the sheet opens; the backstop below covers the
+  // select-and-open path, which reaches the sheet without the open
+  // call. It totals only — it settles nothing and changes no record.
+  function refreshRoundTotals() {
+    if (!roundTotalsEl) return;
+    if (roundStartMs === null) roundStartMs = Date.now();
+    const state = getState();
+    if (!state || !Array.isArray(state.customers)) return;
+    const totals = quickCollectRoundTotals(listTransactions(state), roundStartMs);
+    roundTotalsEl.textContent = quickCollectRoundTotalsText(totals);
   }
 
   function renderList() {
@@ -3517,6 +3542,9 @@ export function setupQuickCollectModal({
 
   function openModal(defaultCustomerId = null) {
     closeCleanupHandled = false;
+    // Plan 439: opening the sheet starts a new round — the round
+    // total counts only the payments recorded from this instant on.
+    roundStartMs = Date.now();
     updateCounts();
     if (defaultCustomerId) {
       openCustomerCollectionForm(defaultCustomerId);

@@ -7884,6 +7884,16 @@ html, body {
   border-color: var(--amber);
 }
 
+/* Plan 423 — History quick jump from a payment line to its receipt: a
+   Receipt button on each history payment line. Layout only, no colour
+   of its own, so no new hex colour is introduced. */
+#fhlFullHistoryList .hjr-receipt-button {
+  min-height: 30px;
+  padding: 0 10px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
 /* Plan 382 — save confirmation summary panel: plain layout only, no
    colour of its own, so no new hex colour is introduced. */
 .scs-summary-box {

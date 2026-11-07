@@ -581,6 +581,7 @@ import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
 import { historyCsvExportButtonMarkup, historyCsvExportFilename, historyCsvExportText } from './history-csv-export.js';
+import { historyPrintedStatementButtonMarkup, buildHistoryPrintedStatementHtml } from './history-printed-statement.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4340,6 +4341,43 @@ function renderFullHistory(customer) {
       const filename = historyCsvExportFilename(customer, getPakistanLocalDate());
       downloadCsvFile(filename, historyCsvExportText(shown));
       toast(`Exported ${shown.length} ${shown.length === 1 ? 'transaction' : 'transactions'} to CSV.`);
+    });
+  }
+  // Plan 410 — History printed statement per customer. One
+  // printable statement of the customer history, printed from the
+  // history view; it prints only and changes nothing. The
+  // statement follows the same shown rows as the list, so the
+  // filters apply to it too, and it carries its print date.
+  const printHost = $('#hpsHistoryPrintedStatementHost');
+  if (printHost) {
+    printHost.innerHTML = historyPrintedStatementButtonMarkup();
+    const printButton = $('#hpsHistoryPrintedStatement');
+    if (printButton) printButton.addEventListener('click', () => {
+      if (shown.length === 0) {
+        toast('No transactions to print.');
+        return;
+      }
+      const statementHtml = buildHistoryPrintedStatementHtml({
+        businessName: state.settings?.businessName || 'Shahdara ISP',
+        customerName: customer.name || customer.customerName,
+        customerNumber: customer.customerNumber,
+        mohalla: customer.mohalla || customer.area || '',
+        entries: shown,
+        printDate: localDate(),
+      });
+      if (!statementHtml) {
+        toast('Print statement unavailable — the print date is missing.');
+        return;
+      }
+      const win = window.open('', '_blank');
+      if (!win) {
+        toast('Print window blocked — allow pop-ups for this site and try again.');
+        return;
+      }
+      win.document.write(statementHtml);
+      win.document.close();
+      win.focus();
+      win.print();
     });
   }
   const summary = $('#fhlFullHistorySummary');

@@ -26,6 +26,8 @@ import {
   generateMonthlyBillsThroughCurrentMonth,
   saveBillMonth,
   autoPackageFromPayment,
+  autoPackageRollbackOf,
+  rollbackAutoPackage,
   manualBaqayaOutstandingCents,
   planManualBaqayaSettlement,
   paymentSenderLabel,
@@ -34,7 +36,8 @@ import {
   listTransactions
 } from './core.js';
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
-import { BILL_PACKAGES, billPackageById, billPackageByLabel } from './package-catalog.js';
+import { BILL_PACKAGES, billPackageById, billPackageByLabel, validateBillPackageSnapshot } from './package-catalog.js';
+import { salesTaxCentsForPrice, salesTaxCentsOfBill } from './package-sales-tax.js';
 import { packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
@@ -487,6 +490,14 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
 
   const targetMonth = earliestUnpaidMonth || currentMonth;
   const totalDues = Math.max(0, totalDuesCents / 100);
+  // Polish #11: the target bill's package + tax, read-only — the
+  // collection screen shows the bill's own figures, so it can never
+  // disagree with the bill. Null when the target bill carries no
+  // package snapshot / no tax.
+  const targetBill = bills.find(b => b.month === targetMonth) ?? null;
+  const targetBillSalesTaxCents = salesTaxCentsOfBill(targetBill);
+  const targetBillSnapshot = validateBillPackageSnapshot(targetBill?.packageSnapshot);
+  const targetBillPackage = targetBillSnapshot ? { label: targetBillSnapshot.label, price: targetBillSnapshot.nominalPrice } : null;
 
   // Plan 429: the amount defaults to the customer's FULL current dues
   // — every open bill plus unpaid manual baqaya, the same shared total
@@ -565,6 +576,8 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     suggestedAmount,
     balanceDue: targetDue,
     prefill,
+    targetBillSalesTaxCents,
+    targetBillPackage,
     currentMonthBalance: Math.max(0, currentMonthBalanceCents / 100),
     totalDues,
     ticketChargeLines,
@@ -669,9 +682,19 @@ export function changeCustomerPackage(state, customerId, packageId, referenceDat
       const alreadyPriced = bill.dueAmount !== null && bill.dueAmount !== undefined && bill.dueAmount !== ''
         && centsOf(bill.dueAmount) === targetCents;
       if (!alreadyPriced) {
+        // Polish #11: a bill that already carries sales tax keeps its
+        // tax on the new package — recomputed at 19.5% of the new
+        // price — so the recorded tax always matches the price
+        // actually billed. A bill with no tax gains none here. With
+        // kist the explicit total must carry the recorded tax too,
+        // because the kist branch cannot pass a package id (see above)
+        // and the recorded tax is the old package's — the snapshot
+        // itself stays stale in that branch, exactly as before.
+        const hadTaxCents = salesTaxCentsOfBill(bill);
+        const newTaxCents = hadTaxCents !== null ? salesTaxCentsForPrice(plan.price) : null;
         next = kistCents > 0
-          ? saveBillMonth(next, customerId, { month, dueAmount: targetCents / 100, status: 'pending' }, referenceDate)
-          : saveBillMonth(next, customerId, { month, dueAmount: plan.price, status: 'pending', packageId: plan.id }, referenceDate);
+          ? saveBillMonth(next, customerId, { month, dueAmount: (targetCents + (hadTaxCents ?? 0)) / 100, status: 'pending' }, referenceDate)
+          : saveBillMonth(next, customerId, { month, dueAmount: plan.price, status: 'pending', packageId: plan.id, ...(newTaxCents !== null ? { salesTaxCents: newTaxCents } : {}) }, referenceDate);
         billRepriced = true;
       }
     } else {
@@ -1133,6 +1156,10 @@ export function executeQuickCollection(state, {
     isDigital,
     newBalanceDue,
     newTotalDues,
+    // Polish #11: the sales tax recorded on the target month's bill,
+    // in integer cents (null when untaxed) — the WhatsApp draft and
+    // the share-draft match check read it from here.
+    salesTaxCents: salesTaxCentsOfBill(targetBill),
     ticketCharges: settledTicketLines,
     ticketChargesTotal,
     ticketChargesPending: ticketChargesPendingAfter,
@@ -1269,6 +1296,18 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   // prints as its own receipt lines too (bilingual, like the charges).
   const baqayaLines = (Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [])
     .map(line => `🧾 *${L.baqaya(line.entryId)}:* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
+  // Polish #11: the sales tax recorded on the bill, printed as its
+  // own line like the ticket / boost / baqaya lines. An untaxed
+  // receipt shows no line, never PKR 0.
+  const salesTaxLines = (Number(receipt.salesTaxCents) > 0)
+    ? [`🧾 *Sales tax / سیلز ٹیکس (19.5%):* PKR ${Number(receipt.salesTaxCents / 100).toLocaleString('en-PK')}`]
+    : [];
+  // Polish #11: the package this payment just moved the profile to
+  // (the follow note), when it fired.
+  const autoPackage = receipt?.packageAutoSet;
+  const autoPackageLines = (autoPackage && typeof autoPackage === 'object' && Number.isFinite(Number(autoPackage.fee)) && Number(autoPackage.fee) > 0)
+    ? [`📦 *Package updated / پیکیج اپڈیٹ:* ${typeof autoPackage.packageLabel === 'string' && autoPackage.packageLabel.trim() !== '' ? `${autoPackage.packageLabel.trim()} — ` : ''}PKR ${Number(autoPackage.fee).toLocaleString('en-PK')}`]
+    : [];
 
   // SISP-126: the remainder waada line, only when one was set with this payment.
   const remainderWaadaLine = formatRemainderWaadaLine(receipt);
@@ -1299,6 +1338,8 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     ...ticketChargeLines,
     ...addonChargeLines,
     ...baqayaLines,
+    ...salesTaxLines,
+    ...autoPackageLines,
     `💳 *${L.method}:* ${receipt.method}`,
     receipt.transactionId ? `🔢 *${L.txnId}:* ${receipt.transactionId}` : null,
     receipt.senderLabel ? `👤 *${L.sender}:* ${receipt.senderLabel}` : null,
@@ -3454,6 +3495,16 @@ export function setupQuickCollectModal({
           ...activeDefaults.addonChargeLines.map(line => `<span class="qc-head-charge-line" style="display:block;">⚡ Speed Boost (${escapeHtml(line.boostId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
           ...(hasBaqaya ? [`<span class="qc-head-charge-line" style="display:block;">🧾 ${escapeHtml(t('baqaya_qc_line', null, { amount: `PKR ${Number(activeDefaults.manualBaqayaPending).toLocaleString('en-PK')}` }))}</span>`] : [])
         ].join('');
+        // Polish #11: the target bill's package + tax breakdown,
+        // read-only — the bill's own figures, so the collection screen
+        // can never disagree with the bill. Shown whenever the target
+        // bill carries a package snapshot or a tax; an untaxed bill
+        // with no package shows nothing extra.
+        const targetBillTax = activeDefaults.targetBillSalesTaxCents;
+        const targetBillPackage = activeDefaults.targetBillPackage;
+        const packageTaxLine = (targetBillPackage || (typeof targetBillTax === 'number' && targetBillTax > 0))
+          ? `<div class="qc-head-charges" style="margin-top:6px;font-size:0.85rem;"><span class="qc-head-charge-line" style="display:block;">📦 ${targetBillPackage ? `${escapeHtml(targetBillPackage.label)}: PKR ${Number(targetBillPackage.price).toLocaleString('en-PK')}` : 'Package'}${typeof targetBillTax === 'number' && targetBillTax > 0 ? ` · 🧾 Sales tax (19.5%): PKR ${Number(targetBillTax / 100).toLocaleString('en-PK')}` : ''}</span></div>`
+          : '';
 
         customerHeader.innerHTML = `
           <div class="qc-active-cust-bar">
@@ -3468,7 +3519,7 @@ export function setupQuickCollectModal({
             </div>
           </div>
           ${hasExtras ? `<div class="qc-head-charges" style="margin-top:6px;font-size:0.85rem;"><span class="qc-head-charge-line" style="display:block;">🧾 Bill dues: PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}</span>${chargeLines}</div>` : ''}
-
+          ${packageTaxLine}
         `;
       }
 
@@ -4719,6 +4770,10 @@ export function setupQuickCollectModal({
         ?.bills?.find(b => b.month === month)?.payments?.find(p => p.id === paymentId);
       const undoWaadaStamp = remainderWaadaOf(doomedPayment);
       const undoWaadaPrevious = remainderWaadaPreviousOf(doomedPayment);
+      // Polish #11: the package-rollback stamp this payment's follow
+      // left on it — captured here for the same reason, before the
+      // delete takes it.
+      const undoPackageRollback = autoPackageRollbackOf(doomedPayment);
       // SISP-121: undoing a split collection removes BOTH legs, newest
       // first, each with its own SISP-43 ticket-charge reopen — exactly
       // reversing the order they were recorded in.
@@ -4803,6 +4858,16 @@ export function setupQuickCollectModal({
             ? setCustomerWaada(custAfter, undoWaadaPrevious)
             : clearCustomerWaada(custAfter);
           nextState = { ...nextState, customers: nextState.customers.map(c => c.id === customerId ? restored : c) };
+        }
+      }
+      // Polish #11: roll back the package follow this payment caused —
+      // only while the live package is still exactly the follow's
+      // result, so a newer package change is never clobbered.
+      if (undoPackageRollback) {
+        const custAfter = nextState.customers.find(c => c.id === customerId);
+        if (custAfter) {
+          const restored = rollbackAutoPackage(custAfter, undoPackageRollback);
+          if (restored) nextState = { ...nextState, customers: nextState.customers.map(c => (c.id === customerId ? restored : c)) };
         }
       }
       if (typeof onSaveState === 'function') {

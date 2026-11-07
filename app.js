@@ -47,6 +47,9 @@ import { customerHasMonthlyFee, executeQuickCollection, compressPaymentProofImag
 import { setupFieldMode, speakCustomerDue } from './field-mode.js?v=1.11.0';
 import { QUICK_UNDO_WINDOW_MS, createQuickUndoController, findCollectedPayment, quickUndoReceiptRef, reverseCollectedPayment } from './quick-undo-toast.js';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.11.0';
+import { SALES_TAX_RATE_PERCENT, customerSalesTaxCents, formatSalesTaxAmount, salesTaxCentsForPrice, salesTaxDashboardRows, salesTaxDashboardTotals, salesTaxTable } from './package-sales-tax.js?v=1.11.0';
+import { receiptShareDraftFor, receiptShareDraftHtml } from './receipt-share-draft.js?v=1.11.0';
+import { executeReceiptWhatsAppShare, markReceiptShared, isReceiptShared } from './nav-quick-profile.js?v=1.11.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.11.0';
 import { indexCustomers, resolveTransactionCustomer } from './list-rendering.js';
 import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.11.0';
@@ -1647,7 +1650,7 @@ function mountCustomerProfileContent() {
   const mounts = $('#profileContentMounts');
   if (!mounts) return;
   const groups = {
-    billing:['#customerReceiptSummary','#manualBaqayaSection','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
+    billing:['#customerReceiptSummary','#manualBaqayaSection','#stxProfileShareDraft','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
     info:['.customer-meta','.package-history-section','.uptime-section'],
     complaints:['.incident-section:not(.uptime-section)']
   };
@@ -1791,7 +1794,7 @@ function recentPaymentActionsMarkup(row) {
   let whatsappMarkup = '';
   try {
     const receiptData = buildPaymentReceipt(customer, bill, payment);
-    whatsappMarkup = receiptWhatsAppActionMarkup(customer, { customerId: customer.id, date: payment.date, amount: payment.amount, method: payment.method, paidBy: payment.paidBy, month: row.month, paymentId: payment.id, billStatus: receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount: receiptData.nominalPrice, balanceDueCents: receiptData.balanceDueCents, billDueDate: bill?.dueDate ?? null, arrearsBreakdown: buildArrearsBreakdown(customer, bill), fifoAllocation: receiptData.fifoAllocation, fifoRemaining: receiptData.fifoRemaining, fifoShow: receiptData.fifoShow, ticketCharges: receiptData.ticketCharges });
+    whatsappMarkup = receiptWhatsAppActionMarkup(customer, { customerId: customer.id, date: payment.date, amount: payment.amount, method: payment.method, paidBy: payment.paidBy, month: row.month, paymentId: payment.id, billStatus: receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount: receiptData.nominalPrice, balanceDueCents: receiptData.balanceDueCents, billDueDate: bill?.dueDate ?? null, arrearsBreakdown: buildArrearsBreakdown(customer, bill), fifoAllocation: receiptData.fifoAllocation, fifoRemaining: receiptData.fifoRemaining, fifoShow: receiptData.fifoShow, ticketCharges: receiptData.ticketCharges, salesTaxCents: receiptData.salesTaxCents });
   } catch { whatsappMarkup = ''; }
   return `<span class="recent-payment-actions">${whatsappMarkup}<button class="print-receipt-button recent-payment-receipt-btn" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(row.month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${escapeHtml(t('dash_recent_receipt_aria', null, { number: customer.customerNumber }))}">${escapeHtml(t('dash_recent_receipt'))}</button>${pngReceiptButtonMarkup(customer.id, row.month, payment.id, customer.customerNumber)}</span>`;
 }
@@ -3837,6 +3840,107 @@ function receiptWhatsAppActionMarkup(customer, receiptInput, { askLabel = null }
   // so an explicit 'sms' channel and the legacy prefersSms flag agree.
   return receiptChannelPreference(customer) === 'sms' ? `${smsMarkup}${whatsappMarkup}` : `${whatsappMarkup}${smsMarkup}`;
 }
+
+// Polish #11 (Req 3): the profile payment form's share draft — the
+// same visible draft Quick Collect shows (receipt-share-draft.js),
+// on the profile's success view after a payment is recorded here.
+// The operator reads the draft (tax line + updated package included)
+// and taps Send or Dismiss. Send routes through the existing WhatsApp
+// dispatch (executeReceiptWhatsAppShare), which opens WhatsApp with
+// the same text and logs via markReceiptShared; nothing is ever sent
+// without the operator's tap.
+let profileShareDraftTarget = null; // { customerId, month, paymentId, autoPackage } | null
+let profileShareDraftDismissedFor = null; // payment id
+let profileShareDraftWired = false;
+
+// The receipt input for the profile share draft, built from the same
+// buildPaymentReceipt figures the payment row's WhatsApp action uses —
+// one helper so the draft and the row can never disagree. The id is
+// the payment id, which is also the key markReceiptShared logs under.
+function profileShareDraftReceiptInput(customer, bill, payment, receiptData, autoPackage) {
+  return {
+    id: payment.id,
+    customerId: customer.id,
+    date: payment.date,
+    amount: payment.amount,
+    method: payment.method,
+    paidBy: payment.paidBy,
+    month: bill.month,
+    paymentId: payment.id,
+    billStatus: receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null,
+    billAmount: receiptData.nominalPrice,
+    balanceDueCents: receiptData.balanceDueCents,
+    billDueDate: bill?.dueDate ?? null,
+    arrearsBreakdown: buildArrearsBreakdown(customer, bill),
+    fifoAllocation: receiptData.fifoAllocation,
+    fifoRemaining: receiptData.fifoRemaining,
+    fifoShow: receiptData.fifoShow,
+    ticketCharges: receiptData.ticketCharges,
+    salesTaxCents: receiptData.salesTaxCents,
+    advanceCredit: receiptData.advanceCredit,
+    contributorSplit: receiptData.contributorSplit,
+    waivedAmount: receiptData.waivedAmount,
+    previousPayments: receiptData.previousPayments,
+    ...(autoPackage ? { autoPackage } : {})
+  };
+}
+
+function renderProfileShareDraft() {
+  const host = $('#stxProfileShareDraft');
+  if (!host) return;
+  const clear = () => { host.innerHTML = ''; host.hidden = true; };
+  const target = profileShareDraftTarget;
+  if (!target) { clear(); return; }
+  if (profileShareDraftDismissedFor === target.paymentId) { clear(); return; }
+  const customer = state.customers.find(entry => entry.id === target.customerId);
+  const bill = customer?.bills?.find(entry => entry.month === target.month);
+  const payment = bill?.payments?.find(entry => entry.id === target.paymentId);
+  if (!customer || !bill || !payment) { clear(); return; }
+  if (isReceiptShared(target.paymentId)) { clear(); return; }
+  let receiptData;
+  try { receiptData = buildPaymentReceipt(customer, bill, payment); }
+  catch { clear(); return; }
+  const receiptInput = profileShareDraftReceiptInput(customer, bill, payment, receiptData, target.autoPackage ?? null);
+  const action = resolveReceiptWhatsAppAction(customer, receiptInput);
+  if (action.type !== 'draft') { clear(); return; }
+  const draft = receiptShareDraftFor({
+    receiptNumber: receiptData.receiptNumber,
+    amount: payment.amount,
+    method: payment.method,
+    date: payment.date,
+    month: bill.month,
+    customerName: customer.name,
+    customerNumber: customer.customerNumber,
+    phone: customer.phone,
+    salesTaxCents: receiptData.salesTaxCents
+  }, action.draft.message);
+  const html = draft ? receiptShareDraftHtml(draft) : '';
+  host.innerHTML = html;
+  host.hidden = html === '';
+  if (!profileShareDraftWired) {
+    profileShareDraftWired = true;
+    host.addEventListener('click', async (event) => {
+      const sendBtn = event.target?.closest?.('[data-rsd-send]');
+      const dismissBtn = event.target?.closest?.('[data-rsd-dismiss]');
+      if (!sendBtn && !dismissBtn) return;
+      const current = profileShareDraftTarget;
+      if (!current) return;
+      profileShareDraftDismissedFor = current.paymentId;
+      profileShareDraftTarget = null;
+      host.innerHTML = '';
+      host.hidden = true;
+      if (!sendBtn) return;
+      const liveCustomer = state.customers.find(entry => entry.id === current.customerId);
+      const liveBill = liveCustomer?.bills?.find(entry => entry.month === current.month);
+      const livePayment = liveBill?.payments?.find(entry => entry.id === current.paymentId);
+      if (!liveCustomer || !liveBill || !livePayment) return;
+      let liveReceipt;
+      try { liveReceipt = buildPaymentReceipt(liveCustomer, liveBill, livePayment); }
+      catch { return; }
+      await executeReceiptWhatsAppShare(liveCustomer, profileShareDraftReceiptInput(liveCustomer, liveBill, livePayment, liveReceipt, current.autoPackage ?? null));
+    });
+  }
+}
 function editCustomerPhoneFromReceipt(customerId) {
   if (!customerId || !state.customers.some(customer => customer.id === customerId)) return;
   selectCustomer(customerId);
@@ -4216,10 +4320,32 @@ function billAmountAuditMarkup(bill) {
   const items = changes.map(change => `<li>${escapeHtml(humanLocalDateTime(change.changedAt))}: ${escapeHtml(formatAmount(change.previousAmount))} → ${escapeHtml(formatAmount(change.newAmount))}</li>`).join('');
   return `<details class="bill-audit"><summary>${t('prof_hist_audit_title', null, { count: changes.length })}</summary><ol>${items}</ol></details>`;
 }
+// Polish #11: the due amount for a chosen package with its tax —
+// price + tax in integer cents, so 1500 + 292.5 reads 1792.5, never
+// 1792.499999.
+function stxDueValue(priceRupees, taxCents) {
+  return String(Math.round(Number(priceRupees) * 100 + (taxCents ?? 0)) / 100);
+}
 function billPackageSelectorMarkup(bill, month) {
   const savedPlan = validateBillPackageSnapshot(bill?.packageSnapshot);
-  const options = BILL_PACKAGES.map(plan => `<option value="${plan.id}" ${savedPlan?.packageId === plan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month</option>`).join('');
-  return `<label class="field-label full" for="package-${month}">${t('prof_hist_pkg_label')} <span class="optional-label">${t('prof_hist_pkg_opt')}</span></label><select id="package-${month}" class="full" name="packageId" data-bill-package aria-describedby="package-help-${month}"><option value="" ${savedPlan ? '' : 'selected'}>${t('prof_hist_pkg_none')}</option>${options}</select><p id="package-help-${month}" class="field-help full">${t('prof_hist_pkg_help')}</p>`;
+  const taxTable = salesTaxTable();
+  const taxCentsOf = (plan) => taxTable.find(row => row.packageId === plan.id)?.taxCents ?? null;
+  const options = BILL_PACKAGES.map(plan => {
+    const taxCents = taxCentsOf(plan);
+    const taxText = taxCents !== null ? ` · Sales tax ${formatSalesTaxAmount(taxCents)}` : '';
+    return `<option value="${plan.id}" ${savedPlan?.packageId === plan.id ? 'selected' : ''}>${escapeHtml(plan.label)} — ${escapeHtml(formatAmount(plan.price))} / month${escapeHtml(taxText)}</option>`;
+  }).join('');
+  // Polish #11: the tax checkbox beside the package select. It
+  // reflects the bill's recorded tax on open (checked when the bill
+  // carries tax, unchecked when it was saved without tax); choosing a
+  // package checks it by default, because tax applies to every
+  // package. Hidden and disabled with no package — tax belongs to a
+  // package, never to a bare typed amount. The label names the tax for
+  // the selected package and updates live with the selection.
+  const selectedTaxCents = savedPlan ? taxCentsOf(BILL_PACKAGES.find(plan => plan.id === savedPlan.packageId) ?? {}) : null;
+  const taxChecked = Number.isInteger(bill?.salesTaxCents) && bill.salesTaxCents > 0;
+  const taxLabel = selectedTaxCents !== null ? `Add sales tax (${SALES_TAX_RATE_PERCENT}%) — ${formatSalesTaxAmount(selectedTaxCents)}` : `Add sales tax (${SALES_TAX_RATE_PERCENT}%)`;
+  return `<label class="field-label full" for="package-${month}">${t('prof_hist_pkg_label')} <span class="optional-label">${t('prof_hist_pkg_opt')}</span></label><select id="package-${month}" class="full" name="packageId" data-bill-package aria-describedby="package-help-${month}"><option value="" ${savedPlan ? '' : 'selected'}>${t('prof_hist_pkg_none')}</option>${options}</select><label class="field-label full" for="stxTax-${month}" data-stx-tax-wrap style="${savedPlan ? '' : 'display:none'}"><input type="checkbox" id="stxTax-${month}" name="salesTax" data-stx-tax ${taxChecked ? 'checked' : ''} ${savedPlan ? '' : 'disabled'}> <span data-stx-tax-label>${escapeHtml(taxLabel)}</span></label><p id="package-help-${month}" class="field-help full">${t('prof_hist_pkg_help')}</p>`;
 }
 // Plan 401 — Full transaction history list per customer. Read-only:
 // every payment, charge, credit and refund for this customer in date
@@ -4788,7 +4914,7 @@ function renderHistory(customer) {
       // the count only; the previous values live on the payment record
       // (correctionHistory) and travel in backups.
       const correctionMarkup = Array.isArray(payment.correctionHistory) && payment.correctionHistory.length > 0 ? ` <span class="correction-badge">Corrected ×${payment.correctionHistory.length}</span>` : '';
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}${discountMarkup}${waiverMarkup}${advanceMarkup}${splitMarkup}${correctionMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentMethodDetailMarkup(payment)}${profilePaymentPayerMarkup(payment)}${profilePaymentSenderMarkup(payment)}${profilePaymentCollectionMarkup(payment)}${profileSameDayCorrectionMarkup(payment)}${profileReversalLinkMarkup(payment, customer)}${profileOverpaymentChoiceMarkup(payment)}${profileExcessCashNoteMarkup(payment)}${profileLargeCashApprovalMarkup(payment)}${profileCategoryTagMarkup(payment)}${profilePromisePaymentLinkMarkup(payment)}${payment.note ? ` · ${escapeHtml(payment.note)}` : ''}${profileUrduNoteMarkup(payment)}${profileCrossPaymentMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${paymentProofButtonMarkup(customer.id, month, payment)}${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null, arrearsBreakdown:buildArrearsBreakdown(customer, bill), fifoAllocation:receiptData.fifoAllocation, fifoRemaining:receiptData.fifoRemaining, fifoShow:receiptData.fifoShow, ticketCharges:receiptData.ticketCharges, advanceCredit:receiptData.advanceCredit, contributorSplit:receiptData.contributorSplit, waivedAmount:receiptData.waivedAmount, previousPayments:receiptData.previousPayments })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_print_receipt_aria', null, { number: customer.customerNumber, date: payment.date })}">${t('prof_hist_print_receipt')}</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip80_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip80')}</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip58_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip58')}</button>${pngReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}${profileBluetoothReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_edit_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_edit_pay')}</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_delete_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_delete_pay')}</button>${channelActionMarkup(payment, { customerId: customer.id, month })}<button class="void-payment" type="button" data-void-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_void_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_void_pay')}</button></span></li>`;    }).join('');
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}${discountMarkup}${waiverMarkup}${advanceMarkup}${splitMarkup}${correctionMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentMethodDetailMarkup(payment)}${profilePaymentPayerMarkup(payment)}${profilePaymentSenderMarkup(payment)}${profilePaymentCollectionMarkup(payment)}${profileSameDayCorrectionMarkup(payment)}${profileReversalLinkMarkup(payment, customer)}${profileOverpaymentChoiceMarkup(payment)}${profileExcessCashNoteMarkup(payment)}${profileLargeCashApprovalMarkup(payment)}${profileCategoryTagMarkup(payment)}${profilePromisePaymentLinkMarkup(payment)}${payment.note ? ` · ${escapeHtml(payment.note)}` : ''}${profileUrduNoteMarkup(payment)}${profileCrossPaymentMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${paymentProofButtonMarkup(customer.id, month, payment)}${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null, arrearsBreakdown:buildArrearsBreakdown(customer, bill), fifoAllocation:receiptData.fifoAllocation, fifoRemaining:receiptData.fifoRemaining, fifoShow:receiptData.fifoShow, ticketCharges:receiptData.ticketCharges, salesTaxCents:receiptData.salesTaxCents, advanceCredit:receiptData.advanceCredit, contributorSplit:receiptData.contributorSplit, waivedAmount:receiptData.waivedAmount, previousPayments:receiptData.previousPayments })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_print_receipt_aria', null, { number: customer.customerNumber, date: payment.date })}">${t('prof_hist_print_receipt')}</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip80_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip80')}</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip58_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip58')}</button>${pngReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}${profileBluetoothReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_edit_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_edit_pay')}</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_delete_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_delete_pay')}</button>${channelActionMarkup(payment, { customerId: customer.id, month })}<button class="void-payment" type="button" data-void-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_void_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_void_pay')}</button></span></li>`;    }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
     const hasPartial = statusValue === 'partial';
@@ -4814,7 +4940,13 @@ function renderHistory(customer) {
     const concessionSuggestMarkup = concessionSuggestion && !concessionSuggestion.alreadyApplied && concessionSuggestion.eligible ? `<span class="month-summary-wide"><span class="discount-badge-applied">${escapeHtml(t('prof_hist_concession_suggest', null, { hours: concessionSuggestion.downtimeHours, amount: concessionSuggestion.suggestedAmount }))}</span>${concessionBalance !== null && concessionBalance > 0 ? ` <button type="button" class="apply-late-fee-btn" data-apply-concession data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" title="${t('prof_hist_concession_apply_title')}">${t('prof_hist_concession_apply', null, { amount: concessionSuggestion.suggestedAmount })}</button>${concessionRoundControls}` : ''}</span>` : '';
     const concessionNetMarkup = concessionNetDue !== null ? `<span class="month-summary-stat">${t('prof_hist_net_after_concession')}: <strong>${formatAmount(concessionNetDue)}</strong></span>` : '';
     const clarityMarkup = bill ? billClarityMarkup(customer, bill, allocations) : '';
-    const summaryMarkup = !bill ? `<p class="empty-month">${t('prof_hist_empty_month')}</p>` : `<div class="month-summary"><span class="month-summary-stat">${t('prof_hist_status')}: <strong>${status.label}</strong></span><span class="month-summary-stat">${t('prof_hist_due_date')}: <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : t('prof_hist_due_not_set')}</strong></span>${billExtensionMarkup}<span class="month-summary-stat">${t('prof_hist_receipts')}: <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">${t('prof_hist_carry_in')}: <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">${t('prof_hist_bill_amount')}: <strong>${escapeHtml(displayAmount)}</strong></span>${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">${t('prof_hist_balance_due')}: <strong>${escapeHtml(balanceDue)}</strong></span>${clarityMarkup}${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_generated')}:  <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_forwarded')}: <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">${t('prof_hist_credit_waiting')}: <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? `<span class="month-status status-pending month-summary-wide">${t('prof_hist_partial_badge')}</span>` : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
+    // Polish #11: the tax line in the month summary — the bill's
+    // recorded tax, while it applies. The span stays in the markup
+    // (hidden) when the bill carries no tax, so the bill form's live
+    // toggle can show it without a re-render.
+    const billTaxCents = Number.isInteger(bill?.salesTaxCents) && bill.salesTaxCents > 0 ? bill.salesTaxCents : null;
+    const billTaxSummaryMarkup = `<span class="month-summary-stat" data-stx-summary-tax ${billTaxCents !== null ? '' : 'hidden'}>Sales tax (19.5%): <strong>${billTaxCents !== null ? formatSalesTaxAmount(billTaxCents) : ''}</strong></span>`;
+    const summaryMarkup = !bill ? `<p class="empty-month">${t('prof_hist_empty_month')}</p>` : `<div class="month-summary"><span class="month-summary-stat">${t('prof_hist_status')}: <strong>${status.label}</strong></span><span class="month-summary-stat">${t('prof_hist_due_date')}: <strong>${bill.dueDate ? escapeHtml(humanDate(bill.dueDate)) : t('prof_hist_due_not_set')}</strong></span>${billExtensionMarkup}<span class="month-summary-stat">${t('prof_hist_receipts')}: <strong>${formatAmount(received)}</strong></span><span class="month-summary-stat">${t('prof_hist_carry_in')}: <strong>${creditApplied}</strong></span>${creditSourceMarkup}<span class="month-summary-stat">${t('prof_hist_bill_amount')}: <strong>${escapeHtml(displayAmount)}</strong></span>${billTaxSummaryMarkup}${lateFeeMarkup}${applyFeeBtnMarkup}${concessionAppliedMarkup}${concessionSuggestMarkup}<span class="month-summary-stat">${t('prof_hist_balance_due')}: <strong>${escapeHtml(balanceDue)}</strong></span>${clarityMarkup}${concessionNetMarkup}${monthAllocation?.excessGeneratedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_generated')}:  <strong>${formatAmount(monthAllocation.excessGeneratedCents / 100)}</strong></span>` : ''}${monthAllocation?.creditForwardedCents ? `<span class="month-summary-stat">${t('prof_hist_credit_forwarded')}: <strong>${formatAmount(monthAllocation.creditForwardedCents / 100)}</strong></span>` : ''}${monthAllocation?.pendingCreditCents ? `<span class="month-summary-stat">${t('prof_hist_credit_waiting')}: <strong>${formatAmount(monthAllocation.pendingCreditCents / 100)}</strong></span>` : ''}${hasPartial ? `<span class="month-status status-pending month-summary-wide">${t('prof_hist_partial_badge')}</span>` : ''}</div>${generatedNote}${billAmountAuditMarkup(bill)}`;
     const amountRequired = bill ? '' : 'required';
     const amountLabel = bill ? t('prof_optional') : t('prof_hist_bill_required');
     const amountPlaceholder = bill ? t('prof_hist_bill_amount_ph_blank') : t('prof_hist_bill_amount_ph_enter');
@@ -4824,13 +4956,58 @@ function renderHistory(customer) {
     const formsMarkup = archivedWithoutBill ? `<p class="notice">${t('prof_hist_archived_notice')}</p>` : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? t('prof_hist_bill_update') : t('prof_hist_bill_record')}</h4><div class="form-grid">${packageSelector}<div class="form-cell"><label class="field-label full" for="due-${month}">${t('prof_hist_bill_amount_label')} <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}></div><div class="form-cell"><label class="field-label full" for="due-date-${month}">${t('prof_hist_due_date_label')}</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"></div><p class="field-help full">${t('prof_hist_due_help')}</p><button class="primary-button" type="submit">${bill ? t('prof_hist_bill_save') : t('prof_hist_bill_record_btn')}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>${t('prof_hist_pay_title')}</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">${t('prof_hist_pay_guidance')}</p><div class="form-grid"><div class="form-cell"><label class="field-label full" for="amount-${month}">${t('prof_hist_pay_amount_label')}</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_amount_ph')}" required></div><div class="form-cell"><label class="field-label full" for="method-${month}">${t('prof_hist_pay_method_label')}</label><select id="method-${month}" class="full" name="method" required><option value="">${t('prof_hist_pay_method_choose')}</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select></div>${billMonthSelectorFieldMarkup(`bms-${month}`, monthsForHistory(), month)}<div class="form-cell">${paidByFieldMarkup(`paid-by-${month}`)}</div>${collectionPlaceNoteFieldsMarkup(`cpl-${month}`)}${urduNoteFieldMarkup(`urn-${month}`)}${crossPaymentNoteFieldsMarkup(`xpn-${month}`, customer.id, state.customers)}${largeCashApprovalFieldsMarkup(`lca-${month}`)}${categoryTagFieldMarkup(`ctg-${month}`)}${promisePaymentLinkFieldMarkup(`ppl-${month}`, customer)}<div class="form-cell"><label class="field-label full" for="date-${month}">${t('prof_hist_pay_date_label')}</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required></div><div class="form-cell"><label class="field-label full" for="txnid-${month}">${t('prof_hist_pay_txn_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="${t('prof_hist_pay_txn_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-name-${month}">${t('spay_sender_name_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-name-${month}" class="full" name="senderTitle" type="text" maxlength="100" placeholder="${t('spay_sender_name_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-digits-${month}">${t('spay_sender_digits_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-digits-${month}" class="full" name="senderDigits" type="text" inputmode="numeric" maxlength="19" placeholder="${t('spay_sender_digits_ph')}"></div><div class="form-cell"><label class="field-label full" for="proof-${month}">${t('proof_attach_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="proof-${month}" class="full" name="proofScreenshot" type="file" accept="image/*"></div><div class="form-cell"><label class="field-label full" for="discount-${month}">${t('prof_hist_pay_discount_label')} <span class="optional-label">${t('prof_hist_discount_opt')}</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_discount_ph')}"></div><label class="field-label full" for="discount-reason-${month}">${t('prof_hist_pay_discount_reason')} <span class="optional-label">${t('prof_optional')}</span></label><input id="discount-reason-${month}" class="full" name="discountReason" type="text" maxlength="100" placeholder="${t('prof_hist_pay_discount_reason_ph')}">${billKistTotal(bill) > 0 ? `<label class="field-label full"><input type="checkbox" name="fifoPrioritizeKist"> ${t('prof_hist_fifo_first')} <span class="optional-label">${t('prof_hist_fifo_first_note')}</span></label>` : ''}<div class="profile-remwaada-row full" id="profile-remwaada-${month}" hidden></div><button class="primary-button" type="submit">${t('prof_hist_pay_submit')}</button></div></form></div>`;
     return `<details class="month-card" data-month-card="${month}" ${isOpen ? 'open' : ''}><summary><span class="month-label">${escapeHtml(displayMonthName(month))}</span><span class="history-count">${bill ? ((bill.payments?.length ?? 0) === 1 ? t('prof_hist_payments_1', null, { count: bill.payments?.length ?? 0 }) : t('prof_hist_payments_n', null, { count: bill.payments?.length ?? 0 })) : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="${t('prof_hist_payments_for', null, { month: displayMonthName(month) })}">${payments}</ul></div></details>`;
   }).join('');
+  // Polish #11: the month summary's tax line follows the bill form
+  // live — the due input already updates on toggle, and this keeps
+  // the summary beside it honest before saving.
+  function updateBillFormTaxLine(form) {
+    const card = form?.closest?.('[data-month-card]');
+    const line = card?.querySelector?.('[data-stx-summary-tax]');
+    if (!line) return;
+    const plan = billPackageById(form.querySelector('select[data-bill-package]')?.value ?? '');
+    const taxBox = form.querySelector('[data-stx-tax]');
+    const taxCents = plan ? salesTaxCentsForPrice(plan.price) : null;
+    const applies = Boolean(plan && taxBox && !taxBox.disabled && taxBox.checked && taxCents !== null);
+    line.hidden = !applies;
+    const strong = line.querySelector('strong');
+    if (strong) strong.textContent = applies ? formatSalesTaxAmount(taxCents) : '';
+  }
   historyContainer.querySelectorAll('form[data-kind="bill"]').forEach(form => form.addEventListener('submit', onBillSubmit));
   historyContainer.querySelectorAll('select[data-bill-package]').forEach(select => select.addEventListener('change', () => {
     const plan = billPackageById(select.value);
     select.form.dataset.packageSelectionChanged = 'true';
     const amount = select.form.elements.namedItem('dueAmount');
-    if (plan) { amount.value = String(plan.price); amount.readOnly = true; select.form.dataset.clearPackageSnapshot = 'false'; }
-    else { amount.readOnly = false; select.form.dataset.clearPackageSnapshot = 'true'; }
+    // Polish #11: choosing a package checks the tax box by default
+    // (tax applies to every package) and sets the due to price + tax
+    // at once; clearing the package hides the box and frees the due
+    // input for a typed amount.
+    const taxBox = select.form.querySelector('[data-stx-tax]');
+    const taxWrap = select.form.querySelector('[data-stx-tax-wrap]');
+    const taxLabel = select.form.querySelector('[data-stx-tax-label]');
+    if (plan) {
+      const taxCents = salesTaxCentsForPrice(plan.price);
+      if (taxBox) { taxBox.disabled = false; taxBox.checked = true; }
+      if (taxWrap) taxWrap.style.display = '';
+      if (taxLabel && taxCents !== null) taxLabel.textContent = `Add sales tax (${SALES_TAX_RATE_PERCENT}%) — ${formatSalesTaxAmount(taxCents)}`;
+      amount.value = stxDueValue(plan.price, taxCents); amount.readOnly = true; select.form.dataset.clearPackageSnapshot = 'false';
+    }
+    else {
+      if (taxBox) { taxBox.checked = false; taxBox.disabled = true; }
+      if (taxWrap) taxWrap.style.display = 'none';
+      amount.readOnly = false; select.form.dataset.clearPackageSnapshot = 'true';
+    }
+    updateBillFormTaxLine(select.form);
+  }));
+  // Polish #11: the tax checkbox updates the due amount live — price
+  // ↔ price + tax — the moment it is toggled, before saving.
+  historyContainer.querySelectorAll('[data-stx-tax]').forEach(box => box.addEventListener('change', () => {
+    const form = box.form;
+    if (!form) return;
+    const plan = billPackageById(form.querySelector('select[data-bill-package]')?.value ?? '');
+    const amount = form.elements.namedItem('dueAmount');
+    if (!plan || !amount) return;
+    const taxCents = salesTaxCentsForPrice(plan.price);
+    amount.value = stxDueValue(plan.price, box.checked ? taxCents : 0);
+    updateBillFormTaxLine(form);
   }));
   historyContainer.querySelectorAll('form[data-kind="payment"]').forEach(form => {
     form.addEventListener('submit', onPaymentSubmit);
@@ -5200,7 +5377,7 @@ function renderTransactions() {
     // badge used to widen it and ellipsize the customer name ("#35 RA...").
     const advanceBadge = transaction.isAdvance ? `<span class="advance-badge">${transaction.targetMonth ? `${t('adv_badge')} · ${escapeHtml(t('adv_target_suffix', null, { month: displayMonthName(transaction.targetMonth) }))}` : t('adv_badge')}</span>` : '';
     const splitBadge = savedPayment ? splitBadgeMarkup(savedPayment) : '';
-    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</div></div></li>`;  }).join('');
+    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], salesTaxCents:receiptData?.salesTaxCents ?? null, advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</div></div></li>`;  }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
   transactionList.querySelectorAll('[data-transaction-void]').forEach(button => button.addEventListener('click', () => openVoidPaymentDialog(button.dataset.customerId, button.dataset.month, button.dataset.transactionVoid)));
@@ -5281,6 +5458,25 @@ function renderMonthlyReport() {
   }).join('');
   document.querySelectorAll('[data-report-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.reportFilter === selectedReportFilter ? 'true' : 'false'));
   renderBillingRegister();
+  // Polish #11 (Req 4): the sales-tax dashboard rides with the monthly
+  // billing report and follows its month (current month by default).
+  renderSalesTaxDashboard(state, month);
+}
+
+// Polish #11 (Req 4): the sales-tax dashboard — every active
+// customer's tax for the report month, from their package, with the
+// total charged on recorded bills. Rows come from the pure helper;
+// the charged line sums bill.salesTaxCents, so a voided payment
+// never changes it — tax is on the bill, not the payment.
+function renderSalesTaxDashboard(state, month) {
+  const host = $('#stxTaxDashboard');
+  if (!host) return;
+  const rows = salesTaxDashboardRows(state.customers, month);
+  const totals = salesTaxDashboardTotals(rows);
+  const rowsMarkup = rows.map(row => `<li class="report-row"><div class="report-customer"><span class="report-customer-name">${escapeHtml(row.customerName)}</span></div><div class="report-cell"><span class="report-cell-label">Package</span><span class="report-cell-value">${escapeHtml(row.packageLabel !== '' ? row.packageLabel : t('bill_not_set'))}</span></div><div class="report-cell"><span class="report-cell-label">Sales tax (19.5%)</span><span class="report-cell-value">${escapeHtml(formatSalesTaxAmount(row.taxCents))}</span></div><div class="report-cell"><span class="report-cell-label">Tax charged on bill</span><span class="report-cell-value">${escapeHtml(formatSalesTaxAmount(row.billTaxCents))}</span></div></li>`).join('');
+  host.innerHTML = `<div class="table-heading"><div><p class="eyebrow">SALES TAX</p><h3 id="stxTaxHeading">Sales tax (19.5%) — ${escapeHtml(displayMonthName(month))}</h3></div><p class="chart-caption">Monthly sales tax per customer package. Billed tax is the tax recorded on this month's bills.</p></div>
+    <div class="monthly-report-summary-bar"><span class="report-summary-item"><span class="report-summary-label">Customers with a package:</span> <strong>${totals.taxedCustomerCount}</strong></span><span class="report-summary-item"><span class="report-summary-label">Total sales tax:</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.derivedTotalCents))}</strong></span><span class="report-summary-item"><span class="report-summary-label">Sales tax charged on bills:</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.chargedTotalCents))}</strong></span></div>
+    ${rows.length ? `<ol class="monthly-report-list">${rowsMarkup}</ol>` : `<p class="transactions-empty">${escapeHtml(t('stx_empty'))}</p>`}`;
 }
 
 const REGISTER_STATUS_CLASS = { paid: 'report-status-paid', partial: 'report-status-partial', unpaid: 'report-status-pending' };
@@ -5685,7 +5881,7 @@ function renderCustomerProfileView(customer) {
   // markup builder only receives the reveal flags, so a masked render
   // never contains the secrets at all.
   const routerCredSectionHtml = routerCredentialsSectionHtml(customer, { revealWifi: routerCredRevealed.wifi, revealAdmin: routerCredRevealed.admin });
-  const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), phone || t('prof_not_set')], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : t('prof_not_set')], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])])}${profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), customer.mohalla || t('prof_not_set')], [t('prof_field_zone'), customer.zone || t('prof_not_set')], [t('prof_field_address'), customer.address || t('prof_not_set'), true], [t('prof_field_notes'), customer.notes?.trim() || t('prof_not_set'), true]])}${profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), customer.ispProvider || t('prof_not_set')], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), customer.packageSpeed || t('prof_not_set')], [t('prof_field_payday'), paydaySummary.label], [t('prof_field_purchase_cost'), formatAmount(customer.monthlyPurchaseCost)], [t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : t('prof_not_recorded')], [t('prof_field_conn_fee'), formatAmount(customer.connectionFee)], [t('prof_field_router'), customer.routerModel || t('prof_not_recorded')], [t('prof_field_router_price'), formatAmount(customer.routerPrice)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_mc_cost'), formatAmount(customer.mediaConverterCost)], [t('prof_field_lineman_fee'), formatAmount(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? t('prof_not_recorded') : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_pppoe'), customer.pppoeUsername || t('prof_not_set')], [t('prof_field_static_ip'), customer.staticIp || t('prof_not_set')], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : t('prof_not_set')], [t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : t('prof_not_recorded')], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : t('prof_not_recorded')]])}</div>`;
+  const profileInfoGroupsHtml = `<div class="profile-info-groups">${profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), phone || t('prof_not_set')], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : t('prof_not_set')], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])])}${profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), customer.mohalla || t('prof_not_set')], [t('prof_field_zone'), customer.zone || t('prof_not_set')], [t('prof_field_address'), customer.address || t('prof_not_set'), true], [t('prof_field_notes'), customer.notes?.trim() || t('prof_not_set'), true]])}${profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), customer.ispProvider || t('prof_not_set')], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), customer.packageSpeed || t('prof_not_set')], ['Sales tax (19.5%)', formatSalesTaxAmount(customerSalesTaxCents(customer))], [t('prof_field_payday'), paydaySummary.label], [t('prof_field_purchase_cost'), formatAmount(customer.monthlyPurchaseCost)], [t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]])}${profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : t('prof_not_recorded')], [t('prof_field_conn_fee'), formatAmount(customer.connectionFee)], [t('prof_field_router'), customer.routerModel || t('prof_not_recorded')], [t('prof_field_router_price'), formatAmount(customer.routerPrice)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_recorded') : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_mc_cost'), formatAmount(customer.mediaConverterCost)], [t('prof_field_lineman_fee'), formatAmount(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? t('prof_not_recorded') : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_pppoe'), customer.pppoeUsername || t('prof_not_set')], [t('prof_field_static_ip'), customer.staticIp || t('prof_not_set')], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : t('prof_not_set')], [t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : t('prof_not_recorded')], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : t('prof_not_recorded')]])}</div>`;
   // SISP-19: profile hardware custody — ownership fields on the record,
   // plus the disconnection recovery checklist once archived (archive is
   // the app's disconnect action). Fiber drop length reuses fiberMeters.
@@ -8011,6 +8207,10 @@ function renderDetail() {
   renderIncidents(customer);
   renderHistory(customer);
   renderFullHistory(customer);
+  // Polish #11 (Req 3): the share draft for a just-recorded profile
+  // payment survives the re-render — it stays until the operator
+  // sends or dismisses it, or it was already shared.
+  renderProfileShareDraft();
 }
 function editCustomerProfile(id, { focus } = {}) {
   if (!state.customers.some(customer => customer.id === id)) return;
@@ -9600,13 +9800,26 @@ function onBillSubmit(event) {
         if (cycleChoice) billDueDateValue = dueDateForBillMonth(cycleChoice, form.dataset.month);
       }
     }
+    // Polish #11: the tax checkbox rides the same save — the cents for
+    // the selected package when the box is ticked, null when unticked
+    // (clearing any recorded tax). It is passed whenever a package is
+    // selected on submit, not only when the package selection changed,
+    // so unticking a previously-taxed bill clears its tax; with no
+    // package selected nothing is passed and the package-clear path
+    // clears any recorded tax with the snapshot.
+    const taxBox = form.querySelector('[data-stx-tax]');
+    const selectedPlan = billPackageById(data.get('packageId') || '');
+    const salesTaxCents = selectedPlan && taxBox && !taxBox.disabled
+      ? (taxBox.checked ? salesTaxCentsForPrice(selectedPlan.price) : null)
+      : undefined;
     state = saveBillMonth(state, selectedCustomerId, {
       month:form.dataset.month,
       dueAmount:data.get('dueAmount') || null,
       dueDate:billDueDateValue,
       status:'pending',
       packageId:packageChanged ? data.get('packageId') : '',
-      clearPackageSnapshot:packageChanged && form.dataset.clearPackageSnapshot === 'true'
+      clearPackageSnapshot:packageChanged && form.dataset.clearPackageSnapshot === 'true',
+      ...(salesTaxCents !== undefined ? { salesTaxCents } : {})
     });
     save(); renderDetail(); toast('Bill details saved on this device.');
   }
@@ -9763,6 +9976,16 @@ async function onPaymentSubmit(event) {
       { label:'Receipt', onAction: () => printPaymentReceipt(customerId, payMonth, added.id) }
     ] : [];
     toast(added ? `${formatAmount(added.amount)} received from #${paidCustomer.customerNumber} ${paidCustomer.name} for ${monthName(payMonth)}. Payment recorded on this device.${autoPackageNote ? ` ${t('pkg_auto_set_note', null, { amount: Number(autoPackageNote.fee).toLocaleString('en-PK') })}` : ''}` : 'Payment recorded on this device.', { type:'success', title:'Payment recorded', actions });
+    // Polish #11 (Req 3): the just-recorded payment gets the share
+    // draft on the profile's success view — same draft as Quick
+    // Collect, with the tax line and the updated package (when the
+    // follow fired). It shows until the operator sends or dismisses
+    // it, or it was already shared.
+    if (added) {
+      profileShareDraftTarget = { customerId, month: payMonth, paymentId: added.id, autoPackage: autoPackageNote ?? null };
+      profileShareDraftDismissedFor = null;
+      renderProfileShareDraft();
+    }
   }
   catch (error) { toast(error.message, { type:'error', title:'Payment not saved' }); }
   finally { if (submitBtn && submitBtn.isConnected) { submitBtn.disabled = false; submitBtn.removeAttribute('aria-busy'); } }

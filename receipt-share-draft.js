@@ -140,6 +140,19 @@ function receiptShareDraftNumbers(receipt) {
   return { receiptNumber: text(receipt?.receiptNumber), receiptNumbers: [] };
 }
 
+// The sales tax recorded on the receipt's bill, in integer cents —
+// null when the receipt carries no tax. A missing, boolean or blank
+// figure is not a number, never zero.
+function receiptShareDraftSalesTaxCents(receipt) {
+  const cents = receipt?.salesTaxCents;
+  if (cents === null || cents === undefined) return null;
+  if (typeof cents === 'boolean') return null;
+  if (typeof cents === 'string' && cents.trim() === '') return null;
+  const value = Number(cents);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return Math.round(value);
+}
+
 // Prepare one share draft from the saved payment and its receipt, plus
 // the share text the dispatch already builds for it. Returns null
 // when there is nothing safe to share — no usable receipt number,
@@ -175,6 +188,10 @@ export function receiptShareDraftFor(receipt, shareText) {
     date,
     month,
     phone: text(receipt?.phone),
+    // Polish #11: the sales tax figure, proved against the receipt by
+    // the match check below — a draft can never show a tax the receipt
+    // does not carry. Null when the receipt carries no tax.
+    salesTaxCents: receiptShareDraftSalesTaxCents(receipt),
     text: draftText,
   };
 }
@@ -199,6 +216,11 @@ export function receiptShareDraftMatchesReceipt(draft, receipt) {
   if (draft.month !== expected.month) return false;
   if (draft.customerName !== expected.customerName) return false;
   if (draft.customerNumber !== expected.customerNumber) return false;
+  // Polish #11: the tax figure is part of the match — a draft whose
+  // tax disagrees with the receipt's recorded tax never shows. The
+  // null-coalescing keeps drafts built before this field existed
+  // (no key at all) matching an untaxed receipt.
+  if ((draft.salesTaxCents ?? null) !== (expected.salesTaxCents ?? null)) return false;
   return true;
 }
 

@@ -4,6 +4,7 @@ import { lateFeeWaiverOf } from './late-fee-waiver.js';
 import { looseChangeCreditCents } from './loose-change-credit.js';
 
 import { classifyPackagePrice, validateBillPackageSnapshot } from './package-catalog.js';
+import { SALES_TAX_RECEIPT_LABEL, salesTaxReceiptLine } from './package-sales-tax.js';
 import { buildArrearsBreakdown, fifoAllocationForPayment } from './billing-cycle.js';
 import { kistLineLabel, kistSchedule, sanitizeInstallmentPlan } from './installment-plan.js';
 import { urduNameFor } from './urdu-names.js';
@@ -206,6 +207,10 @@ export function buildPaymentReceipt(customer, bill, payment) {
   const feederHostCreditAmount = positiveAmount(bill.feederHostCreditAmount) || 0;
   const feederHostCreditReason = text(bill.feederHostCreditReason);
   const nominalPrice = packageSnapshot?.nominalPrice ?? billDue ?? positiveAmount(bill.priceSnapshot);
+  // Polish #11: the sales tax recorded on this bill (integer cents),
+  // read from the bill itself — never recomputed — so the receipt
+  // shows exactly what was charged. Null on an untaxed bill.
+  const salesTax = salesTaxReceiptLine(bill);
   const packageType = packageSnapshot?.packageType ?? classifyPackagePrice(nominalPrice);
   const customerBills = Array.isArray(customer.bills) ? customer.bills : [];
   const matchingBill = customerBills.find(row => row === bill || (row?.id && bill.id && row.id === bill.id)) ?? bill;
@@ -323,6 +328,10 @@ export function buildPaymentReceipt(customer, bill, payment) {
     packageType,
     dataLimit,
     nominalPrice,
+    // Polish #11: the tax recorded on the bill, in integer cents
+    // (null when untaxed — the receipt prints no tax line then, never
+    // PKR 0). Every receipt surface reads it from here.
+    salesTaxCents: salesTax?.taxCents ?? null,
     lateFee,
     lateFeeReason: text(bill.lateFeeReason),
     concessionAmount,
@@ -354,7 +363,7 @@ export function buildPaymentReceipt(customer, bill, payment) {
     manualBaqayaSettlements: manualBaqayaSettlementLinesOf(payment),
     manualBaqayaTotal: manualBaqayaSettlementLinesOf(payment).reduce((sum, line) => sum + line.amount, 0),
 
-    totalBilled: (nominalPrice !== null ? nominalPrice : 0) + lateFee,
+    totalBilled: (nominalPrice !== null ? nominalPrice : 0) + lateFee + (salesTax?.taxCents ?? 0) / 100,
     // SISP-61: a multi-month prepay prints its three money lines
     // separately — gross coverage, the upfront discount, and the cash
     // actually paid (paidAmount above, which stays NET cash: the gross
@@ -454,6 +463,18 @@ const looseChangeReceiptRows = (receipt, formatAmount) => {
 const ticketChargeReceiptRows = (receipt, formatAmount) => {
   const lines = Array.isArray(receipt?.ticketCharges) ? receipt.ticketCharges : [];
   return lines.map((line) => `<div class="receipt-field"><dt>Murammat / Material Charge (${escapeHtml(line.ticketId)}):</dt><dd>${formatAmount(line.amount)}</dd></div>`).join('');
+};
+
+// Polish #11: the sales-tax line for the HTML receipt layouts — the
+// tax recorded on the bill, printed beside the package price. Empty
+// when the bill carries no tax, so untaxed receipts render exactly
+// as before.
+const salesTaxReceiptRows = (receipt, formatAmount) => {
+  const taxCents = receipt?.salesTaxCents;
+  if (taxCents === null || taxCents === undefined || typeof taxCents === 'boolean') return '';
+  const value = Number(taxCents);
+  if (!Number.isFinite(value) || value <= 0) return '';
+  return `<div class="receipt-field"><dt>${escapeHtml(SALES_TAX_RECEIPT_LABEL)}:</dt><dd>+${formatAmount(value / 100)}</dd></div>`;
 };
 
 // SISP-194: the advance-credit pair — advance credit applied (to this
@@ -676,6 +697,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${transactionPayerReceiptFieldHtml(receipt, 'Paid by')}
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Billed / بل رقم:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
+    ${salesTaxReceiptRows(receipt, formatAmount)}
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
     ${receipt.waivedAmount > 0 ? `<div class="receipt-field"><dt>Late Fee Waived:</dt><dd>-${formatAmount(receipt.waivedAmount)}</dd></div>` : ''}
     ${prepayReceiptRows(receipt, formatAmount)}
@@ -729,6 +751,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${transactionPayerReceiptFieldHtml(receipt, 'Paid by / ادا کنندہ')}
     <div class="receipt-divider">--------------------------------</div>
     <div class="receipt-field"><dt>Monthly Fee / ماہانہ واجبات:</dt><dd>${formatAmount(receipt.nominalPrice)}</dd></div>
+    ${salesTaxReceiptRows(receipt, formatAmount)}
     ${receipt.lateFee > 0 ? `<div class="receipt-field"><dt>Late Surcharge / تاخیری فیس:</dt><dd>+${formatAmount(receipt.lateFee)}</dd></div>` : ''}
     ${receipt.waivedAmount > 0 ? `<div class="receipt-field"><dt>Late Fee Waived / تاخیری فیس معاف:</dt><dd>-${formatAmount(receipt.waivedAmount)}</dd></div>` : ''}
     ${prepayReceiptRows(receipt, formatAmount)}
@@ -782,6 +805,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ['Package Type', receipt.packageType],
     ['Data Limit', receipt.dataLimit],
     ['Nominal Package Price', receipt.nominalPrice === null ? '' : formatAmount(receipt.nominalPrice)],
+    ...(receipt.salesTaxCents > 0 ? [[SALES_TAX_RECEIPT_LABEL, `+${formatAmount(receipt.salesTaxCents / 100)}`]] : []),
     ...(receipt.lateFee > 0 ? [['Late Fee Surcharge', `+${formatAmount(receipt.lateFee)}`]] : []),
     ...(receipt.waivedAmount > 0 ? [['Late Fee Waived', `-${formatAmount(receipt.waivedAmount)}`]] : []),
     ...(receipt.lateFee > 0 ? [['Total Gross Payable', formatAmount(receipt.totalBilled)]] : []),

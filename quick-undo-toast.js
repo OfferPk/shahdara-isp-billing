@@ -40,7 +40,7 @@
  * tested without a browser; app.js supplies the real toast presenter.
  */
 
-import { addonChargeLinesOf, deletePayment, formatPKR, ticketChargeLinesOf } from './core.js';
+import { addonChargeLinesOf, autoPackageRollbackOf, deletePayment, formatPKR, rollbackAutoPackage, ticketChargeLinesOf } from './core.js';
 import { unsettleTicketChargesForPayment } from './complaint-tickets.js';
 import { lateFeeWaiverOf, restoreWaivedLateFee } from './late-fee-waiver.js';
 import { unsettleAddonChargesForPayment } from './speed-addon.js';
@@ -136,6 +136,10 @@ export function reverseCollectedPayment({ state, tickets, customerId, paymentId,
   // delete removes the only record holding the stamps.
   const waadaStamp = remainderWaadaOf(payment);
   const waadaPrevious = remainderWaadaPreviousOf(payment);
+  // Polish #11: the package-rollback stamp this payment's follow left
+  // on it (see autoPackageFromPayment) — captured here for the same
+  // reason, before the delete takes it.
+  const rollbackStamp = autoPackageRollbackOf(payment);
   let workingState = state;
   const deleteOptions = {};
   // SISP-101: restore the waived late fee first (core refuses the
@@ -174,6 +178,17 @@ export function reverseCollectedPayment({ state, tickets, customerId, paymentId,
         ? setCustomerWaada(custAfter, waadaPrevious)
         : clearCustomerWaada(custAfter);
       nextState = { ...nextState, customers: nextState.customers.map(c => (c.id === customerId ? restored : c)) };
+    }
+  }
+  // Polish #11: roll back the package follow this payment caused —
+  // only while the live package is still exactly the follow's result,
+  // so a newer package change is never clobbered. Without the stamp
+  // there is nothing to roll back.
+  if (rollbackStamp) {
+    const custAfter = nextState.customers.find(c => c.id === customerId);
+    if (custAfter) {
+      const restored = rollbackAutoPackage(custAfter, rollbackStamp);
+      if (restored) nextState = { ...nextState, customers: nextState.customers.map(c => (c.id === customerId ? restored : c)) };
     }
   }
   return { nextState, nextTickets, payment, month };

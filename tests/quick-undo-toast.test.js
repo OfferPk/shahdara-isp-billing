@@ -33,7 +33,9 @@ import {
   calculatePaymentAllocations,
   deletePayment,
   formatPKR,
-  saveBillMonth
+  saveBillMonth,
+  autoPackageRollbackOf,
+  rollbackAutoPackage
 } from '../core.js';
 import { executeQuickCollection } from '../nav-quick-collect.js';
 import { buildRoznamchaDay } from '../roznamcha.js';
@@ -202,7 +204,18 @@ test('PIN: waada case — undo outcome is identical to the existing deletePaymen
     state: nextState, tickets: [], customerId: 'cust-1', paymentId: receipt.paymentId, referenceDate: REF
   }).nextState;
   const viaDelete = deletePayment(nextState, 'cust-1', MONTH, receipt.paymentId, REF);
-  assert.deepEqual(viaSeam, viaDelete);
+  // Polish #11 (2026-11-07): the undo now also rolls back the package
+  // follow the collection caused, so the seam no longer equals the
+  // plain delete outright — it equals the plain delete WITH the
+  // follow's rollback applied. What this pin still proves, unchanged:
+  // the cleared promise is never restored by undo (void does that).
+  assert.equal(viaSeam.customers[0].promiseDate, undefined, 'undo never restores a cleared promise');
+  const expectedCustomers = viaDelete.customers.map(c => {
+    if (c.id !== 'cust-1') return c;
+    return rollbackAutoPackage(c, autoPackageRollbackOf(stamped.payment)) ?? c;
+  });
+  assert.deepEqual(viaSeam.customers, expectedCustomers);
+  assert.deepEqual(viaSeam, { ...viaDelete, customers: expectedCustomers });
   assert.equal(balanceCents(viaSeam), 300000);
 });
 

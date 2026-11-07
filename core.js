@@ -1,5 +1,6 @@
 import { validatePhase3State, buildManualPayrollSummary, monthEnd, PAYROLL_RULES_EFFECTIVE_DATE, SAAD_BASE_MONTHLY_SALARY, SAAD_PER_ELIGIBLE_CUSTOMER_MONTHLY, canonicalMohalla } from './phase3.js';
 import { createBillPackageSnapshot, validateBillPackageSnapshot, BILL_PACKAGES } from './package-catalog.js';
+import { SALES_TAX_RATE_BPS, salesTaxCentsForPrice } from './package-sales-tax.js';
 import { sanitizeDigitalPaymentsSettings, getDefaultDigitalPaymentsSettings } from './digital-payments-settings.js';
 import { sanitizeReceiptFooter, getDefaultReceiptFooter } from './receipt-footer-studio.js';
 import { sanitizeBranchGuard, sanitizeBranchGuardStamp, classifyBranchGuardRestore, fingerprintState, computeReceiptDelta } from './branch-guard.js';
@@ -1336,14 +1337,48 @@ export function countCustomerIncidentsLast30Days(state, customerId, referenceDat
   }).length;
 }
 
-export function saveBillMonth(state, customerId, { month, dueAmount = null, status, dueDate = undefined, packageId = '', clearPackageSnapshot = false }, referenceDate = new Date()) {
+export function saveBillMonth(state, customerId, { month, dueAmount = null, status, dueDate = undefined, packageId = '', clearPackageSnapshot = false, salesTaxCents = undefined }, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
   if (status !== 'pending') throw new Error('Paid status is derived from actual receipts or valid carry-forward credit. Record an actual payment instead of manually marking a bill paid.');
   const selectedPackage = packageId ? createBillPackageSnapshot(packageId) : null;
   if (packageId && !selectedPackage) throw new Error('Choose one of the available monthly packages.');
-  const due = checkPositiveAmount(selectedPackage?.nominalPrice ?? dueAmount, true);
   const customer = customerOrThrow(state, customerId);
   const existing = customer.bills.find(b => b.month === month);
+  // Polish #11 — sales tax (19.5%) on the bill's package. The
+  // effective package is the newly selected one, else the bill's
+  // existing snapshot (a package being cleared leaves no package).
+  // The caller passes integer cents, or null to clear the tax;
+  // omitting the param leaves any recorded tax untouched, so every
+  // other saveBillMonth caller keeps exactly its old behaviour. A
+  // bill with no package cannot carry tax, and the cents must equal
+  // 19.5% of the package price exactly — a mismatch is rejected,
+  // never silently stored.
+  const effectivePackage = (clearPackageSnapshot && !selectedPackage) ? null : (selectedPackage ?? validateBillPackageSnapshot(existing?.packageSnapshot));
+  let nextSalesTaxCents = Number.isInteger(existing?.salesTaxCents) && existing.salesTaxCents > 0 ? existing.salesTaxCents : null;
+  if (salesTaxCents !== undefined) {
+    if (salesTaxCents === null) {
+      nextSalesTaxCents = null;
+    } else {
+      if (!effectivePackage) throw new Error('A bill with no package cannot carry sales tax.');
+      if (!Number.isInteger(salesTaxCents) || salesTaxCents <= 0) throw new Error('Sales tax must be a positive whole-paisa amount.');
+      if (salesTaxCents !== salesTaxCentsForPrice(effectivePackage.nominalPrice)) throw new Error('Sales tax does not match 19.5% of the package price.');
+      nextSalesTaxCents = salesTaxCents;
+    }
+  }
+  // Clearing the package clears the tax with it, even when the
+  // caller did not pass the tax param — a packageless bill cannot
+  // carry tax.
+  if (clearPackageSnapshot && !selectedPackage) nextSalesTaxCents = null;
+  // The due is the package price plus its tax when a package is newly
+  // selected (the caller-owned dueAmount is ignored there, exactly as
+  // before); otherwise the dueAmount the caller passes already carries
+  // the tax — the bill form sets it to price + tax live when the box
+  // is ticked — so nothing is added twice.
+  const baseDue = checkPositiveAmount(selectedPackage?.nominalPrice ?? dueAmount, true);
+  const due = selectedPackage && nextSalesTaxCents !== null && baseDue !== null
+    ? (moneyCents(baseDue) + nextSalesTaxCents) / 100
+    : baseDue;
+  if (nextSalesTaxCents !== null && due === null) throw new Error('A bill with sales tax needs a package price.');
   if (customer.archived && !existing) throw new Error('Archived customers do not receive new bills. Unarchive the customer first.');
   if (!existing && due === null) throw new Error('Enter a bill amount before creating a bill. Unconfigured customers do not receive bills.');
   const requestedDueDate = dueDate === undefined ? undefined : checkOptionalDate(dueDate);
@@ -1356,6 +1391,17 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
     ? { ...existing, dueAmount:due, dueDate:savedDueDate, status, amountHistory, ...(selectedPackage ? { packageSnapshot:selectedPackage } : {}) }
     : { id:makeId(), month, dueAmount:due, dueDate:savedDueDate, status, payments:[], generated:false, priceSnapshot:null, createdAt:localDateTimeValue(referenceDate), amountHistory:[], ...(selectedPackage ? { packageSnapshot:selectedPackage } : {}) };
   if (clearPackageSnapshot && !selectedPackage) delete bill.packageSnapshot;
+  // Polish #11: the recorded tax rides the bill, rate alongside so
+  // history never recomputes; null clears both fields (clearing the
+  // package clears the tax with it, since a packageless bill cannot
+  // carry tax).
+  if (nextSalesTaxCents !== null) {
+    bill.salesTaxCents = nextSalesTaxCents;
+    bill.salesTaxRateBps = SALES_TAX_RATE_BPS;
+  } else {
+    delete bill.salesTaxCents;
+    delete bill.salesTaxRateBps;
+  }
   const bills = [...customer.bills.filter(b => b.month !== month), bill].sort((a,b) => b.month.localeCompare(a.month));
   return { ...state, customers: state.customers.map(c => c.id !== customerId ? c : { ...c, bills }) };
 }
@@ -1386,11 +1432,15 @@ export function saveBillMonth(state, customerId, { month, dueAmount = null, stat
 //    at the taken fee and its receipts settle it — the bill was
 //    unpriced or created inside this very recording, so no earlier
 //    charge is ever rewritten.
-//  - Month ALREADY priced (generated or manually set): the fee was
-//    decided when the bill was priced. Any payment is a pay-down —
-//    partial OR full — and never rewrites the package (a 1,000 payment
-//    toward a generated 2,000 bill leaves the bill half-paid, 1,000
-//    still due, and the package at 2,000).
+//  - Month ALREADY priced (generated or manually set): Polish #11 —
+//    the owner asked for the follow in exactly this case, so the
+//    package now follows the fee taken for the month here too, with
+//    one guard the unpriced case does not have: the already-priced
+//    bill is NEVER repriced (a 1,000 payment toward a generated
+//    2,000 bill leaves the bill half-paid, 1,000 still due, and moves
+//    the package to 1,000 from the NEXT month only, through the price
+//    schedule). A partial payment therefore moves the package — the
+//    owner's stated rule, pinned rather than second-guessed.
 // The assignment goes through updateCustomerProfile — the same plan path
 // as the profile Edit form, Quick Collect setup and applyCustomerPlan —
 // so the change lands in packageHistory with staff attribution and the
@@ -1464,10 +1514,14 @@ export function autoPackageFromPayment(beforeState, afterState, customerId, mont
     // older month late never rewrites today's plan.
     const latestMonth = bills.reduce((max, b) => (typeof b?.month === 'string' && b.month > max ? b.month : max), '');
     if (month !== latestMonth) return noChange;
-    // A bill already priced before this payment decided the month's fee
-    // at pricing time; the payment only pays it down.
+    // Polish #11: whether the month was already priced before this
+    // payment decides only the reprice step below, never the follow
+    // itself — a priced month follows too now (see the header). The
+    // priced bill is never repriced: the payment pays it down and the
+    // amount still due stays due; the package change takes effect
+    // from the next month through the price schedule.
     const beforeBill = (beforeCustomer.bills ?? []).find(b => b.month === month);
-    if (beforeBill && isPricedBill(beforeBill)) return noChange;
+    const wasPriced = Boolean(beforeBill && isPricedBill(beforeBill));
     const takenCents = monthFeeTakenCents(customer, month);
     if (takenCents <= 0) return noChange;
     const selling = Number(customer.monthlySellingAmount);
@@ -1481,16 +1535,80 @@ export function autoPackageFromPayment(beforeState, afterState, customerId, mont
     // The month stands at the taken fee: price its bill at exactly that
     // amount (saveBillMonth keeps the receipts and audits the amount
     // change). Skipped when the recording's own bill generation already
-    // priced it at the taken fee.
+    // priced it at the taken fee — and always skipped for a month that
+    // was already priced before the payment (Polish #11: the priced
+    // bill is never repriced; the follow moves the package from the
+    // next month only).
     const monthBill = next.customers.find(c => c.id === customerId)?.bills?.find(b => b.month === month);
-    if (monthBill && moneyCents(monthBill.dueAmount) !== takenCents) {
+    if (!wasPriced && monthBill && moneyCents(monthBill.dueAmount) !== takenCents) {
       next = saveBillMonth(next, customerId, { month, dueAmount: takenFee, status: 'pending' }, referenceDate);
     }
-    next = generateMonthlyBillsThroughCurrentMonth(next, referenceDate);
+    // Polish #11: a priced month's follow must not generate bills as
+    // a side effect — the package change takes effect from the next
+    // month via the price schedule, and the next billing run
+    // generates that bill. Generating here would invent a due (e.g.
+    // collecting September in October would create October's bill
+    // mid-collection and inflate the receipt's payable-remaining).
+    if (!wasPriced) next = generateMonthlyBillsThroughCurrentMonth(next, referenceDate);
+    // Polish #11: stamp the triggering payment with the whole
+    // pre-follow customer record, so an undo can put the profile back
+    // exactly — the follow runs through updateCustomerProfile, which
+    // normalises the record (default fields, schedule, history) as
+    // well as setting the package. The undo paths
+    // (reverseCollectedPayment, Quick Collect's executeUndo) restore
+    // this snapshot verbatim, guarded by rollbackAutoPackage. Bills
+    // ride along in the snapshot, so a bill the follow repriced (or
+    // generated) is put back too; the triggering payment itself is
+    // absent from the snapshot, exactly as the undo leaves it.
+    const rollbackStamp = {
+      customer: JSON.parse(JSON.stringify(beforeCustomer)),
+      fee: takenFee,
+    };
+    next = { ...next, customers: next.customers.map(c => c.id !== customerId ? c : { ...c, bills: (c.bills ?? []).map(b => b.month !== month ? b : { ...b, payments: (b.payments ?? []).map(p => p.id !== paymentId ? p : { ...p, autoPackageRollback: rollbackStamp }) }) }) };
     return { nextState: next, autoPackage: { fee: takenFee, packageLabel: plan ? plan.label : String(customer.packageSpeed ?? '') } };
   } catch {
     return noChange;
   }
+}
+
+// Polish #11: the rollback stamp a package follow leaves on its
+// triggering payment (see autoPackageFromPayment). Validated like the
+// waada stamp: a malformed stamp reads as no stamp, never a guess.
+export function autoPackageRollbackOf(payment) {
+  const stamp = payment?.autoPackageRollback;
+  if (!stamp || typeof stamp !== 'object') return null;
+  if (!stamp.customer || typeof stamp.customer !== 'object') return null;
+  if (!Number.isFinite(Number(stamp.fee)) || Number(stamp.fee) <= 0) return null;
+  return stamp;
+}
+
+// Polish #11: put the pre-follow customer back, verbatim — or null
+// when the live package is no longer the follow's result, so a newer
+// package change is never clobbered. The snapshot is the whole
+// pre-follow record, so normalised fields, schedule, history and
+// bills all return exactly as they were. One carve-out: the promise
+// is the waada system's, not the follow's — undo never restores a
+// cleared promise (void does), so the live promise fields survive
+// the snapshot restore untouched.
+export function rollbackAutoPackage(customer, stamp) {
+  if (!customer || typeof customer !== 'object' || !stamp) return null;
+  const history = Array.isArray(customer.packageHistory) ? customer.packageHistory : [];
+  const last = history[history.length - 1];
+  const stillFollowed = Number(customer.monthlySellingAmount) === Number(stamp.fee)
+    && last && last.staffName === AUTO_PACKAGE_STAFF_NAME && Number(last.newMonthlyRate) === Number(stamp.fee);
+  if (!stillFollowed) return null;
+  const restored = JSON.parse(JSON.stringify(stamp.customer));
+  // Bills are the undo's own work, not the follow's: deletePayment's
+  // inverse, the late-fee waiver restoration (with its amountHistory
+  // audit trail) and the addon reopening all live on the bill, and
+  // the follow never touches a bill — so the live bill survives the
+  // snapshot restore untouched.
+  restored.bills = JSON.parse(JSON.stringify(customer.bills ?? []));
+  for (const key of ['promiseDate', 'promiseAmount', 'promiseNote']) {
+    if (key in customer) restored[key] = customer[key];
+    else delete restored[key];
+  }
+  return restored;
 }
 
 // SISP-43: a payment can settle billed field-ticket charges (SISP-12) as

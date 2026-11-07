@@ -593,6 +593,7 @@ import { historyMonthComparisonHtml } from './history-month-comparison.js';
 import { HISTORY_CONNECTION_FILTER_ALL, historyConnectionFilterOptions, normalizeHistoryConnectionFilter, filterHistoryEntriesByConnection, historyConnectionFilterSelectMarkup, historyConnectionFilterEmptyText, historyConnectionFilterSummaryText } from './history-connection-filter.js';
 import { HISTORY_ENTRY_ANNOTATION_STORE_KEY, historyEntryAnnotationKey, normalizeHistoryEntryAnnotations, recordHistoryEntryAnnotation, removeHistoryEntryAnnotation, historyEntryAnnotationForEntry, historyEntriesHaveAnnotations, historyAnnotatedListHtml, historyEntryAnnotationFormHtml } from './history-entry-annotation.js';
 import { historyShownHasStruckThrough, historyStruckThroughListHtml } from './history-struck-through.js';
+import { HISTORY_JUMP_TO_BILL_NO_BILL_TEXT, HISTORY_JUMP_TO_BILL_HIGHLIGHT_CLASS, historyJumpToBillIsPaymentEntry, historyJumpToBillShownEntry, historyJumpToBillTarget } from './history-jump-to-bill.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4425,6 +4426,40 @@ function renderFullHistory(customer) {
       saveHistoryEntryAnnotations(removeHistoryEntryAnnotation(loadHistoryEntryAnnotations(), button.getAttribute('data-hea-remove')));
       const currentCustomer = selectedCustomer();
       if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+  });
+  // Plan 422 — History quick jump from a payment line to its bill.
+  // One tap on a history payment line opens the bill it settled,
+  // with the payment already highlighted on that bill; it navigates
+  // only and changes nothing. A payment that settles no single bill
+  // says so plainly instead of opening anything. Charge and credit
+  // lines are not payment lines, so tapping one does nothing, and a
+  // tap on a button inside a row lets that button's own action run.
+  host.querySelectorAll('.payment-row').forEach((row, rowIndex) => {
+    row.addEventListener('click', (event) => {
+      if (event.target && event.target.closest && event.target.closest('button')) return;
+      const entry = historyJumpToBillShownEntry(shown, rowIndex);
+      if (!historyJumpToBillIsPaymentEntry(entry)) return;
+      const target = historyJumpToBillTarget(entry, customer.bills ?? []);
+      if (!target) {
+        toast(HISTORY_JUMP_TO_BILL_NO_BILL_TEXT);
+        return;
+      }
+      const historyContainer = document.querySelector('#historyContainer');
+      const card = historyContainer
+        ? historyContainer.querySelector(`details.month-card[data-month-card="${target.month}"]`)
+        : null;
+      const paymentRow = card
+        ? card.querySelector(`[data-payment-row="${target.paymentId}"]`)
+        : null;
+      if (!card || !paymentRow) {
+        toast(HISTORY_JUMP_TO_BILL_NO_BILL_TEXT);
+        return;
+      }
+      document.querySelectorAll(`.${HISTORY_JUMP_TO_BILL_HIGHLIGHT_CLASS}`).forEach((oldRow) => oldRow.classList.remove(HISTORY_JUMP_TO_BILL_HIGHLIGHT_CLASS));
+      card.open = true;
+      paymentRow.classList.add(HISTORY_JUMP_TO_BILL_HIGHLIGHT_CLASS);
+      paymentRow.scrollIntoView({ block: 'center' });
     });
   });
   // Plan 406 — History running balance after each transaction. One

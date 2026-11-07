@@ -28,6 +28,7 @@ import { activeDownstreamCount, feederHostCreditOf, isFeederHost } from './feede
 import { activeBadDebtFor, badDebtWriteOffQuote } from './bad-debt-ledger.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
 import { receiptTermsNoteText } from './receipt-terms.js';
+import { formatSalesTaxAmount } from './package-sales-tax.js';
 import { helpButtonMarkup } from './help-guide.js';
 
 const BILL_STATUS = Object.freeze({
@@ -265,6 +266,24 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
     .map((line) => `${L.ticketCharge(line.ticketId)}: ${formatPKR(Number(line.amount))}`);
   if (ticketChargeLines.length > 0) {
     lines.push('', ...ticketChargeLines);
+  }
+
+  // Polish #11: the sales tax recorded on the bill, when the caller
+  // attached it (app.js passes it from buildPaymentReceipt). Only a
+  // well-formed positive figure prints — an untaxed receipt shows no
+  // tax line, never PKR 0.
+  const salesTaxCents = Number(receipt?.salesTaxCents);
+  if (Number.isFinite(salesTaxCents) && salesTaxCents > 0) {
+    lines.push(`🧾 Sales tax / سیلز ٹیکس (19.5%): ${formatSalesTaxAmount(salesTaxCents)}`);
+  }
+
+  // Polish #11: the package this payment just moved the profile to,
+  // when the caller attached the follow note (app.js passes it from
+  // the follow). Only a well-formed follow prints.
+  const autoPackage = receipt?.autoPackage;
+  if (autoPackage && typeof autoPackage === 'object' && Number.isFinite(Number(autoPackage.fee)) && Number(autoPackage.fee) > 0) {
+    const autoLabel = typeof autoPackage.packageLabel === 'string' && autoPackage.packageLabel.trim() !== '' ? `${autoPackage.packageLabel.trim()} — ` : '';
+    lines.push(`📦 Package updated / پیکیج اپڈیٹ: ${autoLabel}${formatPKR(Number(autoPackage.fee))}`);
   }
 
   // SISP-194: advance credit involved in this receipt, when the caller

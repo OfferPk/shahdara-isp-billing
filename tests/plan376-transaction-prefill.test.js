@@ -220,13 +220,17 @@ test('line html: escaped line in the pre-fill class, empty when nothing is offer
 // Wiring — the transaction entry form offers the pre-fill
 // ---------------------------------------------------------------------------
 
-test('wiring: defaults offer the oldest open bill as the starting amount', async () => {
+test('wiring: defaults offer the full dues as the starting amount; the pre-fill still names the oldest open bill', async () => {
   const { getCustomerPaymentDefaults } = await import('../nav-quick-collect.js');
   const state = stateWith(mixedDuesCustomer());
   const defaults = getCustomerPaymentDefaults(state, 'CUST-1', REF);
   assert.equal(defaults.targetMonth, '2026-09');
   assert.equal(defaults.balanceDue, 1500);
-  assert.equal(defaults.suggestedAmount, 1500);
+  // Plan 429: the amount default is the customer's FULL dues (1,500
+  // still open on September + 3,000 on October = 4,500), not the
+  // oldest open bill alone. The pre-fill below still names the oldest
+  // open bill — that is the Plan 376 behaviour, unchanged.
+  assert.equal(defaults.suggestedAmount, 4500);
   assert.deepEqual(defaults.prefill, { amount: 1500, month: '2026-09', billAmount: 2500 });
 });
 

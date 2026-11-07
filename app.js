@@ -576,6 +576,7 @@ import { FULL_HISTORY_EMPTY_TEXT, fullHistoryEntries, fullHistoryListHtml, fullH
 import { normalizeHistoryTypeFilter, filterHistoryEntriesByType, historyTypeFilterSelectMarkup, historyTypeFilterEmptyText, historyTypeFilterSummaryText } from './history-type-filter.js';
 import { HISTORY_DATE_RANGE_EMPTY_TEXT, normalizeHistoryDateRange, historyDateRangeActive, filterHistoryEntriesByDateRange, historyDateRangeFilterMarkup, historyDateRangeSummaryText } from './history-date-range-filter.js';
 import { normalizeHistoryMethodFilter, filterHistoryEntriesByMethod, historyMethodFilterSelectMarkup, historyMethodFilterEmptyText, historyMethodFilterSummaryText } from './history-method-filter.js';
+import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryEntriesByAmount, historyAmountSearchMarkup, historyAmountSearchEmptyText, historyAmountSearchSummaryText } from './history-amount-search.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4186,6 +4187,7 @@ let fullHistoryTypeFilter = 'all';
 let fullHistoryDateFrom = '';
 let fullHistoryDateTo = '';
 let fullHistoryMethodFilter = 'all';
+let fullHistoryAmountSearch = '';
 function renderFullHistory(customer) {
   const host = $('#fhlFullHistoryList');
   if (!host) return;
@@ -4252,20 +4254,47 @@ function renderFullHistory(customer) {
       if (currentCustomer) renderFullHistory(currentCustomer);
     });
   }
-  const shown = filterHistoryEntriesByMethod(
-    filterHistoryEntriesByDateRange(
-      filterHistoryEntriesByType(entries, fullHistoryTypeFilter),
-      fullHistoryDateFrom,
-      fullHistoryDateTo,
+  // Plan 405 — History search by exact amount. One amount search on
+  // the customer history, alongside the type, date-range and method
+  // filters; it searches only and changes nothing. The typed amount
+  // lives only while the profile is open, and re-rendering the
+  // profile keeps the search.
+  const amountHost = $('#amtHistoryAmountSearchHost');
+  if (amountHost) {
+    const current = $('#amtHistoryAmountSearch');
+    if (current) fullHistoryAmountSearch = current.value;
+    amountHost.innerHTML = historyAmountSearchMarkup(fullHistoryAmountSearch);
+    const input = $('#amtHistoryAmountSearch');
+    if (input) input.addEventListener('change', () => {
+      fullHistoryAmountSearch = input.value;
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+    const clearButton = $('#amtHistoryAmountSearchClear');
+    if (clearButton) clearButton.addEventListener('click', () => {
+      fullHistoryAmountSearch = '';
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+  }
+  const shown = searchHistoryEntriesByAmount(
+    filterHistoryEntriesByMethod(
+      filterHistoryEntriesByDateRange(
+        filterHistoryEntriesByType(entries, fullHistoryTypeFilter),
+        fullHistoryDateFrom,
+        fullHistoryDateTo,
+      ),
+      fullHistoryMethodFilter,
     ),
-    fullHistoryMethodFilter,
+    fullHistoryAmountSearch,
   );
   host.innerHTML = shown.length === 0
-    ? `<p class="notice">${escapeHtml(historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
+    ? `<p class="notice">${escapeHtml(historyAmountSearchActive(fullHistoryAmountSearch) ? historyAmountSearchEmptyText(fullHistoryAmountSearch) : historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
     : fullHistoryListHtml(shown);
   const summary = $('#fhlFullHistorySummary');
   if (summary) {
-    summary.textContent = historyMethodFilterSummaryText(shown, entries, fullHistoryMethodFilter, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)
+    summary.textContent = historyAmountSearchSummaryText(shown, entries, fullHistoryAmountSearch, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter, fullHistoryMethodFilter)
+      || historyMethodFilterSummaryText(shown, entries, fullHistoryMethodFilter, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)
       || (historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo)
         ? historyDateRangeSummaryText(shown, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)
         : fullHistoryTypeFilter === 'all'

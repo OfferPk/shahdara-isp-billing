@@ -41,7 +41,7 @@ import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { buildWelcomeSlipModel, buildWelcomeSlipPreviewHtml, buildWelcomeSlipPrintHtml, buildWelcomeSlipWhatsAppText } from './welcome-agreement-slip.js';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
-import { customerHasMonthlyFee, executeQuickCollection, compressPaymentProofImage } from './nav-quick-collect.js';
+import { customerHasMonthlyFee, executeQuickCollection, compressPaymentProofImage, getPakistanLocalDate } from './nav-quick-collect.js';
 import { setupFieldMode, speakCustomerDue } from './field-mode.js?v=1.11.0';
 import { QUICK_UNDO_WINDOW_MS, createQuickUndoController, findCollectedPayment, quickUndoReceiptRef, reverseCollectedPayment } from './quick-undo-toast.js';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.11.0';
@@ -580,6 +580,7 @@ import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryE
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
+import { historyCsvExportButtonMarkup, historyCsvExportFilename, historyCsvExportText } from './history-csv-export.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4321,6 +4322,25 @@ function renderFullHistory(customer) {
   const yearlyHost = $('#hysHistoryYearlySummary');
   if (yearlyHost) {
     yearlyHost.innerHTML = historyYearlySummaryHtml(shown, entries);
+  }
+  // Plan 409 — History export to CSV per customer. One CSV export
+  // of the customer history, generated on the device from the same
+  // shown rows as the list; it exports only and changes nothing.
+  // The file name names the customer and the export date, and an
+  // empty history exports nothing.
+  const csvHost = $('#hxeHistoryCsvExportHost');
+  if (csvHost) {
+    csvHost.innerHTML = historyCsvExportButtonMarkup();
+    const exportButton = $('#hxeHistoryCsvExport');
+    if (exportButton) exportButton.addEventListener('click', () => {
+      if (shown.length === 0) {
+        toast('No transactions to export.');
+        return;
+      }
+      const filename = historyCsvExportFilename(customer, getPakistanLocalDate());
+      downloadCsvFile(filename, historyCsvExportText(shown));
+      toast(`Exported ${shown.length} ${shown.length === 1 ? 'transaction' : 'transactions'} to CSV.`);
+    });
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

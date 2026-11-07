@@ -7835,6 +7835,17 @@ html, body {
   font-size: 12px;
 }
 
+/* Plan 440 — still-owes line at the top of the success screen: one
+   plain line saying what the customer still owes, or fully paid.
+   Layout only — the figure's colour rides the receipt card's own
+   balance classes, so no new hex colour is introduced. */
+.sow-still-owes {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+  text-align: center;
+}
+
 .psp-preview ul {
   margin: 0;
   padding-left: 16px;

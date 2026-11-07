@@ -124,6 +124,7 @@ import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
 import { successNextStepsFromReceipt, successNextStepsHtml, successNextStepsNextDueDate } from './success-next-steps.js';
+import { stillOwesLine, stillOwesLineHtml } from './quick-collect-still-owes.js';
 import { QUICK_COLLECT_REVERSAL_UNDO_WINDOW_MS, QUICK_COLLECT_REVERSAL_UNDO_REASON, quickCollectReversalUndoAllowed, quickCollectReversalUndoSecondsLeft, quickCollectReversalUndoButtonText, quickCollectReversalUndoIsPlainPayment, quickCollectReversalUndoFields } from './quick-collect-reversal-undo.js';
 import { offlineSavedBadge, offlineSavedBadgeHtml, offlineSavedBadgeLatestTime } from './offline-saved-badge.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
@@ -1886,6 +1887,11 @@ export function setupQuickCollectModal({
   // Plan 436: the offline saved badge host on the success step (null when
   // the host page predates it) — "saved on this device" with the save time.
   const savedBadgeBox = typeof document !== 'undefined' ? document.getElementById('osbOfflineSavedBadge') : null;
+  // Plan 440: the still-owes line host on the success step (null when
+  // the host page predates it) — the customer's dues after this
+  // payment, in plain words, or "Fully paid", shown immediately at
+  // the top of the success screen.
+  const stillOwesBox = typeof document !== 'undefined' ? document.getElementById('sowStillOwesLine') : null;
   const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
   // Plan 437: the form's own Save button (null when the host page
   // predates it) — disabled while a save is in progress, so a second
@@ -3991,6 +3997,33 @@ export function setupQuickCollectModal({
     }
   }
 
+  // Plan 440: the still-owes line — the customer's dues after this
+  // payment, in plain words, or "Fully paid" — shown immediately at
+  // the top of the success screen. It shows only: rendering posts
+  // nothing and changes no record. The figure is the customer's
+  // dues from the post-save record (open bill balances from the
+  // allocation engine plus unpaid manual baqaya) — NOT the receipt's
+  // payable remainder, which also folds in pending ticket and boost
+  // charges. A figure that cannot be worked out shows no line,
+  // never a guessed one.
+  function renderStillOwesLine() {
+    if (!stillOwesBox) return;
+    if (!activeReceipt) {
+      stillOwesBox.innerHTML = '';
+      stillOwesBox.hidden = true;
+      return;
+    }
+    const postSaveState = getState();
+    const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+    const baqayaCents = postSaveCustomer ? manualBaqayaOutstandingCents(postSaveCustomer) : 0;
+    const line = postSaveState
+      ? stillOwesLine(postSaveCustomer, calculatePaymentAllocations(postSaveState), baqayaCents)
+      : null;
+    const html = line ? stillOwesLineHtml(line) : '';
+    stillOwesBox.innerHTML = html;
+    stillOwesBox.hidden = html === '';
+  }
+
   // Plan 436: the offline saved badge — "saved on this device" with the
   // save time, from the saved payment's own recorded-at stamp. It badges
   // only: rendering posts nothing, syncs nothing, and changes no record.
@@ -4591,6 +4624,7 @@ export function setupQuickCollectModal({
           renderActiveReceiptCard();
           applyPackageSuccessMessage(totalCollected);
           renderSuccessNextSteps();
+          renderStillOwesLine();
           renderOfflineSavedBadge();
           showStep('success');
           updateCounts();
@@ -4782,6 +4816,7 @@ export function setupQuickCollectModal({
       renderActiveReceiptCard();
       applyPackageSuccessMessage(receipt.amount);
       renderSuccessNextSteps();
+      renderStillOwesLine();
       renderOfflineSavedBadge();
 
       showStep('success');

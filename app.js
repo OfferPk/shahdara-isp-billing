@@ -153,6 +153,9 @@ import {
   generateExpensesCsv
 } from './form-validation.js?v=1.11.0';
 import { normalizeCustomerSearchField, filterCustomersBySearchField, buildMohallaUserCounts, buildMohallaCardStats } from './customer-search-filter.js?v=1.11.0';
+// Plan 456: the unified box — one search box for any identifier (name,
+// phone digits, or a full ID), the default for the Customers list.
+import { UNIFIED_IDENTIFIER_FIELD_ID, filterCustomersByUnifiedIdentifier, unifiedIdentifierEmptyText } from './unified-identifier-search.js?v=1.11.0';
 import { BILLING_REGISTER_CSV_HEADERS, billingRegisterCsvFilename, billingRegisterCsvNote, billingRegisterCsvRows, buildBillingRegister, buildBillingRegisterPrintHtml, normalizeBillingRegisterPeriod, normalizeBillingRegisterPrintFormat, normalizeBillingRegisterStatus } from './billing-register.js?v=1.11.0';
 // FIRST-LOAD SPLIT: getLateFeeConfig/isBillOverdue are used by renderHistory
 // (synchronous), so they stay static via a direct import; all other QA names
@@ -3320,7 +3323,10 @@ let customerPageSize = 15;
 let archivedCurrentPage = 1;
 let customerSortBy = 'number-asc';
 let customerAreaFilter = 'all';
-let customerSearchField = 'name';
+// Plan 456: the Customers list search defaults to the unified box —
+// one search box for any identifier — so the operator never has to
+// pick a field before typing.
+let customerSearchField = UNIFIED_IDENTIFIER_FIELD_ID;
 let customerRosterPill = 'all';
 let customerViewMode = (typeof localStorage !== 'undefined' && localStorage.getItem('shahdara_customer_view_mode')) || 'cards';
 
@@ -3483,9 +3489,16 @@ function renderCustomers() {
   // ONLY that field (mobile digits / user ID / mohalla), so the broad
   // all-fields matcher is bypassed and the field filter runs on the
   // status-filtered roster instead. Name keeps the historical behaviour.
+  // Plan 456: the unified "Any identifier" field runs the same way —
+  // the box works out the identifier itself (name, phone digits, or a
+  // full ID) instead of the operator picking a field first.
   const fieldScopedSearch = customerSearchField !== 'name' && customerQuery.trim() !== '';
   let filtered = filterCustomersByStatus(state, { serviceStatus:selectedServiceFilter, billingStatus:selectedBillingFilter, month:selectedBillingMonth, customerQuery: fieldScopedSearch ? '' : customerQuery });
-  if (fieldScopedSearch) filtered = filterCustomersBySearchField(filtered, customerSearchField, customerQuery);
+  if (fieldScopedSearch) {
+    filtered = customerSearchField === UNIFIED_IDENTIFIER_FIELD_ID
+      ? filterCustomersByUnifiedIdentifier(filtered, customerQuery)
+      : filterCustomersBySearchField(filtered, customerSearchField, customerQuery);
+  }
   if (customerAreaFilter !== 'all') {
     filtered = filterCustomersByArea(filtered, customerAreaFilter);
   }
@@ -3508,7 +3521,18 @@ function renderCustomers() {
   active = sortCustomerRoster(active, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
   archived = sortCustomerRoster(archived, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
 
-  const searched = fieldScopedSearch ? filterCustomersBySearchField(state.customers, customerSearchField, customerQuery) : searchCustomers(state, customerQuery);
+  const searched = fieldScopedSearch
+    ? (customerSearchField === UNIFIED_IDENTIFIER_FIELD_ID
+      ? filterCustomersByUnifiedIdentifier(state.customers, customerQuery)
+      : filterCustomersBySearchField(state.customers, customerSearchField, customerQuery))
+    : searchCustomers(state, customerQuery);
+  // Plan 456: an empty unified search says so plainly — an ID-shaped
+  // query earns the unknown-ID text; any other query keeps the
+  // list's generic hint. Only the search itself (not the status,
+  // area or pill filters) decides it.
+  const unifiedEmptyText = customerSearchField === UNIFIED_IDENTIFIER_FIELD_ID && searched.length === 0
+    ? unifiedIdentifierEmptyText(customerQuery)
+    : '';
   const activeTotal = searched.filter(customer => !customer.archived).length;
   const archivedTotal = searched.filter(customer => customer.archived).length;
 
@@ -3541,12 +3565,14 @@ function renderCustomers() {
     if (tableBtn) { tableBtn.classList.add('is-active'); tableBtn.setAttribute('aria-pressed', 'true'); }
     if (tableBody) {
       if (paged.items.length === 0) {
-        tableBody.innerHTML = renderCustomerTableEmptyMarkup(customerQuery, customerAreaFilter);
+        // Plan 456: the unified box's plain empty text rides into
+        // the table empty row when the search itself found nobody.
+        tableBody.innerHTML = renderCustomerTableEmptyMarkup(customerQuery, customerAreaFilter, unifiedEmptyText);
         $('#resetCustomerTableFiltersBtn')?.addEventListener('click', () => {
           if ($('#customerListSearch')) $('#customerListSearch').value = '';
           if ($('#globalCustomerSearch')) $('#globalCustomerSearch').value = '';
-          customerSearchField = 'name';
-          if ($('#customerSearchField')) $('#customerSearchField').value = 'name';
+          customerSearchField = UNIFIED_IDENTIFIER_FIELD_ID;
+          if ($('#customerSearchField')) $('#customerSearchField').value = UNIFIED_IDENTIFIER_FIELD_ID;
           customerRosterPill = 'all';
           customerAreaFilter = 'all';
           if ($('#customerFilterArea')) $('#customerFilterArea').value = 'all';
@@ -3619,7 +3645,7 @@ function renderCustomers() {
   $('#welcomeCount').textContent = state.customers.filter(customer => !customer.archived).length;
   const emptySearch = $('#noSearchResults');
   if (emptySearch) {
-    emptySearch.textContent = customerQuery.trim() || customerAreaFilter !== 'all' ? t('cust_no_matching') : t('cust_no_match_filters');
+    emptySearch.textContent = unifiedEmptyText || (customerQuery.trim() || customerAreaFilter !== 'all' ? t('cust_no_matching') : t('cust_no_match_filters'));
     emptySearch.hidden = active.length > 0 || archived.length > 0;
   }
   document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.customerServiceFilter === selectedServiceFilter ? 'true' : 'false'));
@@ -10293,7 +10319,14 @@ async function requestDeleteIncident(customerId, incidentId) {
 }
 
 $('#customerListSearch').addEventListener('input', renderCustomers);
-$('#customerSearchField')?.addEventListener('change', (event) => { customerSearchField = normalizeCustomerSearchField(event.currentTarget.value); customerCurrentPage = 1; renderCustomers(); });
+$('#customerSearchField')?.addEventListener('change', (event) => {
+  // Plan 456: the unified "Any identifier" field is not one of the
+  // field-scoped options, so it is accepted as-is; every other
+  // picked value still goes through the field normalizer.
+  const picked = event.currentTarget.value;
+  customerSearchField = picked === UNIFIED_IDENTIFIER_FIELD_ID ? UNIFIED_IDENTIFIER_FIELD_ID : normalizeCustomerSearchField(picked);
+  customerCurrentPage = 1; renderCustomers();
+});
 $('#clearCustomerListSearch').addEventListener('click', () => { $('#customerListSearch').value = ''; renderCustomers(); $('#customerListSearch').focus(); });
 $('#globalCustomerSearch').addEventListener('input', () => { renderGlobalSearch(); renderCustomers(); renderTransactions(); renderMonthlyReport(); });
 $('#globalCustomerSearch').addEventListener('focus', () => { if (searchQuery().trim()) renderGlobalSearch(); });

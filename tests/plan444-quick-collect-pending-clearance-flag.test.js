@@ -276,7 +276,10 @@ test('wiring: the success render flags from the saved receipt and clears with no
 
 test('wiring: the flag renders on both success paths and refreshes with the receipt card', () => {
   const calls = wiringSrc.match(/renderSuccessPendingClearanceFlag\(\);/g) || [];
-  assert.equal(calls.length, 3, `expected 3 success render calls (split save, single save, card re-render), got ${calls.length}`);
+  // Plan 449: the second-connection record is a third success path, so
+  // the flag renders there too — split save, single save, card re-render,
+  // second-connection record.
+  assert.equal(calls.length, 4, `expected 4 success render calls (split save, single save, card re-render, second-connection record), got ${calls.length}`);
   const cardFn = wiringSrc.slice(
     wiringSrc.indexOf('function renderActiveReceiptCard()'),
     wiringSrc.indexOf('function renderSuccessNextSteps()'),

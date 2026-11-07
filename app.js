@@ -585,6 +585,7 @@ import { historyPrintedStatementButtonMarkup, buildHistoryPrintedStatementHtml }
 import { historyGapViewHtml } from './history-gap-view.js';
 import { historyLargestPaymentHtml } from './history-largest-payment.js';
 import { historyFirstDatesHtml } from './history-first-dates.js';
+import { historyDisputedFlagEntries, filterHistoryEntriesByDisputedFlag, normalizeHistoryDisputedFlagFilter, historyDisputedFlagSelectMarkup, historyDisputedFlagEmptyText, historyDisputedFlagSummaryText, historyDisputedFlagListHtml } from './history-disputed-flag.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4196,6 +4197,7 @@ let fullHistoryDateFrom = '';
 let fullHistoryDateTo = '';
 let fullHistoryMethodFilter = 'all';
 let fullHistoryAmountSearch = '';
+let fullHistoryDisputedFilter = 'all';
 function renderFullHistory(customer) {
   const host = $('#fhlFullHistoryList');
   if (!host) return;
@@ -4205,6 +4207,14 @@ function renderFullHistory(customer) {
     creditEntries: loadCreditEntries(),
     refundRecords: loadRefunds(),
   });
+  // Plan 414 — History disputed transactions flag view. One flag on
+  // history lines that belong to an open dispute case, with the case
+  // reference beside the line, and a filter showing only flagged
+  // lines; it flags only and changes nothing. The flag is attached
+  // to the entries once here, so every filter below keeps it, and
+  // closing a case clears it because only an open case ever matches.
+  const disputeCases = openDisputeCases(loadDisputeCases());
+  const flaggedEntries = historyDisputedFlagEntries(entries, disputeCases, customer.id);
   const filterHost = $('#htfHistoryTypeFilterHost');
   if (filterHost) {
     const current = $('#htfHistoryTypeFilter');
@@ -4285,20 +4295,42 @@ function renderFullHistory(customer) {
       if (currentCustomer) renderFullHistory(currentCustomer);
     });
   }
-  const shown = searchHistoryEntriesByAmount(
-    filterHistoryEntriesByMethod(
-      filterHistoryEntriesByDateRange(
-        filterHistoryEntriesByType(entries, fullHistoryTypeFilter),
-        fullHistoryDateFrom,
-        fullHistoryDateTo,
+  // Plan 414 — History disputed transactions flag view (filter).
+  // One disputed-only filter on the customer history, alongside the
+  // type, date-range, method and amount filters; it filters only
+  // and changes nothing. The choice lives only while the profile
+  // is open, and re-rendering the profile keeps the choice.
+  const disputedHost = $('#hdfHistoryDisputedFlagHost');
+  if (disputedHost) {
+    const current = $('#hdfHistoryDisputedFlag');
+    if (current) fullHistoryDisputedFilter = normalizeHistoryDisputedFlagFilter(current.value);
+    disputedHost.innerHTML = historyDisputedFlagSelectMarkup(flaggedEntries, fullHistoryDisputedFilter);
+    const select = $('#hdfHistoryDisputedFlag');
+    if (select) select.addEventListener('change', () => {
+      fullHistoryDisputedFilter = normalizeHistoryDisputedFlagFilter(select.value);
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+  }
+  const shown = filterHistoryEntriesByDisputedFlag(
+    searchHistoryEntriesByAmount(
+      filterHistoryEntriesByMethod(
+        filterHistoryEntriesByDateRange(
+          filterHistoryEntriesByType(flaggedEntries, fullHistoryTypeFilter),
+          fullHistoryDateFrom,
+          fullHistoryDateTo,
+        ),
+        fullHistoryMethodFilter,
       ),
-      fullHistoryMethodFilter,
+      fullHistoryAmountSearch,
     ),
-    fullHistoryAmountSearch,
+    fullHistoryDisputedFilter,
   );
   host.innerHTML = shown.length === 0
-    ? `<p class="notice">${escapeHtml(historyAmountSearchActive(fullHistoryAmountSearch) ? historyAmountSearchEmptyText(fullHistoryAmountSearch) : historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
-    : fullHistoryListHtml(shown);
+    ? `<p class="notice">${escapeHtml(historyAmountSearchActive(fullHistoryAmountSearch) ? historyAmountSearchEmptyText(fullHistoryAmountSearch) : historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyDisputedFlagEmptyText(fullHistoryDisputedFilter) || historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
+    : shown.some((entry) => entry.disputedCaseRef)
+      ? historyDisputedFlagListHtml(shown)
+      : fullHistoryListHtml(shown);
   // Plan 406 — History running balance after each transaction. One
   // running-balance column on the customer history, computed from the
   // same entries in order; it is a view only and recomputes nothing
@@ -4413,7 +4445,8 @@ function renderFullHistory(customer) {
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {
-    summary.textContent = historyAmountSearchSummaryText(shown, entries, fullHistoryAmountSearch, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter, fullHistoryMethodFilter)
+    summary.textContent = historyDisputedFlagSummaryText(shown, entries, fullHistoryDisputedFilter, fullHistoryAmountSearch, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter, fullHistoryMethodFilter)
+      || historyAmountSearchSummaryText(shown, entries, fullHistoryAmountSearch, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter, fullHistoryMethodFilter)
       || historyMethodFilterSummaryText(shown, entries, fullHistoryMethodFilter, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)
       || (historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo)
         ? historyDateRangeSummaryText(shown, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)

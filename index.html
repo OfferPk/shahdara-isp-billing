@@ -26496,6 +26496,15 @@
         </button>
       </div>
 
+      <!-- Plan 459: save the current search as a named filter — one
+           tap runs it again later on today's data. Shown only while
+           a search is running, so there is always something to save. -->
+      <div class="fcs-mohalla-row" id="fastCustomerSaveFilterRow" style="display:none">
+        <label class="fcs-mohalla-label" for="fastCustomerSaveFilterName">Save as</label>
+        <input id="fastCustomerSaveFilterName" class="fcs-search-input" type="text" placeholder="Name this filter…" aria-label="Name for the saved filter" maxlength="60" autocomplete="off" style="flex:1;min-width:0;padding:8px 10px;">
+        <button id="fastCustomerSaveFilterBtn" class="fcs-status-chip" type="button" title="Save this search as a named filter">Save filter</button>
+      </div>
+
       <!-- Plan 458: recent searches — the searches just run, latest
            first with the text and the filter shown; one tap runs a
            search again. Hidden entirely while the list is empty. -->
@@ -26507,6 +26516,18 @@
       </div>
 
       <div id="fastCustomerRecentSearches" class="fcs-filter-row" role="region" aria-label="Recent searches" style="display:none">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Plan 459: saved filters — the named searches the operator
+           kept; one tap runs a filter again on today's data, and the
+           × on a row removes only that filter. Hidden entirely while
+           the list is empty or while a search is running. -->
+      <div class="fcs-section-header" id="fastCustomerSavedFiltersHeader" style="display:none">
+        <h3 id="fastCustomerSavedFiltersTitle" class="fcs-section-title">Saved Filters</h3>
+      </div>
+
+      <div id="fastCustomerSavedFilters" class="fcs-filter-row" role="region" aria-label="Saved filters" style="display:none">
         <!-- Populated dynamically -->
       </div>
 

@@ -59,6 +59,18 @@ import {
   recordRecentSearch,
   recentSearchHtml,
 } from './recent-searches.js';
+// Plan 459: saved search filters — the searches the operator chose
+// to keep, each with a name in plain words plus the search text and
+// the filters it holds; saving one saves the definition only, never
+// copies of the results, so running it always shows today's truth.
+import {
+  SAVED_SEARCH_FILTERS_STORE_KEY,
+  normalizeSavedSearchFilter,
+  normalizeSavedSearchFilterList,
+  saveSavedSearchFilter,
+  removeSavedSearchFilter,
+  savedSearchFilterHtml,
+} from './saved-search-filters.js';
 import { DEFAULT_MOHALLAS } from './phase3.js';
 import { trapModalFocus } from './nav-accessibility.js';
 
@@ -213,6 +225,71 @@ export function clearRecentSearches(storage = (typeof localStorage !== 'undefine
     storage.removeItem(RECENT_SEARCHES_STORE_KEY);
   } catch {
     // Ignore storage errors
+  }
+}
+
+/**
+ * Saves the search that is running — a name in plain words plus the
+ * typed text and the filters that were active — into the on-device
+ * saved filters list. Saving the same name again replaces its
+ * definition and moves it to the top, never a second button.
+ *
+ * @param {string} name
+ * @param {Object} search - { text, statusFilter, customerStatus, mohalla }
+ * @param {Storage} [storage=localStorage]
+ * @returns {Array<Object>} Updated saved filters list
+ */
+export function saveSearchFilterRun(name, search, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(SAVED_SEARCH_FILTERS_STORE_KEY);
+    const before = normalizeSavedSearchFilterList(raw ? JSON.parse(raw) : []);
+    // A filter without a name, or a name with nothing behind it,
+    // saves nothing and touches no storage.
+    if (!normalizeSavedSearchFilter({ name, ...(search ?? {}) })) return before;
+    const list = saveSavedSearchFilter(before, { name, ...(search ?? {}) });
+    storage.setItem(SAVED_SEARCH_FILTERS_STORE_KEY, JSON.stringify(list));
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Retrieves the saved filters list, newest first.
+ *
+ * @param {Storage} [storage=localStorage]
+ * @returns {Array<Object>}
+ */
+export function getSavedSearchFilters(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(SAVED_SEARCH_FILTERS_STORE_KEY);
+    return normalizeSavedSearchFilterList(raw ? JSON.parse(raw) : []);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Removes one saved filter by its list index. Removing it removes
+ * only the saved definition — no customer, bill, or payment record
+ * is ever touched.
+ *
+ * @param {number} index
+ * @param {Storage} [storage=localStorage]
+ * @returns {Array<Object>} Updated saved filters list
+ */
+export function removeSavedSearchFilterRun(index, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(SAVED_SEARCH_FILTERS_STORE_KEY);
+    const before = normalizeSavedSearchFilterList(raw ? JSON.parse(raw) : []);
+    const list = removeSavedSearchFilter(before, index);
+    storage.setItem(SAVED_SEARCH_FILTERS_STORE_KEY, JSON.stringify(list));
+    return list;
+  } catch {
+    return [];
   }
 }
 
@@ -517,6 +594,17 @@ export function setupFastCustomerSearchModal({
   const recentSearchesTitle = document.getElementById('fastCustomerRecentSearchesTitle');
   const recentSearchesContainer = document.getElementById('fastCustomerRecentSearches');
   const clearRecentSearchesBtn = document.getElementById('fastCustomerClearRecentSearchesBtn');
+  // Plan 459: the saved filters section — the named searches the
+  // operator kept, one tap runs a filter again on today's data.
+  const savedFiltersHeader = document.getElementById('fastCustomerSavedFiltersHeader');
+  const savedFiltersTitle = document.getElementById('fastCustomerSavedFiltersTitle');
+  const savedFiltersContainer = document.getElementById('fastCustomerSavedFilters');
+  // Plan 459: the save row — a name box plus a Save button, shown
+  // only while a search is running, so there is always something
+  // to save.
+  const saveFilterRow = document.getElementById('fastCustomerSaveFilterRow');
+  const saveFilterNameInput = document.getElementById('fastCustomerSaveFilterName');
+  const saveFilterBtn = document.getElementById('fastCustomerSaveFilterBtn');
 
   let activeStatusFilter = 'all';
   // Plan 452: the chosen account state — paid up, due, overdue,
@@ -615,6 +703,20 @@ export function setupFastCustomerSearchModal({
       if (recentSearchesTitle) recentSearchesTitle.textContent = `Recent Searches (${searches.length})`;
       if (clearRecentSearchesBtn) clearRecentSearchesBtn.hidden = searches.length === 0;
       if (recentSearchesContainer) recentSearchesContainer.innerHTML = recentSearchHtml(searches);
+
+      // Plan 459: the saved filters sit below the recent searches —
+      // the named searches the operator kept, latest first. The
+      // section hides entirely when the list is empty.
+      const saved = getSavedSearchFilters();
+      const showSaved = saved.length > 0;
+      if (savedFiltersHeader) savedFiltersHeader.style.display = showSaved ? '' : 'none';
+      if (savedFiltersContainer) savedFiltersContainer.style.display = showSaved ? '' : 'none';
+      if (savedFiltersTitle) savedFiltersTitle.textContent = `Saved Filters (${saved.length})`;
+      if (savedFiltersContainer) savedFiltersContainer.innerHTML = savedSearchFilterHtml(saved);
+
+      // Plan 459: nothing is being searched, so there is nothing to
+      // save — the save row hides.
+      if (saveFilterRow) saveFilterRow.style.display = 'none';
     } else {
       // Show search query results
       if (clearRecentBtn) clearRecentBtn.hidden = true;
@@ -624,6 +726,15 @@ export function setupFastCustomerSearchModal({
         recentSearchesContainer.style.display = 'none';
         recentSearchesContainer.innerHTML = '';
       }
+      // Plan 459: a search is running, so the saved filters hide —
+      // and the save row shows, so the search can be kept by name.
+      if (savedFiltersHeader) savedFiltersHeader.style.display = 'none';
+      if (savedFiltersContainer) {
+        savedFiltersContainer.style.display = 'none';
+        savedFiltersContainer.innerHTML = '';
+      }
+      const showSaveRow = hasQuery || activeStatusFilter !== 'all' || activeCustomerStatus !== 'all' || Boolean(mohallaValue);
+      if (saveFilterRow) saveFilterRow.style.display = showSaveRow ? '' : 'none';
       const results = searchFastCustomers(state, {
         query,
         statusFilter: activeStatusFilter,
@@ -772,10 +883,44 @@ export function setupFastCustomerSearchModal({
     if (typeof onToast === 'function') onToast('Recent search history cleared.');
   });
 
+  // Plan 459: saving the search that is running as a named filter —
+  // the name comes from its own box, the definition from the live
+  // controls. A blank name is refused plainly; saving the same name
+  // again replaces that filter's definition.
+  saveFilterBtn?.addEventListener('click', () => {
+    const name = saveFilterNameInput?.value ?? '';
+    if (!name.trim()) {
+      if (typeof onToast === 'function') onToast('Type a name for the filter first.');
+      return;
+    }
+    const saved = saveSearchFilterRun(name, {
+      text: searchInput?.value ?? '',
+      statusFilter: activeStatusFilter,
+      customerStatus: activeCustomerStatus,
+      mohalla: mohallaSelect?.value ?? '',
+    });
+    const entry = saved.find(item => item.name.toLowerCase() === name.trim().toLowerCase());
+    if (!entry) {
+      if (typeof onToast === 'function') onToast('Set a search first.');
+      return;
+    }
+    if (saveFilterNameInput) saveFilterNameInput.value = '';
+    if (typeof onToast === 'function') onToast(`Filter "${entry.name}" saved.`);
+  });
+
   // Plan 458: tapping a recent search runs it again — the box fills
   // with its text, its chips and mohalla come back, and the results
   // render exactly as typing it again would.
   function applyRecentSearch(entry) {
+    applySearchDefinition(entry);
+  }
+
+  // Plan 459: the shared restore — a saved filter or a recent search
+  // hands its definition back into the box, the chips, and the
+  // mohalla, and the results render exactly as typing it again
+  // would. Kept as its own function so both lists run the same
+  // restore, and so the Plan 458 wiring still reads from here.
+  function applySearchDefinition(entry) {
     if (!entry) return;
     if (searchInput) searchInput.value = entry.text ?? '';
     if (searchClearBtn) searchClearBtn.hidden = !searchInput?.value;
@@ -805,6 +950,29 @@ export function setupFastCustomerSearchModal({
     clearRecentSearches();
     render();
     if (typeof onToast === 'function') onToast('Recent searches cleared.');
+  });
+
+  // Plan 459: tapping a saved filter runs it again — its text, chips,
+  // and mohalla come back, and the results render on today's data,
+  // never a stale copy. The × on a row removes only that filter.
+  savedFiltersContainer?.addEventListener('click', (e) => {
+    const removeBtn = e.target.closest('[data-saved-filter-remove-index]');
+    if (removeBtn) {
+      const index = Number(removeBtn.getAttribute('data-saved-filter-remove-index'));
+      const saved = getSavedSearchFilters();
+      if (!Number.isInteger(index) || index < 0 || index >= saved.length) return;
+      const name = saved[index].name;
+      removeSavedSearchFilterRun(index);
+      render();
+      if (typeof onToast === 'function') onToast(`Filter "${name}" removed.`);
+      return;
+    }
+    const row = e.target.closest('[data-saved-filter-index]');
+    if (!row) return;
+    const index = Number(row.getAttribute('data-saved-filter-index'));
+    const saved = getSavedSearchFilters();
+    if (!Number.isInteger(index) || index < 0 || index >= saved.length) return;
+    applySearchDefinition(saved[index]);
   });
 
   // Wire keyboard navigation for search input (#312)

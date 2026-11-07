@@ -56,6 +56,7 @@ import {
   findCustomersByLastFourDigits,
   lastFourDigitsHtml
 } from './last-four-digits-search.js';
+import { amountKeypadApplyKey, amountKeypadHtml } from './quick-collect-amount-keypad.js';
 import {
   recentQuickPickEntries,
   recentQuickPickHtml
@@ -3925,6 +3926,35 @@ export function setupQuickCollectModal({
       // SISP-126: a chip-set amount can reveal/clear the remainder row.
       renderRemainderWaadaRow();
     });
+  });
+
+  // Plan 442: the on-screen numeric keypad host (null when the host
+  // page predates it) — big digit keys for the amount field, so the
+  // operator never needs the phone's own keyboard at the counter.
+  const amountKeypadBox = typeof document !== 'undefined' ? document.getElementById('kpdAmountKeypad') : null;
+  function renderAmountKeypad() {
+    if (!amountKeypadBox) return;
+    amountKeypadBox.innerHTML = amountKeypadHtml();
+  }
+  renderAmountKeypad();
+
+  // Plan 442: a keypad tap enters exactly its digit into the amount
+  // field — identical to typing it, so the form's normal submit
+  // records it, exactly like a typed amount. Backspace drops the
+  // last digit, clear empties the field. The keypad posts nothing.
+  // A keypad tap sets the amount, so the change re-computes the same way.
+  amountKeypadBox?.addEventListener('click', (event) => {
+    const key = event.target?.closest?.('[data-kpd-key]');
+    if (!key || !amountInput) return;
+    amountInput.value = amountKeypadApplyKey(amountInput.value, key.getAttribute('data-kpd-key'));
+    if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
+    renderAmountWordsLine();
+    renderCashChange();
+    renderSettlementPreview();
+    renderOverpaymentChoice();
+    renderUnderpaymentWarning();
+    amountInput.focus();
+    renderRemainderWaadaRow();
   });
 
   // SISP-116: a loose-change chip tap fills the tendered round amount

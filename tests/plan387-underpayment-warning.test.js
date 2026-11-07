@@ -271,12 +271,15 @@ test('Plan 387: the warning reads the same live dues the settlement preview read
   assert.ok(fn.includes('underpaymentWarningLineText(warning)'));
 });
 
-test('Plan 387: the warning refreshes on every keystroke, month, Advance, split, open, and chip', () => {
+test('Plan 387: the warning refreshes on every keystroke, month, Advance, split, open, chip, and keypad tap', () => {
   const calls = navSrc.match(/renderUnderpaymentWarning\(\)/g) || [];
-  // Definition plus seven refresh sites: month change, amount input,
+  // Definition plus eight refresh sites: month change, amount input,
   // Advance toggle, split toggle, form open, quick-amount chip,
-  // loose-change chip.
-  assert.equal(calls.length, 8, `expected 8 renderUnderpaymentWarning() sites, found ${calls.length}`);
+  // loose-change chip, amount keypad.
+  // Plan 442: the amount keypad is the eighth refresh site — a
+  // keypad tap sets the amount, so the warning re-shows like
+  // every other programmatic amount set.
+  assert.equal(calls.length, 9, `expected 9 renderUnderpaymentWarning() sites, found ${calls.length}`);
 });
 
 test('Plan 387: the warning hides while Advance is ticked and on a split payment', () => {

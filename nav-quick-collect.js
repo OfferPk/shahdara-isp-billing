@@ -72,6 +72,7 @@ import {
   doubleTapSaveGuardSetDisabled
 } from './double-tap-save-guard.js';
 import { bigWalletMethodIsOtherMethod } from './big-wallet-method-buttons.js';
+import { pendingClearanceFlagForMethod, pendingClearanceFlagForReceipt } from './pending-clearance-flag.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -1882,6 +1883,11 @@ export function setupQuickCollectModal({
   // Plan 388: the suspended-customer warning line under the amount field
   // (null when the host page predates it).
   const suspendedWarningLine = typeof document !== 'undefined' ? document.getElementById('quickCollectSuspendedWarning') : null;
+  // Plan 444: the pending-clearance flag line under the method picker
+  // (null when the host page predates it) — shown while the chosen
+  // method is a bank transfer or a cheque, so the customer knows at
+  // the counter that the bill settles only when the money clears.
+  const pendingClearanceFlagEl = typeof document !== 'undefined' ? document.getElementById('pcfPendingClearanceFlag') : null;
   // Plan 382: the save confirmation summary hosts (null when the
   // host page predates them) — the summary panel and its Confirm /
   // Back buttons, shown before the payment posts.
@@ -1906,6 +1912,11 @@ export function setupQuickCollectModal({
   // when the host page predates it) — the receipt's share text, read
   // first, with Send and Dismiss, prepared right after a save.
   const shareDraftBox = typeof document !== 'undefined' ? document.getElementById('rsdReceiptShareDraft') : null;
+  // Plan 444: the pending-clearance flag host on the success step
+  // (null when the host page predates it) — the same flag as on the
+  // entry form, shown again after the save while the saved payment's
+  // method is a bank transfer or a cheque.
+  const successPendingClearanceFlagEl = typeof document !== 'undefined' ? document.getElementById('pcfSuccessPendingClearanceFlag') : null;
   const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
   // Plan 437: the form's own Save button (null when the host page
   // predates it) — disabled while a save is in progress, so a second
@@ -2077,6 +2088,21 @@ export function setupQuickCollectModal({
     }
     suspendedWarningLine.textContent = line;
     suspendedWarningLine.hidden = line === '';
+  }
+  // Plan 444: the pending-clearance flag — shown on the entry form
+  // while the method currently picked is a bank transfer or a
+  // cheque, so the customer knows before saving that the bill
+  // settles only when the money clears. It flags only: the payment
+  // still records normally as pending, and the flag never changes
+  // any bill, payment, clearance status, or customer record by
+  // itself. It reads the select's current value, so every method
+  // change refreshes it through the same sync below.
+  function renderPendingClearanceFlag() {
+    if (!pendingClearanceFlagEl) return;
+    const method = methodSelect ? String(methodSelect.value || '') : '';
+    const flag = pendingClearanceFlagForMethod(method);
+    pendingClearanceFlagEl.textContent = flag;
+    pendingClearanceFlagEl.hidden = flag === '';
   }
   // Plan 382: the save confirmation summary — built from the same
   // reads the submit handler posts with, so the figures the operator
@@ -2394,6 +2420,11 @@ export function setupQuickCollectModal({
     const isOther = bigWalletMethodIsOtherMethod(val, PAYMENT_METHODS, isCashPaymentMethod(val));
     bigWalletOtherBtn?.classList.toggle('is-active', isOther);
     if (methodSelect) methodSelect.style.display = isOther ? '' : 'none';
+    // Plan 444: every method change refreshes the pending-clearance
+    // flag too — a chip tap, a shop pick, a list pick, or the form
+    // opening with a remembered method all land here, so the flag
+    // can never sit stale beside a method it does not belong to.
+    renderPendingClearanceFlag();
     syncShopChips();
   }
 
@@ -4029,6 +4060,29 @@ export function setupQuickCollectModal({
     // Plan 443: the card re-render refreshes the share draft too, so
     // an area change or a share never leaves a stale draft on screen.
     renderReceiptShareDraft();
+    // Plan 444: the card re-render refreshes the pending-clearance
+    // flag too, so the flag on the success screen always matches
+    // the receipt on the card.
+    renderSuccessPendingClearanceFlag();
+  }
+
+  // Plan 444: the pending-clearance flag on the success screen — the
+  // same flag as on the entry form, shown again after the save while
+  // the saved payment's method is a bank transfer or a cheque (any
+  // one leg, for a split collection). It flags only: the payment
+  // already recorded normally as pending, and the flag never changes
+  // any bill, payment, clearance status, or customer record by
+  // itself. With no receipt saved yet the host is cleared and hidden.
+  function renderSuccessPendingClearanceFlag() {
+    if (!successPendingClearanceFlagEl) return;
+    if (!activeReceipt) {
+      successPendingClearanceFlagEl.textContent = '';
+      successPendingClearanceFlagEl.hidden = true;
+      return;
+    }
+    const flag = pendingClearanceFlagForReceipt(activeReceipt);
+    successPendingClearanceFlagEl.textContent = flag;
+    successPendingClearanceFlagEl.hidden = flag === '';
   }
 
   // Plan 434: the success next-steps panel — amount paid, still owed
@@ -4745,6 +4799,7 @@ export function setupQuickCollectModal({
           renderStillOwesLine();
           renderOfflineSavedBadge();
           renderReceiptShareDraft();
+          renderSuccessPendingClearanceFlag();
           showStep('success');
           updateCounts();
           announcePaymentSuccess(activeReceipt);
@@ -4938,6 +4993,7 @@ export function setupQuickCollectModal({
       renderStillOwesLine();
       renderOfflineSavedBadge();
       renderReceiptShareDraft();
+      renderSuccessPendingClearanceFlag();
 
       showStep('success');
       updateCounts();

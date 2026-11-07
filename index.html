@@ -26662,6 +26662,12 @@
                 <span id="quickCollectShopLabel" class="qc-shop-label">Cash received at</span>
                 <div id="quickCollectShopChips" class="qc-shop-chips" role="radiogroup" aria-label="Cash received at"></div>
               </div>
+              <!-- Plan 444: pending-clearance flag — shown while the
+                   chosen method is a bank transfer or a cheque, so the
+                   customer knows at the counter that the bill settles
+                   only when the money clears. It flags only and
+                   clears nothing. -->
+              <p id="pcfPendingClearanceFlag" class="upw-warning" aria-live="polite" hidden></p>
             </div>
           </div>
 
@@ -26957,6 +26963,12 @@
         <p id="sowStillOwesLine" class="sow-still-owes" aria-live="polite" hidden>
           <!-- Populated dynamically: still owed after this payment, or fully paid -->
         </p>
+
+        <!-- Plan 444: pending-clearance flag on the success screen — the
+             same flag as on the entry form, shown again after the save
+             while the saved payment's method is a bank transfer or a
+             cheque. It flags only and clears nothing. -->
+        <p id="pcfSuccessPendingClearanceFlag" class="upw-warning" aria-live="polite" hidden></p>
 
         <div id="osbOfflineSavedBadge" hidden>
           <!-- Populated dynamically: saved on this device, with the save time -->

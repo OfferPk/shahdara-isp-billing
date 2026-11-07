@@ -7938,6 +7938,23 @@ html, body {
   background: #e2e8f0;
 }
 
+/* Plan 430: the one screen's quick amount buttons — the same look
+   as the entry form's quick chips, reusing their colours only. */
+.qab-amount-chip {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #334155;
+  cursor: pointer;
+}
+
+.qab-amount-chip:hover {
+  background: #e2e8f0;
+}
+
 /* SISP-161: backdated payment-date chips — theme tokens only, so the
    row follows dark mode like the rest of the sheet. */
 .qc-date-chips {
@@ -8187,6 +8204,12 @@ html, body {
 }
 
 [data-theme="dark"] #quickCollectModal .quick-amount-chip {
+  background: #0f172a;
+  color: #cbd5e1;
+  border-color: #334155;
+}
+
+[data-theme="dark"] #quickCollectModal .qab-amount-chip {
   background: #0f172a;
   color: #cbd5e1;
   border-color: #334155;

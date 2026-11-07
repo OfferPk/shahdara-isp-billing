@@ -49,6 +49,16 @@ import { knownAsNameFor, knownAsLabelKeyFor, KNOWN_AS_FATHER_LABEL_KEY } from '.
 // first, then names starting with the typed text, then names
 // containing it, then nickname matches.
 import { rankCustomerSearchResults } from './search-result-ranking.js';
+// Plan 458: recent searches — the searches the operator just ran,
+// latest first with the text and the filter shown, so a search run
+// five minutes ago is one tap away instead of a re-type.
+import {
+  RECENT_SEARCHES_STORE_KEY,
+  normalizeRecentSearch,
+  normalizeRecentSearchList,
+  recordRecentSearch,
+  recentSearchHtml,
+} from './recent-searches.js';
 import { DEFAULT_MOHALLAS } from './phase3.js';
 import { trapModalFocus } from './nav-accessibility.js';
 
@@ -147,6 +157,60 @@ export function clearRecentCustomers(storage = (typeof localStorage !== 'undefin
   if (!storage) return;
   try {
     storage.removeItem(RECENT_CUSTOMERS_STORAGE_KEY);
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Records one run search — the typed text plus the billing chip, the
+ * account-state chip, and the mohalla filter that were active — into
+ * the on-device recent searches list.
+ *
+ * @param {Object} search - { text, statusFilter, customerStatus, mohalla }
+ * @param {Storage} [storage=localStorage]
+ * @returns {Array<Object>} Updated recent searches list
+ */
+export function recordRecentSearchRun(search, storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(RECENT_SEARCHES_STORE_KEY);
+    const before = normalizeRecentSearchList(raw ? JSON.parse(raw) : []);
+    // A search that normalizes to nothing (a blank box with every
+    // filter cleared) records nothing and touches no storage.
+    if (!normalizeRecentSearch(search)) return before;
+    const list = recordRecentSearch(before, search);
+    storage.setItem(RECENT_SEARCHES_STORE_KEY, JSON.stringify(list));
+    return list;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Retrieves the recent searches list, newest first.
+ *
+ * @param {Storage} [storage=localStorage]
+ * @returns {Array<Object>}
+ */
+export function getRecentSearches(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(RECENT_SEARCHES_STORE_KEY);
+    return normalizeRecentSearchList(raw ? JSON.parse(raw) : []);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Clears the recent searches list from storage.
+ * @param {Storage} [storage=localStorage]
+ */
+export function clearRecentSearches(storage = (typeof localStorage !== 'undefined' ? localStorage : null)) {
+  if (!storage) return;
+  try {
+    storage.removeItem(RECENT_SEARCHES_STORE_KEY);
   } catch {
     // Ignore storage errors
   }
@@ -447,6 +511,12 @@ export function setupFastCustomerSearchModal({
   const countBadge = document.getElementById('fastCustomerSearchCountBadge');
   const clearRecentBtn = document.getElementById('fastCustomerClearRecentBtn');
   const sectionTitle = document.getElementById('fastCustomerSearchSectionTitle');
+  // Plan 458: the recent searches section — the searches just run,
+  // shown only while nothing is being searched.
+  const recentSearchesHeader = document.getElementById('fastCustomerRecentSearchesHeader');
+  const recentSearchesTitle = document.getElementById('fastCustomerRecentSearchesTitle');
+  const recentSearchesContainer = document.getElementById('fastCustomerRecentSearches');
+  const clearRecentSearchesBtn = document.getElementById('fastCustomerClearRecentSearchesBtn');
 
   let activeStatusFilter = 'all';
   // Plan 452: the chosen account state — paid up, due, overdue,
@@ -532,9 +602,28 @@ export function setupFastCustomerSearchModal({
       lastResults = recentFull;
 
       resultsContainer.innerHTML = renderFastCustomerSearchResultsHtml(recentFull, { isRecent: true });
+
+      // Plan 458: the recent searches sit above the recent customers
+      // — the searches just run, latest first, with the text and the
+      // filter shown. The section hides entirely when the list is
+      // empty; the header and the row use display:flex in CSS, which
+      // overrides the hidden attribute, so they hide by style.
+      const searches = getRecentSearches();
+      const showSearches = searches.length > 0;
+      if (recentSearchesHeader) recentSearchesHeader.style.display = showSearches ? '' : 'none';
+      if (recentSearchesContainer) recentSearchesContainer.style.display = showSearches ? '' : 'none';
+      if (recentSearchesTitle) recentSearchesTitle.textContent = `Recent Searches (${searches.length})`;
+      if (clearRecentSearchesBtn) clearRecentSearchesBtn.hidden = searches.length === 0;
+      if (recentSearchesContainer) recentSearchesContainer.innerHTML = recentSearchHtml(searches);
     } else {
       // Show search query results
       if (clearRecentBtn) clearRecentBtn.hidden = true;
+      // Plan 458: a search is running, so the recent searches hide.
+      if (recentSearchesHeader) recentSearchesHeader.style.display = 'none';
+      if (recentSearchesContainer) {
+        recentSearchesContainer.style.display = 'none';
+        recentSearchesContainer.innerHTML = '';
+      }
       const results = searchFastCustomers(state, {
         query,
         statusFilter: activeStatusFilter,
@@ -609,6 +698,17 @@ export function setupFastCustomerSearchModal({
   }
 
   function closeModal() {
+    // Plan 458: the search that was running when the sheet closes is
+    // the operator's most recent search — record it now, so the next
+    // open offers it back in one tap. A blank box with every filter
+    // cleared records nothing.
+    recordRecentSearchRun({
+      text: searchInput?.value ?? '',
+      statusFilter: activeStatusFilter,
+      customerStatus: activeCustomerStatus,
+      mohalla: mohallaSelect?.value ?? '',
+    });
+
     if (releaseFocusTrap) {
       releaseFocusTrap();
       releaseFocusTrap = null;
@@ -670,6 +770,41 @@ export function setupFastCustomerSearchModal({
     clearRecentCustomers();
     render();
     if (typeof onToast === 'function') onToast('Recent search history cleared.');
+  });
+
+  // Plan 458: tapping a recent search runs it again — the box fills
+  // with its text, its chips and mohalla come back, and the results
+  // render exactly as typing it again would.
+  function applyRecentSearch(entry) {
+    if (!entry) return;
+    if (searchInput) searchInput.value = entry.text ?? '';
+    if (searchClearBtn) searchClearBtn.hidden = !searchInput?.value;
+    activeStatusFilter = entry.statusFilter ?? 'all';
+    statusChips.forEach(chip => {
+      chip.classList.toggle('is-active', chip.getAttribute('data-status') === activeStatusFilter);
+    });
+    activeCustomerStatus = entry.customerStatus ?? 'all';
+    accountChips.forEach(chip => {
+      chip.classList.toggle('is-active', chip.getAttribute('data-account-status') === activeCustomerStatus);
+    });
+    if (mohallaSelect) mohallaSelect.value = entry.mohalla ?? '';
+    render();
+  }
+
+  recentSearchesContainer?.addEventListener('click', (e) => {
+    const row = e.target.closest('[data-recent-search-index]');
+    if (!row) return;
+    const index = Number(row.getAttribute('data-recent-search-index'));
+    const searches = getRecentSearches();
+    if (!Number.isInteger(index) || index < 0 || index >= searches.length) return;
+    applyRecentSearch(searches[index]);
+  });
+
+  // Plan 458: clear the recent searches list entirely.
+  clearRecentSearchesBtn?.addEventListener('click', () => {
+    clearRecentSearches();
+    render();
+    if (typeof onToast === 'function') onToast('Recent searches cleared.');
   });
 
   // Wire keyboard navigation for search input (#312)

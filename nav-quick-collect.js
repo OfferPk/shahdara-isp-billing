@@ -141,6 +141,7 @@ import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
 import { successNextStepsFromReceipt, successNextStepsHtml, successNextStepsNextDueDate } from './success-next-steps.js';
 import { receiptShareDraftFor, receiptShareDraftHtml } from './receipt-share-draft.js';
 import { stillOwesLine, stillOwesLineHtml } from './quick-collect-still-owes.js';
+import { bigNameConfirmLine, bigNameConfirmLineHtml } from './quick-collect-big-name-confirm.js';
 import { QUICK_COLLECT_REVERSAL_UNDO_WINDOW_MS, QUICK_COLLECT_REVERSAL_UNDO_REASON, quickCollectReversalUndoAllowed, quickCollectReversalUndoSecondsLeft, quickCollectReversalUndoButtonText, quickCollectReversalUndoIsPlainPayment, quickCollectReversalUndoFields } from './quick-collect-reversal-undo.js';
 import { offlineSavedBadge, offlineSavedBadgeHtml, offlineSavedBadgeLatestTime } from './offline-saved-badge.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
@@ -1907,6 +1908,11 @@ export function setupQuickCollectModal({
   // Plan 388: the suspended-customer warning line under the amount field
   // (null when the host page predates it).
   const suspendedWarningLine = typeof document !== 'undefined' ? document.getElementById('quickCollectSuspendedWarning') : null;
+  // Plan 447: the big name + mohalla confirmation line host on the
+  // payment form (null when the host page predates it) — the selected
+  // customer's name in large text, mohalla, and current dues, shown
+  // before saving so a wrong-customer pick is caught by eye.
+  const bigNameConfirmEl = typeof document !== 'undefined' ? document.getElementById('bncBigNameConfirm') : null;
   // Plan 444: the pending-clearance flag line under the method picker
   // (null when the host page predates it) — shown while the chosen
   // method is a bank transfer or a cheque, so the customer knows at
@@ -2127,6 +2133,29 @@ export function setupQuickCollectModal({
     const flag = pendingClearanceFlagForMethod(method);
     pendingClearanceFlagEl.textContent = flag;
     pendingClearanceFlagEl.hidden = flag === '';
+  }
+
+  // Plan 447: the big confirmation line — the selected customer's
+  // name in large text, mohalla, and current dues, refreshed every
+  // time the form opens for a customer, so the operator sees who
+  // the payment is about to be saved against before tapping Save.
+  // It confirms only: rendering posts nothing and changes no record.
+  // The dues figure is the same shared total the picker shows and
+  // the amount defaults to — open bill balances plus unpaid manual
+  // baqaya — never the payable remainder (ticket and boost charges
+  // are not dues). With no selected customer the host is cleared
+  // and hidden, exactly like the other live lines.
+  function renderBigNameConfirm() {
+    if (!bigNameConfirmEl) return;
+    if (!activeDefaults || !activeCustomerId) {
+      bigNameConfirmEl.innerHTML = '';
+      bigNameConfirmEl.hidden = true;
+      return;
+    }
+    const line = bigNameConfirmLine(activeDefaults.customer ?? null, activeDefaults.totalDues + activeDefaults.manualBaqayaPending);
+    const html = line ? bigNameConfirmLineHtml(line) : '';
+    bigNameConfirmEl.innerHTML = html;
+    bigNameConfirmEl.hidden = html === '';
   }
   // Plan 382: the save confirmation summary — built from the same
   // reads the submit handler posts with, so the figures the operator
@@ -3296,6 +3325,12 @@ export function setupQuickCollectModal({
       if (dueAmountVal) {
         dueAmountVal.textContent = activeDefaults.balanceDue.toLocaleString('en-PK');
       }
+
+      // Plan 447: the form opens with the big name + mohalla + dues
+      // line already shown for the picked customer, so the operator
+      // checks the name before saving. Every pick re-opens the form,
+      // so the line always names the currently selected customer.
+      renderBigNameConfirm();
 
       // Prefill fields
       if (amountInput) {

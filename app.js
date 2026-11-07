@@ -583,6 +583,7 @@ import { historyYearlySummaryHtml } from './history-yearly-summary.js';
 import { historyCsvExportButtonMarkup, historyCsvExportFilename, historyCsvExportText } from './history-csv-export.js';
 import { historyPrintedStatementButtonMarkup, buildHistoryPrintedStatementHtml } from './history-printed-statement.js';
 import { historyGapViewHtml } from './history-gap-view.js';
+import { historyLargestPaymentHtml } from './history-largest-payment.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4388,6 +4389,15 @@ function renderFullHistory(customer) {
   const gapHost = $('#hgvHistoryGapView');
   if (gapHost) {
     gapHost.innerHTML = historyGapViewHtml(shown, entries);
+  }
+  // Plan 412 — History largest payment highlight. One highlight on
+  // the customer history — the single largest payment, with its date
+  // and method, shown at the top of the history; it highlights only
+  // and changes nothing. It follows the same shown rows as the list,
+  // so the filters apply to it too.
+  const largestHost = $('#hlpHistoryLargestPayment');
+  if (largestHost) {
+    largestHost.innerHTML = historyLargestPaymentHtml(shown);
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

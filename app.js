@@ -591,6 +591,7 @@ import { historyCreditInlineHtml } from './history-credit-inline.js';
 import { historyAdjustmentsInlineHtml } from './history-adjustments-inline.js';
 import { historyMonthComparisonHtml } from './history-month-comparison.js';
 import { HISTORY_CONNECTION_FILTER_ALL, historyConnectionFilterOptions, normalizeHistoryConnectionFilter, filterHistoryEntriesByConnection, historyConnectionFilterSelectMarkup, historyConnectionFilterEmptyText, historyConnectionFilterSummaryText } from './history-connection-filter.js';
+import { HISTORY_ENTRY_ANNOTATION_STORE_KEY, historyEntryAnnotationKey, normalizeHistoryEntryAnnotations, recordHistoryEntryAnnotation, removeHistoryEntryAnnotation, historyEntryAnnotationForEntry, historyEntriesHaveAnnotations, historyAnnotatedListHtml, historyEntryAnnotationFormHtml } from './history-entry-annotation.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4226,6 +4227,11 @@ function renderFullHistory(customer) {
   // connections are the offered connections, and a customer with no
   // link on record is offered All connections only.
   const billingLink = findBillingLink(loadBillingLinks(), customer.id);
+  // Plan 420 — History operator annotation on an old entry. One
+  // operator note per history entry, read once for the list below
+  // and the add form: the note travels with its entry, and removing
+  // it removes only the note.
+  const entryAnnotations = loadHistoryEntryAnnotations();
   const filterHost = $('#htfHistoryTypeFilterHost');
   if (filterHost) {
     const current = $('#htfHistoryTypeFilter');
@@ -4366,9 +4372,53 @@ function renderFullHistory(customer) {
   );
   host.innerHTML = shown.length === 0
     ? `<p class="notice">${escapeHtml(historyAmountSearchActive(fullHistoryAmountSearch) ? historyAmountSearchEmptyText(fullHistoryAmountSearch) : historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyDisputedFlagEmptyText(fullHistoryDisputedFilter) || historyConnectionFilterEmptyText(fullHistoryConnectionFilter, billingLink) || historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
-    : shown.some((entry) => entry.disputedCaseRef)
-      ? historyDisputedFlagListHtml(shown)
-      : fullHistoryListHtml(shown);
+    : historyEntriesHaveAnnotations(shown, entryAnnotations, customer.id)
+      ? historyAnnotatedListHtml(shown, entryAnnotations, customer.id)
+      : shown.some((entry) => entry.disputedCaseRef)
+        ? historyDisputedFlagListHtml(shown)
+        : fullHistoryListHtml(shown);
+  // Plan 420 — History operator annotation on an old entry. One add
+  // form under the list: pick a shown entry, write the note, who
+  // wrote it, and the date. Only entries that can take a note are
+  // offered, and an entry that already carries one is not offered
+  // again. The form annotates only and edits nothing.
+  const annotationHost = $('#heaHistoryEntryAnnotation');
+  if (annotationHost) {
+    annotationHost.innerHTML = historyEntryAnnotationFormHtml(shown, entryAnnotations, customer.id, localDate());
+    const addButton = $('#heaHistoryEntryAnnotationAdd');
+    if (addButton) addButton.addEventListener('click', () => {
+      const entrySelect = $('#heaHistoryEntryAnnotationEntry');
+      const textInput = $('#heaHistoryEntryAnnotationText');
+      const byInput = $('#heaHistoryEntryAnnotationBy');
+      const dateInput = $('#heaHistoryEntryAnnotationDate');
+      const key = entrySelect ? entrySelect.value : '';
+      const entry = shown.find((item) => historyEntryAnnotationKey(item) === key);
+      const before = loadHistoryEntryAnnotations();
+      const after = recordHistoryEntryAnnotation(before, {
+        customerId: customer.id,
+        entry,
+        text: textInput ? textInput.value : '',
+        date: dateInput ? dateInput.value : '',
+        by: byInput ? byInput.value : '',
+      });
+      if (after === before) {
+        toast('Add a note, a date and an entry first.');
+        return;
+      }
+      saveHistoryEntryAnnotations(after);
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+  }
+  // Plan 420 — Remove buttons on annotated rows. Removing a note
+  // removes only the note; the entry it was attached to stays.
+  host.querySelectorAll('[data-hea-remove]').forEach((button) => {
+    button.addEventListener('click', () => {
+      saveHistoryEntryAnnotations(removeHistoryEntryAnnotation(loadHistoryEntryAnnotations(), button.getAttribute('data-hea-remove')));
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+  });
   // Plan 406 — History running balance after each transaction. One
   // running-balance column on the customer history, computed from the
   // same entries in order; it is a view only and recomputes nothing
@@ -35597,6 +35647,17 @@ function loadFieldChanges() {
 }
 function saveFieldChanges(list) {
   try { localStorage.setItem(FIELD_CHANGE_STORE_KEY, JSON.stringify(normalizeFieldChangeList(list))); } catch { /* Field change history only: a failed save leaves the previous list in place */ }
+}
+
+// History entry annotation (Plan 420): one operator note per history
+// entry — a short note in plain words, with the date it was written
+// and who wrote it. Removing a note removes only the note; the entry
+// it was attached to is never changed.
+function loadHistoryEntryAnnotations() {
+  try { return normalizeHistoryEntryAnnotations(JSON.parse(localStorage.getItem(HISTORY_ENTRY_ANNOTATION_STORE_KEY) || '[]')); } catch { return []; }
+}
+function saveHistoryEntryAnnotations(list) {
+  try { localStorage.setItem(HISTORY_ENTRY_ANNOTATION_STORE_KEY, JSON.stringify(normalizeHistoryEntryAnnotations(list))); } catch { /* History entry annotation only: a failed save leaves the previous list in place */ }
 }
 
 // Customer preferred collection day note (Plan 365): one note per

@@ -65,6 +65,7 @@ import {
   doubleTapSaveGuardIsSaving,
   doubleTapSaveGuardSetDisabled
 } from './double-tap-save-guard.js';
+import { bigWalletMethodIsOtherMethod } from './big-wallet-method-buttons.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -1788,6 +1789,10 @@ export function setupQuickCollectModal({
   const amountInput = document.getElementById('quickCollectAmountInput');
   const dateInput = document.getElementById('quickCollectDateInput');
   const methodSelect = document.getElementById('quickCollectMethodSelect');
+  // Plan 438: the Other button — reveals the full method list for
+  // anything the three big buttons do not cover (null when the host
+  // page predates it).
+  const bigWalletOtherBtn = document.getElementById('bwbOtherMethodBtn');
   const monthSelect = document.getElementById('quickCollectMonthSelect');
   const paidByInput = document.getElementById('quickCollectPaidByInput');
   // Plan 379: the collection note fields (null when the host page
@@ -2352,6 +2357,15 @@ export function setupQuickCollectModal({
       const isMatch = chip.getAttribute('data-method') === val;
       chip.classList.toggle('is-active', isMatch);
     });
+    // Plan 438: the Other button lights exactly while the select holds
+    // a valid method that is none of the three big buttons and not a
+    // cash-family method (a shop method keeps Cash lit, per the
+    // shop-chip rule below); the full method list shows exactly while
+    // Other is lit, so the list is reachable for anything else and
+    // hides again the moment a big button is picked.
+    const isOther = bigWalletMethodIsOtherMethod(val, PAYMENT_METHODS, isCashPaymentMethod(val));
+    bigWalletOtherBtn?.classList.toggle('is-active', isOther);
+    if (methodSelect) methodSelect.style.display = isOther ? '' : 'none';
     syncShopChips();
   }
 
@@ -2376,7 +2390,11 @@ export function setupQuickCollectModal({
       btn.textContent = choice.labelKey ? t(choice.labelKey) : choice.label;
       btn.addEventListener('click', () => {
         if (methodSelect) methodSelect.value = choice.method;
-        syncShopChips();
+        // Plan 438: route through syncMethodChips (which ends in
+        // syncShopChips) so a shop pick also clears the Other button
+        // and hides the full list — a shop method is cash-family,
+        // so Cash stays lit and the list has nothing to offer.
+        syncMethodChips(choice.method);
       });
       shopChipsEl.appendChild(btn);
       return btn;
@@ -2426,6 +2444,20 @@ export function setupQuickCollectModal({
   methodSelect?.addEventListener('change', () => {
     syncMethodChips(methodSelect.value);
     updateDigitalVisibility(methodSelect.value);
+  });
+
+  // Plan 438: the Other button reveals the full method list for
+  // anything the big buttons do not cover. It selects nothing by
+  // itself — the operator's pick from the revealed list writes the
+  // select, and syncMethodChips lights Other while a non-big method
+  // holds. If the operator closes the list without picking, nothing
+  // changes: the big button that was lit stays lit.
+  bigWalletOtherBtn?.addEventListener('click', () => {
+    if (methodSelect) {
+      methodSelect.style.display = '';
+      methodSelect.focus();
+      try { methodSelect.showPicker?.(); } catch { /* picker unsupported — the revealed list is enough */ }
+    }
   });
 
   // SISP-161: wire the 1-tap payment-date chips (Today / Yesterday /

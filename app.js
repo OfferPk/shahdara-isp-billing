@@ -596,6 +596,7 @@ import { historyShownHasStruckThrough, historyStruckThroughListHtml } from './hi
 import { HISTORY_JUMP_TO_BILL_NO_BILL_TEXT, HISTORY_JUMP_TO_BILL_HIGHLIGHT_CLASS, historyJumpToBillIsPaymentEntry, historyJumpToBillShownEntry, historyJumpToBillTarget } from './history-jump-to-bill.js';
 import { HISTORY_JUMP_TO_RECEIPT_NO_RECEIPT_TEXT, HISTORY_JUMP_TO_RECEIPT_BUTTON_CLASS, historyJumpToReceiptIsPaymentEntry, historyJumpToReceiptShownEntry, historyJumpToReceiptTarget, historyJumpToReceiptButtonText } from './history-jump-to-receipt.js';
 import { HISTORY_SHARE_SUMMARY_DO_NOT_MESSAGE_TEXT, HISTORY_SHARE_SUMMARY_NO_NUMBER_TEXT, historyShareSummaryText, historyShareSummaryButtonMarkup, historyShareSummaryDraftHtml } from './history-share-summary.js';
+import { historyDataQualityViewHtml } from './history-data-quality-flags.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4619,6 +4620,16 @@ function renderFullHistory(customer) {
         toast('History summary ready to send.');
       });
     });
+  }
+  // Plan 425 — History data quality flags per customer. One quality
+  // flag per history entry that is missing its method, its reference,
+  // or its date, listed on a per-customer quality view; it flags only
+  // and fixes nothing. The flags are drawn from the full entries, not
+  // the shown rows: an incomplete entry is a whole-history fact, so a
+  // filter can never hide it.
+  const qualityHost = $('#hdqHistoryQualityHost');
+  if (qualityHost) {
+    qualityHost.innerHTML = historyDataQualityViewHtml(entries);
   }
   // Plan 411 — History missing-months gap view. One gap view on
   // the customer history, alongside the printed statement; it

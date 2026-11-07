@@ -592,6 +592,7 @@ import { historyAdjustmentsInlineHtml } from './history-adjustments-inline.js';
 import { historyMonthComparisonHtml } from './history-month-comparison.js';
 import { HISTORY_CONNECTION_FILTER_ALL, historyConnectionFilterOptions, normalizeHistoryConnectionFilter, filterHistoryEntriesByConnection, historyConnectionFilterSelectMarkup, historyConnectionFilterEmptyText, historyConnectionFilterSummaryText } from './history-connection-filter.js';
 import { HISTORY_ENTRY_ANNOTATION_STORE_KEY, historyEntryAnnotationKey, normalizeHistoryEntryAnnotations, recordHistoryEntryAnnotation, removeHistoryEntryAnnotation, historyEntryAnnotationForEntry, historyEntriesHaveAnnotations, historyAnnotatedListHtml, historyEntryAnnotationFormHtml } from './history-entry-annotation.js';
+import { historyShownHasStruckThrough, historyStruckThroughListHtml } from './history-struck-through.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4232,6 +4233,11 @@ function renderFullHistory(customer) {
   // and the add form: the note travels with its entry, and removing
   // it removes only the note.
   const entryAnnotations = loadHistoryEntryAnnotations();
+  // Plan 421 — History voided and corrected entries shown struck-through, never hidden. One display rule
+  // for the customer history: voided and corrected entries stay visible, struck through, with their
+  // reversal or correction beside them. The flat payment list is read once here, so the list below can
+  // resolve each entry's own payment record; it displays only and changes nothing.
+  const historyPayments = (customer.bills ?? []).flatMap((bill) => Array.isArray(bill?.payments) ? bill.payments : []);
   const filterHost = $('#htfHistoryTypeFilterHost');
   if (filterHost) {
     const current = $('#htfHistoryTypeFilter');
@@ -4372,11 +4378,13 @@ function renderFullHistory(customer) {
   );
   host.innerHTML = shown.length === 0
     ? `<p class="notice">${escapeHtml(historyAmountSearchActive(fullHistoryAmountSearch) ? historyAmountSearchEmptyText(fullHistoryAmountSearch) : historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyDisputedFlagEmptyText(fullHistoryDisputedFilter) || historyConnectionFilterEmptyText(fullHistoryConnectionFilter, billingLink) || historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
-    : historyEntriesHaveAnnotations(shown, entryAnnotations, customer.id)
-      ? historyAnnotatedListHtml(shown, entryAnnotations, customer.id)
-      : shown.some((entry) => entry.disputedCaseRef)
-        ? historyDisputedFlagListHtml(shown)
-        : fullHistoryListHtml(shown);
+    : historyShownHasStruckThrough(shown, historyPayments)
+      ? historyStruckThroughListHtml(shown, historyPayments, entryAnnotations, customer.id)
+      : historyEntriesHaveAnnotations(shown, entryAnnotations, customer.id)
+        ? historyAnnotatedListHtml(shown, entryAnnotations, customer.id)
+        : shown.some((entry) => entry.disputedCaseRef)
+          ? historyDisputedFlagListHtml(shown)
+          : fullHistoryListHtml(shown);
   // Plan 420 — History operator annotation on an old entry. One add
   // form under the list: pick a shown entry, write the note, who
   // wrote it, and the date. Only entries that can take a note are

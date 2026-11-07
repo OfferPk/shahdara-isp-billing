@@ -373,7 +373,10 @@ test('wiring: Send routes through the existing messaging dispatch, Dismiss hides
 
 test('wiring: the draft renders on both success paths and refreshes with the receipt card', () => {
   const calls = wiringSrc.match(/renderReceiptShareDraft\(\);/g) || [];
-  assert.equal(calls.length, 3, `expected 3 render calls (split save, single save, card re-render), got ${calls.length}`);
+  // Plan 449: the second-connection record is a third success path, so
+  // the draft renders there too — split save, single save, card re-render,
+  // second-connection record.
+  assert.equal(calls.length, 4, `expected 4 render calls (split save, single save, card re-render, second-connection record), got ${calls.length}`);
   const cardFn = wiringSrc.slice(
     wiringSrc.indexOf('function renderActiveReceiptCard()'),
     wiringSrc.indexOf('function renderSuccessNextSteps()'),

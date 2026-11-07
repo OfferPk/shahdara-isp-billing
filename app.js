@@ -586,6 +586,7 @@ import { historyGapViewHtml } from './history-gap-view.js';
 import { historyLargestPaymentHtml } from './history-largest-payment.js';
 import { historyFirstDatesHtml } from './history-first-dates.js';
 import { historyDisputedFlagEntries, filterHistoryEntriesByDisputedFlag, normalizeHistoryDisputedFlagFilter, historyDisputedFlagSelectMarkup, historyDisputedFlagEmptyText, historyDisputedFlagSummaryText, historyDisputedFlagListHtml } from './history-disputed-flag.js';
+import { historyRefundsInlineHtml } from './history-refunds-inline.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4442,6 +4443,16 @@ function renderFullHistory(customer) {
   const firstDatesHost = $('#hfdHistoryFirstDates');
   if (firstDatesHost) {
     firstDatesHost.innerHTML = historyFirstDatesHtml(entries);
+  }
+  // Plan 415 — History refund entries shown inline. One inline
+  // display of refund entries within the customer history — refund
+  // lines in date order, with reason, and the running balance
+  // before and after each refund shown visibly; it displays only
+  // and records no refund. The display follows the same shown rows
+  // as the list, so the filters apply to it too.
+  const refundsInlineHost = $('#hriHistoryRefundsInline');
+  if (refundsInlineHost) {
+    refundsInlineHost.innerHTML = historyRefundsInlineHtml(shown, entries);
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

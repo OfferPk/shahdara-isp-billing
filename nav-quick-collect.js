@@ -109,9 +109,10 @@ import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { oldestOpenBillPrefill, transactionPrefillLineHtml } from './transaction-prefill.js';
 import { duesAmountDefault } from './dues-amount-default.js';
 import { amountInWords, amountInWordsLineText } from './amount-in-words.js';
-import { nextReceiptNumberLineText } from './next-receipt-number.js';
+import { nextReceiptNumberFor, nextReceiptNumberLineText } from './next-receipt-number.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
+import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
 import { overpaymentExtraCents } from './overpayment-choice.js';
 import { requiresLargeCashApproval, LARGE_CASH_DEFAULT_THRESHOLD_CENTS } from './large-cash-approval.js';
@@ -1850,6 +1851,9 @@ export function setupQuickCollectModal({
   // host page predates them) — the summary panel and its Confirm /
   // Back buttons, shown before the payment posts.
   const confirmSummaryBox = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSummary') : null;
+  // Plan 433: the receipt preview host on the confirm step (null when
+  // the host page predates it) — the receipt exactly as it will print.
+  const receiptPreviewBox = typeof document !== 'undefined' ? document.getElementById('rpvReceiptPreview') : null;
   const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
   const confirmBackBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmBackBtn') : null;
   // Plan 432: the cash change calculator (null when the host page
@@ -2048,6 +2052,30 @@ export function setupQuickCollectModal({
       legs,
     });
   }
+
+  // Plan 433: the receipt preview — built from the same reads the
+  // submit handler posts with, so the previewed receipt is the receipt
+  // the save will issue. The receipt number is the next-number preview
+  // for this customer and bill month, counted from the pre-save ledger
+  // (existing payments plus one), which is the number the save stamps
+  // on the payment. Returns null when there is nothing worth
+  // previewing; a split entry previews nothing (no single receipt).
+  function buildReceiptPreview() {
+    if (!activeDefaults || !activeCustomerId) return null;
+    const amountVal = Number(amountInput?.value);
+    const month = monthSelect?.value || activeDefaults.targetMonth;
+    const customer = activeDefaults.customer ?? null;
+    return receiptPreviewFor({
+      customer,
+      amount: amountVal,
+      amountWords: amountInWords(amountVal),
+      method: methodSelect?.value || 'Cash',
+      receiptNumber: customer && month ? nextReceiptNumberFor(customer, month) : '',
+      date: dateInput?.value || getPakistanLocalDate(),
+      split: !!splitToggle?.checked,
+    });
+  }
+
   const quickAmountChips = modal.querySelectorAll('.quick-amount-chip');
   const quickMethodChips = modal.querySelectorAll('.quick-method-chip');
 
@@ -4086,6 +4114,15 @@ export function setupQuickCollectModal({
       const pendingSummary = buildSaveConfirmationSummary();
       if (pendingSummary && saveConfirmationSummaryKey(pendingSummary) !== saveConfirmationArmedKey) {
         if (confirmSummaryBox) confirmSummaryBox.innerHTML = saveConfirmationSummaryHtml(pendingSummary);
+        // Plan 433: the receipt preview beside the summary, on the
+        // same confirm step — the receipt exactly as it will print.
+        // Hidden when there is nothing to preview (a split entry has
+        // no single receipt).
+        if (receiptPreviewBox) {
+          const previewHtml = receiptPreviewHtml(buildReceiptPreview());
+          receiptPreviewBox.innerHTML = previewHtml;
+          receiptPreviewBox.hidden = previewHtml === '';
+        }
         showStep('confirm');
         confirmSaveBtn?.focus();
         return;

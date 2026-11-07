@@ -224,8 +224,11 @@ test('acceptance: previewing never reserves or consumes a number', () => {
 // ---------------------------------------------------------------------------
 
 test('wiring: Quick Collect imports the preview and renders it on open and on month change', () => {
+  // Plan 433: the same import line now also brings in the next receipt
+  // number itself, so the receipt preview can show the number the save
+  // will stamp — the preview line import is unchanged in intent.
   assert.ok(
-    quickCollectSrc.includes("import { nextReceiptNumberLineText } from './next-receipt-number.js';"),
+    quickCollectSrc.includes("import { nextReceiptNumberFor, nextReceiptNumberLineText } from './next-receipt-number.js';"),
     'module import',
   );
   assert.ok(

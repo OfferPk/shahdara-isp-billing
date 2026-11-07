@@ -53,6 +53,10 @@ import {
   namePrefixLookupMatches
 } from './name-prefix-lookup.js';
 import {
+  findCustomersByLastFourDigits,
+  lastFourDigitsHtml
+} from './last-four-digits-search.js';
+import {
   recentQuickPickEntries,
   recentQuickPickHtml
 } from './recent-quick-pick.js';
@@ -1774,6 +1778,10 @@ export function setupQuickCollectModal({
   // page predates it) — matching customers appear after two or more
   // letters, in name order, with name and mohalla.
   const namePrefixList = document.getElementById('nplNamePrefixList');
+  // Plan 441: the last-four-digits lookup list (null when the host
+  // page predates it) — four typed digits list every customer
+  // whose number ends with them, in name order, with name and mohalla.
+  const lastFourList = document.getElementById('lfdLastFourList');
   // Plan 428: the recent-customers quick-pick row (null when the
   // host page predates it) — the last ten customers collected from,
   // latest first, with name, mohalla and dues.
@@ -2658,6 +2666,7 @@ export function setupQuickCollectModal({
     const query = searchInput?.value ?? '';
     customerListContainer.innerHTML = renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId).html;
     renderNamePrefixList();
+    renderLastFourList();
     renderRecentQuickPick();
   }
 
@@ -2670,6 +2679,16 @@ export function setupQuickCollectModal({
     const state = getState();
     const query = searchInput?.value ?? '';
     namePrefixList.innerHTML = namePrefixLookupHtml(namePrefixLookupMatches(state?.customers ?? [], query));
+  }
+
+  // Plan 441: the last-four-digits lookup — four typed digits list
+  // every customer whose number ends with them, in name order.
+  // Anything other than exactly four digits renders nothing at all.
+  function renderLastFourList() {
+    if (!lastFourList) return;
+    const state = getState();
+    const query = searchInput?.value ?? '';
+    lastFourList.innerHTML = lastFourDigitsHtml(findCustomersByLastFourDigits(state?.customers ?? [], query), query);
   }
 
   // Plan 428: the recent-customers quick-pick — the last ten
@@ -3817,6 +3836,20 @@ export function setupQuickCollectModal({
   // way tapping a picker card does.
   namePrefixList?.addEventListener('click', (e) => {
     const row = e.target.closest('.npl-row');
+    if (!row) return;
+    const cid = row.getAttribute('data-customer-id');
+    if (cid) {
+      if (typeof onSelectCustomer === 'function') {
+        onSelectCustomer(cid);
+      }
+      openCustomerCollectionForm(cid);
+    }
+  });
+
+  // Plan 441: tapping a last-four row picks that customer exactly
+  // the way tapping a picker card does.
+  lastFourList?.addEventListener('click', (e) => {
+    const row = e.target.closest('.lfd-row');
     if (!row) return;
     const cid = row.getAttribute('data-customer-id');
     if (cid) {

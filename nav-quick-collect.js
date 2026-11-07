@@ -114,6 +114,7 @@ import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
 import { successNextStepsFromReceipt, successNextStepsHtml, successNextStepsNextDueDate } from './success-next-steps.js';
+import { QUICK_COLLECT_REVERSAL_UNDO_WINDOW_MS, QUICK_COLLECT_REVERSAL_UNDO_REASON, quickCollectReversalUndoAllowed, quickCollectReversalUndoSecondsLeft, quickCollectReversalUndoButtonText, quickCollectReversalUndoIsPlainPayment, quickCollectReversalUndoFields } from './quick-collect-reversal-undo.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
 import { overpaymentExtraCents } from './overpayment-choice.js';
 import { requiresLargeCashApproval, LARGE_CASH_DEFAULT_THRESHOLD_CENTS } from './large-cash-approval.js';
@@ -2209,6 +2210,9 @@ export function setupQuickCollectModal({
   const whatsAppBtn = document.getElementById('quickCollectWhatsAppBtn');
   const shareImageBtn = document.getElementById('quickCollectShareImageBtn');
   const undoBtn = document.getElementById('quickCollectUndoBtn');
+  // Plan 435: the sixty-second reversal undo button on the success
+  // screen (null when the host page predates it).
+  const reversalUndoBtn = document.getElementById('quickCollectReversalUndoBtn');
   const printReceiptBtn = document.getElementById('quickCollectPrintReceiptBtn');
   const anotherBtn = document.getElementById('quickCollectAnotherBtn');
   const doneCloseBtn = document.getElementById('quickCollectDoneCloseBtn');
@@ -2243,6 +2247,14 @@ export function setupQuickCollectModal({
   let undoTimeoutId = null;
   let undoCountdownId = null;
   let undoDeadline = 0;
+  // Plan 435: the sixty-second reversal undo — one plain single
+  // payment, its save instant, and the arming timers. Cleared
+  // whenever the five-second undo runs, a split saves, Collect
+  // Another loops, or the dialog closes, so a stale context can
+  // never reverse a payment from an earlier save.
+  let activeReversalUndo = null;
+  let reversalUndoTimeoutId = null;
+  let reversalUndoCountdownId = null;
   // True once the current opening's close-cleanup has run. The dialog 'close'
   // event and closeModal() can both fire for one close; cleanup must run
   // exactly once per opening (openModal resets this to false).
@@ -3498,6 +3510,73 @@ export function setupQuickCollectModal({
     undoCountdownId = setInterval(render, 250);
   }
 
+  function stopReversalUndoCountdown() {
+    if (reversalUndoCountdownId) {
+      clearInterval(reversalUndoCountdownId);
+      reversalUndoCountdownId = null;
+    }
+  }
+
+  // Plan 435: clears the sixty-second reversal undo — its timer, its
+  // countdown and its context — and hides the button. Called when the
+  // window lapses, when the undo runs, when the five-second undo runs
+  // (a deleted payment has nothing left to reverse), when a split
+  // collection saves (two legs of its own), when Collect Another
+  // loops back to the picker, and when the dialog closes.
+  function disarmReversalUndo() {
+    if (reversalUndoTimeoutId) {
+      clearTimeout(reversalUndoTimeoutId);
+      reversalUndoTimeoutId = null;
+    }
+    stopReversalUndoCountdown();
+    activeReversalUndo = null;
+    if (reversalUndoBtn) reversalUndoBtn.hidden = true;
+  }
+
+  // Live countdown on the reversal Undo button ("↩ Undo by reversal
+  // (59s)" ... 1s), so the sixty-second window is visible instead of
+  // a static "(60s)" label. The seconds come from the pure window
+  // check against the saved instant, so the label can never drift
+  // from the rule that decides whether the undo runs.
+  function startReversalUndoCountdown() {
+    stopReversalUndoCountdown();
+    const render = () => {
+      if (!reversalUndoBtn || reversalUndoBtn.hidden || !activeReversalUndo) return;
+      reversalUndoBtn.textContent = quickCollectReversalUndoButtonText(
+        quickCollectReversalUndoSecondsLeft(activeReversalUndo.savedAtMs, Date.now())
+      );
+    };
+    render();
+    reversalUndoCountdownId = setInterval(render, 250);
+  }
+
+  // Plan 435: arms the sixty-second reversal undo for one plain
+  // single payment. The saved payment record and the receipt's
+  // settled lines decide eligibility here, at save time — a payment
+  // that settled ticket or boost charges, waived a late fee, or
+  // touched a promise keeps the five-second undo, which restores
+  // those, and is never offered the reversal. Nothing is recorded
+  // by arming; the button only asks.
+  function armReversalUndo({ customerId, month, paymentId, amount, customerName, savedPayment, ticketCharges, addonCharges }) {
+    disarmReversalUndo();
+    if (!reversalUndoBtn) return;
+    const plain = quickCollectReversalUndoIsPlainPayment({
+      ticketCharges,
+      addonCharges,
+      hasWaiver: !!lateFeeWaiverOf(savedPayment),
+      hasWaadaStamp: !!remainderWaadaOf(savedPayment),
+    });
+    if (!plain) return;
+    activeReversalUndo = { customerId, month, paymentId, amount, customerName, savedAtMs: Date.now() };
+    reversalUndoBtn.hidden = false;
+    reversalUndoBtn.disabled = false;
+    reversalUndoBtn.textContent = quickCollectReversalUndoButtonText(60);
+    reversalUndoTimeoutId = setTimeout(() => {
+      disarmReversalUndo();
+    }, QUICK_COLLECT_REVERSAL_UNDO_WINDOW_MS);
+    startReversalUndoCountdown();
+  }
+
   // Close-cleanup runs exactly once per opening, whichever way the dialog was
   // closed: the × / Done buttons (closeModal below), Escape, a backdrop tap,
   // the universal dialog controller, Bulk Collect taking over, or route sync.
@@ -3515,6 +3594,9 @@ export function setupQuickCollectModal({
     stopUndoCountdown();
     activeUndoContext = null;
     if (undoBtn) undoBtn.hidden = true;
+    // Plan 435: closing drops the reversal undo with the rest of the
+    // save — a payment from a closed sheet is never reversed later.
+    disarmReversalUndo();
     showStep('pick');
     activeCustomerId = null;
     activeDefaults = null;
@@ -3864,6 +3946,10 @@ export function setupQuickCollectModal({
     }
     stopUndoCountdown();
     if (undoBtn) undoBtn.hidden = true;
+    // Plan 435: the payment is being deleted, not reversed — clear
+    // the sixty-second reversal undo too, so it can never reverse a
+    // payment that no longer exists.
+    disarmReversalUndo();
     try {
       const state = getState();
       // SISP-126: capture the doomed payment's remainder-waada stamp
@@ -3977,6 +4063,63 @@ export function setupQuickCollectModal({
 
   undoBtn?.addEventListener('click', () => {
     executeUndo();
+  });
+
+  // Plan 435: the sixty-second reversal undo. Records a normal
+  // negative entry linked to the original through the reversal
+  // link — the original stays visible with its reversal, the pair
+  // nets to zero, and nothing is deleted. Refused once the window
+  // has passed; returns to the entry form for the same customer
+  // so the correct amount can be entered straight away.
+  function executeReversalUndo() {
+    const ctx = activeReversalUndo;
+    if (!ctx) return;
+    disarmReversalUndo();
+    // The payment is being reversed, not deleted: clear the
+    // five-second delete-undo too, so it can never delete a
+    // payment that already has a reversal.
+    if (undoTimeoutId) {
+      clearTimeout(undoTimeoutId);
+      undoTimeoutId = null;
+    }
+    stopUndoCountdown();
+    activeUndoContext = null;
+    if (undoBtn) undoBtn.hidden = true;
+    try {
+      if (!quickCollectReversalUndoAllowed(ctx.savedAtMs, Date.now())) {
+        if (typeof onToast === 'function') onToast('The sixty-second undo window has passed. Use the correction flow to fix this payment.', { type: 'error' });
+        return;
+      }
+      const state = getState();
+      const original = state?.customers?.find((c) => c.id === ctx.customerId)?.bills?.find((b) => b.month === ctx.month)?.payments?.find((p) => p.id === ctx.paymentId) ?? null;
+      if (!original) {
+        if (typeof onToast === 'function') onToast('Could not undo payment: the original payment was not found.', { type: 'error' });
+        return;
+      }
+      const fields = quickCollectReversalUndoFields(original, { date: getPakistanLocalDate(), reason: QUICK_COLLECT_REVERSAL_UNDO_REASON });
+      if (!fields) {
+        if (typeof onToast === 'function') onToast('Could not undo payment: the original payment cannot be reversed.', { type: 'error' });
+        return;
+      }
+      const nextState = addPayment(state, ctx.customerId, ctx.month, fields, new Date());
+      if (typeof onSaveState === 'function') {
+        onSaveState(nextState);
+      }
+      updateCounts();
+      renderList();
+      openCustomerCollectionForm(ctx.customerId);
+      if (typeof onToast === 'function') {
+        onToast(`Payment of PKR ${Number(ctx.amount).toLocaleString()} for ${ctx.customerName} undone by reversal. The original stays visible with its reversal.`, { type: 'success', title: 'Undone' });
+      }
+    } catch (err) {
+      if (typeof onToast === 'function') {
+        onToast(`Could not undo payment: ${err.message}`, { type: 'error' });
+      }
+    }
+  }
+
+  reversalUndoBtn?.addEventListener('click', () => {
+    executeReversalUndo();
   });
 
   // Form submit
@@ -4265,6 +4408,10 @@ export function setupQuickCollectModal({
             if (undoBtn) undoBtn.hidden = true;
           }, UNDO_WINDOW_MS);
           startUndoCountdown();
+          // Plan 435: a split collection records two legs of its own,
+          // so it never arms the sixty-second reversal undo — and a
+          // stale arming from an earlier single save is dropped here.
+          disarmReversalUndo();
           if (typeof onSaveState === 'function') {
             onSaveState(splitResult.nextState);
           }
@@ -4417,6 +4564,24 @@ export function setupQuickCollectModal({
         if (undoBtn) undoBtn.hidden = true;
       }, UNDO_WINDOW_MS);
       startUndoCountdown();
+
+      // Plan 435: arm the sixty-second reversal undo for this one
+      // plain single payment. The saved payment record comes from
+      // the just-computed next state, because the host state is not
+      // updated until onSaveState runs below.
+      {
+        const savedPayment = nextState?.customers?.find((c) => c.id === activeCustomerId)?.bills?.find((b) => b.month === monthVal)?.payments?.find((p) => p.id === receipt.paymentId) ?? null;
+        armReversalUndo({
+          customerId: activeCustomerId,
+          month: monthVal,
+          paymentId: receipt.paymentId,
+          amount: amountVal,
+          customerName: receipt.customerName,
+          savedPayment,
+          ticketCharges: receipt.ticketCharges ?? [],
+          addonCharges: receipt.addonCharges ?? [],
+        });
+      }
 
       // Update parent application state
       if (typeof onSaveState === 'function') {
@@ -4683,6 +4848,9 @@ export function setupQuickCollectModal({
     stopUndoCountdown();
     activeUndoContext = null;
     if (undoBtn) undoBtn.hidden = true;
+    // Plan 435: looping back to the picker drops the reversal undo
+    // with the rest of the save — the next save arms its own.
+    disarmReversalUndo();
     showStep('pick');
     if (searchInput) searchInput.value = '';
     activeCustomerId = null;

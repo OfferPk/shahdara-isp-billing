@@ -594,6 +594,7 @@ import { normalizeLedgerDay, formatLedgerDay, searchLedgerByDay, ledgerDaySummar
 import { normalizeLedgerMethodFilter, searchLedgerByMethod, ledgerMethodSummaryText, ledgerMethodDayRangeEmptyText } from './ledger-payment-method.js';
 import { normalizeLiveLedgerSearch, searchLedgerLive, ledgerLiveSearchSummaryText, ledgerLiveSearchEmptyText } from './ledger-live-search.js';
 import { normalizeLedgerBillMonth, searchLedgerByBillMonth, ledgerBillMonthSummaryText, ledgerBillMonthEmptyText, ledgerBillMonthRangeEmptyText } from './ledger-bill-month.js';
+import { normalizeLedgerCollectorFilter, searchLedgerByCollector, ledgerCollectors, ledgerCollectorSummaryText, ledgerCollectorEmptyText, ledgerCollectorRangeEmptyText } from './ledger-collector.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
@@ -5196,6 +5197,9 @@ let transactionAmountMax = '';
 // screen; '' means no live search. The search only goes live at three
 // or more characters (see normalizeLiveLedgerSearch).
 let transactionLiveSearch = '';
+// Plan 462: the collector filter — the collector name chosen on the
+// Transactions screen; '' means all collectors.
+let transactionCollectorFilter = '';
 // Plan 392: the payment id a receipt-number search found, or null.
 // While set, the Transactions list shows only that transaction.
 let receiptSearchPaymentId = null;
@@ -5214,6 +5218,9 @@ function renderTransactions() {
   // Transactions screen; the entry's bill month must equal it
   // exactly, the same strict match the list already uses.
   const billMonth = normalizeLedgerBillMonth($('#transactionBillMonth')?.value ?? '');
+  // Plan 462: the collector filter — the collector name chosen on
+  // the Transactions screen; '' means all collectors.
+  const collector = normalizeLedgerCollectorFilter(transactionCollectorFilter);
   const recencyValue = $('#transactionRecencyFilter').value;
   const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
   let transactions = listTransactions(state, { customerQuery:searchQuery(), date, recencyDays });
@@ -5245,6 +5252,24 @@ function renderTransactions() {
       const count = option.value === 'all' ? categoryCounts.total : (categoryCounts[option.value] ?? 0);
       option.textContent = option.value === 'all' ? `All categories (${count})` : `${transactionCategoryTagLabel(option.value)} (${count})`;
     }
+  }
+
+  // Plan 462: the collector options come from the full ledger, so
+  // the chosen collector never disappears when another filter
+  // narrows the list. The current choice is kept even when it is
+  // no longer in the ledger, so the filter never silently drops.
+  const collectorSelect = $('#transactionCollectorFilter');
+  if (collectorSelect) {
+    const collectors = ledgerCollectors(listTransactions(state));
+    if (collector && !collectors.some((name) => normalizeLedgerCollectorFilter(name) === collector)) {
+      collectors.push(transactionCollectorFilter.trim());
+      collectors.sort((a, b) => a.localeCompare(b));
+    }
+    collectorSelect.replaceChildren(
+      new Option('All collectors', ''),
+      ...collectors.map((name) => new Option(name, name)),
+    );
+    collectorSelect.value = collector;
   }
 
   // Plan 392: a receipt-number search narrows the list to exactly
@@ -5282,6 +5307,13 @@ function renderTransactions() {
   // search below still wins when it is active.
   if (billMonth) {
     transactions = searchLedgerByBillMonth(transactions, billMonth);
+  }
+  // Plan 462: the collector filter — the entries one collector
+  // recorded; it filters the list the other filters already
+  // produced, like the method and category filters, and the
+  // receipt-number search below still wins when it is active.
+  if (collector) {
+    transactions = searchLedgerByCollector(transactions, collector);
   }
   if (receiptSearchPaymentId) {
     transactions = listTransactions(state).filter(tx => tx.paymentId === receiptSearchPaymentId);
@@ -5367,6 +5399,19 @@ function renderTransactions() {
       monthSummaryEl.textContent = '';
     }
   }
+  // Plan 462: when a collector is chosen, the summary bar says
+  // the collector, the count, and the total in PKR, and an empty
+  // collector says so plainly instead of the generic empty text.
+  const collectorSummaryEl = $('#lclCollectorSummary');
+  if (collectorSummaryEl) {
+    if (collector) {
+      collectorSummaryEl.hidden = false;
+      collectorSummaryEl.textContent = ledgerCollectorSummaryText(transactions, collector);
+    } else {
+      collectorSummaryEl.hidden = true;
+      collectorSummaryEl.textContent = '';
+    }
+  }
   const emptyEl = $('#transactionsEmpty');
   if (emptyEl) {
     // Plan 460: an empty live search names the typed text first —
@@ -5381,6 +5426,13 @@ function renderTransactions() {
       emptyEl.textContent = amountRange.active
         ? ledgerBillMonthRangeEmptyText(billMonth, transactionAmountMin, transactionAmountMax)
         : ledgerBillMonthEmptyText(billMonth);
+    } else if (transactions.length === 0 && collector) {
+      // Plan 462: an empty collector names the collector —
+      // composed with the amount range when that filter is active
+      // too — before the method and the day and range chain below.
+      emptyEl.textContent = amountRange.active
+        ? ledgerCollectorRangeEmptyText(collector, transactionAmountMin, transactionAmountMax)
+        : ledgerCollectorEmptyText(collector);
     } else if (transactions.length === 0 && normalizeLedgerMethodFilter(transactionMethodFilter) !== 'all') {
       // Plan 455: an empty method names the method — composed with
       // the day and the range when those filters are active too —
@@ -10718,6 +10770,10 @@ $('#transactionAmountMax').addEventListener('input', event => { transactionAmoun
 $('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionRecencyFilter').addEventListener('change', () => { transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionMethodFilter').addEventListener('change', event => { transactionMethodFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+// Plan 462: the collector select — choosing a collector
+// re-renders the ledger on that collector's entries; "All
+// collectors" returns the full ledger.
+$('#transactionCollectorFilter').addEventListener('change', event => { transactionCollectorFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionCategoryFilter').addEventListener('change', event => { transactionCategoryFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionSortSelect')?.addEventListener('change', event => { transactionSortBy = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 // Plan 392: keep the payments-list controller so a receipt-number
@@ -10794,6 +10850,10 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   // Plan 461: clearing the filters also clears the bill month.
   const billMonthInput = $('#transactionBillMonth');
   if (billMonthInput) billMonthInput.value = '';
+  // Plan 462: clearing the filters also clears the collector filter.
+  const collectorFilterSelect = $('#transactionCollectorFilter');
+  if (collectorFilterSelect) collectorFilterSelect.value = '';
+  transactionCollectorFilter = '';
   transactionCurrentPage = 1;
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');

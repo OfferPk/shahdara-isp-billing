@@ -580,6 +580,7 @@ import { HISTORY_DATE_RANGE_EMPTY_TEXT, normalizeHistoryDateRange, historyDateRa
 import { normalizeHistoryMethodFilter, filterHistoryEntriesByMethod, historyMethodFilterSelectMarkup, historyMethodFilterEmptyText, historyMethodFilterSummaryText } from './history-method-filter.js';
 import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryEntriesByAmount, historyAmountSearchMarkup, historyAmountSearchEmptyText, historyAmountSearchSummaryText } from './history-amount-search.js';
 import { normalizeLedgerAmountRange, searchLedgerByAmountRange, ledgerAmountRangeSummaryText, ledgerAmountRangeEmptyText } from './ledger-amount-range.js';
+import { normalizeLedgerDay, searchLedgerByDay, ledgerDaySummaryText, ledgerDayEmptyText, ledgerDayRangeEmptyText } from './ledger-single-day.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
@@ -5022,6 +5023,14 @@ function renderTransactions() {
   if (amountRange.active) {
     transactions = searchLedgerByAmountRange(transactions, transactionAmountMin, transactionAmountMax);
   }
+  // Plan 454: the single-day search — the date filter above already
+  // narrowed the list to the day; this puts the day's entries in
+  // time order (recorded time, oldest first) for the closing-time
+  // check. The screen's sort control still governs display order
+  // afterwards, exactly as it does for the amount range.
+  if (normalizeLedgerDay(date)) {
+    transactions = searchLedgerByDay(transactions, date);
+  }
   if (receiptSearchPaymentId) {
     transactions = listTransactions(state).filter(tx => tx.paymentId === receiptSearchPaymentId);
   }
@@ -5053,11 +5062,31 @@ function renderTransactions() {
       rangeSummaryEl.textContent = '';
     }
   }
+  // Plan 454: when the exact-date filter is set, the summary bar
+  // says the day, the count, and the total in PKR, and an empty day
+  // says so plainly instead of the generic empty text.
+  const day = normalizeLedgerDay(date);
+  const daySummaryEl = $('#lsdDaySummary');
+  if (daySummaryEl) {
+    if (day) {
+      daySummaryEl.hidden = false;
+      daySummaryEl.textContent = ledgerDaySummaryText(transactions, day);
+    } else {
+      daySummaryEl.hidden = true;
+      daySummaryEl.textContent = '';
+    }
+  }
   const emptyEl = $('#transactionsEmpty');
   if (emptyEl) {
-    emptyEl.textContent = amountRange.active && transactions.length === 0
-      ? ledgerAmountRangeEmptyText(transactionAmountMin, transactionAmountMax)
-      : 'No recorded payments match these filters.';
+    if (transactions.length === 0 && day && amountRange.active) {
+      emptyEl.textContent = ledgerDayRangeEmptyText(day, transactionAmountMin, transactionAmountMax);
+    } else if (transactions.length === 0 && day) {
+      emptyEl.textContent = ledgerDayEmptyText(day);
+    } else {
+      emptyEl.textContent = amountRange.active && transactions.length === 0
+        ? ledgerAmountRangeEmptyText(transactionAmountMin, transactionAmountMax)
+        : 'No recorded payments match these filters.';
+    }
   }
 
   const paged = paginateRows(transactions, transactionCurrentPage, transactionPageSize);

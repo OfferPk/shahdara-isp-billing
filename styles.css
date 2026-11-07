@@ -7826,6 +7826,15 @@ html, body {
   font-size: 12px;
 }
 
+/* Plan 439 — live round total on the Quick Collect picker screen:
+   the payments taken this round, count and total, refreshed after
+   each save. No colour of its own, so no new hex colour is
+   introduced. */
+.rtt-round-totals {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
 .psp-preview ul {
   margin: 0;
   padding-left: 16px;

@@ -589,6 +589,7 @@ import { historyDisputedFlagEntries, filterHistoryEntriesByDisputedFlag, normali
 import { historyRefundsInlineHtml } from './history-refunds-inline.js';
 import { historyCreditInlineHtml } from './history-credit-inline.js';
 import { historyAdjustmentsInlineHtml } from './history-adjustments-inline.js';
+import { historyMonthComparisonHtml } from './history-month-comparison.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4475,6 +4476,19 @@ function renderFullHistory(customer) {
   const adjustmentsInlineHost = $('#hadHistoryAdjustmentsInline');
   if (adjustmentsInlineHost) {
     adjustmentsInlineHost.innerHTML = historyAdjustmentsInlineHtml(shown, entries, loadBillingCorrections(), customer.id);
+  }
+  // Plan 418 — History this-month versus last-month comparison. One
+  // comparison line on the customer history — this month's paid
+  // total versus last month's paid total, in plain words: more,
+  // less, or the same, with both figures; it compares only and
+  // changes nothing. The line is drawn from the full entries, not
+  // the shown rows — the beginning of the story is a whole-history
+  // fact, like the first-dates line — so a filter can never rewrite
+  // whether the customer paid more or less than last month. The
+  // current month comes from the device date, never a guessed one.
+  const monthComparisonHost = $('#hmcHistoryMonthComparison');
+  if (monthComparisonHost) {
+    monthComparisonHost.innerHTML = historyMonthComparisonHtml(localDate().slice(0, 7), entries);
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

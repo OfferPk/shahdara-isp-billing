@@ -12541,6 +12541,10 @@ window.mobileQuickProfileController = setupMobileQuickProfileModal({
 // Setup Fast Customer Search Sheet & Recent Accounts (agent2 - shahdara-mobile-nav)
 window.fastCustomerSearchController = setupFastCustomerSearchModal({
   getState: () => state,
+  // Plan 452: the ids of customers with an open suspension record —
+  // the sheet's suspended filter reads them fresh on every render,
+  // so a suspension opened or closed elsewhere is reflected at once.
+  getSuspendedCustomerIds: () => loadSuspensions().filter((s) => s?.status === 'open').map((s) => s.customerId),
   onSelectCustomer: (customerId) => {
     switchView('customers');
     selectCustomer(customerId);

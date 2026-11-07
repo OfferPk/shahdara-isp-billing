@@ -33,6 +33,14 @@ import {
   customerIdLookupUnknownText,
   customerIdLookupOpensProfileDirectly,
 } from './customer-id-lookup.js';
+// Plan 452: status filter — paid up, due, overdue, suspended, new.
+// The five states come from the app's own rules (bill balances, the
+// dues-aging due date, open suspension records, the addedOn month);
+// the filter reads them only and never changes any record.
+import {
+  normalizeCustomerStatusFilter,
+  customerStatusFilterMatches,
+} from './customer-status-filter.js';
 // Plan 355: known-as name beside the formal name on search cards and in
 // the recent list — the father / reference name first, else the first
 // nickname; the sheet's own strings stay English, as elsewhere here.
@@ -147,12 +155,21 @@ export function clearRecentCustomers(storage = (typeof localStorage !== 'undefin
  * @param {Object} [options={}]
  * @param {string} [options.query='']
  * @param {('all'|'pending'|'partial'|'paid')} [options.statusFilter='all']
+ * @param {('all'|'paid-up'|'due'|'overdue'|'suspended'|'new')} [options.customerStatus='all']
+ * @param {Array<string>|Set<string>} [options.suspendedCustomerIds=[]]
  * @param {Date} [referenceDate=new Date()]
  * @returns {Array<Object>}
  */
 export function searchFastCustomers(state, {
   query = '',
   statusFilter = 'all',
+  // Plan 452: a chosen account state narrows the search to that
+  // state only — paid up, due, overdue, suspended, or new; 'all'
+  // means the full list. The open suspension ids are caller-supplied
+  // (the sheet's controller passes the app's open suspensions);
+  // without them the suspended state matches nobody.
+  customerStatus = 'all',
+  suspendedCustomerIds = [],
   // Plan 353: a chosen mohalla narrows the search to that mohalla only;
   // blank means the full list.
   mohalla = ''
@@ -198,6 +215,18 @@ export function searchFastCustomers(state, {
       if (statusFilter === 'partial' && currentStatus !== 'partial') continue;
       if (statusFilter === 'paid' && currentStatus !== 'paid') continue;
     }
+
+    // Plan 452: the account-state filter runs next, on the same
+    // footing as the billing chips and the mohalla filter — an
+    // exact-ID hit below still has to pass it, exactly like the
+    // other filters. 'all' (unknown values included) passes
+    // everyone, so the sheet's old behaviour is unchanged.
+    if (!customerStatusFilterMatches(customer, customerStatus, {
+      allocations,
+      suspendedCustomerIds,
+      currentMonth,
+      referenceDate,
+    })) continue;
 
     // Apply text search query
     // Plan 451: the exact-ID check runs first — when the typed query
@@ -361,13 +390,18 @@ export function renderFastCustomerSearchResultsHtml(customers, { isRecent = fals
  * @param {Function} options.onSelectCustomer
  * @param {Function} [options.onOpenQuickCollect]
  * @param {Function} [options.onToast]
+ * @param {Function} [options.getSuspendedCustomerIds]
  * @returns {Object} Controller with { open, close, isOpen }
  */
 export function setupFastCustomerSearchModal({
   getState,
   onSelectCustomer,
   onOpenQuickCollect,
-  onToast
+  onToast,
+  // Plan 452: the ids of customers with an open suspension record,
+  // supplied by the app (which owns the suspension store). Without
+  // it the suspended state matches nobody.
+  getSuspendedCustomerIds
 }) {
   const modal = document.getElementById('mobileCustomerSearchModal');
   if (!modal) {
@@ -385,13 +419,20 @@ export function setupFastCustomerSearchModal({
   // own mohalla list so the sheet never carries a second list.
   const mohallaSelect = document.getElementById('fastCustomerSearchMohallaSelect');
   if (mohallaSelect) mohallaSelect.innerHTML = mohallaFilterOptionsHtml(DEFAULT_MOHALLAS, '');
-  const statusChips = modal.querySelectorAll('.fcs-status-chip');
+  const statusChips = modal.querySelectorAll('#fcsBillingChips .fcs-status-chip');
+  // Plan 452: the account-state chips live in their own row and share
+  // the billing chips' styling; they are wired separately below, so
+  // the billing row above is scoped to its own container.
+  const accountChips = modal.querySelectorAll('#fcsAccountChips .fcs-status-chip');
   const resultsContainer = document.getElementById('fastCustomerSearchResults');
   const countBadge = document.getElementById('fastCustomerSearchCountBadge');
   const clearRecentBtn = document.getElementById('fastCustomerClearRecentBtn');
   const sectionTitle = document.getElementById('fastCustomerSearchSectionTitle');
 
   let activeStatusFilter = 'all';
+  // Plan 452: the chosen account state — paid up, due, overdue,
+  // suspended, or new; 'all' is the full list.
+  let activeCustomerStatus = 'all';
   let highlightedIndex = -1;
   // Plan 451: the results of the last render, so Enter can tell an
   // exact-ID single hit (which opens the profile directly) from any
@@ -458,7 +499,7 @@ export function setupFastCustomerSearchModal({
     // recent list — clearing it returns to recents / the full list.
     const mohallaValue = mohallaSelect?.value ?? '';
 
-    if (!hasQuery && activeStatusFilter === 'all' && !mohallaValue) {
+    if (!hasQuery && activeStatusFilter === 'all' && activeCustomerStatus === 'all' && !mohallaValue) {
       // Show recent customers
       const recents = getRecentCustomers(state);
       if (sectionTitle) sectionTitle.textContent = `Recent Customers (${recents.length})`;
@@ -478,6 +519,12 @@ export function setupFastCustomerSearchModal({
       const results = searchFastCustomers(state, {
         query,
         statusFilter: activeStatusFilter,
+        // Plan 452: the account-state filter composes with the
+        // billing chips, the mohalla filter, and the typed query.
+        customerStatus: activeCustomerStatus,
+        suspendedCustomerIds: typeof getSuspendedCustomerIds === 'function'
+          ? getSuspendedCustomerIds()
+          : [],
         mohalla: mohallaValue
       });
       lastResults = results;
@@ -507,9 +554,14 @@ export function setupFastCustomerSearchModal({
 
   function openModal() {
     activeStatusFilter = 'all';
+    // Plan 452: the account-state filter starts cleared on every open.
+    activeCustomerStatus = 'all';
     highlightedIndex = -1;
     statusChips.forEach(chip => {
       chip.classList.toggle('is-active', chip.getAttribute('data-status') === 'all');
+    });
+    accountChips.forEach(chip => {
+      chip.classList.toggle('is-active', chip.getAttribute('data-account-status') === 'all');
     });
     if (searchInput) searchInput.value = '';
     if (searchClearBtn) searchClearBtn.hidden = true;
@@ -578,6 +630,18 @@ export function setupFastCustomerSearchModal({
       statusChips.forEach(c => c.classList.remove('is-active'));
       chip.classList.add('is-active');
       activeStatusFilter = chip.getAttribute('data-status') || 'all';
+      render();
+    });
+  });
+
+  // Plan 452: wire the account-state chips — one tap lists every
+  // customer in that state; "All" clears the filter and returns the
+  // full list. The billing chips above are untouched.
+  accountChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      accountChips.forEach(c => c.classList.remove('is-active'));
+      chip.classList.add('is-active');
+      activeCustomerStatus = normalizeCustomerStatusFilter(chip.getAttribute('data-account-status'));
       render();
     });
   });

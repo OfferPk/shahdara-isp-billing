@@ -578,6 +578,7 @@ import { HISTORY_DATE_RANGE_EMPTY_TEXT, normalizeHistoryDateRange, historyDateRa
 import { normalizeHistoryMethodFilter, filterHistoryEntriesByMethod, historyMethodFilterSelectMarkup, historyMethodFilterEmptyText, historyMethodFilterSummaryText } from './history-method-filter.js';
 import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryEntriesByAmount, historyAmountSearchMarkup, historyAmountSearchEmptyText, historyAmountSearchSummaryText } from './history-amount-search.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
+import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4301,6 +4302,14 @@ function renderFullHistory(customer) {
   const balanceHost = $('#hrbHistoryRunningBalance');
   if (balanceHost) {
     balanceHost.innerHTML = historyRunningBalanceColumnHtml(shown, entries);
+  }
+  // Plan 407 — History monthly grouping with subtotals. One monthly
+  // grouping of the customer history, alongside the running-balance
+  // column; it groups only and changes nothing. The grouping follows
+  // the same shown rows as the list, so the filters apply to it too.
+  const groupingHost = $('#hmgHistoryMonthlyGrouping');
+  if (groupingHost) {
+    groupingHost.innerHTML = historyMonthlyGroupingHtml(shown, entries);
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

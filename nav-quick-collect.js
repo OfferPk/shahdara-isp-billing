@@ -40,6 +40,8 @@ import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
 import { dailyEntrySummary, dailyEntrySummaryText } from './daily-entry-summary.js';
 import { quickCollectRoundTotals, quickCollectRoundTotalsText } from './quick-collect-round-totals.js';
+import { dailyTargetProgress, dailyTargetProgressHtml } from './daily-target-progress.js';
+import { getDayTarget } from './day-target.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
 import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
 import {
@@ -1853,6 +1855,11 @@ export function setupQuickCollectModal({
   // lives in roundStartMs below and is never stored anywhere.
   const roundTotalsEl = typeof document !== 'undefined' ? document.getElementById('rttRoundTotals') : null;
   let roundStartMs = null;
+  // Plan 445: the live daily target progress bar (null when the host
+  // page predates it) — today's collected total against today's
+  // target, refreshed on every open and after each save. It shows
+  // progress only and sets no target.
+  const dailyTargetProgressEl = typeof document !== 'undefined' ? document.getElementById('dtpDailyTargetProgress') : null;
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2666,6 +2673,7 @@ export function setupQuickCollectModal({
     if (allCountEl) allCountEl.textContent = all.length;
     refreshDailyEntrySummary();
     refreshRoundTotals();
+    refreshDailyTargetProgress();
   }
 
   // Plan 400: refresh the live daily entry summary on the entry
@@ -2695,6 +2703,27 @@ export function setupQuickCollectModal({
     if (!state || !Array.isArray(state.customers)) return;
     const totals = quickCollectRoundTotals(listTransactions(state), roundStartMs);
     roundTotalsEl.textContent = quickCollectRoundTotalsText(totals);
+  }
+
+  // Plan 445: refresh the live daily target progress bar on the
+  // picker screen from the transactions recorded on this device
+  // today and the day target already stored for today. It runs
+  // inside updateCounts, so it refreshes on every open and after
+  // each save, from the fresh state. The collected figure is the
+  // same today total the entry summary shows, so the bar can never
+  // drift from it on the same fixture; the target is read, never
+  // set or changed, here. With no target stored the bar is hidden
+  // and only the collected total shows. It shows progress only —
+  // it settles nothing and changes no record.
+  function refreshDailyTargetProgress() {
+    if (!dailyTargetProgressEl) return;
+    const state = getState();
+    if (!state || !Array.isArray(state.customers)) return;
+    const today = getPakistanLocalDate();
+    const collected = dailyEntrySummary(listTransactions(state), today).total;
+    const storage = typeof localStorage !== 'undefined' ? localStorage : null;
+    const target = getDayTarget(storage, today).amount;
+    dailyTargetProgressEl.innerHTML = dailyTargetProgressHtml(dailyTargetProgress(collected, target));
   }
 
   function renderList() {

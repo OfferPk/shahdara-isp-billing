@@ -176,15 +176,19 @@ test('wiring: the form opens with an empty cash field and a fresh calculator', (
   assert.ok(block.includes('renderCashChange();'));
 });
 
-test('wiring: a programmatic amount set re-computes the change — concession, waiver, chips, loose change', () => {
-  // Nine call sites plus the definition itself.
+test('wiring: a programmatic amount set re-computes the change — concession, waiver, chips, loose change, keypad', () => {
+  // Ten call sites plus the definition itself.
+  // Plan 442: the amount keypad is the tenth programmatic
+  // amount-set site — a keypad tap sets the amount, so the change
+  // re-computes like every other site.
   const calls = (wiringSrc.match(/renderCashChange\(\)/g) || []).length;
-  assert.equal(calls, 10, `expected 9 renderCashChange call sites + the definition, found ${calls}`);
+  assert.equal(calls, 11, `expected 10 renderCashChange call sites + the definition, found ${calls}`);
   for (const anchor of [
     'the concession sets the amount, so the change',
     'the waiver tick sets the amount, so the change',
     'a chip-set amount re-computes the change',
     'a loose-change tap fills the amount, so the change',
+    'keypad tap sets the amount, so the change',
   ]) {
     assert.ok(wiringSrc.includes(anchor), `missing refresh comment: ${anchor}`);
   }

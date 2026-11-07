@@ -594,6 +594,7 @@ import { HISTORY_CONNECTION_FILTER_ALL, historyConnectionFilterOptions, normaliz
 import { HISTORY_ENTRY_ANNOTATION_STORE_KEY, historyEntryAnnotationKey, normalizeHistoryEntryAnnotations, recordHistoryEntryAnnotation, removeHistoryEntryAnnotation, historyEntryAnnotationForEntry, historyEntriesHaveAnnotations, historyAnnotatedListHtml, historyEntryAnnotationFormHtml } from './history-entry-annotation.js';
 import { historyShownHasStruckThrough, historyStruckThroughListHtml } from './history-struck-through.js';
 import { HISTORY_JUMP_TO_BILL_NO_BILL_TEXT, HISTORY_JUMP_TO_BILL_HIGHLIGHT_CLASS, historyJumpToBillIsPaymentEntry, historyJumpToBillShownEntry, historyJumpToBillTarget } from './history-jump-to-bill.js';
+import { HISTORY_JUMP_TO_RECEIPT_NO_RECEIPT_TEXT, HISTORY_JUMP_TO_RECEIPT_BUTTON_CLASS, historyJumpToReceiptIsPaymentEntry, historyJumpToReceiptShownEntry, historyJumpToReceiptTarget, historyJumpToReceiptButtonText } from './history-jump-to-receipt.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4461,6 +4462,34 @@ function renderFullHistory(customer) {
       paymentRow.classList.add(HISTORY_JUMP_TO_BILL_HIGHLIGHT_CLASS);
       paymentRow.scrollIntoView({ block: 'center' });
     });
+  });
+  // Plan 423 — History quick jump from a payment line to its receipt.
+  // One Receipt button on each history payment line opens exactly that
+  // payment's receipt through the same print path the month-card
+  // payment rows already use; it navigates only and reprints nothing
+  // by itself. The button sits on the line because the line tap
+  // itself already opens the bill it settled, and a tap on a button
+  // inside a row lets that button's own action run. A payment line
+  // whose payment record cannot be found says so plainly instead of
+  // opening anything, and a receipt already recorded as reprinted
+  // carries its reprint mark and count on the button.
+  const receiptReprints = loadReceiptReprints();
+  host.querySelectorAll('.payment-row').forEach((row, rowIndex) => {
+    const entry = historyJumpToReceiptShownEntry(shown, rowIndex);
+    if (!historyJumpToReceiptIsPaymentEntry(entry)) return;
+    const target = historyJumpToReceiptTarget(entry, customer.bills ?? [], receiptReprints, customer.customerNumber);
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `secondary-button ${HISTORY_JUMP_TO_RECEIPT_BUTTON_CLASS}`;
+    button.textContent = historyJumpToReceiptButtonText(target);
+    button.addEventListener('click', () => {
+      if (!target) {
+        toast(HISTORY_JUMP_TO_RECEIPT_NO_RECEIPT_TEXT);
+        return;
+      }
+      printPaymentReceipt(customer.id, target.month, target.paymentId);
+    });
+    row.appendChild(button);
   });
   // Plan 406 — History running balance after each transaction. One
   // running-balance column on the customer history, computed from the

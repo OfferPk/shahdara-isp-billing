@@ -58,6 +58,13 @@ import {
   findCustomersByLastFourDigits,
   lastFourDigitsHtml
 } from './last-four-digits-search.js';
+import {
+  filterQuickCollectByMohalla,
+  quickCollectMohallaFilterKey,
+  quickCollectMohallaFilterOptionsHtml,
+  quickCollectMohallaFilterSummaryText,
+  resolveQuickCollectMohallaFilter
+} from './quick-collect-mohalla-filter.js';
 import { amountKeypadApplyKey, amountKeypadHtml } from './quick-collect-amount-keypad.js';
 import {
   recentQuickPickEntries,
@@ -1487,13 +1494,17 @@ export function renderQuickCollectAllCollectedHtml() {
  * @param {string} query
  * @param {('all-dues'|'high-dues'|'all')} filterType
  * @param {string|null} [activeCustomerId]
+ * @param {string} [mohallaFilter=''] - Plan 446: chosen mohalla;
+ *   blank means the full list, a mohalla lists exactly its
+ *   customers, in name order, with dues shown.
  * @returns {{ html: string, customers: Array<Object>, allCollected: boolean, needsSetup: boolean, withoutFee: number }}
  */
-export function renderQuickCollectPickerHtml(state, query = '', filterType = 'all-dues', activeCustomerId = null) {
-  const customers = getPendingCollectionCustomers(state, query, filterType);
+export function renderQuickCollectPickerHtml(state, query = '', filterType = 'all-dues', activeCustomerId = null, mohallaFilter = '') {
+  const customers = filterQuickCollectByMohalla(getPendingCollectionCustomers(state, query, filterType), mohallaFilter);
   const allCollected = customers.length === 0
     && filterType !== 'all'
     && !String(query ?? '').trim()
+    && !quickCollectMohallaFilterKey(mohallaFilter)
     && getPendingCollectionCustomers(state, '', 'all-dues').length === 0;
   const withoutFee = allCollected ? countCustomersWithoutFee(state) : 0;
   const needsSetup = allCollected && withoutFee > 0;
@@ -1787,6 +1798,12 @@ export function setupQuickCollectModal({
   // page predates it) — four typed digits list every customer
   // whose number ends with them, in name order, with name and mohalla.
   const lastFourList = document.getElementById('lfdLastFourList');
+  // Plan 446: the mohalla filter select and its plain-words count
+  // line on the picker step (null when the host page predates
+  // them) — one mohalla narrows the list to its customers with
+  // dues, in name order; clearing it returns the full list.
+  const mohallaFilterSelect = document.getElementById('mhfMohallaFilter');
+  const mohallaFilterSummary = document.getElementById('mhfMohallaFilterSummary');
   // Plan 428: the recent-customers quick-pick row (null when the
   // host page predates it) — the last ten customers collected from,
   // latest first, with name, mohalla and dues.
@@ -2319,6 +2336,11 @@ export function setupQuickCollectModal({
   let uptimeConcessionFill = null;
 
   let activeFilter = 'all-dues';
+  // Plan 446: the mohalla the picker list is narrowed to — blank
+  // means every mohalla. It lives through saves and round loops,
+  // because a round is worked in one mohalla; only picking "All
+  // mohallas" clears it.
+  let activeMohallaFilter = '';
   // SISP-101: the operator's waiver tick for the currently open form.
   // Kept outside the waiver box's DOM because the box re-renders on
   // every amount keystroke; reset per customer and per month change.
@@ -2730,7 +2752,13 @@ export function setupQuickCollectModal({
     const state = getState();
     if (!state || !customerListContainer) return;
     const query = searchInput?.value ?? '';
-    customerListContainer.innerHTML = renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId).html;
+    const picked = renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId, activeMohallaFilter);
+    customerListContainer.innerHTML = picked.html;
+    if (mohallaFilterSummary) {
+      mohallaFilterSummary.textContent = activeMohallaFilter
+        ? quickCollectMohallaFilterSummaryText(picked.customers, activeMohallaFilter)
+        : '';
+    }
     renderNamePrefixList();
     renderLastFourList();
     renderRecentQuickPick();
@@ -2739,22 +2767,24 @@ export function setupQuickCollectModal({
   // Plan 427: the live name-prefix lookup — two or more typed letters
   // list every customer whose name starts with them, in name order.
   // Clearing the field clears the list: fewer than two letters
-  // renders nothing at all.
+  // renders nothing at all. Plan 446: a chosen mohalla narrows it
+  // too, so the lookup never surfaces a customer outside the round.
   function renderNamePrefixList() {
     if (!namePrefixList) return;
     const state = getState();
     const query = searchInput?.value ?? '';
-    namePrefixList.innerHTML = namePrefixLookupHtml(namePrefixLookupMatches(state?.customers ?? [], query));
+    namePrefixList.innerHTML = namePrefixLookupHtml(filterQuickCollectByMohalla(namePrefixLookupMatches(state?.customers ?? [], query), activeMohallaFilter));
   }
 
   // Plan 441: the last-four-digits lookup — four typed digits list
   // every customer whose number ends with them, in name order.
   // Anything other than exactly four digits renders nothing at all.
+  // Plan 446: a chosen mohalla narrows it too, like the picker list.
   function renderLastFourList() {
     if (!lastFourList) return;
     const state = getState();
     const query = searchInput?.value ?? '';
-    lastFourList.innerHTML = lastFourDigitsHtml(findCustomersByLastFourDigits(state?.customers ?? [], query), query);
+    lastFourList.innerHTML = lastFourDigitsHtml(filterQuickCollectByMohalla(findCustomersByLastFourDigits(state?.customers ?? [], query), activeMohallaFilter), query);
   }
 
   // Plan 428: the recent-customers quick-pick — the last ten
@@ -3857,6 +3887,20 @@ export function setupQuickCollectModal({
   transactionIdInput?.addEventListener('input', () => {
     duplicateBypassedForTxn = null;
     if (dupWarningCard) dupWarningCard.hidden = true;
+  });
+
+  // Plan 446: fill the mohalla filter from the app's own mohalla
+  // list — the list itself is never copied here — and re-render
+  // the list whenever the operator picks a mohalla or clears it
+  // back to all. The stored value is the list's own spelling, so
+  // the filter always matches on the standard form.
+  if (mohallaFilterSelect) {
+    mohallaFilterSelect.innerHTML = quickCollectMohallaFilterOptionsHtml(DEFAULT_MOHALLAS, '');
+  }
+
+  mohallaFilterSelect?.addEventListener('change', () => {
+    activeMohallaFilter = resolveQuickCollectMohallaFilter(mohallaFilterSelect.value, DEFAULT_MOHALLAS) ?? '';
+    renderList();
   });
 
   // Wire search input

@@ -42,6 +42,11 @@ import { dailyEntrySummary, dailyEntrySummaryText } from './daily-entry-summary.
 import { quickCollectRoundTotals, quickCollectRoundTotalsText } from './quick-collect-round-totals.js';
 import { dailyTargetProgress, dailyTargetProgressHtml } from './daily-target-progress.js';
 import { quickCollectEndOfDaySummary, quickCollectEndOfDaySummaryHtml } from './quick-collect-end-of-day-summary.js';
+import {
+  quickAddCustomer,
+  quickAddFormFieldsHtml,
+  quickAddCustomerSummaryText,
+} from './quick-collect-new-customer-quick-add.js';
 import { getDayTarget } from './day-target.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
 import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
@@ -1917,6 +1922,13 @@ export function setupQuickCollectModal({
   // while open. It summarises only and settles nothing.
   const endOfDaySummaryEl = typeof document !== 'undefined' ? document.getElementById('edsEndOfDaySummary') : null;
   const endOfDaySummaryBtn = typeof document !== 'undefined' ? document.getElementById('edsEndOfDaySummaryButton') : null;
+  // Plan 450: the new-customer quick-add button and form host on the
+  // picker step (null when the host page predates them) — a brand-new
+  // customer is added from the picker itself (name, phone, mohalla,
+  // package) and the payment form opens for them straight away, so
+  // the operator never leaves Quick Collect for a first payment.
+  const newCustomerBtn = typeof document !== 'undefined' ? document.getElementById('ncaNewCustomerButton') : null;
+  const newCustomerForm = typeof document !== 'undefined' ? document.getElementById('ncaQuickAddForm') : null;
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2853,6 +2865,66 @@ export function setupQuickCollectModal({
       endOfDaySummaryEl.hidden = true;
       endOfDaySummaryBtn?.setAttribute('aria-expanded', 'false');
     }
+  }
+
+  // Plan 450: open or close the new-customer quick-add form on the
+  // picker step. Opening renders the fields fresh from the module,
+  // so a half-typed add never survives a close; closing only hides
+  // it. It creates the customer only — the full onboarding
+  // checklist is never opened or changed here.
+  function toggleNewCustomerForm() {
+    if (!newCustomerForm) return;
+    if (newCustomerForm.hidden) {
+      newCustomerForm.innerHTML = quickAddFormFieldsHtml();
+      newCustomerForm.hidden = false;
+      newCustomerBtn?.setAttribute('aria-expanded', 'true');
+      newCustomerForm.querySelector('#ncaName')?.focus();
+    } else {
+      newCustomerForm.hidden = true;
+      newCustomerBtn?.setAttribute('aria-expanded', 'false');
+      newCustomerBtn?.focus();
+    }
+  }
+
+  // Plan 450: submit the quick-add from the picker step. The four
+  // fields are read through the form element, never bare
+  // document.querySelector; a refused add shows the first error in
+  // the form's own error line and focuses that field; a created
+  // customer is committed, the picker refreshes, and the payment
+  // form opens for them straight away. The Add button disables
+  // while the submit runs, so a double tap cannot create the
+  // customer twice.
+  function submitNewCustomerQuickAdd() {
+    if (!newCustomerForm) return;
+    const addBtn = newCustomerForm.querySelector('#ncaAddButton');
+    if (addBtn) addBtn.disabled = true;
+    const input = {
+      name: newCustomerForm.querySelector('#ncaName')?.value ?? '',
+      phone: newCustomerForm.querySelector('#ncaPhone')?.value ?? '',
+      mohalla: newCustomerForm.querySelector('#ncaMohalla')?.value ?? '',
+      packageId: newCustomerForm.querySelector('#ncaPackage')?.value ?? '',
+    };
+    const result = quickAddCustomer(getState(), input, new Date());
+    const errorEl = newCustomerForm.querySelector('#ncaError');
+    if (!result.ok) {
+      const firstField = ['name', 'phone', 'mohalla', 'package', 'form'].find((key) => result.errors?.[key]);
+      const message = firstField ? result.errors[firstField] : 'Could not add this customer.';
+      if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+      }
+      if (addBtn) addBtn.disabled = false;
+      const focusId = { name: '#ncaName', phone: '#ncaPhone', mohalla: '#ncaMohalla', package: '#ncaPackage' }[firstField];
+      if (focusId) newCustomerForm.querySelector(focusId)?.focus();
+      return;
+    }
+    if (typeof onSaveState === 'function') onSaveState(result.nextState);
+    updateCounts();
+    renderList();
+    newCustomerForm.hidden = true;
+    newCustomerBtn?.setAttribute('aria-expanded', 'false');
+    if (typeof onToast === 'function') onToast(quickAddCustomerSummaryText(result));
+    openCustomerCollectionForm(result.customer.id);
   }
 
   function renderList() {
@@ -5637,6 +5709,22 @@ export function setupQuickCollectModal({
     if (event?.target?.id === 'edsEndOfDaySummaryClose') {
       endOfDaySummaryEl.hidden = true;
       endOfDaySummaryBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Plan 450: the new-customer quick-add on the picker step — the
+  // button toggles the form; submit and cancel are delegated on the
+  // form itself, so they survive every re-render of the fields.
+  newCustomerBtn?.addEventListener('click', () => { toggleNewCustomerForm(); });
+  newCustomerForm?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    submitNewCustomerQuickAdd();
+  });
+  newCustomerForm?.addEventListener('click', (event) => {
+    if (event?.target?.id === 'ncaCancelButton') {
+      newCustomerForm.hidden = true;
+      newCustomerBtn?.setAttribute('aria-expanded', 'false');
+      newCustomerBtn?.focus();
     }
   });
 

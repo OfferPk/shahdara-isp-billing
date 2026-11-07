@@ -593,6 +593,7 @@ import { normalizeLedgerAmountRange, searchLedgerByAmountRange, ledgerAmountRang
 import { normalizeLedgerDay, formatLedgerDay, searchLedgerByDay, ledgerDaySummaryText, ledgerDayEmptyText, ledgerDayRangeEmptyText } from './ledger-single-day.js';
 import { normalizeLedgerMethodFilter, searchLedgerByMethod, ledgerMethodSummaryText, ledgerMethodDayRangeEmptyText } from './ledger-payment-method.js';
 import { normalizeLiveLedgerSearch, searchLedgerLive, ledgerLiveSearchSummaryText, ledgerLiveSearchEmptyText } from './ledger-live-search.js';
+import { normalizeLedgerBillMonth, searchLedgerByBillMonth, ledgerBillMonthSummaryText, ledgerBillMonthEmptyText, ledgerBillMonthRangeEmptyText } from './ledger-bill-month.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
@@ -5209,6 +5210,10 @@ let reportSortBy = 'number-asc';
 
 function renderTransactions() {
   const date = $('#transactionDateFilter').value;
+  // Plan 461: the bill-month search — one month (YYYY-MM) on the
+  // Transactions screen; the entry's bill month must equal it
+  // exactly, the same strict match the list already uses.
+  const billMonth = normalizeLedgerBillMonth($('#transactionBillMonth')?.value ?? '');
   const recencyValue = $('#transactionRecencyFilter').value;
   const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
   let transactions = listTransactions(state, { customerQuery:searchQuery(), date, recencyDays });
@@ -5270,6 +5275,13 @@ function renderTransactions() {
   const liveSearch = normalizeLiveLedgerSearch(transactionLiveSearch);
   if (liveSearch.active) {
     transactions = searchLedgerLive(transactions, liveSearch.query);
+  }
+  // Plan 461: the bill-month search — the entries on one bill
+  // month; it filters the list the other filters already produced,
+  // like the method and category filters, and the receipt-number
+  // search below still wins when it is active.
+  if (billMonth) {
+    transactions = searchLedgerByBillMonth(transactions, billMonth);
   }
   if (receiptSearchPaymentId) {
     transactions = listTransactions(state).filter(tx => tx.paymentId === receiptSearchPaymentId);
@@ -5342,6 +5354,19 @@ function renderTransactions() {
       liveSummaryEl.textContent = '';
     }
   }
+  // Plan 461: when a bill month is chosen, the summary bar says
+  // the month, the count, and the total in PKR, and an empty month
+  // says so plainly instead of the generic empty text.
+  const monthSummaryEl = $('#lbmMonthSummary');
+  if (monthSummaryEl) {
+    if (billMonth) {
+      monthSummaryEl.hidden = false;
+      monthSummaryEl.textContent = ledgerBillMonthSummaryText(transactions, billMonth);
+    } else {
+      monthSummaryEl.hidden = true;
+      monthSummaryEl.textContent = '';
+    }
+  }
   const emptyEl = $('#transactionsEmpty');
   if (emptyEl) {
     // Plan 460: an empty live search names the typed text first —
@@ -5349,6 +5374,13 @@ function renderTransactions() {
     // the method and the day and range chain below.
     if (transactions.length === 0 && liveSearch.active) {
       emptyEl.textContent = ledgerLiveSearchEmptyText(liveSearch.query);
+    } else if (transactions.length === 0 && billMonth) {
+      // Plan 461: an empty bill month names the month — composed
+      // with the amount range when that filter is active too —
+      // before the method and the day and range chain below.
+      emptyEl.textContent = amountRange.active
+        ? ledgerBillMonthRangeEmptyText(billMonth, transactionAmountMin, transactionAmountMax)
+        : ledgerBillMonthEmptyText(billMonth);
     } else if (transactions.length === 0 && normalizeLedgerMethodFilter(transactionMethodFilter) !== 'all') {
       // Plan 455: an empty method names the method — composed with
       // the day and the range when those filters are active too —
@@ -10673,6 +10705,10 @@ $('#backdatedPaymentButton')?.addEventListener('click', () => openPaymentEntry()
 $('#showTransactionsButton').addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
 $('#showReportsButton').addEventListener('click', () => { switchView('reports'); renderMonthlyReport(); });
 $('#transactionDateFilter').addEventListener('input', () => { transactionCurrentPage = 1; renderTransactions(); });
+// Plan 461: the bill-month picker — picking a month re-renders
+// the ledger on that month's bills; clearing it returns the full
+// ledger.
+$('#transactionBillMonth').addEventListener('input', () => { transactionCurrentPage = 1; renderTransactions(); });
 // Plan 453: the amount-range bounds — whole rupees, typed live.
 $('#transactionAmountMin').addEventListener('input', event => { transactionAmountMin = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionAmountMax').addEventListener('input', event => { transactionAmountMax = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
@@ -10755,6 +10791,9 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   const liveSearchInput = $('#transactionLiveSearch');
   if (liveSearchInput) liveSearchInput.value = '';
   transactionLiveSearch = '';
+  // Plan 461: clearing the filters also clears the bill month.
+  const billMonthInput = $('#transactionBillMonth');
+  if (billMonthInput) billMonthInput.value = '';
   transactionCurrentPage = 1;
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');

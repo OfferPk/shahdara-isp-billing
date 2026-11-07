@@ -46,6 +46,10 @@ import {
   quickCollectOneScreenHtml,
   quickCollectOneScreenDuesText
 } from './quick-collect-one-screen.js';
+import {
+  namePrefixLookupHtml,
+  namePrefixLookupMatches
+} from './name-prefix-lookup.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -1741,6 +1745,10 @@ export function setupQuickCollectModal({
 
   const searchInput = document.getElementById('quickCollectSearchInput');
   const searchClearBtn = document.getElementById('quickCollectSearchClearBtn');
+  // Plan 427: the live name-prefix lookup list (null when the host
+  // page predates it) — matching customers appear after two or more
+  // letters, in name order, with name and mohalla.
+  const namePrefixList = document.getElementById('nplNamePrefixList');
   const customerListContainer = document.getElementById('quickCollectCustomerList');
   const filterChips = modal.querySelectorAll('.quick-collect-filter-chip');
   const duesCountEl = document.getElementById('quickCollectDuesCount');
@@ -2463,6 +2471,18 @@ export function setupQuickCollectModal({
     if (!state || !customerListContainer) return;
     const query = searchInput?.value ?? '';
     customerListContainer.innerHTML = renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId).html;
+    renderNamePrefixList();
+  }
+
+  // Plan 427: the live name-prefix lookup — two or more typed letters
+  // list every customer whose name starts with them, in name order.
+  // Clearing the field clears the list: fewer than two letters
+  // renders nothing at all.
+  function renderNamePrefixList() {
+    if (!namePrefixList) return;
+    const state = getState();
+    const query = searchInput?.value ?? '';
+    namePrefixList.innerHTML = namePrefixLookupHtml(namePrefixLookupMatches(state?.customers ?? [], query));
   }
 
   function setFilter(filter) {
@@ -3436,6 +3456,20 @@ export function setupQuickCollectModal({
     const card = e.target.closest('.qc-customer-card');
     if (!card) return;
     const cid = card.getAttribute('data-customer-id');
+    if (cid) {
+      if (typeof onSelectCustomer === 'function') {
+        onSelectCustomer(cid);
+      }
+      openCustomerCollectionForm(cid);
+    }
+  });
+
+  // Plan 427: tapping a lookup row picks that customer exactly the
+  // way tapping a picker card does.
+  namePrefixList?.addEventListener('click', (e) => {
+    const row = e.target.closest('.npl-row');
+    if (!row) return;
+    const cid = row.getAttribute('data-customer-id');
     if (cid) {
       if (typeof onSelectCustomer === 'function') {
         onSelectCustomer(cid);

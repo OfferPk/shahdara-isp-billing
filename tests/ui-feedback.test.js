@@ -45,9 +45,16 @@ test('customer and payment flows use the in-app confirm, not window.confirm (#27
     assert.doesNotMatch(body, /window\.confirm\(/, `${id} must not use window.confirm`);
   }
   assert.doesNotMatch(qc, /window\.confirm\(/, 'Quick Collect duplicate warning is the in-app card only');
-  // Delete keeps an Undo window and offers Archive instead.
+  // Delete keeps an Undo window.
   assert.match(app, /title:`#\$\{customer\.customerNumber\} \$\{customer\.name\} deleted`[^\n]*actionLabel:'Undo'/);
-  assert.match(app, /altLabel: customer\.archived \? '' : 'Archive instead'/);
+  // Polish #10: the delete confirm asks "Are you sure you want to delete
+  // <name>'s profile?" with Yes/No buttons — the user asked for exactly
+  // that wording, and the Archive option moved to the refusal message
+  // and the separate Archive button on the profile.
+  assert.match(app, /title:`Are you sure you want to delete \$\{customer\.name\}'s profile\?`/);
+  assert.match(app, /confirmLabel:'Yes'/);
+  assert.match(app, /cancelLabel:'No'/);
+  assert.doesNotMatch(app, /altLabel: customer\.archived \? '' : 'Archive instead'/);
 });
 
 // #297: every literal toast message in the app. A message that is a warning or failure must never be

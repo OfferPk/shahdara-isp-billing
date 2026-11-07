@@ -596,6 +596,7 @@ import { normalizeLiveLedgerSearch, searchLedgerLive, ledgerLiveSearchSummaryTex
 import { normalizeLedgerBillMonth, searchLedgerByBillMonth, ledgerBillMonthSummaryText, ledgerBillMonthEmptyText, ledgerBillMonthRangeEmptyText } from './ledger-bill-month.js';
 import { normalizeLedgerCollectorFilter, searchLedgerByCollector, ledgerCollectors, ledgerCollectorSummaryText, ledgerCollectorEmptyText, ledgerCollectorRangeEmptyText } from './ledger-collector.js';
 import { normalizeLedgerRefine, searchLedgerByRefine, ledgerRefineSummaryText, ledgerRefineEmptyText } from './ledger-refine-search.js';
+import { normalizeLedgerReceiptBookFilter, ledgerReceiptBookOptions, searchLedgerByReceiptBook, ledgerReceiptBookSummaryText, ledgerReceiptBookEmptyText, ledgerReceiptBookRangeEmptyText } from './ledger-receipt-book.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
@@ -5205,6 +5206,9 @@ let transactionRefine = '';
 // Plan 462: the collector filter — the collector name chosen on the
 // Transactions screen; '' means all collectors.
 let transactionCollectorFilter = '';
+// Plan 466: the receipt-book filter — the series id chosen on the
+// Transactions screen; '' means all receipt books.
+let transactionReceiptBookFilter = '';
 // Plan 392: the payment id a receipt-number search found, or null.
 // While set, the Transactions list shows only that transaction.
 let receiptSearchPaymentId = null;
@@ -5226,6 +5230,9 @@ function renderTransactions() {
   // Plan 462: the collector filter — the collector name chosen on
   // the Transactions screen; '' means all collectors.
   const collector = normalizeLedgerCollectorFilter(transactionCollectorFilter);
+  // Plan 466: the receipt-book filter — the series id chosen on
+  // the Transactions screen; '' means all receipt books.
+  const book = normalizeLedgerReceiptBookFilter(transactionReceiptBookFilter);
   const recencyValue = $('#transactionRecencyFilter').value;
   const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
   let transactions = listTransactions(state, { customerQuery:searchQuery(), date, recencyDays });
@@ -5277,6 +5284,25 @@ function renderTransactions() {
     collectorSelect.value = collector;
   }
 
+  // Plan 466: the receipt-book options come from the recorded
+  // receipt series, so the chosen book never disappears when
+  // another filter narrows the list. The current choice is kept
+  // even when it is no longer recorded, so the filter never
+  // silently drops.
+  const receiptSeries = loadReceiptSeries();
+  const bookSelect = $('#transactionReceiptBookFilter');
+  if (bookSelect) {
+    const bookOptions = ledgerReceiptBookOptions(receiptSeries);
+    if (book && !bookOptions.some((option) => option.id === book)) {
+      bookOptions.push({ id: book, label: book });
+    }
+    bookSelect.replaceChildren(
+      new Option('All receipt books', ''),
+      ...bookOptions.map((option) => new Option(option.label, option.id)),
+    );
+    bookSelect.value = book;
+  }
+
   // Plan 392: a receipt-number search narrows the list to exactly
   // the found transaction, whatever the other filters say — the
   // search runs over all recorded payments, not the filtered view.
@@ -5319,6 +5345,14 @@ function renderTransactions() {
   // receipt-number search below still wins when it is active.
   if (collector) {
     transactions = searchLedgerByCollector(transactions, collector);
+  }
+  // Plan 466: the receipt-book search — the entries issued from
+  // one recorded receipt book; it filters the list the other
+  // filters already produced, like the method and category
+  // filters, and the receipt-number search below still wins when
+  // it is active.
+  if (book) {
+    transactions = searchLedgerByReceiptBook(transactions, receiptSeries, book);
   }
   // Plan 465: the refine box — a second term that narrows only the
   // list the other filters already produced (a second name word, a
@@ -5439,6 +5473,19 @@ function renderTransactions() {
       refineSummaryEl.textContent = '';
     }
   }
+  // Plan 466: when a receipt book is chosen, the summary bar says
+  // the book, the count, and the total in PKR, and an empty book
+  // says so plainly instead of the generic empty text.
+  const bookSummaryEl = $('#lrbBookSummary');
+  if (bookSummaryEl) {
+    if (book) {
+      bookSummaryEl.hidden = false;
+      bookSummaryEl.textContent = ledgerReceiptBookSummaryText(transactions, receiptSeries, book);
+    } else {
+      bookSummaryEl.hidden = true;
+      bookSummaryEl.textContent = '';
+    }
+  }
   const emptyEl = $('#transactionsEmpty');
   if (emptyEl) {
     // Plan 465: an empty refine names the refine term first — the
@@ -5447,6 +5494,16 @@ function renderTransactions() {
     // filters in the chain below.
     if (transactions.length === 0 && refine.active) {
       emptyEl.textContent = ledgerRefineEmptyText(refine.query);
+    } else if (transactions.length === 0 && book) {
+      // Plan 466: an empty receipt book names the book — composed
+      // with the amount range when that filter is active too —
+      // before the live search and the other filters in the chain
+      // below. The refine branch above stays first: the refine is
+      // the last filter applied, so its term is the most recent
+      // narrowing action.
+      emptyEl.textContent = amountRange.active
+        ? ledgerReceiptBookRangeEmptyText(receiptSeries, book, transactionAmountMin, transactionAmountMax)
+        : ledgerReceiptBookEmptyText(receiptSeries, book);
     } else if (transactions.length === 0 && liveSearch.active) {
       emptyEl.textContent = ledgerLiveSearchEmptyText(liveSearch.query);
     } else if (transactions.length === 0 && billMonth) {
@@ -10808,6 +10865,10 @@ $('#transactionMethodFilter').addEventListener('change', event => { transactionM
 // re-renders the ledger on that collector's entries; "All
 // collectors" returns the full ledger.
 $('#transactionCollectorFilter').addEventListener('change', event => { transactionCollectorFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+// Plan 466: the receipt-book select — choosing a book re-renders
+// the ledger on that book's entries; "All receipt books" returns
+// the full ledger.
+$('#transactionReceiptBookFilter').addEventListener('change', event => { transactionReceiptBookFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionCategoryFilter').addEventListener('change', event => { transactionCategoryFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionSortSelect')?.addEventListener('change', event => { transactionSortBy = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 // Plan 392: keep the payments-list controller so a receipt-number
@@ -10892,6 +10953,10 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   const collectorFilterSelect = $('#transactionCollectorFilter');
   if (collectorFilterSelect) collectorFilterSelect.value = '';
   transactionCollectorFilter = '';
+  // Plan 466: clearing the filters also clears the receipt-book filter.
+  const receiptBookFilterSelect = $('#transactionReceiptBookFilter');
+  if (receiptBookFilterSelect) receiptBookFilterSelect.value = '';
+  transactionReceiptBookFilter = '';
   transactionCurrentPage = 1;
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');

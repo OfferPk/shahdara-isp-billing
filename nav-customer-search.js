@@ -50,6 +50,15 @@ import {
   searchResultEnrichment,
   searchResultEnrichmentHtml,
 } from './search-result-enrichment.js';
+// Plan 464: no-result help — the nearest names to the typed text
+// (by spelling closeness) plus plain advice, so a misspelt name
+// becomes a one-tap correction instead of a dead end. The panel
+// reads the same candidate customers the search itself could have
+// shown and changes no record.
+import {
+  nearestCustomerNames,
+  noResultHelpPanelHtml,
+} from './no-result-help.js';
 // Plan 355: known-as name beside the formal name on search cards and in
 // the recent list — the father / reference name first, else the first
 // nickname; the sheet's own strings stay English, as elsewhere here.
@@ -494,15 +503,22 @@ export function searchFastCustomers(state, {
  * @param {string} [options.emptyText] - Plan 451: the plain message
  *   shown when an ID-shaped query matches nobody; without it the
  *   generic hint is shown, exactly as before.
+ * @param {Array<Object>} [options.nearestNames] - Plan 464: the
+ *   nearest names to the typed text, offered only when a typed
+ *   search found nobody. When this list is passed (even empty)
+ *   the panel replaces the generic hint; when it is not passed
+ *   the old hint stands, exactly as before.
  * @returns {string}
  */
-export function renderFastCustomerSearchResultsHtml(customers, { isRecent = false, emptyText = '' } = {}) {
+export function renderFastCustomerSearchResultsHtml(customers, { isRecent = false, emptyText = '', nearestNames } = {}) {
   if (!customers || customers.length === 0) {
     return `
       <div class="fcs-empty-state" role="status">
         <span class="fcs-empty-icon" aria-hidden="true">${isRecent ? '🕒' : '🔍'}</span>
         <h4>${isRecent ? 'No recent customers' : 'No matching customers found'}</h4>
-        <p>${isRecent ? 'Search for any customer above to start your field work.' : escapeHtml(emptyText) || 'Try searching with a shorter name, phone digits, or area.'}</p>
+        ${!isRecent && Array.isArray(nearestNames)
+          ? noResultHelpPanelHtml(nearestNames)
+          : `<p>${isRecent ? 'Search for any customer above to start your field work.' : escapeHtml(emptyText) || 'Try searching with a shorter name, phone digits, or area.'}</p>`}
       </div>
     `;
   }
@@ -783,7 +799,18 @@ export function setupFastCustomerSearchModal({
       const emptyText = results.length === 0 && customerIdLookupIsIdQuery(query)
         ? customerIdLookupUnknownText(query)
         : '';
-      resultsContainer.innerHTML = renderFastCustomerSearchResultsHtml(results, { isRecent: false, emptyText });
+      // Plan 464: a typed search with no match offers the closest
+      // names (by spelling closeness) plus plain advice — an
+      // ID-shaped query keeps its own plain message instead, and
+      // the candidates are the customers the search itself could
+      // have shown: unarchived, in the chosen mohalla.
+      const nearestNames = results.length === 0 && hasQuery && !customerIdLookupIsIdQuery(query)
+        ? nearestCustomerNames(
+          state.customers.filter((c) => !c.archived && mohallaNameMatches(c, mohallaValue)),
+          query
+        )
+        : undefined;
+      resultsContainer.innerHTML = renderFastCustomerSearchResultsHtml(results, { isRecent: false, emptyText, nearestNames });
     }
 
     // Keyboard navigation update (#312):

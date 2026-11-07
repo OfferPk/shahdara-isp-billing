@@ -587,6 +587,7 @@ import { historyLargestPaymentHtml } from './history-largest-payment.js';
 import { historyFirstDatesHtml } from './history-first-dates.js';
 import { historyDisputedFlagEntries, filterHistoryEntriesByDisputedFlag, normalizeHistoryDisputedFlagFilter, historyDisputedFlagSelectMarkup, historyDisputedFlagEmptyText, historyDisputedFlagSummaryText, historyDisputedFlagListHtml } from './history-disputed-flag.js';
 import { historyRefundsInlineHtml } from './history-refunds-inline.js';
+import { historyCreditInlineHtml } from './history-credit-inline.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4453,6 +4454,16 @@ function renderFullHistory(customer) {
   const refundsInlineHost = $('#hriHistoryRefundsInline');
   if (refundsInlineHost) {
     refundsInlineHost.innerHTML = historyRefundsInlineHtml(shown, entries);
+  }
+  // Plan 416 — History credit applications shown inline. One inline
+  // display of credit applications within the customer history —
+  // credit applied, to which bill, on what date, with the remaining
+  // credit shown; it displays only and applies no credit. The
+  // display follows the same shown rows as the list, so the filters
+  // apply to it too.
+  const creditInlineHost = $('#hciHistoryCreditInline');
+  if (creditInlineHost) {
+    creditInlineHost.innerHTML = historyCreditInlineHtml(shown, entries, loadCreditApplications(), loadCreditEntries(), customer.id);
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

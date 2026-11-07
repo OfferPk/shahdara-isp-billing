@@ -579,6 +579,7 @@ import { normalizeHistoryMethodFilter, filterHistoryEntriesByMethod, historyMeth
 import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryEntriesByAmount, historyAmountSearchMarkup, historyAmountSearchEmptyText, historyAmountSearchSummaryText } from './history-amount-search.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
+import { historyYearlySummaryHtml } from './history-yearly-summary.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4310,6 +4311,16 @@ function renderFullHistory(customer) {
   const groupingHost = $('#hmgHistoryMonthlyGrouping');
   if (groupingHost) {
     groupingHost.innerHTML = historyMonthlyGroupingHtml(shown, entries);
+  }
+  // Plan 408 — History yearly summary per customer. One yearly
+  // summary of the customer history, alongside the monthly
+  // grouping; it summarises only and changes nothing. The summary
+  // follows the same shown rows as the list, so the filters apply
+  // to it too, and its figures are the sum of that year's monthly
+  // figures.
+  const yearlyHost = $('#hysHistoryYearlySummary');
+  if (yearlyHost) {
+    yearlyHost.innerHTML = historyYearlySummaryHtml(shown, entries);
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

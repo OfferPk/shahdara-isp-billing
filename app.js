@@ -588,6 +588,7 @@ import { historyFirstDatesHtml } from './history-first-dates.js';
 import { historyDisputedFlagEntries, filterHistoryEntriesByDisputedFlag, normalizeHistoryDisputedFlagFilter, historyDisputedFlagSelectMarkup, historyDisputedFlagEmptyText, historyDisputedFlagSummaryText, historyDisputedFlagListHtml } from './history-disputed-flag.js';
 import { historyRefundsInlineHtml } from './history-refunds-inline.js';
 import { historyCreditInlineHtml } from './history-credit-inline.js';
+import { historyAdjustmentsInlineHtml } from './history-adjustments-inline.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4464,6 +4465,16 @@ function renderFullHistory(customer) {
   const creditInlineHost = $('#hciHistoryCreditInline');
   if (creditInlineHost) {
     creditInlineHost.innerHTML = historyCreditInlineHtml(shown, entries, loadCreditApplications(), loadCreditEntries(), customer.id);
+  }
+  // Plan 417 — History adjustment entries with reasons shown. One
+  // inline display of adjustment entries within the customer
+  // history — adjustment amount, reason in plain words, date,
+  // approver where recorded; it displays only and corrects
+  // nothing. The display follows the same shown rows as the list,
+  // so the filters apply to it too.
+  const adjustmentsInlineHost = $('#hadHistoryAdjustmentsInline');
+  if (adjustmentsInlineHost) {
+    adjustmentsInlineHost.innerHTML = historyAdjustmentsInlineHtml(shown, entries, loadBillingCorrections(), customer.id);
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

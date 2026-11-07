@@ -584,6 +584,7 @@ import { historyCsvExportButtonMarkup, historyCsvExportFilename, historyCsvExpor
 import { historyPrintedStatementButtonMarkup, buildHistoryPrintedStatementHtml } from './history-printed-statement.js';
 import { historyGapViewHtml } from './history-gap-view.js';
 import { historyLargestPaymentHtml } from './history-largest-payment.js';
+import { historyFirstDatesHtml } from './history-first-dates.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4398,6 +4399,17 @@ function renderFullHistory(customer) {
   const largestHost = $('#hlpHistoryLargestPayment');
   if (largestHost) {
     largestHost.innerHTML = historyLargestPaymentHtml(shown);
+  }
+  // Plan 413 — History first payment and first bill dates. One
+  // first-dates line on the customer history — date of first bill,
+  // date of first payment, in plain words; it displays only and
+  // changes nothing. The beginning of a customer's story is a
+  // whole-history fact, so the line is drawn from the full entries,
+  // not the shown rows: a filter must never rewrite when the story
+  // began, or claim no payment yet while payments are only hidden.
+  const firstDatesHost = $('#hfdHistoryFirstDates');
+  if (firstDatesHost) {
+    firstDatesHost.innerHTML = historyFirstDatesHtml(entries);
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

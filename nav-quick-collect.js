@@ -41,6 +41,11 @@ import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './prom
 import { dailyEntrySummary, dailyEntrySummaryText } from './daily-entry-summary.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
 import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
+import {
+  quickCollectOneScreenDraft,
+  quickCollectOneScreenHtml,
+  quickCollectOneScreenDuesText
+} from './quick-collect-one-screen.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -1695,7 +1700,7 @@ export function quickCollectShopChoices() {
  * @param {Function} options.onToast
  * @param {Function} [options.onSelectCustomer]
  * @param {Function} [options.onCollected] - SISP-187: called exactly once after a payment is actually saved in the submit flow (never on cancel, dismiss or undo).
- * @returns {Object} Controller with { open, close, selectAndOpen, isOpen, getState, commitState, refresh }
+ * @returns {Object} Controller with { open, close, selectAndOpen, openOneScreen, isOpen, getState, commitState, refresh }
  */
 export function setupQuickCollectModal({
   getState,
@@ -1713,6 +1718,7 @@ export function setupQuickCollectModal({
       open: () => {},
       close: () => {},
       selectAndOpen: () => {},
+      openOneScreen: () => {},
       isOpen: () => false,
       getState: () => getState(),
       commitState: (nextState) => { if (typeof onSaveState === 'function') onSaveState(nextState); },
@@ -1728,6 +1734,10 @@ export function setupQuickCollectModal({
   // Plan 382: the save confirmation step between the form and the
   // success screen (null when the host page predates it).
   const stepConfirm = document.getElementById('quickCollectStepConfirm');
+  // Plan 426: the one-screen payment step — customer, amount, method,
+  // save on one screen (null when the host page predates it).
+  const stepOneScreen = document.getElementById('quickCollectStepOneScreen');
+  const openOneScreenBtn = document.getElementById('quickCollectOpenOneScreenBtn');
 
   const searchInput = document.getElementById('quickCollectSearchInput');
   const searchClearBtn = document.getElementById('quickCollectSearchClearBtn');
@@ -2469,6 +2479,7 @@ export function setupQuickCollectModal({
     if (stepForm) stepForm.hidden = (stepName !== 'form');
     if (stepConfirm) stepConfirm.hidden = (stepName !== 'confirm');
     if (stepSuccess) stepSuccess.hidden = (stepName !== 'success');
+    if (stepOneScreen) stepOneScreen.hidden = (stepName !== 'one-screen');
   }
 
   // SISP-30: outage concession badge + 1-click apply/remove for one bill
@@ -3157,6 +3168,90 @@ export function setupQuickCollectModal({
     } catch (err) {
       if (typeof onToast === 'function') onToast(err.message);
     }
+  }
+
+  // Plan 426: one single screen for the whole quick payment —
+  // customer, amount, method, save — with no navigation in between.
+  // The screen only collects and validates the four fields. Saving
+  // drives the normal payment form submit, so the payment records
+  // exactly as the normal flow records it, with every guard and the
+  // Plan 382 confirmation still in front of it. Closing the screen
+  // without saving records nothing.
+  function renderOneScreen() {
+    if (!stepOneScreen) return;
+    const state = getState();
+    stepOneScreen.innerHTML = quickCollectOneScreenHtml({
+      customers: state?.customers ?? [],
+      methods: PAYMENT_METHODS
+    });
+    bindOneScreenControls();
+  }
+
+  function bindOneScreenControls() {
+    if (!stepOneScreen) return;
+    const customerSelect = stepOneScreen.querySelector('#qosOneScreenCustomer');
+    const amountInputOne = stepOneScreen.querySelector('#qosOneScreenAmount');
+    const methodSelectOne = stepOneScreen.querySelector('#qosOneScreenMethod');
+    const duesLine = stepOneScreen.querySelector('#qosOneScreenDues');
+    const saveBtn = stepOneScreen.querySelector('#qosOneScreenSaveBtn');
+    const backBtn = stepOneScreen.querySelector('#qosOneScreenBackBtn');
+    customerSelect?.addEventListener('change', () => {
+      const customerId = customerSelect.value || '';
+      if (!customerId) {
+        activeCustomerId = null;
+        activeDefaults = null;
+        if (amountInputOne) amountInputOne.value = '';
+        if (duesLine) { duesLine.textContent = ''; duesLine.hidden = true; }
+        return;
+      }
+      activeCustomerId = customerId;
+      activeDefaults = getCustomerPaymentDefaults(getState(), customerId, new Date(), loadTickets());
+      if (amountInputOne) {
+        amountInputOne.value = activeDefaults.suggestedAmount > 0 ? activeDefaults.suggestedAmount.toFixed(2) : '';
+      }
+      if (duesLine) {
+        duesLine.textContent = quickCollectOneScreenDuesText(activeDefaults.totalDues);
+        duesLine.hidden = duesLine.textContent === '';
+      }
+    });
+    saveBtn?.addEventListener('click', () => { submitOneScreenPayment(); });
+    backBtn?.addEventListener('click', () => { showStep('pick'); });
+  }
+
+  function submitOneScreenPayment() {
+    if (!stepOneScreen) return;
+    const customerSelect = stepOneScreen.querySelector('#qosOneScreenCustomer');
+    const amountInputOne = stepOneScreen.querySelector('#qosOneScreenAmount');
+    const methodSelectOne = stepOneScreen.querySelector('#qosOneScreenMethod');
+    const result = quickCollectOneScreenDraft({
+      customerId: customerSelect?.value || '',
+      amountText: amountInputOne?.value ?? '',
+      method: methodSelectOne?.value || '',
+      methods: PAYMENT_METHODS
+    });
+    if (!result.ok) {
+      if (typeof onToast === 'function') onToast(result.reason, { type: 'error' });
+      if (result.field === 'customer') customerSelect?.focus();
+      else if (result.field === 'amount') amountInputOne?.focus();
+      else if (result.field === 'method') methodSelectOne?.focus();
+      return;
+    }
+    const draft = result.draft;
+    activeCustomerId = draft.customerId;
+    activeDefaults = getCustomerPaymentDefaults(getState(), activeCustomerId, new Date(), loadTickets());
+    if (amountInput) amountInput.value = draft.amount.toFixed(2);
+    if (methodSelect) methodSelect.value = draft.method;
+    if (dateInput) dateInput.value = getPakistanLocalDate();
+    if (monthSelect) monthSelect.value = activeDefaults.targetMonth;
+    if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
+  }
+
+  function openOneScreen() {
+    renderOneScreen();
+    showStep('one-screen');
+    setTimeout(() => {
+      stepOneScreen?.querySelector('#qosOneScreenCustomer')?.focus();
+    }, 50);
   }
 
   let releaseFocusTrap = null;
@@ -4346,6 +4441,10 @@ export function setupQuickCollectModal({
     }
   });
 
+  // Plan 426: the one-screen payment entry on the picker step — the
+  // modal is already open, so this only switches steps.
+  openOneScreenBtn?.addEventListener('click', () => { openOneScreen(); });
+
   // Wire bottom nav & More menu Collection tab triggers
   document.querySelectorAll('[data-mobile-nav="collection"], [data-mobile-more="collection"]').forEach(btn => {
     if (btn.dataset.wiredQuickCollect) return;
@@ -4368,6 +4467,7 @@ export function setupQuickCollectModal({
     open: openModal,
     close: closeModal,
     selectAndOpen: openCustomerCollectionForm,
+    openOneScreen,
     isOpen: () => modal.hasAttribute('open') || modal.open,
     // Used by bulk-collect.js: read the live state and save through the same path as a single collection.
     getState: () => getState(),

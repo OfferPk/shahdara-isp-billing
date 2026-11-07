@@ -7251,6 +7251,8 @@
             <div id="profileContentMounts" hidden>
             <div id="customerReceiptSummary" aria-live="polite"></div>
             <section id="manualBaqayaSection" class="manual-baqaya-section" aria-live="polite"></section>
+            <!-- Polish #11: profile receipt share-draft host — filled by renderProfileShareDraft after a profile-form payment. -->
+            <div id="stxProfileShareDraft" aria-live="polite"></div>
             <div class="customer-meta">
               <div id="customerProfileView" class="customer-profile-view" data-i18n-aria-label="prof_view_aria" aria-label="Saved customer information"></div>
               <div id="customerProfileForm" class="customer-profile-form" hidden>
@@ -7538,6 +7540,8 @@
         </nav>
         <p id="monthlyReportEmpty" class="transactions-empty" hidden data-i18n="bill_empty">No customers match this status and search.</p>
         <p class="report-not-set-note" data-i18n="bill_notset_note">Rows with no generated or manually recorded bill amount are accurately shown as Not set; All includes them. Pending means a saved bill has no payment or applied credit. Partial means a real bill has some amount received/credited but still has a balance. Monthly credit applied/forwarded and any customer-wide unapplied prepaid balance are shown separately from actual cash. Old unapplied credit remains attached to its original saved receipt and can offset later bills indefinitely, even after the source month leaves the 24-month display.</p>
+        <!-- Polish #11: sales-tax dashboard host — filled by renderSalesTaxDashboard in app.js. -->
+        <section class="owner-report-panel" id="stxTaxDashboard" aria-labelledby="stxTaxHeading"></section>
                 <section class="owner-report-panel billing-register-panel" aria-labelledby="billingRegisterHeading">
           <div class="table-heading"><div><p class="eyebrow">INVOICE RECORD</p><h3 id="billingRegisterHeading" data-i18n="bill_reg_title">Billing Register</h3></div><p class="chart-caption" data-i18n="bill_reg_sub">Invoice-style record of the bills in the selected period. The CSV download exports exactly the rows shown below.</p></div>
           <div class="billing-register-controls">

@@ -55,6 +55,7 @@ import {
   recentQuickPickEntries,
   recentQuickPickHtml
 } from './recent-quick-pick.js';
+import { rememberedPaymentMethod } from './remembered-method.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -459,28 +460,22 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
   // a fully-paid customer is typed by the operator instead, with the
   // Advance tag still pre-ticked below.)
 
-  // Find customer's last-used payment method & payer note
-  let lastMethod = 'Cash';
+  // Plan 431: the remembered method — the method of the customer's last
+  // payment, pre-selected on the Quick Collect screen. A customer with
+  // no past payment remembers nothing: defaultMethod is null and the
+  // form pre-selects nothing (the operator picks; the save path still
+  // records Cash when nothing is chosen, exactly as before). The
+  // device-wide last-used fallback is gone from here — it was not
+  // per-customer memory. (The save path still writes the device's
+  // last-used method; the split-tender snapshot still reads it.)
+  const lastMethod = rememberedPaymentMethod(customer, PAYMENT_METHODS);
   let lastPaidBy = '';
   const allPayments = bills.flatMap(b => b.payments ?? []).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   if (allPayments.length > 0) {
     const lastP = allPayments[allPayments.length - 1];
-    if (lastP.method && PAYMENT_METHODS.includes(lastP.method)) {
-      lastMethod = lastP.method;
-    }
     if (lastP.paidBy) {
       lastPaidBy = lastP.paidBy;
     }
-  }
-
-  // Check if collector stored an explicit device default method
-  try {
-    const savedMethod = localStorage.getItem(QUICK_COLLECT_STORAGE_KEY);
-    if (savedMethod && PAYMENT_METHODS.includes(savedMethod) && allPayments.length === 0) {
-      lastMethod = savedMethod;
-    }
-  } catch {
-    // Ignore storage errors in test or private mode
   }
 
   // SISP-43: pending billed ticket charges (SISP-12) join the payable.
@@ -3046,10 +3041,14 @@ export function setupQuickCollectModal({
         dateInput.value = activeDefaults.todayDate;
         dateInput.max = activeDefaults.todayDate;
       }
+      // Plan 431: the remembered method is pre-selected; a customer
+      // with no past payment pre-selects nothing (''), and the
+      // operator picks. The save path still records Cash when nothing
+      // is chosen, exactly as before.
       if (methodSelect) {
-        methodSelect.value = activeDefaults.defaultMethod || 'Cash';
+        methodSelect.value = activeDefaults.defaultMethod ?? '';
       }
-      syncMethodChips(activeDefaults.defaultMethod || 'Cash');
+      syncMethodChips(activeDefaults.defaultMethod ?? '');
       if (paidByInput) {
         paidByInput.value = activeDefaults.lastPaidBy || '';
       }
@@ -3181,7 +3180,7 @@ export function setupQuickCollectModal({
       if (screenshotInput) screenshotInput.value = '';
       if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = true;
       if (screenshotPreview) screenshotPreview.src = '';
-      updateDigitalVisibility(activeDefaults.defaultMethod || 'Cash');
+      updateDigitalVisibility(activeDefaults.defaultMethod ?? '');
 
       // OWNER-CASH-SHOP: fresh "Cash received at" chips per open — the
       // default method above decides the row's visibility and which chip
@@ -3313,6 +3312,12 @@ export function setupQuickCollectModal({
       if (duesLine) {
         duesLine.textContent = quickCollectOneScreenDuesText(activeDefaults.totalDues);
         duesLine.hidden = duesLine.textContent === '';
+      }
+      // Plan 431: the one screen pre-selects the remembered method too;
+      // a customer with no past payment pre-selects nothing (''), and
+      // the operator picks before saving.
+      if (methodSelectOne) {
+        methodSelectOne.value = activeDefaults.defaultMethod ?? '';
       }
       renderOneScreenQuickAmounts();
     });

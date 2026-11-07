@@ -46,6 +46,7 @@ import {
   quickCollectOneScreenHtml,
   quickCollectOneScreenDuesText
 } from './quick-collect-one-screen.js';
+import { oneScreenQuickAmountFigures, oneScreenQuickAmountButtonsHtml } from './one-screen-quick-amounts.js';
 import {
   namePrefixLookupHtml,
   namePrefixLookupMatches
@@ -3249,6 +3250,22 @@ export function setupQuickCollectModal({
     bindOneScreenControls();
   }
 
+  // Plan 430: refresh the one screen's quick amount buttons for the
+  // picked customer. The full dues are the amount default the one
+  // screen already fills the field with; the package price follows
+  // the same rule the entry form's package chip already uses. With
+  // no customer picked the buttons show plain words and fill
+  // nothing.
+  function renderOneScreenQuickAmounts() {
+    const row = stepOneScreen.querySelector('.qab-row');
+    if (!row) return;
+    const figures = oneScreenQuickAmountFigures({
+      fullDues: activeDefaults?.suggestedAmount ?? null,
+      packagePrice: activeDefaults ? packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES) : null,
+    });
+    row.innerHTML = oneScreenQuickAmountButtonsHtml(figures);
+  }
+
   function bindOneScreenControls() {
     if (!stepOneScreen) return;
     const customerSelect = stepOneScreen.querySelector('#qosOneScreenCustomer');
@@ -3257,6 +3274,27 @@ export function setupQuickCollectModal({
     const duesLine = stepOneScreen.querySelector('#qosOneScreenDues');
     const saveBtn = stepOneScreen.querySelector('#qosOneScreenSaveBtn');
     const backBtn = stepOneScreen.querySelector('#qosOneScreenBackBtn');
+    // Plan 430: the one screen's quick amount buttons — full dues,
+    // half dues, package price — one row under the amount field. The
+    // row is rendered by the module and refreshed whenever the
+    // customer changes; tapping a button only fills the amount
+    // field, exactly as if the figure had been typed.
+    const amountGroup = amountInputOne?.closest('.qc-field-group');
+    let quickAmountRow = stepOneScreen.querySelector('.qab-row');
+    if (!quickAmountRow && amountGroup) {
+      quickAmountRow = document.createElement('div');
+      quickAmountRow.className = 'qc-quick-amount-chips qab-row';
+      amountGroup.after(quickAmountRow);
+      quickAmountRow.addEventListener('click', (event) => {
+        const button = event.target?.closest?.('[data-qab-amount]');
+        if (!button || !amountInputOne) return;
+        const amount = Number(button.getAttribute('data-qab-amount'));
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        amountInputOne.value = amount.toFixed(2);
+        amountInputOne.focus();
+      });
+    }
+    renderOneScreenQuickAmounts();
     customerSelect?.addEventListener('change', () => {
       const customerId = customerSelect.value || '';
       if (!customerId) {
@@ -3264,6 +3302,7 @@ export function setupQuickCollectModal({
         activeDefaults = null;
         if (amountInputOne) amountInputOne.value = '';
         if (duesLine) { duesLine.textContent = ''; duesLine.hidden = true; }
+        renderOneScreenQuickAmounts();
         return;
       }
       activeCustomerId = customerId;
@@ -3275,6 +3314,7 @@ export function setupQuickCollectModal({
         duesLine.textContent = quickCollectOneScreenDuesText(activeDefaults.totalDues);
         duesLine.hidden = duesLine.textContent === '';
       }
+      renderOneScreenQuickAmounts();
     });
     saveBtn?.addEventListener('click', () => { submitOneScreenPayment(); });
     backBtn?.addEventListener('click', () => { showStep('pick'); });

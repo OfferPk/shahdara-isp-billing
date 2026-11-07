@@ -159,6 +159,10 @@ import { normalizeCustomerSearchField, filterCustomersBySearchField, buildMohall
 // Plan 456: the unified box — one search box for any identifier (name,
 // phone digits, or a full ID), the default for the Customers list.
 import { UNIFIED_IDENTIFIER_FIELD_ID, filterCustomersByUnifiedIdentifier, unifiedIdentifierEmptyText } from './unified-identifier-search.js?v=1.11.0';
+// Plan 457: relevance ranking for search results — the exact name
+// first, then names starting with the typed text, then names
+// containing it, then nickname matches.
+import { rankCustomerSearchResults } from './search-result-ranking.js?v=1.11.0';
 import { BILLING_REGISTER_CSV_HEADERS, billingRegisterCsvFilename, billingRegisterCsvNote, billingRegisterCsvRows, buildBillingRegister, buildBillingRegisterPrintHtml, normalizeBillingRegisterPeriod, normalizeBillingRegisterPrintFormat, normalizeBillingRegisterStatus } from './billing-register.js?v=1.11.0';
 // FIRST-LOAD SPLIT: getLateFeeConfig/isBillOverdue are used by renderHistory
 // (synchronous), so they stay static via a direct import; all other QA names
@@ -3523,6 +3527,18 @@ function renderCustomers() {
   // Apply Sorting
   active = sortCustomerRoster(active, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
   archived = sortCustomerRoster(archived, { sortBy: customerSortBy, billingMonth: selectedBillingMonth, allocations: healthAllocations });
+
+  // Plan 457: with a name search typed, relevance ranks the results —
+  // the exact name first, then names starting with the typed text,
+  // then names containing it, then nickname matches; anything that
+  // matched by another field keeps the roster order above. The sort
+  // control still governs the roster when no query is typed, and a
+  // field-scoped search by phone, ID, area, or identity is never
+  // reordered by name relevance.
+  if (customerQuery.trim() !== '' && (customerSearchField === 'name' || customerSearchField === UNIFIED_IDENTIFIER_FIELD_ID)) {
+    active = rankCustomerSearchResults(active, customerQuery);
+    archived = rankCustomerSearchResults(archived, customerQuery);
+  }
 
   const searched = fieldScopedSearch
     ? (customerSearchField === UNIFIED_IDENTIFIER_FIELD_ID

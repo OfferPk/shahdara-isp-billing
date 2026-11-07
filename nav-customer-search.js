@@ -45,6 +45,10 @@ import {
 // the recent list — the father / reference name first, else the first
 // nickname; the sheet's own strings stay English, as elsewhere here.
 import { knownAsNameFor, knownAsLabelKeyFor, KNOWN_AS_FATHER_LABEL_KEY } from './known-as-name.js';
+// Plan 457: relevance ranking for search results — the exact name
+// first, then names starting with the typed text, then names
+// containing it, then nickname matches.
+import { rankCustomerSearchResults } from './search-result-ranking.js';
 import { DEFAULT_MOHALLAS } from './phase3.js';
 import { trapModalFocus } from './nav-accessibility.js';
 
@@ -180,7 +184,10 @@ export function searchFastCustomers(state, {
   const currentMonth = monthsForHistory(referenceDate)[0];
   const normalized = String(query ?? '').normalize('NFKC').trim().toLowerCase();
 
-  const results = [];
+  // Plan 457: the raw customer rides with its result row, so the
+  // relevance ranking below can read the father / reference name and
+  // the search aliases the row itself does not carry.
+  const results = new Map();
   // Plan 451: an exact customer ID / connection ID hit is returned on
   // its own — a full ID never drags in look-alike numbers, and the
   // record id is matched here at all. The hit still has to pass the
@@ -282,21 +289,33 @@ export function searchFastCustomers(state, {
       monthlySellingAmount: customer.monthlySellingAmount || 0
     };
     if (isExactIdHit) exactIdHit = result;
-    else results.push(result);
+    else results.set(customer, result);
   }
 
   // Plan 451: a single exact-ID hit is the whole answer.
   if (exactIdHit) return [exactIdHit];
 
   // Sort: pending/partial accounts with highest dues first, then customer number
-  results.sort((a, b) => {
-    if (b.totalDues !== a.totalDues) {
-      return b.totalDues - a.totalDues;
+  const ordered = [...results.keys()].sort((a, b) => {
+    const duesA = results.get(a).totalDues;
+    const duesB = results.get(b).totalDues;
+    if (duesB !== duesA) {
+      return duesB - duesA;
     }
-    return a.customerNumber - b.customerNumber;
+    return results.get(a).customerNumber - results.get(b).customerNumber;
   });
 
-  return results;
+  // Plan 457: with a query typed, relevance ranks the results — the
+  // exact name first, then names starting with the typed text, then
+  // names containing it, then nickname matches. The ranking runs
+  // over the dues order above, so anything that matched by another
+  // field (phone, number, area) keeps that order. With no query
+  // the dues order stands as before.
+  const ranked = normalized
+    ? rankCustomerSearchResults(ordered, query)
+    : ordered;
+
+  return ranked.map((customer) => results.get(customer));
 }
 
 /**

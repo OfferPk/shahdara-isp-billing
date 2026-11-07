@@ -7835,6 +7835,20 @@ html, body {
   font-size: 12px;
 }
 
+/* Plan 445 — live daily target progress bar on the Quick Collect
+   picker screen: today's collected total against today's target,
+   refreshed after each save. Layout only, no colour of its own, so
+   no new hex colour is introduced; the bar itself reuses the route
+   progress track and fill. */
+.dtp-daily-target-progress {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+.dtp-daily-target-progress .dtp-line {
+  margin: 0 0 4px;
+}
+
 /* Plan 440 — still-owes line at the top of the success screen: one
    plain line saying what the customer still owes, or fully paid.
    Layout only — the figure's colour rides the receipt card's own

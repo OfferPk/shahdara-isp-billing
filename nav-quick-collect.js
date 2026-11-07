@@ -129,6 +129,7 @@ import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
 import { successNextStepsFromReceipt, successNextStepsHtml, successNextStepsNextDueDate } from './success-next-steps.js';
+import { receiptShareDraftFor, receiptShareDraftHtml } from './receipt-share-draft.js';
 import { stillOwesLine, stillOwesLineHtml } from './quick-collect-still-owes.js';
 import { QUICK_COLLECT_REVERSAL_UNDO_WINDOW_MS, QUICK_COLLECT_REVERSAL_UNDO_REASON, quickCollectReversalUndoAllowed, quickCollectReversalUndoSecondsLeft, quickCollectReversalUndoButtonText, quickCollectReversalUndoIsPlainPayment, quickCollectReversalUndoFields } from './quick-collect-reversal-undo.js';
 import { offlineSavedBadge, offlineSavedBadgeHtml, offlineSavedBadgeLatestTime } from './offline-saved-badge.js';
@@ -1901,6 +1902,10 @@ export function setupQuickCollectModal({
   // payment, in plain words, or "Fully paid", shown immediately at
   // the top of the success screen.
   const stillOwesBox = typeof document !== 'undefined' ? document.getElementById('sowStillOwesLine') : null;
+  // Plan 443: the receipt share draft host on the success step (null
+  // when the host page predates it) — the receipt's share text, read
+  // first, with Send and Dismiss, prepared right after a save.
+  const shareDraftBox = typeof document !== 'undefined' ? document.getElementById('rsdReceiptShareDraft') : null;
   const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
   // Plan 437: the form's own Save button (null when the host page
   // predates it) — disabled while a save is in progress, so a second
@@ -4021,6 +4026,9 @@ export function setupQuickCollectModal({
     receiptCardContainer.innerHTML = activeReceipt.splitTender
       ? renderSplitReceiptCardHtml(activeReceipt.splitTender, quickCollectAreaSelectHtml(activeReceipt.splitTender.area))
       : renderQuickCollectReceiptCardHtml(activeReceipt);
+    // Plan 443: the card re-render refreshes the share draft too, so
+    // an area change or a share never leaves a stale draft on screen.
+    renderReceiptShareDraft();
   }
 
   // Plan 434: the success next-steps panel — amount paid, still owed
@@ -4119,6 +4127,53 @@ export function setupQuickCollectModal({
     const html = badge ? offlineSavedBadgeHtml(badge) : '';
     savedBadgeBox.innerHTML = html;
     savedBadgeBox.hidden = html === '';
+  }
+
+  // Plan 443: the receipt share draft — the receipt's share text,
+  // prepared right after a save so the operator reads it first, then
+  // sends it or dismisses it. It drafts only: rendering posts nothing
+  // and changes no record. The text is the dispatch's own text for
+  // this receipt — the ordinary receipt text for a single payment,
+  // the combined-receipt text for a split — so the draft the operator
+  // reads is exactly what Send will send. Send routes through the
+  // success screen's existing messaging button; Dismiss hides the
+  // draft for this receipt. A receipt already shared, or dismissed,
+  // shows no draft again.
+  let shareDraftDismissedFor = null;
+  let shareDraftWired = false;
+  function renderReceiptShareDraft() {
+    if (!shareDraftBox) return;
+    if (!activeReceipt) {
+      shareDraftBox.innerHTML = '';
+      shareDraftBox.hidden = true;
+      return;
+    }
+    if (shareDraftDismissedFor === activeReceipt.id || isReceiptShared(activeReceipt.id)) {
+      shareDraftBox.innerHTML = '';
+      shareDraftBox.hidden = true;
+      return;
+    }
+    const receiptCustomer = getState()?.customers?.find((c) => c.id === activeReceipt.customerId) ?? null;
+    const shareText = activeReceipt.splitTender
+      ? formatSplitTenderWhatsAppText(activeReceipt.splitTender)
+      : formatQuickCollectWhatsAppReceipt(activeReceipt, { whatsappPhone: receiptCustomer ? whatsappPhoneFor(receiptCustomer) : '', lang: receiptLangPreference(receiptCustomer) }).text;
+    const draft = receiptShareDraftFor(activeReceipt, shareText);
+    const html = draft ? receiptShareDraftHtml(draft) : '';
+    shareDraftBox.innerHTML = html;
+    shareDraftBox.hidden = html === '';
+    if (!shareDraftWired && shareDraftBox) {
+      shareDraftWired = true;
+      shareDraftBox.addEventListener('click', (event) => {
+        if (!activeReceipt) return;
+        const sendBtn = event.target?.closest?.('[data-rsd-send]');
+        const dismissBtn = event.target?.closest?.('[data-rsd-dismiss]');
+        if (!sendBtn && !dismissBtn) return;
+        shareDraftDismissedFor = activeReceipt.id;
+        shareDraftBox.innerHTML = '';
+        shareDraftBox.hidden = true;
+        if (sendBtn) whatsAppBtn?.click();
+      });
+    }
   }
 
   // Polish 4: the success line under the heading names the package that
@@ -4689,6 +4744,7 @@ export function setupQuickCollectModal({
           renderSuccessNextSteps();
           renderStillOwesLine();
           renderOfflineSavedBadge();
+          renderReceiptShareDraft();
           showStep('success');
           updateCounts();
           announcePaymentSuccess(activeReceipt);
@@ -4881,6 +4937,7 @@ export function setupQuickCollectModal({
       renderSuccessNextSteps();
       renderStillOwesLine();
       renderOfflineSavedBadge();
+      renderReceiptShareDraft();
 
       showStep('success');
       updateCounts();

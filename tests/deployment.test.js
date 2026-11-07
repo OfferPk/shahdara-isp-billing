@@ -83,7 +83,10 @@ test('web shell assets share the package version and worker updates before app s
   assert.match(index, /id="transactionRecencyFilter"[^>]*aria-describedby="transactionFilterHelp"/);
   for (const option of ['All history','Last 7 days','Last 30 days','Last 90 days']) assert.ok(index.includes(`>${option}</option>`), `${option} recency option exists`);
   assert.match(index, /<option value="all" selected>All history<\/option>/);
-  assert.match(index, /Customer search, recency, and exact payment date combine/);
+  // Plan 453: the help text now also names the amount range, which
+  // combines with the other ledger filters — the wording moved, not
+  // the meaning, so the pinned sentence is updated to match.
+  assert.match(index, /Customer search, recency, exact payment date, and the amount range combine/);
   assert.match(core, /recencyDays = null/);
   assert.match(app, /customerQuery:searchQuery\(\), date, recencyDays/);
   assert.match(app, /transactionRecencyFilter'\)\.value = 'all'/);

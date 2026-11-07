@@ -57,6 +57,14 @@ import {
 } from './recent-quick-pick.js';
 import { rememberedPaymentMethod } from './remembered-method.js';
 import { cashChangeLineText } from './cash-change-calculator.js';
+import {
+  createDoubleTapSaveGuard,
+  doubleTapSaveGuardKey,
+  doubleTapSaveGuardTryStart,
+  doubleTapSaveGuardFinish,
+  doubleTapSaveGuardIsSaving,
+  doubleTapSaveGuardSetDisabled
+} from './double-tap-save-guard.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -1866,6 +1874,10 @@ export function setupQuickCollectModal({
   // the host page predates it) — "saved on this device" with the save time.
   const savedBadgeBox = typeof document !== 'undefined' ? document.getElementById('osbOfflineSavedBadge') : null;
   const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
+  // Plan 437: the form's own Save button (null when the host page
+  // predates it) — disabled while a save is in progress, so a second
+  // tap cannot start a second save.
+  const quickCollectConfirmBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmBtn') : null;
   const confirmBackBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmBackBtn') : null;
   // Plan 432: the cash change calculator (null when the host page
   // predates it) — the box, the cash-received input, and the
@@ -2206,6 +2218,17 @@ export function setupQuickCollectModal({
   // only while the form's current summary still carries this key;
   // any edit after the summary was shown re-shows it instead.
   let saveConfirmationArmedKey = null;
+  // Plan 437: the double-tap save guard — one in-flight save at a
+  // time. tryStart arms it at the top of the submit handler and the
+  // finally below clears it when the save settles, so a second tap for
+  // the same payment is ignored while the first is still running and
+  // a separate payment after this one still works. saveGuardHeldForDialog
+  // stays true only while a duplicate prompt is waiting for the
+  // operator's answer (the two async confirm branches below); the
+  // finally leaves the guard armed in that case, and the prompt's
+  // answer clears it before resubmitting.
+  const saveGuard = createDoubleTapSaveGuard();
+  let saveGuardHeldForDialog = false;
 
   let currentScreenshotDataUrl = '';
 
@@ -3607,6 +3630,12 @@ export function setupQuickCollectModal({
     activeReceipt = null;
     duplicateBypassedForTxn = null;
     duplicatePaymentBypassedKey = null;
+    // Plan 437: closing abandons any in-flight save — the guard can
+    // never stay armed into the next opening.
+    saveGuardHeldForDialog = false;
+    doubleTapSaveGuardFinish(saveGuard);
+    doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
+    doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
     if (dupWarningCard) dupWarningCard.hidden = true;
     // Closing during the undo window keeps the payment (it is NOT undone).
     // Say so briefly, with no Undo of its own, so there is no doubt it saved.
@@ -3840,6 +3869,9 @@ export function setupQuickCollectModal({
   // posts only when the armed key still matches. Back returns to the
   // form with every entry intact; nothing is posted.
   confirmSaveBtn?.addEventListener('click', () => {
+    // Plan 437: a second tap on Confirm while a save is in progress
+    // is ignored — the first tap's save is already running.
+    if (doubleTapSaveGuardIsSaving(saveGuard)) return;
     const summary = buildSaveConfirmationSummary();
     if (!summary) { showStep('form'); return; }
     saveConfirmationArmedKey = saveConfirmationSummaryKey(summary);
@@ -4165,6 +4197,22 @@ export function setupQuickCollectModal({
     e.preventDefault();
     if (!activeCustomerId) return;
 
+    // Plan 437: double-tap save guard — a second tap for the same
+    // payment while a save is in progress is ignored outright, before
+    // any guard runs or any figure is read. The buttons disable with
+    // the arming and re-enable in the finally below.
+    const saveGuardKey = doubleTapSaveGuardKey({
+      customerId: activeCustomerId,
+      amount: amountInput?.value,
+      method: methodSelect?.value,
+      month: monthSelect?.value,
+      date: dateInput?.value
+    });
+    if (!doubleTapSaveGuardTryStart(saveGuard, saveGuardKey)) return;
+    saveGuardHeldForDialog = false;
+    doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, true);
+    doubleTapSaveGuardSetDisabled(confirmSaveBtn, true);
+
     try {
       const state = getState();
       const amountVal = Number(amountInput?.value);
@@ -4265,10 +4313,18 @@ export function setupQuickCollectModal({
               ? window.appConfirm({ tone: 'warning', title: 'Duplicate Transaction ID', subject: `Transaction ID "${txnIdVal}"`, message: `Already recorded on ${dupDate} for ${dup.customerName} (#${dup.customerNumber}) in month ${dupMonth} (PKR ${dupAmt}). Save anyway?`, confirmLabel: 'Save anyway' })
               : Promise.resolve(false);
             ask.then(ok => {
+              // Plan 437: the prompt's answer settles this save — clear
+              // the guard first, so the resubmit below re-arms it fresh
+              // and a cancelled prompt leaves the form usable.
+              saveGuardHeldForDialog = false;
+              doubleTapSaveGuardFinish(saveGuard);
+              doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
+              doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
               if (!ok) { transactionIdInput?.focus(); return; }
               duplicateBypassedForTxn = txnIdVal;
               if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
             });
+            saveGuardHeldForDialog = true;
             return;
             if (dupWarningCard) {
               dupWarningCard.hidden = true;
@@ -4308,10 +4364,18 @@ export function setupQuickCollectModal({
         const bypassKey = duplicatePaymentBypassKey(activeCustomerId, amountVal, methodVal, recentDuplicate);
         if (duplicatePaymentBypassedKey !== bypassKey) {
           askDuplicatePayment(recentDuplicate, formatPKR).then((proceed) => {
+            // Plan 437: the prompt's answer settles this save — clear
+            // the guard first, so the resubmit below re-arms it fresh
+            // and a cancelled prompt leaves the form usable.
+            saveGuardHeldForDialog = false;
+            doubleTapSaveGuardFinish(saveGuard);
+            doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
+            doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
             if (!proceed) { amountInput?.focus(); return; }
             duplicatePaymentBypassedKey = bypassKey;
             if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
           });
+          saveGuardHeldForDialog = true;
           return;
         }
         duplicatePaymentBypassedKey = null;
@@ -4673,6 +4737,15 @@ export function setupQuickCollectModal({
     } catch (err) {
       if (typeof onToast === 'function') {
         onToast(err.message, { type: 'error' });
+      }
+    } finally {
+      // Plan 437: the save has settled (posted, refused, or thrown) —
+      // clear the guard and re-enable the save buttons, unless a
+      // duplicate prompt is still waiting for the operator's answer.
+      if (!saveGuardHeldForDialog) {
+        doubleTapSaveGuardFinish(saveGuard);
+        doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
+        doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
       }
     }
   });

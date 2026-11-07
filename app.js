@@ -590,6 +590,7 @@ import { historyRefundsInlineHtml } from './history-refunds-inline.js';
 import { historyCreditInlineHtml } from './history-credit-inline.js';
 import { historyAdjustmentsInlineHtml } from './history-adjustments-inline.js';
 import { historyMonthComparisonHtml } from './history-month-comparison.js';
+import { HISTORY_CONNECTION_FILTER_ALL, historyConnectionFilterOptions, normalizeHistoryConnectionFilter, filterHistoryEntriesByConnection, historyConnectionFilterSelectMarkup, historyConnectionFilterEmptyText, historyConnectionFilterSummaryText } from './history-connection-filter.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4202,6 +4203,7 @@ let fullHistoryDateTo = '';
 let fullHistoryMethodFilter = 'all';
 let fullHistoryAmountSearch = '';
 let fullHistoryDisputedFilter = 'all';
+let fullHistoryConnectionFilter = 'all';
 function renderFullHistory(customer) {
   const host = $('#fhlFullHistoryList');
   if (!host) return;
@@ -4219,6 +4221,11 @@ function renderFullHistory(customer) {
   // closing a case clears it because only an open case ever matches.
   const disputeCases = openDisputeCases(loadDisputeCases());
   const flaggedEntries = historyDisputedFlagEntries(entries, disputeCases, customer.id);
+  // Plan 419 — the customer's active billing link, read once for the
+  // connection filter below and its summary: its primary and linked
+  // connections are the offered connections, and a customer with no
+  // link on record is offered All connections only.
+  const billingLink = findBillingLink(loadBillingLinks(), customer.id);
   const filterHost = $('#htfHistoryTypeFilterHost');
   if (filterHost) {
     const current = $('#htfHistoryTypeFilter');
@@ -4316,22 +4323,49 @@ function renderFullHistory(customer) {
       if (currentCustomer) renderFullHistory(currentCustomer);
     });
   }
-  const shown = filterHistoryEntriesByDisputedFlag(
-    searchHistoryEntriesByAmount(
-      filterHistoryEntriesByMethod(
-        filterHistoryEntriesByDateRange(
-          filterHistoryEntriesByType(flaggedEntries, fullHistoryTypeFilter),
-          fullHistoryDateFrom,
-          fullHistoryDateTo,
+  // Plan 419 — History per-connection filter for multi-connection customers. One connection filter on
+  // the customer history, alongside the type, date-range, method, amount and disputed filters; it
+  // filters only and changes nothing. The offered connections come from the customer's active billing
+  // link — its primary and linked connections; a customer with no link on record is offered All
+  // connections only and shows no filter control. The choice lives only while the profile is open,
+  // and re-rendering the profile keeps the choice.
+  const connectionHost = $('#hcfHistoryConnectionFilterHost');
+  if (connectionHost) {
+    const connectionOptions = historyConnectionFilterOptions(billingLink);
+    if (connectionOptions.length > 1) {
+      const current = $('#hcfHistoryConnectionFilter');
+      if (current) fullHistoryConnectionFilter = normalizeHistoryConnectionFilter(current.value, billingLink);
+      connectionHost.innerHTML = historyConnectionFilterSelectMarkup(billingLink, fullHistoryConnectionFilter, entries);
+      const select = $('#hcfHistoryConnectionFilter');
+      if (select) select.addEventListener('change', () => {
+        fullHistoryConnectionFilter = normalizeHistoryConnectionFilter(select.value, billingLink);
+        const currentCustomer = selectedCustomer();
+        if (currentCustomer) renderFullHistory(currentCustomer);
+      });
+    } else {
+      connectionHost.innerHTML = '';
+      fullHistoryConnectionFilter = HISTORY_CONNECTION_FILTER_ALL;
+    }
+  }
+  const shown = filterHistoryEntriesByConnection(
+    filterHistoryEntriesByDisputedFlag(
+      searchHistoryEntriesByAmount(
+        filterHistoryEntriesByMethod(
+          filterHistoryEntriesByDateRange(
+            filterHistoryEntriesByType(flaggedEntries, fullHistoryTypeFilter),
+            fullHistoryDateFrom,
+            fullHistoryDateTo,
+          ),
+          fullHistoryMethodFilter,
         ),
-        fullHistoryMethodFilter,
+        fullHistoryAmountSearch,
       ),
-      fullHistoryAmountSearch,
+      fullHistoryDisputedFilter,
     ),
-    fullHistoryDisputedFilter,
+    fullHistoryConnectionFilter,
   );
   host.innerHTML = shown.length === 0
-    ? `<p class="notice">${escapeHtml(historyAmountSearchActive(fullHistoryAmountSearch) ? historyAmountSearchEmptyText(fullHistoryAmountSearch) : historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyDisputedFlagEmptyText(fullHistoryDisputedFilter) || historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
+    ? `<p class="notice">${escapeHtml(historyAmountSearchActive(fullHistoryAmountSearch) ? historyAmountSearchEmptyText(fullHistoryAmountSearch) : historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyDisputedFlagEmptyText(fullHistoryDisputedFilter) || historyConnectionFilterEmptyText(fullHistoryConnectionFilter, billingLink) || historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
     : shown.some((entry) => entry.disputedCaseRef)
       ? historyDisputedFlagListHtml(shown)
       : fullHistoryListHtml(shown);
@@ -4492,7 +4526,8 @@ function renderFullHistory(customer) {
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {
-    summary.textContent = historyDisputedFlagSummaryText(shown, entries, fullHistoryDisputedFilter, fullHistoryAmountSearch, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter, fullHistoryMethodFilter)
+    summary.textContent = historyConnectionFilterSummaryText(shown, entries, fullHistoryConnectionFilter, billingLink, fullHistoryDisputedFilter)
+      || historyDisputedFlagSummaryText(shown, entries, fullHistoryDisputedFilter, fullHistoryAmountSearch, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter, fullHistoryMethodFilter)
       || historyAmountSearchSummaryText(shown, entries, fullHistoryAmountSearch, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter, fullHistoryMethodFilter)
       || historyMethodFilterSummaryText(shown, entries, fullHistoryMethodFilter, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)
       || (historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo)

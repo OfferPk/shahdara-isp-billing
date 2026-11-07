@@ -552,15 +552,21 @@ export function generateCustomerRosterCsv(customers = [], { billingMonth = '', a
  * Generates HTML for an empty customer roster table state with reset button.
  * @param {string} [query]
  * @param {string} [area]
+ * @param {string} [emptyText] - Plan 456: a plain message that replaces
+ *   the generic text when the search itself found nobody (an unknown
+ *   ID says so plainly); blank keeps the generic message, as before.
  * @returns {string} HTML string
  */
-export function renderCustomerTableEmptyMarkup(query = '', area = 'all') {
+export function renderCustomerTableEmptyMarkup(query = '', area = 'all', emptyText = '') {
   const q = String(query || '').trim();
   const a = area && area !== 'all' ? area : '';
-  let msg = t('cust_table_empty');
-  if (q && a) msg = t('cust_table_empty_query_area', null, { query: q, area: a });
-  else if (q) msg = t('cust_table_empty_query', null, { query: q });
-  else if (a) msg = t('cust_table_empty_area', null, { area: a });
+  const override = String(emptyText || '').trim();
+  let msg = override || t('cust_table_empty');
+  if (!override) {
+    if (q && a) msg = t('cust_table_empty_query_area', null, { query: q, area: a });
+    else if (q) msg = t('cust_table_empty_query', null, { query: q });
+    else if (a) msg = t('cust_table_empty_area', null, { area: a });
+  }
 
   return `<tr class="customer-table-empty-row">
     <td colspan="8" class="table-empty-cell">

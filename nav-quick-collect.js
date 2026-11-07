@@ -50,6 +50,10 @@ import {
   namePrefixLookupHtml,
   namePrefixLookupMatches
 } from './name-prefix-lookup.js';
+import {
+  recentQuickPickEntries,
+  recentQuickPickHtml
+} from './recent-quick-pick.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -1749,6 +1753,10 @@ export function setupQuickCollectModal({
   // page predates it) — matching customers appear after two or more
   // letters, in name order, with name and mohalla.
   const namePrefixList = document.getElementById('nplNamePrefixList');
+  // Plan 428: the recent-customers quick-pick row (null when the
+  // host page predates it) — the last ten customers collected from,
+  // latest first, with name, mohalla and dues.
+  const recentQuickPickList = document.getElementById('rqpRecentQuickPick');
   const customerListContainer = document.getElementById('quickCollectCustomerList');
   const filterChips = modal.querySelectorAll('.quick-collect-filter-chip');
   const duesCountEl = document.getElementById('quickCollectDuesCount');
@@ -2472,6 +2480,7 @@ export function setupQuickCollectModal({
     const query = searchInput?.value ?? '';
     customerListContainer.innerHTML = renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId).html;
     renderNamePrefixList();
+    renderRecentQuickPick();
   }
 
   // Plan 427: the live name-prefix lookup — two or more typed letters
@@ -2483,6 +2492,30 @@ export function setupQuickCollectModal({
     const state = getState();
     const query = searchInput?.value ?? '';
     namePrefixList.innerHTML = namePrefixLookupHtml(namePrefixLookupMatches(state?.customers ?? [], query));
+  }
+
+  // Plan 428: the recent-customers quick-pick — the last ten
+  // customers collected from, latest first, with name, mohalla and
+  // dues. It picks only and records nothing. The dues come from the
+  // picker's own shared total (bills plus unpaid manual baqaya), so
+  // the row never shows a different dues figure than the picker
+  // below it; a customer with no figure reads as not recorded,
+  // never as zero. It refreshes on every list render, so the
+  // customer just collected from moves to the top of the row at once.
+  function renderRecentQuickPick() {
+    if (!recentQuickPickList) return;
+    const state = getState();
+    if (!state || !Array.isArray(state.customers)) {
+      recentQuickPickList.innerHTML = '';
+      return;
+    }
+    const duesCentsById = {};
+    for (const entry of getPendingCollectionCustomers(state, '', 'all')) {
+      duesCentsById[entry.id] = Math.round(entry.totalDues * 100);
+    }
+    recentQuickPickList.innerHTML = recentQuickPickHtml(
+      recentQuickPickEntries(state.customers, listTransactions(state), duesCentsById)
+    );
   }
 
   function setFilter(filter) {
@@ -3468,6 +3501,20 @@ export function setupQuickCollectModal({
   // way tapping a picker card does.
   namePrefixList?.addEventListener('click', (e) => {
     const row = e.target.closest('.npl-row');
+    if (!row) return;
+    const cid = row.getAttribute('data-customer-id');
+    if (cid) {
+      if (typeof onSelectCustomer === 'function') {
+        onSelectCustomer(cid);
+      }
+      openCustomerCollectionForm(cid);
+    }
+  });
+
+  // Plan 428: tapping a quick-pick row picks that customer exactly
+  // the way tapping a picker card does.
+  recentQuickPickList?.addEventListener('click', (e) => {
+    const row = e.target.closest('.rqp-row');
     if (!row) return;
     const cid = row.getAttribute('data-customer-id');
     if (cid) {

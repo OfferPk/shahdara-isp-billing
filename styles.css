@@ -7799,6 +7799,17 @@ html, body {
   font-size: 12px;
 }
 
+/* Plan 432: the cash change calculator box and line — layout only,
+   no colour of their own. */
+.chc-change-box {
+  margin: 8px 0 0;
+}
+
+.chc-change-line {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
 /* Plan 385 — live settlement preview under the amount field: which
    bills the typed amount settles, in month order, before saving. No
    colour of its own, so no new hex colour is introduced. */

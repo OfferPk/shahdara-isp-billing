@@ -104,6 +104,7 @@ import {
 import { getReceiptFooter, buildReceiptFooterLines, buildReceiptFooterText } from './receipt-footer-studio.js';
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { oldestOpenBillPrefill, transactionPrefillLineHtml } from './transaction-prefill.js';
+import { duesAmountDefault } from './dues-amount-default.js';
 import { amountInWords, amountInWordsLineText } from './amount-in-words.js';
 import { nextReceiptNumberLineText } from './next-receipt-number.js';
 import { normalizeCollectionPlace } from './collection-place-note.js';
@@ -439,11 +440,18 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
   const targetMonth = earliestUnpaidMonth || currentMonth;
   const totalDues = Math.max(0, totalDuesCents / 100);
 
-  // Suggested amount is remaining balance due on the target bill (or total dues if target due is 0)
-  let suggestedAmount = targetDue;
-  if (suggestedAmount <= 0 && totalDues > 0) {
-    suggestedAmount = totalDues;
-  }
+  // Plan 429: the amount defaults to the customer's FULL current dues
+  // — every open bill plus unpaid manual baqaya, the same shared total
+  // the picker shows — filled in as soon as the customer is chosen.
+  // The oldest-bill pre-fill still names its bill under the field; it
+  // is no longer the amount. A customer with no dues defaults to
+  // nothing: the default is null and the field starts blank.
+  // (The baqaya figure is read here, before the charge lines below,
+  // because the default needs it; the payable total still adds it in
+  // below, exactly as before.)
+  const manualBaqayaPendingCents = manualBaqayaOutstandingCents(customer);
+  const duesDefault = duesAmountDefault(customer, allocations, manualBaqayaPendingCents);
+  let suggestedAmount = duesDefault !== null ? duesDefault : 0;
   // Plan 376: a customer with no open bill offers nothing — the
   // package price is never offered as a bill figure. (The monthly
   // selling amount used to be the last fallback here; an advance for
@@ -495,7 +503,8 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
   // the same way — it lives on the customer record, so no caller list
   // is needed. The suggested amount covers it too, so one collection
   // settles bills + baqaya (executeQuickCollection stamps the split).
-  const manualBaqayaPendingCents = manualBaqayaOutstandingCents(customer);
+  // (The cents figure itself is read above, where the Plan 429
+  // default needs it.)
   const manualBaqayaPending = manualBaqayaPendingCents / 100;
   const payableTotal = (totalDuesCents + ticketChargesPendingCents + addonChargesPendingCents + manualBaqayaPendingCents) / 100;
   if ((ticketChargesPending > 0 || addonChargesPendingTotal > 0 || manualBaqayaPending > 0) && payableTotal > 0) {

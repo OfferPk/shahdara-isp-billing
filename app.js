@@ -582,6 +582,7 @@ import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
 import { historyCsvExportButtonMarkup, historyCsvExportFilename, historyCsvExportText } from './history-csv-export.js';
 import { historyPrintedStatementButtonMarkup, buildHistoryPrintedStatementHtml } from './history-printed-statement.js';
+import { historyGapViewHtml } from './history-gap-view.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4379,6 +4380,14 @@ function renderFullHistory(customer) {
       win.focus();
       win.print();
     });
+  }
+  // Plan 411 — History missing-months gap view. One gap view on
+  // the customer history, alongside the printed statement; it
+  // lists gaps only and changes nothing. The view follows the
+  // same shown rows as the list, so the filters apply to it too.
+  const gapHost = $('#hgvHistoryGapView');
+  if (gapHost) {
+    gapHost.innerHTML = historyGapViewHtml(shown, entries);
   }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {

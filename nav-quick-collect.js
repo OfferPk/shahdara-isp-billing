@@ -41,6 +41,7 @@ import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './prom
 import { dailyEntrySummary, dailyEntrySummaryText } from './daily-entry-summary.js';
 import { quickCollectRoundTotals, quickCollectRoundTotalsText } from './quick-collect-round-totals.js';
 import { dailyTargetProgress, dailyTargetProgressHtml } from './daily-target-progress.js';
+import { quickCollectEndOfDaySummary, quickCollectEndOfDaySummaryHtml } from './quick-collect-end-of-day-summary.js';
 import { getDayTarget } from './day-target.js';
 import { standingInstructionLineHtml, standingInstructionForCustomer } from './standing-instruction-note.js';
 import { packagePriceForCustomer, resolveQuickAmount, packageChipLabel } from './quick-amount-buttons.js';
@@ -1878,6 +1879,13 @@ export function setupQuickCollectModal({
   // target, refreshed on every open and after each save. It shows
   // progress only and sets no target.
   const dailyTargetProgressEl = typeof document !== 'undefined' ? document.getElementById('dtpDailyTargetProgress') : null;
+  // Plan 448: the end-of-day summary panel and its button (null when
+  // the host page predates them) — today's payments count and total,
+  // by method, with the cash total shown separately. The panel opens
+  // from its button and refreshes on every open and after each save
+  // while open. It summarises only and settles nothing.
+  const endOfDaySummaryEl = typeof document !== 'undefined' ? document.getElementById('edsEndOfDaySummary') : null;
+  const endOfDaySummaryBtn = typeof document !== 'undefined' ? document.getElementById('edsEndOfDaySummaryButton') : null;
   // SISP-158: contributor picker hosts (null when the host page predates them).
   const contributorField = document.getElementById('quickCollectContributorField');
   const contributorSelect = document.getElementById('quickCollectContributorSelect');
@@ -2725,6 +2733,7 @@ export function setupQuickCollectModal({
     refreshDailyEntrySummary();
     refreshRoundTotals();
     refreshDailyTargetProgress();
+    refreshEndOfDaySummary();
   }
 
   // Plan 400: refresh the live daily entry summary on the entry
@@ -2775,6 +2784,39 @@ export function setupQuickCollectModal({
     const storage = typeof localStorage !== 'undefined' ? localStorage : null;
     const target = getDayTarget(storage, today).amount;
     dailyTargetProgressEl.innerHTML = dailyTargetProgressHtml(dailyTargetProgress(collected, target));
+  }
+
+  // Plan 448: refresh the end-of-day summary panel from the
+  // transactions recorded on this device today, while it is open.
+  // It runs inside updateCounts, so it refreshes on every open and
+  // after each save, from the fresh state. It summarises only — it
+  // settles nothing and changes no record.
+  function refreshEndOfDaySummary() {
+    if (!endOfDaySummaryEl || endOfDaySummaryEl.hidden) return;
+    const state = getState();
+    if (!state || !Array.isArray(state.customers)) return;
+    endOfDaySummaryEl.innerHTML = quickCollectEndOfDaySummaryHtml(
+      quickCollectEndOfDaySummary(listTransactions(state), getPakistanLocalDate())
+    );
+  }
+
+  // Plan 448: open or close the end-of-day summary panel from its
+  // button. Opening renders the summary from the fresh state first,
+  // so the panel can never show a stale day; closing only hides it.
+  function toggleEndOfDaySummary() {
+    if (!endOfDaySummaryEl) return;
+    if (endOfDaySummaryEl.hidden) {
+      const state = getState();
+      if (!state || !Array.isArray(state.customers)) return;
+      endOfDaySummaryEl.innerHTML = quickCollectEndOfDaySummaryHtml(
+        quickCollectEndOfDaySummary(listTransactions(state), getPakistanLocalDate())
+      );
+      endOfDaySummaryEl.hidden = false;
+      endOfDaySummaryBtn?.setAttribute('aria-expanded', 'true');
+    } else {
+      endOfDaySummaryEl.hidden = true;
+      endOfDaySummaryBtn?.setAttribute('aria-expanded', 'false');
+    }
   }
 
   function renderList() {
@@ -5373,6 +5415,18 @@ export function setupQuickCollectModal({
   // Plan 426: the one-screen payment entry on the picker step — the
   // modal is already open, so this only switches steps.
   openOneScreenBtn?.addEventListener('click', () => { openOneScreen(); });
+
+  // Plan 448: the end-of-day summary button on the picker step —
+  // opening renders the summary from the fresh state, and the Close
+  // button inside the panel hides it again. The Close listener is
+  // delegated on the panel itself, so it survives every re-render.
+  endOfDaySummaryBtn?.addEventListener('click', () => { toggleEndOfDaySummary(); });
+  endOfDaySummaryEl?.addEventListener('click', (event) => {
+    if (event?.target?.id === 'edsEndOfDaySummaryClose') {
+      endOfDaySummaryEl.hidden = true;
+      endOfDaySummaryBtn?.setAttribute('aria-expanded', 'false');
+    }
+  });
 
   // Wire bottom nav & More menu Collection tab triggers
   document.querySelectorAll('[data-mobile-nav="collection"], [data-mobile-more="collection"]').forEach(btn => {

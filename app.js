@@ -577,6 +577,7 @@ import { normalizeHistoryTypeFilter, filterHistoryEntriesByType, historyTypeFilt
 import { HISTORY_DATE_RANGE_EMPTY_TEXT, normalizeHistoryDateRange, historyDateRangeActive, filterHistoryEntriesByDateRange, historyDateRangeFilterMarkup, historyDateRangeSummaryText } from './history-date-range-filter.js';
 import { normalizeHistoryMethodFilter, filterHistoryEntriesByMethod, historyMethodFilterSelectMarkup, historyMethodFilterEmptyText, historyMethodFilterSummaryText } from './history-method-filter.js';
 import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryEntriesByAmount, historyAmountSearchMarkup, historyAmountSearchEmptyText, historyAmountSearchSummaryText } from './history-amount-search.js';
+import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4291,6 +4292,16 @@ function renderFullHistory(customer) {
   host.innerHTML = shown.length === 0
     ? `<p class="notice">${escapeHtml(historyAmountSearchActive(fullHistoryAmountSearch) ? historyAmountSearchEmptyText(fullHistoryAmountSearch) : historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
     : fullHistoryListHtml(shown);
+  // Plan 406 — History running balance after each transaction. One
+  // running-balance column on the customer history, computed from the
+  // same entries in order; it is a view only and recomputes nothing
+  // stored. The column follows the same shown rows as the list, so
+  // the filters apply to both, and each row's balance after is the
+  // entry's own running balance from the full history.
+  const balanceHost = $('#hrbHistoryRunningBalance');
+  if (balanceHost) {
+    balanceHost.innerHTML = historyRunningBalanceColumnHtml(shown, entries);
+  }
   const summary = $('#fhlFullHistorySummary');
   if (summary) {
     summary.textContent = historyAmountSearchSummaryText(shown, entries, fullHistoryAmountSearch, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter, fullHistoryMethodFilter)

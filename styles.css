@@ -7927,6 +7927,24 @@ html, body {
   margin: 0;
 }
 
+/* Plan 433 — receipt preview panel: plain layout only, no colour of
+   its own, so no new hex colour is introduced. The preview fields
+   reuse the printed receipt's field markup and styling. */
+.rpv-preview-box {
+  margin: 8px 0;
+}
+
+.rpv-preview-heading {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.rpv-preview-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
+
 .qc-quick-amount-chips {
   display: flex;
   flex-wrap: wrap;

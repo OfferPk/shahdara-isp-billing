@@ -577,6 +577,7 @@ import { normalizeHistoryTypeFilter, filterHistoryEntriesByType, historyTypeFilt
 import { HISTORY_DATE_RANGE_EMPTY_TEXT, normalizeHistoryDateRange, historyDateRangeActive, filterHistoryEntriesByDateRange, historyDateRangeFilterMarkup, historyDateRangeSummaryText } from './history-date-range-filter.js';
 import { normalizeHistoryMethodFilter, filterHistoryEntriesByMethod, historyMethodFilterSelectMarkup, historyMethodFilterEmptyText, historyMethodFilterSummaryText } from './history-method-filter.js';
 import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryEntriesByAmount, historyAmountSearchMarkup, historyAmountSearchEmptyText, historyAmountSearchSummaryText } from './history-amount-search.js';
+import { normalizeLedgerAmountRange, searchLedgerByAmountRange, ledgerAmountRangeSummaryText, ledgerAmountRangeEmptyText } from './ledger-amount-range.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
@@ -4962,6 +4963,10 @@ let transactionMethodFilter = 'all';
 // Plan 398: the category tag filter — one tag per transaction in
 // plain words; 'all' means no category filter.
 let transactionCategoryFilter = 'all';
+// Plan 453: the whole-ledger amount-range search — whole-rupee
+// bounds typed on the Transactions screen; '' means no bound.
+let transactionAmountMin = '';
+let transactionAmountMax = '';
 // Plan 392: the payment id a receipt-number search found, or null.
 // While set, the Transactions list shows only that transaction.
 let receiptSearchPaymentId = null;
@@ -5006,6 +5011,15 @@ function renderTransactions() {
   // Plan 392: a receipt-number search narrows the list to exactly
   // the found transaction, whatever the other filters say — the
   // search runs over all recorded payments, not the filtered view.
+  // Plan 453: the amount-range search over the whole ledger — whole
+  // rupees, both ends inclusive, a blank side open. It filters the
+  // list the other filters already produced, like the method and
+  // category filters, and the receipt-number search below still wins
+  // when it is active.
+  const amountRange = normalizeLedgerAmountRange(transactionAmountMin, transactionAmountMax);
+  if (amountRange.active) {
+    transactions = searchLedgerByAmountRange(transactions, transactionAmountMin, transactionAmountMax);
+  }
   if (receiptSearchPaymentId) {
     transactions = listTransactions(state).filter(tx => tx.paymentId === receiptSearchPaymentId);
   }
@@ -5023,6 +5037,26 @@ function renderTransactions() {
   const avgEl = $('#txSummaryAverage');
   if (totalEl) totalEl.textContent = formatAmount(summary.totalAmount);
   if (avgEl) avgEl.textContent = formatAmount(summary.averageAmount);
+
+  // Plan 453: when the range search is active, the summary bar says
+  // the range, the count, and the total in PKR, and an empty range
+  // says so plainly instead of the generic empty text.
+  const rangeSummaryEl = $('#larRangeSummary');
+  if (rangeSummaryEl) {
+    if (amountRange.active) {
+      rangeSummaryEl.hidden = false;
+      rangeSummaryEl.textContent = ledgerAmountRangeSummaryText(transactions, transactionAmountMin, transactionAmountMax);
+    } else {
+      rangeSummaryEl.hidden = true;
+      rangeSummaryEl.textContent = '';
+    }
+  }
+  const emptyEl = $('#transactionsEmpty');
+  if (emptyEl) {
+    emptyEl.textContent = amountRange.active && transactions.length === 0
+      ? ledgerAmountRangeEmptyText(transactionAmountMin, transactionAmountMax)
+      : 'No recorded payments match these filters.';
+  }
 
   const paged = paginateRows(transactions, transactionCurrentPage, transactionPageSize);
   transactionCurrentPage = paged.page;
@@ -10279,6 +10313,9 @@ $('#backdatedPaymentButton')?.addEventListener('click', () => openPaymentEntry()
 $('#showTransactionsButton').addEventListener('click', () => { switchView('transactions'); renderTransactions(); });
 $('#showReportsButton').addEventListener('click', () => { switchView('reports'); renderMonthlyReport(); });
 $('#transactionDateFilter').addEventListener('input', () => { transactionCurrentPage = 1; renderTransactions(); });
+// Plan 453: the amount-range bounds — whole rupees, typed live.
+$('#transactionAmountMin').addEventListener('input', event => { transactionAmountMin = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+$('#transactionAmountMax').addEventListener('input', event => { transactionAmountMax = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionRecencyFilter').addEventListener('change', () => { transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionMethodFilter').addEventListener('change', event => { transactionMethodFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionCategoryFilter').addEventListener('change', event => { transactionCategoryFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
@@ -10343,6 +10380,13 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   const categoryFilterSelect = $('#transactionCategoryFilter');
   if (categoryFilterSelect) categoryFilterSelect.value = 'all';
   transactionCategoryFilter = 'all';
+  // Plan 453: clearing the filters also clears the amount range.
+  const amountMinInput = $('#transactionAmountMin');
+  if (amountMinInput) amountMinInput.value = '';
+  const amountMaxInput = $('#transactionAmountMax');
+  if (amountMaxInput) amountMaxInput.value = '';
+  transactionAmountMin = '';
+  transactionAmountMax = '';
   transactionCurrentPage = 1;
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');

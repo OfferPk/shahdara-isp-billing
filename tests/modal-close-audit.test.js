@@ -136,6 +136,9 @@ const BARE_GLYPH_ALLOWLIST = [
   { file: 'qa-otdr-bidirectional-inspection.js', cls: 'event-remove-btn', why: 'removes one inspection event row' },
   { file: 'roznamcha.js', aria: 'Remove expense', why: 'removes one roznamcha expense row' },
   { file: 'field-mode.js', cls: 'field-mode-nearby-dismiss', why: 'SISP-168: dismisses the nearby-unpaid hint card (a banner above the list, never a dialog)' },
+  // Plan 459: the × on a saved filter row removes only that filter —
+  // an item-level micro-control, never a dialog close.
+  { file: 'saved-search-filters.js', cls: 'fcs-clear-recent-btn', why: 'removes one saved filter row' },
 ];
 
 test('SISP-87 audit: bare ✕ / × buttons exist only as allowlisted micro-controls', () => {

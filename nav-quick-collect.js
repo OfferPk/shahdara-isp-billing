@@ -115,6 +115,7 @@ import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConf
 import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
 import { successNextStepsFromReceipt, successNextStepsHtml, successNextStepsNextDueDate } from './success-next-steps.js';
 import { QUICK_COLLECT_REVERSAL_UNDO_WINDOW_MS, QUICK_COLLECT_REVERSAL_UNDO_REASON, quickCollectReversalUndoAllowed, quickCollectReversalUndoSecondsLeft, quickCollectReversalUndoButtonText, quickCollectReversalUndoIsPlainPayment, quickCollectReversalUndoFields } from './quick-collect-reversal-undo.js';
+import { offlineSavedBadge, offlineSavedBadgeHtml, offlineSavedBadgeLatestTime } from './offline-saved-badge.js';
 import { settlementPreview, settlementPreviewMarkup } from './partial-settlement-preview.js';
 import { overpaymentExtraCents } from './overpayment-choice.js';
 import { requiresLargeCashApproval, LARGE_CASH_DEFAULT_THRESHOLD_CENTS } from './large-cash-approval.js';
@@ -1861,6 +1862,9 @@ export function setupQuickCollectModal({
   // this payment, next due date, and a collect-again action, shown
   // beside the package success message.
   const nextStepsBox = typeof document !== 'undefined' ? document.getElementById('snsSuccessNextSteps') : null;
+  // Plan 436: the offline saved badge host on the success step (null when
+  // the host page predates it) — "saved on this device" with the save time.
+  const savedBadgeBox = typeof document !== 'undefined' ? document.getElementById('osbOfflineSavedBadge') : null;
   const confirmSaveBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmSaveBtn') : null;
   const confirmBackBtn = typeof document !== 'undefined' ? document.getElementById('quickCollectConfirmBackBtn') : null;
   // Plan 432: the cash change calculator (null when the host page
@@ -3895,6 +3899,40 @@ export function setupQuickCollectModal({
     }
   }
 
+  // Plan 436: the offline saved badge — "saved on this device" with the
+  // save time, from the saved payment's own recorded-at stamp. It badges
+  // only: rendering posts nothing, syncs nothing, and changes no record.
+  // A payment not yet saved shows no badge: with no active receipt the
+  // host is cleared and hidden. A split collection records two legs of
+  // its own in one save, so the badge takes the later of the two stamps.
+  function renderOfflineSavedBadge() {
+    if (!savedBadgeBox) return;
+    if (!activeReceipt) {
+      savedBadgeBox.innerHTML = '';
+      savedBadgeBox.hidden = true;
+      return;
+    }
+    const postSaveState = getState();
+    const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+    const bills = Array.isArray(postSaveCustomer?.bills) ? postSaveCustomer.bills : [];
+    const stamps = [];
+    const collectStamp = (paymentId) => {
+      if (!paymentId) return;
+      for (const bill of bills) {
+        const payments = Array.isArray(bill?.payments) ? bill.payments : [];
+        const found = payments.find((p) => p?.id === paymentId);
+        if (found?.recordedAt) stamps.push(found.recordedAt);
+      }
+    };
+    collectStamp(activeReceipt.paymentId);
+    const splitLegs = Array.isArray(activeUndoContext?.splitLegs) ? activeUndoContext.splitLegs : [];
+    for (const leg of splitLegs) collectStamp(leg?.paymentId);
+    const badge = offlineSavedBadge(offlineSavedBadgeLatestTime(stamps));
+    const html = badge ? offlineSavedBadgeHtml(badge) : '';
+    savedBadgeBox.innerHTML = html;
+    savedBadgeBox.hidden = html === '';
+  }
+
   // Polish 4: the success line under the heading names the package that
   // the amount just collected pays for, or keeps the existing English
   // line when the amount matches no package.
@@ -4429,6 +4467,7 @@ export function setupQuickCollectModal({
           renderActiveReceiptCard();
           applyPackageSuccessMessage(totalCollected);
           renderSuccessNextSteps();
+          renderOfflineSavedBadge();
           showStep('success');
           updateCounts();
           announcePaymentSuccess(activeReceipt);
@@ -4619,6 +4658,7 @@ export function setupQuickCollectModal({
       renderActiveReceiptCard();
       applyPackageSuccessMessage(receipt.amount);
       renderSuccessNextSteps();
+      renderOfflineSavedBadge();
 
       showStep('success');
       updateCounts();

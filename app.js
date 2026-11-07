@@ -580,7 +580,8 @@ import { HISTORY_DATE_RANGE_EMPTY_TEXT, normalizeHistoryDateRange, historyDateRa
 import { normalizeHistoryMethodFilter, filterHistoryEntriesByMethod, historyMethodFilterSelectMarkup, historyMethodFilterEmptyText, historyMethodFilterSummaryText } from './history-method-filter.js';
 import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryEntriesByAmount, historyAmountSearchMarkup, historyAmountSearchEmptyText, historyAmountSearchSummaryText } from './history-amount-search.js';
 import { normalizeLedgerAmountRange, searchLedgerByAmountRange, ledgerAmountRangeSummaryText, ledgerAmountRangeEmptyText } from './ledger-amount-range.js';
-import { normalizeLedgerDay, searchLedgerByDay, ledgerDaySummaryText, ledgerDayEmptyText, ledgerDayRangeEmptyText } from './ledger-single-day.js';
+import { normalizeLedgerDay, formatLedgerDay, searchLedgerByDay, ledgerDaySummaryText, ledgerDayEmptyText, ledgerDayRangeEmptyText } from './ledger-single-day.js';
+import { normalizeLedgerMethodFilter, searchLedgerByMethod, ledgerMethodSummaryText, ledgerMethodDayRangeEmptyText } from './ledger-payment-method.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
@@ -4988,8 +4989,14 @@ function renderTransactions() {
   const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
   let transactions = listTransactions(state, { customerQuery:searchQuery(), date, recencyDays });
 
-  if (transactionMethodFilter !== 'all') {
-    transactions = transactions.filter(tx => String(tx.method || '').toLowerCase() === transactionMethodFilter.toLowerCase());
+  // Plan 455: the whole-ledger method filter — one method's
+  // entries, folded the way the app's reconciliation folds them
+  // (Cash at … shop variants under Cash, Raast under Bank
+  // Transfer, NayaPay reachable at last). The exact match it
+  // replaced left those payments reachable only under "All
+  // methods".
+  if (normalizeLedgerMethodFilter(transactionMethodFilter) !== 'all') {
+    transactions = searchLedgerByMethod(transactions, transactionMethodFilter);
   }
 
   // Plan 398: the category tag filter — one tag per transaction in
@@ -5076,9 +5083,27 @@ function renderTransactions() {
       daySummaryEl.textContent = '';
     }
   }
+  // Plan 455: when a method is chosen, the summary bar says the
+  // method, the count, and the total in PKR, and an empty method
+  // says so plainly instead of the generic empty text.
+  const methodSummaryEl = $('#lpmMethodSummary');
+  if (methodSummaryEl) {
+    if (normalizeLedgerMethodFilter(transactionMethodFilter) !== 'all') {
+      methodSummaryEl.hidden = false;
+      methodSummaryEl.textContent = ledgerMethodSummaryText(transactions, transactionMethodFilter);
+    } else {
+      methodSummaryEl.hidden = true;
+      methodSummaryEl.textContent = '';
+    }
+  }
   const emptyEl = $('#transactionsEmpty');
   if (emptyEl) {
-    if (transactions.length === 0 && day && amountRange.active) {
+    // Plan 455: an empty method names the method — composed with
+    // the day and the range when those filters are active too —
+    // before the day and range chain below.
+    if (transactions.length === 0 && normalizeLedgerMethodFilter(transactionMethodFilter) !== 'all') {
+      emptyEl.textContent = ledgerMethodDayRangeEmptyText(transactionMethodFilter, formatLedgerDay(date), transactionAmountMin, transactionAmountMax);
+    } else if (transactions.length === 0 && day && amountRange.active) {
       emptyEl.textContent = ledgerDayRangeEmptyText(day, transactionAmountMin, transactionAmountMax);
     } else if (transactions.length === 0 && day) {
       emptyEl.textContent = ledgerDayEmptyText(day);
@@ -39403,8 +39428,10 @@ $('#exportTransactionsCsvBtn')?.addEventListener('click', () => {
   const recencyValue = $('#transactionRecencyFilter')?.value;
   const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
   let txs = listTransactions(state, { customerQuery: searchQuery(), date, recencyDays });
-  if (transactionMethodFilter !== 'all') {
-    txs = txs.filter(tx => String(tx.method || '').toLowerCase() === transactionMethodFilter.toLowerCase());
+  // Plan 455: the export follows the same folded method filter as
+  // the list, so what is exported is what is shown.
+  if (normalizeLedgerMethodFilter(transactionMethodFilter) !== 'all') {
+    txs = searchLedgerByMethod(txs, transactionMethodFilter);
   }
   // Plan 398: the export follows the same category filter as the
   // list, so what is exported is what is shown.

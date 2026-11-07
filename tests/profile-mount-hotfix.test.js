@@ -409,8 +409,12 @@ test('profile mount: faithful deep-querySelector simulation — every child clai
   assert.deepEqual(steals, [], 'no selector may match a descendant inside another section (deep querySelector steal)');
   assert.deepEqual(remaining.map(c => c.label), [], 'mounts.remove() deletes nothing');
   const placement = Object.fromEntries(Object.entries(panels).map(([k, v]) => [k, v.map(c => c.label)]));
+  // Polish #11 (2026-11-07): the profile receipt share-draft host
+  // (#stxProfileShareDraft) joins the billing panel, right after the
+  // manual-baqaya section — it is a claimed mounts child, in mount
+  // order, like the summary and baqaya sections above it.
   assert.deepEqual(placement, {
-    billing: ['#customerReceiptSummary', '#manualBaqayaSection', '.ledger-heading', '.notice.history-retention-note', '#customerEmptyNote'],
+    billing: ['#customerReceiptSummary', '#manualBaqayaSection', '#stxProfileShareDraft', '.ledger-heading', '.notice.history-retention-note', '#customerEmptyNote'],
     info: ['.customer-meta', '.package-history-section', '.incident-section.uptime-section'],
     complaints: ['.incident-section']
   }, 'every mounts child lands in its expected tab panel, in mount order');

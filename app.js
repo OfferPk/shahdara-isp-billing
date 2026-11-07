@@ -575,6 +575,7 @@ import { openPromisesForCustomer, promisePaymentLinkSelectOptions, promisePaymen
 import { FULL_HISTORY_EMPTY_TEXT, fullHistoryEntries, fullHistoryListHtml, fullHistorySummaryText } from './full-history-list.js';
 import { normalizeHistoryTypeFilter, filterHistoryEntriesByType, historyTypeFilterSelectMarkup, historyTypeFilterEmptyText, historyTypeFilterSummaryText } from './history-type-filter.js';
 import { HISTORY_DATE_RANGE_EMPTY_TEXT, normalizeHistoryDateRange, historyDateRangeActive, filterHistoryEntriesByDateRange, historyDateRangeFilterMarkup, historyDateRangeSummaryText } from './history-date-range-filter.js';
+import { normalizeHistoryMethodFilter, filterHistoryEntriesByMethod, historyMethodFilterSelectMarkup, historyMethodFilterEmptyText, historyMethodFilterSummaryText } from './history-method-filter.js';
 import { normalizeWadaRecordList, recordWadaRecord, removeWadaRecord, markWadaRecordKept, markWadaRecordBroken, wadaRecordsForCustomer, activeWadaRecordsForCustomer, wadaHealthText, wadaBannerHtml, wadaHistoryHtml } from './wada-record.js';
 import { wadaDashboardTotals, wadaDashboardCustomers, wadaDashboardSearchRows, wadaDashboardSummaryText, wadaDashboardHtml, wadaDashboardCsv, wadaDashboardFilename } from './wada-dashboard.js';
 import { installationFeeRows, installationFeeTotals, installationFeeSummaryText, installationFeeHtml, installationFeeCsv, installationFeeFilename } from './installation-dashboard.js';
@@ -4184,6 +4185,7 @@ function billPackageSelectorMarkup(bill, month) {
 let fullHistoryTypeFilter = 'all';
 let fullHistoryDateFrom = '';
 let fullHistoryDateTo = '';
+let fullHistoryMethodFilter = 'all';
 function renderFullHistory(customer) {
   const host = $('#fhlFullHistoryList');
   if (!host) return;
@@ -4233,21 +4235,42 @@ function renderFullHistory(customer) {
       if (currentCustomer) renderFullHistory(currentCustomer);
     });
   }
-  const shown = filterHistoryEntriesByDateRange(
-    filterHistoryEntriesByType(entries, fullHistoryTypeFilter),
-    fullHistoryDateFrom,
-    fullHistoryDateTo,
+  // Plan 404 — History filter by payment method. One method filter on
+  // the customer history, alongside the type and date-range filters;
+  // it filters only and changes nothing. The chosen method lives only
+  // while the profile is open, and re-rendering the profile keeps the
+  // choice.
+  const methodHost = $('#hmfHistoryMethodFilterHost');
+  if (methodHost) {
+    const current = $('#hmfHistoryMethodFilter');
+    if (current) fullHistoryMethodFilter = normalizeHistoryMethodFilter(current.value);
+    methodHost.innerHTML = historyMethodFilterSelectMarkup(entries, fullHistoryMethodFilter);
+    const select = $('#hmfHistoryMethodFilter');
+    if (select) select.addEventListener('change', () => {
+      fullHistoryMethodFilter = normalizeHistoryMethodFilter(select.value);
+      const currentCustomer = selectedCustomer();
+      if (currentCustomer) renderFullHistory(currentCustomer);
+    });
+  }
+  const shown = filterHistoryEntriesByMethod(
+    filterHistoryEntriesByDateRange(
+      filterHistoryEntriesByType(entries, fullHistoryTypeFilter),
+      fullHistoryDateFrom,
+      fullHistoryDateTo,
+    ),
+    fullHistoryMethodFilter,
   );
   host.innerHTML = shown.length === 0
-    ? `<p class="notice">${escapeHtml(historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : historyTypeFilterEmptyText(fullHistoryTypeFilter))}</p>`
+    ? `<p class="notice">${escapeHtml(historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo) ? HISTORY_DATE_RANGE_EMPTY_TEXT : (historyMethodFilterEmptyText(fullHistoryMethodFilter) || historyTypeFilterEmptyText(fullHistoryTypeFilter)))}</p>`
     : fullHistoryListHtml(shown);
   const summary = $('#fhlFullHistorySummary');
   if (summary) {
-    summary.textContent = historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo)
-      ? historyDateRangeSummaryText(shown, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)
-      : fullHistoryTypeFilter === 'all'
-        ? fullHistorySummaryText(entries)
-        : historyTypeFilterSummaryText(shown, entries, fullHistoryTypeFilter);
+    summary.textContent = historyMethodFilterSummaryText(shown, entries, fullHistoryMethodFilter, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)
+      || (historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo)
+        ? historyDateRangeSummaryText(shown, fullHistoryDateFrom, fullHistoryDateTo, fullHistoryTypeFilter)
+        : fullHistoryTypeFilter === 'all'
+          ? fullHistorySummaryText(entries)
+          : historyTypeFilterSummaryText(shown, entries, fullHistoryTypeFilter));
   }
 }
 function renderHistory(customer) {

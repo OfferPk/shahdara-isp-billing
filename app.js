@@ -592,6 +592,7 @@ import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryE
 import { normalizeLedgerAmountRange, searchLedgerByAmountRange, ledgerAmountRangeSummaryText, ledgerAmountRangeEmptyText } from './ledger-amount-range.js';
 import { normalizeLedgerDay, formatLedgerDay, searchLedgerByDay, ledgerDaySummaryText, ledgerDayEmptyText, ledgerDayRangeEmptyText } from './ledger-single-day.js';
 import { normalizeLedgerMethodFilter, searchLedgerByMethod, ledgerMethodSummaryText, ledgerMethodDayRangeEmptyText } from './ledger-payment-method.js';
+import { normalizeLiveLedgerSearch, searchLedgerLive, ledgerLiveSearchSummaryText, ledgerLiveSearchEmptyText } from './ledger-live-search.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
@@ -5190,6 +5191,10 @@ let transactionCategoryFilter = 'all';
 // bounds typed on the Transactions screen; '' means no bound.
 let transactionAmountMin = '';
 let transactionAmountMax = '';
+// Plan 460: the live ledger search — the typed text on the Transactions
+// screen; '' means no live search. The search only goes live at three
+// or more characters (see normalizeLiveLedgerSearch).
+let transactionLiveSearch = '';
 // Plan 392: the payment id a receipt-number search found, or null.
 // While set, the Transactions list shows only that transaction.
 let receiptSearchPaymentId = null;
@@ -5257,6 +5262,15 @@ function renderTransactions() {
   if (normalizeLedgerDay(date)) {
     transactions = searchLedgerByDay(transactions, date);
   }
+  // Plan 460: the live ledger search — the typed text narrows the
+  // ledger as the operator types (name, phone, or amount fragment,
+  // three or more characters); it filters the list the other filters
+  // already produced, like the method and category filters, and the
+  // receipt-number search below still wins when it is active.
+  const liveSearch = normalizeLiveLedgerSearch(transactionLiveSearch);
+  if (liveSearch.active) {
+    transactions = searchLedgerLive(transactions, liveSearch.query);
+  }
   if (receiptSearchPaymentId) {
     transactions = listTransactions(state).filter(tx => tx.paymentId === receiptSearchPaymentId);
   }
@@ -5315,12 +5329,30 @@ function renderTransactions() {
       methodSummaryEl.textContent = '';
     }
   }
+  // Plan 460: when the live search is active, the summary bar says
+  // the typed text, the count, and the total in PKR, and an empty
+  // live search says so plainly instead of the generic empty text.
+  const liveSummaryEl = $('#llsLiveSummary');
+  if (liveSummaryEl) {
+    if (liveSearch.active) {
+      liveSummaryEl.hidden = false;
+      liveSummaryEl.textContent = ledgerLiveSearchSummaryText(transactions, liveSearch.query);
+    } else {
+      liveSummaryEl.hidden = true;
+      liveSummaryEl.textContent = '';
+    }
+  }
   const emptyEl = $('#transactionsEmpty');
   if (emptyEl) {
-    // Plan 455: an empty method names the method — composed with
-    // the day and the range when those filters are active too —
-    // before the day and range chain below.
-    if (transactions.length === 0 && normalizeLedgerMethodFilter(transactionMethodFilter) !== 'all') {
+    // Plan 460: an empty live search names the typed text first —
+    // the typed query is the most recent narrowing action, before
+    // the method and the day and range chain below.
+    if (transactions.length === 0 && liveSearch.active) {
+      emptyEl.textContent = ledgerLiveSearchEmptyText(liveSearch.query);
+    } else if (transactions.length === 0 && normalizeLedgerMethodFilter(transactionMethodFilter) !== 'all') {
+      // Plan 455: an empty method names the method — composed with
+      // the day and the range when those filters are active too —
+      // before the day and range chain below.
       emptyEl.textContent = ledgerMethodDayRangeEmptyText(transactionMethodFilter, formatLedgerDay(date), transactionAmountMin, transactionAmountMax);
     } else if (transactions.length === 0 && day && amountRange.active) {
       emptyEl.textContent = ledgerDayRangeEmptyText(day, transactionAmountMin, transactionAmountMax);
@@ -10644,6 +10676,10 @@ $('#transactionDateFilter').addEventListener('input', () => { transactionCurrent
 // Plan 453: the amount-range bounds — whole rupees, typed live.
 $('#transactionAmountMin').addEventListener('input', event => { transactionAmountMin = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionAmountMax').addEventListener('input', event => { transactionAmountMax = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+// Plan 460: the live ledger search — the list narrows on every
+// keystroke, no Search button to press; clearing the box (or
+// dropping below three characters) returns the full ledger.
+$('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionRecencyFilter').addEventListener('change', () => { transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionMethodFilter').addEventListener('change', event => { transactionMethodFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionCategoryFilter').addEventListener('change', event => { transactionCategoryFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
@@ -10715,6 +10751,10 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   if (amountMaxInput) amountMaxInput.value = '';
   transactionAmountMin = '';
   transactionAmountMax = '';
+  // Plan 460: clearing the filters also clears the live search.
+  const liveSearchInput = $('#transactionLiveSearch');
+  if (liveSearchInput) liveSearchInput.value = '';
+  transactionLiveSearch = '';
   transactionCurrentPage = 1;
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');

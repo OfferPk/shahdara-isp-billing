@@ -26536,6 +26536,15 @@
         </button>
         <div id="edsEndOfDaySummary" class="eds-summary" role="region" aria-label="End-of-day summary" aria-live="polite" hidden></div>
 
+        <!-- Plan 450: the new-customer quick-add on the picker step — a
+             brand-new customer is added here (name, phone, mohalla,
+             package) and the payment form opens for them straight away.
+             The fields are rendered into the form by the wiring. -->
+        <button id="ncaNewCustomerButton" type="button" class="secondary-button" aria-expanded="false" aria-controls="ncaQuickAddForm">
+          ＋ New customer
+        </button>
+        <form id="ncaQuickAddForm" class="qc-form" novalidate hidden></form>
+
         <div id="quickCollectCustomerList" class="qc-customer-list" role="region" aria-label="Subscribers list" tabindex="0">
           <!-- Populated dynamically -->
         </div>

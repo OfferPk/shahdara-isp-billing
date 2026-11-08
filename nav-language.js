@@ -1982,11 +1982,14 @@ export const TRANSLATIONS = {
     prof_discard_message: 'Fields you already saved with their own Save button stay saved. Only the changes you have not saved yet will be lost.',
     prof_field_save_note: 'Each field\'s Save button saves that field right away — leaving the form only discards changes you have not saved yet.',
     prof_customer_number: 'Customer #{n}',
-    prof_service_badge: 'Service · {label}',
+    prof_service_badge: 'Service: {label}',
     prof_service_badge_aria: 'Manual service status: {label}; not monitored',
     prof_service_status: 'Service status: {label}',
     prof_service_active: 'Active',
     prof_service_offline: 'Offline',
+    // Plan 510: the manual status was never chosen — "Not set" read as if
+    // the service itself were unset, so it gets its own honest label.
+    prof_service_not_chosen: 'Not chosen',
     prof_archive_active: 'Profile: Active',
     prof_archive_archived: 'Profile: Archived',
     prof_archive_since: 'Profile: Archived since {date}',
@@ -6295,11 +6298,14 @@ export const TRANSLATIONS = {
     prof_discard_message: 'جو فیلڈز آپ نے اپنی Save بٹن سے محفوظ کر لی ہیں وہ محفوظ رہیں گی۔ صرف وہ تبدیلیاں ضائع ہوں گی جو آپ نے ابھی تک محفوظ نہیں کیں۔',
     prof_field_save_note: 'ہر فیلڈ کی Save بٹن اس فیلڈ کو فوراً محفوظ کر دیتی ہے — فارم چھوڑنے سے صرف وہ تبدیلیاں ضائع ہوتی ہیں جو آپ نے ابھی تک محفوظ نہیں کیں۔',
     prof_customer_number: 'گاہک #{n}',
-    prof_service_badge: 'سروس · {label}',
+    prof_service_badge: 'سروس: {label}',
     prof_service_badge_aria: 'دستی سروس حالت: {label}؛ نگرانی نہیں ہوتی',
     prof_service_status: 'سروس کی حالت: {label}',
     prof_service_active: 'فعال',
     prof_service_offline: 'آف لائن',
+    // Plan 510: the manual status was never chosen — "طے نہیں" read as if
+    // the service itself were unset, so it gets its own honest label.
+    prof_service_not_chosen: 'منتخب نہیں',
     prof_archive_active: 'پروفائل: فعال',
     prof_archive_archived: 'پروفائل: آرکائیو شدہ',
     prof_archive_since: 'پروفائل: آرکائیو شدہ از {date}',

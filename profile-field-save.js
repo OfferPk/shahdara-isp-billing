@@ -103,3 +103,67 @@ export function profileFieldSaveEntry(inputId, control) {
   if (control.type === 'checkbox') return { key, value: control.checked === true };
   return { key, value: typeof control.value === 'string' ? control.value : '' };
 }
+
+// Plan 499 — Cancel means Close when nothing is unsaved.
+//
+// A per-field Save persists its field immediately, so "unsaved" here
+// means "differs from the stored record" — NOT "differs from the
+// values the form opened with" (that is the Plan 498 save-button
+// baseline in ui-feedback.js, which still counts a per-field-saved
+// value as changed). A field counts as dirty only when its current
+// value differs from BOTH the stored record and the value the form
+// opened with: the open-time value covers the derived pre-fills
+// renderDetail writes (serviceStatus 'not-set', visit window
+// 'anytime', connectionType 'residential', searchAliases joined with
+// ', ', seasonal restore pre-filled with the applicable rate), which
+// differ from the stored record on an untouched form. Closing never
+// reverts a per-field-saved value: the stored record already holds
+// it, so renderDetail re-renders it back unchanged.
+//
+// `controls` is an iterable of duck-typed controls ({ id, type,
+// value, checked }); `openValues` maps control id to the duck-typed
+// control captured when the form opened, or null when no snapshot
+// exists (then dirty means "differs from the stored record" only —
+// the safe direction, towards confirming). Controls with no map entry
+// (save options, contributor editor, incident/uptime forms) are not
+// profile fields and never count here.
+
+// Current value of one control, in the same shape as its stored
+// baseline: booleans for checkboxes, trimmed strings otherwise.
+function profileFieldCurrentValue(control) {
+  if (control.type === 'checkbox') return control.checked === true;
+  return typeof control.value === 'string' ? control.value.trim() : '';
+}
+
+// Stored value of one field, in the same shape: booleans stay
+// booleans (an unset checkbox reads as false), arrays join the way
+// the form renders them, everything else is a trimmed string.
+function profileFieldStoredValue(raw, isCheckbox) {
+  if (isCheckbox) return raw === true;
+  if (raw === null || raw === undefined) return '';
+  if (Array.isArray(raw)) return raw.join(', ');
+  return String(raw).trim();
+}
+
+function profileFieldValuesEqual(a, b) {
+  if (typeof a === 'boolean' || typeof b === 'boolean') return a === b;
+  return String(a ?? '').trim() === String(b ?? '').trim();
+}
+
+export function dirtyProfileFieldKeys(customer, controls, openValues) {
+  const dirty = [];
+  for (const control of controls || []) {
+    const key = PROFILE_FIELD_SAVE_MAP[control?.id];
+    if (!key || !control) continue;
+    const current = profileFieldCurrentValue(control);
+    if (profileFieldValuesEqual(current, profileFieldStoredValue(customer?.[key], control.type === 'checkbox'))) continue;
+    const open = openValues?.[control.id];
+    if (open !== undefined && open !== null && profileFieldValuesEqual(current, profileFieldCurrentValue(open))) continue;
+    dirty.push(key);
+  }
+  return dirty;
+}
+
+export function hasUnsavedProfileEdits(customer, controls, openValues) {
+  return dirtyProfileFieldKeys(customer, controls, openValues).length > 0;
+}

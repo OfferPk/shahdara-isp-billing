@@ -41,7 +41,7 @@ import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, u
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
-import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits } from './profile-field-save.js?v=1.11.0';
+import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, dirtyProfileFieldKeys } from './profile-field-save.js?v=1.11.0';
 import { customerDeleteCleanCheck, customerDeleteRefusalText } from './customer-delete-clean-check.js?v=1.11.0';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
 import { countProfileCompletion, countProfileCompletionFromControls } from './profile-completion.js?v=1.11.0';
@@ -11924,7 +11924,12 @@ async function saveProfileField(control, button, labelText) {
     }
     toast(`${fieldLabel} saved.`);
     button.textContent = 'Saved ✓';
-    setTimeout(() => { if (document.body.contains(button)) button.textContent = 'Save'; }, 1500);
+    // Plan 500 — the button stays visible through the 1.5s feedback,
+    // then the sync hides it: the stored record now matches the field,
+    // so it reads clean. (syncProfileFieldSaveButtons is deliberately
+    // NOT called in the finally below — it would hide the button
+    // mid-feedback.)
+    setTimeout(() => { if (!document.body.contains(button)) return; button.textContent = 'Save'; syncProfileFieldSaveButtons(); }, 1500);
   } catch (error) {
     showProfileFormError(error.message, control.id);
     button.textContent = 'Save';
@@ -11953,6 +11958,10 @@ function bindProfileFieldSaveButtons() {
     button.type = 'button';
     button.className = 'secondary-button profile-field-save';
     button.textContent = 'Save';
+    // Plan 500 — a per-field Save starts hidden: a freshly opened form
+    // shows no Save buttons at all, and syncProfileFieldSaveButtons
+    // (below) reveals exactly the fields that are dirty.
+    button.classList.add('is-clean');
     const fieldLabel = profileFieldMainLabel(label);
     button.setAttribute('aria-label', `Save ${fieldLabel || 'field'}`);
     button.addEventListener('click', () => saveProfileField(control, button, fieldLabel));
@@ -11960,6 +11969,32 @@ function bindProfileFieldSaveButtons() {
   });
 }
 bindProfileFieldSaveButtons();
+// Plan 500 — Per-field Save appears only on the dirty field.
+//
+// The 69 per-field Save buttons are visually noisy when all visible,
+// and none of them says which field is unsaved. This sync shows a
+// button only while its own field is dirty, reusing the exact dirty
+// check Plan 499 built for Cancel (dirtyProfileFieldKeys, comparing
+// the control against the stored record AND the value the form opened
+// with, so derived pre-fills read clean on an untouched form).
+// Visibility (not display) hides the button: the flex row keeps the
+// button's space, so showing or hiding a button never moves the
+// control or any other row. A button mid-feedback ('Saved ✓') is
+// skipped — the 1.5s feedback in saveProfileField runs first, and its
+// timer re-syncs when it restores the label.
+function syncProfileFieldSaveButtons() {
+  const form = $('#customerProfileForm');
+  if (!form) return;
+  const customer = selectedCustomer();
+  const controls = [...form.querySelectorAll('input, select, textarea')];
+  const dirty = new Set(customer ? dirtyProfileFieldKeys(customer, controls, profileCancelOpenValues) : []);
+  form.querySelectorAll('.profile-field-save').forEach((button) => {
+    if (button.textContent === 'Saved ✓') return;
+    const control = button.closest('.profile-field-row')?.querySelector('input, select, textarea');
+    const key = control ? PROFILE_FIELD_SAVE_MAP[control.id] : undefined;
+    button.classList.toggle('is-clean', !key || !dirty.has(key));
+  });
+}
 // Plan 499 — Cancel means Close when nothing is unsaved.
 //
 // Per-field Save persists its field immediately, so Cancel must only
@@ -12065,6 +12100,7 @@ function onProfileFormVisibilityChange() {
   syncProfileStickySaveBar();
   updateProfileCompletionCounter();
   syncProfileCancelButton();
+  syncProfileFieldSaveButtons();
 }
 function syncProfileStickySaveBar() {
   const form = $('#customerProfileForm');
@@ -12100,8 +12136,9 @@ profileFormEl?.addEventListener('input', () => {
   updateProfileCompletionCounter();
   syncProfileStickySaveBar();
   syncProfileCancelButton();
+  syncProfileFieldSaveButtons();
 });
-profileFormEl?.addEventListener('change', () => { updateProfileCompletionCounter(); syncProfileStickySaveBar(); syncProfileCancelButton(); });
+profileFormEl?.addEventListener('change', () => { updateProfileCompletionCounter(); syncProfileStickySaveBar(); syncProfileCancelButton(); syncProfileFieldSaveButtons(); });
 syncProfileStickySaveBar();
 updateProfileCompletionCounter();
 

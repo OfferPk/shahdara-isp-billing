@@ -75,13 +75,30 @@ export function namePrefixLookupLineText(match) {
   return `${String(match?.name ?? '').trim()} — ${String(match?.mohalla ?? '').trim() || NAME_PREFIX_LOOKUP_UNASSIGNED_TEXT}`;
 }
 
+// Plan 488: the dues-and-status text for one row, when the caller
+// supplies it (a Map or a plain object keyed by customer id). The
+// caller computes it from the customer's own records; this module
+// only renders it, escaped, beside the mohalla. Without it the row
+// renders exactly as before.
+function namePrefixLookupDuesText(match, duesTextById) {
+  if (!duesTextById || typeof duesTextById !== 'object') return '';
+  const id = String(match?.id ?? '').trim();
+  if (!id) return '';
+  const text = typeof duesTextById.get === 'function' ? duesTextById.get(id) : duesTextById[id];
+  return typeof text === 'string' ? text : '';
+}
+
 // The live list markup: one row per match, each row carrying the
 // customer id so the caller can pick it exactly the way a picker
-// card is picked. No matches renders nothing at all.
-export function namePrefixLookupHtml(matches) {
+// card is picked. No matches renders nothing at all. Plan 488: when
+// the caller passes the dues-and-status text per customer id, each
+// row shows it beside the mohalla, in the row's own meta styling;
+// without it the row renders exactly as before.
+export function namePrefixLookupHtml(matches, duesTextById) {
   if (!Array.isArray(matches) || matches.length === 0) return '';
   return matches.map((match) => {
-    const label = namePrefixLookupLineText(match);
-    return `\n      <button type="button"\n              class="qc-customer-card npl-row"\n              data-customer-id="${escapeHtml(match.id)}"\n              aria-label="Pick ${escapeHtml(label)}">\n        <div class="qc-card-left">\n          <div class="qc-cust-info">\n            <span class="qc-cust-name">${escapeHtml(match.name)}</span>\n            <span class="qc-cust-meta">${escapeHtml(match.mohalla)}</span>\n          </div>\n        </div>\n      </button>\n    `;
+    const duesText = namePrefixLookupDuesText(match, duesTextById);
+    const label = duesText ? `${namePrefixLookupLineText(match)} · ${duesText}` : namePrefixLookupLineText(match);
+    return `\n      <button type="button"\n              class="qc-customer-card npl-row"\n              data-customer-id="${escapeHtml(match.id)}"\n              aria-label="Pick ${escapeHtml(label)}">\n        <div class="qc-card-left">\n          <div class="qc-cust-info">\n            <span class="qc-cust-name">${escapeHtml(match.name)}</span>\n            <span class="qc-cust-meta">${escapeHtml(match.mohalla)}</span>${duesText ? `\n            <span class="qc-cust-meta">${escapeHtml(duesText)}</span>` : ''}\n          </div>\n        </div>\n      </button>\n    `;
   }).join('');
 }

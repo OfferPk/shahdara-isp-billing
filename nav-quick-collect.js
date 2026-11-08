@@ -63,6 +63,7 @@ import {
   namePrefixLookupHtml,
   namePrefixLookupMatches
 } from './name-prefix-lookup.js';
+import { pickerDuesTextForMatches } from './picker-dues.js';
 import {
   findCustomersByLastFourDigits,
   lastFourDigitsHtml
@@ -2984,27 +2985,50 @@ export function setupQuickCollectModal({
     renderRecentQuickPick();
   }
 
+  // Plan 488: the dues-and-status context for the picker lookup
+  // rows — the allocation engine for this state, the ids of
+  // customers with an open suspension, the current month, and today.
+  // The pure picker-dues module takes this context and returns one
+  // line per listed customer; nothing here changes any record.
+  function pickerLookupDuesContext(state) {
+    const referenceDate = new Date();
+    return {
+      allocations: calculatePaymentAllocations(state),
+      suspendedCustomerIds: typeof loadSuspensions === 'function'
+        ? loadSuspensions().filter((record) => record?.status === 'open').map((record) => record.customerId)
+        : [],
+      currentMonth: monthsForHistory(referenceDate)[0],
+      referenceDate,
+    };
+  }
+
   // Plan 427: the live name-prefix lookup — two or more typed letters
   // list every customer whose name starts with them, in name order.
   // Clearing the field clears the list: fewer than two letters
   // renders nothing at all. Plan 446: a chosen mohalla narrows it
   // too, so the lookup never surfaces a customer outside the round.
+  // Plan 488: each row also shows that customer's dues in PKR and
+  // status in plain words beside the name and mohalla.
   function renderNamePrefixList() {
     if (!namePrefixList) return;
     const state = getState();
     const query = searchInput?.value ?? '';
-    namePrefixList.innerHTML = namePrefixLookupHtml(filterQuickCollectByMohalla(namePrefixLookupMatches(state?.customers ?? [], query), activeMohallaFilter));
+    const matches = filterQuickCollectByMohalla(namePrefixLookupMatches(state?.customers ?? [], query), activeMohallaFilter);
+    namePrefixList.innerHTML = namePrefixLookupHtml(matches, pickerDuesTextForMatches(state?.customers ?? [], matches, pickerLookupDuesContext(state)));
   }
 
   // Plan 441: the last-four-digits lookup — four typed digits list
   // every customer whose number ends with them, in name order.
   // Anything other than exactly four digits renders nothing at all.
   // Plan 446: a chosen mohalla narrows it too, like the picker list.
+  // Plan 488: each row also shows that customer's dues in PKR and
+  // status in plain words beside the name and mohalla.
   function renderLastFourList() {
     if (!lastFourList) return;
     const state = getState();
     const query = searchInput?.value ?? '';
-    lastFourList.innerHTML = lastFourDigitsHtml(filterQuickCollectByMohalla(findCustomersByLastFourDigits(state?.customers ?? [], query), activeMohallaFilter), query);
+    const matches = filterQuickCollectByMohalla(findCustomersByLastFourDigits(state?.customers ?? [], query), activeMohallaFilter);
+    lastFourList.innerHTML = lastFourDigitsHtml(matches, query, pickerDuesTextForMatches(state?.customers ?? [], matches, pickerLookupDuesContext(state)));
   }
 
   // Plan 428: the recent-customers quick-pick — the last ten

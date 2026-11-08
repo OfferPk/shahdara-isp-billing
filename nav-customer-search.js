@@ -89,6 +89,15 @@ import {
   removeSavedSearchFilter,
   savedSearchFilterHtml,
 } from './saved-search-filters.js';
+// Plan 468: unified search — the payments side of the sheet, so one
+// query answers the whole counter question: the matching customers
+// and their matching payments together. The payments are read
+// through the ledger's own live search and shown with the payments
+// list's own day label; the module changes no record.
+import {
+  searchUnifiedPayments,
+  unifiedPaymentsSectionHtml,
+} from './unified-search.js';
 import { DEFAULT_MOHALLAS } from './phase3.js';
 import { trapModalFocus } from './nav-accessibility.js';
 
@@ -628,6 +637,11 @@ export function setupFastCustomerSearchModal({
   // the billing row above is scoped to its own container.
   const accountChips = modal.querySelectorAll('#fcsAccountChips .fcs-status-chip');
   const resultsContainer = document.getElementById('fastCustomerSearchResults');
+  // Plan 468: the payments section of the unified search — a
+  // separate region below the customer results, so the two groups
+  // stay labelled apart and the customer cards keep their own
+  // keyboard navigation and click delegation untouched.
+  const paymentsContainer = document.getElementById('fastCustomerSearchPayments');
   const countBadge = document.getElementById('fastCustomerSearchCountBadge');
   const clearRecentBtn = document.getElementById('fastCustomerClearRecentBtn');
   const sectionTitle = document.getElementById('fastCustomerSearchSectionTitle');
@@ -734,6 +748,13 @@ export function setupFastCustomerSearchModal({
 
       resultsContainer.innerHTML = renderFastCustomerSearchResultsHtml(recentFull, { isRecent: true });
 
+      // Plan 468: nothing is being searched, so the payments
+      // section hides.
+      if (paymentsContainer) {
+        paymentsContainer.innerHTML = '';
+        paymentsContainer.style.display = 'none';
+      }
+
       // Plan 458: the recent searches sit above the recent customers
       // — the searches just run, latest first, with the text and the
       // filter shown. The section hides entirely when the list is
@@ -791,7 +812,7 @@ export function setupFastCustomerSearchModal({
       });
       lastResults = results;
 
-      if (sectionTitle) sectionTitle.textContent = `Search Results (${results.length})`;
+      if (sectionTitle) sectionTitle.textContent = `Customers (${results.length})`;
       if (countBadge) countBadge.textContent = `${results.length} found`;
 
       // Plan 451: an unknown ID says so plainly instead of the
@@ -811,6 +832,18 @@ export function setupFastCustomerSearchModal({
         )
         : undefined;
       resultsContainer.innerHTML = renderFastCustomerSearchResultsHtml(results, { isRecent: false, emptyText, nearestNames });
+
+      // Plan 468: the payments side of the same query — the ledger
+      // entries matching what was typed, in their own labelled
+      // section below the customers. The customer chips do not
+      // narrow them: the section follows the typed query only,
+      // exactly as the ledger's own live search does.
+      const payments = searchUnifiedPayments(state, query);
+      const paymentsHtml = unifiedPaymentsSectionHtml(payments, query);
+      if (paymentsContainer) {
+        paymentsContainer.innerHTML = paymentsHtml;
+        paymentsContainer.style.display = paymentsHtml ? '' : 'none';
+      }
     }
 
     // Keyboard navigation update (#312):

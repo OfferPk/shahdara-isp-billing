@@ -236,7 +236,15 @@ test('wiring: Quick Collect imports the preview and renders it on open and on mo
     'preview line host',
   );
   const calls = (quickCollectSrc.match(/renderNextReceiptLine\(\);/g) || []).length;
-  assert.equal(calls, 2, `renderNextReceiptLine called twice (form open + month change), found ${calls}`);
+  // Plan 527: the count is three, not two — the split-toggle change
+  // listener calls it as `() => renderNextReceiptLine()` (no
+  // semicolon after the call, so it is not counted here), and the
+  // third statement call is the post-reset re-render in open: the
+  // split toggle is reset off without a change event, so the line
+  // must re-render after the reset or it would stay hidden on a
+  // fresh sheet. The two original call sites — form open and month
+  // change — are unchanged.
+  assert.equal(calls, 3, `renderNextReceiptLine called three times (form open + month change + post-reset re-render), found ${calls}`);
   assert.ok(
     quickCollectSrc.includes('function renderNextReceiptLine()'),
     'render function defined',

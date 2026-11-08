@@ -22,6 +22,7 @@ import { calculateMohallaBars, renderMohallaBars } from './dashboard-mohalla-bar
 import { calculateCollectorCard, renderCollectorCard } from './dashboard-collector-card.js?v=1.11.0';
 import { calculateNewCustomers, renderNewCustomers } from './dashboard-new-customers.js?v=1.11.0';
 import { calculateNoPaymentCustomers, renderNoPayment } from './dashboard-no-payment.js?v=1.11.0';
+import { calculateMonthComparison, renderMonthComparison } from './dashboard-month-comparison.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -2764,6 +2765,10 @@ function renderDashboard() {
   // amount they still owe in PKR, plus the count and the total
   // outstanding, in one glance.
   renderNoPayment(document, calculateNoPaymentCustomers(state, referenceDate));
+  // Plan 479: the month-versus-month line — this month's
+  // collections in PKR beside last month's in PKR, with the
+  // difference in plain words, in one glance.
+  renderMonthComparison(document, calculateMonthComparison(state, referenceDate));
   $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
   $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
   $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');

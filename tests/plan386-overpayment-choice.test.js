@@ -334,13 +334,18 @@ test('Plan 386: the entry form imports the choice and renders it', () => {
 
 test('Plan 386: the choice refreshes on every keystroke, month, Advance, split, open, chip, and keypad tap', () => {
   const calls = navSrc.match(/renderOverpaymentChoice\(\)/g) || [];
-  // Definition plus eight refresh sites: month change, amount input,
+  // Definition plus nine refresh sites: month change, amount input,
   // Advance toggle, split toggle, form open, quick-amount chip,
-  // loose-change chip, amount keypad.
+  // loose-change chip, amount keypad, Add payment dues buttons.
   // Plan 442: the amount keypad is the eighth refresh site — a
   // keypad tap sets the amount, so the choice re-offers like
   // every other programmatic amount set.
-  assert.equal(calls.length, 9, `expected 9 renderOverpaymentChoice() sites, found ${calls.length}`);
+  // Plan 489: the Add payment dues buttons are the ninth refresh
+  // site — a button tap fills the amount, so the choice re-offers
+  // like every other programmatic amount set. The count moves from
+  // 9 to 10 for that one new call site only; the intent (the choice
+  // refreshes on every programmatic amount set) is unchanged.
+  assert.equal(calls.length, 10, `expected 10 renderOverpaymentChoice() sites, found ${calls.length}`);
 });
 
 test('Plan 386: the submit posts the choice and the dues through the collection path', () => {

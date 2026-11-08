@@ -59,6 +59,7 @@ import {
   quickCollectOneScreenDuesText
 } from './quick-collect-one-screen.js';
 import { oneScreenQuickAmountFigures, oneScreenQuickAmountButtonsHtml } from './one-screen-quick-amounts.js';
+import { addPaymentDuesFigures, addPaymentDuesButtonsHtml } from './add-payment-dues-buttons.js';
 import {
   namePrefixLookupHtml,
   namePrefixLookupMatches
@@ -3776,6 +3777,11 @@ export function setupQuickCollectModal({
         });
       }
 
+      // Plan 489: the form step's full-dues / half-dues buttons
+      // refresh for the picked customer, from the same amount
+      // default the field was just filled with.
+      renderAddPaymentDuesButtons();
+
       // SISP-116: loose-change chips for the payable just computed.
       renderLooseChangeChips();
 
@@ -3821,6 +3827,47 @@ export function setupQuickCollectModal({
       packagePrice: activeDefaults ? packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES) : null,
     });
     row.innerHTML = oneScreenQuickAmountButtonsHtml(figures);
+  }
+
+  // Plan 489: the Add payment form step's own one-tap amount
+  // buttons — full dues, half dues — one row ahead of the entry
+  // form's chip row. The full dues are the amount default the form
+  // already fills the field with (Plan 429); half is half of it
+  // rounded to whole rupees, and fills nothing when it works out to
+  // nothing. The row is rendered by the module and refreshed whenever
+  // the customer changes; tapping a button only fills the amount
+  // field, exactly as if the figure had been typed.
+  function renderAddPaymentDuesButtons() {
+    if (!stepForm || !amountInput) return;
+    const chipsRow = stepForm.querySelector('.qc-quick-amount-chips');
+    if (!chipsRow) return;
+    let duesRow = stepForm.querySelector('.apd-row');
+    if (!duesRow) {
+      duesRow = document.createElement('div');
+      duesRow.className = 'qc-quick-amount-chips apd-row';
+      chipsRow.before(duesRow);
+      duesRow.addEventListener('click', (event) => {
+        const button = event.target?.closest?.('[data-apd-amount]');
+        if (!button || !amountInput) return;
+        const amount = Number(button.getAttribute('data-apd-amount'));
+        if (!Number.isFinite(amount) || amount <= 0) return;
+        amountInput.value = amount.toFixed(2);
+        // A button-set amount refreshes the same live lines a typed
+        // amount refreshes, exactly like the entry form's chips.
+        if (activeCustomerId) renderWaiverBox(activeCustomerId, monthSelect?.value || activeDefaults?.targetMonth);
+        renderAmountWordsLine();
+        renderCashChange();
+        renderSettlementPreview();
+        renderOverpaymentChoice();
+        renderUnderpaymentWarning();
+        amountInput.focus();
+        renderRemainderWaadaRow();
+      });
+    }
+    const figures = addPaymentDuesFigures({
+      fullDues: activeDefaults?.suggestedAmount ?? null,
+    });
+    duesRow.innerHTML = addPaymentDuesButtonsHtml(figures);
   }
 
   function bindOneScreenControls() {

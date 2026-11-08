@@ -153,7 +153,10 @@ test('Plan 499: clearing a stored zero still counts as a change', () => {
 
 test('Plan 499: Cancel is gated on the dirty check and confirms before discarding', () => {
   const app = read('app.js');
-  assert.ok(app.includes("hasUnsavedProfileEdits } from './profile-field-save.js"), 'app.js must import the dirty helper');
+  // Plan 500 — the import gained dirtyProfileFieldKeys after
+  // hasUnsavedProfileEdits; the assertion still pins that the Cancel
+  // dirty helper itself is imported, not the exact import list.
+  assert.match(app, /import \{[^}]*hasUnsavedProfileEdits[^}]*\} from '\.\/profile-field-save\.js/, 'app.js must import the dirty helper');
   assert.match(app, /\$\('#cancelProfileEditButton'\)\.addEventListener\('click', async \(\) => \{/, 'Cancel must use an async handler for the confirm');
   assert.ok(app.includes('if (profileCancelHasUnsavedEdits()) {'), 'Cancel must check for unsaved edits first');
   assert.ok(app.includes("const confirmed = await appConfirm({ tone: 'warning', title: t('prof_discard_title'), message: t('prof_discard_message'), confirmLabel: t('prof_discard_changes'), cancelLabel: t('prof_cancel') });"), 'dirty Cancel must confirm with the discard strings');

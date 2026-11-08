@@ -214,7 +214,7 @@ import { archivedRosterPage, buildRetentionView, retentionViewHtml, retentionYea
 import { SHOP_SETTLEMENTS_KEY, buildShopSummaries, buildShopAging, shopAgingBadgeText, buildShopAgingReminderText, shopSettlementWhatsAppUrl, loadShopSettlements, saveShopSettlements, setupShopSettlementModal, resolveShopCollector } from './shop-settlement.js';
 import { PARTNER_LEDGER_KEY, PARTNER_SETTLEMENTS_KEY, PARTNERS, PARTNER_SETTINGS_KEY, buildPartnerSettlementReport, loadPartnerLedgerEntries, savePartnerLedgerEntries, cleanPartnerLedgerEntry, upsertPartnerLedgerEntry, deletePartnerLedgerEntry, loadPartnerSettlements, savePartnerSettlements, settlementForMonth, createPartnerSettlement, upsertPartnerSettlement, reopenPartnerSettlement, generatePartnerSettlementWhatsAppText, partnerSettlementWhatsAppUrl, loadPartnerSettings, savePartnerSettings, syncShopPickupDrawings, isShopPickupEntry } from './partner-settlement.js';
 import { CHARITY_RESERVE_KEY, loadCharityReserveSettings, saveCharityReserveSettings, sanitizeCharityReservePct } from './charity-reserve.js';
-import { computeWaadaChipDate, setCustomerWaada, clearCustomerWaada, setupWaadaChipDialog, waadaBadgeLabel, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada, getWaadaTodayString, isValidWaadaDate } from './waada-queue.js';
+import { computeWaadaChipDate, setupWaadaChipDialog, computeRemainderWaada, remainderWaadaChipDates, stampRemainderWaada, getWaadaTodayString, isValidWaadaDate } from './waada-queue.js';
 import { VOIDED_PAYMENTS_KEY, voidPayment, loadVoidPayments, saveVoidPayments, voidBadgeMarkup } from './payment-void-audit.js?v=1.11.0';
 import { splitBadgeMarkup } from './split-tender-collect.js';
 import { lateFeeWaiverOf } from './late-fee-waiver.js';
@@ -6104,13 +6104,15 @@ function renderCustomerProfileView(customer) {
   // SISP-79: habitual pay-day line for the Service group (derived live
   // from the customer's receipts by payment-day-advisor.js — read-only).
   const paydaySummary = paymentHabitPresentation(customer);
-  // SISP-3: profile Waada chips — one-tap promise dates on the customer record.
-  const waadaToday = getTodayDateString();
-  // Phase 3: waadaBadgeLabel stays the validity gate (invalid dates -> null),
-  // but the badge text itself comes from prof_ keys.
-  const waadaLabel = customer.promiseDate ? (waadaBadgeLabel(customer, waadaToday) ? (customer.promiseDate < waadaToday ? t('prof_waada_badge_expired', null, { date: String(customer.promiseDate).trim() }) : t('prof_waada_badge', null, { date: String(customer.promiseDate).trim() })) : null) : null;
-  const waadaBadge = waadaLabel ? `<span class="wada-badge ${customer.promiseDate < waadaToday ? 'wada-badge-broken waada-pulse' : 'wada-badge-upcoming'}">${escapeHtml(waadaLabel)}</span>` : '';
-  const waadaSectionHtml = `<section class="profile-waada-section" aria-label="${t('prof_waada_aria')}"><h4>${t('prof_waada_heading')} ${helpButtonMarkup('waada')}</h4><p class="profile-waada-current">${customer.promiseDate ? `${escapeHtml(t('prof_waada_promise', null, { date: customer.promiseDate }))}${customer.promiseAmount ? ` · ${formatAmount(customer.promiseAmount)}` : ''}${customer.promiseNote ? ` · “${escapeHtml(customer.promiseNote)}”` : ''} ${waadaBadge}` : t('prof_waada_none')}</p>${waadaScoreBadgeHtml(state, customer, waadaToday)}<div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-profile-waada-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-profile-waada-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-profile-waada-chip="tenth">${t('prof_waada_chip_10th')}</button></div><div class="waada-chip-custom"><label for="profileWaadaCustomDate">${t('prof_waada_custom')}</label><input id="profileWaadaCustomDate" type="date" aria-label="${t('prof_waada_custom_aria')}"><button type="button" class="primary-button" id="profileWaadaSetCustomBtn">${t('prof_waada_set')}</button><button type="button" class="secondary-button text-button danger" id="profileWaadaClearBtn">${t('prof_waada_clear')}</button></div></section>`;
+  // Plan 507 — one Waada surface, not two: the lower Waada section
+  // (current promise + chips + custom date + Set/Clear, written onto
+  // the legacy customer.promiseDate fields) is folded into the top
+  // Wada banner. The banner's quick-add form now carries the chips,
+  // its date input is the custom date, and the SISP-98 reliability
+  // badge rides along beside the health line, so the folded section
+  // loses no information. The legacy promise fields stay on the
+  // record and still feed the follow-up lists, the Waada dashboard
+  // and reminders; only their duplicate profile display is gone.
   // SISP-15: profile complaint history — this customer's register entries only.
   const customerComplaints = loadComplaints().filter((c) => String(c.customerId) === String(customer.id)).sort((a, b) => String(b.reportedAt || '').localeCompare(String(a.reportedAt || '')));
   // SISP-123: root-cause banner — a fault category repeated within 60
@@ -6767,7 +6769,7 @@ function renderCustomerProfileView(customer) {
     message: t('prof_quick_action_message'),
     balance: t('prof_quick_action_balance'),
   });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="editProfileButton" class="primary-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${standingInstructionSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileFreshnessStampMarkup}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${crossPaymentsMadeSectionMarkup}${waadaSectionHtml}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3>${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${commercialVipBadgeHtml(customer)}${prepaidUntilBadgeHtml(state, customer)}${suspensionShieldBadgeHtml(customer, localDate())}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}<details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="editProfileButton" class="primary-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div></div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${standingInstructionSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileFreshnessStampMarkup}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${crossPaymentsMadeSectionMarkup}${complaintsSectionHtml}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;  $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
   // Profile polish batch: completion counter at the very top of every
   // profile — filled/total over the PR #813 per-field-save controls.
   $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
@@ -7280,40 +7282,6 @@ function renderCustomerProfileView(customer) {
       hasCurrentBill: (customer.bills ?? []).some(bill => bill.month === currentMonth)
     });
   });
-  // SISP-3: wire the profile Waada chips (persist + re-render on every action).
-  const waadaSection = $('#customerProfileView').querySelector('.profile-waada-section');
-  if (waadaSection) {
-    const applyProfileWaada = (updated, message) => {
-      const idx = state.customers.findIndex(c => c.id === customer.id);
-      if (idx >= 0) state.customers[idx] = updated;
-      try { persistState(state, localStorage); } catch {}
-      renderDetail();
-      toast(message);
-    };
-    const setProfileWaada = (date) => {
-      try {
-        applyProfileWaada(setCustomerWaada(customer, { promiseDate: date, promiseAmount: customer.promiseAmount ?? null, promiseNote: customer.promiseNote ?? '' }), `Waada set: ${date}.`);
-        // Plan 31: the Waada set is logged; the promise itself lives on the customer.
-        recordAudit('waada_set', { recordRef: customer.id, customerId: customer.id, customerName: customer.name || '', detail: `Waada set: ${date}.` });
-      } catch (err) { toast(err?.message || 'Could not set promise.'); }
-    };
-    waadaSection.querySelectorAll('[data-profile-waada-chip]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const date = computeWaadaChipDate(btn.getAttribute('data-profile-waada-chip'), getTodayDateString());
-        if (!date) { toast('Could not compute promise date.'); return; }
-        setProfileWaada(date);
-      });
-    });
-    waadaSection.querySelector('#profileWaadaSetCustomBtn')?.addEventListener('click', () => {
-      const input = waadaSection.querySelector('#profileWaadaCustomDate');
-      const date = computeWaadaChipDate('custom', getTodayDateString(), input?.value);
-      if (!date) { toast('Pick a valid date first.'); return; }
-      setProfileWaada(date);
-    });
-    waadaSection.querySelector('#profileWaadaClearBtn')?.addEventListener('click', () => {
-      applyProfileWaada(clearCustomerWaada(customer), 'Waada promise cleared.');
-    });
-  }
   // Profile polish #5: wire the top-of-profile Wada banner — quick-add
   // form, Poora hua / Wada toota / Remove buttons. Closing a wada
   // changes only that wada's own status; recording one never touches
@@ -7337,6 +7305,16 @@ function renderCustomerProfileView(customer) {
       renderDetail();
       toast('Wada recorded.');
     });
+    // Plan 507 — the lower section's chips now live in the banner's
+    // quick-add form: a chip fills the promised-date input (the date
+    // field is the custom date), and Add Wada records it. One set of
+    // controls, one current-promise line; no duplicate Add/Set buttons.
+    wadaBanner.querySelectorAll('[data-wada-quick-chip]').forEach(btn => btn.addEventListener('click', () => {
+      const date = computeWaadaChipDate(btn.getAttribute('data-wada-quick-chip'), getWaadaTodayString());
+      if (!date) { toast('Could not compute promise date.'); return; }
+      const dateInput = wadaBanner.querySelector('#wadaQuickDate');
+      if (dateInput) dateInput.value = date;
+    }));
     wadaBanner.querySelectorAll('[data-wada-kept]').forEach(btn => btn.addEventListener('click', () => {
       saveWadaRecords(markWadaRecordKept(loadWadaRecords(), btn.getAttribute('data-wada-kept'), getWaadaTodayString()));
       renderDetail();
@@ -8338,6 +8316,10 @@ async function removeManualBaqayaEntryFlow(customerId, entryId) {
 // then the quick-add form, then wada health and the closed-wada
 // history. The banner never changes any bill, payment, or customer
 // record; it only reads the wada store.
+//
+// Plan 507 — the banner is now the profile's only Waada surface: it
+// also carries the folded section's chips (in the quick-add form)
+// and its reliability badge (beside the health line).
 function wadaProfileBannerHtml(customer) {
   const today = getWaadaTodayString();
   const all = loadWadaRecords();
@@ -8346,7 +8328,8 @@ function wadaProfileBannerHtml(customer) {
   const banner = wadaBannerHtml(active, today);
   const health = wadaHealthText(all, customer.id);
   const history = wadaHistoryHtml(mine, today);
-  return `<section class="profile-wada-banner" aria-label="Wada promises"><h4>Wada — promises to pay</h4>${banner || '<p class="wada-banner-none">No open wada for this customer.</p>'}<form class="wada-quick-form" id="wadaQuickForm"><label for="wadaQuickDate">Promised date<input id="wadaQuickDate" type="date" required></label><label for="wadaQuickAmount">Amount promised (Rs, optional)<input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 100"></label><label for="wadaQuickNote">Note (optional)<input id="wadaQuickNote" type="text" maxlength="140" placeholder="e.g. in next bill"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">Add Wada</button></form><p class="wada-health">${escapeHtml(health)}</p>${history}</section>`;
+  const scoreBadge = waadaScoreBadgeHtml(state, customer, getTodayDateString());
+  return `<section class="profile-wada-banner" aria-label="Wada promises"><h4>Wada — promises to pay ${helpButtonMarkup('waada')}</h4>${banner || '<p class="wada-banner-none">No open wada for this customer.</p>'}<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button></div><label for="wadaQuickDate">Promised date<input id="wadaQuickDate" type="date" required></label><label for="wadaQuickAmount">Amount promised (Rs, optional)<input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 100"></label><label for="wadaQuickNote">Note (optional)<input id="wadaQuickNote" type="text" maxlength="140" placeholder="e.g. in next bill"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">Add Wada</button></form><p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
 }
 
 function renderDetail() {

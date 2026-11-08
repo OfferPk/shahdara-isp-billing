@@ -7,14 +7,24 @@ import { formatPKR } from '../core.js';
 const appSrc = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
 const navSrc = readFileSync(new URL('../nav-language.js', import.meta.url), 'utf8');
 
-test('Plan 505: the Waada current-promise amount renders through the shared PKR formatter', () => {
+test('Plan 505 (as folded by Plan 507): the Waada line is gone, not reverted to hand-rolled', () => {
+  // Plan 507 folded the lower Waada section — including this line — into
+  // the top Wada banner, so the line itself is gone from app.js. This
+  // test now pins that the fold removed the line rather than reverting
+  // it to the hand-rolled figure: neither the shared-formatter call nor
+  // the hand-rolled figure may appear for customer.promiseAmount, and
+  // the current promise still renders, from wada records in the banner.
   assert.ok(
-    appSrc.includes('formatAmount(customer.promiseAmount)'),
-    'the Waada line must render the promised amount with formatAmount (== formatPKR)'
+    !appSrc.includes('formatAmount(customer.promiseAmount)'),
+    'Plan 507 removed the lower Waada line; its formatAmount call goes with it'
   );
   assert.ok(
     !appSrc.includes('PKR ${Number(customer.promiseAmount).toLocaleString()}'),
     'the hand-rolled "PKR ${Number(...).toLocaleString()}" Waada amount must be gone'
+  );
+  assert.ok(
+    appSrc.includes('wadaBannerHtml(active, today)'),
+    'the current promise still renders, from wada records in the banner'
   );
 });
 

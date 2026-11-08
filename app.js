@@ -39,7 +39,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, dirtyProfileFieldKeys } from './profile-field-save.js?v=1.11.0';
 import { customerDeleteCleanCheck, customerDeleteRefusalText } from './customer-delete-clean-check.js?v=1.11.0';
@@ -6076,11 +6076,17 @@ function renderCustomerProfileView(customer) {
   const phoneTargets = (primaryTargets || waTargets)
     ? { tel: primaryTargets?.tel ?? null, whatsapp: waTargets?.whatsapp ?? primaryTargets?.whatsapp ?? null }
     : null;
-  // SISP-76: an SMS-preference customer gets the SMS shortcut first
-  // among the contact actions (generic reminder draft, no figures).
+  // SISP-76: an SMS-preference customer gets an SMS shortcut (generic
+  // reminder draft, no figures); Plan 511 orders it after WhatsApp.
   const smsContact = customerPrefersSms(customer) ? buildSmsReminderUrl({ phone, customerName: customer.name || '' }) : null;
-  const smsAction = smsContact?.valid ? `<a class="secondary-button" href="${escapeHtml(smsContact.url)}">${t('prof_view_sms')}</a>` : '';
-  const phoneActions = (phoneTargets || alternateTargets) ? `<span class="profile-contact-actions" aria-label="${t('prof_view_contact_aria')}">${phoneTargets?.tel ? `<a class="secondary-button" href="${escapeHtml(phoneTargets.tel)}">${t('prof_view_call')}</a>` : ''}${smsAction}${alternateTargets ? `<a class="secondary-button" href="${escapeHtml(alternateTargets.tel)}">${t('prof_view_call_alternate')}</a>` : ''}${phoneTargets?.whatsapp ? `<a class="secondary-button" href="${escapeHtml(phoneTargets.whatsapp)}" target="_blank" rel="noopener noreferrer">${t('prof_view_whatsapp')}</a>` : ''}</span>` : '';
+  // Plan 511 — one stable shortcut order (Call → WhatsApp → SMS →
+  // Call Alternate → WhatsApp Alternate) from the shared helper; the
+  // WhatsApp slot renders disabled when the primary number cannot do
+  // WhatsApp, with the phone-hint text beside it. Labels are resolved
+  // here with literal t() calls so the mechanical key audit sees them.
+  const shortcutLabels = { call: t('prof_view_call'), whatsapp: t('prof_view_whatsapp'), sms: t('prof_view_sms'), 'call-alternate': t('prof_view_call_alternate'), 'whatsapp-alternate': t('prof_view_whatsapp_alternate') };
+  const shortcutActions = contactShortcutActions({ phoneTargets, alternateTargets, smsUrl: smsContact?.valid ? smsContact.url : null });
+  const phoneActions = shortcutActions.length ? `<span class="profile-contact-actions" aria-label="${t('prof_view_contact_aria')}">${shortcutActions.map(action => action.disabled ? `<button type="button" class="secondary-button" disabled>${shortcutLabels[action.kind]}</button>` : `<a class="secondary-button" href="${escapeHtml(action.href)}"${action.kind === 'whatsapp' || action.kind === 'whatsapp-alternate' ? ' target="_blank" rel="noopener noreferrer"' : ''}>${shortcutLabels[action.kind]}</a>`).join('')}</span>` : '';
   const phoneHint = phoneTargets?.whatsapp ? '' : `<p class="profile-contact-note">${t('prof_view_phone_hint')}</p>`;
   // Plan 506 — the contact shortcuts (and the no-WhatsApp hint) travel with
   // the phone row: the Contact group renders this block immediately after

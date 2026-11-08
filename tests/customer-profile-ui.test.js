@@ -152,8 +152,14 @@ test('saved-phone shortcuts require an explicit international number for WhatsAp
   assert.deepEqual(contactActionTargets('0300-1234567'), { tel:'tel:03001234567', whatsapp:null });
   assert.equal(contactActionTargets('+92 300 123 4567 ext 9'), null);
   assert.equal(contactActionTargets('+9999999999999999').whatsapp, null);
-  assert.match(app, /href="\$\{escapeHtml\(phoneTargets\.tel\)\}"/);
-  assert.match(app, /href="\$\{escapeHtml\(phoneTargets\.whatsapp\)\}" target="_blank" rel="noopener noreferrer"/);
+  // Plan 511 — the Call/WhatsApp anchors moved from an inline template
+  // into the shared contactShortcutActions helper (one stable order);
+  // these pins assert the same wiring: the render builds its shortcuts
+  // from the resolved targets, and both WhatsApp actions open in a new
+  // tab while Call dials the resolved tel target.
+  assert.match(app, /contactShortcutActions\(\{ phoneTargets, alternateTargets,/);
+  assert.match(app, /<a class="secondary-button" href="\$\{escapeHtml\(action\.href\)\}"/);
+  assert.match(app, /action\.kind === 'whatsapp' \|\| action\.kind === 'whatsapp-alternate' \? ' target="_blank" rel="noopener noreferrer"'/);
   assert.match(index, /Phone \/ WhatsApp number/);
 });
 

@@ -283,14 +283,15 @@ test('Plan 373: app.js wires the flag after the verification tick and before the
   assert.ok(appSrc.includes('temporarilyAwayFlagSectionMarkup'));
   assert.ok(appSrc.includes("querySelector('#tawForm')"));
   assert.ok(appSrc.includes("querySelector('#tawRemoveBtn')"));
-  // Order, not adjacency: the flag section sits between the
-  // verification tick and the household link, so the tick is still
-  // after the last-interaction line and still before the household link.
+  // Order, not adjacency: Plan 514 moved the verification tick into
+  // the freshness group after the header strip, so the tick no
+  // longer sits between the last-interaction line and this flag.
+  // What this pin still guards: the flag sits after the
+  // last-interaction line and still before the household link.
   const lastAt = appSrc.indexOf('${lastInteractionLineMarkup}');
-  const tickAt = appSrc.indexOf('${profileVerificationTickSectionMarkup}');
   const awayAt = appSrc.indexOf('${temporarilyAwayFlagSectionMarkup}');
   const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}');
-  assert.ok(lastAt > 0 && tickAt > lastAt && awayAt > tickAt && householdAt > awayAt);
+  assert.ok(lastAt > 0 && awayAt > lastAt && householdAt > awayAt);
 });
 
 test('Plan 373: language tables carry the temporarily-away labels in both languages', () => {

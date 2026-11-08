@@ -178,8 +178,11 @@ test('wiring: the render reads the selected customer and the shared dues total',
 test('wiring: the line renders once per customer open — every pick refreshes it', () => {
   const calls = wiringSrc.match(/renderBigNameConfirm\(\);/g) || [];
   assert.equal(calls.length, 1, `expected 1 render call inside openCustomerCollectionForm, found ${calls.length}`);
-  assert.ok(wiringSrc.includes('function openCustomerCollectionForm(customerId)'), 'missing form open');
-  const openAt = wiringSrc.indexOf('function openCustomerCollectionForm(customerId)');
+  // Plan 490: the form open takes an optional repeat options object,
+  // so the signature carries it — the open itself is unchanged, and
+  // the render call still sits inside it.
+  assert.ok(wiringSrc.includes('function openCustomerCollectionForm(customerId, options = {})'), 'missing form open');
+  const openAt = wiringSrc.indexOf('function openCustomerCollectionForm(customerId, options = {})');
   const callAt = wiringSrc.indexOf('renderBigNameConfirm();');
   assert.ok(callAt > openAt, 'render call must sit inside the form open');
 });

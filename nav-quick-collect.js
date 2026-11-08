@@ -60,6 +60,7 @@ import {
 } from './quick-collect-one-screen.js';
 import { oneScreenQuickAmountFigures, oneScreenQuickAmountButtonsHtml } from './one-screen-quick-amounts.js';
 import { addPaymentDuesFigures, addPaymentDuesButtonsHtml } from './add-payment-dues-buttons.js';
+import { repeatPaymentFormTarget, repeatPaymentHtml } from './repeat-payment.js';
 import {
   namePrefixLookupHtml,
   namePrefixLookupMatches
@@ -2024,6 +2025,11 @@ export function setupQuickCollectModal({
   // this payment, next due date, and a collect-again action, shown
   // beside the package success message.
   const nextStepsBox = typeof document !== 'undefined' ? document.getElementById('snsSuccessNextSteps') : null;
+  // Plan 490: the repeat-payment host on the success step (null when
+  // the host page predates it) — "Record another payment for the
+  // same customer", opening a fresh form with the same customer
+  // chosen and an empty amount, shown beside the next-steps panel.
+  const repeatPaymentBox = typeof document !== 'undefined' ? document.getElementById('rptRepeatPayment') : null;
   // Plan 436: the offline saved badge host on the success step (null when
   // the host page predates it) — "saved on this device" with the save time.
   const savedBadgeBox = typeof document !== 'undefined' ? document.getElementById('osbOfflineSavedBadge') : null;
@@ -3495,7 +3501,7 @@ export function setupQuickCollectModal({
     }
   }
 
-  function openCustomerCollectionForm(customerId) {
+  function openCustomerCollectionForm(customerId, options = {}) {
     const state = getState();
     if (!state) return;
     try {
@@ -3571,6 +3577,22 @@ export function setupQuickCollectModal({
         const prefillHtml = transactionPrefillLineHtml(activeDefaults.prefill, { line: t('txp_line') });
         prefillLine.innerHTML = prefillHtml;
         prefillLine.hidden = prefillHtml === '';
+      }
+      // Plan 490: a repeat open carries nothing over — same customer,
+      // empty amount. The prefill line is hidden too: with no amount
+      // prefilled there is no bill the amount "came from". Every
+      // other fresh-open default is untouched: today's date, the
+      // customer's remembered method, and the empty cash field. The
+      // amount-dependent lines below read the emptied field, so they
+      // render the empty state. (Kept as a separate step after the
+      // ordinary prefill, so the ordinary prefill line above stays
+      // exactly as the dues-default wiring expects it.)
+      if (options && options.emptyAmount === true) {
+        if (amountInput) amountInput.value = '';
+        if (prefillLine) {
+          prefillLine.innerHTML = '';
+          prefillLine.hidden = true;
+        }
       }
       // Plan 377: the form opens with the suggested amount already
       // typed, so the words start shown, not blank.
@@ -4610,6 +4632,7 @@ export function setupQuickCollectModal({
       renderActiveReceiptCard();
       applyPackageSuccessMessage(receipt.amount);
       renderSuccessNextSteps();
+      renderRepeatPayment();
       renderStillOwesLine();
       renderOfflineSavedBadge();
       renderReceiptShareDraft();
@@ -4665,6 +4688,37 @@ export function setupQuickCollectModal({
         if (!event.target?.closest?.('[data-sns-collect-again]')) return;
         if (!activeCustomerId) return;
         openCustomerCollectionForm(activeCustomerId);
+      });
+    }
+  }
+
+  // Plan 490: the repeat-payment action — "Record another payment
+  // for the same customer" — on the success screen, beside the
+  // next-steps panel. The tap opens a fresh form for the same
+  // customer with an empty amount and nothing else carried over; it
+  // records nothing by itself. The second payment is recorded only
+  // when the operator saves the fresh form, and leaving without
+  // saving records nothing.
+  let repeatPaymentWired = false;
+  function renderRepeatPayment() {
+    if (!repeatPaymentBox) return;
+    if (!activeReceipt) {
+      repeatPaymentBox.innerHTML = '';
+      repeatPaymentBox.hidden = true;
+      return;
+    }
+    const target = repeatPaymentFormTarget(activeCustomerId);
+    const html = target ? repeatPaymentHtml(target) : '';
+    repeatPaymentBox.innerHTML = html;
+    repeatPaymentBox.hidden = html === '';
+    if (!repeatPaymentWired && repeatPaymentBox) {
+      repeatPaymentWired = true;
+      repeatPaymentBox.addEventListener('click', (event) => {
+        const button = event.target?.closest?.('[data-rpt-repeat-payment]');
+        if (!button) return;
+        const customerId = button.getAttribute('data-rpt-customer-id') || activeCustomerId;
+        if (!customerId) return;
+        openCustomerCollectionForm(customerId, { emptyAmount: true });
       });
     }
   }
@@ -5357,6 +5411,7 @@ export function setupQuickCollectModal({
           renderActiveReceiptCard();
           applyPackageSuccessMessage(totalCollected);
           renderSuccessNextSteps();
+          renderRepeatPayment();
           renderStillOwesLine();
           renderOfflineSavedBadge();
           renderReceiptShareDraft();
@@ -5551,6 +5606,7 @@ export function setupQuickCollectModal({
       renderActiveReceiptCard();
       applyPackageSuccessMessage(receipt.amount);
       renderSuccessNextSteps();
+      renderRepeatPayment();
       renderStillOwesLine();
       renderOfflineSavedBadge();
       renderReceiptShareDraft();

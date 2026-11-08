@@ -88,11 +88,13 @@ test('Plan 491: the tab mechanism is untouched — map, mounts, bindings, keys',
 });
 
 test('Plan 491: the edit flows still switch to the info tab', () => {
-  // editCustomerPhoneFromReceipt, editCustomerProfile and now
-  // selectCustomer all activate 'info' — three call sites.
+  // editCustomerPhoneFromReceipt, editCustomerProfile, selectCustomer and
+  // now the Plan 494 header "Edit name" handler all activate 'info' —
+  // four call sites. (Plan 494: the Edit name button opens the form,
+  // which lives in the Info panel, so it lands there too.)
   const calls = appJs.match(/activateProfileTab\('info'\)/g) || [];
-  assert.equal(calls.length, 3,
-    `expected 3 activateProfileTab('info') call sites, found ${calls.length}`);
+  assert.equal(calls.length, 4,
+    `expected 4 activateProfileTab('info') call sites, found ${calls.length}`);
   assert.match(appJs,
     /function editCustomerProfile\(id[\s\S]*?activateProfileTab\('info'\)/,
     'edit flow still lands on info');

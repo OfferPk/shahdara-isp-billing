@@ -12027,7 +12027,11 @@ function syncProfileStickySaveBar() {
   bar.hidden = !editing;
   form.classList.toggle('has-sticky-save', editing);
   if (btn && save) btn.disabled = save.disabled;
-  if (barHint && hint) barHint.textContent = hint.textContent;
+  // Plan 498 — the sticky bar shows the hint only while the form is
+  // actually dirty. A clean form says nothing here: the in-form hint
+  // keeps its own "No changes yet" text (pinned by the e2e save-state
+  // spec), and copying it verbatim made the bar chatter on every open.
+  if (barHint && hint) barHint.textContent = hint.dataset.state === 'dirty' ? hint.textContent : '';
   observeStickyNode(form, { attributes: true, attributeFilter: ['hidden'] }, onProfileFormVisibilityChange);
   observeStickyNode(save, { attributes: true, attributeFilter: ['disabled'] }, () => { syncProfileStickySaveBar(); updateProfileCompletionCounter(); });
   observeStickyNode(hint, { childList: true, characterData: true, subtree: true }, () => { syncProfileStickySaveBar(); updateProfileCompletionCounter(); });

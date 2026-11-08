@@ -162,3 +162,34 @@
 #profileStickySaveBar[hidden] { display: none; }
 #profileStickySaveButton { min-height: 48px; flex: 0 0 auto; }
 .customer-profile-form.has-sticky-save { padding-bottom: 96px; }
+
+/* Polish #16: the profile payment form's submit stays visible while the
+ * operator scrolls the long form. Two things had to change for plain
+ * `position: sticky` to work at all:
+ * (1) The submit used to be a grid item inside `.form-grid`, and a
+ * sticky grid item is constrained to its own grid area — it cannot
+ * move. It is now a direct child of the payment form (same place, same
+ * label, same submit flow; the correction form's submit stays inside
+ * its grid and is untouched), so its containing block is the whole form.
+ * (2) `.month-card` and `.detail-pane` both declare `overflow: hidden`
+ * in styles.css, and each hidden overflow makes a (never-scrolling)
+ * scroll container that silently disables sticky. `overflow: clip`
+ * keeps the same visual clipping (rounded corners) without creating a
+ * scroll container, so the button sticks to the viewport — the context
+ * that actually scrolls. Scoped here, in the profile stylesheet, so the
+ * base rules in styles.css are untouched. The bottom offset clears the
+ * fixed mobile bottom nav (a bottom: 0 button would slide under it on
+ * the phone), mirroring the toast and the profile sticky-save bar; the
+ * solid bands above and below the button mask form content scrolling
+ * past the gap, so it reads as a bar. */
+.detail-pane { overflow: clip; }
+.month-card { overflow: clip; }
+.payment-form > .primary-button[type="submit"] {
+  position: sticky;
+  bottom: calc(var(--bottom-nav-height, 60px) + 8px);
+  z-index: 5;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  box-shadow: 0 -8px 0 0 var(--surface), 0 10px 0 0 var(--surface);
+}

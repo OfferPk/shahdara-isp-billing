@@ -23,6 +23,7 @@ import { calculateCollectorCard, renderCollectorCard } from './dashboard-collect
 import { calculateNewCustomers, renderNewCustomers } from './dashboard-new-customers.js?v=1.11.0';
 import { calculateNoPaymentCustomers, renderNoPayment } from './dashboard-no-payment.js?v=1.11.0';
 import { calculateMonthComparison, renderMonthComparison } from './dashboard-month-comparison.js?v=1.11.0';
+import { calculateMonthTargetProgress, renderMonthTarget } from './dashboard-month-target.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -2769,6 +2770,10 @@ function renderDashboard() {
   // collections in PKR beside last month's in PKR, with the
   // difference in plain words, in one glance.
   renderMonthComparison(document, calculateMonthComparison(state, referenceDate));
+  // Plan 480: the month-target progress line — this month's
+  // target in PKR, collected so far in PKR, and the remaining
+  // amount in plain words, in one glance.
+  renderMonthTarget(document, calculateMonthTargetProgress(state, referenceDate, storageAvailable ? localStorage : null));
   $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
   $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
   $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');

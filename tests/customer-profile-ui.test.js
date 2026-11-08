@@ -355,7 +355,10 @@ test('customer profile uses an identity-first card with separate manual service 
   const cardEnd = index.indexOf('</section>', cardStart);
   assert.ok(cardStart >= 0 && cardEnd > cardStart, 'profile summary card wraps its identity and current bill');
   const card = index.slice(cardStart, cardEnd);
-  for (const id of ['profileAvatar','detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','archiveCustomerButton','unarchiveCustomerButton','deleteCustomerButton','customerCurrentBillSummary']) {
+  // Plan 492: deleteCustomerButton is no longer in the card — the Danger
+  // zone moved to the bottom of the Info panel (tests/plan492-*.test.js
+  // pins its new home). Everything else still sits inside the card.
+  for (const id of ['profileAvatar','detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','archiveCustomerButton','unarchiveCustomerButton','customerCurrentBillSummary']) {
     assert.ok(card.includes(`id="${id}"`), `${id} remains inside the profile card`);
   }
   assert.match(index, /class="customer-profile-card" aria-label="Customer profile card"/);

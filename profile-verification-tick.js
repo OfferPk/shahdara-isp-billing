@@ -4,10 +4,19 @@
 // (name, number, mohalla, and package, as shown that day). The tick
 // verifies the record only: it changes no bill, payment, or customer
 // field by itself, and it is never sent anywhere. A profile never
-// verified shows "not verified yet". Other verification records in
-// the app cover backups, exports, receipts, and restores — none of
-// them is a per-profile tick, so only the missing piece is added
-// here.
+// verified shows "not checked yet" (Plan 514: one wording pair —
+// "Checked on …" / "Not checked yet" — shared with the freshness
+// stamp, so both signals answer "is this record current?" in the
+// same words). Other verification records in the app cover backups,
+// exports, receipts, and restores — none of them is a per-profile
+// tick, so only the missing piece is added here.
+//
+// Plan 514: the section also takes an optional `formatDate`
+// function (a date string in, display text out — the app passes its
+// humanDate) so the tick and the stamp share one date format; the
+// date input itself keeps the raw ISO value. A null or empty
+// `labels.heading` means the caller renders the one group heading
+// itself: the section then carries no <h4> of its own.
 //
 // The module never reads storage, the clock, the network, or the page.
 // Inputs are never mutated.
@@ -140,22 +149,30 @@ function profileVerificationTickFieldLabel(field, labels) {
   return cleanProfileVerificationTickText(supplied[field]) || defaults[field];
 }
 
-export function profileVerificationTickSectionHtml(customer, list, labels = {}) {
+export function profileVerificationTickSectionHtml(customer, list, labels = {}, formatDate) {
   if (!customer || typeof customer !== 'object') return '';
   const tick = profileVerificationTickForCustomer(list, customer.id);
-  const heading = cleanProfileVerificationTickText(labels.heading) || 'Profile verification';
+  // Plan 514: a null or empty heading means the caller renders the
+  // one group heading itself — the tick then carries no <h4> of its
+  // own. The section keeps its class and its aria-label, which falls
+  // back to the default heading.
+  const heading = (labels.heading === null || labels.heading === '') ? '' : (cleanProfileVerificationTickText(labels.heading) || 'Profile verification');
+  const ariaLabel = heading || 'Profile verification';
   const intro = cleanProfileVerificationTickText(labels.intro) || 'A quick yearly check keeps every profile trustworthy. This tick verifies the record only — it changes no field.';
   const verifiedByLabel = cleanProfileVerificationTickText(labels.verifiedBy) || 'Verified by';
   const dateLabel = cleanProfileVerificationTickText(labels.date) || 'Date';
   const fieldsLabel = cleanProfileVerificationTickText(labels.fieldsHeading) || 'Fields checked';
   const saveLabel = cleanProfileVerificationTickText(labels.save) || 'Save';
   const removeLabel = cleanProfileVerificationTickText(labels.remove) || 'Remove';
-  const noneText = cleanProfileVerificationTickText(labels.none) || 'Not verified yet.';
+  const noneText = cleanProfileVerificationTickText(labels.none) || 'Not checked yet.';
   const fieldNames = PROFILE_VERIFICATION_TICK_FIELDS.map(field => profileVerificationTickFieldLabel(field, labels));
+  // Plan 514: the display line uses the shared date formatter; the
+  // date input below keeps the raw ISO value it needs.
+  const displayDate = tick ? (typeof formatDate === 'function' ? formatDate(tick.verifiedDate) : tick.verifiedDate) : '';
   const currentHtml = tick
-    ? `<p class="pvt-current"><strong>✓ ${escapeProfileVerificationTickHtml(tick.verifiedBy)}</strong><span class="pvt-meta"> — ${escapeProfileVerificationTickHtml(tick.verifiedDate)} · ${tick.fieldsChecked.map(field => escapeProfileVerificationTickHtml(profileVerificationTickFieldLabel(field, labels))).join(', ')}</span></p>`
+    ? `<p class="pvt-current"><strong>✓ ${escapeProfileVerificationTickHtml(tick.verifiedBy)}</strong><span class="pvt-meta"> — ${escapeProfileVerificationTickHtml(displayDate)} · ${tick.fieldsChecked.map(field => escapeProfileVerificationTickHtml(profileVerificationTickFieldLabel(field, labels))).join(', ')}</span></p>`
     : `<p class="pvt-none">${escapeProfileVerificationTickHtml(noneText)}</p>`;
   const checksHtml = PROFILE_VERIFICATION_TICK_FIELDS.map((field, index) => `<label class="pvt-field"><input type="checkbox" name="pvtField" value="${field}"${!tick || tick.fieldsChecked.includes(field) ? ' checked' : ''}> ${escapeProfileVerificationTickHtml(fieldNames[index])}</label>`).join('');
   const formHtml = `<form class="pvt-form" id="pvtForm"><label for="pvtBy">${escapeProfileVerificationTickHtml(verifiedByLabel)}<input id="pvtBy" type="text" maxlength="60" value="${tick ? escapeProfileVerificationTickHtml(tick.verifiedBy) : ''}" required></label><label for="pvtDate">${escapeProfileVerificationTickHtml(dateLabel)}<input id="pvtDate" type="date" value="${tick ? escapeProfileVerificationTickHtml(tick.verifiedDate) : ''}" required></label><fieldset class="pvt-fields"><legend>${escapeProfileVerificationTickHtml(fieldsLabel)}</legend>${checksHtml}</fieldset><button type="submit" class="primary-button" id="pvtSaveBtn">${escapeProfileVerificationTickHtml(saveLabel)}</button>${tick ? `<button type="button" class="secondary-button" id="pvtRemoveBtn">${escapeProfileVerificationTickHtml(removeLabel)}</button>` : ''}</form>`;
-  return `<section class="profile-custody-section profile-verification-tick" aria-label="${escapeProfileVerificationTickHtml(heading)}"><h4>${escapeProfileVerificationTickHtml(heading)}</h4><p>${escapeProfileVerificationTickHtml(intro)}</p>${currentHtml}${formHtml}</section>`;
+  return `<section class="profile-custody-section profile-verification-tick" aria-label="${escapeProfileVerificationTickHtml(ariaLabel)}">${heading ? `<h4>${escapeProfileVerificationTickHtml(heading)}</h4>` : ''}<p>${escapeProfileVerificationTickHtml(intro)}</p>${currentHtml}${formHtml}</section>`;
 }

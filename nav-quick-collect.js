@@ -597,6 +597,42 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
 }
 
 /**
+ * Polish #13: after a package change (or its Undo) reopens the form,
+ * the amount field must end up at the operator's figure, not silently
+ * back at the new prefill. The reopen always re-prefills from the new
+ * dues, so the caller captures the field's value and the suggested
+ * amount it was holding BEFORE the reopen and asks this helper what
+ * to pass to openCustomerCollectionForm:
+ *  - the captured figure differs from the old suggested amount, so
+ *    the operator had entered/selected it — carry it over verbatim
+ *    (the operator's explicit entry always wins over a re-prefill);
+ *  - it equals the old suggested amount, so the field still held the
+ *    old prefill — follow the new bill instead: the current month's
+ *    balance after the change (balanceDue). A typed figure that
+ *    happens to equal the old prefill exactly is treated as untouched
+ *    here — the package change implies the new bill, and the operator
+ *    can re-type;
+ *  - balanceDue is null (bill skipped — free connection or a
+ *    billing-paused month, where the new price applies from the next
+ *    billed month) — no override, the fresh prefill stands.
+ * Pure: decides only, writes nothing. The Undo path passes balanceDue
+ * null: on the restored state the fresh prefill IS the old prefill, so
+ * an untouched field needs no override there.
+ *
+ * @param {string} capturedValue - amount field's value before the reopen
+ * @param {number|null} oldSuggestedAmount - suggestedAmount before the reopen
+ * @param {number|null} balanceDue - current month's balance after the change
+ * @returns {{ amountOverride?: string|number }} options for openCustomerCollectionForm
+ */
+export function packageChangeAmountOptions(capturedValue, oldSuggestedAmount, balanceDue) {
+  const capturedNumber = Number(capturedValue);
+  const wasTouched = !(Number.isFinite(capturedNumber) && capturedNumber === oldSuggestedAmount);
+  if (wasTouched) return { amountOverride: capturedValue };
+  if (typeof balanceDue === 'number') return { amountOverride: balanceDue };
+  return {};
+}
+
+/**
  * Owner feature (2026-10-29): change a customer's package from inside the
  * Quick Collect payment step — e.g. the customer was on the PKR 1,000
  * package last month and takes the PKR 2,000 package this month. The plan
@@ -3468,8 +3504,13 @@ export function setupQuickCollectModal({
             if (typeof onToast === 'function') onToast(t('qcpkg_same'));
             return;
           }
+          // Polish #13: the reopen below re-prefills the amount from
+          // the new dues — capture what the operator had first, so a
+          // typed 2,500 is never silently replaced by the new prefill.
+          const amountBeforeChange = amountInput ? amountInput.value : '';
+          const suggestedBeforeChange = activeDefaults ? activeDefaults.suggestedAmount : null;
           if (typeof onSaveState === 'function') onSaveState(result.nextState);
-          openCustomerCollectionForm(customerId);
+          openCustomerCollectionForm(customerId, packageChangeAmountOptions(amountBeforeChange, suggestedBeforeChange, result.balanceDue));
           if (typeof onToast === 'function') {
             const message = !result.billSkipped && result.bill
               ? t('qcpkg_done', null, {
@@ -3486,7 +3527,14 @@ export function setupQuickCollectModal({
               duration: 8000,
               onAction: () => {
                 if (typeof onSaveState === 'function') onSaveState(beforeState);
-                openCustomerCollectionForm(customerId);
+                // Polish #13: Undo restores the exact pre-change
+                // amount — the typed figure when the operator had
+                // entered one, otherwise the fresh prefill, which on
+                // the restored state IS the old prefill. The undo-time
+                // field cannot tell a typed figure from the figure the
+                // reopen itself wrote, so the pre-change capture from
+                // the apply tap is what decides — not a fresh capture.
+                openCustomerCollectionForm(customerId, packageChangeAmountOptions(amountBeforeChange, suggestedBeforeChange, null));
               }
             });
           }
@@ -3589,6 +3637,28 @@ export function setupQuickCollectModal({
       // exactly as the dues-default wiring expects it.)
       if (options && options.emptyAmount === true) {
         if (amountInput) amountInput.value = '';
+        if (prefillLine) {
+          prefillLine.innerHTML = '';
+          prefillLine.hidden = true;
+        }
+      }
+      // Polish #13: a package-change reopen carries the amount over —
+      // either the operator's typed figure, or the new package's
+      // current-month balance (see packageChangeAmountOptions). It
+      // runs after the ordinary prefill so the prefill line above
+      // stays exactly as the dues-default wiring expects it — and the
+      // line is hidden here, because the amount no longer "came from"
+      // the oldest bill, so naming that bill would mislead (the Plan
+      // 490 empty-amount step's precedent). Every amount-dependent
+      // line below reads the overridden field, so words, settlement
+      // preview, over/underpayment, cash change and the waada row all
+      // follow the carried-over figure.
+      if (options && options.amountOverride !== undefined && options.amountOverride !== null) {
+        if (amountInput) {
+          amountInput.value = typeof options.amountOverride === 'number'
+            ? (options.amountOverride > 0 ? options.amountOverride.toFixed(2) : '')
+            : String(options.amountOverride);
+        }
         if (prefillLine) {
           prefillLine.innerHTML = '';
           prefillLine.hidden = true;

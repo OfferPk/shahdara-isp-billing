@@ -43,7 +43,7 @@ import {
 } from '../core.js';
 import {
   changeCustomerPackage, executeQuickCollection, getCustomerPaymentDefaults,
-  getPakistanLocalDate, setupQuickCollectModal
+  getPakistanLocalDate, packageChangeAmountOptions, setupQuickCollectModal
 } from '../nav-quick-collect.js';
 import { isBillingPaused } from '../pause-billing.js';
 import { TRANSLATIONS } from '../nav-language.js';
@@ -400,4 +400,354 @@ test('wiring: host div, controller render + handler, and token CSS are in place'
   const boxRule = css.match(/\.qc-package-box \{[^}]*\}/);
   assert.ok(boxRule, 'qc-package-box rule exists');
   assert.ok(!/#[0-9a-fA-F]{3,8}/.test(boxRule[0]), 'qc-package-box uses theme tokens, no hex');
+});
+
+/**
+ * Polish #13 — the operator's bug report (2026-11-08, SSP HOUSE #74):
+ * payment 2,500 selected, package changed to 5Mbps / 500GB, but the
+ * success screen showed Amount Collected PKR 3,000. The Change Package
+ * handler reopened the form and openCustomerCollectionForm always
+ * re-prefilled the amount with full dues, wiping the typed 2,500.
+ *
+ * Pins:
+ *  - a typed amount survives the package-change reopen, and the
+ *    payment actually recorded is the typed figure (2,500);
+ *  - an untouched field follows the new package's bill instead of the
+ *    old total dues (older 500 + repriced bill 2,500 -> field 2,500,
+ *    while the dues header still shows total dues 3,000);
+ *  - a billing-paused change (bill skipped, balanceDue null) leaves
+ *    the field at the old dues;
+ *  - a downgrade past what was paid (balanceDue 0) empties the field,
+ *    following the prefill's own "nothing due -> blank" rule;
+ *  - Undo restores the typed amount when one was entered, and the old
+ *    prefill when the field was untouched;
+ *  - a normal customer pick still defaults to full dues (Plan 429,
+ *    untouched);
+ *  - the prefill line hides on a package-change reopen: the amount no
+ *    longer "came from" the oldest bill, so naming that bill would
+ *    mislead.
+ * Synthetic data only.
+ */
+
+test('polish #13 (pure): packageChangeAmountOptions decides typed vs untouched vs skipped', () => {
+  // Typed figure differs from the old prefill: carried over verbatim.
+  assert.deepEqual(packageChangeAmountOptions('2500', 3000, 2500), { amountOverride: '2500' });
+  assert.deepEqual(packageChangeAmountOptions('2500.00', 3000, 2500), { amountOverride: '2500.00' });
+  // Untouched field (still the old prefill): follows the new bill.
+  assert.deepEqual(packageChangeAmountOptions('3000.00', 3000, 2500), { amountOverride: 2500 });
+  assert.deepEqual(packageChangeAmountOptions('3000', 3000, 2500), { amountOverride: 2500 });
+  // Accepted edge, pinned: a typed figure that happens to equal the
+  // old prefill exactly is treated as untouched and replaced by the
+  // new bill figure — the package change implies the new bill.
+  assert.deepEqual(packageChangeAmountOptions('3000.00', 3000, 3000), { amountOverride: 3000 });
+  // Bill skipped (free connection / billing-paused month): no override,
+  // the fresh prefill stands.
+  assert.deepEqual(packageChangeAmountOptions('3000.00', 3000, null), {});
+  assert.deepEqual(packageChangeAmountOptions('3000.00', 3000, undefined), {});
+  // Empty field with nothing due before: untouched, follows the new bill.
+  assert.deepEqual(packageChangeAmountOptions('', 0, 2500), { amountOverride: 2500 });
+  // Empty field the operator cleared deliberately: the cleared state is
+  // an explicit entry and is preserved.
+  assert.deepEqual(packageChangeAmountOptions('', 3000, 2500), { amountOverride: '' });
+  // New bill fully covered (balanceDue 0): the override is 0, which the
+  // form renders blank, like the prefill's own "nothing due" rule.
+  assert.deepEqual(packageChangeAmountOptions('500.00', 500, 0), { amountOverride: 0 });
+});
+
+/** Previous PKT month string for a 'YYYY-MM' month string. */
+function previousMonthString(month) {
+  const [y, m] = month.split('-').map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+}
+
+/**
+ * Polish #13 controller harness: the change-package test's mock DOM,
+ * reusable across the new tests. The controller works off the live
+ * clock, so every fixture is built relative to today.
+ */
+function polish13Controller(initialState) {
+  const registry = new Map();
+  const createMockElement = (id, tag = 'div') => {
+    const listeners = {};
+    const attrs = {};
+    const el = {
+      id, tagName: tag.toUpperCase(), textContent: '', innerHTML: '', value: '',
+      style: {}, hidden: false, disabled: false, checked: false, options: [], children: [],
+      classList: { toggle: () => {}, add: () => {}, remove: () => {}, contains: () => false },
+      getAttribute: (n) => attrs[n] ?? null,
+      setAttribute: (n, v) => { attrs[n] = v; },
+      removeAttribute: (n) => { delete attrs[n]; },
+      addEventListener: (type, h) => { (listeners[type] = listeners[type] || []).push(h); },
+      dispatch: async (type, evt = {}) => { for (const h of (listeners[type] || [])) await h({ type, target: el, preventDefault: () => {}, ...evt }); },
+      click: async () => el.dispatch('click'),
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      appendChild: (child) => { el.children.push(child); return child; },
+      removeChild: () => {},
+      focus: () => {},
+      select: () => {},
+      showModal: () => { el.opened = true; el.open = true; },
+      close: () => { el.open = false; },
+      opened: false,
+      open: false
+    };
+    return el;
+  };
+  const getEl = (id, tag) => {
+    if (!registry.has(id)) registry.set(id, createMockElement(id, tag));
+    return registry.get(id);
+  };
+  const pkgSelect = createMockElement('quickCollectPackageSelect', 'select');
+  const pkgApply = createMockElement('', 'button');
+  pkgApply.disabled = true;
+  const packageBox = getEl('quickCollectPackageBox');
+  packageBox.querySelector = (sel) =>
+    sel === '#quickCollectPackageSelect' ? pkgSelect : sel === '[data-qc-change-package]' ? pkgApply : null;
+  const modal = getEl('quickCollectModal', 'dialog');
+
+  const origDocument = globalThis.document;
+  globalThis.document = {
+    getElementById: (id) => getEl(id),
+    querySelectorAll: () => [],
+    createElement: (tag) => createMockElement('', tag),
+    addEventListener: () => {},
+    body: { appendChild() {}, removeChild() {} },
+    activeElement: null
+  };
+  let state = initialState;
+  const toasts = [];
+  const controller = setupQuickCollectModal({
+    getState: () => state,
+    onSaveState: (next) => { state = next; },
+    onToast: (msg, opts) => toasts.push({ msg, opts }),
+    onSelectCustomer: () => {},
+    onEditCustomer: () => {}
+  });
+  return {
+    getEl, pkgSelect, pkgApply, packageBox, toasts, controller,
+    get state() { return state; },
+    restore() { globalThis.document = origDocument; }
+  };
+}
+
+/** One synthetic customer on the PKR 1,000 package, billed this month. */
+function polish13CurrentBillState(now, month) {
+  let state = createInitialState(['Polish13 Tester']);
+  state = updateCustomerProfile(state, 'seed-001', {
+    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 1000
+  }, now);
+  state = generateMonthlyBillsThroughCurrentMonth(state, now);
+  assert.equal(Number(billOf(state, month).dueAmount), 1000, 'precondition: current bill at the old package');
+  return state;
+}
+
+/** Older dues 500 (previous month, shaped down) + current bill 1,000. */
+function polish13OlderDuesState(now, month) {
+  const prevMonth = previousMonthString(month);
+  const [y, m] = month.split('-').map(Number);
+  const prevRef = new Date(y, m - 2, 5, 12);
+  let state = createInitialState(['Polish13 Tester']);
+  state = updateCustomerProfile(state, 'seed-001', {
+    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 1000
+  }, prevRef);
+  state = generateMonthlyBillsThroughCurrentMonth(state, prevRef);
+  state = generateMonthlyBillsThroughCurrentMonth(state, now);
+  // Shape the older bill down to 500: the operator's case is older dues
+  // 500 plus the current bill at the old package (the kist test's
+  // direct-shape precedent — the allocation engine reads dueAmount).
+  state = {
+    ...state,
+    customers: state.customers.map(c => ({
+      ...c,
+      bills: c.bills.map(b => b.month === prevMonth ? { ...b, dueAmount: 500 } : b)
+    }))
+  };
+  assert.equal(getCustomerPaymentDefaults(state, 'seed-001', now).totalDues, 1500, 'precondition: older 500 + current 1,000');
+  assert.equal(getCustomerPaymentDefaults(state, 'seed-001', now).suggestedAmount, 1500);
+  return state;
+}
+
+test('polish #13 (controller): a typed 2,500 survives the package change, and the saved payment is 2,500', async () => {
+  const now = new Date();
+  const month = getPakistanLocalDate(now).slice(0, 7);
+  const h = polish13Controller(polish13CurrentBillState(now, month));
+  try {
+    h.controller.open('seed-001');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1000.00', 'amount starts at the old dues');
+
+    // The operator types 2,500 first — the reported order.
+    h.getEl('quickCollectAmountInput').value = '2500';
+    h.pkgSelect.value = '5mbps-500gb';
+    await h.pkgSelect.dispatch('change');
+    await h.pkgApply.click();
+
+    assert.equal(Number(billOf(h.state, month).dueAmount), 2500, 'bill repriced to the new package');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '2500', 'typed amount carried over verbatim, not re-prefilled');
+    assert.equal(h.getEl('quickCollectPrefillLine').hidden, true, 'prefill line hides: the amount no longer came from the oldest bill');
+
+    // The submit path reads the field: the payment actually recorded
+    // is the typed figure, not the old total dues.
+    const collected = executeQuickCollection(h.state, {
+      customerId: 'seed-001', month, amount: Number(h.getEl('quickCollectAmountInput').value),
+      date: getPakistanLocalDate(now), method: 'Cash'
+    }, now);
+    assert.equal(collected.receipt.amount, 2500, 'the saved payment is the typed 2,500');
+    assert.equal(balanceOf(collected.nextState, month), 0, 'the repriced 2,500 bill settles');
+  } finally {
+    h.restore();
+  }
+});
+
+test('polish #13 (controller): an untouched field follows the new bill while the dues header still shows total dues', async () => {
+  const now = new Date();
+  const month = getPakistanLocalDate(now).slice(0, 7);
+  const h = polish13Controller(polish13OlderDuesState(now, month));
+  try {
+    h.controller.open('seed-001');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1500.00', 'amount starts at full dues (older 500 + current 1,000)');
+
+    h.pkgSelect.value = '5mbps-500gb';
+    await h.pkgSelect.dispatch('change');
+    await h.pkgApply.click();
+
+    assert.equal(Number(billOf(h.state, month).dueAmount), 2500, 'bill repriced to the new package');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '2500.00', 'untouched field becomes the new package price, not total dues');
+    assert.ok(
+      h.getEl('quickCollectCustomerHeader').innerHTML.includes('PKR 3,000'),
+      'dues header still shows total dues (older 500 + repriced 2,500)'
+    );
+    assert.equal(h.getEl('quickCollectPrefillLine').hidden, true, 'prefill line hides on the package-change reopen');
+  } finally {
+    h.restore();
+  }
+});
+
+test('polish #13 (controller): a billing-paused change leaves the field at the old dues', async () => {
+  const now = new Date();
+  const month = getPakistanLocalDate(now).slice(0, 7);
+  const prevMonth = previousMonthString(month);
+  const [y, m] = month.split('-').map(Number);
+  const prevRef = new Date(y, m - 2, 5, 12);
+  let state = createInitialState(['Polish13 Tester']);
+  state = updateCustomerProfile(state, 'seed-001', {
+    packageSpeed: '3Mbps / 100GB', monthlySellingAmount: 1000
+  }, prevRef);
+  state = generateMonthlyBillsThroughCurrentMonth(state, prevRef);
+  state = {
+    ...state,
+    customers: state.customers.map(c => ({
+      ...c,
+      bills: c.bills.map(b => b.month === prevMonth ? { ...b, dueAmount: 500 } : b)
+    }))
+  };
+  // Pause the current month before it is ever billed: no current bill.
+  state = updateCustomerProfile(state, 'seed-001', { paused: true, pauseStartDate: `${month}-01` }, now);
+  state = generateMonthlyBillsThroughCurrentMonth(state, now);
+  assert.equal(billOf(state, month), undefined, 'precondition: no current bill while paused');
+  assert.equal(isBillingPaused(state.customers[0], month), true, 'precondition: current month is paused');
+  assert.equal(getCustomerPaymentDefaults(state, 'seed-001', now).totalDues, 500, 'precondition: only the older 500 is due');
+
+  const h = polish13Controller(state);
+  try {
+    h.controller.open('seed-001');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '500.00', 'amount starts at the old dues');
+
+    h.pkgSelect.value = '5mbps-500gb';
+    await h.pkgSelect.dispatch('change');
+    await h.pkgApply.click();
+
+    assert.equal(billOf(h.state, month), undefined, 'no bill was created while paused');
+    assert.equal(h.state.customers[0].packageSpeed, '5Mbps / 500GB', 'the plan change itself is still recorded');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '500.00', 'field stays at the old dues when the bill is skipped');
+  } finally {
+    h.restore();
+  }
+});
+
+test('polish #13 (controller): a downgrade past what was paid empties the field (new bill fully covered)', async () => {
+  const now = new Date();
+  const month = getPakistanLocalDate(now).slice(0, 7);
+  let state = createInitialState(['Polish13 Tester']);
+  state = updateCustomerProfile(state, 'seed-001', {
+    packageSpeed: '5Mbps / 200GB', monthlySellingAmount: 2000
+  }, now);
+  state = generateMonthlyBillsThroughCurrentMonth(state, now);
+  state = addPayment(state, 'seed-001', month, { date: getPakistanLocalDate(now), amount: 1500, method: 'Cash' }, now);
+  assert.equal(balanceOf(state, month), 500, 'precondition: 500 still due on the 2,000 bill');
+
+  const h = polish13Controller(state);
+  try {
+    h.controller.open('seed-001');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '500.00', 'amount starts at the remaining 500');
+
+    h.pkgSelect.value = '3mbps-100gb';
+    await h.pkgSelect.dispatch('change');
+    await h.pkgApply.click();
+
+    assert.equal(Number(billOf(h.state, month).dueAmount), 1000, 'bill repriced down to the new package');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '', 'new bill balance is 0, so the field empties like a no-dues prefill');
+  } finally {
+    h.restore();
+  }
+});
+
+test('polish #13 (controller): Undo restores the typed amount when one was entered', async () => {
+  const now = new Date();
+  const month = getPakistanLocalDate(now).slice(0, 7);
+  const h = polish13Controller(polish13CurrentBillState(now, month));
+  try {
+    h.controller.open('seed-001');
+    h.getEl('quickCollectAmountInput').value = '2500';
+    h.pkgSelect.value = '5mbps-500gb';
+    await h.pkgSelect.dispatch('change');
+    await h.pkgApply.click();
+    assert.equal(h.getEl('quickCollectAmountInput').value, '2500', 'typed amount survived the change');
+
+    const done = h.toasts.find(t => t.msg.includes('5Mbps / 500GB'));
+    assert.ok(done, 'success toast names the new package');
+    assert.equal(typeof done.opts?.onAction, 'function', 'toast carries the Undo action');
+    done.opts.onAction();
+
+    assert.equal(Number(billOf(h.state, month).dueAmount), 1000, 'undo restored the old bill');
+    assert.equal(h.state.customers[0].packageSpeed, '3Mbps / 100GB', 'undo restored the old package');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '2500', 'undo restores the typed amount, not the old prefill');
+  } finally {
+    h.restore();
+  }
+});
+
+test('polish #13 (controller): Undo restores the old prefill when the field was untouched', async () => {
+  const now = new Date();
+  const month = getPakistanLocalDate(now).slice(0, 7);
+  const h = polish13Controller(polish13OlderDuesState(now, month));
+  try {
+    h.controller.open('seed-001');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1500.00', 'amount starts at full dues');
+    h.pkgSelect.value = '5mbps-500gb';
+    await h.pkgSelect.dispatch('change');
+    await h.pkgApply.click();
+    assert.equal(h.getEl('quickCollectAmountInput').value, '2500.00', 'untouched field followed the new bill');
+
+    const done = h.toasts.find(t => t.msg.includes('5Mbps / 500GB'));
+    assert.ok(done, 'success toast names the new package');
+    done.opts.onAction();
+
+    assert.equal(Number(billOf(h.state, month).dueAmount), 1000, 'undo restored the old bill');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1500.00', 'undo restores the old prefill, not the new bill figure');
+  } finally {
+    h.restore();
+  }
+});
+
+test('polish #13 (controller): a normal customer pick still defaults to full dues (Plan 429 untouched)', async () => {
+  const now = new Date();
+  const month = getPakistanLocalDate(now).slice(0, 7);
+  const h = polish13Controller(polish13OlderDuesState(now, month));
+  try {
+    h.controller.open('seed-001');
+    assert.equal(h.getEl('quickCollectAmountInput').value, '1500.00', 'pick defaults to full dues, older 500 + current 1,000');
+    assert.equal(h.getEl('quickCollectPrefillLine').hidden, false, 'prefill line still names the oldest bill on a normal pick');
+  } finally {
+    h.restore();
+  }
 });

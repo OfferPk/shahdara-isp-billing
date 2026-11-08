@@ -3,7 +3,10 @@ import { t } from './nav-language.js';
 const SERVICE_STATUS_LABELS = Object.freeze({
   active: 'prof_service_active',
   offline: 'prof_service_offline',
-  'not-set': 'prof_not_set'
+  // Plan 510: the never-chosen manual status is "Not chosen", not
+  // "Not set" — "Not set" read as if the service itself were unset, when
+  // it only means the operator never chose Active/Offline.
+  'not-set': 'prof_service_not_chosen'
 });
 
 export function profileArchiveLabel(isArchived, archivedSinceLabel = '') {

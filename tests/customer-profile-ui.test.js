@@ -365,7 +365,9 @@ test('customer profile uses an identity-first card with separate manual service 
   }
   assert.match(index, /class="customer-profile-card" aria-label="Customer profile card"/);
   assert.match(index, /class="profile-action-group" role="group" data-i18n-aria-label="prof_actions_aria" aria-label="Customer quick actions"/); // phase 3: group label keyed for Urdu
-  assert.match(index, /id="profileServiceStatusBadge"[^>]*Manual service status: Not set; not monitored/);
+  // Plan 510: the static service badge reads "Not chosen", not "Not set"
+  // — "Not set" read as if the service itself were unset.
+  assert.match(index, /id="profileServiceStatusBadge"[^>]*Manual service status: Not chosen; not monitored/);
   assert.ok(index.indexOf('id="customerCurrentBillSummary"') < index.indexOf('id="profileTabBilling"'), 'current-bill summary precedes the section tabs');
   assert.match(app, /profileAvatar'\)\.textContent = initials\(customer\.name\)/);
   assert.match(app, /profileServiceStatusBadge'[\s\S]*?profile-service-status-\$\{serviceStatus\}/);

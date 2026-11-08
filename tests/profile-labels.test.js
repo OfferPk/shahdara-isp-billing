@@ -3,20 +3,22 @@ import assert from 'node:assert/strict';
 import { manualServiceStatusLabel, profileArchiveLabel } from '../profile-labels.js';
 
 test('profile archive state and manual service status use distinct, independent labels', () => {
+  // Plan 510: the never-chosen manual service status reads "Not chosen",
+  // not "Not set" — "Not set" read as if the service itself were unset.
   const syntheticCases = [
     {
       archived: false,
       archivedSinceLabel: '',
       serviceStatus: 'not-set',
       profileLabel: 'Profile: Active',
-      serviceLabel: 'Service status: Not set'
+      serviceLabel: 'Service status: Not chosen'
     },
     {
       archived: true,
       archivedSinceLabel: 'synthetic date',
       serviceStatus: 'not-set',
       profileLabel: 'Profile: Archived since synthetic date',
-      serviceLabel: 'Service status: Not set'
+      serviceLabel: 'Service status: Not chosen'
     },
     {
       archived: false,

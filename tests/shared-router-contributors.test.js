@@ -372,7 +372,7 @@ test('quick collect: picker id stamps a snapshot; no pick / unknown id stays unt
 // --------------------------------------------------------------------- i18n
 test('i18n: every contrib_* key exists in both dictionaries; every t() call resolves', () => {
   const keys = [
-    'contrib_heading', 'contrib_aria', 'contrib_note', 'contrib_row', 'contrib_main_row',
+    'contrib_heading', 'contrib_aria', 'contrib_note', 'contrib_save_note', 'contrib_row', 'contrib_main_row',
     'contrib_warn_sum', 'contrib_name_label', 'contrib_share_label', 'contrib_phone_label',
     'contrib_add', 'contrib_remove', 'contrib_empty', 'contrib_invalid_row', 'contrib_qc_label',
     'contrib_qc_main', 'contrib_hist_tag', 'contrib_wa_heading', 'contrib_wa_row'

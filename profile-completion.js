@@ -1,9 +1,10 @@
 // profile-completion.js — field-completion counter for the Customer Profile.
 //
 // The counter counts exactly the editable controls the PR #813 per-field
-// Save work covers: the keys of PROFILE_FIELD_SAVE_MAP. Nothing here
-// reads or writes any store, bill, payment, visit, or lifecycle record —
-// it only counts values it is handed.
+// Save work covers: the keys of PROFILE_FIELD_SAVE_MAP — except the pure
+// opt-in flags listed in PROFILE_COMPLETION_EXCLUDED_KEYS (Plan 513).
+// Nothing here reads or writes any store, bill, payment, visit, or
+// lifecycle record — it only counts values it is handed.
 //
 // Filled rule (stated plainly, so the counter is never ambiguous):
 // - a string counts when it is non-blank and not literally "Not set"
@@ -12,7 +13,20 @@
 // - a boolean counts only when true (an unchecked optional flag is the
 //   "not chosen" state, not a completed field);
 // - null, undefined, NaN and anything else do not count.
+//
+// Plan 513 — the counted total excludes the pure opt-in flags:
+// `prefersSms` ("Prefers SMS") and `paused` ("Vacation hold — pause
+// billing") are legitimately false for most customers, so counting them
+// left a fully completed profile stuck at 67/69 forever — a counter
+// that can never reach full marks teaches the operator to ignore it.
+// The per-field-save map itself is unchanged (both flags still save
+// per-field); they are simply not part of what "complete" means, so
+// the total is 67 and a profile with every applicable field filled
+// shows full marks. The missing-fields checklist is built from this
+// same counted list (see app.js), so the two can never disagree.
 import { PROFILE_FIELD_SAVE_MAP } from './profile-field-save.js';
+
+export const PROFILE_COMPLETION_EXCLUDED_KEYS = Object.freeze(['prefersSms', 'paused']);
 
 export function isProfileFieldFilled(value) {
   if (typeof value === 'string') {
@@ -27,9 +41,11 @@ export function isProfileFieldFilled(value) {
 
 // Count a customer record (field key -> value). Returns filled, total
 // and the exact label text the profile shows: "11/20 fields filled"
-// (filled first, then total, so the order is never ambiguous).
+// (filled first, then total, so the order is never ambiguous). The
+// total is the counted keys only — the pure opt-in flags in
+// PROFILE_COMPLETION_EXCLUDED_KEYS are not part of it (Plan 513).
 export function countProfileCompletion(record) {
-  const keys = Object.values(PROFILE_FIELD_SAVE_MAP);
+  const keys = Object.values(PROFILE_FIELD_SAVE_MAP).filter((key) => !PROFILE_COMPLETION_EXCLUDED_KEYS.includes(key));
   let filled = 0;
   for (const key of keys) {
     if (isProfileFieldFilled(record?.[key])) filled++;

@@ -30,9 +30,13 @@ test('Plan 494: the Edit name button itself stays, beside the heading', () => {
   assert.equal(html.split('id="profileNameInput"').length - 1, 1, 'exactly one #profileNameInput may exist');
 });
 
-test('Plan 494: the form Save stays a secondary-button (not demoted, not promoted)', () => {
+// Plan 497 (2026-11-08): the form Save was PROMOTED to primary-button by
+// Plan 497 ("Save profile is the primary button; Cancel stays secondary").
+// The Plan 494 intent survives: the form Save still exists with the same id,
+// label and save path — only its prominence changed, on purpose.
+test('Plan 494: the form Save stays the single profile save (now primary, per Plan 497)', () => {
   const html = read('index.html');
-  assert.ok(html.includes('id="saveMohallaButton" class="secondary-button profile-save"'), 'the form Save profile button is untouched — the plan removes the inline Save, it does not demote or promote the form Save');
+  assert.ok(html.includes('id="saveMohallaButton" class="primary-button profile-save"'), 'the form Save profile button is still the one profile save — Plan 497 promoted it to primary-button, it was not demoted or removed');
 });
 
 test('Plan 494: Edit name opens the form at the name field via the error-jump', () => {

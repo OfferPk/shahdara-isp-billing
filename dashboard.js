@@ -671,7 +671,8 @@ export function setupDashboardQuickActions({
   onMonthlyReport,
   onAnalytics,
   onBackup,
-  onBriefing
+  onBriefing,
+  onInstallationDashboard
 } = {}) {
   function wire(id, handler) {
     const btn = document.getElementById(id);
@@ -692,6 +693,7 @@ export function setupDashboardQuickActions({
   wire('homeActionDuesList', onDuesList);
   wire('quickActionDailyClosing', onDailyClosing);
   wire('homeActionDailyClosing', onDailyClosing);
+  wire('quickActionInstallationDashboard', onInstallationDashboard);
   wire('quickActionRecordExpense', onRecordExpense);
   wire('quickActionMonthlyReports', onMonthlyReport);
   wire('quickActionAnalytics', onAnalytics);

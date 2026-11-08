@@ -1967,6 +1967,16 @@ export function setupQuickCollectModal({
   // predates it) — what the extra over the dues is for, in plain
   // words: advance, credit, or change to return.
   const excessCashPurposeSelect = document.getElementById('quickCollectExcessCashPurposeSelect');
+  // Plan 529: the note beside the excess-purpose select (null when the
+  // host page predates it) — shown while the select is disabled, so
+  // the operator is told the overpayment choice above owns the
+  // question. The note carries no id: it is found through the
+  // select's own field group, never through the bare document, and
+  // the lookup is guarded for stub documents without querySelector
+  // (polish #13 harness).
+  const excessPurposeNote = excessCashPurposeSelect?.parentElement && typeof excessCashPurposeSelect.parentElement.querySelector === 'function'
+    ? excessCashPurposeSelect.parentElement.querySelector('.qc-excess-purpose-note')
+    : null;
   // Plan 397: the large-cash approval fields (null when the host page
   // predates them) — the operator-set threshold for cash that needs
   // the owner's approval, and the approver's initials or name.
@@ -2206,6 +2216,16 @@ export function setupQuickCollectModal({
     }
     if (overpaymentExtraLine) overpaymentExtraLine.textContent = formatPKR(extraCents / 100);
     overpaymentChoiceBox.hidden = extraCents <= 0;
+    // Plan 529: while the choice box is shown the radios own the
+    // extra-cash question, so the excess-purpose select is disabled
+    // (with its note) and cannot record a second, contradicting
+    // disposition; when the box hides the select works exactly as
+    // before. The select's value is never cleared here — a purpose
+    // picked before the amount was typed stands, and clearing it
+    // would destroy a "Change to return" pick the radios cannot
+    // express.
+    if (excessCashPurposeSelect) excessCashPurposeSelect.disabled = !overpaymentChoiceBox.hidden;
+    if (excessPurposeNote) excessPurposeNote.hidden = overpaymentChoiceBox.hidden;
   }
   // Plan 387: the underpayment warning is shown only while the
   // amount currently typed is a positive number strictly below the

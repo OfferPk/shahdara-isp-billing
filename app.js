@@ -17,6 +17,7 @@ import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
 import { calculateDashboardTodayCard, renderDashboardTodayCard } from './dashboard-today-card.js?v=1.11.0';
 import { calculateUpcomingDues, renderUpcomingDues } from './dashboard-upcoming-dues.js?v=1.11.0';
 import { calculateOverdueList, renderOverdueList } from './dashboard-overdue-list.js?v=1.11.0';
+import { calculateMethodStrip, renderMethodStrip } from './dashboard-method-strip.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -2740,6 +2741,9 @@ function renderDashboard() {
   // Plan 473: the overdue list — customers waiting longest, oldest
   // due date first, with days overdue and the total overdue in PKR.
   renderOverdueList(document, calculateOverdueList(state, referenceDate));
+  // Plan 474: the method strip — today's collections split by
+  // payment method, each in PKR, with the day total in PKR.
+  renderMethodStrip(document, calculateMethodStrip(state, referenceDate));
   $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
   $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
   $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');

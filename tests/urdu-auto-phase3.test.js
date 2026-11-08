@@ -125,8 +125,11 @@ test('phase 3 renderers in en: exact English originals are preserved', () => {
 test('phase 3 app.js profile templates are wired to t() and no longer carry the English originals', () => {
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   // Wiring pins: the profile renderers must call t() with prof_ keys.
+  // Plan 507: 'prof_waada_heading' is NOT in this list — the lower Waada
+  // section that wired it was folded into the top Wada banner, and the
+  // key was removed from both dictionaries with it.
   for (const key of [
-    'prof_waada_heading', 'prof_kist_heading', 'prof_hist_pay_title',
+    'prof_kist_heading', 'prof_hist_pay_title',
     'prof_view_heading', 'prof_complaint_heading', 'prof_ticket_heading',
     'prof_downtime_heading', 'prof_optical_heading', 'prof_pole_heading',
     'prof_feeder_heading', 'prof_custody_heading', 'prof_mikrotik_heading',

@@ -15,6 +15,7 @@ import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigit
 import { initReceiptFooterStudioModal, getReceiptFooter, saveReceiptFooter, buildReceiptFooterText, RECEIPT_FOOTER_STORAGE_KEY } from './receipt-footer-studio.js?v=1.11.0';
 import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
 import { calculateDashboardTodayCard, renderDashboardTodayCard } from './dashboard-today-card.js?v=1.11.0';
+import { calculateUpcomingDues, renderUpcomingDues } from './dashboard-upcoming-dues.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -2732,6 +2733,9 @@ function renderDashboard() {
   // Plan 471: the today card — collections so far today, the count of
   // payments today, and the dues falling due today, in one glance.
   renderDashboardTodayCard(document, calculateDashboardTodayCard(state, referenceDate));
+  // Plan 472: the upcoming-dues view — bills falling due in the next
+  // seven days, split per day, with the seven-day total in PKR.
+  renderUpcomingDues(document, calculateUpcomingDues(state, referenceDate));
   $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
   $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
   $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');

@@ -14248,3 +14248,5 @@ dialog::backdrop {
 .oqs-void{color:#b33c33;font-weight:700}
 .oqs-mark{margin-left:auto;color:#5c6e66;font-size:10px}
 .oqs-empty{margin:0;font-size:11px;color:#5c6e66}
+/* Plan 487: dashboard labels switched to Urdu script read in the Nastaliq face even while the rest of the app stays in English. The Urdu font file loads on demand when the option is on; the [lang="ur"] marker the labels module sets is what this rule keys on. */
+#billingDashboard [lang="ur"]{font-family:'Noto Nastaliq Urdu','Noto Naskh Arabic','Urdu Typesetting',system-ui,sans-serif!important}

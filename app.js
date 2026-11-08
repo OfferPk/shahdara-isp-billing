@@ -30,6 +30,7 @@ import { calculateCreditBalances, renderDashboardCreditBalances } from './dashbo
 import { calculateRefundsThisMonth, renderDashboardRefunds } from './dashboard-refunds.js?v=1.11.0';
 import { calculatePrintSummary, renderPrintSummary } from './dashboard-print-summary.js?v=1.11.0';
 import { bindDashboardPlaceKeeping, clearDashboardPlace, restoreDashboardPlace } from './dashboard-place.js?v=1.11.0';
+import { applyStoredDashboardLabels, dashboardLabelsToggleText, getDashboardLabelScript, setDashboardLabelScript } from './dashboard-urdu-labels.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -3181,6 +3182,12 @@ function renderDashboard() {
     dashboardPlaceRestored = true;
     restoreDashboardPlace(document, window, storageAvailable ? localStorage : null);
   }
+  // Plan 487: the dashboard labels read in the operator's stored
+  // script — Urdu script when the option is on, the app's own
+  // language otherwise. This runs last, after every section
+  // renderer, so labels the renderers wrote switch too, while
+  // every figure stays exactly as rendered.
+  applyStoredDashboardLabels(document, storageAvailable ? localStorage : null);
 }
 function initials(name) { return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase(); }
 function tenurePresentation(customer) {
@@ -10975,6 +10982,21 @@ $('#ppsPrintBtn')?.addEventListener('click', () => {
     finally { document.body.classList.remove('printing-dashboard-summary'); }
   });
 });
+// Plan 487: the dashboard labels in Urdu script option — one tap
+// switches only the dashboard's section headings and field labels
+// to Urdu script, and one more tap switches them back. The choice
+// is stored on this device, amounts stay in PKR digits as they
+// are, and no bill, payment, or customer record ever changes.
+const dulToggle = $('#dulLabelsToggle');
+if (dulToggle) {
+  dulToggle.textContent = dashboardLabelsToggleText(getDashboardLabelScript(storageAvailable ? localStorage : null));
+  dulToggle.addEventListener('click', () => {
+    const next = getDashboardLabelScript(storageAvailable ? localStorage : null) === 'urdu' ? 'roman' : 'urdu';
+    setDashboardLabelScript(storageAvailable ? localStorage : null, next);
+    dulToggle.textContent = dashboardLabelsToggleText(next);
+    applyStoredDashboardLabels(document, storageAvailable ? localStorage : null);
+  });
+}
 // #294: the profile's main payment button opens the same Quick Collect sheet (today's date, Cash, amount chips,
 // receipt/WhatsApp/Undo) already on this customer. The ledger month form stays for back-dated entries.
 $('#currentBillPaymentShortcut').addEventListener('click', () => {

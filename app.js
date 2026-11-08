@@ -43,6 +43,7 @@ import { currentBillPresentation, contactActionTargets, contactShortcutActions, 
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, dirtyProfileFieldKeys } from './profile-field-save.js?v=1.11.0';
 import { zonesUnderArea } from './zone-suggestions.js?v=1.11.0';
+import { profileTabCounts } from './profile-tab-counts.js?v=1.11.0';
 import { customerDeleteCleanCheck, customerDeleteRefusalText } from './customer-delete-clean-check.js?v=1.11.0';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
 import { countProfileCompletion, countProfileCompletionFromControls, PROFILE_COMPLETION_EXCLUDED_KEYS } from './profile-completion.js?v=1.11.0';
@@ -1705,6 +1706,24 @@ function activateProfileTab(name, focus = false) {
     $(`#${panelId}`).hidden = !active;
   }
   if (focus) $(`#${profileTabMap[name][0]}`).focus();
+}
+// Plan 519 — the profile tabs carry counts, so the tab itself answers
+// "is there anything here?" before the tap: Billing shows the months
+// with a recorded bill, Complaints shows the unresolved register
+// complaints. A zero count shows the bare label (no "(0)"). The
+// labels are set here on every renderDetail, which is also what the
+// language-change listener re-runs — so a language switch re-renders
+// the counts in the new language instead of leaving the old one, and
+// a complaint resolved from the register modal refreshes them through
+// handleRegisterComplaintsChanged's renderDetail. The static HTML
+// keeps the bare data-i18n labels for the first paint.
+function updateProfileTabCounts(customer) {
+  if (!customer) return;
+  const counts = profileTabCounts(customer, loadComplaints());
+  const billingTab = $('#profileTabBilling');
+  if (billingTab) billingTab.textContent = counts.billingMonths > 0 ? t('prof_tab_billing_count', null, { count: counts.billingMonths }) : t('prof_tab_billing');
+  const complaintsTab = $('#profileTabComplaints');
+  if (complaintsTab) complaintsTab.textContent = counts.openComplaints > 0 ? t('prof_tab_complaints_count', null, { count: counts.openComplaints }) : t('prof_tab_complaints');
 }
 mountCustomerProfileContent();
 
@@ -8629,6 +8648,7 @@ function renderDetail() {
   renderUptimePanel(customer);
   renderIncidents(customer);
   renderHistory(customer);
+  updateProfileTabCounts(customer);
   renderFullHistory(customer);
   // Polish #11 (Req 3): the share draft for a just-recorded profile
   // payment survives the re-render — it stays until the operator

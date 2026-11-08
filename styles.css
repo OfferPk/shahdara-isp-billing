@@ -14357,6 +14357,8 @@ dialog::backdrop {
 .sin-line{margin:4px 0 0;padding:10px 12px;border-radius:10px;background:var(--amber-bg);color:var(--amber);font-size:12px}
 .mfc-checklist{margin:0 0 10px}
 .mfc-heading{margin:0 0 6px;font:700 15px Manrope,sans-serif}
+.mfc-summary{cursor:pointer;font:700 15px Manrope,sans-serif}
+.mfc-details[open] .mfc-list{margin-top:6px}
 .mfc-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .mfc-jump{display:block;width:100%;text-align:left;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:7px;padding:7px 10px;font:600 11px 'DM Sans',sans-serif;cursor:pointer}
 .mfc-all-filled{font-size:11px;color:#5c6e66;margin:0}

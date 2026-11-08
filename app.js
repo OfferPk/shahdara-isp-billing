@@ -6807,9 +6807,10 @@ function renderCustomerProfileView(customer) {
     complaintsPanel.insertAdjacentHTML('beforeend', complaintsSectionHtml);
   }
   $('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue));
-  // Profile polish batch: completion counter at the very top of every
-  // profile — filled/total over the PR #813 per-field-save controls.
-  $('#customerProfileView').insertAdjacentHTML('afterbegin', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
+  // Plan 512 — completion counter directly under the view heading it
+  // describes, not above it: the heading comes first, the counter
+  // second, over the PR #813 per-field-save controls.
+  $('#customerProfileView').querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', `<p class="profile-completion-counter">${escapeHtml(countProfileCompletion(customer).text)}</p>`);
   // Plan 363 — Missing-fields checklist: the counter says how many
   // fields are filled; this lists WHICH ones are still empty, by the
   // name the form itself shows, with a tap-to-jump action to each

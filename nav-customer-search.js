@@ -41,6 +41,14 @@ import {
   normalizeCustomerStatusFilter,
   customerStatusFilterMatches,
 } from './customer-status-filter.js';
+// Plan 469: dues-band filter — owes nothing, up to Rs 1,000,
+// Rs 1,001–2,000, or over Rs 2,000. The band reads the sheet's own
+// dues figure through the status filter's dues helper, so the card
+// and the band agree exactly; the filter changes no record.
+import {
+  normalizeDuesBandFilter,
+  duesBandFilterMatches,
+} from './dues-band-filter.js';
 // Plan 463: dues, status, and last payment on each search result
 // row — the account status in plain words and the latest payment
 // date, read from the customer's own records. The dues figure the
@@ -328,6 +336,7 @@ export function removeSavedSearchFilterRun(index, storage = (typeof localStorage
  * @param {string} [options.query='']
  * @param {('all'|'pending'|'partial'|'paid')} [options.statusFilter='all']
  * @param {('all'|'paid-up'|'due'|'overdue'|'suspended'|'new')} [options.customerStatus='all']
+ * @param {('all'|'none'|'up-to-1000'|'1001-2000'|'over-2000')} [options.duesBand='all']
  * @param {Array<string>|Set<string>} [options.suspendedCustomerIds=[]]
  * @param {Date} [referenceDate=new Date()]
  * @returns {Array<Object>}
@@ -341,6 +350,10 @@ export function searchFastCustomers(state, {
   // (the sheet's controller passes the app's open suspensions);
   // without them the suspended state matches nobody.
   customerStatus = 'all',
+  // Plan 469: a chosen dues band narrows the search to that band
+  // only — owes nothing, up to Rs 1,000, Rs 1,001–2,000, or over
+  // Rs 2,000; 'all' means the full list.
+  duesBand = 'all',
   suspendedCustomerIds = [],
   // Plan 353: a chosen mohalla narrows the search to that mohalla only;
   // blank means the full list.
@@ -401,6 +414,15 @@ export function searchFastCustomers(state, {
       suspendedCustomerIds,
       currentMonth,
       referenceDate,
+    })) continue;
+
+    // Plan 469: the dues-band filter runs next, on the same footing
+    // as the account-state filter — an exact-ID hit below still has
+    // to pass it, exactly like the other filters. 'all' (unknown
+    // values included) passes everyone, so the sheet's old behaviour
+    // is unchanged.
+    if (!duesBandFilterMatches(customer, duesBand, {
+      allocations,
     })) continue;
 
     // Apply text search query
@@ -636,6 +658,10 @@ export function setupFastCustomerSearchModal({
   // the billing chips' styling; they are wired separately below, so
   // the billing row above is scoped to its own container.
   const accountChips = modal.querySelectorAll('#fcsAccountChips .fcs-status-chip');
+  // Plan 469: the dues-band chips live in their own row and share
+  // the billing chips' styling; they are wired separately below, so
+  // the account row above is scoped to its own container.
+  const duesBandChips = modal.querySelectorAll('#fcsDuesBandChips .fcs-status-chip');
   const resultsContainer = document.getElementById('fastCustomerSearchResults');
   // Plan 468: the payments section of the unified search — a
   // separate region below the customer results, so the two groups
@@ -667,6 +693,9 @@ export function setupFastCustomerSearchModal({
   // Plan 452: the chosen account state — paid up, due, overdue,
   // suspended, or new; 'all' is the full list.
   let activeCustomerStatus = 'all';
+  // Plan 469: the chosen dues band — owes nothing, up to Rs 1,000,
+  // Rs 1,001–2,000, or over Rs 2,000; 'all' is the full list.
+  let activeDuesBand = 'all';
   let highlightedIndex = -1;
   // Plan 451: the results of the last render, so Enter can tell an
   // exact-ID single hit (which opens the profile directly) from any
@@ -733,7 +762,7 @@ export function setupFastCustomerSearchModal({
     // recent list — clearing it returns to recents / the full list.
     const mohallaValue = mohallaSelect?.value ?? '';
 
-    if (!hasQuery && activeStatusFilter === 'all' && activeCustomerStatus === 'all' && !mohallaValue) {
+    if (!hasQuery && activeStatusFilter === 'all' && activeCustomerStatus === 'all' && activeDuesBand === 'all' && !mohallaValue) {
       // Show recent customers
       const recents = getRecentCustomers(state);
       if (sectionTitle) sectionTitle.textContent = `Recent Customers (${recents.length})`;
@@ -797,7 +826,7 @@ export function setupFastCustomerSearchModal({
         savedFiltersContainer.style.display = 'none';
         savedFiltersContainer.innerHTML = '';
       }
-      const showSaveRow = hasQuery || activeStatusFilter !== 'all' || activeCustomerStatus !== 'all' || Boolean(mohallaValue);
+      const showSaveRow = hasQuery || activeStatusFilter !== 'all' || activeCustomerStatus !== 'all' || activeDuesBand !== 'all' || Boolean(mohallaValue);
       if (saveFilterRow) saveFilterRow.style.display = showSaveRow ? '' : 'none';
       const results = searchFastCustomers(state, {
         query,
@@ -805,6 +834,9 @@ export function setupFastCustomerSearchModal({
         // Plan 452: the account-state filter composes with the
         // billing chips, the mohalla filter, and the typed query.
         customerStatus: activeCustomerStatus,
+        // Plan 469: the dues-band filter composes with the rest —
+        // the band narrows the same list the other filters narrow.
+        duesBand: activeDuesBand,
         suspendedCustomerIds: typeof getSuspendedCustomerIds === 'function'
           ? getSuspendedCustomerIds()
           : [],
@@ -813,7 +845,18 @@ export function setupFastCustomerSearchModal({
       lastResults = results;
 
       if (sectionTitle) sectionTitle.textContent = `Customers (${results.length})`;
-      if (countBadge) countBadge.textContent = `${results.length} found`;
+      // Plan 469: with a band chosen, the badge carries the band
+      // total — the sum of the listed dues, in PKR — so the
+      // collection round starts knowing the band's money, not just
+      // its count. Without a band the badge reads as before.
+      if (countBadge) {
+        if (activeDuesBand === 'all') {
+          countBadge.textContent = `${results.length} found`;
+        } else {
+          const bandTotal = results.reduce((sum, r) => sum + (Number(r.totalDues) || 0), 0);
+          countBadge.textContent = `${results.length} found · PKR ${bandTotal.toLocaleString('en-PK')} total`;
+        }
+      }
 
       // Plan 451: an unknown ID says so plainly instead of the
       // generic hint; any other empty search keeps that hint.
@@ -862,12 +905,17 @@ export function setupFastCustomerSearchModal({
     activeStatusFilter = 'all';
     // Plan 452: the account-state filter starts cleared on every open.
     activeCustomerStatus = 'all';
+    // Plan 469: the dues-band filter starts cleared on every open.
+    activeDuesBand = 'all';
     highlightedIndex = -1;
     statusChips.forEach(chip => {
       chip.classList.toggle('is-active', chip.getAttribute('data-status') === 'all');
     });
     accountChips.forEach(chip => {
       chip.classList.toggle('is-active', chip.getAttribute('data-account-status') === 'all');
+    });
+    duesBandChips.forEach(chip => {
+      chip.classList.toggle('is-active', chip.getAttribute('data-dues-band') === 'all');
     });
     if (searchInput) searchInput.value = '';
     if (searchClearBtn) searchClearBtn.hidden = true;
@@ -963,6 +1011,18 @@ export function setupFastCustomerSearchModal({
     });
   });
 
+  // Plan 469: wire the dues-band chips — one tap lists every
+  // customer in that band; "All" clears the filter and returns the
+  // full list. The billing and account chips above are untouched.
+  duesBandChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      duesBandChips.forEach(c => c.classList.remove('is-active'));
+      chip.classList.add('is-active');
+      activeDuesBand = normalizeDuesBandFilter(chip.getAttribute('data-dues-band'));
+      render();
+    });
+  });
+
   // Clear recent list
   clearRecentBtn?.addEventListener('click', () => {
     clearRecentCustomers();
@@ -1018,6 +1078,13 @@ export function setupFastCustomerSearchModal({
     activeCustomerStatus = entry.customerStatus ?? 'all';
     accountChips.forEach(chip => {
       chip.classList.toggle('is-active', chip.getAttribute('data-account-status') === activeCustomerStatus);
+    });
+    // Plan 469: a saved filter or a recent search carries no band —
+    // the definition shape is unchanged — so restoring one clears
+    // the band instead of silently keeping it.
+    activeDuesBand = 'all';
+    duesBandChips.forEach(chip => {
+      chip.classList.toggle('is-active', chip.getAttribute('data-dues-band') === 'all');
     });
     if (mohallaSelect) mohallaSelect.value = entry.mohalla ?? '';
     render();

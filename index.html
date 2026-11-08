@@ -26508,6 +26508,28 @@
         </button>
       </div>
 
+      <!-- Plan 469: dues-band filter — owes nothing, up to Rs 1,000,
+           Rs 1,001–2,000, or over Rs 2,000. Same chip styling as the
+           rows above; one tap lists every customer in that band,
+           "All" clears it. -->
+      <div class="fcs-filter-row" id="fcsDuesBandChips" role="tablist" aria-label="Filter subscribers by dues band">
+        <button type="button" class="fcs-status-chip is-active" data-dues-band="all" role="tab" aria-selected="true">
+          All
+        </button>
+        <button type="button" class="fcs-status-chip" data-dues-band="none" role="tab" aria-selected="false">
+          Owes nothing
+        </button>
+        <button type="button" class="fcs-status-chip" data-dues-band="up-to-1000" role="tab" aria-selected="false">
+          Up to Rs 1,000
+        </button>
+        <button type="button" class="fcs-status-chip" data-dues-band="1001-2000" role="tab" aria-selected="false">
+          Rs 1,001–2,000
+        </button>
+        <button type="button" class="fcs-status-chip" data-dues-band="over-2000" role="tab" aria-selected="false">
+          Over Rs 2,000
+        </button>
+      </div>
+
       <!-- Plan 459: save the current search as a named filter — one
            tap runs it again later on today's data. Shown only while
            a search is running, so there is always something to save. -->

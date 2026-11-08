@@ -746,6 +746,20 @@
         <article class="summary-card summary-profit ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">💹</span><p class="summary-label" data-i18n="dash_card_exp_profit">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
         <article class="summary-card summary-provider-cost ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">🛰️</span><p class="summary-label" data-i18n="dash_card_prov_cost">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
       </div>
+      <section class="collection-forecast-section" id="upcomingDuesSection" aria-labelledby="upcomingDuesHeading">
+        <div class="collection-forecast-card">
+          <div class="collection-forecast-header">
+            <div>
+              <h3 id="upcomingDuesHeading" class="collection-forecast-title" data-i18n="dash_upcoming_title">Due in the next seven days</h3>
+              <p class="chart-caption" data-i18n="dash_upcoming_sub">Bills falling due this week, day by day</p>
+            </div>
+            <strong id="dudSevenDayTotal" class="collection-forecast-pct">PKR 0</strong>
+          </div>
+          <p id="dudSevenDayLine" class="collection-forecast-collected"></p>
+          <div id="dudUpcomingDays" class="collection-forecast-areas"></div>
+          <p id="dudUpcomingEmpty" class="empty-state" hidden data-i18n="dash_upcoming_empty">No dues in the next seven days.</p>
+        </div>
+      </section>
       <section class="collection-forecast-section" id="collectionForecastSection" aria-labelledby="collectionForecastHeading">
         <div class="collection-forecast-card">
           <div class="collection-forecast-header">

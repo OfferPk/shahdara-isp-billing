@@ -59,7 +59,9 @@ test('Plan 497: save wiring is untouched — sticky Save still forwards to the i
   const app = read('app.js');
   assert.match(app, /\$\('#saveMohallaButton'\)\.addEventListener\('click'/, 'the in-form Save click handler must still exist');
   assert.match(app, /\$\('#profileStickySaveButton'\)\?\.addEventListener\('click', \(\) => \{ \$\('#saveMohallaButton'\)\?\.click\(\); \}\)/, 'the sticky Save must still forward its click to the in-form Save');
-  assert.match(app, /\$\('#cancelProfileEditButton'\)\.addEventListener\('click', \(\) => \{ profileEditMode = false; renderDetail\(\); \}\)/, 'Cancel must still exit edit mode and re-render');
+  // Plan 499 — Cancel now confirms first when unsaved edits exist, but
+  // the close itself is unchanged: exit edit mode and re-render.
+  assert.match(app, /\$\('#cancelProfileEditButton'\)\.addEventListener\('click', async \(\) => \{[\s\S]*?profileEditMode = false; renderDetail\(\);/, 'Cancel must still exit edit mode and re-render');
 });
 
 test('Plan 497: the primary token still gives both Saves their tap target', () => {

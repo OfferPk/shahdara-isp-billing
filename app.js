@@ -41,7 +41,7 @@ import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, u
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
 import { currentBillPresentation, contactActionTargets, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
-import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry } from './profile-field-save.js?v=1.11.0';
+import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits } from './profile-field-save.js?v=1.11.0';
 import { customerDeleteCleanCheck, customerDeleteRefusalText } from './customer-delete-clean-check.js?v=1.11.0';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
 import { countProfileCompletion, countProfileCompletionFromControls } from './profile-completion.js?v=1.11.0';
@@ -11930,6 +11930,10 @@ async function saveProfileField(control, button, labelText) {
     button.textContent = 'Save';
   } finally {
     button.disabled = false;
+    // Plan 499 — a per-field save just changed the stored record, so a
+    // field may have become clean; re-read the Cancel label from the
+    // stored record (recomputing is harmless when nothing changed).
+    syncProfileCancelButton();
   }
 }
 function bindProfileFieldSaveButtons() {
@@ -11956,7 +11960,50 @@ function bindProfileFieldSaveButtons() {
   });
 }
 bindProfileFieldSaveButtons();
-$('#cancelProfileEditButton').addEventListener('click', () => { profileEditMode = false; renderDetail(); });
+// Plan 499 — Cancel means Close when nothing is unsaved.
+//
+// Per-field Save persists its field immediately, so Cancel must only
+// confirm when edits exist that no save has persisted yet. The dirty
+// check (hasUnsavedProfileEdits, profile-field-save.js) compares the
+// form against the stored record — a per-field-saved value reads
+// clean — and against the values the form opened with, so the derived
+// pre-fills renderDetail writes read clean on an untouched form.
+// The button reads "Close" while nothing is unsaved and "Discard
+// changes" once an unsaved edit exists; its data-i18n key swaps with
+// the label so a language switch still translates it. Closing never
+// reverts a per-field-saved value: renderDetail re-renders from the
+// stored record, which already holds it.
+let profileCancelOpenValues = null;
+function snapshotProfileCancelBaseline() {
+  const form = $('#customerProfileForm');
+  if (!form) { profileCancelOpenValues = null; return; }
+  const values = {};
+  form.querySelectorAll('input, select, textarea').forEach((control) => {
+    if (!PROFILE_FIELD_SAVE_MAP[control.id]) return;
+    values[control.id] = { type: control.type, value: control.value, checked: control.checked };
+  });
+  profileCancelOpenValues = values;
+}
+function profileCancelHasUnsavedEdits() {
+  const customer = selectedCustomer();
+  const form = $('#customerProfileForm');
+  if (!customer || !form) return false;
+  return hasUnsavedProfileEdits(customer, [...form.querySelectorAll('input, select, textarea')], profileCancelOpenValues);
+}
+function syncProfileCancelButton() {
+  const button = $('#cancelProfileEditButton');
+  if (!button) return;
+  const key = profileCancelHasUnsavedEdits() ? 'prof_discard_changes' : 'prof_close';
+  button.dataset.i18n = key;
+  button.textContent = t(key);
+}
+$('#cancelProfileEditButton').addEventListener('click', async () => {
+  if (profileCancelHasUnsavedEdits()) {
+    const confirmed = await appConfirm({ tone: 'warning', title: t('prof_discard_title'), message: t('prof_discard_message'), confirmLabel: t('prof_discard_changes'), cancelLabel: t('prof_cancel') });
+    if (!confirmed) return;
+  }
+  profileEditMode = false; renderDetail();
+});
 
 // Profile polish batch: fully-red clickable errors, sticky save bar,
 // live completion counter. Presentation and navigation only — validation
@@ -12007,10 +12054,17 @@ function onProfileFormVisibilityChange() {
   if (profileFormWasHidden && !form.hidden) {
     const banner = $('#profileFormError');
     if (banner) banner.hidden = true;
+    // Plan 499 — the form just opened with freshly filled values:
+    // snapshot them before the operator types, so the derived
+    // pre-fills read clean on an untouched form.
+    snapshotProfileCancelBaseline();
+  } else if (!profileFormWasHidden && form.hidden) {
+    profileCancelOpenValues = null;
   }
   profileFormWasHidden = form.hidden;
   syncProfileStickySaveBar();
   updateProfileCompletionCounter();
+  syncProfileCancelButton();
 }
 function syncProfileStickySaveBar() {
   const form = $('#customerProfileForm');
@@ -12045,8 +12099,9 @@ profileFormEl?.addEventListener('input', () => {
   if (banner) banner.hidden = true;
   updateProfileCompletionCounter();
   syncProfileStickySaveBar();
+  syncProfileCancelButton();
 });
-profileFormEl?.addEventListener('change', () => { updateProfileCompletionCounter(); syncProfileStickySaveBar(); });
+profileFormEl?.addEventListener('change', () => { updateProfileCompletionCounter(); syncProfileStickySaveBar(); syncProfileCancelButton(); });
 syncProfileStickySaveBar();
 updateProfileCompletionCounter();
 

@@ -2356,6 +2356,15 @@ export function setupQuickCollectModal({
   // SISP-116: loose-change chip host (null when the host page predates it).
   const looseChangeBox = typeof document !== 'undefined' ? document.getElementById('quickCollectLooseChangeChips') : null;
 
+  // Plan 528: the round-note tender group label (in the page just
+  // above the loose-change chips, found by its class hook — no new
+  // element id); it hides with its row so an empty row never leaves
+  // a stray label above the cash box. Null when the host page (or a
+  // host document without querySelector) predates it.
+  const looseChangeLabel = typeof document !== 'undefined' && typeof document.querySelector === 'function'
+    ? document.querySelector('.qc-loose-change-label')
+    : null;
+
   // SISP-116: renders the round-note tender chips for the amount owed.
   // The chips only ever FILL the amount input with the tendered figure —
   // recording still goes through the ordinary form submit, exactly like
@@ -2371,6 +2380,8 @@ export function setupQuickCollectModal({
     }));
     looseChangeBox.innerHTML = markup;
     looseChangeBox.hidden = markup === '';
+    // Plan 528: the group label hides with its row and returns with it.
+    if (looseChangeLabel) looseChangeLabel.hidden = markup === '';
   }
 
   // SISP-30: outage concession badge host (null when the host page predates it).
@@ -3951,6 +3962,20 @@ export function setupQuickCollectModal({
     row.innerHTML = oneScreenQuickAmountButtonsHtml(figures);
   }
 
+  // Plan 528: one small group label above an amount row, created once
+  // and left in place afterwards. The label only names the row — it
+  // never changes a button, a figure, or a tap — so a re-render that
+  // finds its row already labelled does nothing.
+  function ensureAmountGroupLabel(row, text) {
+    if (!row) return;
+    const previous = row.previousElementSibling;
+    if (previous && previous.classList && previous.classList.contains('qc-amount-group-label')) return;
+    const label = document.createElement('p');
+    label.className = 'qc-amount-group-label';
+    label.textContent = text;
+    row.before(label);
+  }
+
   // Plan 489: the Add payment form step's own one-tap amount
   // buttons — full dues, half dues — one row ahead of the entry
   // form's chip row. The full dues are the amount default the form
@@ -3990,6 +4015,14 @@ export function setupQuickCollectModal({
       fullDues: activeDefaults?.suggestedAmount ?? null,
     });
     duesRow.innerHTML = addPaymentDuesButtonsHtml(figures);
+    // Plan 528: the three amount rows each carry a small group label
+    // above them, so "Full" and "Full dues" stop looking like the same
+    // button twice. The dues label goes above the dues row and the
+    // quick-amounts label above the entry chip row — in that order,
+    // so the page reads dues label, dues row, chip label, chip row.
+    // The loose-change label lives in the page and hides with its row.
+    ensureAmountGroupLabel(duesRow, 'Pay in full / half');
+    ensureAmountGroupLabel(chipsRow, 'Quick amounts');
   }
 
   function bindOneScreenControls() {

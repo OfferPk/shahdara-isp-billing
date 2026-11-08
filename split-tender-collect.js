@@ -542,7 +542,7 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '') {
         </div>
         ${legRows}
       </div>
-      ${receiptTermsNoteHtml()}
+      ${receiptTermsNoteHtml().replace('class="receipt-urdu-notice"', 'class="receipt-urdu-notice qc-urdu-nastaliq qc-urdu-gradient"')}
     </div>
   `;
 }

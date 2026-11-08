@@ -152,6 +152,12 @@
   opacity: 0.6;
 }
 
+/* Plan 495 — edit-form group sections: each group spans the full form
+   grid width so its fields keep the two-column layout inside; the heading
+   reuses the view's group treatment (.profile-info-group h4, styles.css),
+   so no new colour is introduced here. */
+.profile-form-group{grid-column:1/-1;min-width:0}
+
 /* Profile polish batch: fully-red errors, sticky save bar, completion counter. */
 .profile-form-error:not([hidden]) { display: block; width: 100%; margin: 0 0 12px; padding: 12px 14px; background: var(--color-danger-strong); border: 2px solid var(--color-danger-strong); border-radius: var(--radius-sm); color: white; font-size: var(--text-sm); font-weight: 700; text-align: left; cursor: pointer; }
 .profile-form-error[hidden] { display: none; }

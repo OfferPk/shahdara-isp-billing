@@ -471,8 +471,18 @@ export function setupProfileSaveState(doc = document, win = window) {
   };
   const snapshot = () => { baseline = fieldValues(form); save.classList.remove('is-saving'); save.removeAttribute('aria-busy'); update(); };
   const onShown = () => win.setTimeout(snapshot, 0); // after app.js / customer-plan fill the fields
-  new win.MutationObserver(() => { if (!form.hidden) onShown(); else baseline = null; })
-    .observe(form, { attributes: true, attributeFilter: ['hidden'] });
+  new win.MutationObserver(() => {
+    if (!form.hidden) onShown();
+    else {
+      // Plan 498 — the form closed (saved, cancelled, or navigated
+      // away): the hint must not keep the previous session's text.
+      // On reopen the sticky bar syncs before the fresh snapshot
+      // lands, and a stale "Unsaved changes" would flash there.
+      baseline = null;
+      hint.textContent = '';
+      hint.dataset.state = 'clean';
+    }
+  }).observe(form, { attributes: true, attributeFilter: ['hidden'] });
   if (!form.hidden) onShown();
   form.addEventListener('input', update);
   form.addEventListener('change', update);

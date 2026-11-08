@@ -1220,7 +1220,8 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
   const pauseError = validatePauseFields(fields);
   if (pauseError) throw new Error(pauseError);
   // Customer rename: only when the caller explicitly passes a name (the
-  // profile header's Edit name editor and the profile form). The name is
+  // profile form — Plan 494 removed the header's separate inline editor,
+  // so the form is the one name-edit path). The name is
   // the one field that may never be blanked — every list, bill and receipt
   // is labelled with it.
   if (Object.hasOwn(values, 'name')) {

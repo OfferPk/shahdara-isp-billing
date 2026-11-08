@@ -18,6 +18,7 @@ import { calculateDashboardTodayCard, renderDashboardTodayCard } from './dashboa
 import { calculateUpcomingDues, renderUpcomingDues } from './dashboard-upcoming-dues.js?v=1.11.0';
 import { calculateOverdueList, renderOverdueList } from './dashboard-overdue-list.js?v=1.11.0';
 import { calculateMethodStrip, renderMethodStrip } from './dashboard-method-strip.js?v=1.11.0';
+import { calculateMohallaBars, renderMohallaBars } from './dashboard-mohalla-bars.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -2744,6 +2745,9 @@ function renderDashboard() {
   // Plan 474: the method strip — today's collections split by
   // payment method, each in PKR, with the day total in PKR.
   renderMethodStrip(document, calculateMethodStrip(state, referenceDate));
+  // Plan 475: the per-mohalla bars — collected and still due in
+  // PKR for each mohalla, as a short bar, in one glance.
+  renderMohallaBars(document, calculateMohallaBars(state, referenceDate));
   $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
   $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
   $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');

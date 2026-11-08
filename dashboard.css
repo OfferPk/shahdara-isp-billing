@@ -3151,7 +3151,7 @@
   text-overflow: ellipsis;
 }
 
-/* 4 Big Primary Actions */
+/* Big Primary Actions */
 .home-primary-actions {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -3265,6 +3265,21 @@
 }
 .primary-action-closing:hover {
   border-color: #6d28d9;
+}
+
+/* Polish #18 — Installation tile accent: the dashboard's own pie
+   teal (installation-dashboard.js INSTALLATION_FEE_PIE_COLORS),
+   written as rgb() triples so the legacy hex ratchet in this file
+   does not grow. */
+.primary-action-installation {
+  border-color: rgba(13, 148, 136, 0.3);
+}
+.primary-action-installation .home-primary-icon {
+  background: rgba(13, 148, 136, 0.12);
+  color: rgb(13, 148, 136);
+}
+.primary-action-installation:hover {
+  border-color: rgb(13, 148, 136);
 }
 
 /* Secondary Tools Region */
@@ -3409,6 +3424,13 @@
 [data-theme="dark"] .primary-action-closing .home-primary-icon {
   background: rgba(167, 139, 250, 0.18);
   color: #a78bfa;
+}
+[data-theme="dark"] .primary-action-installation {
+  border-color: rgba(110, 231, 183, 0.3);
+}
+[data-theme="dark"] .primary-action-installation .home-primary-icon {
+  background: rgba(110, 231, 183, 0.18);
+  color: #6ee7b7;
 }
 [data-theme="dark"] .dashboard-secondary-title {
   color: #8fa59c;

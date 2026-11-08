@@ -25,6 +25,7 @@ import { calculateNoPaymentCustomers, renderNoPayment } from './dashboard-no-pay
 import { calculateMonthComparison, renderMonthComparison } from './dashboard-month-comparison.js?v=1.11.0';
 import { calculateMonthTargetProgress, renderMonthTarget } from './dashboard-month-target.js?v=1.11.0';
 import { calculateCashInHand, renderDashboardCashInHand } from './dashboard-cash-in-hand.js?v=1.11.0';
+import { calculatePendingClearance, renderDashboardPendingClearance } from './dashboard-pending-clearance.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -2779,6 +2780,10 @@ function renderDashboard() {
   // not yet handed over in PKR, with the count of payments
   // behind it, in one glance.
   renderDashboardCashInHand(document, calculateCashInHand(state, referenceDate, storageAvailable ? localStorage : null));
+  // Plan 482: the pending-clearance total — cheque and transfer
+  // payments recorded but not yet cleared in PKR, with the
+  // count, in one glance.
+  renderDashboardPendingClearance(document, calculatePendingClearance(state, loadPaymentClearance()));
   $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
   $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
   $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');

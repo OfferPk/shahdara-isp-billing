@@ -130,8 +130,12 @@ test('amount formatting uses min-0 decimals, like the rest of the app', () => {
 });
 
 test('dues text names the dues in plain words and stays empty without a usable figure', () => {
-  assert.equal(quickCollectOneScreenDuesText(150000), 'Total dues: PKR 1,500');
-  assert.equal(quickCollectOneScreenDuesText(0), 'Total dues: PKR 0');
+  // Plan 525: the line names the payable figure — the same figure the
+  // amount field prefills — so a pending charge never makes the line
+  // disagree with the amount above it. The figure itself is unchanged
+  // (the caller passes it); only the label changed.
+  assert.equal(quickCollectOneScreenDuesText(150000), 'Total payable: PKR 1,500');
+  assert.equal(quickCollectOneScreenDuesText(0), 'Total payable: PKR 0');
   assert.equal(quickCollectOneScreenDuesText(null), '');
   assert.equal(quickCollectOneScreenDuesText(-100), '');
 });

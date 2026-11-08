@@ -597,6 +597,7 @@ import { normalizeLedgerBillMonth, searchLedgerByBillMonth, ledgerBillMonthSumma
 import { normalizeLedgerCollectorFilter, searchLedgerByCollector, ledgerCollectors, ledgerCollectorSummaryText, ledgerCollectorEmptyText, ledgerCollectorRangeEmptyText } from './ledger-collector.js';
 import { normalizeLedgerRefine, searchLedgerByRefine, ledgerRefineSummaryText, ledgerRefineEmptyText } from './ledger-refine-search.js';
 import { normalizeLedgerReceiptBookFilter, ledgerReceiptBookOptions, searchLedgerByReceiptBook, ledgerReceiptBookSummaryText, ledgerReceiptBookEmptyText, ledgerReceiptBookRangeEmptyText } from './ledger-receipt-book.js';
+import { normalizeLedgerReferenceSearch, searchLedgerByReference, ledgerReferenceSearchSummaryText, ledgerReferenceSearchEmptyText, ledgerReferenceClearanceSuffix } from './ledger-reference-search.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
@@ -5209,6 +5210,11 @@ let transactionCollectorFilter = '';
 // Plan 466: the receipt-book filter — the series id chosen on the
 // Transactions screen; '' means all receipt books.
 let transactionReceiptBookFilter = '';
+// Plan 467: the reference search — the cheque or transfer reference
+// typed on the Transactions screen; '' means no reference search.
+// The search only goes live at three or more characters (see
+// normalizeLedgerReferenceSearch).
+let transactionReferenceSearch = '';
 // Plan 392: the payment id a receipt-number search found, or null.
 // While set, the Transactions list shows only that transaction.
 let receiptSearchPaymentId = null;
@@ -5354,6 +5360,14 @@ function renderTransactions() {
   if (book) {
     transactions = searchLedgerByReceiptBook(transactions, receiptSeries, book);
   }
+  // Plan 467: the reference search — the entries carrying the typed
+  // cheque or transfer reference; it filters the list the other
+  // filters already produced, like the method and category filters,
+  // and the receipt-number search below still wins when it is active.
+  const referenceSearch = normalizeLedgerReferenceSearch(transactionReferenceSearch);
+  if (referenceSearch.active) {
+    transactions = searchLedgerByReference(transactions, referenceSearch.query);
+  }
   // Plan 465: the refine box — a second term that narrows only the
   // list the other filters already produced (a second name word, a
   // mohalla, or a method); it never adds entries from outside that
@@ -5486,6 +5500,20 @@ function renderTransactions() {
       bookSummaryEl.textContent = '';
     }
   }
+  // Plan 467: when the reference search is live, the summary bar
+  // says the reference, the count, and the total in PKR, and an
+  // empty reference says so plainly instead of the generic empty
+  // text.
+  const referenceSummaryEl = $('#lrsReferenceSummary');
+  if (referenceSummaryEl) {
+    if (referenceSearch.active) {
+      referenceSummaryEl.hidden = false;
+      referenceSummaryEl.textContent = ledgerReferenceSearchSummaryText(transactions, referenceSearch.query);
+    } else {
+      referenceSummaryEl.hidden = true;
+      referenceSummaryEl.textContent = '';
+    }
+  }
   const emptyEl = $('#transactionsEmpty');
   if (emptyEl) {
     // Plan 465: an empty refine names the refine term first — the
@@ -5504,6 +5532,13 @@ function renderTransactions() {
       emptyEl.textContent = amountRange.active
         ? ledgerReceiptBookRangeEmptyText(receiptSeries, book, transactionAmountMin, transactionAmountMax)
         : ledgerReceiptBookEmptyText(receiptSeries, book);
+    } else if (transactions.length === 0 && referenceSearch.active) {
+      // Plan 467: an unknown reference says so plainly — before the
+      // live search and the other filters in the chain below. The
+      // refine and book branches above stay first: the refine is
+      // the last filter applied, and the book is the filter applied
+      // just before the reference.
+      emptyEl.textContent = ledgerReferenceSearchEmptyText(referenceSearch.query);
     } else if (transactions.length === 0 && liveSearch.active) {
       emptyEl.textContent = ledgerLiveSearchEmptyText(liveSearch.query);
     } else if (transactions.length === 0 && billMonth) {
@@ -5568,6 +5603,9 @@ function renderTransactions() {
   // list (day headers show full-day totals, so they must), but
   // markup below is built for paged.items only.
   const customerIndex = indexCustomers(state.customers);
+  // Plan 467: the clearance records, read only while the reference
+  // search is live — each matched row names its clearance state.
+  const referenceClearances = referenceSearch.active ? loadPaymentClearance() : [];
   transactionList.innerHTML = paged.items.map(transaction => {
     const { customer: resolvedCustomer, bill: resolvedBill, payment: resolvedPayment } = resolveTransactionCustomer(transaction, customerIndex);
     const customer = resolvedCustomer;
@@ -5596,7 +5634,7 @@ function renderTransactions() {
     // badge used to widen it and ellipsize the customer name ("#35 RA...").
     const advanceBadge = transaction.isAdvance ? `<span class="advance-badge">${transaction.targetMonth ? `${t('adv_badge')} · ${escapeHtml(t('adv_target_suffix', null, { month: displayMonthName(transaction.targetMonth) }))}` : t('adv_badge')}</span>` : '';
     const splitBadge = savedPayment ? splitBadgeMarkup(savedPayment) : '';
-    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], salesTaxCents:receiptData?.salesTaxCents ?? null, advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</div></div></li>`;  }).join('');
+    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${referenceSearch.active ? ledgerReferenceClearanceSuffix(referenceClearances, transaction.paymentId) : ''}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], salesTaxCents:receiptData?.salesTaxCents ?? null, advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</div></div></li>`;  }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
   transactionList.querySelectorAll('[data-transaction-void]').forEach(button => button.addEventListener('click', () => openVoidPaymentDialog(button.dataset.customerId, button.dataset.month, button.dataset.transactionVoid)));
@@ -10869,6 +10907,10 @@ $('#transactionCollectorFilter').addEventListener('change', event => { transacti
 // the ledger on that book's entries; "All receipt books" returns
 // the full ledger.
 $('#transactionReceiptBookFilter').addEventListener('change', event => { transactionReceiptBookFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
+// Plan 467: the reference search — the list narrows on every
+// keystroke, no Search button to press; clearing the box (or
+// dropping below three characters) returns the full ledger.
+$('#transactionReferenceSearch').addEventListener('input', event => { transactionReferenceSearch = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionCategoryFilter').addEventListener('change', event => { transactionCategoryFilter = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 $('#transactionSortSelect')?.addEventListener('change', event => { transactionSortBy = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 // Plan 392: keep the payments-list controller so a receipt-number
@@ -10957,6 +10999,10 @@ $('#clearTransactionFilters').addEventListener('click', () => {
   const receiptBookFilterSelect = $('#transactionReceiptBookFilter');
   if (receiptBookFilterSelect) receiptBookFilterSelect.value = '';
   transactionReceiptBookFilter = '';
+  // Plan 467: clearing the filters also clears the reference search.
+  const referenceSearchInput = $('#transactionReferenceSearch');
+  if (referenceSearchInput) referenceSearchInput.value = '';
+  transactionReferenceSearch = '';
   transactionCurrentPage = 1;
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');

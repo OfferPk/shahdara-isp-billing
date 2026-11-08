@@ -470,10 +470,12 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
   const bills = [...(customer.bills ?? [])].sort((a, b) => a.month.localeCompare(b.month));
 
   // Plan 376: the transaction entry pre-fill — the customer's oldest
-  // open bill, its amount and its month — is the single source of the
-  // offered starting amount. It comes from the allocation engine's
-  // own figures, so the offered amount is the amount still open on
-  // that bill.
+  // open bill, its amount and its month — names the oldest bill under
+  // the field. It comes from the allocation engine's own figures, so
+  // the named amount is the amount still open on that bill.
+  // (Plan 429 / Plan 522: the offered starting amount itself is the
+  // customer's full dues, read below — the pre-fill is the reference,
+  // not the amount.)
   const prefill = oldestOpenBillPrefill(customer, allocations);
   const earliestUnpaidMonth = prefill ? prefill.month : null;
   const targetDue = prefill ? prefill.amount : 0;
@@ -3596,7 +3598,7 @@ export function setupQuickCollectModal({
               <span class="qc-head-area">${escapeHtml(activeDefaults.area)}${activeDefaults.phone ? ' · ' + escapeHtml(activeDefaults.phone) : ''}</span>
             </div>
             <div class="qc-head-due-box">
-              <span class="qc-box-label">${hasExtras ? 'Total Payable' : 'Total Dues'}</span>
+              <span class="qc-box-label">${hasExtras ? 'Total Payable (incl. charges)' : 'Total Dues'}</span>
               <strong class="qc-box-amt">PKR ${(hasExtras ? activeDefaults.payableTotal : activeDefaults.totalDues).toLocaleString('en-PK')}</strong>
             </div>
           </div>
@@ -3620,10 +3622,13 @@ export function setupQuickCollectModal({
         amountInput.value = activeDefaults.suggestedAmount > 0 ? activeDefaults.suggestedAmount.toFixed(2) : '';
         amountInput.max = '999999';
       }
-      // Plan 376: name the bill the starting amount came from, so the
-      // operator sees the figure is the oldest open bill's — not a
-      // typed-from-memory figure. Hidden when no bill is open: a
-      // customer with no open bill offers nothing.
+      // Plan 376 / Plan 522: name the oldest open bill as a
+      // reference under the field, so the operator sees which bill
+      // is oldest and what is still open on it — not a
+      // typed-from-memory figure. The line never claims the oldest
+      // bill is the starting amount: since Plan 429 the field holds
+      // full dues. Hidden when no bill is open: a customer with no
+      // open bill offers nothing.
       if (prefillLine) {
         const prefillHtml = transactionPrefillLineHtml(activeDefaults.prefill, { line: t('txp_line') });
         prefillLine.innerHTML = prefillHtml;

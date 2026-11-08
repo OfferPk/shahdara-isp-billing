@@ -172,9 +172,13 @@ test('prefill: a bill with an invalid month string is skipped', () => {
 // ---------------------------------------------------------------------------
 
 test('line: plain-words text names the month and the amount still open', () => {
+  // Plan 522: the line used to read "offered as the starting amount"
+  // — wrong since Plan 429, when the field started holding full dues.
+  // The wording below is the Plan 522 text; the pin's intent (month
+  // + amount named) is unchanged.
   assert.equal(
     transactionPrefillLineText({ amount: 1500, month: '2026-09', billAmount: 2500 }),
-    'Oldest open bill 2026-09: PKR 1,500 still open — offered as the starting amount.'
+    'Oldest open bill 2026-09: PKR 1,500 still open — the amount field starts with your full dues.'
   );
 });
 
@@ -189,9 +193,10 @@ test('line: a caller template with both placeholders is honoured', () => {
 });
 
 test('line: a template without both placeholders falls back to the default', () => {
+  // Plan 522 wording (see the pin above for why the text changed).
   assert.equal(
     transactionPrefillLineText({ amount: 1500, month: '2026-09', billAmount: 2500 }, 'no placeholders here'),
-    'Oldest open bill 2026-09: PKR 1,500 still open — offered as the starting amount.'
+    'Oldest open bill 2026-09: PKR 1,500 still open — the amount field starts with your full dues.'
   );
 });
 

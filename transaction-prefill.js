@@ -1,9 +1,13 @@
 // Transaction entry pre-fill (Plan 376): the transaction entry form
-// offers the customer's oldest open bill — its amount and its month —
-// as the starting amount, editable before saving. The offered amount
+// names the customer's oldest open bill — its amount and its month —
+// as a reference under the amount field, so the operator sees which
+// bill is oldest and what is still open on it. The offered amount
 // is the amount still open on that bill, taken from the allocation
 // engine's own figures, so it comes from the bill itself and never
 // from memory — and never an invented figure for an unpriced bill.
+// (Plan 429 / Plan 522: the field's starting amount is the
+// customer's FULL dues, not the oldest bill alone — the line says so
+// plainly and never claims the oldest bill is the starting amount.)
 // A customer with no open bill offers nothing: the pre-fill is null
 // and the form starts blank. The pre-fill only offers; it posts
 // nothing by itself and it changes no bill, payment, or customer
@@ -15,7 +19,7 @@
 const TRANSACTION_PREFILL_MONTH_PATTERN = /^(\d{4})-(\d{2})$/;
 
 const TRANSACTION_PREFILL_LINE_TEMPLATE =
-  'Oldest open bill {month}: PKR {amount} still open — offered as the starting amount.';
+  'Oldest open bill {month}: PKR {amount} still open — the amount field starts with your full dues.';
 
 function cleanTransactionPrefillText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -84,8 +88,11 @@ export function oldestOpenBillPrefill(customer, allocations) {
 
 /**
  * Plain-words line for the offered pre-fill, e.g.
- * "Oldest open bill 2026-09: PKR 1,500 still open — offered as the
- * starting amount." Returns '' when there is no pre-fill to offer.
+ * "Oldest open bill 2026-09: PKR 1,500 still open — the amount
+ * field starts with your full dues." The oldest bill is named as a
+ * reference; the line never claims it is the starting amount — the
+ * field holds full dues (Plan 429). Returns '' when there is no
+ * pre-fill to offer.
  * `template` may carry {month} and {amount} placeholders; a template
  * without both placeholders falls back to the plain default.
  */

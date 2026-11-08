@@ -27,6 +27,7 @@ import { calculateMonthTargetProgress, renderMonthTarget } from './dashboard-mon
 import { calculateCashInHand, renderDashboardCashInHand } from './dashboard-cash-in-hand.js?v=1.11.0';
 import { calculatePendingClearance, renderDashboardPendingClearance } from './dashboard-pending-clearance.js?v=1.11.0';
 import { calculateCreditBalances, renderDashboardCreditBalances } from './dashboard-credit-balances.js?v=1.11.0';
+import { calculateRefundsThisMonth, renderDashboardRefunds } from './dashboard-refunds.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -2789,6 +2790,9 @@ function renderDashboard() {
   // customer credit balances in PKR, with the count of
   // customers holding credit, in one glance.
   renderDashboardCreditBalances(document, calculateCreditBalances(state, loadCreditEntries(), loadCreditApplications()));
+  // Plan 484: the refunds strip — refunds given this month in
+  // PKR, with the count, in one glance.
+  renderDashboardRefunds(document, calculateRefundsThisMonth(loadRefunds(), referenceDate));
   $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
   $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
   $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');

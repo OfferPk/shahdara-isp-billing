@@ -28,6 +28,7 @@ import { calculateCashInHand, renderDashboardCashInHand } from './dashboard-cash
 import { calculatePendingClearance, renderDashboardPendingClearance } from './dashboard-pending-clearance.js?v=1.11.0';
 import { calculateCreditBalances, renderDashboardCreditBalances } from './dashboard-credit-balances.js?v=1.11.0';
 import { calculateRefundsThisMonth, renderDashboardRefunds } from './dashboard-refunds.js?v=1.11.0';
+import { bindDashboardPlaceKeeping, clearDashboardPlace, restoreDashboardPlace } from './dashboard-place.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
   addInventoryItem, updateInventoryItem, addStockMovement, deleteStockMovement, addSaadAttendanceDay, removeSaadAttendanceDay,
@@ -1866,6 +1867,10 @@ function renderPowerBackupDashboard(now = new Date()) {
   }
 }
 
+// Plan 485: the dashboard restores the operator's saved place only
+// on the first render after the page loads — later renders leave
+// the operator where they are.
+let dashboardPlaceRestored = false;
 function renderDashboard() {
   const referenceDate = new Date();
   // SISP-27: upstream bandwidth bill due banner.
@@ -3162,6 +3167,14 @@ function renderDashboard() {
     }
   });
   updateDataSafetyUi();
+  // Plan 485: return the dashboard to the operator's saved place —
+  // the scroll position and the open section from before the reload.
+  // With nothing saved, or after a clear, the dashboard starts at
+  // the top.
+  if (!dashboardPlaceRestored) {
+    dashboardPlaceRestored = true;
+    restoreDashboardPlace(document, window, storageAvailable ? localStorage : null);
+  }
 }
 function initials(name) { return name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase(); }
 function tenurePresentation(customer) {
@@ -10935,6 +10948,15 @@ function openAddPayment(customerId = null) {
   openPaymentEntry();
 }
 $('#quickAddPaymentButton').addEventListener('click', () => openAddPayment());
+// Plan 485: the dashboard keeps the operator's place on refresh —
+// the scroll position and the open collapsible section are saved
+// on this device as the operator scrolls, and restored after a
+// reload. Nothing here touches a bill, a payment, or a customer.
+bindDashboardPlaceKeeping(window, document, storageAvailable ? localStorage : null);
+$('#dplBackToTop')?.addEventListener('click', () => {
+  clearDashboardPlace(storageAvailable ? localStorage : null);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
 // #294: the profile's main payment button opens the same Quick Collect sheet (today's date, Cash, amount chips,
 // receipt/WhatsApp/Undo) already on this customer. The ledger month form stays for back-dated entries.
 $('#currentBillPaymentShortcut').addEventListener('click', () => {

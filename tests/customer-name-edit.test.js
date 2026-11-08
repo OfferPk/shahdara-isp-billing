@@ -1,5 +1,6 @@
 // Customer rename: updateCustomerProfile accepts an explicit name
-// (profile header Edit name editor + profile form name field).
+// (the profile form name field — Plan 494 removed the header's separate
+// inline editor, so the form is the one name-edit path).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createInitialState, updateCustomerProfile, searchCustomers } from '../core.js';

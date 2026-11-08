@@ -17,11 +17,12 @@
 //     profile's own balance figures.
 // A customer with no payment yet reads "No payment yet" instead
 // of a blank; a missing next due date reads "not recorded"; a
-// customer with no package reads "No package recorded". Money is
-// integer cents throughout, so no float drift. Dates are strict
-// YYYY-MM-DD calendar dates (integer days-in-month arithmetic;
-// 2026-02-30 is not a date). Inputs are never mutated, and the
-// module never reads storage, the clock, or the network.
+// customer with no package reads "Not set" — the package is a value
+// the operator never entered, like the view's Service group
+// (Plan 502). Money is integer cents throughout, so no float drift.
+// Dates are strict YYYY-MM-DD calendar dates (integer days-in-month
+// arithmetic; 2026-02-30 is not a date). Inputs are never mutated,
+// and the module never reads storage, the clock, or the network.
 //
 // The strip edits nothing and adds no new field: it never changes
 // any bill, payment, or customer record by itself, and it holds no
@@ -101,7 +102,8 @@ const defaultFormatAmount = (value) => `PKR ${String(value ?? '')}`;
 // when the outstanding figure itself is missing or unusable.
 // The caller supplies the figures (dues, package, last payment,
 // next due date); this module composes them and invents nothing.
-// A missing package label reads "No package recorded"; a missing
+// A missing package label reads "Not set" (Plan 502: the package is
+// a never-entered field, like the view's Service group); a missing
 // package price is shown without a price, never guessed.
 export function buildProfileHeaderStrip({
   customerId,
@@ -114,7 +116,7 @@ export function buildProfileHeaderStrip({
 } = {}) {
   const duesCents = toLedgerCents(outstanding);
   if (duesCents === null) return null;
-  const label = text(packageLabel) || 'No package recorded';
+  const label = text(packageLabel) || 'Not set';
   const priceCents = toLedgerCents(packagePrice);
   return {
     customerId: text(customerId),

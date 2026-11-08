@@ -1681,7 +1681,7 @@ function mountCustomerProfileContent() {
   if (!mounts) return;
   const groups = {
     billing:['#customerReceiptSummary','#manualBaqayaSection','#stxProfileShareDraft','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
-    info:['.customer-meta','.package-history-section','.uptime-section','.profile-danger-zone'],
+    info:['.customer-meta','.uptime-section','.profile-danger-zone'],
     complaints:['.incident-section:not(.uptime-section)']
   };
   for (const [name, selectors] of Object.entries(groups)) {
@@ -8572,16 +8572,10 @@ function renderDetail() {
   $('#expiryDateInput').value = customer.expiryDate ?? '';
   $('#cancellationDateInput').value = customer.cancellationDate ?? '';
   $('#packageChangeStaffNameInput').value = '';
-  const packageHistory = [...(customer.packageHistory ?? [])].reverse();
-  $('#packageHistoryList').innerHTML = packageHistory.map(change => {
-    let proRataPart = '';
-    if (change.proRatedBillAmount != null) {
-      const sign = (change.proRataAdjustment || 0) > 0 ? '+' : '';
-      proRataPart = ` · <strong style="color:var(--brand-teal, #0e5b4d);">${t('prof_pkghist_prorata', null, { amount: Number(change.proRatedBillAmount).toLocaleString() })}</strong> ${t('prof_pkghist_prorata_adj', null, { adj: `${sign}PKR ${Number(change.proRataAdjustment || 0).toLocaleString()}` })}`;
-    }
-    return `<li><strong>${escapeHtml(change.date || t('prof_pkghist_date_norec'))}</strong> ${escapeHtml(t('prof_pkghist_row', null, { old: change.oldPackage || t('prof_not_set'), new: change.newPackage || t('prof_not_set'), oldRate: formatAmount(change.oldMonthlyRate), newRate: formatAmount(change.newMonthlyRate), delta: change.monthlyRecurringPriceDelta === null ? t('prof_pkghist_not_calc') : formatAmount(change.monthlyRecurringPriceDelta) }))}${proRataPart}${change.staffName ? ` · ${escapeHtml(change.staffName)}` : ''}${change.packageChangePreviewNote ? ` · ${escapeHtml(change.packageChangePreviewNote)}` : ''}</li>`;
-  }).join('');
-  $('#packageHistoryEmpty').hidden = packageHistory.length > 0;
+  // Plan 509 — the static package-history section is gone: the view
+  // section (packageHistoryViewSectionHtml, Plan 359) is the profile's
+  // only package-history list, so there is nothing left to populate
+  // here. The recorded entries stay on the customer record.
   renderProfileMarginPreview();
   renderProfileProrataPreview();
   renderUptimePanel(customer);

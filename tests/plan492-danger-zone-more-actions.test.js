@@ -46,9 +46,12 @@ test('Plan 492: Danger zone sits inside #profileContentMounts after the uptime s
 });
 
 test('Plan 492: mountCustomerProfileContent mounts the danger zone LAST into the Info panel', () => {
+  // Plan 509 — the static package-history section is gone, so the info
+  // group no longer claims '.package-history-section'; the danger zone
+  // is still last, after the profile view and uptime.
   assert.ok(
-    app.includes("info:['.customer-meta','.package-history-section','.uptime-section','.profile-danger-zone']"),
-    'info group must end with the danger zone, after the profile view, package history and uptime',
+    app.includes("info:['.customer-meta','.uptime-section','.profile-danger-zone']"),
+    'info group must end with the danger zone, after the profile view and uptime',
   );
 });
 

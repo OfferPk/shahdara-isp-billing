@@ -320,7 +320,10 @@ export function packageHistoryViewSectionHtml(customer, currentPackage = {}, for
   }).join('');
   const list = rows
     ? `<ul id="phvList" class="phv-list">${rows}</ul>`
-    : '<p class="phv-none">No package history recorded.</p>';
+    // Plan 509 — the view section is the profile's only package-history
+    // list, so its empty state carries the one pinned empty-state
+    // wording: the static section's text, which the plan quotes.
+    : '<p class="phv-none">No package or monthly selling-rate changes have been recorded.</p>';
   const undated = view.undatedCount > 0
     ? `<p class="phv-undated">${view.undatedCount === 1 ? '1 package change without a recorded date.' : `${view.undatedCount} package changes without a recorded date.`}</p>`
     : '';

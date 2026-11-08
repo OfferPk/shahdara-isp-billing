@@ -398,9 +398,13 @@ test('html: undated changes get a plain note, never a guessed date', () => {
   assert.ok(!html.includes('bad'));
 });
 
-test('html: no history at all reads as no package history recorded', () => {
+// Plan 509 — the view section is the profile's only package-history
+// list now, so its empty state carries the one pinned wording (the
+// static section's text, quoted in the plan); the old "No package
+// history recorded." line went with the duplicate.
+test('html: no history at all reads as no package or monthly selling-rate changes recorded', () => {
   const html = packageHistoryViewSectionHtml(customer({ packageSpeed: '', monthlySellingAmount: null, packageHistory: [] }), { label: '', price: null }, formatAmount);
-  assert.ok(html.includes('<p class="phv-none">No package history recorded.</p>'));
+  assert.ok(html.includes('<p class="phv-none">No package or monthly selling-rate changes have been recorded.</p>'));
 });
 
 test('html: package labels are escaped, never injected', () => {

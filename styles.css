@@ -1269,6 +1269,12 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
   body.printing-receipt .receipt-sheet{width:100%;max-width:none;min-height:0;margin:0;padding:0;border:0;border-radius:0;box-shadow:none}
   body.printing-receipt .receipt-head{break-inside:avoid}
   body.printing-receipt .receipt-fields,body.printing-receipt .receipt-reminder,body.printing-receipt .receipt-terms{break-inside:avoid}
+  body.printing-dashboard-summary *{visibility:hidden!important}
+  body.printing-dashboard-summary #printSummarySection,body.printing-dashboard-summary #printSummarySection *{visibility:visible!important}
+  body.printing-dashboard-summary #printSummarySection{display:block!important;position:fixed;inset:0;width:100%;max-width:none;margin:0;padding:0;background:#fff}
+  body.printing-dashboard-summary #printSummarySection .collection-forecast-card{border:0;box-shadow:none}
+  body.printing-dashboard-summary #printSummarySection .provider-cost-list li{break-inside:avoid}
+  body.printing-dashboard-summary #ppsPrintBtn{display:none!important}
   .table-scroll{max-height:none!important;overflow:visible!important}
   .table-filter-toolbar{display:none!important}
 }

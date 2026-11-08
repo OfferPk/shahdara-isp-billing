@@ -11963,6 +11963,13 @@ async function saveProfileField(control, button, labelText) {
     state = updateCustomerProfile(state, customer.id, { [entry.key]: entry.value });
     save();
     renderCustomers();
+    // Plan 516 — the pro-rata preview is a money preview: a per-field
+    // save of the package or the selling amount makes the money clean,
+    // so the preview hides now. The full save hides it through
+    // renderDetail; the per-field save deliberately does not re-render
+    // the form, so the preview is re-synced here instead — otherwise a
+    // just-saved package change keeps reading as a bill about to be paid.
+    renderProfileProrataPreview();
     const saved = state.customers.find(c => c.id === customer.id);
     // Plan 364 — Per-field change history: this save changed one field,
     // so diff the saved record against the record the save started
@@ -12302,7 +12309,25 @@ function renderProfileProrataPreview() {
   const planChanged = Boolean(currentPlan && newPlan && currentPlan !== newPlan);
   const rateChanged = Boolean(currentRate > 0 && newRate > 0 && currentRate !== newRate);
 
-  if ((planChanged || rateChanged) && currentRate > 0 && newRate > 0) {
+  // Plan 516 — the preview is a money preview: it shows only while the
+  // package or the selling amount is dirty in this edit session, by the
+  // Plan 499 dirty rule (differs from BOTH the stored record AND the
+  // value the form opened with) — the same rule the per-field Save
+  // buttons use. The stored-vs-typed comparison alone is not enough: a
+  // whitespace-padded stored package reads as "changed" against the
+  // trimmed input, and a package reverted to its open value after a
+  // per-field save still differs from the stored record — both showed
+  // the block on a form whose money is clean. The maths preconditions
+  // (a real plan/rate change, both rates above zero) stay exactly as
+  // they were: a no-op retype (2000 -> 2000.0) is dirty text but no
+  // money change, so no preview.
+  const form = $('#customerProfileForm');
+  const dirtyMoneyKeys = customer && form
+    ? new Set(dirtyProfileFieldKeys(customer, [...form.querySelectorAll('input, select, textarea')], profileCancelOpenValues))
+    : new Set();
+  const moneyDirty = dirtyMoneyKeys.has('packageSpeed') || dirtyMoneyKeys.has('monthlySellingAmount');
+
+  if (moneyDirty && (planChanged || rateChanged) && currentRate > 0 && newRate > 0) {
     const today = new Date();
     const todayStr = dateKey(today);
     const proration = calculatePlanMigrationProration(currentRate, newRate, todayStr);

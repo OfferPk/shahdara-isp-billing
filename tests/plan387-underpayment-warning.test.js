@@ -263,11 +263,20 @@ test('Plan 387: the entry form imports the warning and renders it', () => {
   assert.ok(navSrc.includes('underpaymentWarningLine.hidden = line === \'\';'));
 });
 
-test('Plan 387: the warning reads the same live dues the settlement preview reads', () => {
+test('Plan 387: the warning reads the shared payable figure the form defaults to', () => {
+  // Plan 523: the warning is based on the shared payable figure
+  // (activeDefaults.payableTotal — bills + ticket + addon + baqaya),
+  // not on a re-sum of bill balances. A payment exactly equal to
+  // the payable total used to be warned about nothing while a charge
+  // still stood open, because the old base ignored the charges. The
+  // intent is unchanged — the warning reads the same figure the
+  // amount field defaults to and the header shows — only the source
+  // of that figure moved from a local bill sum to the shared
+  // defaults. The old pins (calculatePaymentAllocations and the
+  // forMonth balance read) are replaced by the payable-figure pins.
   const fn = navSrc.slice(navSrc.indexOf('function renderUnderpaymentWarning()'));
-  assert.ok(fn.includes('calculatePaymentAllocations(state)'));
-  assert.ok(fn.includes("allocations.forMonth(customer.id, bill.month)?.balanceDueCents"));
-  assert.ok(fn.includes('underpaymentWarning(duesCents, amountCents)'));
+  assert.ok(fn.includes('activeDefaults.payableTotal'));
+  assert.ok(fn.includes('underpaymentWarning(payableCents, amountCents)'));
   assert.ok(fn.includes('underpaymentWarningLineText(warning)'));
 });
 

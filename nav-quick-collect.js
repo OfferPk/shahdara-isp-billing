@@ -2178,63 +2178,54 @@ export function setupQuickCollectModal({
     settlementPreviewBox.hidden = html === '';
   }
   // Plan 386: the overpayment choice is offered only when the amount
-  // currently typed strictly exceeds the customer's total dues — the
-  // extra over the dues, in plain words — so the operator records
-  // the customer's own decision at the counter instead of guessing
-  // later. Offered, never forced: no radio is pre-ticked, and an
-  // unticked choice records nothing. The box hides while Advance is
-  // ticked (the money is already advance) and on a split payment
-  // (each leg is an ordinary payment of its own). Read-only:
-  // rendering chooses nothing and changes no record. The dues are
-  // the same live remaining balances the settlement preview reads.
+  // currently typed strictly exceeds the customer's shared payable
+  // figure — open bills plus pending ticket, addon and manual-baqaya
+  // charges (activeDefaults.payableTotal, the same figure the amount
+  // field defaults to and the header shows) — the extra over that
+  // figure, in plain words — so the operator records the customer's
+  // own decision at the counter instead of guessing later. Offered,
+  // never forced: no radio is pre-ticked, and an unticked choice
+  // records nothing. The box hides while Advance is ticked (the
+  // money is already advance) and on a split payment (each leg is an
+  // ordinary payment of its own). Read-only: rendering chooses
+  // nothing and changes no record. Plan 523: the base is the payable
+  // figure, never bill dues alone — a payment exactly equal to the
+  // payable total used to be offered a choice for a phantom extra.
   function renderOverpaymentChoice() {
     if (!overpaymentChoiceBox) return;
     let extraCents = 0;
     const amountCents = Math.round(Number(amountInput?.value || 0) * 100);
-    if (activeCustomerId && amountCents > 0 && !advanceCheckbox?.checked && !splitToggle?.checked) {
-      const state = getState();
-      const customer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
-      if (customer) {
-        const allocations = calculatePaymentAllocations(state);
-        let duesCents = 0;
-        for (const bill of (customer.bills ?? [])) {
-          const remaining = allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? 0;
-          if (remaining > 0) duesCents += remaining;
-        }
-        extraCents = overpaymentExtraCents(duesCents, amountCents);
-      }
+    if (activeCustomerId && activeDefaults && amountCents > 0 && !advanceCheckbox?.checked && !splitToggle?.checked) {
+      const payableCents = Math.round(Number(activeDefaults.payableTotal ?? 0) * 100);
+      extraCents = overpaymentExtraCents(payableCents, amountCents);
     }
     if (overpaymentExtraLine) overpaymentExtraLine.textContent = formatPKR(extraCents / 100);
     overpaymentChoiceBox.hidden = extraCents <= 0;
   }
   // Plan 387: the underpayment warning is shown only while the
   // amount currently typed is a positive number strictly below the
-  // customer's total dues — the amount entered, the dues total, and
+  // customer's shared payable figure — open bills plus pending
+  // ticket, addon and manual-baqaya charges (activeDefaults.
+  // payableTotal, the same figure the amount field defaults to and
+  // the header shows) — the amount entered, the payable total, and
   // what remains after this payment, in plain words — so the
   // customer leaves knowing what is still due instead of believing
   // they are fully paid. Warns only, blocks nothing: the form saves
   // exactly as before. The line hides while Advance is ticked (the
   // money is already advance, not a dues payment) and on a split
   // payment (each leg is an ordinary payment of its own). Read-only:
-  // rendering warns nothing into any record. The dues are the same
-  // live remaining balances the settlement preview reads.
+  // rendering warns nothing into any record. Plan 523: the base is
+  // the payable figure, never bill dues alone — a part-payment used
+  // to warn the customer they owed Rs 0 while a charge still stood
+  // open.
   function renderUnderpaymentWarning() {
     if (!underpaymentWarningLine) return;
     let line = '';
     const amountCents = Math.round(Number(amountInput?.value || 0) * 100);
-    if (activeCustomerId && amountCents > 0 && !advanceCheckbox?.checked && !splitToggle?.checked) {
-      const state = getState();
-      const customer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
-      if (customer) {
-        const allocations = calculatePaymentAllocations(state);
-        let duesCents = 0;
-        for (const bill of (customer.bills ?? [])) {
-          const remaining = allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? 0;
-          if (remaining > 0) duesCents += remaining;
-        }
-        const warning = underpaymentWarning(duesCents, amountCents);
-        if (warning) line = underpaymentWarningLineText(warning);
-      }
+    if (activeCustomerId && activeDefaults && amountCents > 0 && !advanceCheckbox?.checked && !splitToggle?.checked) {
+      const payableCents = Math.round(Number(activeDefaults.payableTotal ?? 0) * 100);
+      const warning = underpaymentWarning(payableCents, amountCents);
+      if (warning) line = underpaymentWarningLineText(warning);
     }
     underpaymentWarningLine.textContent = line;
     underpaymentWarningLine.hidden = line === '';
@@ -3205,13 +3196,17 @@ export function setupQuickCollectModal({
 
   // SISP-126: the Remainder Waada row. It appears ONLY while the typed
   // amount is a true partial of the payable figure this modal itself
-  // displays (activeDefaults: total dues, or the full payable when billed
-  // ticket charges are pending) — the remainder is that figure minus the
-  // typed amount via the shared computeRemainderWaada, never a second
-  // hand-summed total. Full / over / zero / invalid amounts (and the
-  // Advance-tagged flow, whose money is early credit rather than a
-  // partial settlement) hide the row and clear any chip selection, so a
-  // stale waada can never ride along with a payment it no longer matches.
+  // displays (activeDefaults.payableTotal — open bills plus pending
+  // ticket, addon and manual-baqaya charges) — the remainder is that
+  // figure minus the typed amount via the shared computeRemainderWaada,
+  // never a second hand-summed total. Plan 523: the figure is the
+  // payable total unconditionally — addon and manual-baqaya charges
+  // used to count only when a ticket charge happened to be pending,
+  // so the "Baqi Rs …" line could understate the remainder. Full /
+  // over / zero / invalid amounts (and the Advance-tagged flow, whose
+  // money is early credit rather than a partial settlement) hide the
+  // row and clear any chip selection, so a stale waada can never ride
+  // along with a payment it no longer matches.
   function renderRemainderWaadaRow() {
     if (!remainderWaadaRow) return;
     const hide = () => {
@@ -3222,9 +3217,7 @@ export function setupQuickCollectModal({
     };
     try {
       if (!activeCustomerId || !activeDefaults || advanceCheckbox?.checked) { hide(); return; }
-      const payable = activeDefaults.ticketChargesPending > 0
-        ? activeDefaults.payableTotal
-        : activeDefaults.totalDues;
+      const payable = activeDefaults.payableTotal;
       const partial = computeRemainderWaada(payable, Number(amountInput?.value));
       if (!partial) { hide(); return; }
       const baseDate = isValidWaadaDate(dateInput?.value ?? '') ? dateInput.value : getPakistanLocalDate();
@@ -5561,12 +5554,15 @@ export function setupQuickCollectModal({
       }
 
       // Plan 386: the overpayment choice for this payment — the radio
-      // picked for the extra over the customer's total dues, read live
-      // at submit from the same allocation state the preview reads,
-      // so a figure typed after the last render still counts. The
-      // validator re-checks it before anything records. Only the
-      // single-payment path carries it; a split payment records two
-      // ordinary legs of its own.
+      // picked for the extra over the customer's shared payable
+      // figure, read live at submit from the same figure the render
+      // offered the choice over (activeDefaults.payableTotal), so a
+      // figure typed after the last render still counts and the
+      // validator's extra matches the extra the operator saw. Plan
+      // 523: the recorded dues are the payable figure, never bill
+      // dues alone. The validator re-checks it before anything
+      // records. Only the single-payment path carries it; a split
+      // payment records two ordinary legs of its own.
       let selectedOverpaymentChoice = '';
       let overpaymentDuesCents = 0;
       {
@@ -5577,12 +5573,7 @@ export function setupQuickCollectModal({
         const picked = overpaymentChoiceBox?.querySelector('input[name="quickCollectOverpaymentChoice"]:checked') ?? null;
         selectedOverpaymentChoice = picked?.value || '';
         if (selectedOverpaymentChoice) {
-          const submitAllocations = calculatePaymentAllocations(state);
-          const submitCustomer = state?.customers?.find((c) => c.id === activeCustomerId) ?? null;
-          for (const bill of (submitCustomer?.bills ?? [])) {
-            const remaining = submitAllocations.forMonth(activeCustomerId, bill.month)?.balanceDueCents ?? 0;
-            if (remaining > 0) overpaymentDuesCents += remaining;
-          }
+          overpaymentDuesCents = Math.round(Number(activeDefaults?.payableTotal ?? 0) * 100);
         }
       }
       // Plan 395: the excess cash note for this payment — the purpose

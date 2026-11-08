@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { missingProfileFields, missingFieldsChecklistHtml, isProfileFieldMissing } from '../missing-fields-checklist.js';
 import { PROFILE_FIELD_SAVE_MAP } from '../profile-field-save.js';
-import { countProfileCompletion } from '../profile-completion.js';
+import { countProfileCompletion, PROFILE_COMPLETION_EXCLUDED_KEYS } from '../profile-completion.js';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const moduleSrc = readFileSync(join(dir, '..', 'missing-fields-checklist.js'), 'utf8');
@@ -91,8 +91,13 @@ test('missing: a complete record has nothing missing', () => {
 });
 
 test('agreement: missing plus the counter filled always equals the counter total on the real field list', () => {
-  const realFields = Object.entries(PROFILE_FIELD_SAVE_MAP).map(([controlId, fieldKey]) => ({ controlId, fieldKey }));
-  assert.equal(realFields.length, 69);
+  // Plan 513 — the real field list is the counter's counted list: the
+  // pure opt-in flags (prefersSms, paused) are excluded, exactly as
+  // app.js builds it, so the agreement fixture must use the same list
+  // or the two would disagree by two. The per-field-save map itself
+  // is unchanged (still 69 fields).
+  const realFields = Object.entries(PROFILE_FIELD_SAVE_MAP).filter(([, fieldKey]) => !PROFILE_COMPLETION_EXCLUDED_KEYS.includes(fieldKey)).map(([controlId, fieldKey]) => ({ controlId, fieldKey }));
+  assert.equal(realFields.length, 67);
   const fixtures = [
     {},
     { name: 'Customer One', phone: '03012345678', mohalla: 'Shahdara', monthlySellingAmount: 3000, paused: false, connectionFee: 0 },
@@ -103,7 +108,8 @@ test('agreement: missing plus the counter filled always equals the counter total
     const counted = countProfileCompletion(record);
     const missing = missingProfileFields(record, realFields);
     assert.equal(missing.length + counted.filled, counted.total, 'checklist and counter must agree');
-    assert.equal(counted.total, 69);
+    // Plan 513 — total is 67 (opt-in flags excluded); see above.
+    assert.equal(counted.total, 67);
   }
 });
 

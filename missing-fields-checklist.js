@@ -7,9 +7,12 @@
 // This module is the missing piece: given a customer record and the
 // field list the counter itself counts, it returns exactly the fields
 // that are empty, in the same order the form shows them, plus the
-// section HTML that lists them by name. Tapping one jumps to that
-// field for editing (the jump itself lives in app.js and reuses the
-// existing error-jump scroll-and-focus behaviour).
+// section HTML that lists them by name. The list renders collapsed
+// behind a <details> whose summary carries the heading and the count
+// (Plan 512), so a sparse profile shows one line instead of dozens of
+// rows. Tapping one jumps to that field for editing (the jump itself
+// lives in app.js and reuses the existing error-jump scroll-and-focus
+// behaviour).
 //
 // This module lists only. It fills nothing by itself, it scores
 // nothing, and it holds no percentage or count of filled fields —
@@ -91,5 +94,10 @@ export function missingFieldsChecklistHtml(missing, labels, texts) {
     const name = names[item.controlId] || item.fieldKey;
     return `<li><button type="button" class="mfc-jump" data-missing-field="${escapeMissingFieldsHtml(item.controlId)}">${escapeMissingFieldsHtml(name)}</button></li>`;
   }).join('');
-  return `<section class="mfc-checklist" aria-label="${escapeMissingFieldsHtml(heading)}"><h4 class="mfc-heading">${escapeMissingFieldsHtml(heading)}</h4><ul class="mfc-list">${rows}</ul></section>`;
+  // Plan 512 — the list sits collapsed behind a <details>: a sparse
+  // profile no longer renders dozens of jump rows above the profile
+  // itself. The summary carries the heading and the count, so the
+  // operator sees how many fields are missing without opening it;
+  // expanding still shows the same jump buttons in the same order.
+  return `<section class="mfc-checklist" aria-label="${escapeMissingFieldsHtml(heading)}"><details class="mfc-details"><summary class="mfc-summary">${escapeMissingFieldsHtml(heading)} (${items.length})</summary><ul class="mfc-list">${rows}</ul></details></section>`;
 }

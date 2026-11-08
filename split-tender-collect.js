@@ -392,6 +392,18 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
 
 const formatAmount = (value) => `PKR ${Number(value || 0).toLocaleString('en-PK')}`;
 
+/**
+ * Polish #14: the area line on the combined receipt. The combined
+ * object already carries `area` (mohalla first, legacy area second,
+ * 'Unassigned' when neither is set), so the render sites only translate
+ * the builder's placeholder into the receipt convention 'Not recorded'
+ * (polish #12) — never a blank, never a guessed mohalla.
+ */
+function splitAreaDisplay(area) {
+  const value = String(area ?? '').trim();
+  return value && value !== 'Unassigned' ? value : 'Not recorded';
+}
+
 /** WhatsApp / plain-text combined receipt (house receipt text style). */
 export function formatSplitTenderWhatsAppText(combined) {
   const legLines = combined.legs.map(leg => {
@@ -405,6 +417,7 @@ export function formatSplitTenderWhatsAppText(combined) {
     `*${t('split_receipt_title')}*`,
     '',
     `👤 *Customer:* ${combined.customerName} (#${combined.customerNumber})`,
+    `📍 *Area:* ${splitAreaDisplay(combined.area)}`,
     `🗓️ *Billing Month:* ${combined.month}`,
     `📅 *Date:* ${combined.date}`,
     '',
@@ -452,6 +465,7 @@ export function generateSplitTenderReceiptHtml(combined, {
   </header>
   <dl class="receipt-fields">
     <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(displayName)}</dd></div>
+    <div class="receipt-field"><dt>Area / علاقہ:</dt><dd>${escapeHtml(splitAreaDisplay(combined.area))}</dd></div>
     <div class="receipt-field"><dt>Account / Customer ID:</dt><dd>#${escapeHtml(combined.customerId)}</dd></div>
     <div class="receipt-field"><dt>Billing Month / بل کا مہینہ:</dt><dd>${escapeHtml(combined.month)}</dd></div>
     <div class="receipt-field"><dt>Payment Date / تاریخ ادائیگی:</dt><dd>${escapeHtml(combined.date)}</dd></div>

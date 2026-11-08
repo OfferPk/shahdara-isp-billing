@@ -310,7 +310,7 @@
 .profile-contributors-section p { margin: 6px 0; font-size: 13px; color: var(--muted); }
 .profile-contributors-editor { margin-top: 16px; }
 .profile-contributors-editor h4 { margin: 0 0 8px; color: var(--ink); }
-.contrib-note, .contrib-empty { margin: 6px 0; font-size: 13px; color: var(--muted); }
+.contrib-note, .contrib-save-note, .contrib-empty { margin: 6px 0; font-size: 13px; color: var(--muted); }
 .contrib-warn { margin: 8px 0; font-size: 13px; color: var(--amber); background: var(--amber-bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
 .contrib-rows { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
 .contrib-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--surface); }

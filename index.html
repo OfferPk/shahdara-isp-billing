@@ -27315,14 +27315,15 @@
       <!-- Step 3: Success Screen with Receipt Slip -->
       <div id="quickCollectStepSuccess" class="qc-step" role="region" aria-label="Payment Confirmation and Receipt" hidden>
         <div class="qc-success-banner" role="status">
-          <span class="qc-success-check" aria-hidden="true">✓</span>
+          <span class="qc-success-check" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none">
+              <path class="qc-check-draw" d="M5 12.5l4.5 4.5L19 7.5"
+                stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
           <h3 id="quickCollectSuccessHeading" tabindex="-1">Payment Recorded Successfully</h3>
           <p id="quickCollectSuccessMessage">The transaction is saved locally and ledger balances are updated.</p>
         </div>
-
-        <p id="sowStillOwesLine" class="sow-still-owes" aria-live="polite" hidden>
-          <!-- Populated dynamically: still owed after this payment, or fully paid -->
-        </p>
 
         <!-- Plan 444: pending-clearance flag on the success screen — the
              same flag as on the entry form, shown again after the save
@@ -27330,8 +27331,17 @@
              cheque. It flags only and clears nothing. -->
         <p id="pcfSuccessPendingClearanceFlag" class="upw-warning" aria-live="polite" hidden></p>
 
-        <div id="osbOfflineSavedBadge" hidden>
-          <!-- Populated dynamically: saved on this device, with the save time -->
+        <!-- Polish 17 (Req 2 S1): the still-owes line and the saved badge
+             share one status row (two pills, one line) instead of two
+             stacked blocks. The row hides itself when both are empty. -->
+        <div class="qc-success-status-row">
+          <p id="sowStillOwesLine" class="sow-still-owes" aria-live="polite" hidden>
+            <!-- Populated dynamically: still owed after this payment, or fully paid -->
+          </p>
+
+          <div id="osbOfflineSavedBadge" hidden>
+            <!-- Populated dynamically: saved on this device, with the save time -->
+          </div>
         </div>
 
         <div id="quickCollectReceiptCard" class="qc-receipt-container">

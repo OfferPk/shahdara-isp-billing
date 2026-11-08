@@ -51,8 +51,12 @@ export function offlineSavedBadgeLatestTime(recordedAts) {
   return latest;
 }
 
-export function offlineSavedBadgeLineText(badge) {
+export function offlineSavedBadgeLineText(badge, options = {}) {
   if (!badge || typeof badge !== 'object' || typeof badge.time !== 'string' || badge.time === '') return '';
+  // Polish 17 (Req 2 S1): the merged status row on the success screen
+  // shows the badge as a compact "✓ Saved 20:29" pill. The full line
+  // stays the default everywhere else.
+  if (options.compact) return `✓ Saved ${badge.time}`;
   return `✓ Saved on this device · ${badge.time}`;
 }
 
@@ -60,8 +64,8 @@ function escapeBadgeText(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
-export function offlineSavedBadgeHtml(badge) {
-  const text = offlineSavedBadgeLineText(badge);
+export function offlineSavedBadgeHtml(badge, options = {}) {
+  const text = offlineSavedBadgeLineText(badge, options);
   if (!text) return '';
   return `<p class="osb-saved-badge">${escapeBadgeText(text)}</p>`;
 }

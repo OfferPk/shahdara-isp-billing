@@ -301,14 +301,18 @@ test('page: the form host sits in the method group, after the shop row, and star
   assert.ok(pageSrc.includes('id="pcfPendingClearanceFlag" class="upw-warning" aria-live="polite" hidden'), 'host starts hidden');
 });
 
-test('page: the success host sits on the success step, after the still-owes line, and starts hidden', () => {
+test('page: the success host sits on the success step, before the status row, and starts hidden', () => {
   const stepAt = pageSrc.indexOf('id="quickCollectStepSuccess"');
   const hostAt = pageSrc.indexOf('id="pcfSuccessPendingClearanceFlag"');
-  const owesAt = pageSrc.indexOf('id="sowStillOwesLine"');
-  const badgeAt = pageSrc.indexOf('id="osbOfflineSavedBadge"');
+  const rowAt = pageSrc.indexOf('class="qc-success-status-row"');
+  const cardAt = pageSrc.indexOf('id="quickCollectReceiptCard"');
   assert.ok(stepAt !== -1 && hostAt > stepAt, 'host must be inside the success step');
-  assert.ok(hostAt > owesAt, 'host must sit after the still-owes line');
-  assert.ok(hostAt < badgeAt, 'host must sit before the saved badge');
+  // Polish 17 (Req 2 S1) merged the still-owes line + saved badge into
+  // one status row; the flag sat between those two elements, so it moved
+  // to just before the row (still on the success step, still before the
+  // receipt card) instead of splitting the row.
+  assert.ok(hostAt < rowAt, 'host must sit just before the status row');
+  assert.ok(hostAt < cardAt, 'host must sit before the receipt card');
   assert.ok(pageSrc.includes('id="pcfSuccessPendingClearanceFlag" class="upw-warning"'), 'host reuses the warning style');
   assert.ok(pageSrc.includes('id="pcfSuccessPendingClearanceFlag" class="upw-warning" aria-live="polite" hidden'), 'host starts hidden');
 });

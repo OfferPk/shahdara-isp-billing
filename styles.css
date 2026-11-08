@@ -8366,6 +8366,151 @@ html, body {
   background: #20ba5a;
 }
 
+/* Polish 17 — Quick Collect success screen: Nastaliq Urdu in mixed
+   animated colours (Telegram style) + compact fit for one mobile
+   screenshot + animated green tick. Every rule is scoped to the success
+   step (via #quickCollectModal.qc-success-open, toggled by
+   showStep('success'), or to success-only elements), so no other screen
+   moves. On-screen only: the PNG/print/WhatsApp surfaces keep their
+   existing rendering. */
+
+/* Req 1 — Nastaliq: the Urdu package message and the QC card's terms
+   block render in Noto Nastaliq Urdu. !important beats the
+   body * { font-family: ... !important; } stack (Plan 487 precedent).
+   Line-height 2.0: Nastaliq's tall glyphs clip below it. The terms keep
+   their 12px size from the global rule; the message is 14px. */
+#quickCollectSuccessMessage.qc-urdu-nastaliq,
+.qc-receipt-card .receipt-urdu-notice.qc-urdu-nastaliq {
+  font-family: var(--font-urdu) !important;
+  line-height: 2.0;
+}
+
+#quickCollectSuccessMessage.qc-urdu-nastaliq { font-size: 14px; }
+
+/* Req 1 — Animated gradient (Telegram style): slow background-position
+   drift over a 200% gradient, token stops only, zero new hex. The solid
+   token-green fallback lives OUTSIDE @supports: a WebView without
+   background-clip: text still shows the Urdu in solid green, never
+   invisible (never put color: transparent outside @supports). */
+.qc-urdu-gradient { color: var(--color-brand-600); }
+
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  .qc-urdu-gradient {
+    background: linear-gradient(100deg,
+      var(--color-brand-600), var(--color-success),
+      var(--color-info), var(--color-pending));
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    animation: qc-urdu-flow 8s ease-in-out infinite alternate;
+  }
+
+  @keyframes qc-urdu-flow {
+    from { background-position: 0% 0; }
+    to { background-position: 100% 0; }
+  }
+}
+
+/* Req 3 — Animated green tick: the check draws itself (~0.6s) and the
+   circle pops once on arrival. The pop lives on the circle span only —
+   putting it on the path too would double-scale the check. */
+.qc-check-draw {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: qc-check-draw .6s ease-out .1s forwards;
+}
+
+@keyframes qc-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes qc-check-pop {
+  0% { transform: scale(.6); }
+  60% { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* Req 2 — Compact fit. Each rule is tagged with its design-table item. */
+/* H1: hide the modal header's eyebrow on success (title + close stay). */
+#quickCollectModal.qc-success-open .modal-heading .eyebrow { display: none; }
+
+/* B1: hero check circle 48 → 40px; the pop animation plays once on arrival. */
+#quickCollectModal.qc-success-open .qc-success-check { width: 40px; height: 40px; animation: qc-check-pop .45s cubic-bezier(.2,1.4,.4,1) forwards; }
+
+/* B2: banner padding 16 → 10px vertical. */
+#quickCollectModal.qc-success-open .qc-success-banner { padding: 10px 8px; }
+
+/* B3: heading explicit 18px, no margins (it inherits browser h3 sizing today). */
+#quickCollectSuccessHeading { font-size: 18px; margin: 0; }
+
+/* M2: message <p> margins → 0 (the banner padding already gives the air). */
+#quickCollectSuccessMessage { margin: 0; }
+
+/* S1: still-owes + saved badge merged into one status row (two pills).
+   The row hides itself when both children are hidden. */
+.qc-success-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.qc-success-status-row:not(:has(> :not([hidden]))) { display: none; }
+
+#quickCollectModal.qc-success-open .qc-success-status-row .sow-still-owes {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 9px;
+}
+
+.qc-success-status-row .sow-still-owes:has(.zero-balance) { background: #dcfce7; }
+
+.qc-success-status-row .sow-still-owes:has(.has-balance) { background: #fef3c7; }
+
+#quickCollectModal.qc-success-open .qc-success-status-row .osb-saved-badge {
+  margin: 0;
+  padding: 8px 10px;
+}
+
+/* C1 + C2: receipt card padding 14 → 10px, gap 10 → 8px. */
+#quickCollectModal.qc-success-open .qc-receipt-card { padding: 10px; gap: 8px; }
+
+/* C3: card header badges stop wrapping; the receipt id drops to its own
+   right-aligned line only if it cannot fit. */
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }
+#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-shared,
+#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { white-space: nowrap; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-id { white-space: nowrap; margin-left: auto; }
+
+/* C4: amount 1.5rem → 1.3rem (still the largest figure on the card),
+   amount row padding 4 → 2px. */
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount { font-size: 1.3rem; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount-row { padding: 2px 0; }
+
+/* C5: grid gap 8 → 6px; Area select explicit height 34px. */
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid { gap: 6px; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-select { height: 34px; }
+
+/* T1: terms block 184 → 108px (scoped override + <p> margins → 0).
+   The global .receipt-urdu-notice rule is untouched. */
+#quickCollectModal.qc-success-open .qc-receipt-card .receipt-urdu-notice.qc-urdu-nastaliq { margin: 10px 0; padding: 8px 10px; }
+#quickCollectModal.qc-success-open .qc-receipt-card .receipt-urdu-notice.qc-urdu-nastaliq p { margin: 0; }
+
+/* G1: success step gap 12 → 8px. */
+#quickCollectModal.qc-success-open #quickCollectStepSuccess { gap: 8px; }
+
+/* Reduced motion: the gradient goes static (still multi-coloured) and
+   the tick shows drawn and unscaled. */
+@media (prefers-reduced-motion: reduce) {
+  .qc-urdu-gradient { animation: none; }
+  .qc-check-draw, .qc-success-check { animation: none; stroke-dashoffset: 0; transform: none; }
+}
+
+/* End Polish 17 — Quick Collect success screen (Nastaliq + compact + tick). */
+
 /* Dark Mode Overrides for Quick Collect */
 [data-theme="dark"] #quickCollectModal,
 [data-theme="dark"] #quickCollectModal .quick-collect-card {
@@ -12532,6 +12677,13 @@ dialog::backdrop {
     max-width: 100% !important;
     box-sizing: border-box !important;
   }
+
+  /* Polish 17 (Req 2) — success-only compact fit on mobile. H2: the
+     sticky modal header's margin-bottom 12 → 8px. D1: the dialog's
+     padding-top 16 → 8px. Both need !important to beat the mobile
+     dialog rules above (equal-or-better specificity + later order). */
+  #quickCollectModal.qc-success-open .modal-heading { margin-bottom: 8px !important; }
+  #quickCollectModal.qc-success-open { padding-top: 8px !important; }
 }
 
 /* Issue 264: Mobile Expenses empty state card with generous bottom padding so FAB never covers text */

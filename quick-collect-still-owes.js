@@ -139,7 +139,10 @@ export function stillOwesLineHtml(line) {
   if (!line || typeof line !== 'object') return '';
   if (typeof line.stillOwed !== 'number' || !Number.isFinite(line.stillOwed)) return '';
   if (line.fullyPaid) {
-    return `<strong class="qc-meta-val zero-balance">${STILL_OWES_FULLY_PAID_TEXT}</strong>`;
+    // Polish 17 (Req 2 S1): the merged status row shows the settled line
+    // as a "✓ Fully paid" pill next to the saved badge. The plain-text
+    // line (stillOwesLineText) stays "Fully paid" for screen readers.
+    return `<strong class="qc-meta-val zero-balance">✓ ${STILL_OWES_FULLY_PAID_TEXT}</strong>`;
   }
   return `<strong class="qc-meta-val has-balance">Still owed PKR ${formatStillOwesAmount(line.stillOwed)}</strong>`;
 }

@@ -38,7 +38,7 @@ import {
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel, validateBillPackageSnapshot } from './package-catalog.js';
 import { salesTaxCentsForPrice, salesTaxCentsOfBill } from './package-sales-tax.js';
-import { packageSuccessMessageOrDefault } from './package-success-message.js';
+import { packageSuccessMessage, packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
 import { dailyEntrySummary, dailyEntrySummaryText } from './daily-entry-summary.js';
@@ -133,7 +133,7 @@ import {
   REMAINDER_WAADA_NOTE
 } from './waada-queue.js';
 import { sanitizeReceiptLang, receiptLangPreference } from './receipt-preferences.js';
-import { t } from './nav-language.js';
+import { ensureUrduFont, t } from './nav-language.js';
 import { buildReceiptPaymentHistory } from './receipt.js';
 import {
   getDigitalPaymentsSettings,
@@ -1825,7 +1825,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           <strong class="qc-meta-val">${escapeHtml(receipt.paidBy)}</strong>
         </div>` : ''}
       </div>
-      ${receiptTermsNoteHtml()}
+      ${receiptTermsNoteHtml().replace('class="receipt-urdu-notice"', 'class="receipt-urdu-notice qc-urdu-nastaliq qc-urdu-gradient"')}
     </div>
   `;
 }
@@ -3113,6 +3113,9 @@ export function setupQuickCollectModal({
     if (stepConfirm) stepConfirm.hidden = (stepName !== 'confirm');
     if (stepSuccess) stepSuccess.hidden = (stepName !== 'success');
     if (stepOneScreen) stepOneScreen.hidden = (stepName !== 'one-screen');
+    // Polish 17: the success-only compact + eyebrow rules hang off this
+    // class on the modal (the header sits outside the step div).
+    if (modal) modal.classList.toggle('qc-success-open', stepName === 'success');
   }
 
   // SISP-30: outage concession badge + 1-click apply/remove for one bill
@@ -4062,6 +4065,10 @@ export function setupQuickCollectModal({
 
   function openModal(defaultCustomerId = null) {
     closeCleanupHandled = false;
+    // Polish 17 (Req 1): load the already-bundled Nastaliq face when the
+    // modal opens, so it is ready by the success screen — the user's
+    // phone runs English UI, so Urdu mode never loads it on its own.
+    ensureUrduFont();
     // Plan 439: opening the sheet starts a new round — the round
     // total counts only the payments recorded from this instant on.
     roundStartMs = Date.now();
@@ -4849,7 +4856,9 @@ export function setupQuickCollectModal({
     const splitLegs = Array.isArray(activeUndoContext?.splitLegs) ? activeUndoContext.splitLegs : [];
     for (const leg of splitLegs) collectStamp(leg?.paymentId);
     const badge = offlineSavedBadge(offlineSavedBadgeLatestTime(stamps));
-    const html = badge ? offlineSavedBadgeHtml(badge) : '';
+    // Polish 17 (Req 2 S1): the merged status row shows the badge as a
+    // compact "✓ Saved 20:29" pill next to the still-owes pill.
+    const html = badge ? offlineSavedBadgeHtml(badge, { compact: true }) : '';
     savedBadgeBox.innerHTML = html;
     savedBadgeBox.hidden = html === '';
   }
@@ -4904,9 +4913,23 @@ export function setupQuickCollectModal({
   // Polish 4: the success line under the heading names the package that
   // the amount just collected pays for, or keeps the existing English
   // line when the amount matches no package.
+  // Polish 17 (Req 1): the Urdu package message renders in Nastaliq
+  // with the animated mixed-colour gradient; the English default line
+  // (amount matches no package) keeps the system font — no gradient.
   function applyPackageSuccessMessage(amount) {
     const messageEl = document.getElementById('quickCollectSuccessMessage');
-    if (messageEl) messageEl.textContent = packageSuccessMessageOrDefault(amount);
+    if (!messageEl) return;
+    messageEl.textContent = packageSuccessMessageOrDefault(amount);
+    const isUrdu = packageSuccessMessage(amount) !== null;
+    messageEl.classList.toggle('qc-urdu-nastaliq', isUrdu);
+    messageEl.classList.toggle('qc-urdu-gradient', isUrdu);
+    if (isUrdu) {
+      messageEl.setAttribute('dir', 'rtl');
+      messageEl.setAttribute('lang', 'ur');
+    } else {
+      messageEl.removeAttribute('dir');
+      messageEl.removeAttribute('lang');
+    }
   }
 
   // Polish 4: the success screen's Area / Location is a select. Choosing

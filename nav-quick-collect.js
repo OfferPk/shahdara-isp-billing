@@ -4022,7 +4022,10 @@ export function setupQuickCollectModal({
         amountInputOne.value = activeDefaults.suggestedAmount > 0 ? activeDefaults.suggestedAmount.toFixed(2) : '';
       }
       if (duesLine) {
-        duesLine.textContent = quickCollectOneScreenDuesText(activeDefaults.totalDues);
+        // Plan 525: the line shows the payable figure the amount field
+        // prefills (suggestedAmount — full dues plus any pending
+        // charges), never bill dues alone, so the two agree.
+        duesLine.textContent = quickCollectOneScreenDuesText(activeDefaults.suggestedAmount);
         duesLine.hidden = duesLine.textContent === '';
       }
       // Plan 431: the one screen pre-selects the remembered method too;

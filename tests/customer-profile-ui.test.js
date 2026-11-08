@@ -60,7 +60,9 @@ test('customer profiles open in read-only mode and existing fields are revealed 
   assert.match(app, /id="editProfileButton"[^>]*>\$\{t\('prof_view_edit'\)\}<\/button>/); // phase 3: Edit button renders via t()
   assert.match(index, /id="cancelProfileEditButton"/);
   assert.match(app, /profileEditMode = true;[\s\S]*?customerProfileView'\)\.hidden = true[\s\S]*?customerProfileForm'\)\.hidden = false/);
-  assert.match(app, /cancelProfileEditButton'\)\.addEventListener\('click', \(\) => \{ profileEditMode = false; renderDetail\(\); \}\)/);
+  // Plan 499 — Cancel now confirms first when unsaved edits exist, but
+  // the close itself is unchanged: exit edit mode and re-render.
+  assert.match(app, /cancelProfileEditButton'\)\.addEventListener\('click', async \(\) => \{[\s\S]*?profileEditMode = false; renderDetail\(\);/);
   assert.match(app, /profileEditMode = false;\s*save\(\); renderDetail\(\)/);
 });
 

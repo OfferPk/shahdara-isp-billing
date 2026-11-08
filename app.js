@@ -1678,7 +1678,7 @@ function mountCustomerProfileContent() {
   if (!mounts) return;
   const groups = {
     billing:['#customerReceiptSummary','#manualBaqayaSection','#stxProfileShareDraft','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
-    info:['.customer-meta','.package-history-section','.uptime-section'],
+    info:['.customer-meta','.package-history-section','.uptime-section','.profile-danger-zone'],
     complaints:['.incident-section:not(.uptime-section)']
   };
   for (const [name, selectors] of Object.entries(groups)) {

@@ -1,5 +1,7 @@
 // #300 "+ Add Payment" always opens Quick Collect; #301 every profile action opens its dialog (Dispute threw);
 // #302 desktop profile action grid never clips; #303 payments-list polish (totals bar, dark details, scoped Undo toast).
+// Plan 492: #301/#302 open the "More actions" disclosure first — the 13 actions moved behind it, and the QA
+// tools (which also carry aria-haspopup="dialog") must not be swept into #301's enumeration.
 import { test, expect } from '@playwright/test';
 import { installSyntheticRoster } from './seed-roster.mjs';
 
@@ -69,7 +71,12 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
   test('#301: every profile action button opens its dialog with no console error (incl. Dispute)', async ({ page }) => {
     const { errors, native } = track(page);
     await openCustomer(page, 1);
-    const ids = await page.locator('.profile-action-group > button[aria-haspopup="dialog"]').evaluateAll(els => els.filter(e => !e.hidden).map(e => e.id));
+    // Plan 492: the 13 quick actions live behind the "More actions"
+    // disclosure — open it first (a closed <details> hides its buttons),
+    // and scope to the disclosure grid so the 29 QA tools (which also
+    // carry aria-haspopup="dialog") are not swept in.
+    await page.locator('#profileMoreActionsDetails').evaluate(el => { el.open = true; });
+    const ids = await page.locator('.profile-more-actions-grid button[aria-haspopup="dialog"]').evaluateAll(els => els.filter(e => !e.hidden).map(e => e.id));
     expect(ids).toContain('openDisputeClaimBtn');
     for (const id of ids) {
       await page.locator(`#${id}`).scrollIntoViewIfNeeded();
@@ -88,9 +95,13 @@ test.describe('Profile + payments follow-up (#300 #301 #302 #303)', () => {
     for (const width of [1024, 1280, 1440]) {
       await page.setViewportSize({ width, height: 800 });
       await openCustomer(page, 1);
+      // Plan 492: the actions now live in the "More actions" disclosure
+      // grid — open it and measure the grid (the group itself now holds
+      // only Archive plus the two disclosures).
+      await page.locator('#profileMoreActionsDetails').evaluate(el => { el.open = true; });
       const r = await page.evaluate(() => {
-        const g = document.querySelector('.profile-action-group');
-        const buttons = [...g.querySelectorAll(':scope > button')].filter(b => !b.hidden);
+        const g = document.querySelector('.profile-more-actions-grid');
+        const buttons = [...g.querySelectorAll('button')].filter(b => !b.hidden);
         const clipped = buttons.filter(b => b.scrollWidth > b.clientWidth + 1 || b.getBoundingClientRect().width < 100).map(b => b.id);
         const rects = buttons.map(b => b.getBoundingClientRect());
         let overlaps = 0;

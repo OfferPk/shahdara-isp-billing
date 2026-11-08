@@ -3,32 +3,61 @@
    columns took the widest labels and the first column (Record payment / Mark paid) collapsed to 0-96 px on
    desktop, where the profile pane sits next to the customer list. Use an even auto-fill grid instead: the main
    payment button and the back-dated link each get a full row, the other buttons share equal columns and wrap
-   their labels instead of clipping. Phones (<= 620 px) keep their 2-column layout from styles.css. */
+   their labels instead of clipping. Phones (<= 620 px) keep their 2-column layout from styles.css.
+   Plan 492 moved those 13 buttons behind a "More actions" disclosure; the same grid treatment now lives on
+   .profile-more-actions-grid below, and only Archive/Unarchive stay as direct children of the group. */
 @media (min-width: 621px) {
   .profile-action-group {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr));
     align-items: stretch;
   }
-  .profile-action-group > .current-payment-shortcut,
-  .profile-action-group > .backdated-payment-link,
+  /* Plan 492: the 13 quick actions moved behind the "More actions"
+     disclosure, so the payment shortcut / back-dated link / per-button
+     rules no longer match anything as direct children of the group —
+     the same treatment now lives on .profile-more-actions-grid (base
+     rules below). Both disclosures still span the full row. */
   .profile-action-group > .customer-technical-tools {
     grid-column: 1 / -1;
   }
-  .profile-action-group > .current-payment-shortcut { justify-self: stretch; white-space: normal; }
-  .profile-action-group > .backdated-payment-link { justify-self: start; min-height: 36px; text-align: left; }
-  .profile-action-group > button:not(.current-payment-shortcut):not(.backdated-payment-link) {
-    min-width: 0;
-    justify-self: stretch;
-    white-space: normal;
-    line-height: 1.25;
-    padding-inline: 10px;
-    overflow-wrap: normal;
+  .profile-more-actions-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr));
   }
   /* Bill summary cards: as many equal columns as fit the pane (no "None recorde/d" or "Not / set" splits). */
   .current-bill-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr)); }
   .current-bill-stat:last-child { grid-column: auto; }
   .current-bill-stat > strong { overflow-wrap: normal; word-break: normal; }
   .current-bill-stat .customer-billing-badge { white-space: nowrap; }
+}
+
+/* Plan 492: the 13 quick actions collapse behind one "More actions"
+   disclosure (Archive/Unarchive stay visible in the header row). The
+   disclosure reuses the Technical QA box/summary treatment, so it spans
+   the full row; its inner grid mirrors the old action-group grid — the
+   payment shortcut and the back-dated link each get a full row, the
+   other buttons share equal columns and wrap their labels instead of
+   clipping. Token colours only (profile-ui.css must stay hex-free). */
+.profile-more-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.profile-more-actions-grid > .current-payment-shortcut,
+.profile-more-actions-grid > .backdated-payment-link {
+  grid-column: 1 / -1;
+}
+.profile-more-actions-grid > .current-payment-shortcut { justify-self: stretch; white-space: normal; }
+.profile-more-actions-grid > .backdated-payment-link { justify-self: start; min-height: 36px; text-align: left; }
+.profile-more-actions-grid > button:not(.current-payment-shortcut):not(.backdated-payment-link) {
+  min-width: 0;
+  justify-self: stretch;
+  white-space: normal;
+  line-height: 1.25;
+  padding-inline: 10px;
+  overflow-wrap: normal;
+  min-height: 44px;
 }
 
 /* #302 (1024 px): the profile pane beside the customer list is only ~300 px wide, so the name ("NA/ZE/ER") and the

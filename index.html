@@ -7377,21 +7377,26 @@
               </div>
               <div id="customerCurrentBillSummary" class="customer-current-bill-summary profile-bill-first" role="region" data-i18n-aria-label="prof_current_aria" aria-label="Current billing summary"></div>
               <div class="profile-action-group" role="group" data-i18n-aria-label="prof_actions_aria" aria-label="Customer quick actions">
-                <button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button" data-i18n="prof_action_record">Record payment / Mark paid</button>
-                <button id="advancePaymentButton" class="secondary-button" type="button" aria-haspopup="dialog" title="Record money received before its bill — tagged as advance credit for the next bill">💰 <span data-i18n="prof_action_advance">Advance payment</span></button>
-                <button id="backdatedPaymentButton" class="text-button backdated-payment-link" type="button" data-i18n="prof_action_backdated">Advanced: back-dated entry in ledger</button>
-                <button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 <span data-i18n="prof_action_statement">Statement</span></button>
-                <button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 <span data-i18n="prof_action_reminder">Reminder</span></button>
-                <button id="openCustomerPromiseBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Record or View Customer Wada / Promise-to-Pay">🤝 <span data-i18n="prof_action_wada">Wada</span></button>
-                <button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 <span data-i18n="prof_action_invoice">Bill Invoice</span></button>
-                <button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 <span data-i18n="prof_action_audit">Ledger Audit</span></button>
-                <button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 <span data-i18n="prof_action_adjustment">Adjustment</span></button>
-                <button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 <span data-i18n="prof_action_agreement">Agreement</span></button>
-                <button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ <span data-i18n="prof_action_dispute">Dispute</span></button>
-                <button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 <span data-i18n="prof_action_kyc">KYC Audit</span></button>
-                <button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 <span data-i18n="prof_action_equipment">Equipment Return</span></button>
                 <button id="archiveCustomerButton" class="secondary-button profile-action-btn" type="button"><span aria-hidden="true">🗄</span> <span data-i18n="prof_action_archive">Archive</span></button>
                 <button id="unarchiveCustomerButton" class="secondary-button profile-action-btn" type="button" hidden><span aria-hidden="true">↺</span> <span data-i18n="prof_action_unarchive">Unarchive</span></button>
+                <details class="customer-technical-tools profile-more-actions" id="profileMoreActionsDetails">
+                  <summary class="customer-technical-summary">⋯ <span data-i18n="prof_more_actions">More actions</span></summary>
+                  <div class="profile-more-actions-grid">
+                    <button id="currentBillPaymentShortcut" class="primary-button current-payment-shortcut" type="button" data-i18n="prof_action_record">Record payment / Mark paid</button>
+                    <button id="advancePaymentButton" class="secondary-button" type="button" aria-haspopup="dialog" title="Record money received before its bill — tagged as advance credit for the next bill">💰 <span data-i18n="prof_action_advance">Advance payment</span></button>
+                    <button id="backdatedPaymentButton" class="text-button backdated-payment-link" type="button" data-i18n="prof_action_backdated">Advanced: back-dated entry in ledger</button>
+                    <button id="openAccountStatementBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="View &amp; Print Customer Account Statement">📜 <span data-i18n="prof_action_statement">Statement</span></button>
+                    <button id="openReminderModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Send Payment Reminder or WhatsApp Notice">💬 <span data-i18n="prof_action_reminder">Reminder</span></button>
+                    <button id="openCustomerPromiseBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Record or View Customer Wada / Promise-to-Pay">🤝 <span data-i18n="prof_action_wada">Wada</span></button>
+                    <button id="openBillInvoiceBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Generate Monthly Bill Invoice or Print Slip">📄 <span data-i18n="prof_action_invoice">Bill Invoice</span></button>
+                    <button id="openLedgerAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit and reconcile account ledger">🔍 <span data-i18n="prof_action_audit">Ledger Audit</span></button>
+                    <button id="openAdjustmentModalBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Issue ledger credit or outage downtime adjustment voucher">📝 <span data-i18n="prof_action_adjustment">Adjustment</span></button>
+                    <button id="openServiceContractBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Formal Service Agreement &amp; Installation Work Order">📋 <span data-i18n="prof_action_agreement">Agreement</span></button>
+                    <button id="openDisputeClaimBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="File or settle formal billing dispute claim">⚖️ <span data-i18n="prof_action_dispute">Dispute</span></button>
+                    <button id="openKycAuditBtn" class="secondary-button" type="button" aria-haspopup="dialog" title="Audit subscriber KYC verification and PTA CNIC compliance">🪪 <span data-i18n="prof_action_kyc">KYC Audit</span></button>
+                    <button id="openEquipmentRetrievalBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-equipment-retrieval title="Manage subscriber hardware custody and equipment retrieval manifests">📦 <span data-i18n="prof_action_equipment">Equipment Return</span></button>
+                  </div>
+                </details>
                 <details class="customer-technical-tools" id="customerTechnicalToolsDetails">
                   <summary class="customer-technical-summary">🔧 <span data-i18n="prof_qa_summary">Technical QA &amp; Field Certificates (24 tools)</span></summary>
                   <div class="customer-technical-grid">
@@ -7426,11 +7431,6 @@
                     <button id="openThermalCyclingBtn" class="secondary-button" type="button" aria-haspopup="dialog" data-open-thermal-cycling title="Optical Fiber Environmental Temperature Cycling &amp; Attenuation Stability QA Suite">❄️ <span data-i18n="prof_qa_thermal">Thermal Cycling QA</span></button>
                   </div>
                 </details>
-              </div>
-              <div class="profile-danger-zone" role="group" aria-labelledby="profileDangerZoneTitle">
-                <p id="profileDangerZoneTitle" class="profile-danger-title" data-i18n="prof_danger_title">Danger zone</p>
-                <p class="profile-danger-help" data-i18n="prof_danger_help">Deletes this profile only when nothing is owed — no bills, payments or baqaya. Archive keeps the history.</p>
-                <button id="deleteCustomerButton" class="text-button danger profile-action-btn profile-delete-btn" type="button"><span aria-hidden="true">🗑</span> <span data-i18n="prof_action_delete">Delete customer</span></button>
               </div>
             </section>
             <nav class="profile-tabs" role="tablist" data-i18n-aria-label="prof_tabs_aria" aria-label="Customer profile sections">
@@ -7565,6 +7565,11 @@
               <div class="incident-section-heading"><div><p class="eyebrow" data-i18n="upt_eyebrow">UPTIME TRACKING</p><h3 id="uptimeHeading" data-i18n="upt_heading">Online / offline time</h3><button class="help-info-btn" type="button" data-help="uptime" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button><p class="incident-manual-note" data-i18n="upt_note">Counted from your own records: the complaint/outage entries below plus every manual service-status change. This app does not monitor the connection itself.</p></div><label class="uptime-month-label" for="uptimeMonthSelect"><span data-i18n="upt_month_label">Month</span><select id="uptimeMonthSelect"></select></label></div>
               <div id="uptimeSummaryBody"></div>
             </section>
+            <div class="profile-danger-zone" role="group" aria-labelledby="profileDangerZoneTitle">
+              <p id="profileDangerZoneTitle" class="profile-danger-title" data-i18n="prof_danger_title">Danger zone</p>
+              <p class="profile-danger-help" data-i18n="prof_danger_help">Deletes this profile only when nothing is owed — no bills, payments or baqaya. Archive keeps the history.</p>
+              <button id="deleteCustomerButton" class="text-button danger profile-action-btn profile-delete-btn" type="button"><span aria-hidden="true">🗑</span> <span data-i18n="prof_action_delete">Delete customer</span></button>
+            </div>
             <section class="incident-section" aria-labelledby="incidentHeading">
               <div class="incident-section-heading"><div><p class="eyebrow" data-i18n="prof_incident_eyebrow">MANUAL SERVICE LOG</p><h3 id="incidentHeading" data-i18n="prof_incident_heading">Complaints &amp; outages</h3><p class="incident-manual-note" data-i18n="prof_incident_note">Enter incidents yourself. This offline app does not monitor internet or connectivity.</p></div><p class="incident-count"><strong id="incidentCount30Days">0</strong><span data-i18n="prof_incident_last30">reported in the last 30 days</span></p></div>
               <button id="addIncidentButton" class="secondary-button incident-add-button" type="button" data-i18n="prof_incident_add">Add complaint/outage</button>

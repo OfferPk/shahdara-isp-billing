@@ -1081,6 +1081,9 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .profile-tab-panel[hidden],.customer-profile-view[hidden],.customer-profile-form[hidden]{display:none!important}
 .customer-profile-view{min-width:0}
 .profile-view-heading{margin-bottom:12px;flex-wrap:wrap}
+/* Plan 510: the heading badges live on their own full-width row under the
+   customer name, wrapping as pills — never beside the Edit/QR/Print row. */
+.profile-heading-badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-basis:100%}
 .profile-view-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .profile-readonly-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin:0}
 .profile-readonly-field{min-width:0;padding:9px 10px;border:1px solid #e3ebe7;border-radius:9px;background:var(--surface)}

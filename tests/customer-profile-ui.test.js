@@ -32,6 +32,7 @@ const fullPaidTemplate = `🧾 SHAHDARA ISP — PAYMENT RECEIPT
 
 👤 Customer: Test Customer 03
 🆔 Customer #: 3
+📍 Area: Not recorded
 
 💰 Amount Paid: PKR 2,000
 📅 Received date: Oct 5 2026
@@ -279,7 +280,9 @@ test('receipt action uses the selected customer phone/name/number and rejects a 
   assert.equal(action.type, 'draft');
   const url = new URL(action.draft.url);
   assert.equal(url.pathname, '/923001234567', 'the target comes only from the owning profile');
-  const expectedWithPayer = fullPaidTemplate.replace('🆔 Customer #: 3\n\n', '🆔 Customer #: 3\nPaid by: Tanveer\n\n');
+  // Polish #12: the Area line now sits between Customer # and Paid by, so
+  // the payer insertion anchors on the Area line, not on the old blank line.
+  const expectedWithPayer = fullPaidTemplate.replace('📍 Area: Not recorded\n\n', '📍 Area: Not recorded\nPaid by: Tanveer\n\n');
   assert.equal(action.draft.message, expectedWithPayer);
   assert.doesNotMatch(action.draft.message, /Wrong Customer|Customer #: 99|202 555 0199/);
 

@@ -47,6 +47,8 @@ export const RECEIPT_URDU_LABELS = {
   'Name / صارف': 'صارف',
   'Customer ID / کھاتہ نمبر': 'کھاتہ نمبر',
   'Customer Name / صارف کا نام': 'صارف کا نام',
+  // Polish #12: the customer's area line on the printed receipt.
+  'Area / علاقہ': 'علاقہ',
   'Receipt Number / رسید نمبر': 'رسید نمبر',
   'Account / Customer ID': 'کھاتہ نمبر',
   'Payment Date / تاریخ ادائیگی': 'تاریخ ادائیگی',

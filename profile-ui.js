@@ -164,6 +164,9 @@ const RECEIPT_DRAFT_TEXT = Object.freeze({
   english: {
     header: '🧾 SHAHDARA ISP — PAYMENT RECEIPT',
     customer: '👤 Customer', customerNumber: '🆔 Customer #', paidBy: 'Paid by',
+    // Polish #12: the customer's area, same words as the Quick Collect
+    // WhatsApp receipt's Area line.
+    area: '📍 Area',
     amountPaid: '💰 Amount Paid', amountReceived: '💰 Amount Received',
     receivedDate: '📅 Received date', method: '💳 Method', billingMonth: '📆 Billing Month',
     packageDate: '📦 Package date', renewalNote: '(renewal day: 1st of every month)',
@@ -178,6 +181,7 @@ const RECEIPT_DRAFT_TEXT = Object.freeze({
   urdu: {
     header: '🧾 شاہدرہ آئی ایس پی — ادائیگی کی رسید',
     customer: '👤 صارف', customerNumber: '🆔 صارف نمبر', paidBy: 'ادا کنندہ',
+    area: '📍 علاقہ',
     amountPaid: '💰 رقم ادا شدہ', amountReceived: '💰 رقم موصول',
     receivedDate: '📅 وصولی کی تاریخ', method: '💳 طریقہ ادائیگی', billingMonth: '📆 بل کا مہینہ',
     packageDate: '📦 پیکیج کی تاریخ', renewalNote: '(تجدید ہر مہینے کی 1 تاریخ کو)',
@@ -192,6 +196,7 @@ const RECEIPT_DRAFT_TEXT = Object.freeze({
   roman: {
     header: '🧾 SHAHDARA ISP — ADAIGI KI RASEED',
     customer: '👤 Customer', customerNumber: '🆔 Customer #', paidBy: 'Ada karne wala',
+    area: '📍 Ilaqa',
     amountPaid: '💰 Raqam Ada', amountReceived: '💰 Raqam Wasool',
     receivedDate: '📅 Wasooli ki tareekh', method: '💳 Tareeqa-e-Adaigi', billingMonth: '📆 Bill ka maheena',
     packageDate: '📦 Package ki tareekh', renewalNote: '(tajdeed har maheenay ki 1 tareekh ko)',
@@ -231,12 +236,18 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
         : null
     : null;
   const paidBy = safeLine(receipt?.paidBy, 100);
+  // Polish #12: the customer's area, passed in from buildPaymentReceipt
+  // by the caller (app.js). Never a blank or a guess: without one the
+  // line reads the dictionary's 'not recorded', exactly like the
+  // printed receipt's fallback.
+  const area = safeLine(receipt?.area, 100) || L.notRecorded;
   const packageDate = formatReceiptDate(receiptMonthDate(month, 1)) ?? L.notAvailable;
   const lines = [
     L.header,
     '',
     `${L.customer}: ${name}`,
     `${L.customerNumber}: ${customerNumber}`,
+    `${L.area}: ${area}`,
     ...(paidBy ? [`${L.paidBy}: ${paidBy}`] : []),
     '',
     `${billStatus === 'paid' ? L.amountPaid : L.amountReceived}: ${formatPKR(amount)}`,

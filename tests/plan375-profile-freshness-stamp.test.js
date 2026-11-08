@@ -173,9 +173,11 @@ test('stamp text: checked-on line with the date, never-checked line without one'
     profileFreshnessStampText({ date: '2026-11-06', source: 'change' }),
     'Checked on 2026-11-06.',
   );
-  assert.equal(profileFreshnessStampText({ date: '', source: '' }), 'Never checked.');
-  assert.equal(profileFreshnessStampText(null), 'Never checked.');
-  assert.equal(profileFreshnessStampText({ date: '2026-02-30', source: 'change' }), 'Never checked.');
+  // Plan 514: the shared never-checked wording is "Not checked yet"
+  // (one pair with "Checked on …", shared with the verification tick).
+  assert.equal(profileFreshnessStampText({ date: '', source: '' }), 'Not checked yet.');
+  assert.equal(profileFreshnessStampText(null), 'Not checked yet.');
+  assert.equal(profileFreshnessStampText({ date: '2026-02-30', source: 'change' }), 'Not checked yet.');
 });
 
 test('stamp text: caller labels win, plain defaults apply when a label is missing', () => {
@@ -197,7 +199,7 @@ test('stamp HTML: the dated stamp shows the heading and the date emphasised', ()
 test('stamp HTML: a profile never touched shows the never-checked line', () => {
   const html = profileFreshnessStampHtml(customer(), [], [], {});
   assert.ok(html.includes('<h4>Profile freshness</h4>'));
-  assert.ok(html.includes('Never checked.'));
+  assert.ok(html.includes('Not checked yet.'));
   assert.ok(html.includes('class="dfs-stamp dfs-none"'));
   assert.ok(!html.includes('<strong>'));
 });
@@ -210,7 +212,7 @@ test('stamp HTML: no customer means no stamp at all', () => {
 test('stamp HTML: labels are escaped, and a hostile date never becomes markup', () => {
   const hostile = tick({ verifiedDate: '2026-11-06<script>alert(1)</script>' });
   const html = profileFreshnessStampHtml(customer(), [], [hostile], { heading: '<b>Fresh</b>' });
-  assert.ok(html.includes('Never checked.'));
+  assert.ok(html.includes('Not checked yet.'));
   assert.ok(!html.includes('<script>'));
   assert.ok(html.includes('&lt;b&gt;Fresh&lt;/b&gt;'));
 });

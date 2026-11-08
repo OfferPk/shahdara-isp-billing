@@ -45,7 +45,7 @@ import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, 
 import { customerDeleteCleanCheck, customerDeleteRefusalText } from './customer-delete-clean-check.js?v=1.11.0';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
 import { countProfileCompletion, countProfileCompletionFromControls } from './profile-completion.js?v=1.11.0';
-import { resolveProfileErrorTarget } from './profile-error-jump.js?v=1.11.0';
+import { resolveProfileErrorTarget, profileErrorBannerClearsOnInput } from './profile-error-jump.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
 import { captureCurrentPosition, loadSplitterBoxPins, saveSplitterBoxPins, SPLITTER_BOX_GPS_STORAGE_KEY } from './gps-pin-helper.js';
@@ -12067,6 +12067,8 @@ function jumpToProfileErrorTarget(target) {
 $('#profileFormError')?.addEventListener('click', () => {
   const banner = $('#profileFormError');
   jumpToProfileErrorTarget(resolveProfileErrorTarget(banner?.dataset.errorField || ''));
+  // Plan 501 — tapping the banner clears it: it has done its job (the jump).
+  if (banner) banner.hidden = true;
 });
 function updateProfileCompletionCounter() {
   const form = $('#customerProfileForm');
@@ -12130,9 +12132,15 @@ function syncProfileStickySaveBar() {
 // button (including its disabled-when-clean state, mirrored above).
 $('#profileStickySaveButton')?.addEventListener('click', () => { $('#saveMohallaButton')?.click(); });
 const profileFormEl = $('#customerProfileForm');
-profileFormEl?.addEventListener('input', () => {
+profileFormEl?.addEventListener('input', (event) => {
   const banner = $('#profileFormError');
-  if (banner) banner.hidden = true;
+  // Plan 501 — the banner survives typing in other fields: only an edit
+  // to the errored field itself clears it. A form-level error never
+  // clears on typing; only a tap on the banner does.
+  if (banner && !banner.hidden && profileErrorBannerClearsOnInput(banner.dataset.errorField || '', {
+    id: event.target?.id ?? '',
+    inContributors: Boolean(event.target?.closest?.('#profileContributorsEditor')),
+  })) banner.hidden = true;
   updateProfileCompletionCounter();
   syncProfileStickySaveBar();
   syncProfileCancelButton();

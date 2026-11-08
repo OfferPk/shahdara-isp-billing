@@ -62,6 +62,87 @@ export function validatePakistanPhone(phoneStr) {
 }
 
 /**
+ * Polish #16: smart field guidance for the profile payment form — a
+ * hint, never a block. Returns the translated hint for a value that
+ * looks wrong for its field, or null when the value is fine. Empty is
+ * fine: every guided field is optional. Never auto-corrects or moves a
+ * value; the caller renders the text under the field on input + blur
+ * and hides it when the value turns clean.
+ * @param {string} field one of collectionMohalla, paidBy, collectedBy, senderTitle, senderDigits, discountReason
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+export function paymentFieldGuidance(field, value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  // A number-shaped value: only digits, spaces, dashes, brackets and an
+  // optional leading +. Its digit count decides whether it looks like a
+  // phone number (10+) or a bare number typed as a name (6+).
+  const numericShape = text.replace(/[\s\-()]/g, '');
+  const digits = numericShape.replace(/\D/g, '');
+  const isNumeric = /^\+?\d+$/.test(numericShape) && digits.length > 0;
+  if (field === 'collectionMohalla' && isNumeric && digits.length >= 10) return t('prof_hist_hint_mohalla_phone');
+  if ((field === 'paidBy' || field === 'collectedBy' || field === 'senderTitle') && isNumeric && digits.length >= 6) {
+    return t(field === 'senderTitle' ? 'prof_hist_hint_sender_name_digits' : 'prof_hist_hint_name_digits');
+  }
+  if (field === 'senderDigits' && /\p{L}/u.test(text)) return t('prof_hist_hint_sender_digits_letters');
+  if (field === 'discountReason' && isNumeric && digits.length >= 6) return t('prof_hist_hint_reason_digits');
+  return null;
+}
+
+/**
+ * Polish #16: the message for a failed profile payment save. Validation
+ * errors carry clean user-facing messages and pass through verbatim, but
+ * a code bug (a TypeError such as "Cannot read properties of null") must
+ * never reach the operator as a raw engine error again — it becomes one
+ * generic line that also says the payment may already be recorded.
+ * @param {unknown} error
+ * @returns {string}
+ */
+export function paymentSaveErrorMessage(error) {
+  if (error instanceof TypeError) return t('prof_hist_save_error_generic');
+  if (typeof error === 'string') return error;
+  return error?.message ?? '';
+}
+
+const PAYMENT_GUIDANCE_FIELDS = ['collectionMohalla', 'paidBy', 'collectedBy', 'senderTitle', 'senderDigits', 'discountReason'];
+
+/**
+ * Polish #16: wires the smart-guidance hints onto one profile payment
+ * form. For each guided field it inserts one `.field-help` line under
+ * the field (after the field's `.form-cell`, or after the input itself
+ * when the field has no cell) and refreshes it on input + blur. A hint
+ * never blocks a save. Returns how many fields were bound.
+ * @param {Object} form
+ * @returns {number}
+ */
+export function wirePaymentFieldGuidance(form) {
+  if (!form || typeof form.querySelector !== 'function' || typeof document === 'undefined') return 0;
+  let bound = 0;
+  for (const field of PAYMENT_GUIDANCE_FIELDS) {
+    const input = form.querySelector(`[name="${field}"]`);
+    if (!input || typeof input.addEventListener !== 'function') continue;
+    const hint = document.createElement('p');
+    hint.className = 'field-help';
+    hint.dataset.paymentGuidance = field;
+    hint.hidden = true;
+    const anchor = (typeof input.closest === 'function' && input.closest('.form-cell')) || input;
+    anchor.after(hint);
+    const update = () => {
+      const message = paymentFieldGuidance(field, input.value);
+      hint.hidden = !message;
+      hint.textContent = message || '';
+    };
+    input.addEventListener('input', update);
+    input.addEventListener('blur', update);
+    update();
+    bound += 1;
+  }
+  return bound;
+}
+
+/**
  * Validates a positive numeric amount.
  * @param {string|number} value
  * @param {{ allowZero?: boolean, required?: boolean }} [options]

@@ -8383,7 +8383,8 @@ function renderDetail() {
       detailKnownAsEl.hidden = true;
     }
   }
-  closeCustomerNameEditor();
+  // Plan 494: no inline name editor to reset on re-render any more —
+  // the header Edit name button opens the form instead.
   renderCurrentBillSummary(customer);
   renderCustomerProfileView(customer);
   $('#customerProfileView').hidden = profileEditMode;
@@ -12271,59 +12272,22 @@ $('#archiveCustomerButton').addEventListener('click', () => {
 });
 $('#unarchiveCustomerButton').addEventListener('click', () => { const customer = selectedCustomer(); if (customer) restoreCustomer(customer.id); });
 
-// Inline customer rename (profile header): Edit name swaps the heading for
-// an input with Save name / Cancel; the change goes through
-// updateCustomerProfile so validation and persistence match the profile form.
-function closeCustomerNameEditor(focusEditButton = false) {
-  const editor = $('#customerNameEditor');
-  if (editor) editor.hidden = true;
-  const editBtn = $('#editCustomerNameBtn');
-  if (editBtn) editBtn.hidden = false;
-  const error = $('#customerNameEditError');
-  if (error) { error.hidden = true; error.textContent = ''; }
-  if (focusEditButton) editBtn?.focus();
-}
+// Plan 494: one name-edit path, not two. The header "Edit name" button
+// opens the full edit form at the name field — reusing the error-jump
+// scroll/focus — instead of a separate inline editor with its own Save.
+// The form's Save profile (and its per-field Save) is the only save path;
+// updateCustomerProfile still rejects an empty name, so the one remaining
+// path keeps the one validation path.
 $('#editCustomerNameBtn')?.addEventListener('click', () => {
   const customer = selectedCustomer();
   if (!customer) return;
-  const editor = $('#customerNameEditor');
-  const input = $('#customerNameInput');
-  if (!editor || !input) return;
-  input.value = customer.name ?? '';
-  editor.hidden = false;
-  $('#editCustomerNameBtn').hidden = true;
-  const error = $('#customerNameEditError');
-  if (error) { error.hidden = true; error.textContent = ''; }
-  input.focus();
-  input.select();
-});
-$('#cancelCustomerNameBtn')?.addEventListener('click', () => closeCustomerNameEditor(true));
-$('#customerNameInput')?.addEventListener('keydown', (event) => {
-  if (event.key === 'Enter') { event.preventDefault(); $('#saveCustomerNameBtn')?.click(); }
-  if (event.key === 'Escape') { event.preventDefault(); closeCustomerNameEditor(true); }
-});
-$('#saveCustomerNameBtn')?.addEventListener('click', () => {
-  const customer = selectedCustomer();
-  const input = $('#customerNameInput');
-  if (!customer || !input) return;
-  const newName = input.value.trim();
-  const error = $('#customerNameEditError');
-  const showError = (message) => {
-    if (error) { error.textContent = message; error.hidden = false; }
-    input.focus();
-  };
-  if (!newName) { showError(t('prof_name_empty')); return; }
-  if (newName === customer.name) { closeCustomerNameEditor(); return; }
-  try {
-    state = updateCustomerProfile(state, customer.id, { name: newName });
-    save();
-    closeCustomerNameEditor();
-    renderDetail();
-    renderCustomers();
-    toast(`Customer name updated to “${newName}”.`);
-  } catch (err) {
-    showError(err?.message || t('prof_name_save_fail'));
-  }
+  // The form lives in the Info panel, so land there first — this button
+  // sits in the static header and is visible from any tab.
+  activateProfileTab('info');
+  profileEditMode = true;
+  $('#customerProfileView').hidden = true;
+  $('#customerProfileForm').hidden = false;
+  jumpToProfileErrorTarget({ kind: 'field', id: 'profileNameInput' });
 });
 $('#deleteCustomerButton').addEventListener('click', async () => {
   const customer = selectedCustomer();

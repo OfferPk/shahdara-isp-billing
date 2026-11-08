@@ -42,6 +42,7 @@ import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveL
 import { currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, dirtyProfileFieldKeys } from './profile-field-save.js?v=1.11.0';
+import { zonesUnderArea } from './zone-suggestions.js?v=1.11.0';
 import { customerDeleteCleanCheck, customerDeleteRefusalText } from './customer-delete-clean-check.js?v=1.11.0';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
 import { countProfileCompletion, countProfileCompletionFromControls, PROFILE_COMPLETION_EXCLUDED_KEYS } from './profile-completion.js?v=1.11.0';
@@ -8388,6 +8389,15 @@ function wadaProfileBannerHtml(customer) {
   return `<section class="profile-wada-banner" aria-label="Wada promises"><h4>Wada — promises to pay ${helpButtonMarkup('waada')}</h4>${banner || '<p class="wada-banner-none">No open wada for this customer.</p>'}<form class="wada-quick-form" id="wadaQuickForm"><div class="waada-chip-row" role="group" aria-label="${t('prof_waada_chips_aria')}"><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus2">${t('prof_waada_chip_2')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="plus5">${t('prof_waada_chip_5')}</button><button type="button" class="secondary-button waada-chip-btn" data-wada-quick-chip="tenth">${t('prof_waada_chip_10th')}</button></div><label for="wadaQuickDate">Promised date<input id="wadaQuickDate" type="date" required></label><label for="wadaQuickAmount">Amount promised (Rs, optional)<input id="wadaQuickAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="e.g. 100"></label><label for="wadaQuickNote">Note (optional)<input id="wadaQuickNote" type="text" maxlength="140" placeholder="e.g. in next bill"></label><button type="submit" class="primary-button" id="wadaQuickSaveBtn">Add Wada</button></form><p class="wada-health">${escapeHtml(health)}</p>${scoreBadge}${history}</section>`;
 }
 
+// Plan 518 — Zone datalist: offer the zone spellings already used under
+// the chosen area, so the same zone is not spelled several ways. Free
+// text still allowed; the datalist is suggestions only. Refreshed when
+// the form opens and whenever the Area field changes.
+function refreshZoneOptions() {
+  const list = $('#zoneOptions');
+  if (!list) return;
+  list.innerHTML = zonesUnderArea(state.customers ?? [], $('#mohallaInput')?.value ?? '').map((zone) => `<option value="${escapeHtml(zone)}"></option>`).join('');
+}
 function renderDetail() {
   // FIRST-LOAD SPLIT: start the lazy QA chunk load on first profile open.
   ensureQaModals().catch(() => {});
@@ -8509,6 +8519,7 @@ function renderDetail() {
   if ($('#searchAliasesInput')) $('#searchAliasesInput').value = (customer.searchAliases ?? []).join(', ');
   $('#mohallaInput').value = customer.mohalla ?? '';
   $('#zoneInput').value = customer.zone ?? '';
+  refreshZoneOptions();
   $('#addressInput').value = customer.address ?? '';
   $('#customerNotesInput').value = customer.notes ?? '';
   $('#phoneInput').value = customer.phone ?? '';
@@ -12290,6 +12301,7 @@ $('#monthlySellingAmountInput').addEventListener('input', () => {
 });
 $('#packageSpeedInput').addEventListener('input', renderProfileProrataPreview);
 $('#packageSpeedInput').addEventListener('change', renderProfileProrataPreview);
+$('#mohallaInput').addEventListener('input', refreshZoneOptions);
 $('#roundProrataCreditCheckbox')?.addEventListener('change', renderProfileProrataPreview);
 $('#roundProrataModeSelect')?.addEventListener('change', renderProfileProrataPreview);
 

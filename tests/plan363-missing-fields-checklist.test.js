@@ -113,7 +113,13 @@ test('html: lists each missing field by name as a jump button, in order', () => 
     { controlId: 'phoneInput', fieldKey: 'phone' },
   ];
   const html = missingFieldsChecklistHtml(missing, LABELS, TEXTS);
-  assert.ok(html.includes('<h4 class="mfc-heading">Missing fields</h4>'));
+  // Plan 512: the heading moved into the collapsed <details> summary
+  // (with the count) so a sparse profile shows one line instead of
+  // dozens of rows — the heading text and the jump buttons are
+  // unchanged, and the list stays collapsed until the operator opens it.
+  assert.ok(html.includes('<details class="mfc-details">'));
+  assert.ok(html.includes('<summary class="mfc-summary">Missing fields (2)</summary>'));
+  assert.ok(!html.includes('<details open'));
   assert.ok(html.includes('data-missing-field="cnicInput">CNIC</button>'));
   assert.ok(html.includes('data-missing-field="phoneInput">Phone</button>'));
   assert.ok(html.indexOf('cnicInput') < html.indexOf('phoneInput'));

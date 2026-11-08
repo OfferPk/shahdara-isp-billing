@@ -88,29 +88,6 @@
   border-radius: var(--radius-sm);
 }
 .profile-name-edit-btn:hover { background: var(--mint); }
-.profile-name-editor {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  margin-top: var(--space-2);
-}
-.profile-name-editor[hidden] { display: none; }
-.profile-name-editor input {
-  flex: 1 1 200px;
-  min-height: 40px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--ink);
-  padding: 0 var(--space-3);
-  font: 600 var(--text-sm) var(--font-sans);
-}
-.profile-name-editor input:focus {
-  outline: 3px solid var(--color-brand-soft);
-  border-color: var(--green);
-}
-.profile-name-editor .form-error { flex-basis: 100%; margin: 0; }
 
 /* Payment proof (owner feature 2026-10-29): the thumbnail button on a
    payment row and the full-size image inside the proof viewer dialog

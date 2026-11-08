@@ -94,12 +94,16 @@ export function quickCollectOneScreenFormatAmount(cents) {
 }
 
 // The dues line shown once a customer is picked on the one screen.
-// Empty when the dues figure is not a usable number.
+// Empty when the dues figure is not a usable number. (Plan 525: the
+// line names the payable figure — the same figure the amount field
+// prefills — so a pending charge never makes the line disagree with
+// the amount above it. The caller passes the prefilled figure; this
+// function only formats and labels it.)
 export function quickCollectOneScreenDuesText(duesCents) {
   if (duesCents === null || duesCents === undefined || typeof duesCents === 'boolean') return '';
   const value = Number(duesCents);
   if (!Number.isFinite(value) || value < 0) return '';
-  return `Total dues: ${quickCollectOneScreenFormatAmount(value)}`;
+  return `Total payable: ${quickCollectOneScreenFormatAmount(value)}`;
 }
 
 function isLeapYear(year) {

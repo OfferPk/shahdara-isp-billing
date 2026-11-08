@@ -624,6 +624,7 @@ test('setupDashboardQuickActions wires event handlers to DOM buttons', () => {
     let reportCalled = false;
     let analyticsCalled = false;
     let backupCalled = false;
+    let installationCalled = false;
 
     setupDashboardQuickActions({
       onReceivePayment: () => { paymentCalled = true; },
@@ -631,7 +632,9 @@ test('setupDashboardQuickActions wires event handlers to DOM buttons', () => {
       onRecordExpense: () => { expenseCalled = true; },
       onMonthlyReport: () => { reportCalled = true; },
       onAnalytics: () => { analyticsCalled = true; },
-      onBackup: () => { backupCalled = true; }
+      onBackup: () => { backupCalled = true; },
+      // Polish #18: the 5th home tile opens the installation dashboard.
+      onInstallationDashboard: () => { installationCalled = true; }
     });
 
     listeners.get('quickActionReceivePayment:click')();
@@ -640,6 +643,7 @@ test('setupDashboardQuickActions wires event handlers to DOM buttons', () => {
     listeners.get('quickActionMonthlyReports:click')();
     listeners.get('quickActionAnalytics:click')();
     listeners.get('quickActionBackupData:click')();
+    listeners.get('quickActionInstallationDashboard:click')();
 
     assert.ok(paymentCalled);
     assert.ok(customerCalled);
@@ -647,6 +651,7 @@ test('setupDashboardQuickActions wires event handlers to DOM buttons', () => {
     assert.ok(reportCalled);
     assert.ok(analyticsCalled);
     assert.ok(backupCalled);
+    assert.ok(installationCalled);
   } finally {
     globalThis.document = originalDoc;
   }

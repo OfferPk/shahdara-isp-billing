@@ -311,6 +311,8 @@ test('phase 2 wiring: dashboard statics carry data-i18n in index.html', () => {
     'dash_eyebrow_live', 'dash_title', 'dash_units', 'dash_add_payment', 'dash_guidance',
     'dash_kpi_today', 'dash_kpi_month', 'dash_kpi_dues', 'dash_kpi_defaulters',
     'dash_tile_collect_title', 'dash_tile_customer_title', 'dash_tile_dues_title', 'dash_tile_closing_title',
+    // Polish #18: the 5th home tile (Installation) is a dashboard static too.
+    'dash_tile_installation_title',
     'dash_today_badge', 'dash_today_heading', 'dash_today_wa_text', 'dash_today_label_collected',
     'dash_today_overdue_title', 'dash_today_overdue_all',
     'dash_card_closing', 'dash_card_shop', 'dash_card_cycle', 'dash_card_complaint',

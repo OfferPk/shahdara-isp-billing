@@ -252,8 +252,11 @@ function installationFeePieHtml(slices, withFee) {
  * The dashboard: totals, pie chart, and the per-customer list.
  * The pie always covers every customer with a recorded fee;
  * the list shows every customer, fee recorded or not.
+ * The optional third argument adds the join-month breakdown
+ * (installationFeeMonthlyHtml); without it the dashboard renders
+ * exactly as before.
  */
-export function installationFeeHtml(totals, rows) {
+export function installationFeeHtml(totals, rows, monthly) {
   const base = totals && typeof totals === 'object' ? totals : installationFeeTotals([]);
   const list = Array.isArray(rows) ? rows : [];
   const slices = installationFeePie(list);
@@ -267,7 +270,34 @@ export function installationFeeHtml(totals, rows) {
     : '<p>No customers match this list.</p>';
   return `<p>${escapeHtml(installationFeeSummaryText(base))}</p>`
     + `<h4>Installation fee pie chart</h4>${installationFeePieHtml(slices, base.withFee || 0)}`
-    + `<h4>Customers by installation fee</h4>${rowsHtml}`;
+    + `<h4>Customers by installation fee</h4>${rowsHtml}`
+    + installationFeeMonthlyHtml(monthly);
+}
+
+/**
+ * The join-month breakdown: one row per month customers joined,
+ * newest first — the month label, how many customers joined, and
+ * the installation fees recorded for them. These are JOIN months,
+ * never payment months: the fee total is the recorded fees of the
+ * customers who joined that month, and customers with no join date
+ * are never forced into a month (they are counted in the undated
+ * note instead). The caller supplies the month rows (labels already
+ * formatted), the translated heading, and the translated undated
+ * note; `monthly` is optional — without rows there is no section.
+ * This function records nothing and invents no payment date.
+ */
+export function installationFeeMonthlyHtml(monthly) {
+  if (!monthly || !Array.isArray(monthly.rows) || !monthly.rows.length) return '';
+  const heading = cleanText(monthly.heading) || 'Installation fees by join month';
+  const rowsHtml = monthly.rows.map((entry) => {
+    const label = cleanText(entry?.label) || cleanText(entry?.month) || '';
+    const count = Number(entry?.count) || 0;
+    const fees = roundMoney(Number(entry?.totalFees) || 0);
+    return `<li style="padding:6px 0;border-top:1px solid #e2e8f0;"><strong>${escapeHtml(label)}</strong> — ${count} customers · <strong>${escapeHtml(formatRupees(fees))}</strong></li>`;
+  }).join('');
+  const undated = monthly.undatedCount
+    ? `<p>${escapeHtml(monthly.undatedNote || '')}</p>` : '';
+  return `<h4>${escapeHtml(heading)}</h4><ul style="list-style:none;margin:8px 0 0;padding:0;">${rowsHtml}</ul>${undated}`;
 }
 
 export function installationFeeCsv(rows) {

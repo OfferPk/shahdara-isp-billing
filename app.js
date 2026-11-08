@@ -6547,12 +6547,14 @@ function renderCustomerProfileView(customer) {
   // field-change date or verification-tick date for this profile,
   // shown in plain words. Display only: it reads the two records
   // the profile already keeps and never changes any bill, payment,
-  // or customer record.
+  // or customer record. Plan 514: the stamp renders inside the
+  // freshness group below, so it carries no heading of its own
+  // (heading: null) and shares the app's humanDate format.
   const profileFreshnessStampMarkup = profileFreshnessStampHtml(customer, loadFieldChanges(), loadProfileVerificationTicks(), {
-    heading: t('prof_dfs_heading'),
+    heading: null,
     checkedOn: t('prof_dfs_checked_on'),
     neverChecked: t('prof_dfs_never_checked'),
-  });
+  }, humanDate);
   // Plan 370 — Customer profile dues breakdown by month: what is owed
   // for each month, composed from the same allocation figures the
   // header strip above uses, so the per-month still-owed figures sum
@@ -6598,9 +6600,12 @@ function renderCustomerProfileView(customer) {
   // Plan 372 — Customer profile verification tick: verified by whom,
   // on what date, and which of the four fields were checked that day.
   // It verifies the record only and changes no bill, payment, or
-  // customer field by itself.
+  // customer field by itself. Plan 514: the tick renders inside the
+  // freshness group below, next to the stamp, so it carries no
+  // heading of its own (heading: null) and shares the app's
+  // humanDate format.
   const profileVerificationTickSectionMarkup = profileVerificationTickSectionHtml(customer, loadProfileVerificationTicks(), {
-    heading: t('prof_pvt_heading'),
+    heading: null,
     intro: t('prof_pvt_intro'),
     verifiedBy: t('prof_pvt_verified_by'),
     date: t('prof_pvt_date'),
@@ -6614,7 +6619,7 @@ function renderCustomerProfileView(customer) {
     save: t('save'),
     remove: t('prof_pvt_remove'),
     none: t('prof_pvt_none'),
-  });
+  }, humanDate);
   // Plan 373 — Customer temporarily-away flag: away from date,
   // expected return date where known, and a short note. A flag only:
   // it never changes any bill, payment, due date, or customer record
@@ -6795,7 +6800,7 @@ function renderCustomerProfileView(customer) {
   // set and labels as before; the row is omitted entirely when no badge
   // applies.
   const headingBadgesHtml = `${suspensionShieldBadgeHtml(customer, localDate())}${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${prepaidUntilBadgeHtml(state, customer)}${commercialVipBadgeHtml(customer)}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}`;
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="editProfileButton" class="primary-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${standingInstructionSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileFreshnessStampMarkup}${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${profileVerificationTickSectionMarkup}${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${crossPaymentsMadeSectionMarkup}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="editProfileButton" class="primary-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${wadaProfileBannerHtml(customer)}${handlingNoteSectionMarkup}${standingInstructionSectionMarkup}${spokenLanguageNoteSectionMarkup}${gateAccessInstructionSectionMarkup}${customerEmergencyContactSectionMarkup}${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}<section class="profile-freshness-group" aria-label="${t('prof_dfs_heading')}"><h4>${t('prof_dfs_heading')}</h4>${profileFreshnessStampMarkup}${profileVerificationTickSectionMarkup}</section>${duesBreakdownSectionMarkup}${lastInteractionLineMarkup}${temporarilyAwayFlagSectionMarkup}${householdLinkSectionMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${packageHistorySectionMarkup}${serviceTenureSectionMarkup}${profileInfoGroupsHtml}${crossPaymentsMadeSectionMarkup}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${referralSectionHtml}${upsellSectionHtml}${contributorSectionHtml}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${kistSectionHtml}${nextBillSectionHtml}${mikrotikSectionHtml}${boostSectionHtml}${vacationHoldSectionHtml}${routerCredSectionHtml}${custodySectionHtml}${depositSettlementHtml}${depositOffsetHtml}${nocSectionHtml}${creditTransferSectionHtml}${badDebtSectionHtml}${disconnectProfileHtml(customer)}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${firstBillPreviewSectionHtml}${packageChangeSectionHtml}${qualityLogSectionHtml}${welcomePackSectionHtml}${billingCycleSectionHtml}${paymentChannelSectionHtml}${statementDraftSectionHtml}${balanceReplySectionHtml}${paymentSlipSectionHtml}${infoCardSectionHtml}${statusReplySectionHtml}${termsAckSectionHtml}${creditBalanceSectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;
   // Plan 508 — the register complaints list renders on the Complaints tab,
   // after the manual service log that mountCustomerProfileContent moved
   // there at load. The panel is re-rendered per customer, so the previous

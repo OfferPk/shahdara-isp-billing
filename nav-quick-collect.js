@@ -2135,12 +2135,17 @@ export function setupQuickCollectModal({
   // currently picked — so a month switch re-numbers the preview
   // before anything is saved. Read-only: rendering never reserves
   // or consumes a number, and a customer with no usable number
-  // shows nothing extra.
+  // shows nothing extra. Plan 527: a split payment issues TWO
+  // receipt numbers, so no single number can be quoted — the line
+  // hides while the split toggle is checked, the same condition the
+  // receipt preview already uses (buildReceiptPreview passes split:
+  // true and the preview returns null); unticking the split shows
+  // it again.
   function renderNextReceiptLine() {
     if (!nextReceiptLine) return;
     const month = monthSelect?.value || activeDefaults?.targetMonth;
     const customer = activeDefaults?.customer ?? null;
-    const line = customer && month ? nextReceiptNumberLineText(customer, month) : '';
+    const line = !splitToggle?.checked && customer && month ? nextReceiptNumberLineText(customer, month) : '';
     nextReceiptLine.textContent = line;
     nextReceiptLine.hidden = line === '';
   }
@@ -2844,6 +2849,10 @@ export function setupQuickCollectModal({
   // Plan 432: splitting the payment hides the calculator (each leg is
   // an ordinary payment of its own), and un-splitting re-shows it.
   splitToggle?.addEventListener('change', () => renderCashChange());
+  // Plan 527: splitting the payment hides the next-receipt line (a
+  // split issues two receipt numbers, so no single number can be
+  // quoted), and un-splitting shows it again.
+  splitToggle?.addEventListener('change', () => renderNextReceiptLine());
   splitMethodSelect?.addEventListener('change', updateSplitVisibility);
 
   function updateCounts() {
@@ -3828,6 +3837,12 @@ export function setupQuickCollectModal({
       if (splitSenderNameInput) splitSenderNameInput.value = '';
       if (splitSenderDigitsInput) splitSenderDigitsInput.value = '';
       updateSplitVisibility();
+      // Plan 527: the reset above turns the split off WITHOUT a
+      // change event, and the render at the top of this open ran
+      // while the toggle could still hold the previous opening's
+      // checked state (closing never resets it) — re-render so the
+      // line is visible again for the fresh sheet.
+      renderNextReceiptLine();
       currentScreenshotDataUrl = '';
       if (screenshotInput) screenshotInput.value = '';
       if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = true;

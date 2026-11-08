@@ -128,6 +128,25 @@ export function contactActionTargets(phone) {
   };
 }
 
+/** Plan 511 — ordered profile contact shortcuts: Call → WhatsApp → SMS →
+ * Call Alternate (→ WhatsApp Alternate). The WhatsApp slot is always
+ * present when a primary-side number is recorded: a link when it parses
+ * as international, a disabled action otherwise (the phone-hint text
+ * beside it explains why). The alternate number gets its own WhatsApp
+ * action when it parses as international. No new contact data. */
+export function contactShortcutActions({ phoneTargets, alternateTargets, smsUrl }) {
+  const actions = [];
+  if (phoneTargets?.tel) actions.push({ kind: 'call', href: phoneTargets.tel });
+  if (phoneTargets) {
+    if (phoneTargets.whatsapp) actions.push({ kind: 'whatsapp', href: phoneTargets.whatsapp });
+    else actions.push({ kind: 'whatsapp', disabled: true });
+  }
+  if (smsUrl) actions.push({ kind: 'sms', href: smsUrl });
+  if (alternateTargets?.tel) actions.push({ kind: 'call-alternate', href: alternateTargets.tel });
+  if (alternateTargets?.whatsapp) actions.push({ kind: 'whatsapp-alternate', href: alternateTargets.whatsapp });
+  return actions;
+}
+
 /** Build a user-reviewed customer follow-up draft; this helper never opens or sends WhatsApp. */
 export function createWhatsAppFollowupDraft(phone, customer, details, template = 'friendly') {
   const target = contactActionTargets(phone)?.whatsapp;

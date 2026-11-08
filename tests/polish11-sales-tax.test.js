@@ -543,7 +543,10 @@ test('Req 5 profile: 1,000 -> PKR 195, 1,500 -> PKR 292.5, no package -> Not set
   assert.equal(customerOf(nextState).monthlySellingAmount, 1000);
   assert.equal(formatSalesTaxAmount(customerSalesTaxCents(customerOf(nextState))), 'PKR 195');
   // Wiring pin: the profile Service group carries the line.
-  assert.ok(appSrc.includes("['Sales tax (19.5%)', formatSalesTaxAmount(customerSalesTaxCents(customer))]"), 'the Service group shows the customer tax');
+  // Plan 504: the literal label became the i18n key prof_field_sales_tax
+  // (EN reads exactly as before, UR reads in Urdu) — the pin now checks
+  // the key is used, not the literal.
+  assert.ok(appSrc.includes("[t('prof_field_sales_tax'), formatSalesTaxAmount(customerSalesTaxCents(customer))]"), 'the Service group shows the customer tax');
 });
 
 // --- Regression: the priced-month follow must not invent a next-month bill ---

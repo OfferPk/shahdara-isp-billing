@@ -106,6 +106,16 @@ import {
   searchUnifiedPayments,
   unifiedPaymentsSectionHtml,
 } from './unified-search.js';
+// Plan 470: share the current search result as a plain-text list —
+// one tap prepares the list (name, mohalla, phone, dues in PKR,
+// status) as a draft the operator reads first and sends onward;
+// the module drafts only and sends nothing by itself.
+import {
+  SEARCH_RESULTS_SHARE_EMPTY_TEXT,
+  SEARCH_RESULTS_SHARE_SENT_TEXT,
+  searchResultsShareText,
+  searchResultsShareDraftHtml,
+} from './search-results-share.js';
 import { DEFAULT_MOHALLAS } from './phase3.js';
 import { trapModalFocus } from './nav-accessibility.js';
 
@@ -688,6 +698,12 @@ export function setupFastCustomerSearchModal({
   const saveFilterRow = document.getElementById('fastCustomerSaveFilterRow');
   const saveFilterNameInput = document.getElementById('fastCustomerSaveFilterName');
   const saveFilterBtn = document.getElementById('fastCustomerSaveFilterBtn');
+  // Plan 470: the share row — a Share list button plus the draft
+  // region, shown only while a search is running, so there is
+  // always a result to share.
+  const shareListRow = document.getElementById('fastCustomerShareListRow');
+  const shareListBtn = document.getElementById('fastCustomerShareListBtn');
+  const shareListResult = document.getElementById('fastCustomerShareListResult');
 
   let activeStatusFilter = 'all';
   // Plan 452: the chosen account state — paid up, due, overdue,
@@ -810,6 +826,14 @@ export function setupFastCustomerSearchModal({
       // Plan 459: nothing is being searched, so there is nothing to
       // save — the save row hides.
       if (saveFilterRow) saveFilterRow.style.display = 'none';
+      // Plan 470: nothing is being searched, so there is no result
+      // to share — the share row hides with the save row, and any
+      // draft from the last search is cleared.
+      if (shareListRow) shareListRow.style.display = 'none';
+      if (shareListResult) {
+        shareListResult.innerHTML = '';
+        shareListResult.style.display = 'none';
+      }
     } else {
       // Show search query results
       if (clearRecentBtn) clearRecentBtn.hidden = true;
@@ -828,6 +852,15 @@ export function setupFastCustomerSearchModal({
       }
       const showSaveRow = hasQuery || activeStatusFilter !== 'all' || activeCustomerStatus !== 'all' || activeDuesBand !== 'all' || Boolean(mohallaValue);
       if (saveFilterRow) saveFilterRow.style.display = showSaveRow ? '' : 'none';
+      // Plan 470: the share row shows with the save row — only while
+      // a search is running, so there is always a result to share.
+      if (shareListRow) shareListRow.style.display = showSaveRow ? '' : 'none';
+      // Plan 470: a draft belongs to the result it was built from —
+      // a changed search clears it, so a stale list can never go out.
+      if (shareListResult) {
+        shareListResult.innerHTML = '';
+        shareListResult.style.display = 'none';
+      }
       const results = searchFastCustomers(state, {
         query,
         statusFilter: activeStatusFilter,
@@ -1053,6 +1086,48 @@ export function setupFastCustomerSearchModal({
     }
     if (saveFilterNameInput) saveFilterNameInput.value = '';
     if (typeof onToast === 'function') onToast(`Filter "${entry.name}" saved.`);
+  });
+
+  // Plan 470: sharing the current search result as a plain-text
+  // list — one tap prepares the list (name, mohalla, phone, dues in
+  // PKR, status) as a draft the operator reads first; Send opens
+  // the recipient-less share link (no single recipient for a list,
+  // so the operator picks who gets it) and nothing is ever sent
+  // without that tap. A search with no results shares nothing and
+  // says so.
+  shareListBtn?.addEventListener('click', () => {
+    const text = searchResultsShareText(lastResults);
+    if (!text) {
+      if (shareListResult) {
+        shareListResult.innerHTML = '';
+        shareListResult.style.display = 'none';
+      }
+      if (typeof onToast === 'function') onToast(SEARCH_RESULTS_SHARE_EMPTY_TEXT);
+      return;
+    }
+    if (shareListResult) {
+      shareListResult.innerHTML = searchResultsShareDraftHtml(text);
+      shareListResult.style.display = '';
+    }
+  });
+
+  shareListResult?.addEventListener('click', (e) => {
+    if (e.target.closest('[data-srs-send]')) {
+      const text = searchResultsShareText(lastResults);
+      if (!text) {
+        if (typeof onToast === 'function') onToast(SEARCH_RESULTS_SHARE_EMPTY_TEXT);
+        return;
+      }
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+      if (typeof onToast === 'function') onToast(SEARCH_RESULTS_SHARE_SENT_TEXT);
+      return;
+    }
+    if (e.target.closest('[data-srs-dismiss]')) {
+      if (shareListResult) {
+        shareListResult.innerHTML = '';
+        shareListResult.style.display = 'none';
+      }
+    }
   });
 
   // Plan 458: tapping a recent search runs it again — the box fills

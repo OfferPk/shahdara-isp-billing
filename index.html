@@ -26539,6 +26539,21 @@
         <button id="fastCustomerSaveFilterBtn" class="fcs-status-chip" type="button" title="Save this search as a named filter">Save filter</button>
       </div>
 
+      <!-- Plan 470: share the current search result as a plain-text
+           list — one tap prepares the list (name, mohalla, phone,
+           dues in PKR, status) as a draft the operator sends
+           onward; nothing is sent without the operator's tap.
+           Shown only while a search is running, so there is always
+           a result to share. -->
+      <div class="fcs-mohalla-row" id="fastCustomerShareListRow" style="display:none">
+        <button id="fastCustomerShareListBtn" class="fcs-status-chip" type="button" title="Share this search result as a plain-text list">Share list</button>
+        <span class="fcs-mohalla-label">Names, dues in PKR and status, as text.</span>
+      </div>
+
+      <div id="fastCustomerShareListResult" role="region" aria-label="Share list draft" style="display:none">
+        <!-- Populated dynamically -->
+      </div>
+
       <!-- Plan 458: recent searches — the searches just run, latest
            first with the text and the filter shown; one tap runs a
            search again. Hidden entirely while the list is empty. -->

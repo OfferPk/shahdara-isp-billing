@@ -52,7 +52,10 @@ test('every dashboard summary card adopted the shared card; plain KPI cards got 
     assert.ok(/ds-stat--(brand|paid|info|pending|overdue|whatsapp)/.test(tag), `accent set: ${tag}`);
   }
   const tiled = html.match(/<article class="summary-card [^"]*"><span class="ds-stat__icon"/g) || [];
-  assert.equal(tiled.length, 18, 'the 18 plain KPI summary cards carry an icon tile');
+  // Plan 471: the count is 19, not 18 — the new dashboard today card
+  // is a plain KPI summary card with an icon tile, same shape as the
+  // today's-collection card it follows.
+  assert.equal(tiled.length, 19, 'the 19 plain KPI summary cards carry an icon tile');
 });
 
 test('summary/today geometry parity is kept on the same tokens', () => {

@@ -44,7 +44,7 @@ import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, dirtyProfileFieldKeys } from './profile-field-save.js?v=1.11.0';
 import { customerDeleteCleanCheck, customerDeleteRefusalText } from './customer-delete-clean-check.js?v=1.11.0';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
-import { countProfileCompletion, countProfileCompletionFromControls } from './profile-completion.js?v=1.11.0';
+import { countProfileCompletion, countProfileCompletionFromControls, PROFILE_COMPLETION_EXCLUDED_KEYS } from './profile-completion.js?v=1.11.0';
 import { resolveProfileErrorTarget, profileErrorBannerClearsOnInput } from './profile-error-jump.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
 import { routerCredentialsOf, routerCredentialsSectionHtml, resolveWifiWhatsAppAction } from './router-credentials.js?v=1.11.0';
@@ -6816,8 +6816,11 @@ function renderCustomerProfileView(customer) {
   // name the form itself shows, with a tap-to-jump action to each
   // field. It lists only — it fills nothing and scores nothing — and
   // it is computed from the same field list and the same filled rule
-  // as the counter, so the two can never disagree.
-  const missingFields = missingProfileFields(customer, Object.entries(PROFILE_FIELD_SAVE_MAP).map(([controlId, fieldKey]) => ({ controlId, fieldKey })));
+  // as the counter, so the two can never disagree. Plan 513 — the
+  // list is the counter's counted list: the pure opt-in flags
+  // (prefersSms, paused) are excluded here too, so a legitimately
+  // unchecked flag is never listed as missing.
+  const missingFields = missingProfileFields(customer, Object.entries(PROFILE_FIELD_SAVE_MAP).filter(([, fieldKey]) => !PROFILE_COMPLETION_EXCLUDED_KEYS.includes(fieldKey)).map(([controlId, fieldKey]) => ({ controlId, fieldKey })));
   const missingFieldLabels = {};
   for (const { controlId, fieldKey } of missingFields) {
     const labelEl = document.getElementById(controlId)?.closest('.profile-field');

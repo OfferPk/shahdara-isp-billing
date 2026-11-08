@@ -158,6 +158,11 @@
    so no new colour is introduced here. */
 .profile-form-group{grid-column:1/-1;min-width:0}
 
+/* Plan 499 — the one-line note under the form actions: per-field saves
+   are immediate, leaving the form only discards changes not saved yet.
+   Token colour only, same muted note treatment as .field-help. */
+.profile-form-save-note{grid-column:1/-1;margin:6px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
+
 /* Profile polish batch: fully-red errors, sticky save bar, completion counter. */
 .profile-form-error:not([hidden]) { display: block; width: 100%; margin: 0 0 12px; padding: 12px 14px; background: var(--color-danger-strong); border: 2px solid var(--color-danger-strong); border-radius: var(--radius-sm); color: white; font-size: var(--text-sm); font-weight: 700; text-align: left; cursor: pointer; }
 .profile-form-error[hidden] { display: none; }

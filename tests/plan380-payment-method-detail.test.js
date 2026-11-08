@@ -423,7 +423,12 @@ test('wiring: both profile history rows show the reference after the method', ()
   assert.equal(hits, 2, 'voided and normal profile rows both carry the reference');
   assert.ok(appSrc.includes('function profilePaymentMethodDetailMarkup(payment)'), 'profile wrapper defined');
   assert.ok(appSrc.includes('paymentMethodReferenceMarkup(payment, { reference: t(\'prof_pmd_ref\') })'), 'profile wrapper passes the translated label');
-  assert.ok(appSrc.includes('Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${paymentPayerMarkup(transaction)}'), 'transactions card shows the full note after the method');
+  // Plan 467: the clearance suffix sits between the note and the
+  // payer markup when the reference search is live, and is empty
+  // otherwise — the note still shows right after the method either
+  // way, so this checks the note's position, not the literal
+  // adjacency to the payer markup.
+  assert.ok(appSrc.includes('Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}'), 'transactions card shows the full note after the method');
 });
 
 test('wiring: the reference label exists in both language tables', () => {

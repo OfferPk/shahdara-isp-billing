@@ -921,6 +921,25 @@
           <p id="rfdRefundEmpty" class="empty-state" hidden data-i18n="dash_refunds_empty">No refunds this month.</p>
         </div>
       </section>
+      <section class="collection-forecast-section" id="printSummarySection" aria-labelledby="printSummaryHeading">
+        <div class="collection-forecast-card">
+          <div class="collection-forecast-header">
+            <div>
+              <h3 id="printSummaryHeading" class="collection-forecast-title" data-i18n="dash_printsummary_title">One-page summary</h3>
+              <p class="chart-caption" data-i18n="dash_printsummary_sub">Today, this month, and what is still owed — in PKR</p>
+            </div>
+            <button id="ppsPrintBtn" class="secondary-button btn-sm" type="button" data-i18n="dash_printsummary_print">🖨️ Print summary</button>
+          </div>
+          <p id="ppsPrintDate" class="collection-forecast-collected"></p>
+          <ul class="provider-cost-list">
+            <li><span data-i18n="dash_printsummary_today">Today's collections</span> <strong id="ppsTodayCollected">PKR 0</strong></li>
+            <li><span data-i18n="dash_printsummary_month">This month's collections</span> <strong id="ppsMonthCollected">PKR 0</strong></li>
+            <li><span data-i18n="dash_printsummary_dues">Total dues</span> <strong id="ppsTotalDues">PKR 0</strong></li>
+            <li><span data-i18n="dash_printsummary_overdue">Overdue total</span> <strong id="ppsOverdueTotal">PKR 0</strong></li>
+            <li><span data-i18n="dash_printsummary_cash">Cash in hand</span> <strong id="ppsCashInHand">PKR 0</strong></li>
+          </ul>
+        </div>
+      </section>
       <section class="collection-forecast-section" id="collectionForecastSection" aria-labelledby="collectionForecastHeading">
         <div class="collection-forecast-card">
           <div class="collection-forecast-header">

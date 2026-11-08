@@ -3064,6 +3064,13 @@ function renderDashboard() {
       const modal = $('#dailyClosingModal');
       if (modal?.showModal) modal.showModal();
     },
+    // Polish #18: one tap from home opens the installation dashboard —
+    // switch to Analytics, render it, then scroll its panel into view.
+    onInstallationDashboard: () => {
+      switchView('analytics');
+      renderAnalytics();
+      $('#idaHeading')?.scrollIntoView({ behavior: 'smooth' });
+    },
     onRecordExpense: () => { expenseActiveTab = 'ledger'; switchView('expenses'); renderExpenses(); },
     onMonthlyReport: () => { switchView('reports'); renderMonthlyReport(); },
     onAnalytics: () => { switchView('analytics'); renderAnalytics(); },
@@ -37018,7 +37025,22 @@ function renderInstallationDashboard() {
   if (!bodyEl) return;
   const rows = installationFeeRows(state.customers || []);
   const totals = installationFeeTotals(rows);
-  bodyEl.innerHTML = totals.totalCustomers ? installationFeeHtml(totals, rows) : '<p>No customers recorded yet.</p>';
+  // Polish #18: the join-month breakdown reuses the New Customers
+  // panel's month logic (buildNewCustomerReport) — months are JOIN
+  // months, never payment months, and customers with no join date
+  // are counted in the undated note, never forced into a month.
+  const joinReport = buildNewCustomerReport(state.customers || [], new Date());
+  const monthly = {
+    heading: t('ida_month_heading'),
+    rows: joinReport.months.map((entry) => ({
+      label: displayMonthName(entry.month),
+      count: entry.totals.count,
+      totalFees: entry.totals.connectionFees
+    })),
+    undatedCount: joinReport.undatedCount,
+    undatedNote: joinReport.undatedCount ? t('ida_month_undated', null, { count: joinReport.undatedCount }) : ''
+  };
+  bodyEl.innerHTML = totals.totalCustomers ? installationFeeHtml(totals, rows, monthly) : '<p>No customers recorded yet.</p>';
   const summaryEl = $('#idaSummary');
   if (summaryEl) {
     summaryEl.textContent = `${installationFeeSummaryText(totals)} The dashboard only reads the installation fee on each customer record and never changes any installation, bill, payment, or customer record.`;

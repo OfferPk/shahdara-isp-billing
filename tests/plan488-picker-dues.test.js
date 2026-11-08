@@ -142,29 +142,34 @@ test('status labels are the search enrichment labels, in plain words', () => {
 test('the dues text is dues in PKR, then the status — zero, never blank', () => {
   const ctx = context();
   const list = customers();
-  assert.equal(pickerDuesText(pickerDuesEnrichment(list[0], ctx)), 'PKR 0 · Paid up');
-  assert.equal(pickerDuesText(pickerDuesEnrichment(list[1], ctx)), 'PKR 1,500 · Due');
-  assert.equal(pickerDuesText(pickerDuesEnrichment(list[2], ctx)), 'PKR 2,000 · Overdue');
-  assert.equal(pickerDuesText(pickerDuesEnrichment(list[3], ctx)), 'PKR 1,000 · Overdue · Suspended');
-  assert.equal(pickerDuesText(pickerDuesEnrichment(list[4], ctx)), 'PKR 1,500 · Due · New');
-  assert.equal(pickerDuesText(pickerDuesEnrichment(list[5], ctx)), 'PKR 0 · Paid up · New');
-  assert.equal(pickerDuesText(pickerDuesEnrichment(list[8], ctx)), 'PKR 1,500.5 · Due');
-  assert.equal(pickerDuesText(pickerDuesEnrichment(null, ctx)), 'PKR 0');
-  assert.equal(pickerDuesText(null), 'PKR 0');
-  assert.equal(pickerDuesText({}), 'PKR 0');
+  // Plan 524: the line now names its figure — "PKR 2,000 bill dues ·
+  // Overdue" — because the picker's main list shows the shared total
+  // (bills plus unpaid manual baqaya) and the lookup figure is bill
+  // dues only; the order (dues, then status) is unchanged.
+  assert.equal(pickerDuesText(pickerDuesEnrichment(list[0], ctx)), 'PKR 0 bill dues · Paid up');
+  assert.equal(pickerDuesText(pickerDuesEnrichment(list[1], ctx)), 'PKR 1,500 bill dues · Due');
+  assert.equal(pickerDuesText(pickerDuesEnrichment(list[2], ctx)), 'PKR 2,000 bill dues · Overdue');
+  assert.equal(pickerDuesText(pickerDuesEnrichment(list[3], ctx)), 'PKR 1,000 bill dues · Overdue · Suspended');
+  assert.equal(pickerDuesText(pickerDuesEnrichment(list[4], ctx)), 'PKR 1,500 bill dues · Due · New');
+  assert.equal(pickerDuesText(pickerDuesEnrichment(list[5], ctx)), 'PKR 0 bill dues · Paid up · New');
+  assert.equal(pickerDuesText(pickerDuesEnrichment(list[8], ctx)), 'PKR 1,500.5 bill dues · Due');
+  assert.equal(pickerDuesText(pickerDuesEnrichment(null, ctx)), 'PKR 0 bill dues');
+  assert.equal(pickerDuesText(null), 'PKR 0 bill dues');
+  assert.equal(pickerDuesText({}), 'PKR 0 bill dues');
   // A row with no status labels at all shows the amount on its own.
-  assert.equal(pickerDuesText({ duesCents: 150000, statusLabels: [] }), 'PKR 1,500');
+  assert.equal(pickerDuesText({ duesCents: 150000, statusLabels: [] }), 'PKR 1,500 bill dues');
 });
 
 test('the dues line reuses the row meta styling and escapes markup', () => {
   const html = pickerDuesLineHtml({ duesCents: 200000, statusLabels: ['Overdue', 'Suspended'] });
   assert.ok(html.includes('class="qc-cust-meta"'), 'the line reuses the row meta styling');
-  assert.ok(html.includes('PKR 2,000 · Overdue · Suspended'), 'the line reads dues then status');
+  // Plan 524: the line names its figure "bill dues" (see above).
+  assert.ok(html.includes('PKR 2,000 bill dues · Overdue · Suspended'), 'the line reads dues then status');
   const escaped = pickerDuesLineHtml({ duesCents: 0, statusLabels: ['<b>Due</b>'] });
   assert.ok(escaped.includes('&lt;b&gt;Due&lt;/b&gt;'), 'a label is escaped, never raw HTML');
   assert.equal(escaped.includes('<b>Due</b>'), false);
   assert.equal(pickerDuesLineHtml(null), '');
-  assert.equal(pickerDuesLineHtml({}), '<span class="qc-cust-meta">PKR 0</span>');
+  assert.equal(pickerDuesLineHtml({}), '<span class="qc-cust-meta">PKR 0 bill dues</span>');
 });
 
 test('the per-match text covers each listed customer and skips unknown ids', () => {
@@ -174,8 +179,9 @@ test('the per-match text covers each listed customer and skips unknown ids', () 
   assert.deepEqual(matches.map((m) => m.id), ['seed-488-01', 'seed-488-10']);
   const lines = pickerDuesTextForMatches(state.customers, matches, ctx);
   assert.equal(lines.size, 2);
-  assert.equal(lines.get('seed-488-01'), 'PKR 0 · Paid up');
-  assert.equal(lines.get('seed-488-10'), 'PKR 1,000 · Due');
+  // Plan 524: the per-match text names its figure "bill dues" (see above).
+  assert.equal(lines.get('seed-488-01'), 'PKR 0 bill dues · Paid up');
+  assert.equal(lines.get('seed-488-10'), 'PKR 1,000 bill dues · Due');
   // An unknown id gets no entry — its row renders as before, never
   // with a guessed figure.
   const unknown = pickerDuesTextForMatches(state.customers, [{ id: 'no-such-customer' }], ctx);
@@ -214,9 +220,10 @@ test('name-prefix rows show dues and status beside the name and mohalla', () => 
   const html = namePrefixLookupHtml(matches, lines);
   assert.ok(html.includes('Adeel One'), 'the paid-up row is listed');
   assert.ok(html.includes('Adeel Ten'), 'the due row is listed');
-  assert.ok(html.includes('PKR 0 · Paid up'), 'no dues reads as zero with its status');
-  assert.ok(html.includes('PKR 1,000 · Due'), 'the due row shows its dues and status');
-  assert.ok(html.includes('aria-label="Pick Adeel One — Mohalla Bani · PKR 0 · Paid up"'), 'the pick label carries the dues line');
+  // Plan 524: the row text names its figure "bill dues" (see above).
+  assert.ok(html.includes('PKR 0 bill dues · Paid up'), 'no dues reads as zero with its status');
+  assert.ok(html.includes('PKR 1,000 bill dues · Due'), 'the due row shows its dues and status');
+  assert.ok(html.includes('aria-label="Pick Adeel One — Mohalla Bani · PKR 0 bill dues · Paid up"'), 'the pick label carries the dues line');
   assert.equal((html.match(/qc-cust-meta/g) || []).length, 4, 'one mohalla line and one dues line per row');
 });
 
@@ -245,8 +252,9 @@ test('last-four rows show dues and status beside the name and mohalla', () => {
   const lines = pickerDuesTextForMatches(state.customers, matches, context());
   const html = lastFourDigitsHtml(matches, '5678', lines);
   assert.ok(html.includes('Iqra Eight'), 'the row is listed');
-  assert.ok(html.includes('PKR 1,200 · Due'), 'the row shows its dues and status');
-  assert.ok(html.includes('aria-label="Pick Iqra Eight — Mohalla Bani · PKR 1,200 · Due"'), 'the pick label carries the dues line');
+  // Plan 524: the row text names its figure "bill dues" (see above).
+  assert.ok(html.includes('PKR 1,200 bill dues · Due'), 'the row shows its dues and status');
+  assert.ok(html.includes('aria-label="Pick Iqra Eight — Mohalla Bani · PKR 1,200 bill dues · Due"'), 'the pick label carries the dues line');
 });
 
 test('last-four rows without the dues map render exactly as before', () => {

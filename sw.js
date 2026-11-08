@@ -1,7 +1,7 @@
 const CACHE_PREFIX = 'shahdara-isp-billing-';
 // build.mjs rewrites CACHE_NAME (adds a content hash) and APP_FILES (every file in dist/) in dist/sw.js (#210).
-const CACHE_NAME = 'shahdara-isp-billing-v37-45db6c8a02';
-const APP_FILES = ["./","./app.bundle.css","./app.js","./bulk-collect.js","./chunk-6EGQLMK7.js","./chunk-ARF3CVHQ.js","./chunk-CN3WSB3H.js","./chunk-FJ2RYYGQ.js","./chunk-KDW6ENR3.js","./chunk-LHR3MTTZ.js","./chunk-MLDQXIB5.js","./chunk-MNDB672M.js","./chunk-NIDTO65S.js","./chunk-UUOIIENR.js","./collect-setup.js","./customer-import.js","./customer-plan.js","./icon.svg","./index.html","./manifest.webmanifest","./payments-inbox.js","./screen-router.js","./ui-feedback.js","./urdu-font.css"];
+const CACHE_NAME = 'shahdara-isp-billing-v37-9393108552';
+const APP_FILES = ["./","./app.bundle.css","./app.js","./bulk-collect.js","./chunk-3W5A5F4J.js","./chunk-6LUHKROR.js","./chunk-7QAPRC4L.js","./chunk-HYLDMKXX.js","./chunk-MCGNK5YI.js","./chunk-Q64M6S7V.js","./chunk-T4G2ZFE6.js","./chunk-WUVIY4Z6.js","./chunk-X3GGTOUA.js","./chunk-Z2ANHBGB.js","./collect-setup.js","./customer-import.js","./customer-plan.js","./icon.svg","./index.html","./manifest.webmanifest","./payments-inbox.js","./screen-router.js","./ui-feedback.js","./urdu-font.css"];
 
 // Bypass the HTTP cache while precaching so a new worker never stores files from the previous deploy.
 const freshRequest = url => (typeof Request === 'function' ? new Request(url, { cache:'reload' }) : url);

@@ -310,6 +310,11 @@ export function buildPaymentReceipt(customer, bill, payment) {
     // no override/transliteration exists — the header then shows Roman only).
     customerNameUrdu:urduNameFor(customer),
     customerId: receiptCustomerId,
+    // Polish #12: the customer's own area — mohalla first, zone after —
+    // exactly the PNG receipt's derivation (png-receipt.js areaZone).
+    // 'Not recorded' when neither is set, never a blank or a guess.
+    // Every receipt surface reads it from here.
+    area: [text(customer?.mohalla), text(customer?.zone)].filter(Boolean).join(', ') || 'Not recorded',
     paymentDate:validStoredDate(payment.date),
     transactionId,
     senderLabel,
@@ -689,6 +694,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Date / تاریخ:</dt><dd>${escapeHtml(receipt.paymentDate)}</dd></div>
     <div class="receipt-field"><dt>Cust ID / کھاتہ:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
     <div class="receipt-field"><dt>Name / صارف:</dt><dd>${escapeHtml(displayName)}</dd></div>
+    <div class="receipt-field"><dt>Area / علاقہ:</dt><dd>${escapeHtml(receipt.area || 'Not recorded')}</dd></div>
     <div class="receipt-field"><dt>Package / پیکیج:</dt><dd>${escapeHtml(receipt.package)}</dd></div>
     <div class="receipt-field"><dt>Month / بل ماہ:</dt><dd>${escapeHtml(receipt.servicePeriodStart ? receipt.servicePeriodStart.slice(0, 7) : '')}</dd></div>
     <div class="receipt-field"><dt>Method / طریقہ:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
@@ -743,6 +749,7 @@ export function generatePaymentReceiptHtml(receipt, {
     <div class="receipt-field"><dt>Payment Date / تاریخ ادائیگی:</dt><dd>${escapeHtml(receipt.paymentDate)}</dd></div>
     <div class="receipt-field"><dt>Customer ID / کھاتہ نمبر:</dt><dd>#${escapeHtml(receipt.customerId)}</dd></div>
     <div class="receipt-field"><dt>Customer Name / صارف کا نام:</dt><dd>${escapeHtml(displayName)}</dd></div>
+    <div class="receipt-field"><dt>Area / علاقہ:</dt><dd>${escapeHtml(receipt.area || 'Not recorded')}</dd></div>
     <div class="receipt-field"><dt>Package / پیکیج پلان:</dt><dd>${escapeHtml(receipt.package)}${receipt.speedMbps ? ` (${receipt.speedMbps} Mbps)` : ''}</dd></div>
     <div class="receipt-field"><dt>Billing Month / بل کا مہینہ:</dt><dd>${escapeHtml(receipt.servicePeriodStart ? receipt.servicePeriodStart.slice(0, 7) : '')}</dd></div>
     <div class="receipt-field"><dt>Payment Method / طریقہ کار:</dt><dd>${escapeHtml(receipt.paymentMethod)}</dd></div>
@@ -794,6 +801,7 @@ export function generatePaymentReceiptHtml(receipt, {
   const fields = [
     ['Receipt Number / رسید نمبر', receipt.receiptNumber],
     ['Customer Name / صارف کا نام', displayName],
+    ['Area / علاقہ', receipt.area || 'Not recorded'],
     ['Account / Customer ID', receipt.customerId ? `#${receipt.customerId}` : ''],
     ['Payment Date / تاریخ ادائیگی', receipt.paymentDate],
     ['Transaction ID', receipt.transactionId],

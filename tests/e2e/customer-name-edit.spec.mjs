@@ -50,6 +50,11 @@ test.describe('Customer rename from the profile header', () => {
     await expect(page.locator('#profileFormError')).toContainText('Customer name cannot be empty.');
     await expect(page.locator('#customerProfileForm')).toBeVisible();
     await page.locator('#cancelProfileEditButton').click();
+    // Plan 499 — the name field holds unsaved whitespace, so Cancel
+    // confirms first; discarding leaves the name unchanged.
+    await expect(page.locator('#appConfirmDialog')).toBeVisible();
+    await expect(page.locator('#appConfirmTitle')).toContainText('Discard unsaved changes?');
+    await page.locator('#appConfirmOkBtn').click();
     await expect(page.locator('#detailName')).toHaveText('Test Customer 07');
 
     await page.locator('#editCustomerNameBtn').click();
@@ -78,6 +83,9 @@ test.describe('Customer rename from the profile header', () => {
     await expect(page.locator('#profileNameInput')).toBeFocused();
     await page.locator('#profileNameInput').fill('SOMETHING ELSE');
     await page.locator('#cancelProfileEditButton').click();
+    // Plan 499 — the typed name is unsaved, so Cancel confirms first.
+    await expect(page.locator('#appConfirmDialog')).toBeVisible();
+    await page.locator('#appConfirmOkBtn').click();
     await expect(page.locator('#customerProfileView')).toBeVisible();
     await expect(page.locator('#detailName')).toHaveText(original.trim());
   });

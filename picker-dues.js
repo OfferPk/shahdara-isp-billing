@@ -19,6 +19,11 @@
  *   separate record the search sheet does not display, so it is
  *   never part of this figure; the picker row and the sheet agree
  *   exactly. A customer with no dues shows PKR 0, never a blank.
+ *   Plan 524: the line names the figure "bill dues" — the same
+ *   label the form header uses for the bill-only figure — because
+ *   the picker's main list below it shows the shared total (bills
+ *   plus unpaid manual baqaya), and the two figures must read as
+ *   different kinds of figure rather than contradictory ones.
  * - the account status in plain words — the dues state first
  *   (Overdue, Due, or Paid up, from the app's own rules), then
  *   Suspended when the customer holds an open suspension record,
@@ -84,16 +89,21 @@ export function pickerDuesEnrichment(customer, context = {}) {
  * The one-line dues display for a picker row, in plain words: the
  * dues in PKR, then the status labels. A customer with no dues
  * shows PKR 0, never a blank; a row with no status labels at all
- * shows the amount on its own, never a half-empty line.
+ * shows the amount on its own, never a half-empty line. Plan 524:
+ * the amount is named "bill dues" — the figure is bill dues only
+ * (a manual baqaya is never part of it), and the picker's main
+ * list shows the shared total, so the lookup line must say which
+ * kind of figure it carries.
  */
 export function pickerDuesText(enrichment) {
   const amount = formatPickerDuesAmount(enrichment?.duesCents);
   const shown = amount === null ? 'PKR 0' : amount;
+  const shownBillDues = `${shown} bill dues`;
   const labels = Array.isArray(enrichment?.statusLabels)
     ? enrichment.statusLabels.map((label) => String(label ?? '').trim()).filter(Boolean)
     : [];
-  if (labels.length === 0) return shown;
-  return `${shown} · ${labels.join(' · ')}`;
+  if (labels.length === 0) return shownBillDues;
+  return `${shownBillDues} · ${labels.join(' · ')}`;
 }
 
 /**

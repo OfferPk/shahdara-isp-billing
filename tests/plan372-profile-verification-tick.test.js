@@ -233,20 +233,23 @@ test('Plan 372: styles reuse existing colours only — no new hex in verificatio
   }
 });
 
-test('Plan 372: app.js wires the tick after the last-interaction line and before the household link', () => {
+test('Plan 372: app.js wires the tick inside the freshness group, after the strip and before the dues breakdown', () => {
   assert.ok(appSrc.includes("from './profile-verification-tick.js'"));
   assert.ok(appSrc.includes('loadProfileVerificationTicks'));
   assert.ok(appSrc.includes('saveProfileVerificationTicks'));
   assert.ok(appSrc.includes('profileVerificationTickSectionMarkup'));
-  // Order, not adjacency: the Plan 373 temporarily-away flag section
-  // now sits between the verification tick and the household link, so
-  // the tick is still after the last-interaction line and still before
-  // the household link.
-  const lastAt = appSrc.indexOf('${lastInteractionLineMarkup}');
+  // Order, not adjacency: Plan 514 groups the verification tick
+  // with the freshness stamp under one heading, right after the
+  // header strip — so the tick is no longer after the
+  // last-interaction line. What this pin still guards: the tick
+  // sits inside the group (after the strip, before the dues
+  // breakdown) and still before the household link.
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
   const tickAt = appSrc.indexOf('${profileVerificationTickSectionMarkup}');
+  const duesAt = appSrc.indexOf('${duesBreakdownSectionMarkup}');
   const awayAt = appSrc.indexOf('${temporarilyAwayFlagSectionMarkup}');
   const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}');
-  assert.ok(lastAt > 0 && tickAt > lastAt && awayAt > tickAt && householdAt > awayAt);
+  assert.ok(stripAt > 0 && tickAt > stripAt && duesAt > tickAt && awayAt > duesAt && householdAt > awayAt);
   assert.ok(appSrc.includes('profileVerificationTickSectionEl'));
   assert.ok(appSrc.includes("querySelector('#pvtForm')"));
   assert.ok(appSrc.includes("querySelector('#pvtRemoveBtn')"));

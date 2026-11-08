@@ -195,10 +195,10 @@ test('Plan 371: app.js wires the line after the dues breakdown and before the ho
   assert.ok(appSrc.includes('latestMessageDateForCustomer('));
   assert.ok(appSrc.includes('lastInteractionFor('));
   assert.ok(appSrc.includes('lastInteractionLineHtml('));
-  // Order, not adjacency: the Plan 372 verification tick section now
-  // sits between the last-interaction line and the household link, so
-  // the line is still after the dues breakdown and still before the
-  // household link.
+  // Order, not adjacency: the line is still after the dues
+  // breakdown and still before the household link. (Plan 514 moved
+  // the verification tick out from between this line and the
+  // household link, into the freshness group after the strip.)
   const duesAt = appSrc.indexOf('${duesBreakdownSectionMarkup}');
   const lastAt = appSrc.indexOf('${lastInteractionLineMarkup}');
   const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}');

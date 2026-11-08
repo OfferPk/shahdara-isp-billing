@@ -14295,6 +14295,7 @@ dialog::backdrop {
 .profile-gate-access-instruction p{font-size:11px;line-height:1.5;color:#5c6e66;margin:0 0 8px}
 .profile-last-interaction h4{margin:0 0 6px;font:700 15px Manrope,sans-serif}
 .profile-last-interaction p{font-size:11px;line-height:1.5;color:#5c6e66;margin:0 0 8px}
+.profile-freshness-group h4{margin:0 0 6px;font:700 15px Manrope,sans-serif}
 .profile-freshness-stamp h4{margin:0 0 6px;font:700 15px Manrope,sans-serif}
 .profile-freshness-stamp p{font-size:11px;line-height:1.5;color:#5c6e66;margin:0 0 8px}
 .dfs-stamp{font-size:12px;color:var(--ink)}

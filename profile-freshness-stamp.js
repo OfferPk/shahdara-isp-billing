@@ -4,7 +4,16 @@
 // the latest verification tick. Display only: it reads the two records
 // the profile already keeps and it syncs nothing; it never changes
 // any bill, payment, or customer record by itself. A profile never
-// touched shows "never checked".
+// touched shows "not checked yet" (Plan 514: one wording pair —
+// "Checked on …" / "Not checked yet" — shared with the verification
+// tick, so both signals answer "is this record current?" in the same
+// words).
+//
+// Plan 514: the stamp also takes an optional `formatDate` function
+// (a date string in, display text out — the app passes its humanDate)
+// so the stamp and the tick share one date format. A null or empty
+// `texts.heading` means the caller renders the one group heading
+// itself: the stamp then carries no <h4> of its own, only its line.
 //
 // The module never reads storage, the clock, the network, or the page.
 // Inputs are never mutated.
@@ -98,40 +107,53 @@ export function profileFreshnessForCustomer(changes, ticks, customerId) {
 const PROFILE_FRESHNESS_DEFAULT_TEXTS = {
   heading: 'Profile freshness',
   checkedOn: 'Checked on {date}.',
-  neverChecked: 'Never checked.',
+  neverChecked: 'Not checked yet.',
 };
 
 /**
- * The stamp in plain words: "Checked on <date>." or "Never checked."
- * `freshness` is the object profileFreshnessForCustomer returns;
- * `texts` carries the heading, the checked-on template (with a
- * {date} placeholder) and the never-checked line in the app's
- * current language. Plain defaults apply when a text is missing.
+ * The stamp in plain words: "Checked on <date>." or "Not checked
+ * yet." `freshness` is the object profileFreshnessForCustomer
+ * returns; `texts` carries the heading, the checked-on template
+ * (with a {date} placeholder) and the never-checked line in the
+ * app's current language. Plain defaults apply when a text is
+ * missing. `formatDate` is an optional function mapping the ISO
+ * date to display text (Plan 514: the app passes humanDate so the
+ * stamp and the tick share one date format); without it the plain
+ * ISO date is shown.
  */
-export function profileFreshnessStampText(freshness, texts) {
+export function profileFreshnessStampText(freshness, texts, formatDate) {
   const labels = { ...PROFILE_FRESHNESS_DEFAULT_TEXTS, ...(texts || {}) };
   if (!freshness || typeof freshness !== 'object' || !isStrictProfileFreshnessDate(freshness.date)) {
     return labels.neverChecked;
   }
-  return String(labels.checkedOn).replace('{date}', freshness.date);
+  const displayDate = typeof formatDate === 'function' ? formatDate(freshness.date) : freshness.date;
+  return String(labels.checkedOn).replace('{date}', displayDate);
 }
 
 /**
  * The stamp line on the profile: the heading plus "checked on
- * <date>" with the date emphasised, or the "never checked" line
+ * <date>" with the date emphasised, or the "not checked yet" line
  * when the profile was never touched. Labels come from the caller;
  * plain defaults apply when a label is missing. All text is
  * escaped, so a stored value can never break the markup.
+ * `formatDate` is the optional shared date formatter (Plan 514).
+ * A null or empty `texts.heading` renders the section with no
+ * <h4> — the caller renders the one group heading itself (Plan
+ * 514); the section keeps its class and its aria-label, which
+ * falls back to the default heading.
  */
-export function profileFreshnessStampHtml(customer, changes, ticks, texts) {
+export function profileFreshnessStampHtml(customer, changes, ticks, texts, formatDate) {
   if (!customer || typeof customer !== 'object') return '';
   const labels = { ...PROFILE_FRESHNESS_DEFAULT_TEXTS, ...(texts || {}) };
-  const heading = escapeProfileFreshnessHtml(labels.heading);
+  const heading = labels.heading === null || labels.heading === '' ? '' : escapeProfileFreshnessHtml(labels.heading);
+  const ariaLabel = heading || escapeProfileFreshnessHtml(PROFILE_FRESHNESS_DEFAULT_TEXTS.heading);
+  const headingHtml = heading ? `<h4>${heading}</h4>` : '';
   const freshness = profileFreshnessForCustomer(changes, ticks, customer.id);
   if (!freshness.date) {
-    return `<section class="profile-freshness-stamp" aria-label="${heading}"><h4>${heading}</h4><p class="dfs-stamp dfs-none">${escapeProfileFreshnessHtml(labels.neverChecked)}</p></section>`;
+    return `<section class="profile-freshness-stamp" aria-label="${ariaLabel}">${headingHtml}<p class="dfs-stamp dfs-none">${escapeProfileFreshnessHtml(labels.neverChecked)}</p></section>`;
   }
-  const dateHtml = `<strong>${escapeProfileFreshnessHtml(freshness.date)}</strong>`;
+  const displayDate = typeof formatDate === 'function' ? formatDate(freshness.date) : freshness.date;
+  const dateHtml = `<strong>${escapeProfileFreshnessHtml(displayDate)}</strong>`;
   const line = escapeProfileFreshnessHtml(labels.checkedOn).replace('{date}', dateHtml);
-  return `<section class="profile-freshness-stamp" aria-label="${heading}"><h4>${heading}</h4><p class="dfs-stamp">${line}</p></section>`;
+  return `<section class="profile-freshness-stamp" aria-label="${ariaLabel}">${headingHtml}<p class="dfs-stamp">${line}</p></section>`;
 }

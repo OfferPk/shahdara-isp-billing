@@ -254,7 +254,7 @@
                autocomplete="off"
                enterkeyhint="go"
                aria-autocomplete="list"
-               aria-controls="fastCustomerSearchResults"> <button id="fastCustomerSearchClearBtn" class="fcs-search-clear" type="button" aria-label="Clear search text" hidden>×</button> </div> <div class="fcs-mohalla-row"> <label class="fcs-mohalla-label" for="fastCustomerSearchMohallaSelect">Mohalla</label> <select id="fastCustomerSearchMohallaSelect" class="fcs-mohalla-select" aria-label="Filter by mohalla"> <option value="">All mohallas</option> </select> </div> <div class="fcs-filter-row" role="tablist" aria-label="Filter subscribers by billing status"> <button type="button" class="fcs-status-chip is-active" data-status="all" role="tab" aria-selected="true">
+               aria-controls="fastCustomerSearchResults"> <button id="fastCustomerSearchClearBtn" class="fcs-search-clear" type="button" aria-label="Clear search text" hidden>×</button> </div> <div class="fcs-mohalla-row"> <label class="fcs-mohalla-label" for="fastCustomerSearchMohallaSelect">Mohalla</label> <select id="fastCustomerSearchMohallaSelect" class="fcs-mohalla-select" aria-label="Filter by mohalla"> <option value="">All mohallas</option> </select> </div> <div class="fcs-filter-row" id="fcsBillingChips" role="tablist" aria-label="Filter subscribers by billing status"> <button type="button" class="fcs-status-chip is-active" data-status="all" role="tab" aria-selected="true">
           All
         </button> <button type="button" class="fcs-status-chip" data-status="pending" role="tab" aria-selected="false">
           Pending Dues
@@ -262,6 +262,18 @@
           Partial Paid
         </button> <button type="button" class="fcs-status-chip" data-status="paid" role="tab" aria-selected="false">
           Settled (Paid)
+        </button> </div> <div class="fcs-filter-row" id="fcsAccountChips" role="tablist" aria-label="Filter subscribers by account status"> <button type="button" class="fcs-status-chip is-active" data-account-status="all" role="tab" aria-selected="true">
+          All
+        </button> <button type="button" class="fcs-status-chip" data-account-status="paid-up" role="tab" aria-selected="false">
+          Paid up
+        </button> <button type="button" class="fcs-status-chip" data-account-status="due" role="tab" aria-selected="false">
+          Due
+        </button> <button type="button" class="fcs-status-chip" data-account-status="overdue" role="tab" aria-selected="false">
+          Overdue
+        </button> <button type="button" class="fcs-status-chip" data-account-status="suspended" role="tab" aria-selected="false">
+          Suspended
+        </button> <button type="button" class="fcs-status-chip" data-account-status="new" role="tab" aria-selected="false">
+          New
         </button> </div> <div class="fcs-section-header"> <h3 id="fastCustomerSearchSectionTitle" class="fcs-section-title">Recent Customers</h3> <div style="display:flex;align-items:center;gap:6px;"> <span id="fastCustomerSearchCountBadge" class="fcs-count-badge">0</span> <button id="fastCustomerClearRecentBtn" class="fcs-clear-recent-btn" type="button" title="Clear recent searches">Clear</button> </div> </div> <div id="fastCustomerSearchResults" class="fcs-results-container" role="region" aria-label="Customer search results" tabindex="0"> </div> </section> </dialog> <dialog id="quickCollectModal" class="modal quick-collect-modal" aria-labelledby="quickCollectTitle"> <section class="quick-collect-card"> <div class="modal-heading"> <div> <p class="eyebrow">FIELD RECOVERY &amp; BILLING</p> <h2 id="quickCollectTitle">Quick Collect (2-Tap Flow)</h2><button class="help-info-btn" type="button" data-help="collect_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button> </div> <button id="closeQuickCollectModalBtn" class="close-button" type="button" aria-label="Close quick collect modal">↩</button> </div> <div id="quickCollectStepPick" class="qc-step"> <div class="qc-search-box"> <input id="quickCollectSearchInput"
                  type="search"
                  class="qc-search-input"

@@ -150,7 +150,12 @@ test('fence: the module header never names a fenced filename literally', () => {
 test('styles: the badge rule exists and introduces no new hex colour', () => {
   assert.ok(stylesSrc.includes('.osb-saved-badge'));
   const rules = stylesSrc.match(/\.osb-[^{]+\{[^}]*\}/g) || [];
-  assert.equal(rules.length, 1, `expected one saved-badge rule, found ${rules.length}`);
+  // Polish 17 (Req 2 S1) adds a second, success-row-scoped badge rule
+  // (margin/padding only, no colour) for the merged status row — so the
+  // count is no longer pinned to one. The no-new-hex guard below still
+  // applies to every badge rule, which is the intent being preserved.
+  assert.ok(rules.length >= 1, `expected at least one saved-badge rule, found ${rules.length}`);
+  assert.ok(rules.some((rule) => rule.includes('background: #dcfce7')), 'the base badge rule must keep its green background');
   const baseline = stylesSrc.replace(/\.osb-[^{]+\{[^}]*\}/g, '');
   const baselineHexes = new Set((baseline.match(/#[0-9a-fA-F]{3,8}/g) || []).map((h) => h.toLowerCase()));
   for (const rule of rules) {

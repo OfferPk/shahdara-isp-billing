@@ -147,9 +147,21 @@
   min-height: 44px;
   padding: 0 var(--space-3);
   white-space: nowrap;
+  transition: opacity 150ms ease, visibility 150ms ease;
 }
 .profile-field-save:disabled {
   opacity: 0.6;
+}
+
+/* Plan 500 — a per-field Save shows only while its field is dirty.
+   visibility (not display) hides it: the flex row keeps the button's
+   space, so the control never shifts when its Save appears or hides;
+   opacity fades it in and out. pointer-events keeps a faded button
+   unclickable. No colour here, so no new hex. */
+.profile-field-save.is-clean {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* Plan 495 — edit-form group sections: each group spans the full form

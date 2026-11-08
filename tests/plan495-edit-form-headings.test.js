@@ -9,7 +9,10 @@ const read = (name) => readFileSync(join(here, '..', name), 'utf8');
 
 // Plan 495 — the edit form groups its fields under the view's four section
 // headings (Contact / Location / Service / Connection), using the view's
-// own i18n keys and heading level. No field order or save-path change.
+// own i18n keys and heading level. Save paths unchanged.
+// Plan 496 reordered the fields into the view's group order (Contact first,
+// then Location, Service, Connection; one section per group) — the exact
+// order pinned below is the Plan 496 order, not the Plan 495 order.
 
 function formHtml() {
   const html = read('index.html');
@@ -33,13 +36,11 @@ function fieldOrder(form) {
 }
 
 // The view's group order (app.js profileInfoGroupsHtml): Contact, Location,
-// Service, Connection. The form's field order interleaves the groups (the
-// name + Area/Zone block sits first by polish #12, the phone run comes
-// after the address run), so a group may appear as more than one run —
-// but the four heading names must first appear in the view's order.
+// Service, Connection. Plan 496 merged the two Contact runs and the two
+// Connection runs into one section each, so each heading appears exactly once.
 test('plan 495: form shows the four view headings, first in view order', () => {
   const sections = parseSections(formHtml());
-  assert.equal(sections.length, 6, 'six group runs: Contact x2, Location, Service, Connection x2');
+  assert.equal(sections.length, 4, 'four sections: Contact, Location, Service, Connection');
   const firstSeen = [...new Set(sections.map((s) => s.key))];
   assert.deepEqual(
     firstSeen,
@@ -104,19 +105,26 @@ test('plan 495: ungrouped fields stay outside every section', () => {
   assert.equal(grouped.size + ungrouped.length, 69, 'grouped + ungrouped must cover all 69 fields');
 });
 
-test('plan 495: no field order or save-path change', () => {
+// Plan 496 reordered the fields into the view's group order: the
+// view-pinned fields sit in the view's relative order inside each group
+// (phone before CNIC before father before aliases; seasonal before package;
+// expiry/cancellation at the end of Connection), the identity block stays
+// first (polish #12), and the ungrouped feed / occupancy / staff runs sit
+// after the four groups in the view's relative order (feeder, then
+// occupancy, then staff name last). Save paths unchanged — only positions
+// moved, no field markup, id or save mapping changed.
+test('plan 496: field order matches the view order', () => {
   assert.deepEqual(fieldOrder(formHtml()), [
     'profileNameInput', 'mohallaInput', 'zoneInput', 'nameUrduInput',
-    'fatherOrReferenceNameInput', 'searchAliasesInput',
-    'upstreamCustomerInput', 'fiberZoneInput', 'feederHostCreditInput',
+    'phoneInput', 'cnicInput', 'fatherOrReferenceNameInput', 'searchAliasesInput',
+    'whatsappPhoneInput', 'alternatePhoneInput', 'prefersSmsCheckbox',
+    'preferredReceiptLangSelect', 'preferredReceiptChannelSelect',
     'addressInput', 'customerNotesInput',
-    'phoneInput', 'whatsappPhoneInput', 'alternatePhoneInput', 'prefersSmsCheckbox',
-    'preferredReceiptLangSelect', 'preferredReceiptChannelSelect', 'cnicInput',
     'ispProviderInput', 'serviceStatusInput', 'preferredVisitWindowInput', 'connectionTypeInput',
     'pauseBillingCheckbox', 'pauseStartDateInput', 'autoResumeDateInput',
-    'doNotSuspendUntilInput', 'doNotSuspendReasonInput', 'packageSpeedInput',
-    'monthlyPurchaseCostInput', 'monthlySellingAmountInput',
+    'doNotSuspendUntilInput', 'doNotSuspendReasonInput',
     'seasonalRateInput', 'seasonalUntilMonthInput', 'seasonalRestoreRateInput',
+    'packageSpeedInput', 'monthlyPurchaseCostInput', 'monthlySellingAmountInput',
     'connectionDateInput', 'connectionFeeInput', 'routerModelInput', 'routerPriceInput',
     'fiberMetersInput', 'splitterBoxIdInput', 'splitterPortInput', 'oltPonPortInput',
     'lastRxDbmInput', 'onuConnectorTypeInput', 'converterSideInput', 'poleNumberInput',
@@ -125,8 +133,9 @@ test('plan 495: no field order or save-path change', () => {
     'pppoeUsernameInput', 'pppoePasswordInput', 'staticIpInput', 'macAddressInput',
     'wifiSsidInput', 'wifiPasswordInput', 'routerAdminPortInput', 'routerAdminPasswordInput',
     'routerOwnershipInput', 'mediaConverterOwnershipInput', 'serialNumberInput',
-    'securityDepositInput', 'residenceTypeInput', 'landlordOrGuarantorNameInput',
-    'landlordPhoneInput', 'expiryDateInput', 'cancellationDateInput',
+    'securityDepositInput', 'expiryDateInput', 'cancellationDateInput',
+    'upstreamCustomerInput', 'fiberZoneInput', 'feederHostCreditInput',
+    'residenceTypeInput', 'landlordOrGuarantorNameInput', 'landlordPhoneInput',
     'packageChangeStaffNameInput',
   ]);
 });
@@ -134,7 +143,7 @@ test('plan 495: no field order or save-path change', () => {
 test('plan 495: headings reuse the view heading level, keys and styling', () => {
   const form = formHtml();
   const headingTags = [...form.matchAll(/<h4[^>]*data-i18n="(prof_group_[a-z]+)"[^>]*>([^<]+)<\/h4>/g)];
-  assert.equal(headingTags.length, 6, 'six h4 headings, one per group run');
+  assert.equal(headingTags.length, 4, 'four h4 headings, one per group');
   for (const [tag, key] of headingTags) {
     assert.ok(
       ['prof_group_contact', 'prof_group_location', 'prof_group_service', 'prof_group_connection'].includes(key),

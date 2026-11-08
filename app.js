@@ -1203,7 +1203,7 @@ let tabSlider = null;
 let customerEnrollmentWizard = null;
 let mobileActionSheetController = null;
 let profileEditMode = false;
-let selectedProfileTab = 'billing';
+let selectedProfileTab = 'info';
 // SISP-94: router-vault eye-toggle state — session-only, never persisted;
 // it resets whenever a different customer's profile is rendered, so a
 // revealed password is never left showing on the next profile.
@@ -8609,7 +8609,8 @@ function selectCustomer(id, { pushHistory = true } = {}) {
     phone: currentCust ? currentCust.phone : ''
   });
   profileEditMode = false;
-  activateProfileTab('billing');
+  // Plan 491: opening a customer shows Customer Info first, not Billing.
+  activateProfileTab('info');
   if (appShell.classList.contains('roster-table-expanded')) {
     appShell.classList.remove('roster-table-expanded');
     const expandBtn = $('#customerTableExpandBtn');

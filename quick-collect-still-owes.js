@@ -1,9 +1,14 @@
 // Quick Collect still-owes line (Plan 440): after a Quick Collect
-// save, the success screen says in one plain line how much the
-// customer still owes — "Still owed PKR 1,500" — or "Fully paid"
-// when nothing is left. The customer hears the remaining balance
-// before leaving the counter, so the next visit starts from an
-// agreed figure.
+// save, the success screen says in one plain line how much of the
+// customer's BILL DUES is still owed — "Bill dues still owed
+// PKR 1,500" — or "Bill dues fully paid" when nothing is left. The
+// customer hears the remaining balance before leaving the counter,
+// so the next visit starts from an agreed figure. The line names
+// bill dues explicitly (Plan 526): the receipt's payable remainder
+// folds pending ticket and boost charges in as well, and the
+// next-steps panel shows that wider figure — so this line says
+// which figure it is, and the two lines can no longer read as a
+// contradiction.
 //
 // The figure is the customer's DUES after the payment, read from
 // the customer's own post-save record: every open bill's remaining
@@ -29,7 +34,8 @@
 
 const STILL_OWES_MONTH_PATTERN = /^(\d{4})-(\d{2})$/;
 
-export const STILL_OWES_FULLY_PAID_TEXT = 'Fully paid';
+export const STILL_OWES_FULLY_PAID_TEXT = 'Bill dues fully paid';
+export const STILL_OWES_STILL_OWED_TEXT = 'Bill dues still owed';
 
 function cleanStillOwesText(value) {
   return typeof value === 'string' ? value.trim() : '';
@@ -124,12 +130,15 @@ export function stillOwesLine(customer, allocations, manualBaqayaCents) {
 }
 
 // The line as one plain-text line, for the screen-reader
-// announcement and for tests: the amount still owed, or fully paid.
+// announcement and for tests: the bill dues still owed, or bill
+// dues fully paid. The label names bill dues (Plan 526) because
+// the figure is dues only — pending ticket and boost charges are
+// not dues and never enter it.
 export function stillOwesLineText(line) {
   if (!line || typeof line !== 'object') return '';
   if (typeof line.stillOwed !== 'number' || !Number.isFinite(line.stillOwed)) return '';
   if (line.fullyPaid) return STILL_OWES_FULLY_PAID_TEXT;
-  return `Still owed PKR ${formatStillOwesAmount(line.stillOwed)}`;
+  return `${STILL_OWES_STILL_OWED_TEXT} PKR ${formatStillOwesAmount(line.stillOwed)}`;
 }
 
 // The line markup: one prominent line, reusing the receipt card's
@@ -140,9 +149,9 @@ export function stillOwesLineHtml(line) {
   if (typeof line.stillOwed !== 'number' || !Number.isFinite(line.stillOwed)) return '';
   if (line.fullyPaid) {
     // Polish 17 (Req 2 S1): the merged status row shows the settled line
-    // as a "✓ Fully paid" pill next to the saved badge. The plain-text
-    // line (stillOwesLineText) stays "Fully paid" for screen readers.
+    // as a "✓ Bill dues fully paid" pill next to the saved badge. The plain-text
+    // line (stillOwesLineText) stays "Bill dues fully paid" for screen readers.
     return `<strong class="qc-meta-val zero-balance">✓ ${STILL_OWES_FULLY_PAID_TEXT}</strong>`;
   }
-  return `<strong class="qc-meta-val has-balance">Still owed PKR ${formatStillOwesAmount(line.stillOwed)}</strong>`;
+  return `<strong class="qc-meta-val has-balance">${STILL_OWES_STILL_OWED_TEXT} PKR ${formatStillOwesAmount(line.stillOwed)}</strong>`;
 }

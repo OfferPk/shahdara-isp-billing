@@ -2072,9 +2072,9 @@ export function setupQuickCollectModal({
   // the host page predates it) — "saved on this device" with the save time.
   const savedBadgeBox = typeof document !== 'undefined' ? document.getElementById('osbOfflineSavedBadge') : null;
   // Plan 440: the still-owes line host on the success step (null when
-  // the host page predates it) — the customer's dues after this
-  // payment, in plain words, or "Fully paid", shown immediately at
-  // the top of the success screen.
+  // the host page predates it) — the customer's bill dues after this
+  // payment, in plain words, or "Bill dues fully paid", shown
+  // immediately at the top of the success screen.
   const stillOwesBox = typeof document !== 'undefined' ? document.getElementById('sowStillOwesLine') : null;
   // Plan 443: the receipt share draft host on the success step (null
   // when the host page predates it) — the receipt's share text, read
@@ -4828,8 +4828,8 @@ export function setupQuickCollectModal({
     }
   }
 
-  // Plan 440: the still-owes line — the customer's dues after this
-  // payment, in plain words, or "Fully paid" — shown immediately at
+  // Plan 440: the still-owes line — the customer's bill dues after this
+  // payment, in plain words, or "Bill dues fully paid" — shown immediately at
   // the top of the success screen. It shows only: rendering posts
   // nothing and changes no record. The figure is the customer's
   // dues from the post-save record (open bill balances from the

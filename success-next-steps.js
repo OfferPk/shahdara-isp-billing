@@ -18,8 +18,13 @@
 //     remainder (the post-save total the save itself computed —
 //     bill dues plus any ticket, boost, or manual baqaya still
 //     pending). On a split collection the combined receipt's
-//     balance due is the figure. A still-owed figure that cannot
-//     be worked out is never guessed: there is no panel.
+//     balance due is the figure. The row labels what it counts
+//     (Plan 526): "Still owed (incl. pending charges)" while
+//     ticket or boost charges are still pending, plain "Still
+//     owed" otherwise — so it can never read as contradicting
+//     the still-owes line, which counts bill dues only. A
+//     still-owed figure that cannot be worked out is never
+//     guessed: there is no panel.
 //   - Next due date: the earliest due date among the customer's
 //     bills that still carry a balance, from the allocation
 //     engine's own figures — the same rule the balance reply
@@ -43,6 +48,8 @@ const SUCCESS_NEXT_STEPS_DATE_RE = /^(\d{4})-(0[1-9]|1[0-2])-(\d{2})$/;
 const SUCCESS_NEXT_STEPS_DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 export const SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT = 'Fully paid';
+export const SUCCESS_NEXT_STEPS_STILL_OWED_TEXT = 'Still owed';
+export const SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT = 'Still owed (incl. pending charges)';
 export const SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT = 'Next due date not recorded';
 export const SUCCESS_NEXT_STEPS_COLLECT_AGAIN_TEXT = 'Collect again';
 export const SUCCESS_NEXT_STEPS_HEADING_TEXT = 'What is next';
@@ -132,6 +139,23 @@ export function successNextStepsNextDueDate(customer, allocations) {
   return nextDueDate;
 }
 
+// Whether ticket or boost charges are still pending after this
+// payment, read off the issued receipt's own pending fields (Rs):
+// the receipt stamps ticketChargesPending and addonChargesPending
+// at the save. Manual baqaya is dues, not a charge, so it never
+// counts here. On a split collection the top-level receipt is the
+// leg receipt, which carries the same pending fields, so the flag
+// reads the same way on both success paths. A missing or
+// non-numeric field is not pending — never a guessed flag.
+export function successNextStepsChargesPending(receipt) {
+  if (!receipt || typeof receipt !== 'object') return false;
+  for (const field of ['ticketChargesPending', 'addonChargesPending']) {
+    const value = receipt[field];
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) return true;
+  }
+  return false;
+}
+
 // Build one next-steps panel from the receipt the save just issued
 // plus the next due date the caller worked out from the customer's
 // post-save record. Null when the amount paid or the still-owed
@@ -158,6 +182,7 @@ export function successNextStepsFromReceipt(receipt, nextDueDate) {
     amountPaid: amountCents / 100,
     stillOwedCents,
     stillOwed: stillOwedCents / 100,
+    chargesPending: successNextStepsChargesPending(receipt),
     nextDueDate: dueDate,
     fullyPaid: stillOwedCents <= 0,
   };
@@ -165,15 +190,20 @@ export function successNextStepsFromReceipt(receipt, nextDueDate) {
 
 // The panel as one plain-text line, for the screen-reader
 // announcement and for tests: amount paid, still owed (or fully
-// paid), and the next due date (or that none is recorded).
+// paid), and the next due date (or that none is recorded). The
+// still-owed part names the pending charges when any are pending
+// (Plan 526), so the line cannot be misread as bill dues alone.
 export function successNextStepsLineText(nextSteps) {
   if (!nextSteps || typeof nextSteps !== 'object') return '';
   if (typeof nextSteps.amountPaid !== 'number' || !Number.isFinite(nextSteps.amountPaid)) return '';
   if (typeof nextSteps.stillOwed !== 'number' || !Number.isFinite(nextSteps.stillOwed)) return '';
   const paid = `Paid PKR ${formatSuccessNextStepsAmount(nextSteps.amountPaid)}`;
+  const owedLabel = nextSteps.chargesPending
+    ? SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT
+    : SUCCESS_NEXT_STEPS_STILL_OWED_TEXT;
   const owed = nextSteps.fullyPaid
     ? SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT
-    : `Still owed PKR ${formatSuccessNextStepsAmount(nextSteps.stillOwed)}`;
+    : `${owedLabel} PKR ${formatSuccessNextStepsAmount(nextSteps.stillOwed)}`;
   const due = nextSteps.nextDueDate
     ? `Next due ${nextSteps.nextDueDate}`
     : SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT;
@@ -191,9 +221,12 @@ export function successNextStepsHtml(nextSteps) {
   const name = nextSteps.customerName
     ? ` · ${escapeHtml(nextSteps.customerName)}${nextSteps.customerNumber !== null && nextSteps.customerNumber !== undefined ? ` (#${escapeHtml(String(nextSteps.customerNumber))})` : ''}`
     : '';
+  const owedLabel = nextSteps.chargesPending
+    ? SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT
+    : SUCCESS_NEXT_STEPS_STILL_OWED_TEXT;
   const owedRow = nextSteps.fullyPaid
     ? `<div class="qc-receipt-item"><span class="qc-meta-label">Still owed</span><strong class="qc-meta-val zero-balance">${escapeHtml(SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT)}</strong></div>`
-    : `<div class="qc-receipt-item"><span class="qc-meta-label">Still owed</span><strong class="qc-meta-val has-balance">PKR ${escapeHtml(formatSuccessNextStepsAmount(nextSteps.stillOwed))}</strong></div>`;
+    : `<div class="qc-receipt-item"><span class="qc-meta-label">${escapeHtml(owedLabel)}</span><strong class="qc-meta-val has-balance">PKR ${escapeHtml(formatSuccessNextStepsAmount(nextSteps.stillOwed))}</strong></div>`;
   const dueRow = nextSteps.nextDueDate
     ? `<div class="qc-receipt-item"><span class="qc-meta-label">Next due date</span><strong class="qc-meta-val">${escapeHtml(nextSteps.nextDueDate)}</strong></div>`
     : `<div class="qc-receipt-item"><span class="qc-meta-label">Next due date</span><strong class="qc-meta-val">${escapeHtml(SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT)}</strong></div>`;

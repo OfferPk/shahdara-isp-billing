@@ -110,6 +110,9 @@ test('next due date: an allocation lookup that throws means no date', () => {
 
 test('from receipt: amount paid, still owed, and fully-paid flag from the issued receipt', () => {
   const next = successNextStepsFromReceipt(receipt(), '2026-10-05');
+  // Plan 526: the panel now also carries chargesPending (false here —
+  // the fixture has no ticket or boost charge pending), which picks
+  // the "Still owed (incl. pending charges)" label when true.
   assert.deepEqual(next, {
     customerName: 'Customer One',
     customerNumber: 41,
@@ -117,6 +120,7 @@ test('from receipt: amount paid, still owed, and fully-paid flag from the issued
     amountPaid: 2000,
     stillOwedCents: 100000,
     stillOwed: 1000,
+    chargesPending: false,
     nextDueDate: '2026-10-05',
     fullyPaid: false,
   });

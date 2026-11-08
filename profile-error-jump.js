@@ -19,3 +19,15 @@ export function resolveProfileErrorTarget(fieldId) {
   }
   return { kind: 'form' };
 }
+
+// Plan 501 — when typing clears the error banner. Pure rule only: the
+// banner survives typing in any other field; only an edit to the field
+// the error belongs to clears it. A form-level error (empty or unknown
+// field) never clears on typing — only a tap on the banner does that.
+// `input` is a plain descriptor, never a DOM node: { id, inContributors }.
+export function profileErrorBannerClearsOnInput(errorField, input) {
+  const target = resolveProfileErrorTarget(errorField);
+  if (target.kind === 'field') return input?.id === target.id;
+  if (target.kind === 'contributors') return input?.inContributors === true;
+  return false;
+}

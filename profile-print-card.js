@@ -16,9 +16,14 @@
 //   - the known-as name comes from the profile's own known-as
 //     derivation, and the handling note from the profile's own
 //     handling-note record.
-// A figure the record does not carry reads "Not recorded" (or the
-// plain-words equivalent for that row) instead of a blank or a
-// guess. Money is integer cents throughout, so no float drift.
+// A figure the record does not carry reads "Not set" when it is a
+// value the operator never entered (name, known-as name, mohalla,
+// package, contact number — the same rule as the profile view's
+// info groups, Plan 502) or "Not recorded" when it is a figure or
+// event with no record behind it (current dues), or the plain-words
+// equivalent for that row ("No payment yet", "No handling note
+// recorded") instead of a blank or a guess. Money is integer cents
+// throughout, so no float drift.
 // Dates are strict YYYY-MM-DD calendar dates. The print date is
 // supplied by the caller and is never invented here: a card with
 // no usable print date is refused (null), because a shop file
@@ -118,14 +123,14 @@ export function buildProfilePrintCardHtml(input = {}, formatAmount = defaultForm
   const printDate = validProfilePrintCardDay(input.printDate);
   if (!printDate) return null;
   const businessName = text(input.businessName) || 'Shahdara ISP';
-  const name = text(input.customerName) || 'Not recorded';
+  const name = text(input.customerName) || 'Not set';
   const number = text(input.customerNumber);
-  const knownAs = text(input.knownAs) || 'Not recorded';
-  const mohalla = text(input.mohalla) || 'Not recorded';
+  const knownAs = text(input.knownAs) || 'Not set';
+  const mohalla = text(input.mohalla) || 'Not set';
   const packageLabel = text(input.packageLabel);
   const packagePriceCents = toLedgerCents(input.packagePrice);
   const packageLine = !packageLabel
-    ? 'No package recorded'
+    ? 'Not set'
     : packagePriceCents === null
       ? packageLabel
       : `${packageLabel} · ${format(fromCents(packagePriceCents))}/month`;
@@ -139,7 +144,7 @@ export function buildProfilePrintCardHtml(input = {}, formatAmount = defaultForm
   const lastPaymentLine = lastPayment
     ? `${format(lastPayment.amount)} · ${lastPayment.date}`
     : 'No payment yet';
-  const contactNumber = text(input.contactNumber) || 'Not recorded';
+  const contactNumber = text(input.contactNumber) || 'Not set';
   const handlingNote = text(input.handlingNote) || 'No handling note recorded';
   const rows = [
     ['Known as', knownAs],

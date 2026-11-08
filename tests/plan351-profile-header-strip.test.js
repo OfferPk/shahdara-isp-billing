@@ -68,14 +68,17 @@ test('zero dues read as no amount due in text and html', () => {
   assert.doesNotMatch(profileHeaderStripText(strip), /Dues PKR/);
 });
 
-test('a missing package label reads as no package recorded, never blank', () => {
+// Plan 502: the package is a value the operator never entered, so the
+// strip reads "Not set" now (was "No package recorded") — the same
+// wording as the view's Service group for the same absence.
+test('a missing package label reads as not set, never blank', () => {
   for (const packageLabel of [undefined, null, '', '   ']) {
     const strip = buildProfileHeaderStrip(baseStrip({ packageLabel }));
-    assert.equal(strip.packageLabel, 'No package recorded');
-    assert.match(profileHeaderStripText(strip), /Package No package recorded/);
+    assert.equal(strip.packageLabel, 'Not set');
+    assert.match(profileHeaderStripText(strip), /Package Not set/);
   }
   const bare = buildProfileHeaderStrip(baseStrip({ packageLabel: '', packagePrice: null }));
-  assert.match(profileHeaderStripText(bare), /Package No package recorded\./);
+  assert.match(profileHeaderStripText(bare), /Package Not set\./);
 });
 
 test('a missing package price is shown without a price, never guessed', () => {

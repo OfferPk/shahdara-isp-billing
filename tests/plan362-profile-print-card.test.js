@@ -84,9 +84,12 @@ test('Plan 362: missing or unusable dues reads "Not recorded", never a guessed z
   }
 });
 
-test('Plan 362: no package label reads "No package recorded"', () => {
+// Plan 502: the package is a value the operator never entered, so the
+// card reads "Not set" now (was "No package recorded") — the same
+// wording as the view's Service group for the same absence.
+test('Plan 362: no package label reads "Not set"', () => {
   const card = buildProfilePrintCardHtml({ ...fullFixture(), packageLabel: '', packagePrice: null }, format);
-  assert.ok(card.includes('No package recorded'));
+  assert.ok(card.includes('Not set'));
 });
 
 test('Plan 362: package label without a price shows the label only, never a guessed price', () => {
@@ -113,12 +116,16 @@ test('Plan 362: last payment with a bad date or no amount reads "No payment yet"
   }
 });
 
-test('Plan 362: missing known-as, mohalla and contact number read "Not recorded"', () => {
+// Plan 502: known-as, mohalla and contact number are values the
+// operator never entered, so the card reads "Not set" now (was
+// "Not recorded") — the same wording as the view's Contact and
+// Location groups for the same absence.
+test('Plan 362: missing known-as, mohalla and contact number read "Not set"', () => {
   const card = buildProfilePrintCardHtml({
     ...fullFixture(), knownAs: '', mohalla: '', contactNumber: '',
   }, format);
-  assert.ok(card.includes('Not recorded'));
-  assert.equal((card.match(/Not recorded/g) || []).length, 3, 'one Not recorded per missing field');
+  assert.ok(card.includes('Not set'));
+  assert.equal((card.match(/Not set/g) || []).length, 3, 'one Not set per missing field');
 });
 
 test('Plan 362: missing handling note reads "No handling note recorded"', () => {

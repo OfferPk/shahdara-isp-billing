@@ -128,9 +128,13 @@ test('phase 3 app.js profile templates are wired to t() and no longer carry the 
   // Plan 507: 'prof_waada_heading' is NOT in this list — the lower Waada
   // section that wired it was folded into the top Wada banner, and the
   // key was removed from both dictionaries with it.
+  // Plan 508: 'prof_complaint_heading' is NOT in this list — the register
+  // complaints section moved to the Complaints tab under the manual log's
+  // shared heading, so it carries no heading of its own, and the key was
+  // removed from both dictionaries with it.
   for (const key of [
     'prof_kist_heading', 'prof_hist_pay_title',
-    'prof_view_heading', 'prof_complaint_heading', 'prof_ticket_heading',
+    'prof_view_heading', 'prof_ticket_heading',
     'prof_downtime_heading', 'prof_optical_heading', 'prof_pole_heading',
     'prof_feeder_heading', 'prof_custody_heading', 'prof_mikrotik_heading',
     'prof_clv_heading', 'prof_current_heading', 'prof_receipts_heading',

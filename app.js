@@ -28,6 +28,7 @@ import { calculateCashInHand, renderDashboardCashInHand } from './dashboard-cash
 import { calculatePendingClearance, renderDashboardPendingClearance } from './dashboard-pending-clearance.js?v=1.11.0';
 import { calculateCreditBalances, renderDashboardCreditBalances } from './dashboard-credit-balances.js?v=1.11.0';
 import { calculateRefundsThisMonth, renderDashboardRefunds } from './dashboard-refunds.js?v=1.11.0';
+import { calculatePrintSummary, renderPrintSummary } from './dashboard-print-summary.js?v=1.11.0';
 import { bindDashboardPlaceKeeping, clearDashboardPlace, restoreDashboardPlace } from './dashboard-place.js?v=1.11.0';
 import {
   EXPENSE_CATEGORIES, INVENTORY_STATES, PAYROLL_RULES_EFFECTIVE_DATE, UMAIR_PER_LOGGED_WORKDAY,
@@ -2798,6 +2799,11 @@ function renderDashboard() {
   // Plan 484: the refunds strip — refunds given this month in
   // PKR, with the count, in one glance.
   renderDashboardRefunds(document, calculateRefundsThisMonth(loadRefunds(), referenceDate));
+  // Plan 486: the one-page printable summary — today's
+  // collections, month collections, total dues, overdue total,
+  // and cash in hand in PKR, printed from one button, in one
+  // glance.
+  renderPrintSummary(document, calculatePrintSummary(state, referenceDate, storageAvailable ? localStorage : null));
   $('#dashboardCurrentExpenses').textContent = currentCash.expenseCount ? formatAmount(currentCash.expenses) : t('dash_no_entries');
   $('#dashboardCurrentExpensesPeriod').textContent = t('dash_expenses_period', null, { month: displayMonthName(totals.currentMonth) });
   $('#dashboardCashProfit').textContent = currentCash.paymentCount || currentCash.expenseCount ? formatAmount(currentCash.profit) : t('dash_no_activity');
@@ -10956,6 +10962,18 @@ bindDashboardPlaceKeeping(window, document, storageAvailable ? localStorage : nu
 $('#dplBackToTop')?.addEventListener('click', () => {
   clearDashboardPlace(storageAvailable ? localStorage : null);
   window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+// Plan 486: the print-summary action — one tap prints the summary
+// page only. The print-only class hides the rest of the dashboard
+// on paper, and the class comes off again once the print dialog
+// closes, so the screen never changes.
+$('#ppsPrintBtn')?.addEventListener('click', () => {
+  document.body.classList.add('printing-dashboard-summary');
+  requestAnimationFrame(() => {
+    try { window.print(); }
+    catch { toast('Printing is not available in this browser.'); }
+    finally { document.body.classList.remove('printing-dashboard-summary'); }
+  });
 });
 // #294: the profile's main payment button opens the same Quick Collect sheet (today's date, Cash, amount chips,
 // receipt/WhatsApp/Undo) already on this customer. The ledger month form stays for back-dated entries.

@@ -413,9 +413,13 @@ test('profile mount: faithful deep-querySelector simulation — every child clai
   // (#stxProfileShareDraft) joins the billing panel, right after the
   // manual-baqaya section — it is a claimed mounts child, in mount
   // order, like the summary and baqaya sections above it.
+  // Plan 492 (2026-11-08): the Danger zone (.profile-danger-zone)
+  // joins the info panel LAST, below the profile view, package history
+  // and uptime — it is a claimed mounts child, in mount order, so
+  // Delete is not visible until the operator scrolls past the profile.
   assert.deepEqual(placement, {
     billing: ['#customerReceiptSummary', '#manualBaqayaSection', '#stxProfileShareDraft', '.ledger-heading', '.notice.history-retention-note', '#customerEmptyNote'],
-    info: ['.customer-meta', '.package-history-section', '.incident-section.uptime-section'],
+    info: ['.customer-meta', '.package-history-section', '.incident-section.uptime-section', '.profile-danger-zone'],
     complaints: ['.incident-section']
   }, 'every mounts child lands in its expected tab panel, in mount order');
 });

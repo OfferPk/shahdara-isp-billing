@@ -5899,14 +5899,22 @@ function populateReportMonths() {
   $('#reportMonth').value = selectedBillingMonth;
   $('#customerFilterMonth').value = selectedBillingMonth;
 }
+// Plan 515 — the form profit preview reads exactly like the view's
+// profit row (Plan 506): same label key (prof_field_profit), same
+// figure (customerPackageProfit, the shared cents computation the
+// view uses), same Not set fallback. One figure, one sentence —
+// the form and the view can no longer disagree. The invalid-amounts
+// hint (prof_margin_invalid) is form validation, not the profit
+// line, so it stays as it is.
 function renderProfileMarginPreview() {
   const sellingText = $('#monthlySellingAmountInput').value.trim();
   const costText = $('#monthlyPurchaseCostInput').value.trim();
   const preview = $('#customerProfitPreview');
-  if (!sellingText || !costText) { preview.textContent = t('prof_margin_unset'); return; }
+  if (!sellingText || !costText) { preview.textContent = `${t('prof_field_profit')}: ${t('prof_not_set')}`; return; }
   const selling = Number(sellingText); const cost = Number(costText);
   if (!Number.isFinite(selling) || selling <= 0 || !Number.isFinite(cost) || cost < 0) { preview.textContent = t('prof_margin_invalid'); return; }
-  preview.textContent = t('prof_margin_ok', null, { amount: formatAmount(selling - cost) });
+  const profit = customerPackageProfit({ monthlySellingAmount: selling, monthlyPurchaseCost: cost });
+  preview.textContent = `${t('prof_field_profit')}: ${profit === null ? t('prof_not_set') : formatAmount(profit)}`;
 }
 function incidentAuditMarkup(incident) {
   const corrections = incident.corrections ?? [];

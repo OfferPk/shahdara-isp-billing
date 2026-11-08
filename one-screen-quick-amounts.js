@@ -17,10 +17,10 @@
 // the customer's own package price when it is known. A button whose
 // figure cannot be known shows plain words and fills nothing — it
 // never guesses a figure. Half dues are half the full dues, rounded
-// to whole rupees, the same rounding the entry form's half chip
-// uses. One deliberate difference from that chip: when half the dues
-// work out to nothing, this row fills nothing instead of falling
-// back to a round figure — a fallback would be a guess.
+// to whole rupees — the same shared rule the entry form's Full and
+// 50% chips follow (Plan 521): all three surfaces fill from the
+// Plan 429 full-dues default, and when half the dues work out to
+// nothing every surface fills nothing instead of guessing a figure.
 //
 // Money is rupees throughout, PKR only, never converted. Inputs
 // are never mutated.

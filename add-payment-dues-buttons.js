@@ -8,17 +8,16 @@
 // record by itself.
 //
 // The one screen already carries its own row (Plan 430), and the
-// form step's chip row already carries Full Balance and 50% — but
-// those fill the oldest bill's balance (or the whole payable when
-// charges are pending), with a round-figure fallback when half works
-// out to nothing. This module is only the form step's pair: the full
-// dues are the amount default the form already fills the field with
+// form step's chip row already carries Full Balance and 50% — since
+// Plan 521 those fill from the same Plan 429 full-dues default this
+// module uses, half of it rounded to whole rupees, filling nothing
+// when half works out to nothing; the entry chip row even reuses
+// this module's figures function, so the rule is shared, not
+// restated. This module is only the form step's pair: the full dues
+// are the amount default the form already fills the field with
 // (Plan 429 — every open bill plus unpaid manual baqaya, lifted to
 // the full payable when ticket or boost charges are pending), and
-// half dues are half of that, rounded to whole rupees. One deliberate
-// difference from the chip row's 50% chip: when half the dues work
-// out to nothing, this row fills nothing instead of falling back to
-// a round figure — a fallback would be a guess.
+// half dues are half of that, rounded to whole rupees.
 //
 // Figures come from the caller, never from storage, the page, the
 // clock, or the network: the caller passes the amount default the

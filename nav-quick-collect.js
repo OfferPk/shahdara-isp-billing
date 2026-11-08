@@ -3843,29 +3843,43 @@ export function setupQuickCollectModal({
 
       // Update quick amount chips dynamic amounts (#281)
       if (quickAmountChips && activeDefaults) {
-        // SISP-43: the "Full" chip covers the whole payable when ticket
-        // charges are pending (bills + charges), not just the bill dues.
-        // SISP-106: pending boost fees count the same way.
-        // Owner feature (2026-10-29): same when manual baqaya is pending.
-        const baseBal = (activeDefaults.ticketChargesPending > 0 || activeDefaults.addonChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
+        // Plan 521: the "Full" and "50%" chips use the Plan 489
+        // figures — the Plan 429 full-dues default
+        // (activeDefaults.suggestedAmount), half of it rounded to
+        // whole rupees, nothing when it works out to nothing — so
+        // "Full" and "Half" mean one thing on every surface: the
+        // chip row, the Plan 489 dues buttons and the one screen all
+        // fill from the same figure. suggestedAmount already lifts
+        // to the whole payable when ticket (SISP-43), boost
+        // (SISP-106) or manual baqaya charges are pending (see
+        // getCustomerPaymentDefaults), so no separate branch is
+        // needed here; the oldest-bill-only balanceDue is never the
+        // chip's base.
+        const chipFigures = addPaymentDuesFigures({ fullDues: activeDefaults.suggestedAmount });
+        const fullBal = chipFigures.full ?? 0;
+        const halfBal = chipFigures.half ?? 0;
+        // The Monthly chip still falls back to the oldest-bill /
+        // total-dues figure when neither the current month nor the
+        // full dues offer anything (unchanged — out of Plan 521's
+        // scope).
+        const monthlyFallbackBal = (activeDefaults.ticketChargesPending > 0 || activeDefaults.addonChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
 
           ? activeDefaults.payableTotal
           : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
         const curBal = (activeDefaults.currentMonthBalance && activeDefaults.currentMonthBalance > 0)
           ? activeDefaults.currentMonthBalance
           : activeDefaults.suggestedAmount;
-        const halfBal = Math.round(baseBal / 2);
         // Plan 391: the package-price chip shows the customer's own
         // package price when it is known, plain words when it is not.
         const packagePrice = packagePriceForCustomer(activeDefaults.customer, BILL_PACKAGES);
         quickAmountChips.forEach(chip => {
           const type = chip.getAttribute('data-quick-amount');
           if (type === 'full') {
-            chip.textContent = `Full (Rs ${baseBal > 0 ? baseBal.toLocaleString('en-PK') : '0'})`;
+            chip.textContent = `Full (Rs ${fullBal > 0 ? fullBal.toLocaleString('en-PK') : '0'})`;
           } else if (type === 'package') {
             chip.textContent = packageChipLabel(packagePrice);
           } else if (type === 'current') {
-            chip.textContent = `Monthly (Rs ${curBal > 0 ? curBal.toLocaleString('en-PK') : (baseBal > 0 ? baseBal.toLocaleString('en-PK') : '0')})`;
+            chip.textContent = `Monthly (Rs ${curBal > 0 ? curBal.toLocaleString('en-PK') : (monthlyFallbackBal > 0 ? monthlyFallbackBal.toLocaleString('en-PK') : '0')})`;
           } else if (type === 'half') {
             chip.textContent = `50% (Rs ${halfBal > 0 ? halfBal.toLocaleString('en-PK') : '0'})`;
           }
@@ -4399,13 +4413,27 @@ export function setupQuickCollectModal({
     chip.addEventListener('click', () => {
       if (!amountInput || !activeDefaults) return;
       const type = chip.getAttribute('data-quick-amount');
+      // Plan 521: the "Full" and "50%" chips fill from the Plan 489
+      // figures — the Plan 429 full-dues default
+      // (activeDefaults.suggestedAmount), half of it rounded to
+      // whole rupees, nothing when it works out to nothing — the
+      // same shared rule the Plan 489 dues buttons and the one
+      // screen follow. suggestedAmount already lifts to the whole
+      // payable when ticket, boost or manual baqaya charges are
+      // pending, so no separate branch is needed here; the old
+      // Rs 500 fallback was an invented figure and is gone.
+      const chipFigures = addPaymentDuesFigures({ fullDues: activeDefaults.suggestedAmount });
+      // The Monthly chip still falls back to the oldest-bill /
+      // total-dues figure when neither the current month nor the
+      // full dues offer anything (unchanged — out of Plan 521's
+      // scope).
       const baseBalance = (activeDefaults.ticketChargesPending > 0 || activeDefaults.addonChargesPending > 0 || activeDefaults.manualBaqayaPending > 0)
 
         ? activeDefaults.payableTotal
         : (activeDefaults.balanceDue > 0 ? activeDefaults.balanceDue : activeDefaults.totalDues);
 
       if (type === 'full') {
-        amountInput.value = (baseBalance > 0 ? baseBalance : activeDefaults.suggestedAmount).toFixed(2);
+        if (chipFigures.full !== null) amountInput.value = chipFigures.full.toFixed(2);
       } else if (type === 'package') {
         // Plan 391: the package-price chip fills the customer's own
         // package price; with no known price it fills nothing and
@@ -4420,8 +4448,7 @@ export function setupQuickCollectModal({
           : activeDefaults.suggestedAmount;
         amountInput.value = (cur > 0 ? cur : baseBalance).toFixed(2);
       } else if (type === 'half') {
-        const half = Math.round(baseBalance / 2);
-        amountInput.value = (half > 0 ? half : 500).toFixed(2);
+        if (chipFigures.half !== null) amountInput.value = chipFigures.half.toFixed(2);
       } else {
         const val = Number(type);
         if (Number.isFinite(val)) {

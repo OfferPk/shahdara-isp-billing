@@ -1,9 +1,14 @@
 // Plan 440 — Quick Collect still-owes line immediately after payment:
-// one plain line on the success screen saying how much the customer
-// still owes after this payment, or "Fully paid" when nothing is
-// left. The figure is the customer's dues from the post-save record,
-// not the receipt's payable remainder (which also folds in pending
-// ticket and boost charges — those are not dues).
+// one plain line on the success screen saying how much of the
+// customer's bill dues is still owed after this payment, or "Bill
+// dues fully paid" when nothing is left. The figure is the
+// customer's dues from the post-save record, not the receipt's
+// payable remainder (which also folds in pending ticket and boost
+// charges — those are not dues).
+// Plan 526 relabelled the line (label only, figure untouched): the
+// old wording "Still owed PKR …" / "Fully paid" now reads "Bill
+// dues still owed PKR …" / "Bill dues fully paid", so it cannot be
+// misread as the receipt's wider payable remainder.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -81,7 +86,8 @@ test('dues: two open bills sum to the full dues left', () => {
   );
   assert.equal(line.stillOwed, 4500);
   assert.equal(line.fullyPaid, false);
-  assert.equal(stillOwesLineText(line), 'Still owed PKR 4,500');
+  // Plan 526: the line now names its figure — bill dues only.
+  assert.equal(stillOwesLineText(line), 'Bill dues still owed PKR 4,500');
 });
 
 test('dues: a settled bill counts for nothing, an open bill counts in full', () => {
@@ -103,7 +109,8 @@ test('dues: fully paid bills read fully paid', () => {
   assert.equal(line.stillOwed, 0);
   assert.equal(line.fullyPaid, true);
   assert.equal(stillOwesLineText(line), STILL_OWES_FULLY_PAID_TEXT);
-  assert.equal(stillOwesLineText(line), 'Fully paid');
+  // Plan 526: the settled line now names its figure — bill dues only.
+  assert.equal(stillOwesLineText(line), 'Bill dues fully paid');
 });
 
 test('dues: unpaid manual baqaya counts as dues', () => {
@@ -119,7 +126,8 @@ test('dues: unpaid manual baqaya counts as dues', () => {
     100000,
   );
   assert.equal(line.stillOwed, 2500);
-  assert.equal(stillOwesLineText(line), 'Still owed PKR 2,500');
+  // Plan 526: the line now names its figure — bill dues only.
+  assert.equal(stillOwesLineText(line), 'Bill dues still owed PKR 2,500');
 });
 
 test('dues: a zero or negative balance is not an open bill', () => {
@@ -162,7 +170,9 @@ test('dues: a pending repair charge is not dues — the bill is fully paid', () 
   );
   assert.equal(line.stillOwedCents, 0);
   assert.equal(line.fullyPaid, true);
-  assert.equal(stillOwesLineText(line), 'Fully paid');
+  // Plan 526: the settled line now names its figure — bill dues only.
+  // The figure is unchanged: a pending repair charge is still not dues.
+  assert.equal(stillOwesLineText(line), 'Bill dues fully paid');
 });
 
 test('dues: an unworkable figure gives no line, never a guess', () => {
@@ -191,14 +201,16 @@ test('line text: an unusable line reads empty, never a guessed figure', () => {
 test('line html: an owed line carries the owed class and the figure', () => {
   const html = stillOwesLineHtml({ stillOwedCents: 300000, stillOwed: 3000, fullyPaid: false });
   assert.ok(html.includes('has-balance'), 'owed line must carry has-balance');
-  assert.ok(html.includes('Still owed PKR 3,000'), 'owed line must carry the figure');
+  // Plan 526: the owed line now names its figure — bill dues only.
+  assert.ok(html.includes('Bill dues still owed PKR 3,000'), 'owed line must carry the figure');
   assert.ok(!html.includes('zero-balance'), 'owed line must not carry zero-balance');
 });
 
 test('line html: a fully paid line carries the settled class and the plain words', () => {
   const html = stillOwesLineHtml({ stillOwedCents: 0, stillOwed: 0, fullyPaid: true });
   assert.ok(html.includes('zero-balance'), 'fully paid line must carry zero-balance');
-  assert.ok(html.includes('Fully paid'), 'fully paid line must carry the plain words');
+  // Plan 526: the settled pill now names its figure — bill dues only.
+  assert.ok(html.includes('Bill dues fully paid'), 'fully paid line must carry the plain words');
   assert.ok(!html.includes('has-balance'), 'fully paid line must not carry has-balance');
 });
 

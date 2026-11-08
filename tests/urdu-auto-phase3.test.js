@@ -37,7 +37,8 @@ assert.ok(URDU_SCRIPT_PATTERN, 'nav-language exports URDU_SCRIPT_PATTERN');
 const FRAGMENT_EXEMPTIONS = {
   prof_feeder_names: 'name-list fragment — customer names are user data, never translated',
   prof_prorata_badge: 'amount/direction template — the Urdu comes from prof_prorata_up/down/lateral',
-  prof_pkghist_prorata_adj: 'parenthesised amount fragment — sits beside the translated prorata label',
+  // Plan 509 — prof_pkghist_prorata_adj is gone with the static
+  // package-history section; it was the third exemption here.
 };
 
 test('phase 3 dictionary: every prof_ key exists in en and ur, ur values carry Urdu script', () => {
@@ -62,7 +63,8 @@ test('phase 3 dictionary: every prof_ key exists in en and ur, ur values carry U
 
 test('phase 3 dictionary: fragment templates resolve without leftover placeholders', () => {
   assert.equal(t('prof_prorata_badge', 'ur', { adj: '+PKR 500', direction: t('prof_prorata_up', 'ur') }), '+PKR 500 (اپ گریڈ)');
-  assert.equal(t('prof_pkghist_prorata_adj', 'ur', { adj: '+PKR 500' }), '(+PKR 500)');
+  // Plan 509 — the prof_pkghist_prorata_adj fragment assertion is gone
+  // with the static package-history section (its only call site).
   assert.equal(t('prof_feeder_names', 'ur', { names: 'AHMED, FATIMA' }), ' — AHMED, FATIMA');
 });
 
@@ -139,7 +141,9 @@ test('phase 3 app.js profile templates are wired to t() and no longer carry the 
     'prof_feeder_heading', 'prof_custody_heading', 'prof_mikrotik_heading',
     'prof_clv_heading', 'prof_current_heading', 'prof_receipts_heading',
     'prof_incident_resolved', 'prof_hist_receipt_amount', 'prof_hist_alloc_same_month',
-    'prof_hist_concession_suggest', 'prof_pkghist_row', 'prof_prorata_days',
+    'prof_hist_concession_suggest', 'prof_prorata_days',
+    // Plan 509 — prof_pkghist_row is gone with the static
+    // package-history section (its only call site).
   ]) {
     assert.ok(app.includes(`t('${key}'`), `app.js must wire ${key}`);
   }
@@ -177,7 +181,7 @@ test('phase 3 guard: no prof_ data-i18n key appears inside any <dialog>', () => 
     assert.ok(!/data-i18n(?:-placeholder|-title|-aria-label)?="prof_/.test(dialog), `dialog must not carry prof_ i18n keys: ${dialog.slice(0, 120)}`);
   }
   // And the profile statics themselves ARE keyed: tabs, danger zone, ledger.
-  for (const key of ['prof_tab_billing', 'prof_tab_info', 'prof_tab_complaints', 'prof_danger_title', 'prof_ledger_heading', 'prof_ledger_export', 'prof_ledger_retention', 'prof_pkghist_heading', 'prof_incident_heading']) {
+  for (const key of ['prof_tab_billing', 'prof_tab_info', 'prof_tab_complaints', 'prof_danger_title', 'prof_ledger_heading', 'prof_ledger_export', 'prof_ledger_retention', 'prof_incident_heading']) {
     assert.ok(html.includes(`data-i18n="${key}"`), `index.html must key ${key}`);
   }
 });

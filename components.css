@@ -944,7 +944,7 @@ body.field-mode-open { overflow: hidden; }
 }
 .qc-loose-change-chips[hidden] { display: none; }
 .loose-change-chip {
-  min-height: 36px;
+  min-height: 44px;
   padding: 4px 10px;
   font-size: 0.78rem;
   font-weight: 600;
@@ -2383,7 +2383,7 @@ body.field-mode-open { overflow: hidden; }
 }
 .qc-shop-chip {
   flex: 1 1 auto;
-  min-height: 40px;
+  min-height: 44px;
   padding: 7px 12px;
   border-radius: 10px;
   border: 1px solid var(--line);

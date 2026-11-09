@@ -127,8 +127,10 @@ test('Plan 509: the static section is gone from index.html', () => {
 test('Plan 509: the mount group no longer claims the static section', () => {
   assert.ok(!app.includes("'.package-history-section'"),
     'no mount group may claim the removed static section');
-  assert.ok(app.includes("info:['.customer-meta','.uptime-section','.profile-danger-zone']"),
-    'the info group must still mount the view, uptime and danger zone');
+  // Polish #24: the danger zone is gone too — the info group mounts
+  // the view and uptime only.
+  assert.ok(app.includes("info:['.customer-meta','.uptime-section']"),
+    'the info group must still mount the view and uptime (no danger zone)');
 });
 
 test('Plan 509: renderDetail no longer populates the static list', () => {

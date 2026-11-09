@@ -23,7 +23,7 @@ test('plan513: exactly the two pure opt-in flags are excluded from the counted t
 });
 
 test('plan513: the per-field-save map is unchanged — exclusion is counting-only', () => {
-  assert.equal(Object.keys(PROFILE_FIELD_SAVE_MAP).length, 69, 'the map still holds all 69 fields');
+  assert.equal(Object.keys(PROFILE_FIELD_SAVE_MAP).length, 70, 'the map holds all 70 fields (Phase D added otherInstallCost)');
   assert.equal(PROFILE_FIELD_SAVE_MAP.prefersSmsCheckbox, 'prefersSms', 'Prefers SMS still saves per-field');
   assert.equal(PROFILE_FIELD_SAVE_MAP.pauseBillingCheckbox, 'paused', 'Pause billing still saves per-field');
 });
@@ -33,12 +33,14 @@ test('plan513: a profile with every applicable field filled shows full marks', (
   for (const { fieldKey } of COUNTED_FIELDS) record[fieldKey] = 'x';
   // Both opt-in flags legitimately false — and the profile still
   // reaches full marks, which was impossible before (67/69 forever).
+  // Polish #28 Phase D added otherInstallCost, so full marks are
+  // 68/70 now.
   record.prefersSms = false;
   record.paused = false;
   const counted = countProfileCompletion(record);
-  assert.equal(counted.total, 67);
-  assert.equal(counted.filled, 67);
-  assert.equal(counted.text, '67/67 fields filled');
+  assert.equal(counted.total, 68);
+  assert.equal(counted.filled, 68);
+  assert.equal(counted.text, '68/68 fields filled');
 });
 
 test('plan513: an unchecked opt-in flag is never listed as missing', () => {
@@ -48,14 +50,14 @@ test('plan513: an unchecked opt-in flag is never listed as missing', () => {
   record.paused = false;
   // Counter and checklist agree at full marks: nothing missing.
   assert.deepEqual(missingProfileFields(record, COUNTED_FIELDS), []);
-  assert.equal(countProfileCompletion(record).filled, 67);
+  assert.equal(countProfileCompletion(record).filled, 68);
   // One counted field left empty: only that field is listed — the
   // unchecked flags never join the list.
   record.cnic = '';
   assert.deepEqual(missingProfileFields(record, COUNTED_FIELDS), [{ controlId: 'cnicInput', fieldKey: 'cnic' }]);
   const counted = countProfileCompletion(record);
-  assert.equal(counted.filled, 66);
-  assert.equal(counted.total, 67);
+  assert.equal(counted.filled, 67);
+  assert.equal(counted.total, 68);
 });
 
 test('plan513: the live form counter agrees — unchecked flags add nothing', () => {
@@ -66,8 +68,8 @@ test('plan513: the live form counter agrees — unchecked flags add nothing', ()
   ];
   const counted = countProfileCompletionFromControls(controls);
   assert.equal(counted.filled, 1, 'only the phone counts');
-  assert.equal(counted.total, 67);
-  assert.equal(counted.text, '1/67 fields filled');
+  assert.equal(counted.total, 68);
+  assert.equal(counted.text, '1/68 fields filled');
 });
 
 test('plan513: the value rule is unchanged — a boolean still counts only when true', () => {

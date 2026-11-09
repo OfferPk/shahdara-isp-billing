@@ -243,8 +243,17 @@ test('wiring: the receipt card badge is untouched — it still reads the payable
   const start = wiringSrc.indexOf('function renderQuickCollectReceiptCardHtml(receipt)');
   const slice = wiringSrc.slice(start, start + 2600);
   assert.match(slice, /receipt\.payableRemaining \?\? receipt\.newTotalDues/);
-  assert.match(slice, /✓ Settle in Full/);
-  assert.match(slice, /⏳ Partial Payment/);
+  // Polish 21 (Req 6): the settle/partial badge moved out of the card
+  // header into the status section (renderSettleStatusBadge) — the card
+  // builder no longer carries the texts, the settle render does, reading
+  // the same payable remainder.
+  assert.ok(!slice.includes('Settle in Full'), 'card builder must not carry the settle badge any more');
+  const settleStart = wiringSrc.indexOf('function renderSettleStatusBadge()');
+  assert.ok(settleStart >= 0, 'missing settle render');
+  const settleSlice = wiringSrc.slice(settleStart, settleStart + 1500);
+  assert.match(settleSlice, /activeReceipt\.payableRemaining \?\? activeReceipt\.newTotalDues/);
+  assert.match(settleSlice, /✓ Settle in Full/);
+  assert.match(settleSlice, /⏳ Partial Payment/);
 });
 
 test('labels: the new wording lives in the modules, not in the controller', () => {

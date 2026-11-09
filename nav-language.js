@@ -3868,6 +3868,13 @@ export const TRANSLATIONS = {
     qc11_bulk_collect_sub: 'Many payments, one batch',
     qc11_record_payment: 'Record Payment',
     qc11_record_payment_sub: 'Record a customer payment',
+    // QC-12: bill-status dropdown above the Quick Collect search
+    // (Unpaid / Paid / All). The dropdown and the filter chips
+    // below the search set the same picker pool.
+    qc12_status_label: 'Bill status',
+    qc12_status_unpaid: 'Unpaid',
+    qc12_status_paid: 'Paid',
+    qc12_status_all: 'All',
     qc_subtitle: 'Fast 2-tap field collection and receipt generation',
     qc_pick_customer: 'Select Subscriber with Outstanding Dues',
     qc_search_placeholder: 'Search by name, #ID, phone, or area...',
@@ -8247,6 +8254,12 @@ export const TRANSLATIONS = {
     qc11_bulk_collect_sub: 'ایک بیچ میں کئی ادائیگیاں',
     qc11_record_payment: 'ادائیگی درج کریں',
     qc11_record_payment_sub: 'گاہک کی ادائیگی درج کریں',
+    // QC-12: bill-status dropdown above the Quick Collect search
+    // (see the EN block above).
+    qc12_status_label: 'بل کی صورتحال',
+    qc12_status_unpaid: 'بقایا',
+    qc12_status_paid: 'ادا شدہ',
+    qc12_status_all: 'تمام',
     qc_subtitle: 'فیلڈ میں موقع پر وصولی اور رسید بنانے کا تیز ترین طریقہ',
     qc_pick_customer: 'بقایا دار صارف منتخب کریں',
     qc_search_placeholder: 'نام، نمبر #ID، فون یا علاقہ تلاش کریں...',

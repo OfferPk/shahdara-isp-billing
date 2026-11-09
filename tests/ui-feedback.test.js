@@ -95,8 +95,16 @@ test('negative wording is checked before success words (#297)', () => {
   // Callers pass the type for the cases in #297.
   const qc = readFileSync(new URL('../nav-quick-collect.js', import.meta.url), 'utf8');
   const plan = readFileSync(new URL('../customer-plan.js', import.meta.url), 'utf8');
-  assert.match(qc, /type: 'warning', title: 'No phone number'/);
-  assert.match(qc, /actionLabel = 'Add phone'/);
+  // Plan 549: the warnNoPhone title/action label moved into
+  // nav-language.js (keys qc_toast_no_phone_title / qc_toast_add_phone,
+  // English byte-identical) — the wording itself is unchanged, only
+  // its home moved, so this pin now checks the dictionary values
+  // plus the routing to them.
+  const lang = readFileSync(new URL('../nav-language.js', import.meta.url), 'utf8');
+  assert.match(lang, /qc_toast_no_phone_title: 'No phone number'/);
+  assert.match(lang, /qc_toast_add_phone: 'Add phone'/);
+  assert.match(qc, /type: 'warning', title: t\('qc_toast_no_phone_title'\)/);
+  assert.match(qc, /actionLabel = t\('qc_toast_add_phone'\)/);
   assert.match(plan, /was not applied: \$\{err\.message\}`, \{ type: 'error'/);
 });
 

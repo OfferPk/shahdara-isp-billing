@@ -2014,6 +2014,16 @@ export const TRANSLATIONS = {
     // Plan 510: the manual status was never chosen — "Not set" read as if
     // the service itself were unset, so it gets its own honest label.
     prof_service_not_chosen: 'Not chosen',
+    // Polish #28 Phase B (Req 4) — derived service status. Active /
+    // Offline / Not chosen reuse the prof_service_* labels above; only
+    // the derived states get their own keys, and the missing-component
+    // note (Req 7, Phase B form) gets its template.
+    prof_status_suspended: 'Suspended',
+    prof_status_suspended_date: 'Suspended · {date}',
+    prof_status_vacation: 'Vacation',
+    prof_status_vacation_since: 'Vacation · since {date}',
+    prof_status_expired: 'Expired',
+    prof_missing_note: 'missing: {items}',
     prof_archive_active: 'Profile: Active',
     prof_archive_archived: 'Profile: Archived',
     prof_archive_since: 'Profile: Archived since {date}',
@@ -6428,6 +6438,13 @@ export const TRANSLATIONS = {
     // Plan 510: the manual status was never chosen — "طے نہیں" read as if
     // the service itself were unset, so it gets its own honest label.
     prof_service_not_chosen: 'منتخب نہیں',
+    // Polish #28 Phase B (Req 4) — derived service status (UR values carry Urdu script, as urdu-auto-phase3 requires).
+    prof_status_suspended: 'معطل',
+    prof_status_suspended_date: 'معطل · {date}',
+    prof_status_vacation: 'چھٹی',
+    prof_status_vacation_since: 'چھٹی · {date} سے',
+    prof_status_expired: 'ختم شدہ',
+    prof_missing_note: 'نامکمل: {items}',
     prof_archive_active: 'پروفائل: فعال',
     prof_archive_archived: 'پروفائل: آرکائیو شدہ',
     prof_archive_since: 'پروفائل: آرکائیو شدہ از {date}',

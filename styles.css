@@ -1208,6 +1208,16 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .profile-service-status-offline::before{background:#cf6341;box-shadow:0 0 0 3px #cf634120}
 .profile-service-status-not-set{border-color:#d9e2dd;background:#f5f8f6;color:#5c7067}
 .profile-service-status-not-set::before{background:#84948c;box-shadow:0 0 0 3px #84948c20}
+/* Polish #28 Phase B (Req 4) — the Vacation pill reads the amber
+tokens (the same treatment as .status-pending); no border-color
+override, so it keeps the base border. Dark theme needs no new rule:
+dark-contrast.css already gives every .profile-service-status the
+dark base treatment. */
+.profile-service-status-vacation{background:var(--amber-bg);color:var(--amber)}
+.profile-service-status-vacation::before{background:var(--amber);box-shadow:0 0 0 3px var(--amber-bg)}
+/* Polish #28 Phase B (Req 3) — an empty optional value renders as a
+subtle muted dash, never as a loud missing-value warning. */
+.profile-empty-value{color:var(--muted)}
 .archive-state-badge{background:#f1f5f2;color:#536a60}
 .profile-action-group{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;margin-top:19px;padding-top:16px;border-top:1px solid #dce9e2}
 .profile-action-group>button{min-height:44px;touch-action:manipulation}

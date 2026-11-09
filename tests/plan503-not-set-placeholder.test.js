@@ -146,8 +146,14 @@ test('Plan 503: name, free-text and password fields carry no placeholder at all'
 });
 
 // ------------------------------------------------------------ the view is untouched
+//
+// Polish #28 Phase B (Req 3) — the view's empty-state text is now
+// the em dash, not "Not set": the three rows below pin the dash
+// instead. The key itself stays (the print card, the header strip
+// and the form still read it), and no form field may use it as a
+// placeholder — that is what this plan guards.
 
-test('Plan 503: the view still shows "Not set" for the same fields', () => {
+test('Plan 503: the view still shows the dash for the same fields', () => {
   assert.equal(TRANSLATIONS.en.prof_not_set, 'Not set');
   const app = read('app.js');
   // Polish #28 Phase A — the four-groups literal became the eight
@@ -156,9 +162,9 @@ test('Plan 503: the view still shows "Not set" for the same fields', () => {
   const start = app.indexOf('const profileInfoGroupFragments = {');
   assert.notEqual(start, -1, 'fragments object must exist');
   const groups = app.slice(start, app.indexOf('\n', start));
-  assert.ok(groups.includes("customer.routerModel || t('prof_not_set')"), 'router model must still read Not set in the view');
-  assert.ok(groups.includes("fiberMeters === '' ? t('prof_not_set')"), 'fiber meters must still read Not set in the view');
-  assert.ok(groups.includes("fiberPerMeterRate === '' ? t('prof_not_set')"), 'fiber rate must still read Not set in the view');
+  assert.ok(groups.includes("profileEmptyText(customer.routerModel)"), 'router model must still read the dash in the view');
+  assert.ok(groups.includes("customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH"), 'fiber meters must still read the dash in the view');
+  assert.ok(groups.includes("customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH"), 'fiber rate must still read the dash in the view');
 });
 
 test('Plan 503: the selling-amount placeholder keeps its dues-exclusion instruction', () => {

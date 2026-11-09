@@ -40,7 +40,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { PROFILE_EMPTY_DASH, profileEmptyText, profileEmptyMoney, profileEmptyTax, profileProfitDisplay, profileServiceState, profileServiceStatusPillHtml, currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, dirtyProfileFieldKeys } from './profile-field-save.js?v=1.11.0';
 import { zonesUnderArea } from './zone-suggestions.js?v=1.11.0';
@@ -5954,13 +5954,16 @@ function populateReportMonths() {
   $('#reportMonth').value = selectedBillingMonth;
   $('#customerFilterMonth').value = selectedBillingMonth;
 }
-// Plan 515 — the form profit preview reads exactly like the view's
-// profit row (Plan 506): same label key (prof_field_profit), same
-// figure (customerPackageProfit, the shared cents computation the
-// view uses), same Not set fallback. One figure, one sentence —
-// the form and the view can no longer disagree. The invalid-amounts
-// hint (prof_margin_invalid) is form validation, not the profit
-// line, so it stays as it is.
+// Plan 515 — the form profit preview reads like the view's profit
+// row (Plan 506): same label key (prof_field_profit), same figure
+// (customerPackageProfit, the shared cents computation the view
+// uses). One figure, one sentence — the form and the view can no
+// longer disagree on the AMOUNT. The empty states differ BY DESIGN
+// since Polish #28 Phase B (Req 3): the view row dashes with the
+// missing-component note, while the form preview keeps "Not set" —
+// Req 3 dashes the view only. The invalid-amounts hint
+// (prof_margin_invalid) is form validation, not the profit line, so
+// it stays as it is.
 function renderProfileMarginPreview() {
   const sellingText = $('#monthlySellingAmountInput').value.trim();
   const costText = $('#monthlyPurchaseCostInput').value.trim();
@@ -5989,7 +5992,10 @@ function renderIncidents(customer) {
   $('#incidentList').querySelectorAll('[data-delete-incident]').forEach(button => button.addEventListener('click', () => requestDeleteIncident(customer.id, button.dataset.deleteIncident)));
 }
 function profileReadonlyField(label, value, wide = false) {
-  return `<div class="profile-readonly-field${wide ? ' profile-readonly-field-wide' : ''}"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+  // Polish #28 Phase B (Req 3) — the bare dash renders as a subtle
+  // empty-value span; every other value escapes exactly as today.
+  const display = value === PROFILE_EMPTY_DASH ? `<span class="profile-empty-value">${PROFILE_EMPTY_DASH}</span>` : escapeHtml(value);
+  return `<div class="profile-readonly-field${wide ? ' profile-readonly-field-wide' : ''}"><dt>${escapeHtml(label)}</dt><dd>${display}</dd></div>`;
 }
 
 // Profile UI polish: compact grouped info. Related fields share one
@@ -6037,7 +6043,7 @@ function customerLifetimeValueMarkup(lifetime) {
 // rate is only a lower bound, never the final number.
 function installationCostProfileLine(customer) {
   const cost = calculateInstallationCost(customer);
-  if (cost.status === 'not-recorded') return t('prof_not_recorded');
+  if (cost.status === 'not-recorded') return PROFILE_EMPTY_DASH; // Polish #28 Phase B (Req 3) — an unrecorded install cost reads the dash; the other statuses keep their wording.
   const costText = cost.totalIsPartial ? t('prof_install_cost_partial', null, { amount: formatAmount(cost.totalCost) }) : t('prof_install_cost', null, { amount: formatAmount(cost.totalCost) });
   if (cost.status === 'unknown') return `${costText} · ${t('prof_install_conn_fee_norec')}`;
   if (cost.status === 'surplus') return t('prof_install_surplus', null, { net: formatAmount(cost.net), cost: costText });
@@ -6172,6 +6178,13 @@ function renderCustomerProfileView(customer) {
   // without this line every profile render (and every payment save, via the
   // save callback's renderDetail) threw "pauseSummary is not defined".
   const pauseSummary = pauseBillingSummary(customer);
+  // Polish #28 Phase B (Req 4) — the DERIVED service status for the
+  // heading-badges pill and the S2 section summary. Suspended comes
+  // from an OPEN suspension record (loadSuspensions, status === 'open');
+  // a closed record is not a suspension. The pill is the derived
+  // indicator — the Service-group row below keeps the STORED label.
+  const openSuspension = loadSuspensions().find((entry) => entry.customerId === customer.id && entry.status === 'open') ?? null;
+  const serviceState = profileServiceState(customer, { today: localDate(), openSuspension });
   // SISP-153: seasonal keep-alive row for the Service group — rendered
   // only while the current month is inside the seasonal window.
   const seasonalSummary = seasonalBillingSummary(customer, pakistanMonthKey());
@@ -6336,13 +6349,17 @@ function renderCustomerProfileView(customer) {
   // markup builder only receives the reveal flags, so a masked render
   // never contains the secrets at all.
   const routerCredSectionHtml = routerCredentialsSectionHtml(customer, { revealWifi: routerCredRevealed.wifi, revealAdmin: routerCredRevealed.admin });
-  // Plan 502 — empty-state wording rule for the four info groups: a
-  // value the operator never entered (an identity, contact or
-  // configuration field) reads "Not set" (prof_not_set); an event
-  // or date that was never recorded reads "Not recorded"
-  // (prof_not_recorded). Computed figures with no record behind
-  // them (dues, install cost) also read "Not recorded". The print
-  // card and the header strip follow the same rule.
+  // Plan 502 — empty-state wording rule, as revised by Polish #28
+  // Phase B (Req 3): in the PROFILE VIEW an empty optional value
+  // reads the em dash "—" instead of "Not set" / "Not recorded".
+  // The old distinction lives on where the view does not reach — a
+  // value the operator never entered reads "Not set" (prof_not_set)
+  // on the print card, the header strip and the form blank options,
+  // and an event or date that was never recorded reads "Not
+  // recorded" (prof_not_recorded) in the prose sections (optical /
+  // pole / feeder / custody) and on the print card / header strip.
+  // Rows that carry a STATE (service status, vacation hold, shield,
+  // usual pay day) keep their labels — a state is not an empty value.
   // Polish #28 Phase A — the four info groups split into eight
   // fragments (Table B), one per section that needs them. Rows move
   // verbatim, in original row order; fragment headings keep the
@@ -6350,7 +6367,7 @@ function renderCustomerProfileView(customer) {
   // prof_group_connection), so no group is renamed in this phase.
   // The <div class="profile-info-groups"> wrapper is dropped — each
   // section body provides the gap — its CSS rule stays, harmless.
-  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), phone || t('prof_not_set')], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : t('prof_not_set')], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), customer.mohalla || t('prof_not_set')], [t('prof_field_zone'), customer.zone || t('prof_not_set')], [t('prof_field_address'), customer.address || t('prof_not_set'), true], [t('prof_field_notes'), customer.notes?.trim() || t('prof_not_set'), true]]), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), customer.ispProvider || t('prof_not_set')], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), customer.packageSpeed || t('prof_not_set')], [t('prof_field_payday'), paydaySummary.label]]), money: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_sales_tax'), formatSalesTaxAmount(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), formatAmount(customer.monthlyPurchaseCost)], [t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)], [t('prof_field_profit'), profit === null ? t('prof_not_set') : formatAmount(profit)]]), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : t('prof_not_recorded')], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : t('prof_not_recorded')]]), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : t('prof_not_recorded')], [t('prof_field_conn_fee'), formatAmount(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? t('prof_not_set') : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), formatAmount(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? t('prof_not_set') : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)]]), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), customer.pppoeUsername || t('prof_not_set')], [t('prof_field_static_ip'), customer.staticIp || t('prof_not_set')], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : t('prof_not_set')]]), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), customer.routerModel || t('prof_not_set')], [t('prof_field_router_price'), formatAmount(customer.routerPrice)], [t('prof_field_mc_cost'), formatAmount(customer.mediaConverterCost)]]) };
+  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), profileEmptyText(phone)], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), profileEmptyText(customer.mohalla)], [t('prof_field_zone'), profileEmptyText(customer.zone)], [t('prof_field_address'), profileEmptyText(customer.address), true], [t('prof_field_notes'), profileEmptyText(customer.notes), true]]), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), profileEmptyText(customer.ispProvider)], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), profileEmptyText(customer.packageSpeed)], [t('prof_field_payday'), paydaySummary.label]]), money: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)], [t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)], [t('prof_field_profit'), profileProfitDisplay(customer, profit)]]), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH]]), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH], [t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), profileEmptyMoney(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)]]), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername)], [t('prof_field_static_ip'), profileEmptyText(customer.staticIp)], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH]]), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), profileEmptyText(customer.routerModel)], [t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)], [t('prof_field_mc_cost'), profileEmptyMoney(customer.mediaConverterCost)]]) };
   // SISP-19: profile hardware custody — ownership fields on the record,
   // plus the disconnection recovery checklist once archived (archive is
   // the app's disconnect action). Fiber drop length reuses fiberMeters.
@@ -6869,14 +6886,15 @@ function renderCustomerProfileView(customer) {
   // never wraps unpredictably above the Edit/QR/Print row. Same badge
   // set and labels as before; the row is omitted entirely when no badge
   // applies.
-  const headingBadgesHtml = `${suspensionShieldBadgeHtml(customer, localDate())}${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${prepaidUntilBadgeHtml(state, customer)}${commercialVipBadgeHtml(customer)}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}`;
+  const headingBadgesHtml = `${profileServiceStatusPillHtml(serviceState)}${suspensionShieldBadgeHtml(customer, localDate())}${customer.isFreeConnection ? `<span class="free-connection-badge">${t('prof_free_badge')}</span>` : ''}${prepaidUntilBadgeHtml(state, customer)}${commercialVipBadgeHtml(customer)}${starTimelyPayerBadgeHtml(state, customer)}${loyaltyBadgeHtml(customer)}`;
   // Polish #28 Phase A — the profile view renders as 7 <details>
   // sections (Req 1: Customer Information, Service & Package, Financial
   // Details, Connection & Installation, Network Configuration, Hardware
   // & Equipment, History & Activity). Each body gathers its section's
   // items verbatim, in Audit-1 order; nothing is renamed, reworded or
-  // rewired here. Summaries use values already in scope and keep
-  // today's "Not set" / "Not recorded" wording — the em dash is Phase B.
+  // rewired here. Summaries use values already in scope; Polish #28
+  // Phase B (Req 3) dashes their empty optional values, and the S2
+  // summary reads the derived service status as text.
   // Open/closed is read from the per-customer store on every render, so
   // a re-render never resets the operator's choice.
   const profileSectionOpen = loadProfileSectionOpen(localStorage);
@@ -6887,12 +6905,12 @@ function renderCustomerProfileView(customer) {
   const profileSectionNetworkBody = `${profileInfoGroupFragments.network}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${mikrotikSectionHtml}${routerCredSectionHtml}`;
   const profileSectionHardwareBody = `${profileInfoGroupFragments.hardware}${custodySectionHtml}${nocSectionHtml}`;
   const profileSectionHistoryBody = `${lastInteractionLineMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${statusReplySectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;
-  const profileSectionCustomerHtml = profileDetailSectionHtml({ key: 'customer', heading: t('prof_sec_customer'), summary: `${customer.name || customer.customerName || t('prof_not_set')} · ${phone || t('prof_not_set')}`, body: profileSectionCustomerBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'customer') });
-  const profileSectionServiceHtml = profileDetailSectionHtml({ key: 'service', heading: t('prof_sec_service'), summary: `${customer.packageSpeed || t('prof_not_set')} · ${manualServiceStatusLabel(customer.serviceStatus)}`, body: profileSectionServiceBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'service') });
-  const profileSectionFinancialHtml = profileDetailSectionHtml({ key: 'financial', heading: t('prof_sec_financial'), summary: `Dues ${formatAmount(duesBreakdownFigures.total)} · ${t('prof_field_profit')} ${profit === null ? t('prof_not_set') : formatAmount(profit)}`, body: profileSectionFinancialBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'financial') });
-  const profileSectionConnectionHtml = profileDetailSectionHtml({ key: 'connection', heading: t('prof_sec_connection'), summary: `${customer.connectionDate ? humanDate(customer.connectionDate) : t('prof_not_recorded')} · ${formatAmount(customer.connectionFee)}`, body: profileSectionConnectionBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'connection') });
-  const profileSectionNetworkHtml = profileDetailSectionHtml({ key: 'network', heading: t('prof_sec_network'), summary: `${customer.pppoeUsername || t('prof_not_set')} · ${customer.macAddress || t('prof_not_set')}`, body: profileSectionNetworkBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'network') });
-  const profileSectionHardwareHtml = profileDetailSectionHtml({ key: 'hardware', heading: t('prof_sec_hardware'), summary: `${customer.routerModel || t('prof_not_set')} · ${custodyFields.serialNumber || t('prof_not_recorded')}`, body: profileSectionHardwareBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'hardware') });
+  const profileSectionCustomerHtml = profileDetailSectionHtml({ key: 'customer', heading: t('prof_sec_customer'), summary: `${customer.name || customer.customerName || t('prof_not_set')} · ${profileEmptyText(phone)}`, body: profileSectionCustomerBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'customer') });
+  const profileSectionServiceHtml = profileDetailSectionHtml({ key: 'service', heading: t('prof_sec_service'), summary: `${profileEmptyText(customer.packageSpeed)} · ${serviceState.label}`, body: profileSectionServiceBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'service') });
+  const profileSectionFinancialHtml = profileDetailSectionHtml({ key: 'financial', heading: t('prof_sec_financial'), summary: `Dues ${formatAmount(duesBreakdownFigures.total)} · ${t('prof_field_profit')} ${profit === null ? PROFILE_EMPTY_DASH : formatAmount(profit)}`, body: profileSectionFinancialBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'financial') });
+  const profileSectionConnectionHtml = profileDetailSectionHtml({ key: 'connection', heading: t('prof_sec_connection'), summary: `${customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH} · ${profileEmptyMoney(customer.connectionFee)}`, body: profileSectionConnectionBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'connection') });
+  const profileSectionNetworkHtml = profileDetailSectionHtml({ key: 'network', heading: t('prof_sec_network'), summary: `${profileEmptyText(customer.pppoeUsername)} · ${profileEmptyText(customer.macAddress)}`, body: profileSectionNetworkBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'network') });
+  const profileSectionHardwareHtml = profileDetailSectionHtml({ key: 'hardware', heading: t('prof_sec_hardware'), summary: `${profileEmptyText(customer.routerModel)} · ${profileEmptyText(custodyFields.serialNumber)}`, body: profileSectionHardwareBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'hardware') });
   const profileSectionHistoryHtml = profileDetailSectionHtml({ key: 'history', heading: t('prof_sec_history'), summary: `${t('prof_tab_complaints')} ${customerComplaints.length} · ${t('fdisp_type_ticket')} ${customerTickets.length}`, body: profileSectionHistoryBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'history') });
   $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="editProfileButton" class="primary-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileSectionConnectionHtml}${profileSectionNetworkHtml}${profileSectionHardwareHtml}${profileSectionHistoryHtml}`;
   // Plan 508 — the register complaints list renders on the Complaints tab,

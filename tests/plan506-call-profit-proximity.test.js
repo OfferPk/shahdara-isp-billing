@@ -49,7 +49,10 @@ function groupMarkupFunctions() {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  return runInNewContext(`${src}\nprofileInfoGroupMarkup;`, { escapeHtml });
+  // Polish #28 Phase B (Req 3) — profileReadonlyField wraps the bare
+  // dash in .profile-empty-value, so the dash constant must be in the
+  // sandbox with it.
+  return runInNewContext(`${src}\nprofileInfoGroupMarkup;`, { escapeHtml, PROFILE_EMPTY_DASH: '—' });
 }
 
 function viewAssembly() {
@@ -126,10 +129,13 @@ test('Plan 506: profit row sits immediately after the selling row in the money f
   // Polish #28 Phase A — tax, purchase, selling and profit moved out of
   // the Service group into the money fragment (Financial section); the
   // profit-after-selling adjacency is pinned inside that fragment.
+  // Polish #28 Phase B (Req 3) — the null-profit branch now renders
+  // the dash with the missing-component note (profileProfitDisplay),
+  // not "Not set"; the adjacency is unchanged.
   const moneyAt = groups.indexOf('money: profileInfoGroupMarkup(');
   const money = groups.slice(moneyAt, groups.indexOf('lifecycle: profileInfoGroupMarkup(', moneyAt));
-  const selling = "[t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]";
-  const profit = "[t('prof_field_profit'), profit === null ? t('prof_not_set') : formatAmount(profit)]";
+  const selling = "[t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)]";
+  const profit = "[t('prof_field_profit'), profileProfitDisplay(customer, profit)]";
   const sellingIdx = money.indexOf(selling);
   const profitIdx = money.indexOf(profit);
   assert.ok(sellingIdx !== -1, 'selling row must exist');
@@ -137,9 +143,9 @@ test('Plan 506: profit row sits immediately after the selling row in the money f
   assert.equal(money.slice(sellingIdx + selling.length, profitIdx), ', ', 'profit must follow selling with nothing between');
 });
 
-test('Plan 506: profit row uses the shared PKR format with the Not set path, never a hand-built figure', () => {
+test('Plan 506: profit row uses the shared PKR format with the dash path, never a hand-built figure', () => {
   const groups = groupsLiteral();
-  assert.ok(groups.includes("profit === null ? t('prof_not_set') : formatAmount(profit)"), 'null profit reads Not set, like the other money rows');
+  assert.ok(groups.includes("profileProfitDisplay(customer, profit)"), 'null profit reads the dash with the missing-component note, like the other money rows');
   assert.equal(groups.indexOf('toLocaleString'), -1, 'no hand-built number formatting may remain in the fragments');
 });
 

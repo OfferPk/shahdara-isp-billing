@@ -251,13 +251,16 @@ test('phase A groups: money rows split out of Service, profit still right after 
   const frags = groupFragments();
   const moneyAt = frags.indexOf('money: profileInfoGroupMarkup(');
   const money = frags.slice(moneyAt);
-  assert.ok(money.includes("[t('prof_field_sales_tax'), formatSalesTaxAmount(customerSalesTaxCents(customer))]"), 'tax row moves with the money fragment');
-  assert.ok(money.includes("[t('prof_field_purchase_cost'), formatAmount(customer.monthlyPurchaseCost)]"), 'purchase cost moves with the money fragment');
-  assert.ok(money.includes("[t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]"), 'selling moves with the money fragment');
-  assert.ok(money.includes("[t('prof_field_profit'), profit === null ? t('prof_not_set') : formatAmount(profit)]"), 'profit moves with the money fragment');
+  // Polish #28 Phase B (Req 3) — the money rows now dash empty values
+  // through the profile-empty helpers instead of reading "Not set";
+  // the membership (which fragment each row lives in) is unchanged.
+  assert.ok(money.includes("[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))]"), 'tax row moves with the money fragment');
+  assert.ok(money.includes("[t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)]"), 'purchase cost moves with the money fragment');
+  assert.ok(money.includes("[t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)]"), 'selling moves with the money fragment');
+  assert.ok(money.includes("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]"), 'profit moves with the money fragment');
   const serviceAt = frags.indexOf('service: profileInfoGroupMarkup(');
   const service = frags.slice(serviceAt, moneyAt);
-  assert.ok(service.includes("[t('prof_field_package'), customer.packageSpeed || t('prof_not_set')]"), 'package stays with the service rows');
+  assert.ok(service.includes("[t('prof_field_package'), profileEmptyText(customer.packageSpeed)]"), 'package stays with the service rows');
   assert.ok(!service.includes("prof_field_profit"), 'profit must not stay in the service fragment');
   assert.ok(!service.includes("prof_field_selling"), 'selling must not stay in the service fragment');
 });
@@ -266,8 +269,11 @@ test('phase A groups: Connection rows split lifecycle / install / network / hard
   const frags = groupFragments();
   const slice = (from, to) => frags.slice(frags.indexOf(`${from}: profileInfoGroupMarkup(`), to ? frags.indexOf(`${to}: profileInfoGroupMarkup(`) : undefined);
   const lifecycle = slice('lifecycle', 'install');
-  assert.ok(lifecycle.includes("customer.expiryDate ? humanDate(customer.expiryDate) : t('prof_not_recorded')"), 'expiry moves to the lifecycle fragment');
-  assert.ok(lifecycle.includes("customer.cancellationDate ? humanDate(customer.cancellationDate) : t('prof_not_recorded')"), 'cancellation moves to the lifecycle fragment');
+  // Polish #28 Phase B (Req 3) — the date rows now dash when empty
+  // instead of reading "Not recorded"; the membership (which fragment
+  // each row lives in) is unchanged.
+  assert.ok(lifecycle.includes("customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH"), 'expiry moves to the lifecycle fragment');
+  assert.ok(lifecycle.includes("customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH"), 'cancellation moves to the lifecycle fragment');
   const install = slice('install', 'network');
   for (const row of ['prof_field_conn_start', 'prof_field_conn_fee', 'prof_field_fiber', 'prof_field_fiber_rate', 'prof_field_lineman_fee', 'prof_field_install']) {
     assert.ok(install.includes(row), `install fragment must carry ${row}`);
@@ -284,7 +290,9 @@ test('phase A groups: Connection rows split lifecycle / install / network / hard
   // the media-converter cost field to S6 too — the row follows the field,
   // so all 14 Connection rows are accounted for (2 + 6 + 3 + 3).
   assert.ok(hardware.includes('prof_field_mc_cost'), 'media-converter cost follows its field into the hardware fragment');
-  assert.equal((frags.match(/t\('prof_not_recorded'\)/g) || []).length, 3, 'only the three date rows may read Not recorded across the fragments');
+  // Polish #28 Phase B (Req 3) — no info-group row reads "Not
+  // recorded" any more; the dash replaced all three date rows.
+  assert.equal((frags.match(/t\('prof_not_recorded'\)/g) || []).length, 0, 'no date row may read Not recorded across the fragments any more');
 });
 
 test('phase A groups: Contact keeps its shortcuts block after the phone row', () => {
@@ -519,7 +527,10 @@ test('pin: the info-group renderer still emits a section with h4 + 2-column grid
   assert.notEqual(end, -1, 'profileInfoGroupMarkup must end cleanly');
   const src = appSrc.slice(start, end + 3);
   const escapeHtml = (value) => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const profileInfoGroupMarkup = runInNewContext(`${src}\nprofileInfoGroupMarkup;`, { escapeHtml });
+  // Polish #28 Phase B (Req 3) — profileReadonlyField wraps the bare
+  // dash in .profile-empty-value, so the dash constant must be in the
+  // sandbox with it.
+  const profileInfoGroupMarkup = runInNewContext(`${src}\nprofileInfoGroupMarkup;`, { escapeHtml, PROFILE_EMPTY_DASH: '—' });
   const html = profileInfoGroupMarkup('Contact', [['Phone', '03012345678'], ['CNIC', '35201-1234567-1']]);
   assert.ok(html.startsWith('<section class="profile-info-group"><h4>Contact</h4>'), 'section and heading unchanged');
   assert.ok(html.includes('<dl class="profile-readonly-grid">'), 'rows still render in the 2-column grid');

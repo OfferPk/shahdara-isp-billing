@@ -142,8 +142,10 @@ export function normalizeSaveConfirmationSummary(input) {
  * The summary as display lines, in the order the operator reads
  * them: customer, mohalla, amount in digits, amount in words,
  * method, then which bill the payment settles. A split payment
- * adds one block per extra leg after the method line, so the
- * summary always shows every figure the save will record.
+ * adds one block per extra leg after the method line, plus one Split
+ * total row (leg 1 + every extra leg), so the summary always shows
+ * every figure the save will record and the operator checks the
+ * split against the dues without adding in their head.
  */
 export function saveConfirmationSummaryLines(summary) {
   if (!summary || typeof summary !== 'object') return [];
@@ -164,6 +166,15 @@ export function saveConfirmationSummaryLines(summary) {
       lines.push({ label: `Leg ${legNo} amount in words`, value: leg.amountWords });
     }
     lines.push({ label: `Leg ${legNo} method`, value: leg.method });
+  }
+  // Plan 533: the split total row — leg 1 (the Amount line above)
+  // plus every extra leg — shown only when the payment is split, so
+  // a single payment keeps exactly the lines it had. The legs are
+  // normalized already (positive finite amounts), so the sum needs
+  // no further guarding here.
+  if ((summary.legs || []).length > 0) {
+    const splitTotal = summary.amount + summary.legs.reduce((sum, leg) => sum + leg.amount, 0);
+    lines.push({ label: 'Split total', value: amountDigits(splitTotal) });
   }
   lines.push({ label: 'Settles', value: summary.billLabel });
   return lines;

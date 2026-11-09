@@ -3105,6 +3105,32 @@ function renderDashboard() {
       setupDashboardBriefingModal(state, referenceDate, { onToast: toast });
     }
   });
+  // QC-11: home top shortcuts — Quick Collect / Bulk Collect / Record
+  // Payment at the top of home, below the search. Each button reuses an
+  // existing opener; no new flow is built here. Record Payment reuses
+  // openAddPayment(), which itself routes to the Quick Collect modal
+  // (qc.open()) with a profile-form fallback — that IS the record-payment
+  // flow in this build, so the two shortcuts share a destination by
+  // design, not by duplication. Guarded like #homeActionDuesList above
+  // so a repeated renderDashboard() never double-wires.
+  document.querySelectorAll('.home-top-shortcut').forEach((btn) => {
+    if (btn.dataset?.wiredTopShortcut) return;
+    if (btn.dataset) btn.dataset.wiredTopShortcut = 'true';
+    else btn.setAttribute('data-wired-top-shortcut', 'true');
+    btn.addEventListener('click', () => {
+      const kind = btn.dataset?.shortcut;
+      if (kind === 'quick-collect') {
+        if (window.quickCollectModalController?.open) window.quickCollectModalController.open();
+        else { switchView('customers'); openPaymentEntry(); }
+      } else if (kind === 'bulk-collect') {
+        if (window.bulkCollect?.open) window.bulkCollect.open();
+        else { try { window.location.hash = '#/bulk-collect'; } catch { /* hash routing unavailable */ } }
+      } else if (kind === 'record-payment') {
+        openAddPayment();
+      }
+    });
+  });
+  // QC-11: end home top shortcuts.
   setupDashboardBriefingModal(state, referenceDate, { onToast: toast });
   setupDashboardBriefingButton(state, referenceDate, { onToast: toast });
   setupDailyClosingCard(state, referenceDate, {

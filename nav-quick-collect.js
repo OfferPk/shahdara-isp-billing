@@ -5080,7 +5080,7 @@ export function setupQuickCollectModal({
 
   function executeUndo() {
     if (!activeUndoContext) return;
-    const { customerId, month, paymentId, amount, customerName, ticketCharges, addonCharges } = activeUndoContext;
+    const { customerId, month, paymentId, amount, customerName, ticketCharges, addonCharges, splitLegs: undoSplitLegs } = activeUndoContext;
     activeUndoContext = null;
     if (undoTimeoutId) {
       clearTimeout(undoTimeoutId);
@@ -5108,7 +5108,7 @@ export function setupQuickCollectModal({
       // SISP-121: undoing a split collection removes BOTH legs, newest
       // first, each with its own SISP-43 ticket-charge reopen — exactly
       // reversing the order they were recorded in.
-      const splitLegs = Array.isArray(activeUndoContext.splitLegs) ? activeUndoContext.splitLegs : null;
+      const splitLegs = Array.isArray(undoSplitLegs) ? undoSplitLegs : null;
       if (splitLegs && splitLegs.length > 0) {
         let workingTickets = loadTickets();
         let workingState = state;

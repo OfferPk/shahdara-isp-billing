@@ -345,7 +345,8 @@
                        type="text"
                        maxlength="64"
                        placeholder="e.g. 12345678901 (JazzCash / Easypaisa / Raast ID)"
-                       class="qc-input qc-txnid-input"> </div> <div class="qc-field-group"> <label for="quickCollectSplitSenderNameInput" class="qc-label" data-i18n="spay_sender_name_label">Sender Name (as on wallet)</label> <input id="quickCollectSplitSenderNameInput"
+                       class="qc-input qc-txnid-input"> </div> <div class="qc-duplicate-card qc-split-duplicate-card" hidden role="alert"> <div class="qc-duplicate-title">⚠️ Duplicate Transaction ID Detected — Leg 2</div> <p class="qc-duplicate-msg qc-split-duplicate-msg"></p> <div class="qc-field-group" style="margin-bottom:8px;"> <label class="qc-label" style="font-size:12px;">Reason for using this ID again (required / وجہ لازمی)
+                    <input type="text" class="qc-input qc-split-duplicate-reason" placeholder="e.g. Combined receipt / مشترکہ رسید"> </label> </div> <div class="qc-duplicate-actions"> <button type="button" class="primary-button qc-split-duplicate-proceed" style="background:#e53e3e;font-size:12px;padding:6px 12px;">Save anyway</button> <button type="button" class="secondary-button qc-split-duplicate-cancel" style="font-size:12px;padding:6px 12px;">Cancel &amp; Edit ID</button> </div> </div> <div class="qc-field-group"> <label for="quickCollectSplitSenderNameInput" class="qc-label" data-i18n="spay_sender_name_label">Sender Name (as on wallet)</label> <input id="quickCollectSplitSenderNameInput"
                        type="text"
                        maxlength="100"
                        data-i18n-placeholder="spay_sender_name_ph"

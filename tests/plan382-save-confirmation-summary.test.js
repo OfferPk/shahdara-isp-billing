@@ -198,12 +198,16 @@ test('lines: a split payment shows every leg after the method line', () => {
   const lines = saveConfirmationSummaryLines(normalizeSaveConfirmationSummary(entry({
     legs: [{ amount: 1000, amountWords: 'One thousand', method: 'Easypaisa' }],
   })));
+  // Plan 533: the Split total row joins the order between the last
+  // leg and Settles — the legs themselves are unchanged, only the
+  // total they add up to is now shown (amount 3,000 + leg 1,000).
   assert.deepEqual(lines.map((line) => line.label), [
     'Customer', 'Mohalla', 'Amount', 'Amount in words', 'Method',
-    'Leg 2 amount', 'Leg 2 amount in words', 'Leg 2 method', 'Settles',
+    'Leg 2 amount', 'Leg 2 amount in words', 'Leg 2 method', 'Split total', 'Settles',
   ]);
   assert.equal(lines.find((line) => line.label === 'Leg 2 amount').value, 'PKR 1,000');
   assert.equal(lines.find((line) => line.label === 'Leg 2 method').value, 'Easypaisa');
+  assert.equal(lines.find((line) => line.label === 'Split total').value, 'PKR 4,000');
 });
 
 test('lines: no summary means no lines at all', () => {

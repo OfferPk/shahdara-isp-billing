@@ -57,7 +57,10 @@ const fullPaidTemplate = `🧾 SHAHDARA ISP — PAYMENT RECEIPT
 test('customer profiles open in read-only mode and existing fields are revealed only by Edit', () => {
   assert.match(index, /id="customerProfileView"[^>]*class="customer-profile-view"/);
   assert.match(index, /id="customerProfileForm"[^>]*hidden/);
-  assert.match(app, /id="editProfileButton"[^>]*>\$\{t\('prof_view_edit'\)\}<\/button>/); // phase 3: Edit button renders via t()
+  // Polish #24 — Edit moved out of the re-rendered view heading into the
+  // static header action group, so it is keyed static markup in
+  // index.html (data-i18n), not a t() render in app.js.
+  assert.match(index, /id="editProfileButton"[^>]*><span data-i18n="prof_view_edit">Edit<\/span><\/button>/);
   assert.match(index, /id="cancelProfileEditButton"/);
   assert.match(app, /profileEditMode = true;[\s\S]*?customerProfileView'\)\.hidden = true[\s\S]*?customerProfileForm'\)\.hidden = false/);
   // Plan 499 — Cancel now confirms first when unsaved edits exist, but
@@ -363,10 +366,11 @@ test('customer profile uses an identity-first card with separate manual service 
   const cardEnd = index.indexOf('</section>', cardStart);
   assert.ok(cardStart >= 0 && cardEnd > cardStart, 'profile summary card wraps its identity and current bill');
   const card = index.slice(cardStart, cardEnd);
-  // Plan 492: deleteCustomerButton is no longer in the card — the Danger
-  // zone moved to the bottom of the Info panel (tests/plan492-*.test.js
-  // pins its new home). Everything else still sits inside the card.
-  for (const id of ['profileAvatar','detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','archiveCustomerButton','unarchiveCustomerButton','customerCurrentBillSummary']) {
+  // Polish #24 — Edit, Delete and + New customer sit in the header
+  // action group inside the card now: Edit moved up from the view
+  // heading, Delete moved up from the (removed) danger zone, and + New
+  // customer is new. The card test pins all three here.
+  for (const id of ['profileAvatar','detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','editProfileButton','deleteCustomerButton','profileNewCustomerButton','archiveCustomerButton','unarchiveCustomerButton','customerCurrentBillSummary']) {
     assert.ok(card.includes(`id="${id}"`), `${id} remains inside the profile card`);
   }
   assert.match(index, /class="customer-profile-card" aria-label="Customer profile card"/);

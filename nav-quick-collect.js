@@ -37,7 +37,7 @@ import {
 } from './core.js';
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel, validateBillPackageSnapshot } from './package-catalog.js';
-import { salesTaxCentsForPrice, salesTaxCentsOfBill } from './package-sales-tax.js';
+import { salesTaxCentsForPrice, salesTaxCentsOfBill, SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
 import { packageSuccessMessage, packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
@@ -1851,6 +1851,11 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Late Fee</span>
           <strong class="qc-meta-val">🎟️ ${escapeHtml(t('lfw_card', null, { amount: `PKR ${Number(receipt.waivedAmount).toLocaleString('en-PK')}` }))}</strong>
+        </div>` : ''}
+        ${Number(receipt.salesTaxCents) > 0 ? `
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">🧾 ${escapeHtml(SALES_TAX_RECEIPT_LABEL)}</span>
+          <strong class="qc-meta-val">PKR ${Number(receipt.salesTaxCents / 100).toLocaleString('en-PK')}</strong>
         </div>` : ''}
         ${baqayaRows}
 

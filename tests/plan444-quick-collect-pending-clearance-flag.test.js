@@ -248,7 +248,11 @@ test('wiring: the form render reads the select and flags by the module rule', ()
   assert.ok(wiringSrc.includes('function renderPendingClearanceFlag()'), 'missing form render function');
   const fn = wiringSrc.slice(wiringSrc.indexOf('function renderPendingClearanceFlag()'));
   assert.ok(fn.includes("methodSelect ? String(methodSelect.value || '') : ''"), 'render must read the select value');
-  assert.ok(fn.includes('pendingClearanceFlagForMethod(method)'), 'render must flag by the module rule');
+  // Plan 535: the entry form flags by the Bank-Transfer-only entry
+  // rule now — the receipt side keeps the old helper, so the render
+  // no longer calls pendingClearanceFlagForMethod.
+  assert.ok(fn.includes('pendingClearanceEntryFlagForMethod(method)'), 'render must flag leg 1 by the entry rule');
+  assert.ok(fn.includes('pendingClearanceEntryFlagForMethod(splitMethod)'), 'render must flag leg 2 by the entry rule');
   assert.ok(fn.includes('pendingClearanceFlagEl.textContent = flag;'), 'render must write the flag as plain text');
   assert.ok(fn.includes("pendingClearanceFlagEl.hidden = flag === '';"), 'render must hide when there is no flag');
 });
@@ -257,7 +261,10 @@ test('wiring: every method change refreshes the flag through the method sync', (
   const sync = wiringSrc.slice(wiringSrc.indexOf('function syncMethodChips(val)'), wiringSrc.indexOf('function syncMethodChips(val)') + 1200);
   assert.ok(sync.includes('renderPendingClearanceFlag();'), 'method sync must refresh the flag');
   const calls = wiringSrc.match(/renderPendingClearanceFlag\(\);/g) || [];
-  assert.equal(calls.length, 1, `expected 1 form render call (inside the method sync), got ${calls.length}`);
+  // Plan 535: a second refresh lives inside updateSplitVisibility, so
+  // a leg-2 method change (or a split toggle) refreshes the flag too;
+  // the method sync still owns the leg-1 refresh.
+  assert.equal(calls.length, 2, `expected 2 form render calls (method sync + split visibility), got ${calls.length}`);
 });
 
 // --- Wiring: the success screen ---

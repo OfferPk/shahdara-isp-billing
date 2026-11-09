@@ -206,9 +206,14 @@ test('wiring: the submit path never reads the cash field — the calculator post
   assert.ok(start > -1, 'the submit handler must exist');
   const handler = wiringSrc.slice(start);
   assert.ok(!handler.includes('cashReceivedInput'), 'the cash field must stay out of the submit path');
-  // The only four lines that ever name the cash field: the grab, the
-  // render, the cash listener, and the form-open clear.
-  assert.equal((wiringSrc.match(/cashReceivedInput/g) || []).length, 5);
+  // The only lines that ever name the cash field: the grab, the
+  // render, the cash listener, the form-open clear, and the
+  // Plan 537 hide-clear in renderCashChange (the count moves from
+  // 5 to 7 because the new line names the field twice — the guard
+  // and the assignment — exactly like the form-open clear line;
+  // the intent — the submit path never reads the cash field — is
+  // unchanged).
+  assert.equal((wiringSrc.match(/cashReceivedInput/g) || []).length, 7);
 });
 
 test('page: the calculator box, cash input, and change line live in the amount field group', () => {

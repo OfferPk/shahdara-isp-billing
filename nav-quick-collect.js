@@ -5589,6 +5589,69 @@ export function setupQuickCollectModal({
         largeCashApproverInput?.focus();
         return;
       }
+      // Plan 536: the split validations run here, before the confirm
+      // summary — in the same position as the large-cash check
+      // above. A bad split is refused on the form step instead of
+      // after the operator confirms figures that cannot post. What
+      // is validated is unchanged; only the position moves. The
+      // recording stays below the confirm check, so a split still
+      // posts only once the figures are confirmed. The leg-2 fields
+      // are read here (not inside the split block below), so the
+      // validations and the recording read the same values.
+      const leg2Method = splitMethodSelect?.value || 'Easypaisa';
+      const leg2Amount = Number(splitAmountInput?.value);
+      const leg2Txn = (splitTransactionIdInput?.value || '').trim();
+      const leg2Override = (splitOverrideReasonInput?.value || '').trim();
+      if (splitToggle?.checked) {
+        if (advanceCheckbox?.checked) {
+          if (typeof onToast === 'function') onToast(t('split_advance_conflict'), { type: 'error' });
+          return;
+        }
+        // The fully-paid guard applies to a split exactly as to a normal
+        // collection (a split is two ordinary payments, never advance).
+        if (normalPaymentBlockReason(state, activeCustomerId, monthVal) === 'fully-paid'
+          && billedTicketChargesPending(loadTickets(), activeCustomerId) <= 0) {
+          if (typeof onToast === 'function') onToast(t('adv_blocked_paid'), { type: 'error' });
+          return;
+        }
+        if (isDigitalPaymentMethod(leg2Method) && !leg2Txn && !leg2Override) {
+          if (typeof onToast === 'function') onToast(t('split_leg2_tid_required'), { type: 'error' });
+          splitTransactionIdInput?.focus();
+          return;
+        }
+        if (leg2Txn) {
+          const dup2 = findDuplicatePaymentReference(state, leg2Txn);
+          if (dup2 && duplicateBypassedForLeg2Txn !== leg2Txn) {
+            const dup2Date = dup2.date || dup2.paymentDate || 'recently';
+            const dup2Month = dup2.month || dup2.billMonth || 'unknown';
+            const dup2Amt = Number(dup2.amount || 0).toLocaleString('en-PK');
+            if (leg2DupCard) {
+              // Plan 534: the leg-2 duplicate gets the same in-app
+              // card as leg 1, beside the leg-2 TID field — a toast
+              // alone hides behind the sheet (Plan 296). Plan 536:
+              // this check now runs before the confirm step, so the
+              // form step is already showing; the call below stays
+              // as a guard, so the card lands on the form step even
+              // if the handler is ever entered from another step.
+              if (leg2DupMsg) {
+                leg2DupMsg.textContent = `Transaction ID "${leg2Txn}" was already recorded on ${dup2Date} for ${dup2.customerName || 'customer'} (#${dup2.customerNumber || '?'}) in month ${dup2Month} (PKR ${dup2Amt}).`;
+              }
+              if (leg2DupReasonInput) leg2DupReasonInput.value = '';
+              syncLeg2DupProceed();
+              showStep('form');
+              leg2DupCard.hidden = false;
+              leg2DupCard.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+              (leg2DupCancelBtn || leg2DupProceedBtn)?.focus(); // Cancel is the safe default (#279)
+              return;
+            }
+            // No card in the page (older markup): the toast is all
+            // there is, exactly as before this plan.
+            if (typeof onToast === 'function') onToast(`Leg 2 Transaction ID "${leg2Txn}" was already recorded on ${dup2.date || dup2.paymentDate || 'recently'} for ${dup2.customerName || 'a customer'} (#${dup2.customerNumber || '?'}). Give leg 2 its own Transaction ID.`, { type: 'error' });
+            splitTransactionIdInput?.focus();
+            return;
+          }
+        }
+      }
       // Plan 382: confirm-before-posting — every guard above has
       // passed, so show the summary of the exact figures about to
       // post. The payment posts only after the operator confirms the
@@ -5614,60 +5677,13 @@ export function setupQuickCollectModal({
       saveConfirmationArmedKey = null;
       // SISP-121: split tender — leg 1 is the main form above (its TID
       // checks and duplicate card already ran), leg 2 is the split
-      // block. Recording happens ONLY through
+      // block. The split validations (Advance conflict, leg-2
+      // TID/override, leg-2 duplicate, fully-paid guard) already ran
+      // above, before the confirm step (Plan 536), and the leg-2
+      // fields were read there. Recording happens ONLY through
       // executeSplitTenderCollection: both legs are validated before
       // either is recorded and the chain is discarded whole on failure.
       if (splitToggle?.checked) {
-        if (advanceCheckbox?.checked) {
-          if (typeof onToast === 'function') onToast(t('split_advance_conflict'), { type: 'error' });
-          return;
-        }
-        // The fully-paid guard applies to a split exactly as to a normal
-        // collection (a split is two ordinary payments, never advance).
-        if (normalPaymentBlockReason(state, activeCustomerId, monthVal) === 'fully-paid'
-          && billedTicketChargesPending(loadTickets(), activeCustomerId) <= 0) {
-          if (typeof onToast === 'function') onToast(t('adv_blocked_paid'), { type: 'error' });
-          return;
-        }
-        const leg2Method = splitMethodSelect?.value || 'Easypaisa';
-        const leg2Amount = Number(splitAmountInput?.value);
-        const leg2Txn = (splitTransactionIdInput?.value || '').trim();
-        const leg2Override = (splitOverrideReasonInput?.value || '').trim();
-        if (isDigitalPaymentMethod(leg2Method) && !leg2Txn && !leg2Override) {
-          if (typeof onToast === 'function') onToast(t('split_leg2_tid_required'), { type: 'error' });
-          splitTransactionIdInput?.focus();
-          return;
-        }
-        if (leg2Txn) {
-          const dup2 = findDuplicatePaymentReference(state, leg2Txn);
-          if (dup2 && duplicateBypassedForLeg2Txn !== leg2Txn) {
-            const dup2Date = dup2.date || dup2.paymentDate || 'recently';
-            const dup2Month = dup2.month || dup2.billMonth || 'unknown';
-            const dup2Amt = Number(dup2.amount || 0).toLocaleString('en-PK');
-            if (leg2DupCard) {
-              // Plan 534: the leg-2 duplicate gets the same in-app
-              // card as leg 1, beside the leg-2 TID field — a toast
-              // alone hides behind the sheet (Plan 296). This check
-              // runs after the confirm step, so go back to the form
-              // step first, or the card would sit unseen.
-              if (leg2DupMsg) {
-                leg2DupMsg.textContent = `Transaction ID "${leg2Txn}" was already recorded on ${dup2Date} for ${dup2.customerName || 'customer'} (#${dup2.customerNumber || '?'}) in month ${dup2Month} (PKR ${dup2Amt}).`;
-              }
-              if (leg2DupReasonInput) leg2DupReasonInput.value = '';
-              syncLeg2DupProceed();
-              showStep('form');
-              leg2DupCard.hidden = false;
-              leg2DupCard.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
-              (leg2DupCancelBtn || leg2DupProceedBtn)?.focus(); // Cancel is the safe default (#279)
-              return;
-            }
-            // No card in the page (older markup): the toast is all
-            // there is, exactly as before this plan.
-            if (typeof onToast === 'function') onToast(`Leg 2 Transaction ID "${leg2Txn}" was already recorded on ${dup2.date || dup2.paymentDate || 'recently'} for ${dup2.customerName || 'a customer'} (#${dup2.customerNumber || '?'}). Give leg 2 its own Transaction ID.`, { type: 'error' });
-            splitTransactionIdInput?.focus();
-            return;
-          }
-        }
         // Snapshot the recorder's device-local side effects (audit trail
         // + last-method preference) so a failed split restores them too:
         // the split is all-or-nothing, display log included.

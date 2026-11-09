@@ -5409,3 +5409,59 @@
     display: none;
   }
 }
+
+/* QC-5: Today's Field Recovery card — one card composing the day's
+   recovery figures (today card + day target + picker pool). The card
+   spans two grid columns so the progress bar and the 2x2 tiles read
+   cleanly at 360px, where the grid is two columns wide. Tokens only:
+   no new hex, type and radius steps from tokens.css. */
+.qc5-field-recovery-card {
+  grid-column: span 2;
+}
+
+.qc5-field-recovery-card .route-progress-track {
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.qc5-line {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.qc5-field-recovery-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+  margin-top: var(--space-2);
+}
+
+.qc5-field-recovery-tile {
+  min-width: 0;
+  padding: var(--space-2);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.qc5-field-recovery-tile-label {
+  display: block;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.qc5-field-recovery-tile-value {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}

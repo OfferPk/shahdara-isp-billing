@@ -823,6 +823,19 @@ export function generatePaymentReceiptHtml(receipt, {
   }
 
   // Default: A4 Layout
+  // Plan 554: A4 prints a field only when it has a value — a missing
+  // value prints nothing, not a blank underlined row (thermal already
+  // hides empty Txn ID / sender rows this way). A field tuple is
+  // [label, value, class?, keep?]; only the contributor header row
+  // carries keep, because its empty value is a section heading.
+  const hasA4FieldValue = ([, val, , keep]) => keep || (val !== null && val !== undefined && val !== '');
+  // Plan 554: the arrears block already prints the package price as
+  // "Mahana Package" — on a no-kist bill that figure IS the nominal
+  // price (packageAmount = dueAmount − 0), so the standalone row would
+  // print the same figure twice under two labels. It stays only when a
+  // kist genuinely splits the bill (nominal = package + kist), with the
+  // kist row below explaining the split.
+  const arrearsPrintsPackagePriceAlone = receipt.arrearsBreakdown && !(receipt.arrearsBreakdown.kistAmount > 0);
   const fields = [
     ['Receipt Number / رسید نمبر', receipt.receiptNumber],
     ['Customer Name / صارف کا نام', displayName],
@@ -837,7 +850,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ['Package Duration', receipt.packageDuration],
     ['Package Type', receipt.packageType],
     ['Data Limit', receipt.dataLimit],
-    ['Nominal Package Price', receipt.nominalPrice === null ? '' : formatAmount(receipt.nominalPrice)],
+    ...(!arrearsPrintsPackagePriceAlone ? [['Nominal Package Price', receipt.nominalPrice === null ? '' : formatAmount(receipt.nominalPrice)]] : []),
     ...(receipt.salesTaxCents > 0 ? [[SALES_TAX_RECEIPT_LABEL, `+${formatAmount(receipt.salesTaxCents / 100)}`]] : []),
     ...(receipt.lateFee > 0 ? [['Late Fee Surcharge', `+${formatAmount(receipt.lateFee)}`]] : []),
     ...(receipt.waivedAmount > 0 ? [['Late Fee Waived', `-${formatAmount(receipt.waivedAmount)}`]] : []),
@@ -857,7 +870,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.arrearsBreakdown ? [
       ['Mahana Package / ماہانہ پیکیج', formatAmount(receipt.arrearsBreakdown.packageAmount)],
       ...(receipt.arrearsBreakdown.kistAmount > 0 ? [
-        ['Kist / قسط', formatAmount(receipt.arrearsBreakdown.kistAmount)],
+        ['Kist / قسط', `${formatAmount(receipt.arrearsBreakdown.kistAmount)} (included in Nominal Package Price)`],
         ...(Array.isArray(receipt.arrearsBreakdown.kistLines) ? receipt.arrearsBreakdown.kistLines.map((line) => [kistLineLabel(line), formatAmount(line.amount)]) : [])
       ] : []),
       ['Sabiqa Baqaya / سابقہ بقایا', formatAmount(receipt.arrearsBreakdown.previousArrears)],
@@ -876,18 +889,27 @@ export function generatePaymentReceiptHtml(receipt, {
       ['Remaining Advance Balance / باقی پیشگی بیلنس', formatAmount(receipt.advanceCredit.remaining)]
     ] : []),
     ...(receipt.contributorSplit ? [
-      ['Hamsaya Hissa Taqseem / حصہ تقسیم', ''],
+      // Plan 554: the header row's empty value is a section heading, not
+      // a missing datum — the keep flag exempts it from the empty-row
+      // filter below, so the contributor rows keep their heading.
+      ['Hamsaya Hissa Taqseem / حصہ تقسیم', '', undefined, true],
       ...receipt.contributorSplit.rows.map((row) => [`Hamsaya — ${row.name}`, `Hissa ${formatAmount(row.share)} · Ada ${formatAmount(row.paid)} · Baqi ${formatAmount(row.remaining)}`]),
       [`Asal Customer — ${receipt.contributorSplit.main.name}`, `Hissa ${formatAmount(receipt.contributorSplit.main.share)} · Ada ${formatAmount(receipt.contributorSplit.main.paid)} · Baqi ${formatAmount(receipt.contributorSplit.main.remaining)}`]
     ] : []),
-    ['Package Date', receipt.packageDate],
+    // Plan 554: packageDate IS the billing-month start
+    // (`${bill.month}-01`), not a date anything happened on — label it
+    // what it is, with the YYYY-MM value thermal-80 already prints.
+    ['Billing Month / بل کا مہینہ', receipt.packageDate ? receipt.packageDate.slice(0, 7) : ''],
     ...(receipt.remainderWaada ? [['Baqi / باقی رقم', `Rs. ${Number(receipt.remainderWaada.promiseAmount).toLocaleString('en-PK')} • Waada: ${receipt.remainderWaada.promiseDate}`]] : []),
     ['Amount Received / رقم موصول', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount), 'receipt-amount'],
     ...(receipt.looseChangeCredit > 0 ? [['Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ', `+${formatAmount(receipt.looseChangeCredit)}`]] : []),
     ['Payment Method / ذریعہ ادائیگی', receipt.paymentMethod],
     ['Service Period Start', receipt.servicePeriodStart],
     ['Service Period End', receipt.servicePeriodEnd],
-    ['Receipt Status / کیفیت', receipt.status, statusClass],
+    // Plan 554: read the defaulted const (thermal does too) — a
+    // hand-built receipt without a status field keeps its status row
+    // instead of losing it to the empty-row filter below.
+    ['Receipt Status / کیفیت', status, statusClass],
     ...(verStamp ? [['Verification Code / تصدیقی کوڈ', verStamp]] : []),
     ['Balance Due After Payment / باقی واجبات', balanceLabel, statusClass]
   ];
@@ -899,7 +921,7 @@ export function generatePaymentReceiptHtml(receipt, {
   </header>
   ${voidStampHtml}
   <dl class="receipt-fields">
-    ${fields.map(([label, val, cls]) => `<div class="receipt-field"><dt>${escapeHtml(label)}</dt><dd class="${cls || ''}">${val ? escapeHtml(val) : '&nbsp;'}</dd></div>`).join('')}
+    ${fields.filter(hasA4FieldValue).map(([label, val, cls]) => `<div class="receipt-field"><dt>${escapeHtml(label)}</dt><dd class="${cls || ''}">${val ? escapeHtml(val) : '&nbsp;'}</dd></div>`).join('')}
   </dl>${paymentHistorySectionHtml(receipt, formatAmount)}
   <div class="receipt-urdu-notice" dir="rtl" lang="ur">
     <strong>اہم معلوماتی نوٹ:</strong> ${escapeHtml(RECEIPT_URDU_NOTE)}

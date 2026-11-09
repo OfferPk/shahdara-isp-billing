@@ -177,7 +177,7 @@ test('wiring: the form opens with an empty cash field and a fresh calculator', (
 });
 
 test('wiring: a programmatic amount set re-computes the change — concession, waiver, chips, loose change, keypad', () => {
-  // Eleven call sites plus the definition itself.
+  // Twelve call sites plus the definition itself.
   // Plan 442: the amount keypad is the tenth programmatic
   // amount-set site — a keypad tap sets the amount, so the change
   // re-computes like every other site.
@@ -187,8 +187,12 @@ test('wiring: a programmatic amount set re-computes the change — concession, w
   // moves from 11 to 12 for that one new call site only; the intent
   // (every programmatic amount set re-computes the change) is
   // unchanged.
+  // Plan 539: the Back-draft restore is the twelfth programmatic
+  // amount-set site — a restored amount re-computes the change like
+  // every other site. The count moves from 12 to 13 for that one
+  // new call site only; the intent is unchanged.
   const calls = (wiringSrc.match(/renderCashChange\(\)/g) || []).length;
-  assert.equal(calls, 12, `expected 11 renderCashChange call sites + the definition, found ${calls}`);
+  assert.equal(calls, 13, `expected 12 renderCashChange call sites + the definition, found ${calls}`);
   for (const anchor of [
     'the concession sets the amount, so the change',
     'the waiver tick sets the amount, so the change',

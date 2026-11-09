@@ -14493,3 +14493,14 @@ dialog::backdrop {
 .oqs-empty{margin:0;font-size:11px;color:#5c6e66}
 /* Plan 487: dashboard labels switched to Urdu script read in the Nastaliq face even while the rest of the app stays in English. The Urdu font file loads on demand when the option is on; the [lang="ur"] marker the labels module sets is what this rule keys on. */
 #billingDashboard [lang="ur"]{font-family:'Noto Nastaliq Urdu','Noto Naskh Arabic','Urdu Typesetting',system-ui,sans-serif!important}
+
+/* Polish #28 Phase A — the 7 profile sections. Native <details>, the
+same chevron pattern as the month cards, tokens only, no new hex. */
+.profile-detail-section{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden;margin-bottom:12px}
+.profile-detail-section summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:14px 15px;min-height:57px}
+.profile-detail-section summary::-webkit-details-marker{display:none}
+.profile-detail-section summary::after{content:'⌄';font-size:18px;color:var(--muted);margin-left:auto;transition:transform .15s}
+.profile-detail-section[open] summary::after{transform:rotate(180deg)}
+.profile-detail-section summary h3{margin:0;font-size:15px;flex:1;min-width:0}
+.profile-section-summary{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.profile-section-body{display:grid;gap:12px;padding:14px 15px 16px;border-top:1px solid var(--line)}

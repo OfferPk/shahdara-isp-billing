@@ -259,7 +259,12 @@ test('acceptance: a mohalla with no dues shows no match, never the all-collected
   const view = renderQuickCollectPickerHtml(s, '', 'all-dues', null, 'MALLA');
   assert.deepEqual(view.customers, []);
   assert.equal(view.allCollected, false, 'an empty mohalla is not an all-collected round');
-  assert.match(view.html, /No matching accounts/, 'empty mohalla must show the no-match message');
+  // Plan 542 changed the message, not the intent: an empty mohalla
+  // no longer falls through to the generic "No matching accounts"
+  // line — it names the mohalla and offers to clear the filter.
+  // The pin stays the same: a no-match message, never all-collected.
+  assert.match(view.html, /No customers in MALLA/, 'empty mohalla must name the mohalla');
+  assert.match(view.html, /Clear mohalla filter/, 'empty mohalla must offer to clear the filter');
   assert.ok(!view.html.includes('Sab ka bill wusool ho gaya'), 'empty mohalla must not claim all collected');
 });
 

@@ -40,8 +40,11 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { PROFILE_EMPTY_DASH, profileEmptyText, profileEmptyMoney, profileEmptyTax, profileProfitDisplay, profileServiceState, profileServiceStatusPillHtml, currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { PROFILE_EMPTY_DASH, profileEmptyText, profileEmptyMoney, profileEmptyTax, profileProfitDisplay, formatReceiptMonth, profileServiceState, profileServiceStatusPillHtml, currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
+// Polish #28 Phase D: the profile calculations — one shared module for
+// the view and the form profit preview, so the two can never disagree.
+import { profileMonthlyProfit, profileGrossProfit, profileInvestmentBreakdown, profileInvestmentRecovery } from './profile-profit.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, dirtyProfileFieldKeys } from './profile-field-save.js?v=1.11.0';
 import { zonesUnderArea } from './zone-suggestions.js?v=1.11.0';
 import { profileTabCounts } from './profile-tab-counts.js?v=1.11.0';
@@ -5956,14 +5959,15 @@ function populateReportMonths() {
 }
 // Plan 515 — the form profit preview reads like the view's profit
 // row (Plan 506): same label key (prof_field_profit), same figure
-// (customerPackageProfit, the shared cents computation the view
-// uses). One figure, one sentence — the form and the view can no
-// longer disagree on the AMOUNT. The empty states differ BY DESIGN
+// (profileGrossProfit, the shared gross computation the view uses —
+// Polish #28 Phase D moved the view onto profileMonthlyProfit /
+// profileGrossProfit, and the preview follows it so the two still
+// share ONE implementation). One figure, one sentence — the form and
+// the view can no longer disagree on the AMOUNT. The empty states differ BY DESIGN
 // since Polish #28 Phase B (Req 3): the view row dashes with the
-// missing-component note, while the form preview keeps "Not set" —
-// Req 3 dashes the view only. The invalid-amounts hint
-// (prof_margin_invalid) is form validation, not the profit line, so
-// it stays as it is.
+// keeps "Not set" — Req 3 dashes the view only. The invalid-amounts
+// hint (prof_margin_invalid) is form validation, not the profit line,
+// so it stays as it is.
 function renderProfileMarginPreview() {
   const sellingText = $('#monthlySellingAmountInput').value.trim();
   const costText = $('#monthlyPurchaseCostInput').value.trim();
@@ -5971,7 +5975,7 @@ function renderProfileMarginPreview() {
   if (!sellingText || !costText) { preview.textContent = `${t('prof_field_profit')}: ${t('prof_not_set')}`; return; }
   const selling = Number(sellingText); const cost = Number(costText);
   if (!Number.isFinite(selling) || selling <= 0 || !Number.isFinite(cost) || cost < 0) { preview.textContent = t('prof_margin_invalid'); return; }
-  const profit = customerPackageProfit({ monthlySellingAmount: selling, monthlyPurchaseCost: cost });
+  const profit = profileGrossProfit({ monthlySellingAmount: selling, monthlyPurchaseCost: cost });
   preview.textContent = `${t('prof_field_profit')}: ${profit === null ? t('prof_not_set') : formatAmount(profit)}`;
 }
 function incidentAuditMarkup(incident) {
@@ -6176,7 +6180,59 @@ function renderCustomerProfileView(customer) {
   // profile-readonly-field-wide rule); the buttons keep their own
   // profile-contact-shortcuts styling.
   const contactActionsHtml = (phoneActions || phoneHint) ? `<div class="profile-readonly-field-wide">${phoneActions ? `<div class="profile-contact-shortcuts">${phoneActions}</div>` : ''}${phoneHint}</div>` : '';
-  const profit = customerPackageProfit(customer);
+  // Polish #28 Phase D — the profile calculations. The gross profit
+  // here is the shared module's figure, so the S3 money rows, the
+  // financial-section summary and the form preview all read the same
+  // number. Tax is a pass-through (shown on its own row, never
+  // subtracted); concession and payment discounts this month come
+  // from the current month's bill and the allocation engine; the net
+  // is gross − concession − discounts. With no bill this month the
+  // three rows dash with the no-bill note — never an assumed zero.
+  const monthlyProfit = profileMonthlyProfit(customer, state, pakistanMonthNow());
+  const profit = monthlyProfit.gross;
+  const grossMissingLabels = monthlyProfit.missing
+    .filter((id) => id !== 'bill')
+    .map((id) => id === 'providerCost' ? t('prof_field_purchase_cost') : t('prof_field_selling'));
+  const noBillNote = t('prof_field_no_bill', null, { month: formatReceiptMonth(monthlyProfit.month) });
+  const concessionDisplay = monthlyProfit.hasBill ? formatAmount(monthlyProfit.concession) : `${PROFILE_EMPTY_DASH} (${noBillNote})`;
+  const discountsDisplay = monthlyProfit.hasBill ? formatAmount(monthlyProfit.discounts) : `${PROFILE_EMPTY_DASH} (${noBillNote})`;
+  const netDisplay = monthlyProfit.net !== null ? formatAmount(monthlyProfit.net)
+    : monthlyProfit.hasBill
+      ? (grossMissingLabels.length ? `${PROFILE_EMPTY_DASH} (${t('prof_missing_note', null, { items: grossMissingLabels.join(' / ') })})` : PROFILE_EMPTY_DASH)
+      : `${PROFILE_EMPTY_DASH} (${noBillNote})`;
+  // Polish #28 Phase D — the installation investment as a breakdown
+  // (router + media converter + lineman labor + fiber + other), with
+  // the recovery period beside it. The breakdown reuses
+  // calculateInstallationCost through profileInvestmentBreakdown, so
+  // the total is the same figure the install line already reports.
+  // A partial total names its missing parts; the recovery row divides
+  // the whole investment by GROSS profit — a different figure from
+  // the install line's break-even (subsidy ÷ selling amount).
+  const investmentBreakdown = profileInvestmentBreakdown(customer);
+  const breakdownRow = (value) => value === null ? PROFILE_EMPTY_DASH : formatAmount(value);
+  const breakdownMissingLabels = investmentBreakdown.missing.map((id) => (
+    id === 'routerPrice' ? t('prof_field_router_price')
+    : id === 'mediaConverterCost' ? t('prof_field_mc_cost')
+    : id === 'linemanInstallFee' ? t('prof_field_lineman_fee')
+    : id === 'fiber' ? t('prof_field_fiber_cost')
+    : t('prof_field_install_other')
+  ));
+  const investmentTotalDisplay = investmentBreakdown.total === null ? PROFILE_EMPTY_DASH
+    : investmentBreakdown.missing.length
+      ? `${formatAmount(investmentBreakdown.total)} (${t('prof_install_partial')} — ${t('prof_missing_note', null, { items: breakdownMissingLabels.join(' / ') })})`
+      : formatAmount(investmentBreakdown.total);
+  const investmentRecovery = profileInvestmentRecovery(customer, { today: localDate() });
+  const investmentRecoveryDisplay = investmentRecovery.kind === 'forward'
+    ? `${t(investmentRecovery.months === 1 ? 'prof_install_recovery_months_1' : 'prof_install_recovery_months_n', null, { n: investmentRecovery.months })}${investmentRecovery.connectionDateMissing ? ` · ${t('prof_install_recovery_no_conn_date')}` : ''}`
+    : investmentRecovery.kind === 'recovered'
+      ? t(investmentRecovery.months === 1 ? 'prof_install_recovered_months_1' : 'prof_install_recovered_months_n', null, { n: investmentRecovery.months })
+      : investmentRecovery.kind === 'nothing-to-recover'
+        ? t('prof_install_recovery_nothing')
+        : investmentRecovery.kind === 'gross-not-positive'
+          ? t('prof_install_recovery_gross_low', null, { amount: formatAmount(investmentRecovery.gross) })
+          : investmentRecovery.kind === 'gross-missing'
+            ? `${PROFILE_EMPTY_DASH} (${t('prof_install_recovery_gross_missing', null, { missing: t('prof_missing_note', null, { items: grossMissingLabels.join(' / ') }) })})`
+            : PROFILE_EMPTY_DASH;
   const lifetimeValue = buildCustomerLifetimeValue(state, customer, new Date());
   // SISP-8: vacation-hold summary for the Service group below. This must be
   // computed here: renderDetail has its own pauseSummary const for the header
@@ -6373,7 +6429,7 @@ function renderCustomerProfileView(customer) {
   // prof_group_connection), so no group is renamed in this phase.
   // The <div class="profile-info-groups"> wrapper is dropped — each
   // section body provides the gap — its CSS rule stays, harmless.
-  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), profileEmptyText(phone)], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), profileEmptyText(customer.mohalla)], [t('prof_field_zone'), profileEmptyText(customer.zone)], [t('prof_field_address'), profileEmptyText(customer.address), true], [t('prof_field_notes'), profileEmptyText(customer.notes), true]]), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), profileEmptyText(customer.ispProvider)], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), profileEmptyText(customer.packageSpeed)], [t('prof_field_payday'), paydaySummary.label]]), money: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)], [t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)], [t('prof_field_profit'), profileProfitDisplay(customer, profit)]]), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH]]), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH], [t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), profileEmptyMoney(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)]]), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername), false, 'pppoeUsername'], [t('prof_field_static_ip'), profileEmptyText(customer.staticIp), false, 'staticIp'], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH, false, 'macAddress']]), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), profileEmptyText(customer.routerModel)], [t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)], [t('prof_field_mc_cost'), profileEmptyMoney(customer.mediaConverterCost)]]) };
+  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), profileEmptyText(phone)], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), profileEmptyText(customer.mohalla)], [t('prof_field_zone'), profileEmptyText(customer.zone)], [t('prof_field_address'), profileEmptyText(customer.address), true], [t('prof_field_notes'), profileEmptyText(customer.notes), true]]), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), profileEmptyText(customer.ispProvider)], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), profileEmptyText(customer.packageSpeed)], [t('prof_field_payday'), paydaySummary.label]]), money: profileInfoGroupMarkup(t('prof_group_service'), [[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)], [t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)], [t('prof_field_profit'), profileProfitDisplay(customer, profit)], [t('prof_field_concession_month'), concessionDisplay], [t('prof_field_discounts_month'), discountsDisplay], [t('prof_field_net_profit'), netDisplay]]), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH]]), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH], [t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), profileEmptyMoney(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)], [t('prof_field_router_price'), breakdownRow(investmentBreakdown.router)], [t('prof_field_mc_cost'), breakdownRow(investmentBreakdown.mediaConverter)], [t('prof_field_lineman_fee'), breakdownRow(investmentBreakdown.lineman)], [t('prof_field_fiber_cost'), breakdownRow(investmentBreakdown.fiber)], [t('prof_field_install_other'), breakdownRow(investmentBreakdown.other)], [t('prof_field_install_total'), investmentTotalDisplay], [t('prof_field_install_recovery'), investmentRecoveryDisplay]]), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername), false, 'pppoeUsername'], [t('prof_field_static_ip'), profileEmptyText(customer.staticIp), false, 'staticIp'], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH, false, 'macAddress']]), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), profileEmptyText(customer.routerModel)], [t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)], [t('prof_field_mc_cost'), profileEmptyMoney(customer.mediaConverterCost)]]) };
   // SISP-19: profile hardware custody — ownership fields on the record,
   // plus the disconnection recovery checklist once archived (archive is
   // the app's disconnect action). Fiber drop length reuses fiberMeters.
@@ -8741,6 +8797,8 @@ function renderDetail() {
   if ($('#dropWireCoreColorInput')) $('#dropWireCoreColorInput').value = customer.dropWireCoreColor ?? '';
   if ($('#mediaConverterCostInput')) $('#mediaConverterCostInput').value = customer.mediaConverterCost ?? '';
   if ($('#linemanInstallFeeInput')) $('#linemanInstallFeeInput').value = customer.linemanInstallFee ?? '';
+  // Polish #28 Phase D: any further install cost — optional, blank means not recorded.
+  if ($('#otherInstallCostInput')) $('#otherInstallCostInput').value = customer.otherInstallCost ?? '';
   if ($('#fiberPerMeterRateInput')) $('#fiberPerMeterRateInput').value = customer.fiberPerMeterRate ?? '';
   // SISP-173: installer attribution (optional).
   if ($('#installedByLinemanInput')) $('#installedByLinemanInput').value = customer.installedByLineman ?? '';  // SISP-7: feeder link fields — upstream select excludes this customer;
@@ -11995,6 +12053,8 @@ $('#saveMohallaButton').addEventListener('click', async () => {
       ...($('#dropWireCoreColorInput') ? { dropWireCoreColor: $('#dropWireCoreColorInput').value } : {}),
       ...($('#mediaConverterCostInput') ? { mediaConverterCost: $('#mediaConverterCostInput').value } : {}),
       ...($('#linemanInstallFeeInput') ? { linemanInstallFee: $('#linemanInstallFeeInput').value } : {}),
+      // Polish #28 Phase D: any further install cost — optional, blank means not recorded.
+      ...($('#otherInstallCostInput') ? { otherInstallCost: $('#otherInstallCostInput').value } : {}),
       ...($('#fiberPerMeterRateInput') ? { fiberPerMeterRate: $('#fiberPerMeterRateInput').value } : {}),
       // SISP-173: installer attribution (optional).
       ...($('#installedByLinemanInput') ? { installedByLineman: $('#installedByLinemanInput').value } : {}),      upstreamCustomerId:$('#upstreamCustomerInput') ? $('#upstreamCustomerInput').value : '',
@@ -12250,7 +12310,7 @@ function bindProfileFieldSaveButtons() {
 bindProfileFieldSaveButtons();
 // Plan 500 — Per-field Save appears only on the dirty field.
 //
-// The 69 per-field Save buttons are visually noisy when all visible,
+// The 70 per-field Save buttons are visually noisy when all visible,
 // and none of them says which field is unsaved. This sync shows a
 // button only while its own field is dirty, reusing the exact dirty
 // check Plan 499 built for Cancel (dirtyProfileFieldKeys, comparing

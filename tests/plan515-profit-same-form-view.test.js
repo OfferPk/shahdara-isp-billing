@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { TRANSLATIONS } from '../nav-language.js';
 import { customerPackageProfit, formatPKR } from '../core.js';
+import { profileProfitDisplay } from '../profile-ui.js';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
@@ -63,23 +64,30 @@ function runPreview(sellingText, costText) {
 
 function viewProfitLine(customer) {
   const profit = customerPackageProfit(customer);
-  return `${TRANSLATIONS.en.prof_field_profit}: ${profit === null ? TRANSLATIONS.en.prof_not_set : formatPKR(profit)}`;
+  return `${TRANSLATIONS.en.prof_field_profit}: ${profileProfitDisplay(customer, profit)}`;
 }
 
 // ------------------------------------------------------------ the rule itself
 
 test('Plan 515: the unification is written down as a code comment at the preview', () => {
   const app = read('app.js');
-  assert.ok(app.includes('Plan 515 — the form profit preview reads exactly like the view\'s'), 'rule comment must sit at renderProfileMarginPreview');
+  assert.ok(app.includes('Plan 515 — the form profit preview reads like the view\'s'), 'rule comment must sit at renderProfileMarginPreview');
   assert.ok(app.includes('same label key (prof_field_profit), same'), 'rule must name the shared label key');
-  assert.ok(app.includes('same Not set fallback'), 'rule must name the shared fallback');
+  // Polish #28 Phase B (Req 3) — the empty states differ BY DESIGN
+  // now (view: dash + missing note; form: Not set), so the comment no
+  // longer claims a shared fallback; it names the split instead.
+  assert.ok(app.includes('The empty states differ BY DESIGN'), 'rule must name the Phase B empty-state split');
 });
 
 test('Plan 515: the preview uses the view label key, the shared figure function and the Not set fallback', () => {
   const src = previewFunctionSource();
   assert.ok(src.includes("customerPackageProfit({ monthlySellingAmount: selling, monthlyPurchaseCost: cost })"), 'preview must compute the figure with the shared customerPackageProfit, not hand-rolled subtraction');
   assert.ok(src.includes("`${t('prof_field_profit')}: ${profit === null ? t('prof_not_set') : formatAmount(profit)}`"), 'preview must render label + figure exactly like the view row');
-  assert.ok(src.includes("`${t('prof_field_profit')}: ${t('prof_not_set')}`"), 'preview unset must read label + Not set, like the view');
+  // Polish #28 Phase B (Req 3) — the preview keeps "Not set" while
+  // the view row dashes with the missing-component note; the form is
+  // not the view, so "like the view" here means the label + figure,
+  // not the empty state.
+  assert.ok(src.includes("`${t('prof_field_profit')}: ${t('prof_not_set')}`"), 'preview unset must read label + Not set');
   assert.ok(!src.includes('prof_margin_ok'), 'the old ok sentence key must be gone from the preview');
   assert.ok(!src.includes('prof_margin_unset'), 'the old unset sentence key must be gone from the preview');
   assert.ok(src.includes("t('prof_margin_invalid')"), 'the invalid-amounts hint stays — it is validation, not the profit line');
@@ -121,10 +129,15 @@ test('Plan 515: the preview figure is the same PKR figure the view shows for the
     viewProfitLine({ monthlySellingAmount: 2000, monthlyPurchaseCost: 1500 }),
     'preview and view must read identically for the same customer',
   );
+  // Polish #28 Phase B (Req 3) — the empty states differ BY DESIGN:
+  // the form preview reads Not set, the view row reads the dash with
+  // the missing-component note. The amounts still agree; only the
+  // empty-state wording splits.
+  assert.equal(runPreview('', '1500'), 'Monthly package profit: Not set', 'the form preview keeps Not set when an amount is missing');
   assert.equal(
-    runPreview('', '1500'),
     viewProfitLine({ monthlySellingAmount: undefined, monthlyPurchaseCost: 1500 }),
-    'preview and view must both read Not set when an amount is missing',
+    'Monthly package profit: — (missing: Monthly selling amount)',
+    'the view row reads the dash with the missing component when an amount is missing',
   );
 });
 
@@ -147,16 +160,18 @@ test('Plan 515: the static preview text in the form reads the same unset line', 
   assert.ok(!html.includes('Expected monthly package profit: Not set until both monthly amounts are entered.'), 'the old unset sentence must be gone from the page');
 });
 
-test('Plan 515: the view profit row (Plan 506) is untouched', () => {
+test('Plan 515: the view profit row (Plan 506) reads the dash with the missing-component note', () => {
   const app = read('app.js');
   // Polish #28 Phase A — the four-groups literal became the eight
   // fragments object (profileInfoGroupFragments); the view pin follows
-  // the new name, rows verbatim.
+  // the new name, rows verbatim. Polish #28 Phase B (Req 3) — the
+  // null-profit branch now renders through profileProfitDisplay (dash
+  // + missing-component note), not "Not set".
   const start = app.indexOf('const profileInfoGroupFragments = {');
   assert.notEqual(start, -1, 'fragments object must exist');
   const groups = app.slice(start, app.indexOf('\n', start));
-  assert.ok(groups.includes("[t('prof_field_profit'), profit === null ? t('prof_not_set') : formatAmount(profit)]"), 'view row must keep the label + Not set + PKR figure pattern');
-  const selling = "[t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]";
+  assert.ok(groups.includes("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]"), 'view row must keep the label + dash + PKR figure pattern');
+  const selling = "[t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)]";
   assert.ok(groups.indexOf(selling) !== -1, 'selling row must still exist');
-  assert.ok(groups.indexOf("[t('prof_field_profit'), profit === null ? t('prof_not_set') : formatAmount(profit)]") > groups.indexOf(selling), 'profit row must still follow the selling row');
+  assert.ok(groups.indexOf("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]") > groups.indexOf(selling), 'profit row must still follow the selling row');
 });

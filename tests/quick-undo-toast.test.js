@@ -456,7 +456,12 @@ test('wiring: Quick Collect delegates to onCollected when the host provides it, 
   assert.ok(source.includes('onCollected'));
   assert.ok(source.includes("typeof onCollected === 'function'"));
   // The pre-SISP-141 behaviour survives for hosts without the hook.
-  assert.ok(source.includes('Payment of PKR ${amountVal.toLocaleString()} recorded.'));
+  // Plan 549: the recorded toast's wording moved into nav-language.js
+  // (key qc_toast_payment_recorded, English byte-identical) — the
+  // toast still fires, only the string's home moved.
+  const lang = readFileSync(new URL('../nav-language.js', import.meta.url), 'utf8');
+  assert.ok(lang.includes('Payment of PKR {amount} recorded.'), 'recorded toast wording unchanged in the dictionary');
+  assert.ok(source.includes("t('qc_toast_payment_recorded'"), 'recorded toast routes through the dictionary key');
   assert.ok(source.includes('executeUndo'));
 });
 

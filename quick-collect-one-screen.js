@@ -43,11 +43,15 @@ function customerDisplayNumber(customer) {
 // The customer options for the one-screen picker, sorted by name so
 // the operator finds the customer without scrolling a long list.
 // Entries without a usable id or name are skipped, never guessed.
+// Archived customers are skipped too — the same rule as the picker
+// (getPendingCollectionCustomers): an archived customer cannot
+// receive payments, so the one screen never offers one.
 export function quickCollectOneScreenCustomerOptions(customers) {
   const list = Array.isArray(customers) ? customers : [];
   const options = [];
   for (const customer of list) {
     if (!customer || typeof customer !== 'object') continue;
+    if (customer.archived) continue;
     const id = String(customer.id ?? '').trim();
     const name = customerDisplayName(customer);
     if (!id || !name) continue;

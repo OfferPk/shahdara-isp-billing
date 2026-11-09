@@ -2330,7 +2330,20 @@ export const TRANSLATIONS = {
     prof_field_purchase_cost: 'Monthly provider purchase cost',
     prof_field_sales_tax: 'Sales tax (19.5%)',
     prof_field_selling: 'Monthly selling amount',
-    prof_field_profit: 'Monthly package profit',
+    prof_field_profit: 'Monthly gross profit',
+    // Polish #28 Phase D: net, concession and discounts this month, and
+    // the investment breakdown + recovery rows.
+    prof_field_net_profit: 'Monthly net profit',
+    prof_field_concession_month: 'Concession this month',
+    prof_field_discounts_month: 'Payment discounts this month',
+    prof_field_fiber_cost: 'Fiber cost',
+    prof_field_install_other: 'Other installation cost',
+    prof_field_install_total: 'Total installation investment',
+    prof_field_install_recovery: 'Investment recovery',
+    prof_field_no_bill: 'No bill for {month}',
+    // Polish #28 Phase D: sales tax is collected on top of the package
+    // price — a pass-through, never a business cost.
+    prof_field_tax_passthrough: 'collected on top, not a business cost',
     prof_field_conn_start: 'Connection / subscription start',
     prof_field_conn_fee: 'Connection fee',
     prof_field_router: 'Router installed',
@@ -2356,6 +2369,18 @@ export const TRANSLATIONS = {
     prof_install_be_nocompute: 'break-even not computable (monthly amount not set)',
     prof_install_be_months_1: 'break-even in {n} monthly bill',
     prof_install_be_months_n: 'break-even in {n} monthly bills',
+    // Polish #28 Phase D: investment recovery — months of GROSS profit,
+    // a different figure from the break-even above (subsidy ÷ selling
+    // amount), so the two can never be confused.
+    prof_install_recovery_months_1: 'Investment recovery — {n} month of gross profit',
+    prof_install_recovery_months_n: 'Investment recovery — {n} months of gross profit',
+    prof_install_recovery_gross_low: 'Cannot be calculated — monthly gross profit is {amount} (not positive)',
+    prof_install_recovery_gross_missing: 'Cannot be calculated — {missing}',
+    prof_install_recovery_nothing: 'Nothing to recover',
+    prof_install_recovered_months_1: 'Recovered — {n} month of gross profit',
+    prof_install_recovered_months_n: 'Recovered — {n} months of gross profit',
+    prof_install_recovery_no_conn_date: 'connection date not recorded',
+    prof_install_partial: 'partial',
     prof_pause_not_paused: 'Not paused',
     prof_pause_since_resume: 'Paused since {start} · auto-resumes {resume}',
     prof_pause_since_until: 'Paused since {start} · until resumed',
@@ -3776,6 +3801,10 @@ export const TRANSLATIONS = {
     prof_form_lineman_fee: 'Lineman install fee (PKR)',
     prof_form_lineman_fee_note: 'Optional · paid to the installer',
     prof_form_lineman_fee_ph: 'e.g. 500',
+    // Polish #28 Phase D: any further install cost — optional, never zero.
+    prof_form_install_other: 'Other installation cost (PKR)',
+    prof_form_install_other_note: 'Optional · any other install cost',
+    prof_form_install_other_ph: 'e.g. 1000',
     prof_form_fiber_rate: 'Fiber rate per meter (PKR)',
     prof_form_fiber_rate_note: 'Optional · needed to price the fiber used',
     prof_form_fiber_rate_ph: 'e.g. 25',
@@ -6751,7 +6780,20 @@ export const TRANSLATIONS = {
     prof_field_purchase_cost: 'ماہانہ فراہم کنندہ خرید لاگت',
     prof_field_sales_tax: 'سیلز ٹیکس (19.5%)',
     prof_field_selling: 'ماہانہ فروخت رقم',
-    prof_field_profit: 'ماہانہ پیکیج منافع',
+    prof_field_profit: 'ماہانہ مجموعی منافع',
+    // Polish #28 Phase D: net, concession and discounts this month, and
+    // the investment breakdown + recovery rows.
+    prof_field_net_profit: 'ماہانہ خالص منافع',
+    prof_field_concession_month: 'اس مہینے کی رعایت',
+    prof_field_discounts_month: 'اس مہینے کی چھوٹ',
+    prof_field_fiber_cost: 'فائبر لاگت',
+    prof_field_install_other: 'دیگر انسٹالیشن لاگت',
+    prof_field_install_total: 'کل انسٹالیشن سرمایہ کاری',
+    prof_field_install_recovery: 'سرمایہ کاری کی واپسی',
+    prof_field_no_bill: '{month} کا بل نہیں ہے',
+    // Polish #28 Phase D: sales tax is collected on top of the package
+    // price — a pass-through, never a business cost.
+    prof_field_tax_passthrough: 'اوپر سے وصول، کاروباری لاگت نہیں',
     prof_field_conn_start: 'کنکشن / سبسکرپشن آغاز',
     prof_field_conn_fee: 'کنکشن فیس',
     prof_field_router: 'نصب شدہ راؤٹر',
@@ -6777,6 +6819,18 @@ export const TRANSLATIONS = {
     prof_install_be_nocompute: 'بریک ایون حساب نہیں ہو سکتا (ماہانہ رقم طے نہیں)',
     prof_install_be_months_1: 'بریک ایون {n} ماہانہ بل میں',
     prof_install_be_months_n: 'بریک ایون {n} ماہانہ بلوں میں',
+    // Polish #28 Phase D: investment recovery — months of GROSS profit,
+    // a different figure from the break-even above (subsidy ÷ selling
+    // amount), so the two can never be confused.
+    prof_install_recovery_months_1: 'سرمایہ کاری کی واپسی — مجموعی منافع کے {n} مہینے میں',
+    prof_install_recovery_months_n: 'سرمایہ کاری کی واپسی — مجموعی منافع کے {n} مہینوں میں',
+    prof_install_recovery_gross_low: 'حساب نہیں ہو سکتا — ماہانہ مجموعی منافع {amount} ہے (مثبت نہیں)',
+    prof_install_recovery_gross_missing: 'حساب نہیں ہو سکتا — {missing}',
+    prof_install_recovery_nothing: 'واپس کرنے کو کچھ نہیں',
+    prof_install_recovered_months_1: 'واپس ہو گیا — مجموعی منافع کے {n} مہینے میں',
+    prof_install_recovered_months_n: 'واپس ہو گیا — مجموعی منافع کے {n} مہینوں میں',
+    prof_install_recovery_no_conn_date: 'کنکشن کی تاریخ ریکارڈ نہیں',
+    prof_install_partial: 'جزوی',
     prof_pause_not_paused: 'ہولڈ نہیں',
     prof_pause_since_resume: 'ہولڈ از {start} · خود بحال {resume}',
     prof_pause_since_until: 'ہولڈ از {start} · بحالی تک',
@@ -8194,6 +8248,10 @@ export const TRANSLATIONS = {
     prof_form_lineman_fee: 'لائن مین انسٹالیشن فیس (PKR)',
     prof_form_lineman_fee_note: 'اختیاری · انسٹالر کو ادا شدہ',
     prof_form_lineman_fee_ph: 'مثلاً: 500',
+    // Polish #28 Phase D: any further install cost — optional, never zero.
+    prof_form_install_other: 'دیگر انسٹالیشن لاگت (PKR)',
+    prof_form_install_other_note: 'اختیاری · کوئی اور انسٹالیشن لاگت',
+    prof_form_install_other_ph: 'مثلاً: 1000',
     prof_form_fiber_rate: 'فائبر ریٹ فی میٹر (PKR)',
     prof_form_fiber_rate_note: 'اختیاری · استعمال شدہ فائبر کی قیمت کے لیے درکار',
     prof_form_fiber_rate_ph: 'مثلاً: 25',

@@ -621,6 +621,10 @@
   color: #991b1b;
 }
 
+/* Polish #26 D3: the small action buttons carry their own 44px
+   min-height (Plan 550 lesson) instead of depending on the global
+   button:not([hidden]) rule. Rendered height is unchanged — they were
+   already >=44px via that rule. */
 .action-btn-sm {
   font: 700 11px/1.2 Manrope, system-ui, sans-serif;
   color: var(--green, #0e5b4d);
@@ -628,6 +632,7 @@
   border: 1px solid rgba(14, 91, 77, 0.16);
   border-radius: 6px;
   padding: var(--space-1) var(--space-2);
+  min-height: 44px;
   cursor: pointer;
   transition: all 0.12s ease;
 }

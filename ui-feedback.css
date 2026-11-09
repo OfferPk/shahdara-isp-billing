@@ -173,14 +173,24 @@ button.profile-action-btn:not([hidden]) { min-height: 48px !important; padding: 
 [data-theme="dark"] .qc-field-error { color: #ffb4a8; }
 
 /* ---------- Customer section (#293) ---------- */
-/* One "+ Add Customer" in the screen header; the pane's duplicate "+" is only hidden (srPrimaryAction still clicks it). */
-body.sr-screen-mode #addCustomerButton { display: none !important; }
+/* Polish #26: the pane's add button is the labelled primary in the ADD
+   group now, so it is NOT hidden in screen mode any more (the rule that
+   hid it is deleted). The screen header keeps its own "+ Add Customer"
+   action (srPrimaryAction still clicks this same button); the header
+   scrolls away on phones, so the in-ledger add entry is the one the
+   operator sees while working the list. */
 .cust-add-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
-.cust-add-actions > button:not([hidden]) { min-height: 44px !important; padding: 0 10px !important; border-radius: 10px !important; font-size: 13px !important; white-space: nowrap; }
+/* Polish #26: the "> button" rule below died with the grouping — the
+   buttons are no longer direct children of .pane-heading-actions (they
+   live in .cust-action-row groups now), and each carries its own 44px
+   guarantee instead. Removed, zero visual change. */
 /* #311: the toolbar lines up with the pane heading and search box (same
    22px inner inset; 17px on small phones where the heading uses 17px). */
 .cust-list-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 22px 10px; }
 .cust-list-toolbar .sr-filter-jump { margin: 0; }
+/* Polish #26 D4: the toolbar is the VIEW group — the eyebrow takes its
+   own row above the two buttons. */
+.cust-list-toolbar .eyebrow { flex: 1 1 100%; margin: 0; }
 @media (max-width: 620px) {
   .cust-list-toolbar { padding-left: 17px; padding-right: 17px; }
 }
@@ -189,8 +199,36 @@ body.sr-screen-mode #addCustomerButton { display: none !important; }
    the "Customers" line. */
 #customerPane .pane-heading { flex-wrap: wrap; row-gap: 8px; }
 #customerPane .pane-heading h2 { white-space: nowrap; }
-#customerPane .pane-heading-actions { flex-wrap: wrap; }
+#customerPane .pane-heading-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Polish #26 D1: the header actions are two labelled groups, not one
+   ragged row — ADD (daily) first, BULK TOOLS behind a closed disclosure
+   second. Each group is its own full-width row. */
+.cust-action-group { display: flex; flex-direction: column; gap: 6px; flex: 1 1 100%; min-width: 0; }
+.cust-action-group .eyebrow { margin: 0; }
+.cust-action-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* Polish #26 D2: the labelled primary — the same green button, now with
+   a visible "＋ Add customer" label and its own 44px guarantee. */
+#customerPane #addCustomerButton { width: auto; height: auto; min-height: 44px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; font: 700 13px 'DM Sans', system-ui, sans-serif; border-radius: 10px; }
+/* Polish #26 D1: the BULK TOOLS disclosure (Plan 492 More actions
+   precedent): closed by default, the summary is the labelled row. */
+.cust-bulk-tools { flex: 1 1 100%; min-width: 0; }
+.cust-bulk-tools-summary { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 2px; font-size: 12px; font-weight: 700; color: var(--ink); cursor: pointer; user-select: none; touch-action: manipulation; list-style: none; }
+.cust-bulk-tools-summary::-webkit-details-marker { display: none; }
+.cust-bulk-tools-summary .eyebrow { margin: 0; }
+.cust-bulk-tools-summary::after { content: '▾'; margin-left: auto; font-size: 14px; transition: transform 0.2s ease; }
+.cust-bulk-tools[open] .cust-bulk-tools-summary::after { transform: rotate(180deg); }
+.cust-bulk-tools .cust-action-row { padding-top: 8px; }
 .cust-density-toggle:not([hidden]) { min-height: 44px !important; padding: 0 12px; border-radius: 10px; border: 1px solid #cfe0d8; background: #fff; color: #174f40; font-weight: 700; font-size: 13px; cursor: pointer; }
+/* Polish #26 D6: the search help lives behind one "How search works"
+   affordance instead of a permanent 9px wall; both sentences verbatim,
+   at the 11px floor when open. */
+.customer-list-search .search-help { display: block; }
+.search-help > summary { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; list-style: none; font: 700 12px 'DM Sans', system-ui, sans-serif; color: var(--ink); }
+.search-help > summary::-webkit-details-marker { display: none; }
+.search-help:not([open]) .search-help-body { display: none; }
+.search-help .search-help-body { margin: 2px 0 0; }
+.search-help .customer-list-search-help { font-size: 11px; }
+.search-help .customer-list-search-help + .customer-list-search-help { margin-top: 4px; }
 .pane-heading .pane-heading-actions:empty { display: none; }
 
 /* Compact list: one row per customer (~64-72 px). Details stay in the profile and behind "Show details". */

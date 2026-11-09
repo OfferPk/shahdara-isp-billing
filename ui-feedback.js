@@ -667,14 +667,25 @@ export function setupCustomerSection(doc = document, win = window) {
   const list = doc.getElementById('customerList');
   const heading = doc.querySelector('#customerPane .pane-heading') || list?.closest('section, aside, div')?.querySelector('.pane-heading');
   if (!list || !heading) return null;
-  // One "+ Add Customer" (screen header). The pane's duplicate "+" is hidden by CSS while the screen header
-  // shows, so Bulk add and the field Wizard take its place beside the title as two small buttons.
+  // Polish #26: the header actions are grouped — ADD group (labelled
+  // add, Bulk add, help) and the BULK TOOLS disclosure (Wizard + the
+  // import tools). Buttons created or moved at runtime must land in
+  // their group, not be yanked back into the bare actions container.
+  // (The pane's "+" used to be hidden in screen mode because the screen
+  // header has its own "+ Add Customer" action; the pane button is now
+  // the labelled primary in the ADD group, and the header keeps its own.)
   const actions = heading.querySelector('.pane-heading-actions') || heading;
   actions.classList.add('cust-add-actions');
-  for (const id of ['bulkAddCustomersBtn', 'openEnrollmentWizardBtn']) {
-    const b = doc.getElementById(id);
-    if (b && b.parentElement !== actions) actions.insertBefore(b, doc.getElementById('addCustomerButton'));
+  const addRow = actions.querySelector('.cust-add-group .cust-action-row');
+  const bulkRow = actions.querySelector('.cust-bulk-tools .cust-action-row');
+  const bulkAddBtn = doc.getElementById('bulkAddCustomersBtn');
+  if (bulkAddBtn && addRow && bulkAddBtn.parentElement !== addRow) {
+    const anchor = doc.getElementById('addCustomerButton');
+    if (anchor?.parentElement === addRow) anchor.insertAdjacentElement('afterend', bulkAddBtn);
+    else addRow.appendChild(bulkAddBtn);
   }
+  const wizardBtn = doc.getElementById('openEnrollmentWizardBtn');
+  if (wizardBtn && bulkRow && wizardBtn.parentElement !== bulkRow) bulkRow.insertBefore(wizardBtn, bulkRow.firstChild);
   let toggle = doc.getElementById('customerDensityToggle');
   if (!toggle) {
     toggle = doc.createElement('button');
@@ -687,6 +698,13 @@ export function setupCustomerSection(doc = document, win = window) {
       bar = doc.createElement('div');
       bar.id = 'customerListToolbar';
       bar.className = 'cust-list-toolbar';
+      // Polish #26 D4: the toolbar is the VIEW group — its eyebrow takes
+      // its own row above the two buttons.
+      const eyebrow = doc.createElement('p');
+      eyebrow.className = 'eyebrow cust-toolbar-eyebrow';
+      eyebrow.setAttribute('data-i18n', 'cust_group_view');
+      eyebrow.textContent = t('cust_group_view');
+      bar.appendChild(eyebrow);
       if (jump) { jump.insertAdjacentElement('beforebegin', bar); bar.appendChild(jump); }
       else heading.insertAdjacentElement('afterend', bar);
     }
@@ -701,6 +719,9 @@ export function setupCustomerSection(doc = document, win = window) {
     toggle.textContent = compact ? t('cust_density_detailed') : t('cust_density_compact');
     toggle.setAttribute('aria-pressed', String(!compact));
     toggle.title = compact ? t('cust_density_detailed_title') : t('cust_density_compact_title');
+    // Polish #26 D4: the VIEW eyebrow follows the language too.
+    const viewEyebrow = doc.getElementById('customerListToolbar')?.querySelector('.cust-toolbar-eyebrow');
+    if (viewEyebrow) viewEyebrow.textContent = t('cust_group_view');
   };
   toggle.addEventListener('click', () => {
     density = density === 'detailed' ? 'compact' : 'detailed';

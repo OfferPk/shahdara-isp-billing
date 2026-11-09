@@ -51,7 +51,7 @@ export const SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT = 'Fully paid';
 export const SUCCESS_NEXT_STEPS_STILL_OWED_TEXT = 'Still owed';
 export const SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT = 'Still owed (incl. pending charges)';
 export const SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT = 'Next due date not recorded';
-export const SUCCESS_NEXT_STEPS_COLLECT_AGAIN_TEXT = 'Collect again';
+export const SUCCESS_NEXT_STEPS_COLLECT_AGAIN_TEXT = 'Collect again — full dues';
 export const SUCCESS_NEXT_STEPS_HEADING_TEXT = 'What is next';
 
 function text(value) {

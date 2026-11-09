@@ -293,7 +293,11 @@ test('Plan 387: the warning refreshes on every keystroke, month, Advance, split,
   // like every other programmatic amount set. The count moves from
   // 9 to 10 for that one new call site only; the intent (the warning
   // refreshes on every programmatic amount set) is unchanged.
-  assert.equal(calls.length, 10, `expected 10 renderUnderpaymentWarning() sites, found ${calls.length}`);
+  // Plan 539: the Back-draft restore is the tenth refresh site — a
+  // restored amount re-shows the warning like every other
+  // programmatic amount set. The count moves from 10 to 11 for that
+  // one new call site only; the intent is unchanged.
+  assert.equal(calls.length, 11, `expected 11 renderUnderpaymentWarning() sites, found ${calls.length}`);
 });
 
 test('Plan 387: the warning hides while Advance is ticked and on a split payment', () => {

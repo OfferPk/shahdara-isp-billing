@@ -308,7 +308,10 @@ test('phase B Req 3: service package dashes; the state rows keep their stored la
 test('phase B Req 3: money rows dash empty values; profit names the missing components', () => {
   const frags = groupFragments();
   const money = fragmentSlice(frags, 'money', 'lifecycle');
-  assert.ok(money.includes("[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))]"), 'sales tax must dash when it has no figure');
+  // Polish #28 Phase D: the tax label appends the pass-through note
+  // ("collected on top, not a business cost") to the same key — the
+  // value still dashes through profileEmptyTax when it has no figure.
+  assert.ok(money.includes("[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))]"), 'sales tax must dash when it has no figure');
   assert.ok(money.includes("[t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)]"), 'purchase cost must dash when empty');
   assert.ok(money.includes("[t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)]"), 'selling amount must dash when empty');
   assert.ok(money.includes("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]"), 'profit must dash with the missing-component note when null');

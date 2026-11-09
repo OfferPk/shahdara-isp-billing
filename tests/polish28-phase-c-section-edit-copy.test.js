@@ -53,12 +53,12 @@ test('phase C: a section without an edit label renders no button — Phase A out
   const html = profileDetailSectionHtml({
     key: 'financial',
     heading: 'Financial Details',
-    summary: 'Dues PKR 1,000 · Monthly package profit PKR 1,800',
+    summary: 'Dues PKR 1,000 · Monthly gross profit PKR 1,800',
     body: 'x',
     open: true,
   });
   assert.ok(
-    html.includes('<summary><h3>Financial Details</h3><span class="profile-section-summary">Dues PKR 1,000 · Monthly package profit PKR 1,800</span></summary>'),
+    html.includes('<summary><h3>Financial Details</h3><span class="profile-section-summary">Dues PKR 1,000 · Monthly gross profit PKR 1,800</span></summary>'),
     'omitting editLabel must leave the Phase A summary output untouched',
   );
   assert.ok(!html.includes('profile-section-edit'), 'no Edit button without an edit label');
@@ -185,7 +185,7 @@ const EXPECTED_FORM_SECTIONS = {
     headingKey: 'prof_sec_connection',
     fields: [
       'connectionDateInput', 'connectionFeeInput', 'fiberMetersInput',
-      'linemanInstallFeeInput', 'installedByLinemanInput', 'fiberPerMeterRateInput',
+      'linemanInstallFeeInput', 'otherInstallCostInput', 'installedByLinemanInput', 'fiberPerMeterRateInput',
     ],
   },
   network: {
@@ -220,11 +220,11 @@ test('phase C: the form is regrouped into the six view sections, in view order',
   }
 });
 
-test('phase C: every one of the 69 fields sits under a group heading — no ungrouped fields remain', () => {
+test('phase C: every one of the 70 fields sits under a group heading — no ungrouped fields remain', () => {
   const sections = parseFormSections(formHtml());
   const grouped = sections.flatMap((s) => s.fields);
-  assert.equal(grouped.length, 69, 'all 69 fields grouped');
-  assert.equal(new Set(grouped).size, 69, 'no field grouped twice');
+  assert.equal(grouped.length, 70, 'all 70 fields grouped (Phase D added otherInstallCost)');
+  assert.equal(new Set(grouped).size, 70, 'no field grouped twice');
   const all = [...formHtml().matchAll(/<label class="profile-field" for="([^"]+)"/g)].map((m) => m[1]);
   assert.deepEqual([...all].sort(), [...grouped].sort(), 'no field sits outside a group');
 });
@@ -369,25 +369,27 @@ test('phase C: no copy button exists for any password anywhere in the profile vi
 // Pins — what Phase C must not change
 // ---------------------------------------------------------------------------
 
-test('phase C pin: the form still holds all 69 fields and the save path is unchanged', () => {
+test('phase C pin: the form still holds all 70 fields and the save path is unchanged', () => {
   const form = formHtml();
   const fields = [...form.matchAll(/<label class="profile-field" for="([^"]+)"/g)].map((m) => m[1]);
-  assert.equal(fields.length, 69, 'regrouping moves fields, it never adds or drops one');
-  assert.equal(new Set(fields).size, 69, 'no duplicate field ids');
+  assert.equal(fields.length, 70, 'regrouping moves fields, it never adds or drops one — Phase D added otherInstallCost, the 70th');
+  assert.equal(new Set(fields).size, 70, 'no duplicate field ids');
   const app = read('app.js');
   assert.ok(app.includes("$('#saveMohallaButton').addEventListener('click'"), 'the full-save click handler must stay');
   assert.ok(app.includes('updateCustomerProfile(state, selectedCustomerId, {'), 'the full save must still go through updateCustomerProfile');
 });
 
-test('phase C pin: the profile completion counter still reads 67', () => {
-  // The counter total is derived, not a literal: 69 keys in
+test('phase C pin: the profile completion counter still reads 68', () => {
+  // The counter total is derived, not a literal: 70 keys in
   // PROFILE_FIELD_SAVE_MAP minus the two pure opt-in flags Plan 513
   // excludes (prefersSms, paused). Regrouping the form must not change
   // what it counts — the map and the exclusion list are untouched.
-  assert.equal(countProfileCompletion({}).total, 67, 'the counter total stays 67');
+  // (Polish #28 Phase D added the 70th key, otherInstallCost, so the
+  // total moved 67 → 68.)
+  assert.equal(countProfileCompletion({}).total, 68, 'the counter total stays 68');
   assert.equal(
     countProfileCompletion({}).text,
-    '0/67 fields filled',
+    '0/68 fields filled',
     'the counter label keeps its total',
   );
 });

@@ -169,8 +169,8 @@ test('Plan 506: view assembly no longer renders the shortcuts, hint or profit li
 // ------------------------------------------------------------ i18n
 
 test('Plan 506: prof_field_profit exists in English and Urdu with real values; the old sentence key is gone', () => {
-  assert.equal(TRANSLATIONS.en.prof_field_profit, 'Monthly package profit');
-  assert.equal(TRANSLATIONS.ur.prof_field_profit, 'ماہانہ پیکیج منافع');
+  assert.equal(TRANSLATIONS.en.prof_field_profit, 'Monthly gross profit');
+  assert.equal(TRANSLATIONS.ur.prof_field_profit, 'ماہانہ مجموعی منافع');
   assert.match(TRANSLATIONS.ur.prof_field_profit, /[\u0600-\u06FF]/, 'ur value must carry Urdu script');
   assert.equal(TRANSLATIONS.en.prof_view_profit, undefined, 'old profit sentence key must be gone from EN');
   assert.equal(TRANSLATIONS.ur.prof_view_profit, undefined, 'old profit sentence key must be gone from UR');

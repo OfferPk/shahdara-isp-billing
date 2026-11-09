@@ -21,10 +21,12 @@ const read = (name) => readFileSync(join(here, '..', name), 'utf8');
 //   group (the identity block, the feed/occupancy/staff tail runs).
 // - Phase C needs one scroll target per VIEW section, so the form now
 //   has SIX groups (S1–S6, prof_sec_* keys — the same headings the
-//   profile view sections carry), and EVERY one of the 69 fields sits
+//   profile view sections carry), and EVERY one of the 70 fields sits
 //   under a heading. There are no ungrouped fields left, and the old
 //   prof_group_* headings appear nowhere in the form (the keys still
 //   exist in the dictionaries — the view info groups still use them).
+// - Polish #28 Phase D (2026-11-10) added the 70th field:
+//   otherInstallCost in S4 (Connection), after linemanInstallFee.
 // - Within each section the Plan 496 relative order is preserved: the
 //   only moves are the tail runs joining their sections (residence +
 //   landlord into S1, expiry/cancellation + staff name into S2,
@@ -99,7 +101,7 @@ test('plan 495: every field sits under its own section heading', () => {
     ],
     connection: [
       'connectionDateInput', 'connectionFeeInput', 'fiberMetersInput',
-      'linemanInstallFeeInput', 'installedByLinemanInput', 'fiberPerMeterRateInput',
+      'linemanInstallFeeInput', 'otherInstallCostInput', 'installedByLinemanInput', 'fiberPerMeterRateInput',
     ],
     network: [
       'splitterBoxIdInput', 'splitterPortInput', 'oltPonPortInput', 'lastRxDbmInput',
@@ -126,9 +128,9 @@ test('plan 495: every field sits under its own section heading', () => {
 test('plan 495: no field sits outside a section heading any more', () => {
   const sections = parseSections(formHtml());
   const grouped = new Set(sections.flatMap((s) => s.fields));
-  assert.equal(grouped.size, 69, 'all 69 fields grouped, none twice');
+  assert.equal(grouped.size, 70, 'all 70 fields grouped, none twice (Phase D added otherInstallCost)');
   const all = fieldOrder(formHtml());
-  assert.equal(all.length, 69, 'the form still holds exactly 69 fields');
+  assert.equal(all.length, 70, 'the form still holds exactly 70 fields');
   for (const f of all) {
     assert.ok(grouped.has(f), `${f} must sit under a section heading`);
   }
@@ -160,7 +162,7 @@ test('plan 496: field order matches the view order', () => {
     'monthlyPurchaseCostInput', 'monthlySellingAmountInput',
     'securityDepositInput', 'feederHostCreditInput',
     'connectionDateInput', 'connectionFeeInput', 'fiberMetersInput',
-    'linemanInstallFeeInput', 'installedByLinemanInput', 'fiberPerMeterRateInput',
+    'linemanInstallFeeInput', 'otherInstallCostInput', 'installedByLinemanInput', 'fiberPerMeterRateInput',
     'splitterBoxIdInput', 'splitterPortInput', 'oltPonPortInput', 'lastRxDbmInput',
     'onuConnectorTypeInput', 'converterSideInput', 'poleNumberInput', 'boxLocationNoteInput',
     'dropWireCoreColorInput', 'pppoeUsernameInput', 'pppoePasswordInput', 'staticIpInput',

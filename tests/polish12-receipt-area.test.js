@@ -133,12 +133,12 @@ test('Urdu-script printing re-labels the new Area row', () => {
 test('save path unchanged: Area still saves to customer.mohalla, counter still counts the profile fields', () => {
   assert.deepEqual(profileFieldSaveEntry('mohallaInput', { type: 'text', value: 'CHARYAA' }), { key: 'mohalla', value: 'CHARYAA' });
   assert.deepEqual(profileFieldSaveEntry('zoneInput', { type: 'text', value: 'Zone 2' }), { key: 'zone', value: 'Zone 2' });
-  assert.equal(Object.keys(PROFILE_FIELD_SAVE_MAP).length, 69, 'the field set is unchanged — only the order moved');
+  assert.equal(Object.keys(PROFILE_FIELD_SAVE_MAP).length, 70, 'the field set holds 70 fields — Phase D added otherInstallCost, nothing else moved');
   const counted = countProfileCompletion({ mohalla: 'CHARYAA', zone: 'Zone 2' });
-  // Plan 513 — the counted total is 67: the pure opt-in flags
+  // Plan 513 — the counted total is 68: the pure opt-in flags
   // (prefersSms, paused) are excluded so full marks are reachable.
-  // The map itself is unchanged (69 fields, asserted above).
-  assert.equal(counted.total, 67);
+  // The map holds 70 fields since Polish #28 Phase D (asserted above).
+  assert.equal(counted.total, 68);
   assert.equal(counted.filled, 2);
-  assert.equal(counted.text, '2/67 fields filled');
+  assert.equal(counted.text, '2/68 fields filled');
 });

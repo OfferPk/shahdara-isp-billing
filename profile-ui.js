@@ -54,7 +54,10 @@ const formatReceiptDate = value => {
   date.setUTCHours(12, 0, 0, 0);
   return new Intl.DateTimeFormat('en-US', { month:'short', day:'numeric', year:'numeric', timeZone:'UTC' }).format(date).replace(',', '');
 };
-const formatReceiptMonth = value => validMonth(value)
+// Polish #28 Phase D: the month label ("Nov 2026") is shared with the
+// profile view for the no-bill note, so the view and this module spell
+// a month the same way.
+export const formatReceiptMonth = value => validMonth(value)
   ? new Intl.DateTimeFormat('en-US', { month:'short', year:'numeric', timeZone:'UTC' }).format(new Date(`${value}-01T00:00:00Z`))
   : null;
 const receiptMonthDate = (month, day) => validMonth(month) ? `${month}-${String(day).padStart(2, '0')}` : null;
@@ -503,8 +506,12 @@ function profileProfitMissingLabels(customer) {
   // profit is null ONLY when the provider cost or the selling amount
   // is null / undefined — the '' empty-string edge is Phase D's.
   const labels = [];
-  if (customer.monthlyPurchaseCost === null || customer.monthlyPurchaseCost === undefined) labels.push(t('prof_field_purchase_cost'));
-  if (customer.monthlySellingAmount === null || customer.monthlySellingAmount === undefined) labels.push(t('prof_field_selling'));
+  // Polish #28 Phase D: an empty string is missing, not zero — Number('')
+  // is 0, so a blank cost used to read as a recorded PKR 0 and the
+  // gross silently dropped by the selling amount.
+  const isMissing = (value) => value === null || value === undefined || value === '' || !Number.isFinite(Number(value));
+  if (isMissing(customer.monthlyPurchaseCost)) labels.push(t('prof_field_purchase_cost'));
+  if (isMissing(customer.monthlySellingAmount)) labels.push(t('prof_field_selling'));
   return labels;
 }
 

@@ -11,7 +11,7 @@ const read = (name) => readFileSync(join(here, '..', name), 'utf8');
 
 // Plan 500 — Per-field Save appears only on the dirty field.
 //
-// The 69 per-field Save buttons are visually noisy when all visible,
+// The 70 per-field Save buttons are visually noisy when all visible,
 // and none of them says which field is unsaved. A button shows only
 // while its own field is dirty, reusing the exact dirty check Plan 499
 // built for Cancel (dirtyProfileFieldKeys: differs from the stored
@@ -147,6 +147,6 @@ test('Plan 500: the hidden state reserves space — no display:none, fade via op
   assert.ok(base.includes('transition: opacity 150ms ease, visibility 150ms ease'), 'the button must fade between states');
 });
 
-test('Plan 500: the field map is untouched — still exactly the 69 profile fields', () => {
-  assert.equal(Object.keys(PROFILE_FIELD_SAVE_MAP).length, 69, 'the field map must still hold 69 fields');
+test('Plan 500: the field map holds exactly the 70 profile fields (Phase D added otherInstallCost)', () => {
+  assert.equal(Object.keys(PROFILE_FIELD_SAVE_MAP).length, 70, 'the field map must hold 70 fields since Polish #28 Phase D');
 });

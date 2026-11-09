@@ -254,7 +254,10 @@ test('phase A groups: money rows split out of Service, profit still right after 
   // Polish #28 Phase B (Req 3) — the money rows now dash empty values
   // through the profile-empty helpers instead of reading "Not set";
   // the membership (which fragment each row lives in) is unchanged.
-  assert.ok(money.includes("[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))]"), 'tax row moves with the money fragment');
+  // Polish #28 Phase D — the tax label appends the pass-through note
+  // ("collected on top, not a business cost") to the same key, and
+  // concession / discounts / net rows follow the profit row.
+  assert.ok(money.includes("[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))]"), 'tax row moves with the money fragment');
   assert.ok(money.includes("[t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)]"), 'purchase cost moves with the money fragment');
   assert.ok(money.includes("[t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)]"), 'selling moves with the money fragment');
   assert.ok(money.includes("[t('prof_field_profit'), profileProfitDisplay(customer, profit)]"), 'profit moves with the money fragment');
@@ -278,7 +281,7 @@ test('phase A groups: Connection rows split lifecycle / install / network / hard
   for (const row of ['prof_field_conn_start', 'prof_field_conn_fee', 'prof_field_fiber', 'prof_field_fiber_rate', 'prof_field_lineman_fee', 'prof_field_install']) {
     assert.ok(install.includes(row), `install fragment must carry ${row}`);
   }
-  assert.ok(!install.includes('prof_field_router'), 'router rows must not stay in the install fragment');
+  assert.ok(!install.includes("t('prof_field_router')"), 'router model row must not stay in the install fragment — Phase D added the router-PRICE row (prof_field_router_price) to the breakdown, which is a different key');
   const network = slice('network', 'hardware');
   for (const row of ['prof_field_pppoe', 'prof_field_static_ip', 'prof_field_mac']) {
     assert.ok(network.includes(row), `network fragment must carry ${row}`);
@@ -289,6 +292,10 @@ test('phase A groups: Connection rows split lifecycle / install / network / hard
   // Table B 20h lists only router model + router price, but Table A maps
   // the media-converter cost field to S6 too — the row follows the field,
   // so all 14 Connection rows are accounted for (2 + 6 + 3 + 3).
+  // Polish #28 Phase D added 7 breakdown rows to the install fragment
+  // (router price, converter cost, lineman fee, fiber cost, other cost,
+  // total, recovery), so install now holds 13 rows and the Connection
+  // total is 21.
   assert.ok(hardware.includes('prof_field_mc_cost'), 'media-converter cost follows its field into the hardware fragment');
   // Polish #28 Phase B (Req 3) — no info-group row reads "Not
   // recorded" any more; the dash replaced all three date rows.
@@ -419,11 +426,11 @@ test('phase A store: withProfileSectionOpen is pure and merges per customer', as
 test('phase A shell: details markup, summary line, escaping, open attribute', async () => {
   const mod = await loadSectionsModule();
   const html = mod.profileDetailSectionHtml({
-    key: 'financial', heading: 'Financial Details', summary: 'Dues PKR 1,000 · Monthly package profit PKR 1,800',
+    key: 'financial', heading: 'Financial Details', summary: 'Dues PKR 1,000 · Monthly gross profit PKR 1,800',
     body: '<p>BODY</p>', open: true,
   });
   assert.ok(html.startsWith('<details class="profile-detail-section" data-profile-section="financial" open>'), 'open section carries the open attribute');
-  assert.ok(html.includes('<summary><h3>Financial Details</h3><span class="profile-section-summary">Dues PKR 1,000 · Monthly package profit PKR 1,800</span></summary>'), 'summary carries heading + one-line summary');
+  assert.ok(html.includes('<summary><h3>Financial Details</h3><span class="profile-section-summary">Dues PKR 1,000 · Monthly gross profit PKR 1,800</span></summary>'), 'summary carries heading + one-line summary');
   assert.ok(html.includes('<div class="profile-section-body"><p>BODY</p></div></details>'), 'body sits in its own div, passed through');
   const closed = mod.profileDetailSectionHtml({ key: 'history', heading: 'History & Activity', summary: 'S', body: '', open: false });
   assert.ok(closed.startsWith('<details class="profile-detail-section" data-profile-section="history">'), 'closed section carries no open attribute');

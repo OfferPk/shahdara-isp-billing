@@ -179,11 +179,11 @@ test('diff: no drafts without a customer, a real date, or keys outside the list'
   assert.equal(fromOldId[0].customerId, 'CUST-1');
 });
 
-test('diff: the 69 profile fields are the diff scope — every map key is a plain string key', () => {
+test('diff: the 70 profile fields are the diff scope — every map key is a plain string key', () => {
   const keys = Object.values(PROFILE_FIELD_SAVE_MAP);
-  assert.equal(keys.length, 69);
+  assert.equal(keys.length, 70, 'Phase D added otherInstallCost, the 70th field');
   assert.ok(keys.every((key) => typeof key === 'string' && key !== ''));
-  assert.equal(new Set(keys).size, 69);
+  assert.equal(new Set(keys).size, 70);
 });
 
 test('list: newest first, other customers excluded, customer match is case-insensitive', () => {

@@ -217,6 +217,8 @@ test('Plan 499: the five new i18n keys exist in en and ur, with Urdu script in u
     assert.ok(lang.includes(`${key}: '${ur}`), `${key} must exist in ur`);
     assert.match(ur, /[\u0600-\u06FF]/, `${key} ur value must carry Urdu script`);
   }
-  // The map itself is untouched: still exactly the 69 profile fields.
-  assert.equal(Object.keys(PROFILE_FIELD_SAVE_MAP).length, 69, 'the field map must still hold 69 fields');
+  // The map holds 70 fields since Polish #28 Phase D added
+  // otherInstallCost — the exclusion logic this test guards is
+  // unchanged, only the field count moved.
+  assert.equal(Object.keys(PROFILE_FIELD_SAVE_MAP).length, 70, 'the field map must hold 70 fields');
 });

@@ -47,6 +47,9 @@ export const VISIT_OUTCOMES = Object.freeze([
   'refused',
   'dispute',
   'no_answer',
+  // QC-1: a "call them later" visit — attended, no money, follow up
+  // by phone. A missed-visit outcome like not_home / no_answer.
+  'call_later',
 ]);
 
 export const VISIT_OUTCOME_LABELS = Object.freeze({
@@ -56,6 +59,7 @@ export const VISIT_OUTCOME_LABELS = Object.freeze({
   refused: 'Refused',
   dispute: 'Dispute',
   no_answer: 'No answer',
+  call_later: 'Call later',
 });
 
 // Outcomes that automatically appear in the next-action queue:
@@ -69,6 +73,7 @@ export const QUEUEABLE_VISIT_OUTCOMES = Object.freeze([
   'refused',
   'dispute',
   'no_answer',
+  'call_later',
 ]);
 
 const ALIASES = Object.freeze({
@@ -81,6 +86,9 @@ const ALIASES = Object.freeze({
   'not answered': 'no_answer',
   'disputed': 'dispute',
   'promised to pay': 'promised',
+  'call later': 'call_later',
+  'call-later': 'call_later',
+  'calllater': 'call_later',
 });
 
 function str(value) {

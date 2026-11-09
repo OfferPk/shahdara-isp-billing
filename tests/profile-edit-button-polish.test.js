@@ -74,11 +74,15 @@ test('floating scroll-top button keeps clearance above the mobile bottom nav', (
 
 // Behaviour is untouched: same button, same id, same edit flow, and the
 // per-field Save wiring from the earlier profile polish is still present.
+// Polish #24 — the button moved from a re-rendered heading into static
+// header markup, so the markup lives in index.html now and its listener
+// attaches once at startup to the id directly.
 test('Edit button wiring and per-field save wiring are unchanged', () => {
   const app = read('app.js');
-  assert.ok(app.includes('id="editProfileButton"'), 'Edit button markup must exist');
-  assert.ok(app.includes('profile-edit-button'), 'Edit button class must exist');
-  assert.ok(app.includes("querySelector('#editProfileButton').addEventListener('click'"), 'Edit click listener must exist');
+  const html = read('index.html');
+  assert.ok(html.includes('id="editProfileButton"'), 'Edit button markup must exist in the static header');
+  assert.ok(html.includes('profile-edit-button'), 'Edit button class must exist in the static header');
+  assert.ok(app.includes("$('#editProfileButton').addEventListener('click'"), 'Edit click listener must exist');
   assert.ok(app.includes('profileEditMode = true'), 'Edit must still open the edit flow');
   assert.ok(app.includes('profile-field-save'), 'per-field Save wiring from PR #813 must remain');
 });

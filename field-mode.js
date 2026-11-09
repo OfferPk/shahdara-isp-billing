@@ -192,9 +192,99 @@ import {
 } from './visit-time-window.js';
 import { captureCurrentPosition, formatGpsDistance, sortEntriesByNearest } from './gps-pin-helper.js';
 import { shopCollectorMethods } from './shop-settlement.js';
+import {
+  getFieldRouteOutcomes,
+  getFieldRouteNotes,
+  saveFieldRouteOutcome,
+  saveFieldRouteNote,
+} from './nav-collection-rounds.js';
 
 /** Deep link that opens field mode, mirroring #/bulk-collect. */
 export const FIELD_MODE_HASH = '#/field-mode';
+// QC-1: Not Available marking in Field Mode — the four reasons the
+// collector picks at the door. The outcome values reuse the route
+// sheet's vocabulary (not_home / promised / refused) plus the new
+// call_later; the labels are the user's own words. `label` is the
+// stable English string (used by the mark record and the tests);
+// the sheet renders t(labelKey) so the operator sees his language.
+export const FIELD_NOT_AVAILABLE_REASONS = Object.freeze([
+  { outcome: 'not_home', icon: '🚪', labelKey: 'fmna_reason_not_home', label: 'Home Closed' },
+  { outcome: 'promised', icon: '🤝', labelKey: 'fmna_reason_promised', label: 'Payment Promised' },
+  { outcome: 'refused', icon: '✕', labelKey: 'fmna_reason_refused', label: 'Refused to Pay' },
+  { outcome: 'call_later', icon: '📞', labelKey: 'fmna_reason_call_later', label: 'Call Later' },
+]);
+
+export function fieldNotAvailableReason(outcome) {
+  if (typeof outcome !== 'string') return null;
+  return FIELD_NOT_AVAILABLE_REASONS.find((r) => r.outcome === outcome.trim().toLowerCase()) ?? null;
+}
+
+// The visible mark for one customer today, or null:
+// { outcome, icon, label, labelKey, note }. The note falls back to
+// the notes map exactly like the route sheet (outcome note first,
+// then the per-day note).
+export function fieldNotAvailableMark(outcomesMap, notesMap, customerId) {
+  const record = outcomesMap?.[customerId];
+  if (!record || typeof record !== 'object') return null;
+  const reason = fieldNotAvailableReason(record.outcome);
+  if (!reason) return null;
+  const note = String(record.note ?? record.visitNote ?? '').trim()
+    || String(notesMap?.[customerId] ?? '').trim();
+  return { outcome: reason.outcome, icon: reason.icon, label: reason.label, labelKey: reason.labelKey, note };
+}
+
+// Skip-this-round: marked stops sort to the bottom of the working
+// list (stable — unmarked order and marked relative order are both
+// kept), so the round works top-down past them. They stay visible
+// with their badge and stay findable by search; the round resets at
+// midnight because the outcome/note stores are date-scoped (QC-8
+// owns history). Returns a new array; the input is untouched.
+export function sortFieldModeEntriesWithNotAvailableLast(entries, outcomesMap) {
+  const list = Array.isArray(entries) ? [...entries] : [];
+  const isMarked = (entry) => fieldNotAvailableReason(outcomesMap?.[entry?.id]?.outcome) !== null;
+  const unmarked = list.filter((entry) => !isMarked(entry));
+  const marked = list.filter((entry) => isMarked(entry));
+  return [...unmarked, ...marked];
+}
+
+// Records a Not Available mark: the outcome AND the short note, in
+// the two existing date-scoped route stores (the route sheet writes
+// the same pair). Writes no payment, touches no bill, dues or
+// customer record, adds no store key. Unknown reasons and blank ids
+// write nothing and return null.
+export function saveFieldNotAvailableMark(customerId, outcome, note, storage, dateStr) {
+  const reason = fieldNotAvailableReason(outcome);
+  if (!reason || customerId == null || String(customerId).trim() === '') return null;
+  const trimmedNote = String(note ?? '').trim();
+  const record = saveFieldRouteOutcome(customerId, { outcome: reason.outcome, note: trimmedNote }, storage, dateStr);
+  saveFieldRouteNote(customerId, trimmedNote, storage, dateStr);
+  return record;
+}
+
+export function clearFieldNotAvailableMark(customerId, storage, dateStr) {
+  if (customerId == null || String(customerId).trim() === '') return null;
+  saveFieldRouteOutcome(customerId, 'pending', storage, dateStr);
+  saveFieldRouteNote(customerId, '', storage, dateStr);
+  return { outcome: 'pending' };
+}
+
+// A real payment supersedes a stale not-available mark: the visit
+// DID end in money, so the stop must read 'paid' (the route sheet
+// derives the same from its collected stops). The note is kept —
+// it is the collector's record of the visit, not of the outcome.
+// No mark, or an already-paid outcome: no write, returns the
+// current record (null when there is none). Dispute / no-answer
+// outcomes are left alone — they are not QC-1 marks.
+export function markFieldVisitPaid(customerId, storage, dateStr) {
+  const outcomes = getFieldRouteOutcomes(storage, dateStr);
+  const record = outcomes?.[customerId];
+  if (!record || typeof record !== 'object') return null;
+  if (record.outcome === 'paid' || record.outcome === 'partial') return record;
+  if (!fieldNotAvailableReason(record.outcome)) return record;
+  const note = String(record.note ?? record.visitNote ?? '').trim();
+  return saveFieldRouteOutcome(customerId, { outcome: 'paid', note }, storage, dateStr);
+}
+
 /** Zone-filter value meaning "every area/zone". */
 export const FIELD_MODE_ALL_ZONES = 'all';
 
@@ -918,6 +1008,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   // nothing, and the row appearing never writes a promise by itself).
   let fieldRemainderWaadaDate = null;
   let fieldRemainderSkipped = false;
+  // QC-1: the armed Not Available reason on the collect sheet (null
+  // until a reason chip is tapped — arming writes nothing; only the
+  // Save tap records the mark, with the typed note).
+  let notAvailableReason = null;
 
   // SISP-65: the [🔊 Speak Due] button shared by both collection
   // sheets (existing field-mode-action-btn class — theme tokens only).
@@ -1060,11 +1154,25 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     const todayDay = Number(todayStr().slice(8, 10));
     const nameState = typeof getState === 'function' ? getState() : null;
     const nameIndex = buildSameNameIndex(nameState?.customers);
+    // QC-1: today's Not Available marks, read once per list render —
+    // the same date-scoped stores the route sheet reads.
+    const routeOutcomes = getFieldRouteOutcomes();
+    const routeNotes = getFieldRouteNotes();
     listEl.innerHTML = visible.map(entry => {
       const badge = waadaBadgeLabel(liveCustomer(entry.id), todayStr());
       // SISP-138: "✓ Reminded Today HH:MM" badge on the card when the
       // customer was already contacted today (empty otherwise).
       const contactBadge = contactBadgeHtml(liveCustomer(entry.id), new Date());
+      // QC-1: the Not Available mark for this stop today (reason +
+      // note, when any) — the note is capped for the card; the full
+      // note shows on the collect sheet.
+      const notAvailableMark = fieldNotAvailableMark(routeOutcomes, routeNotes, entry.id);
+      const shortNote = notAvailableMark && notAvailableMark.note.length > 80
+        ? `${notAvailableMark.note.slice(0, 80)}…`
+        : (notAvailableMark?.note ?? '');
+      const notAvailableBadge = notAvailableMark
+        ? `<span class="field-mode-contact-row">${escapeHtml(notAvailableMark.icon)} ${escapeHtml(t(notAvailableMark.labelKey))}${shortNote ? ` · ${escapeHtml(shortNote)}` : ''}</span>`
+        : '';
       const sameNameBadge = sameNameBadgeHtml(nameState, liveCustomer(entry.id), new Date(), nameIndex);
       // SISP-79: 🎯 marker when the customer's usual pay window
       // contains today (derived from his receipts; no habit, no marker).
@@ -1104,6 +1212,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           <strong>${escapeHtml(entry.name)}</strong>
           <small>#${escapeHtml(entry.customerNumber)} · ${escapeHtml(zone.label)}${entry.mohalla && zone.label.toLowerCase() !== String(entry.mohalla).trim().toLowerCase() ? ` · ${escapeHtml(entry.mohalla)}` : ''}${badge ? ` · ${escapeHtml(badge)}` : ''}${creditNote}${distanceNote}${visitNote}</small>
           ${contactBadge ? `<span class="field-mode-contact-row">${contactBadge}</span>` : ''}
+          ${notAvailableBadge}
           ${sameNameBadge}
           ${chip}
           ${likelyChip}
@@ -1178,6 +1287,10 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     // today is this customer's normal paying day.
     const habit = paymentDayHabit(customer);
     const habitNote = habit ? ` · Usually pays around ${habit.windowStart}–${habit.windowEnd} of the month` : '';
+    // QC-1: today's Not Available mark for this stop, if any — the
+    // sheet shows it with a Clear action; the reason chips + note
+    // below record a new one (or replace it).
+    const existingNotAvailable = fieldNotAvailableMark(getFieldRouteOutcomes(), getFieldRouteNotes(), selectedId);
     const shops = fieldModeShopMethods();
     const shopButtons = shops.map(shop =>
       `<button type="button" class="field-mode-action-btn" data-field-action="shop" data-field-method="${escapeHtml(shop.method)}" ${busy ? 'disabled' : ''}>🏪 ${escapeHtml(shop.short)} Full — ${escapeHtml(formatPKR(entry.totalDues))}</button>`
@@ -1216,6 +1329,18 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           ${CONTACT_CHANNELS.map(ch => `<button type="button" class="field-mode-contact-chip" data-field-contact="${ch}" ${busy ? 'disabled' : ''}>${escapeHtml(contactChannelLabel(ch))}</button>`).join('')}
         </div>
         <p class="field-mode-note">${escapeHtml(t('cct_field_note'))}</p>
+      </div>
+      <div class="field-mode-notavail">
+        <p class="field-mode-waada-label">🚪 ${escapeHtml(t('fmna_title'))}</p>
+        ${existingNotAvailable ? `<p class="field-mode-note">${escapeHtml(t('fmna_marked_today'))}: ${escapeHtml(existingNotAvailable.icon)} ${escapeHtml(t(existingNotAvailable.labelKey))}${existingNotAvailable.note ? ` · ${escapeHtml(existingNotAvailable.note)}` : ''}</p>` : ''}
+        <div class="field-mode-waada-chips">
+          ${FIELD_NOT_AVAILABLE_REASONS.map((reason) => `<button type="button" class="field-mode-waada-chip${notAvailableReason === reason.outcome ? ' is-active' : ''}" data-field-notavail="${escapeHtml(reason.outcome)}" ${busy ? 'disabled' : ''}>${escapeHtml(reason.icon)} ${escapeHtml(t(reason.labelKey))}</button>`).join('')}
+        </div>
+        <input class="field-mode-notavail-note" type="text" maxlength="120" placeholder="${escapeHtml(t('fmna_note_placeholder'))}" aria-label="${escapeHtml(t('fmna_note_placeholder'))}">
+        <div class="field-mode-action-grid">
+          <button type="button" class="field-mode-action-btn" data-field-action="notavail-save" ${notAvailableReason && !busy ? '' : 'disabled'}>${escapeHtml(t('fmna_save'))}</button>
+          ${existingNotAvailable ? `<button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="notavail-clear" ${busy ? 'disabled' : ''}>${escapeHtml(t('fmna_clear'))}</button>` : ''}
+        </div>
       </div>
       <button type="button" class="field-mode-action-btn field-mode-back-btn" data-field-action="back">← Back to list</button>
     </section>`;
@@ -1392,6 +1517,11 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       ? sortEntriesByNearest(habitFiltered, state?.customers ?? [], nearestOrigin)
       : habitFiltered;
     if (nowMatchFirst) visible = sortByVisitWindowNowMatch(visible, windowOf, new Date());
+    // QC-1: stops marked Not Available today sort to the bottom of
+    // the working list (skip-this-round) — they stay visible with
+    // their badge and stay findable by search; the mark itself is
+    // what decides, never the payment state.
+    visible = sortFieldModeEntriesWithNotAvailableLast(visible, getFieldRouteOutcomes());
     syncNearestButton();
     // One engine pass shared by every card's colour status.
     const allocations = state ? calculatePaymentAllocations(state) : null;
@@ -1416,6 +1546,8 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     nearbyHints = [];
     fieldRemainderWaadaDate = null;
     fieldRemainderSkipped = false;
+    // QC-1: a fresh sheet starts with no reason armed.
+    notAvailableReason = null;
     render();
   }
 
@@ -1459,6 +1591,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     try {
       const { nextState, receipt, whatsapp } = collectFieldModePayment(state, fresh, method);
       if (typeof onSaveState === 'function') onSaveState(nextState);
+      // QC-1: a real collection supersedes a stale not-available
+      // mark for this stop (the visit DID end in money).
+      markFieldVisitPaid(receipt.customerId);
       lastReceipt = { receipt, whatsapp };
       lastReceiptAdvance = false;
       lastReceiptAdvanceTarget = null;
@@ -1502,6 +1637,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     try {
       const { nextState, receipt, whatsapp } = collectFieldModeLooseChange(state, fresh, 'Cash', tendered);
       if (typeof onSaveState === 'function') onSaveState(nextState);
+      // QC-1: a real collection supersedes a stale not-available
+      // mark for this stop (the visit DID end in money).
+      markFieldVisitPaid(receipt.customerId);
       // SISP-168: neighbours are derived from the POST-payment state
       // (nextState already carries the recorded collection), fresh on
       // every collection — a stale card can never survive a new stop.
@@ -1557,6 +1695,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     try {
       const { nextState, receipt, whatsapp } = collectFieldModeAdvance(state, entry, { amount, method, targetMonth, remainderWaadaDate });
       if (typeof onSaveState === 'function') onSaveState(nextState);
+      // QC-1: a real collection supersedes a stale not-available
+      // mark for this stop (the visit DID end in money).
+      markFieldVisitPaid(receipt.customerId);
       lastReceipt = { receipt, whatsapp };
       lastReceiptAdvance = true;
       // The receipt card names the month from the RECORDED payment
@@ -1661,6 +1802,30 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     } catch (err) {
       toast(err?.message || 'Could not mark the contact.');
     }
+    render();
+  }
+
+  // QC-1: records the armed reason + the typed note as today's
+  // visit mark for the selected stop. No payment, no bill change —
+  // the two route stores only. The Save button is disabled until a
+  // reason is armed, so a tap here always has one; the guard is
+  // belt-and-braces for a programmatic call.
+  function saveNotAvailableMark() {
+    if (busy || !selectedId || !notAvailableReason) return;
+    const noteInput = panelEl?.querySelector('.field-mode-notavail-note');
+    const record = saveFieldNotAvailableMark(selectedId, notAvailableReason, noteInput ? noteInput.value : '');
+    if (!record) return;
+    notAvailableReason = null;
+    toast(t('fmna_saved'));
+    render();
+  }
+
+  // QC-1: clears today's mark (outcome + note) for the selected stop.
+  function clearNotAvailableMark() {
+    if (busy || !selectedId) return;
+    clearFieldNotAvailableMark(selectedId);
+    notAvailableReason = null;
+    toast(t('fmna_cleared'));
     render();
   }
 
@@ -1771,6 +1936,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     lastReceiptAdvanceTarget = null;
     panelMode = 'collect';
     nearbyHints = [];
+    // QC-1: leaving the sheet disarms the reason, like the
+    // remainder-waada chip above.
+    notAvailableReason = null;
   };
   if (searchInput) {
     searchInput.addEventListener('input', () => {
@@ -1908,10 +2076,25 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
         collectAdvance(advanceBtn.getAttribute('data-field-advance-method') || 'Cash');
         return;
       }
+      // QC-1: arming a Not Available reason toggles the chips in
+      // place — a re-render here would drop the typed note (the
+      // change-package pattern). Nothing is recorded on the tap.
+      const notAvailBtn = event.target.closest?.('[data-field-notavail]');
+      if (notAvailBtn) {
+        notAvailableReason = notAvailBtn.getAttribute('data-field-notavail');
+        panelEl.querySelectorAll('[data-field-notavail]').forEach((btn) => {
+          btn.classList.toggle('is-active', btn.getAttribute('data-field-notavail') === notAvailableReason);
+        });
+        const saveBtn = panelEl.querySelector('[data-field-action="notavail-save"]');
+        if (saveBtn) saveBtn.disabled = false;
+        return;
+      }
       const actionBtn = event.target.closest?.('[data-field-action]');
       if (actionBtn) {
         const action = actionBtn.getAttribute('data-field-action');
         if (action === 'cash') collect('Cash');
+        else if (action === 'notavail-save') saveNotAvailableMark();
+        else if (action === 'notavail-clear') clearNotAvailableMark();
         else if (action === 'change-package') changePackage();
         else if (action === 'loose-change') collectLooseChange(Number(actionBtn.getAttribute('data-field-tender')));
         else if (action === 'shop') collect(actionBtn.getAttribute('data-field-method') || 'Cash');

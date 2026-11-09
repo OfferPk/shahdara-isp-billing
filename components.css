@@ -965,6 +965,20 @@ body.field-mode-open { overflow: hidden; }
   color: var(--ink);
   padding: 0 10px;
 }
+/* QC-1: the short collection note on the Not Available section —
+   same 44px input shape as the Waada date field, token-only. */
+.field-mode-notavail-note {
+  min-height: 44px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  padding: 0 10px;
+  margin-top: 8px;
+}
 .field-mode-note {
   margin: 8px 0 0;
   font-size: 12px;

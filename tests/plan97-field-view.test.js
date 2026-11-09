@@ -19,12 +19,25 @@ const read = (name) => readFileSync(join(here, '..', name), 'utf8');
 
 const URDU = /[\u0600-\u06FF]/;
 
+// QC-1 why-comment: the sunlight-readable field-view row keeps
+// Plan 2's six buttons exactly, in Plan 2 order — Call Later is
+// offered on the Field Mode collect sheet, not on the route-sheet
+// row (the smaller honest change). The visit catalogue grew by
+// that one designed entry, so the field-view list is now a strict
+// subset of VISIT_OUTCOMES instead of equal to it; the pin's
+// intent — no stray outcome in either list — is preserved by the
+// two exact lists below.
 test('Plan 97: outcome catalogue matches Plan 2 exactly, in Plan 2 order', () => {
   assert.deepEqual(
     FIELD_VIEW_OUTCOMES.map((entry) => entry.outcome),
-    VISIT_OUTCOMES,
+    ['paid', 'promised', 'not_home', 'refused', 'dispute', 'no_answer'],
   );
   assert.equal(FIELD_VIEW_OUTCOMES.length, 6);
+  assert.deepEqual(
+    [...VISIT_OUTCOMES],
+    ['paid', 'promised', 'not_home', 'refused', 'dispute', 'no_answer', 'call_later'],
+  );
+  for (const entry of FIELD_VIEW_OUTCOMES) assert.ok(VISIT_OUTCOMES.includes(entry.outcome));
 });
 
 test('Plan 97: every outcome has an icon, a short Urdu-script label, and an English label', () => {

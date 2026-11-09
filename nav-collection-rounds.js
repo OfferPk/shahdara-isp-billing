@@ -38,7 +38,10 @@ export const FIELD_ROUTE_OUTCOMES = Object.freeze({
   // does not create or resolve a dispute case (see
   // visit-outcomes.js).
   DISPUTE: 'dispute',
-  NO_ANSWER: 'no_answer'
+  NO_ANSWER: 'no_answer',
+  // QC-1: a "call them later" visit — attended, no money, follow up
+  // by phone. Same shape as the other missed-visit outcomes.
+  CALL_LATER: 'call_later'
 });
 
 /**
@@ -249,7 +252,7 @@ export function getFieldRouteOutcomes(storage, dateStr) {
 }
 
 /**
- * Saves a structured visit outcome (paid, partial, promised, not_home, refused, dispute, no_answer) for a customer stop.
+ * Saves a structured visit outcome (paid, partial, promised, not_home, refused, dispute, no_answer, call_later) for a customer stop.
  * Plan 2 (Plan 1-100) added dispute and no_answer to the catalogue;
  * both are non-payment outcomes, so they mark the stop uncollected
  * like not_home and refused, and neither creates a payment, a Waada
@@ -257,7 +260,7 @@ export function getFieldRouteOutcomes(storage, dateStr) {
  * Automatically synchronizes with stop collection status and collection promises.
  *
  * @param {string} customerId
- * @param {string|object} outcomeData - 'paid'|'partial'|'promised'|'not_home'|'refused'|'dispute'|'no_answer' or object
+ * @param {string|object} outcomeData - 'paid'|'partial'|'promised'|'not_home'|'refused'|'dispute'|'no_answer'|'call_later' or object
  * @param {Storage|object} [storage]
  * @param {string} [dateStr]
  * @param {object} [options]
@@ -271,7 +274,7 @@ export function saveFieldRouteOutcome(customerId, outcomeData, storage, dateStr,
   let rawOutcome = typeof outcomeData === 'string' ? outcomeData : (outcomeData?.outcome || 'pending');
   rawOutcome = String(rawOutcome).trim().toLowerCase();
 
-  const validOutcomes = ['pending', 'paid', 'partial', 'promised', 'not_home', 'refused', 'dispute', 'no_answer'];
+  const validOutcomes = ['pending', 'paid', 'partial', 'promised', 'not_home', 'refused', 'dispute', 'no_answer', 'call_later'];
   const outcome = validOutcomes.includes(rawOutcome) ? rawOutcome : 'pending';
 
   const noteVal = typeof outcomeData === 'object'
@@ -1158,6 +1161,8 @@ export function setupFieldRouteSheet({
             ? '<span class="role-badge" style="background: #b45309; color: white;">⚠️ Dispute</span>'
             : outcome === 'no_answer'
             ? '<span class="role-badge" style="background: #64748b; color: white;">🔕 No answer</span>'
+            : outcome === 'call_later'
+            ? '<span class="role-badge" style="background: #64748b; color: white;">📞 Call later</span>'
             : '';
 
           // Plan 373: a customer flagged away gets no visit reminder

@@ -56,6 +56,9 @@ const VISITED_OUTCOMES = Object.freeze([
   'refused',
   'dispute',
   'no_answer',
+  // QC-1: a call-later visit is attended too — no money, follow up
+  // by phone — so it counts as visited, never as collected.
+  'call_later',
 ]);
 
 function str(value) {

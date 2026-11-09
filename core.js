@@ -3007,6 +3007,10 @@ export function applyLateFeeToBill(state, customerId, month, { amount = 100, rea
   const customer = customerOrThrow(state, customerId);
   const bill = customer.bills.find(b => b.month === month);
   if (!bill) throw new Error(`Bill for month ${month} not found on customer #${customer.customerNumber}.`);
+  // Polish #23: no late fee accrues on a tagged month — a 0 bill cannot
+  // be late. The tag already covered any fee stamped before tagging
+  // (it waives the whole gross at apply time).
+  if (Number(bill.firstMonthWaivedAmount) > 0) throw new Error('Cannot apply a late fee to a month tagged as the first month free — a 0 bill cannot be late.');
   const lateFeeNum = Number(amount);
   if (!Number.isFinite(lateFeeNum) || lateFeeNum <= 0) throw new Error('Late fee amount must be a positive number.');
   const cleanFee = Math.round(lateFeeNum * 100) / 100;
@@ -3169,6 +3173,10 @@ export function applyConcessionToBill(state, customerId, month, { amount = 0, re
   const customer = customerOrThrow(state, customerId);
   const bill = customer.bills.find(b => b.month === month);
   if (!bill) throw new Error(`Bill for month ${month} not found on customer #${customer.customerNumber}.`);
+  // Polish #23: a concession cannot be applied to an already-tagged
+  // month — the month is already fully waived, so the tag and the
+  // concession never stack on one month.
+  if (Number(bill.firstMonthWaivedAmount) > 0) throw new Error('Cannot apply an outage concession to a month already tagged as the first month free.');
   const gross = Number(bill.dueAmount) + Number(bill.lateFee || 0);
   if (!Number.isFinite(gross) || gross <= 0) throw new Error('Cannot apply an outage concession to an unpriced bill.');
   const requested = Number(amount);
@@ -3227,6 +3235,90 @@ export function removeConcessionFromBill(state, customerId, month, { reason = 'O
     concessionAmount: 0,
     concessionReason: cleanReason,
     concessionAppliedAt: null,
+    amountHistory
+  };
+  return {
+    ...state,
+    customers: state.customers.map(c => c.id !== customerId ? c : {
+      ...c,
+      bills: c.bills.map(b => b.month !== month ? b : updatedBill)
+    })
+  };
+}
+
+// Polish #23: First-month tag (🔖). A new connection's install already
+// includes the first month's bill in the first-time payment, so the
+// operator tags the customer's earliest unpaid month and that month's
+// whole gross (dueAmount + lateFee, tax included) is waived. Mirrors
+// the SISP-30 concession shape exactly: audited bill fields
+// (firstMonthWaivedAmount + firstMonthWaivedReason + firstMonthWaivedAt)
+// plus an amountHistory entry, and the bill amount itself is never
+// rewritten — so untagging restores the original bill in full. Applying
+// SETS the amount to the bill's gross (never adds, so re-applying cannot
+// stack). A month that already has any non-voided payment was NOT
+// "included" — the tag is refused. The engine subtracts the field in
+// the FU1b block, so every dues surface reads 0 for the tagged month.
+export const FIRST_MONTH_WAIVER_REASON_DEFAULT = 'First month included in new connection';
+export const FIRST_MONTH_WAIVER_HISTORY_TYPE = 'first_month_waived';
+export const FIRST_MONTH_TAG_REMOVED_HISTORY_TYPE = 'first_month_tag_removed';
+
+export function applyFirstMonthWaiverToBill(state, customerId, month, { reason = '' } = {}, referenceDate = new Date()) {
+  checkMonth(month, referenceDate);
+  const customer = customerOrThrow(state, customerId);
+  if (customer.archived === true) throw new Error('Cannot tag an archived customer.');
+  const bill = customer.bills.find(b => b.month === month);
+  if (!bill) throw new Error(`Bill for month ${month} not found on customer #${customer.customerNumber}.`);
+  const gross = Number(bill.dueAmount) + Number(bill.lateFee || 0);
+  if (!Number.isFinite(gross) || gross <= 0) throw new Error('Cannot apply the first-month tag to an unpriced bill.');
+  if (Number(bill.firstMonthWaivedAmount) > 0) throw new Error('This month is already tagged as the first month free.');
+  const hasPayment = (bill.payments ?? []).some(payment => payment?.voided !== true);
+  if (hasPayment) throw new Error(`Cannot tag ${month} for customer #${customer.customerNumber}: the month already has a payment recorded.`);
+  const cleanAmount = Math.round(gross * 100) / 100;
+  const cleanReason = String(reason || FIRST_MONTH_WAIVER_REASON_DEFAULT).trim() || FIRST_MONTH_WAIVER_REASON_DEFAULT;
+  const amountHistory = [...(bill.amountHistory ?? [])];
+  amountHistory.push({
+    changedAt: localDateTimeValue(referenceDate),
+    type: FIRST_MONTH_WAIVER_HISTORY_TYPE,
+    previousWaivedAmount: bill.firstMonthWaivedAmount ?? 0,
+    waivedAmount: cleanAmount,
+    note: cleanReason
+  });
+  const updatedBill = {
+    ...bill,
+    firstMonthWaivedAmount: cleanAmount,
+    firstMonthWaivedReason: cleanReason,
+    firstMonthWaivedAt: localDateTimeValue(referenceDate),
+    amountHistory
+  };
+  return {
+    ...state,
+    customers: state.customers.map(c => c.id !== customerId ? c : {
+      ...c,
+      bills: c.bills.map(b => b.month !== month ? b : updatedBill)
+    })
+  };
+}
+
+export function removeFirstMonthWaiverFromBill(state, customerId, month, { reason = 'Tag removed by owner' } = {}, referenceDate = new Date()) {
+  checkMonth(month, referenceDate);
+  const customer = customerOrThrow(state, customerId);
+  const bill = customer.bills.find(b => b.month === month);
+  if (!bill) throw new Error(`Bill for month ${month} not found on customer #${customer.customerNumber}.`);
+  if (!bill.firstMonthWaivedAmount) return state;
+  const cleanReason = String(reason || 'Tag removed by owner').trim();
+  const amountHistory = [...(bill.amountHistory ?? [])];
+  amountHistory.push({
+    changedAt: localDateTimeValue(referenceDate),
+    type: FIRST_MONTH_TAG_REMOVED_HISTORY_TYPE,
+    previousWaivedAmount: bill.firstMonthWaivedAmount,
+    waivedAmount: 0,
+    note: cleanReason
+  });
+  const updatedBill = {
+    ...bill,
+    firstMonthWaivedAmount: 0,
+    firstMonthWaivedReason: cleanReason,
+    firstMonthWaivedAt: null,
     amountHistory
   };
   return {
@@ -3534,6 +3626,15 @@ export function calculatePaymentAllocations(state) {
       // credit. Absent on legacy bills, so existing allocations are
       // unchanged.
       dueRemainingCents -= Math.min(moneyCents(bill.feederHostCreditAmount || 0), dueRemainingCents);
+      // Polish #23: the first-month tag rides as the same shape of
+      // audited bill field — applyFirstMonthWaiverToBill stamps
+      // firstMonthWaivedAmount WITHOUT rewriting dueAmount and the
+      // receipt surfaces subtract it — so the engine subtracts it here
+      // too, clamped to the remaining due, or the tagged customer would
+      // stay in the due list and the next cycle would carry phantom
+      // arrears equal to the waived month. Absent on legacy bills, so
+      // existing allocations are unchanged.
+      dueRemainingCents -= Math.min(moneyCents(bill.firstMonthWaivedAmount || 0), dueRemainingCents);
       // Advance month targeting: a targeted credit is RESERVED for its
       // month — the loop below skips it while its target is still in
       // the future, so it can never settle an earlier bill. This bill

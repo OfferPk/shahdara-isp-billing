@@ -9115,19 +9115,30 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
 
   const activeLang = lang && SUPPORTED_LANGUAGES.includes(lang) ? lang : getAppLanguage();
 
+  // Polish #20 — a missing translation must never overwrite the static
+  // text the page shipped with. t() returns the key itself when the
+  // loaded dictionary has no such key (stale cached nav-language.js
+  // against a fresh index.html, from the frozen ?v=1.11.0 pins), and
+  // writing that raw key is what put "dash_tile_installation_title"
+  // on the Installation tile. In every section below, when the
+  // translation comes back as the key itself, keep the element's
+  // existing text / attribute value instead. (No dictionary value
+  // equals its own key, so the comparison is a safe missing signal.)
   // 1. data-i18n: Update text content
   const textElements = container.querySelectorAll('[data-i18n]');
   textElements.forEach(el => {
     const key = el.getAttribute('data-i18n');
     if (!key) return;
+    const translated = t(key, activeLang);
+    if (translated === key) return;
 
     // Check if element contains child badges or icons that must be preserved
     if (el.hasAttribute('data-i18n-preserve-children')) {
       const childBadges = Array.from(el.querySelectorAll('.bottom-nav-badge, .nav-drawer-badge, .badge, svg'));
-      el.textContent = t(key, activeLang) + ' ';
+      el.textContent = translated + ' ';
       childBadges.forEach(b => el.appendChild(b));
     } else {
-      el.textContent = t(key, activeLang);
+      el.textContent = translated;
     }
   });
 
@@ -9135,21 +9146,27 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
   const placeholderElements = container.querySelectorAll('[data-i18n-placeholder]');
   placeholderElements.forEach(el => {
     const key = el.getAttribute('data-i18n-placeholder');
-    if (key) el.setAttribute('placeholder', t(key, activeLang));
+    if (!key) return;
+    const translated = t(key, activeLang);
+    if (translated !== key) el.setAttribute('placeholder', translated);
   });
 
   // 3. data-i18n-title
   const titleElements = container.querySelectorAll('[data-i18n-title]');
   titleElements.forEach(el => {
     const key = el.getAttribute('data-i18n-title');
-    if (key) el.setAttribute('title', t(key, activeLang));
+    if (!key) return;
+    const translated = t(key, activeLang);
+    if (translated !== key) el.setAttribute('title', translated);
   });
 
   // 4. data-i18n-aria-label
   const ariaElements = container.querySelectorAll('[data-i18n-aria-label]');
   ariaElements.forEach(el => {
     const key = el.getAttribute('data-i18n-aria-label');
-    if (key) el.setAttribute('aria-label', t(key, activeLang));
+    if (!key) return;
+    const translated = t(key, activeLang);
+    if (translated !== key) el.setAttribute('aria-label', translated);
   });
 
   // 5. Update bottom navigation buttons

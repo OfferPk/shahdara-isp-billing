@@ -24,6 +24,12 @@ const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 // select with nothing chosen shows the same blank-option words in
 // both languages.
 //
+// Polish #28 Phase B (Req 3) revises the rule for the PROFILE VIEW
+// only: an empty optional value there reads the em dash "—" instead
+// of "Not set" / "Not recorded". The print card, the header strip,
+// the form blank options and the prose sections keep the Plan 502
+// wording; the fragments tests below pin the new view rule.
+//
 // Boundary, stated plainly: the custody, optical, pole and feeder
 // sections keep their own "Not recorded" fallbacks — they are
 // separate sections with their own conventions, not the four info
@@ -76,34 +82,41 @@ test('Plan 502: both wording keys exist in English and Urdu with real values', (
 
 // ------------------------------------------------------------ the four info groups
 
-test('Plan 502: Connection rows — never-entered field values read Not set', () => {
+// Polish #28 Phase B (Req 3) — the view wording in the fragments is
+// now the em dash, not "Not set" / "Not recorded". The print card,
+// the header strip and the form blank options keep the Plan 502 rule;
+// the fragments below pin the NEW rule. The rule comment at the
+// fragments keeps the "never entered" / "never recorded" phrases
+// because the distinction still lives on outside the view.
+
+test('Plan 502: Connection rows — never-entered field values read the dash', () => {
   const groups = groupsLiteral();
-  assert.ok(groups.includes("customer.routerModel || t('prof_not_set')"), 'router model must read Not set');
-  assert.ok(groups.includes("fiberMeters === '' ? t('prof_not_set')"), 'fiber meters must read Not set');
-  assert.ok(groups.includes("fiberPerMeterRate === '' ? t('prof_not_set')"), 'fiber rate must read Not set');
+  assert.ok(groups.includes("profileEmptyText(customer.routerModel)"), 'router model must read the dash');
+  assert.ok(groups.includes("customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH"), 'fiber meters must read the dash');
+  assert.ok(groups.includes("customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH"), 'fiber rate must read the dash');
 });
 
-test('Plan 502: Connection rows — never-recorded dates still read Not recorded', () => {
+test('Plan 502: Connection rows — never-recorded dates read the dash', () => {
   const groups = groupsLiteral();
-  assert.ok(groups.includes("customer.connectionDate ? humanDate(customer.connectionDate) : t('prof_not_recorded')"), 'connection start must read Not recorded');
-  assert.ok(groups.includes("customer.expiryDate ? humanDate(customer.expiryDate) : t('prof_not_recorded')"), 'expiry must read Not recorded');
-  assert.ok(groups.includes("customer.cancellationDate ? humanDate(customer.cancellationDate) : t('prof_not_recorded')"), 'cancellation must read Not recorded');
-  assert.equal((groups.match(/t\('prof_not_recorded'\)/g) || []).length, 3, 'only the three date rows may read Not recorded in the fragments');
+  assert.ok(groups.includes("customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH"), 'connection start must read the dash');
+  assert.ok(groups.includes("customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH"), 'expiry must read the dash');
+  assert.ok(groups.includes("customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH"), 'cancellation must read the dash');
+  assert.equal((groups.match(/t\('prof_not_recorded'\)/g) || []).length, 0, 'no date row may read Not recorded in the fragments any more');
 });
 
-test('Plan 502: Contact / Location / Service rows still read Not set', () => {
+test('Plan 502: Contact / Location / Service rows read the dash', () => {
   const groups = groupsLiteral();
   for (const fragment of [
-    "phone || t('prof_not_set')",
-    "cnic ? formatCnicDisplay(cnic) : t('prof_not_set')",
-    "customer.mohalla || t('prof_not_set')",
-    "customer.zone || t('prof_not_set')",
-    "customer.address || t('prof_not_set')",
-    "customer.notes?.trim() || t('prof_not_set')",
-    "customer.ispProvider || t('prof_not_set')",
-    "customer.packageSpeed || t('prof_not_set')",
-    "customer.pppoeUsername || t('prof_not_set')",
-    "customer.staticIp || t('prof_not_set')",
+    "profileEmptyText(phone)",
+    "cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH",
+    "profileEmptyText(customer.mohalla)",
+    "profileEmptyText(customer.zone)",
+    "profileEmptyText(customer.address)",
+    "profileEmptyText(customer.notes)",
+    "profileEmptyText(customer.ispProvider)",
+    "profileEmptyText(customer.packageSpeed)",
+    "profileEmptyText(customer.pppoeUsername)",
+    "profileEmptyText(customer.staticIp)",
   ]) {
     assert.ok(groups.includes(fragment), `fragments object must keep ${fragment}`);
   }
@@ -140,7 +153,7 @@ test('Plan 502: print card — missing identity and contact fields read Not set'
   assert.ok(!card.includes('Not recorded'), 'no identity/contact field may read Not recorded');
 });
 
-test('Plan 502: print card — no package reads Not set, matching the view Service group', () => {
+test('Plan 502: print card — no package reads Not set (the print card keeps the old wording; the view now dashes)', () => {
   const card = buildProfilePrintCardHtml({ ...printFixture(), packageLabel: '', packagePrice: null }, format);
   assert.ok(card.includes('Not set'));
   assert.ok(!card.includes('No package recorded'), 'the old package wording must be gone');
@@ -169,7 +182,7 @@ const stripFixture = () => ({
   nextDueDate: '2026-11-05',
 });
 
-test('Plan 502: header strip — no package reads Not set, matching the view Service group', () => {
+test('Plan 502: header strip — no package reads Not set (the header strip keeps the old wording; the view now dashes)', () => {
   const strip = buildProfileHeaderStrip({ ...stripFixture(), packageLabel: '' });
   assert.equal(strip.packageLabel, 'Not set');
   assert.match(profileHeaderStripText(strip), /Package Not set/);

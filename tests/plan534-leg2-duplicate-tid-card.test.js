@@ -395,7 +395,13 @@ test('wiring: the leg-2 card carries no id, is found by class, and detection is 
   // fallback toast keeps its exact pre-plan wording.
   assert.match(src, /const dup2 = findDuplicatePaymentReference\(state, leg2Txn\);/,
     'duplicate detection is the same shared lookup');
-  assert.ok(src.includes('Give leg 2 its own Transaction ID.'), 'the fallback toast wording is unchanged');
+  // Plan 549: the fallback toast's wording moved into nav-language.js
+  // (key qc_toast_leg2_duplicate, English byte-identical) — the
+  // wording itself is unchanged, only its home moved, so this pin
+  // now checks the dictionary value and the routing to it.
+  const lang = readFileSync(new URL('../nav-language.js', import.meta.url), 'utf8');
+  assert.ok(lang.includes('Give leg 2 its own Transaction ID.'), 'the fallback toast wording is unchanged (now in the dictionary)');
+  assert.ok(src.includes("t('qc_toast_leg2_duplicate'"), 'the fallback toast routes through the dictionary key');
   // The reason lands on leg 2 exactly like leg 1's reason lands on
   // leg 1 — and the leg-1 flow is untouched.
   assert.match(src, /const leg2Reference = \(duplicateBypassedForLeg2Txn && leg2Txn === duplicateBypassedForLeg2Txn/,

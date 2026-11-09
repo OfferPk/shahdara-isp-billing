@@ -3702,7 +3702,7 @@ export function setupQuickCollectModal({
           // Plan 432: the concession sets the amount, so the change
           // refreshes explicitly too.
           renderCashChange();
-          if (typeof onToast === 'function') onToast(`Outage concession of PKR ${effective.suggestedAmount} applied to bill ${month}.`);
+          if (typeof onToast === 'function') onToast(t('qc_toast_concession_applied', null, { amount: effective.suggestedAmount, month }));
         } catch (err) {
           if (typeof onToast === 'function') onToast(err.message);
         }
@@ -3738,7 +3738,7 @@ export function setupQuickCollectModal({
           // NOT touched here: the fresh prefill is the full dues
           // again, which is exactly right once the concession is gone.
           restoreConcessionFormEntries(entriesBeforeConcession);
-          if (typeof onToast === 'function') onToast(`Outage concession removed from bill ${month}.`);
+          if (typeof onToast === 'function') onToast(t('qc_toast_concession_removed', null, { month }));
         } catch (err) {
           if (typeof onToast === 'function') onToast(err.message);
         }
@@ -4831,9 +4831,9 @@ export function setupQuickCollectModal({
     // already on screen and stays undoable after this close — posting
     // "saved" here would contradict it, so it is skipped in that case.
     if (pendingUndo && typeof onToast === 'function' && typeof onCollected !== 'function') {
-      onToast(`Payment of PKR ${pendingUndo.amount.toLocaleString()} for ${pendingUndo.customerName} saved.`, {
+      onToast(t('qc_toast_payment_saved', null, { amount: pendingUndo.amount.toLocaleString(), name: pendingUndo.customerName }), {
         type: 'success',
-        title: 'Payment saved',
+        title: t('qc_toast_payment_saved_title'),
         duration: 3000
       });
     }
@@ -5311,7 +5311,7 @@ export function setupQuickCollectModal({
     const amountInput = document.getElementById('sccSecondConnectionAmount');
     const amountVal = Number(amountInput?.value);
     if (!Number.isFinite(amountVal) || amountVal <= 0) {
-      if (typeof onToast === 'function') onToast('Enter a valid amount greater than zero for the second connection.', { type: 'error' });
+      if (typeof onToast === 'function') onToast(t('qc_toast_second_invalid_amount'), { type: 'error' });
       amountInput?.focus();
       return;
     }
@@ -5319,7 +5319,7 @@ export function setupQuickCollectModal({
     const postSaveState = getState();
     const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeCustomerId) ?? null;
     if (!postSaveCustomer) {
-      if (typeof onToast === 'function') onToast('Customer not found.', { type: 'error' });
+      if (typeof onToast === 'function') onToast(t('qc_toast_second_customer_missing'), { type: 'error' });
       return;
     }
     // The first payment must still exist: undoing or reversing it
@@ -5329,7 +5329,7 @@ export function setupQuickCollectModal({
       (bill?.payments ?? []).some((p) => p?.id === firstReceipt.paymentId));
     if (!firstStillThere) {
       hideSecondConnectionStep();
-      if (typeof onToast === 'function') onToast('The first payment is no longer recorded, so the second connection cannot be recorded after it.', { type: 'error' });
+      if (typeof onToast === 'function') onToast(t('qc_toast_second_first_gone'), { type: 'error' });
       return;
     }
     const links = typeof loadBillingLinks === 'function' ? loadBillingLinks() : [];
@@ -5386,8 +5386,12 @@ export function setupQuickCollectModal({
       );
       if (typeof onToast === 'function') {
         onToast(
-          `Second payment of PKR ${amountVal.toLocaleString('en-PK')} recorded for ${step.secondConnection}${totalCents !== null ? ` — total paid this visit PKR ${(totalCents / 100).toLocaleString('en-PK')}` : ''}.`,
-          { type: 'success', title: 'Second payment recorded' }
+          t('qc_toast_second_recorded', null, {
+            amount: amountVal.toLocaleString('en-PK'),
+            name: step.secondConnection,
+            total: totalCents !== null ? t('qc_toast_second_recorded_total', null, { total: (totalCents / 100).toLocaleString('en-PK') }) : ''
+          }),
+          { type: 'success', title: t('qc_toast_second_recorded_title') }
         );
       }
     } catch (err) {
@@ -5643,9 +5647,9 @@ export function setupQuickCollectModal({
           activeReceipt = { ...activeReceipt, splitTender: { ...activeReceipt.splitTender, area: stored } };
         }
         renderActiveReceiptCard();
-        if (typeof onToast === 'function') onToast(`Area updated to ${stored}.`, { type: 'success', title: 'Area updated' });
+        if (typeof onToast === 'function') onToast(t('qc_toast_area_updated', null, { area: stored }), { type: 'success', title: t('qc_toast_area_updated_title') });
       } catch (err) {
-        if (typeof onToast === 'function') onToast(err.message || 'Area could not be updated.', { type: 'error' });
+        if (typeof onToast === 'function') onToast(err.message || t('qc_toast_area_update_failed'), { type: 'error' });
         renderActiveReceiptCard();
       }
     });
@@ -5703,7 +5707,7 @@ export function setupQuickCollectModal({
         renderList();
         showStep('pick');
         if (typeof onToast === 'function') {
-          onToast(`Payment of PKR ${amount.toLocaleString()} for ${customerName} undone. Ledger restored.`, { type: 'success', title: 'Undone' });
+          onToast(t('qundo_undone', null, { amount: 'PKR ' + amount.toLocaleString(), name: customerName }), { type: 'success', title: t('qundo_undone_title') });
         }
         return;
       }
@@ -5781,11 +5785,11 @@ export function setupQuickCollectModal({
       renderList();
       showStep('pick');
       if (typeof onToast === 'function') {
-        onToast(`Payment of PKR ${amount.toLocaleString()} for ${customerName} undone. Ledger restored.`, { type: 'success', title: 'Undone' });
+        onToast(t('qundo_undone', null, { amount: 'PKR ' + amount.toLocaleString(), name: customerName }), { type: 'success', title: t('qundo_undone_title') });
       }
     } catch (err) {
       if (typeof onToast === 'function') {
-        onToast(`Could not undo payment: ${err.message}`, { type: 'error' });
+        onToast(t('qundo_failed', null, { error: err.message }), { type: 'error' });
       }
     }
   }
@@ -5816,18 +5820,18 @@ export function setupQuickCollectModal({
     if (undoBtn) undoBtn.hidden = true;
     try {
       if (!quickCollectReversalUndoAllowed(ctx.savedAtMs, Date.now())) {
-        if (typeof onToast === 'function') onToast('The sixty-second undo window has passed. Use the correction flow to fix this payment.', { type: 'error' });
+        if (typeof onToast === 'function') onToast(t('qc_toast_reversal_window_passed'), { type: 'error' });
         return;
       }
       const state = getState();
       const original = state?.customers?.find((c) => c.id === ctx.customerId)?.bills?.find((b) => b.month === ctx.month)?.payments?.find((p) => p.id === ctx.paymentId) ?? null;
       if (!original) {
-        if (typeof onToast === 'function') onToast('Could not undo payment: the original payment was not found.', { type: 'error' });
+        if (typeof onToast === 'function') onToast(t('qc_toast_reversal_original_missing'), { type: 'error' });
         return;
       }
       const fields = quickCollectReversalUndoFields(original, { date: getPakistanLocalDate(), reason: QUICK_COLLECT_REVERSAL_UNDO_REASON });
       if (!fields) {
-        if (typeof onToast === 'function') onToast('Could not undo payment: the original payment cannot be reversed.', { type: 'error' });
+        if (typeof onToast === 'function') onToast(t('qc_toast_reversal_not_reversible'), { type: 'error' });
         return;
       }
       const nextState = addPayment(state, ctx.customerId, ctx.month, fields, new Date());
@@ -5838,11 +5842,11 @@ export function setupQuickCollectModal({
       renderList();
       openCustomerCollectionForm(ctx.customerId);
       if (typeof onToast === 'function') {
-        onToast(`Payment of PKR ${Number(ctx.amount).toLocaleString()} for ${ctx.customerName} undone by reversal. The original stays visible with its reversal.`, { type: 'success', title: 'Undone' });
+        onToast(t('qc_toast_undone_by_reversal', null, { amount: Number(ctx.amount).toLocaleString(), name: ctx.customerName }), { type: 'success', title: t('qundo_undone_title') });
       }
     } catch (err) {
       if (typeof onToast === 'function') {
-        onToast(`Could not undo payment: ${err.message}`, { type: 'error' });
+        onToast(t('qundo_failed', null, { error: err.message }), { type: 'error' });
       }
     }
   }
@@ -6105,7 +6109,7 @@ export function setupQuickCollectModal({
       const largeCashThresholdCents = Math.round((Number(largeCashThresholdInput?.value) || 0) * 100);
       const largeCashApprover = (largeCashApproverInput?.value || '').trim();
       if (requiresLargeCashApproval(isCashPaymentMethod(methodVal), Math.round(amountVal * 100), largeCashThresholdCents) && !largeCashApprover) {
-        if (typeof onToast === 'function') onToast('Large cash payments need the owner\'s approval recorded — enter the approver\'s name.', { type: 'error' });
+        if (typeof onToast === 'function') onToast(t('qc_toast_large_cash_approval'), { type: 'error' });
         // Plan 547: the approver field lives inside the collapsed
         // More Options — focus on a hidden element is invisible, so
         // open the details and scroll it into view before focusing.
@@ -6174,7 +6178,7 @@ export function setupQuickCollectModal({
             }
             // No card in the page (older markup): the toast is all
             // there is, exactly as before this plan.
-            if (typeof onToast === 'function') onToast(`Leg 2 Transaction ID "${leg2Txn}" was already recorded on ${dup2.date || dup2.paymentDate || 'recently'} for ${dup2.customerName || 'a customer'} (#${dup2.customerNumber || '?'}). Give leg 2 its own Transaction ID.`, { type: 'error' });
+            if (typeof onToast === 'function') onToast(t('qc_toast_leg2_duplicate', null, { txn: leg2Txn, date: dup2.date || dup2.paymentDate || 'recently', name: dup2.customerName || 'a customer', number: dup2.customerNumber || '?' }), { type: 'error' });
             splitTransactionIdInput?.focus();
             return;
           }
@@ -6292,8 +6296,8 @@ export function setupQuickCollectModal({
           if (typeof onToast === 'function') {
             onToast(t('split_saved_msg', null, { amount: totalCollected.toLocaleString('en-PK') }), {
               type: 'success',
-              title: 'Payment recorded',
-              actionLabel: 'Undo',
+              title: t('qundo_title'),
+              actionLabel: t('qcpkg_undo'),
               onAction: () => {
                 executeUndo();
               },
@@ -6488,10 +6492,10 @@ export function setupQuickCollectModal({
           customerName: receipt.customerName
         });
       } else if (typeof onToast === 'function') {
-        onToast(`Payment of PKR ${amountVal.toLocaleString()} recorded.`, {
+        onToast(t('qc_toast_payment_recorded', null, { amount: amountVal.toLocaleString() }), {
           type: 'success',
-          title: 'Payment recorded',
-          actionLabel: 'Undo',
+          title: t('qundo_title'),
+          actionLabel: t('qcpkg_undo'),
           onAction: () => {
             executeUndo();
           },
@@ -6548,9 +6552,9 @@ export function setupQuickCollectModal({
   function warnNoPhone(message) {
     if (typeof onToast !== 'function') return;
     const customerId = activeReceipt?.customerId;
-    const opts = { type: 'warning', title: 'No phone number' };
+    const opts = { type: 'warning', title: t('qc_toast_no_phone_title') };
     if (customerId && typeof onEditCustomer === 'function') {
-      opts.actionLabel = 'Add phone';
+      opts.actionLabel = t('qc_toast_add_phone');
       opts.onAction = () => {
         closeModal();
         // Let the dialog's own history entry go back first, then open the profile editor.
@@ -6585,7 +6589,7 @@ export function setupQuickCollectModal({
         amount: activeReceipt.amount
       });
       if (typeof onToast === 'function') {
-        onToast('WhatsApp receipt draft opened.', { type: 'info' });
+        onToast(t('qc_toast_whatsapp_draft_opened'), { type: 'info' });
       }
     } else {
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -6597,12 +6601,12 @@ export function setupQuickCollectModal({
             customerId: activeReceipt.customerId,
             amount: activeReceipt.amount
           });
-          warnNoPhone('No phone saved for this customer. The receipt text was copied to the clipboard instead.');
+          warnNoPhone(t('qc_toast_no_phone_clipboard'));
         } catch {
-          warnNoPhone('No phone number saved for this customer.');
+          warnNoPhone(t('qc_toast_no_phone'));
         }
       } else {
-        warnNoPhone('No phone number saved for this customer.');
+        warnNoPhone(t('qc_toast_no_phone'));
       }
     }
 
@@ -6625,7 +6629,7 @@ export function setupQuickCollectModal({
         : activeReceipt;
       const blob = await generateReceiptImageBlob(imageReceipt);
       if (!blob) {
-        if (typeof onToast === 'function') onToast('Receipt image creation is not supported in this environment.', { type: 'warning' });
+        if (typeof onToast === 'function') onToast(t('qc_toast_receipt_image_unsupported'), { type: 'warning' });
         return;
       }
       const filename = `receipt-${activeReceipt.receiptNumber || 'slip'}.png`;
@@ -6668,10 +6672,10 @@ export function setupQuickCollectModal({
       renderActiveReceiptCard();
 
       if (typeof onToast === 'function') {
-        onToast('Receipt image ready (downloaded / shared).');
+        onToast(t('qc_toast_receipt_image_ready'));
       }
     } catch (err) {
-      if (typeof onToast === 'function') onToast(`Share failed: ${err.message}`, { type: 'error' });
+      if (typeof onToast === 'function') onToast(t('qc_toast_share_failed', null, { error: err.message }), { type: 'error' });
     }
   });
 
@@ -6687,7 +6691,7 @@ export function setupQuickCollectModal({
     bluetoothPrintBtn.hidden = !isWebBluetoothAvailable();
     bluetoothPrintBtn.addEventListener('click', async () => {
       if (!activeReceipt) {
-        if (typeof onToast === 'function') onToast('No receipt to print yet.', { type: 'error' });
+        if (typeof onToast === 'function') onToast(t('qc_toast_no_receipt_to_print'), { type: 'error' });
         return;
       }
       try {
@@ -6739,9 +6743,9 @@ export function setupQuickCollectModal({
           statusLabel: split ? split.status : (activeReceipt.isSettled ? 'PAID' : 'PARTIAL')
         });
         await thermalPrinter.print(bytes);
-        if (typeof onToast === 'function') onToast('Receipt sent to the Bluetooth printer.');
+        if (typeof onToast === 'function') onToast(t('qc_toast_bluetooth_sent'));
       } catch (err) {
-        if (typeof onToast === 'function') onToast(`Bluetooth print failed: ${err?.message || err}`, { type: 'error' });
+        if (typeof onToast === 'function') onToast(t('qc_toast_bluetooth_failed', null, { error: err?.message || err }), { type: 'error' });
       }
     });
   }

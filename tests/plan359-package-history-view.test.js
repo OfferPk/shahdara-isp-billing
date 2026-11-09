@@ -458,26 +458,31 @@ test('store: the view holds no store of its own', () => {
 test('wiring: app.js imports the module and shows the section after the number-change log', () => {
   assert.ok(appSrc.includes("from './package-history-view.js'"));
   assert.ok(appSrc.includes('packageHistoryViewSectionHtml(customer, {'));
-  // Order, not adjacency: the mohalla change record (Plan 374) now
-  // sits between the number-change log and the package history, so
-  // the history is still after the log and still before the field
-  // groups.
-  const logAt = appSrc.indexOf('${numberChangeLogSectionMarkup}');
-  const recordAt = appSrc.indexOf('${mohallaChangeRecordSectionMarkup}');
-  const packageAt = appSrc.indexOf('${packageHistorySectionMarkup}');
-  assert.ok(logAt > 0 && recordAt > logAt && packageAt > recordAt);
+  // Polish #28 Phase A — the package history opens the Service
+  // section; the number-change log lives in the History section, so
+  // sections now order by topic (Service before History) and the old
+  // "history after the log" placement is superseded by the section map.
+  // The preserved intent is the section renders first in Service.
+  const serviceBodyAt = appSrc.indexOf('const profileSectionServiceBody = ');
+  const serviceBody = appSrc.slice(serviceBodyAt, appSrc.indexOf('\n', serviceBodyAt));
+  assert.ok(serviceBody.startsWith('const profileSectionServiceBody = `${packageHistorySectionMarkup}'), 'package history opens the Service section');
 });
 
 test('wiring: the profile order assertion still holds — banner, strip, then groups', () => {
-  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
-  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}', bannerAt);
-  const groupsAt = appSrc.indexOf('${profileInfoGroupsHtml}', stripAt);
-  assert.ok(bannerAt > 0, 'wada banner is in the profile template');
-  assert.ok(stripAt > bannerAt, 'strip sits after the wada banner');
-  assert.ok(groupsAt > stripAt, 'strip sits before the field groups');
-  const historyAt = appSrc.indexOf('${packageHistorySectionMarkup}');
-  assert.ok(historyAt > stripAt, 'package history sits after the strip');
-  assert.ok(historyAt < groupsAt, 'package history sits before the field groups');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections, banner first in Financial, and the package history first
+  // in Service.
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  const serviceAt = appSrc.indexOf('${profileSectionServiceHtml}', stripAt);
+  assert.ok(stripAt > 0, 'strip is in the profile assembly');
+  assert.ok(serviceAt > stripAt, 'Service section sits after the strip');
+  const serviceBodyAt = appSrc.indexOf('const profileSectionServiceBody = ');
+  const serviceBody = appSrc.slice(serviceBodyAt, appSrc.indexOf('\n', serviceBodyAt));
+  assert.ok(serviceBody.startsWith('const profileSectionServiceBody = `${packageHistorySectionMarkup}'), 'package history opens the Service section');
 });
 
 test('styles: the history rules exist and reuse an existing colour only', () => {

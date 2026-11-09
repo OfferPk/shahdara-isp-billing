@@ -204,9 +204,13 @@ test('wiring: toggling the split — or reopening the sheet, which resets it —
   assert.ok(body.includes('renderSplitTotal();'), 'visibility change re-renders the total');
 });
 
-test('wiring: the four programmatic leg-1 setters re-render the total the same way a typed amount does', () => {
+test('wiring: the five programmatic leg-1 setters re-render the total the same way a typed amount does', () => {
   const calls = (wiringSrc.match(/renderSplitTotal\(\);/g) || []).length;
-  assert.equal(calls, 5, `five statement calls (visibility + dues buttons + chips + keypad + loose change), found ${calls}`);
+  // Plan 539 adds the sixth statement call: the Back-draft restore
+  // sets the amount programmatically, so the total re-renders like
+  // every other programmatic amount set. The intent (the total
+  // refreshes on every programmatic amount set) is unchanged.
+  assert.equal(calls, 6, `six statement calls (visibility + dues buttons + chips + keypad + loose change + Back-draft restore), found ${calls}`);
   for (const note of [
     'Plan 533: a button-set amount',
     'Plan 533: a chip-set amount',

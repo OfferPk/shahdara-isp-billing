@@ -84,6 +84,7 @@ import {
 } from './recent-quick-pick.js';
 import { rememberedPaymentMethod } from './remembered-method.js';
 import { cashChangeLineText } from './cash-change-calculator.js';
+import { splitTotalLineText } from './split-total.js';
 import {
   createDoubleTapSaveGuard,
   doubleTapSaveGuardKey,
@@ -2159,6 +2160,18 @@ export function setupQuickCollectModal({
     nextReceiptLine.textContent = line;
     nextReceiptLine.hidden = line === '';
   }
+  // Plan 533: the live split total — leg 1 + leg 2 as typed, so the
+  // operator checks the split against what the customer handed over
+  // before saving instead of discovering a shortfall after. It shows
+  // only while the split is on and at least one leg has a positive
+  // figure; a split with nothing typed yet shows no "PKR 0" line.
+  // Read-only: rendering posts nothing and changes no record.
+  function renderSplitTotal() {
+    if (!splitTotalLine) return;
+    const line = splitToggle?.checked ? splitTotalLineText(amountInput?.value, splitAmountInput?.value) : '';
+    splitTotalLine.textContent = line;
+    splitTotalLine.hidden = line === '';
+  }
   // Plan 385: the settlement preview always shows which bills the
   // amount currently typed will settle — the target bill first, then
   // later bills in month order, exactly as the allocation engine
@@ -2477,6 +2490,15 @@ export function setupQuickCollectModal({
   const splitAmountInput = document.getElementById('quickCollectSplitAmountInput');
   const splitMethodSelect = document.getElementById('quickCollectSplitMethodSelect');
   const splitDigitalFields = document.getElementById('quickCollectSplitDigitalFields');
+  // Plan 533: the live split-total line (null when the host page
+  // predates it) — "Split total: PKR X (leg 1 + leg 2)" under the
+  // leg-2 fields, refreshed as either leg is typed. The line carries
+  // no id: it is found through the split fields block, never through
+  // the bare document, and the lookup is guarded for stub documents
+  // without querySelector (polish #13 harness).
+  const splitTotalLine = splitFields && typeof splitFields.querySelector === 'function'
+    ? splitFields.querySelector('.qc-split-total-line')
+    : null;
   const splitTransactionIdInput = document.getElementById('quickCollectSplitTransactionIdInput');
   const splitOverrideReasonInput = document.getElementById('quickCollectSplitOverrideReasonInput');
   // FU-SISP121-SENDER: leg-2 sender proof inputs (SISP-63 mirror) —
@@ -2853,6 +2875,10 @@ export function setupQuickCollectModal({
   amountInput?.addEventListener('input', () => renderRemainderWaadaRow());
   dateInput?.addEventListener('change', () => renderRemainderWaadaRow());
   advanceCheckbox?.addEventListener('change', () => renderRemainderWaadaRow());
+  // Plan 533: the split total follows every keystroke in either leg —
+  // the amount field is leg 1, the split amount field is leg 2.
+  amountInput?.addEventListener('input', () => renderSplitTotal());
+  splitAmountInput?.addEventListener('input', () => renderSplitTotal());
 
   // Populate payment methods select once
   if (methodSelect && methodSelect.options.length <= 1) {
@@ -2876,6 +2902,11 @@ export function setupQuickCollectModal({
     if (splitFields) splitFields.hidden = !on;
     const leg2Digital = on && isDigitalPaymentMethod(splitMethodSelect?.value || '');
     if (splitDigitalFields) splitDigitalFields.hidden = !leg2Digital;
+    // Plan 533: toggling the split — or reopening the sheet, which
+    // resets it off without a change event — re-renders the total
+    // with the current leg figures. No new split change listener is
+    // added here: the five-listener pin (Plan 527) stays exactly 5.
+    renderSplitTotal();
   }
   splitToggle?.addEventListener('change', updateSplitVisibility);
   // Plan 386: splitting the payment hides the choice (each leg is an
@@ -4036,6 +4067,9 @@ export function setupQuickCollectModal({
         renderUnderpaymentWarning();
         amountInput.focus();
         renderRemainderWaadaRow();
+        // Plan 533: a button-set amount re-computes the split total
+        // the same way.
+        renderSplitTotal();
       });
     }
     const figures = addPaymentDuesFigures({
@@ -4557,6 +4591,8 @@ export function setupQuickCollectModal({
       amountInput.focus();
       // SISP-126: a chip-set amount can reveal/clear the remainder row.
       renderRemainderWaadaRow();
+      // Plan 533: a chip-set amount re-computes the split total the same way.
+      renderSplitTotal();
     });
   });
 
@@ -4587,6 +4623,8 @@ export function setupQuickCollectModal({
     renderUnderpaymentWarning();
     amountInput.focus();
     renderRemainderWaadaRow();
+    // Plan 533: a keypad-set amount re-computes the split total the same way.
+    renderSplitTotal();
   });
 
   // SISP-116: a loose-change chip tap fills the tendered round amount
@@ -4613,6 +4651,9 @@ export function setupQuickCollectModal({
     // Plan 387: a loose-change tap fills the amount, so the warning
     // refreshes explicitly too.
     renderUnderpaymentWarning();
+    // Plan 533: a loose-change tap fills the amount, so the split
+    // total refreshes explicitly too.
+    renderSplitTotal();
     amountInput.focus();
   });
   // The chips belong to the dues flow only; the Advance tag hides them.

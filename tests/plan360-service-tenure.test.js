@@ -324,15 +324,22 @@ test('wiring: app.js imports the module and shows the section after the package 
 });
 
 test('wiring: the profile order assertion still holds — banner, strip, then groups', () => {
-  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
-  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}', bannerAt);
-  const groupsAt = appSrc.indexOf('${profileInfoGroupsHtml}', stripAt);
-  assert.ok(bannerAt > 0, 'wada banner is in the profile template');
-  assert.ok(stripAt > bannerAt, 'strip sits after the wada banner');
-  assert.ok(groupsAt > stripAt, 'strip sits before the field groups');
-  const tenureAt = appSrc.indexOf('${serviceTenureSectionMarkup}');
-  assert.ok(tenureAt > stripAt, 'tenure display sits after the strip');
-  assert.ok(tenureAt < groupsAt, 'tenure display sits before the field groups');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections and the tenure display second in Service, after the
+  // package history.
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  const serviceAt = appSrc.indexOf('${profileSectionServiceHtml}', stripAt);
+  assert.ok(stripAt > 0, 'strip is in the profile assembly');
+  assert.ok(serviceAt > stripAt, 'Service section sits after the strip');
+  const serviceBodyAt = appSrc.indexOf('const profileSectionServiceBody = ');
+  const serviceBody = appSrc.slice(serviceBodyAt, appSrc.indexOf('\n', serviceBodyAt));
+  const packageAt = serviceBody.indexOf('${packageHistorySectionMarkup}');
+  const tenureAt = serviceBody.indexOf('${serviceTenureSectionMarkup}');
+  assert.ok(packageAt > 0 && tenureAt > packageAt, 'tenure display sits after the package history, inside Service');
 });
 
 test('styles: the tenure rules exist and reuse an existing colour only', () => {

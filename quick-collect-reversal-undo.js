@@ -81,8 +81,8 @@ export function quickCollectReversalUndoSecondsLeft(savedAtMs, nowMs) {
 /** The button label for the seconds left: plain words, never a guess. */
 export function quickCollectReversalUndoButtonText(secondsLeft) {
   const left = Number(secondsLeft);
-  if (Number.isFinite(left) && left >= 1 && left <= 60) return `↩ Undo by reversal (${Math.floor(left)}s)`;
-  return '↩ Undo by reversal';
+  if (Number.isFinite(left) && left >= 1 && left <= 60) return `↩ Undo by reversal — original stays visible (${Math.floor(left)}s)`;
+  return '↩ Undo by reversal — original stays visible';
 }
 
 function cleanQuickCollectReversalUndoText(value) {

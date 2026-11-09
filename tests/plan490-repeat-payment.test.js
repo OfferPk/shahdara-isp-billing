@@ -36,11 +36,15 @@ test('target: no usable customer id means no repeat target', () => {
 });
 
 test('html: one button that asks for the form and posts nothing by itself', () => {
-  assert.equal(REPEAT_PAYMENT_BUTTON_TEXT, 'Record another payment');
+  // Plan 531: the label now names what the button opens — a fresh form
+  // with an empty amount. Same button, same behaviour, only the wording
+  // changed.
+  assert.equal(REPEAT_PAYMENT_BUTTON_TEXT, 'Record another — empty amount');
   const html = repeatPaymentHtml(repeatPaymentFormTarget('seed-001'));
   assert.match(html, /<button type="button"[^>]*data-rpt-repeat-payment/);
   assert.match(html, /data-rpt-customer-id="seed-001"/);
-  assert.match(html, /Record another payment/);
+  // Plan 531: the rendered label names the empty amount (see above).
+  assert.match(html, /Record another — empty amount/);
   assert.doesNotMatch(html, /<form/);
   assert.doesNotMatch(html, /type="submit"/);
 });

@@ -74,12 +74,28 @@ test('unknown OUI shows nothing — no guessed vendor', () => {
   assert.equal(macAddressDisplaySuffix('00:11:22:33:44:55'), '');
 });
 
-test('malformed, partial or missing input: no badge, no warning, no throw', () => {
-  for (const bad of ['', '   ', null, undefined, 'ZZ:ZZ:ZZ:ZZ:ZZ:ZZ', 'C8:3A:35', 'not-a-mac', 'C8:3A:35:11:22:33:44']) {
+test('malformed, partial or missing input: no badge, no throw — Phase E shows the format note instead', () => {
+  // Polish #28 Phase E: the hint no longer stays silent on a non-empty
+  // bad value — a malformed value reads as the red invalid note and a
+  // partial one as the amber tip (both display-only, never a throw).
+  // Empty / missing input still shows nothing, and no bad value ever
+  // resolves to a vendor badge.
+  for (const bad of ['', '   ', null, undefined]) {
     assert.equal(macOuiVendor(bad), null, String(bad));
     assert.equal(macOuiHintHtml(bad), '', String(bad));
     assert.equal(macAddressDisplaySuffix(bad), '', String(bad));
   }
+  for (const bad of ['ZZ:ZZ:ZZ:ZZ:ZZ:ZZ', 'not-a-mac', 'C8:3A:35:11:22:33:44']) {
+    assert.equal(macOuiVendor(bad), null, String(bad));
+    assert.match(macOuiHintHtml(bad), /mac-oui-invalid/, String(bad));
+    assert.doesNotMatch(macOuiHintHtml(bad), /mac-oui-badge/, String(bad));
+    assert.equal(macAddressDisplaySuffix(bad), '', String(bad));
+  }
+  // Partial (all hex, fewer than 12 digits, not randomized): amber tip.
+  assert.equal(macOuiVendor('C8:3A:35'), null);
+  assert.match(macOuiHintHtml('C8:3A:35'), /mac-oui-warning/);
+  assert.doesNotMatch(macOuiHintHtml('C8:3A:35'), /mac-oui-badge/);
+  assert.equal(macAddressDisplaySuffix('C8:3A:35'), '');
   assert.equal(isRandomizedMac(''), false);
   assert.equal(isRandomizedMac(null), false);
   assert.equal(isRandomizedMac('Z2'), false);

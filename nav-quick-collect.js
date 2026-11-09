@@ -4038,9 +4038,9 @@ export function setupQuickCollectModal({
         const hasBaqaya = activeDefaults.manualBaqayaPending > 0;
         const hasExtras = hasTicketCharges || hasAddonCharges || hasBaqaya;
         const chargeLines = [
-          ...activeDefaults.ticketChargeLines.map(line => `<span class="qc-head-charge-line" style="display:block;">🔧 Murammat / Material Charge (${escapeHtml(line.ticketId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
-          ...activeDefaults.addonChargeLines.map(line => `<span class="qc-head-charge-line" style="display:block;">⚡ Speed Boost (${escapeHtml(line.boostId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
-          ...(hasBaqaya ? [`<span class="qc-head-charge-line" style="display:block;">🧾 ${escapeHtml(t('baqaya_qc_line', null, { amount: `PKR ${Number(activeDefaults.manualBaqayaPending).toLocaleString('en-PK')}` }))}</span>`] : [])
+          ...activeDefaults.ticketChargeLines.map(line => `<span class="qc-head-charge-line">🔧 Murammat / Material Charge (${escapeHtml(line.ticketId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
+          ...activeDefaults.addonChargeLines.map(line => `<span class="qc-head-charge-line">⚡ Speed Boost (${escapeHtml(line.boostId)}): PKR ${Number(line.amount).toLocaleString('en-PK')}</span>`),
+          ...(hasBaqaya ? [`<span class="qc-head-charge-line">🧾 ${escapeHtml(t('baqaya_qc_line', null, { amount: `PKR ${Number(activeDefaults.manualBaqayaPending).toLocaleString('en-PK')}` }))}</span>`] : [])
         ].join('');
         // Polish #11: the target bill's package + tax breakdown,
         // read-only — the bill's own figures, so the collection screen
@@ -4050,7 +4050,7 @@ export function setupQuickCollectModal({
         const targetBillTax = activeDefaults.targetBillSalesTaxCents;
         const targetBillPackage = activeDefaults.targetBillPackage;
         const packageTaxLine = (targetBillPackage || (typeof targetBillTax === 'number' && targetBillTax > 0))
-          ? `<div class="qc-head-charges" style="margin-top:6px;font-size:0.85rem;"><span class="qc-head-charge-line" style="display:block;">📦 ${targetBillPackage ? `${escapeHtml(targetBillPackage.label)}: PKR ${Number(targetBillPackage.price).toLocaleString('en-PK')}` : 'Package'}${typeof targetBillTax === 'number' && targetBillTax > 0 ? ` · 🧾 Sales tax (19.5%): PKR ${Number(targetBillTax / 100).toLocaleString('en-PK')}` : ''}</span></div>`
+          ? `<div class="qc-head-charges"><span class="qc-head-charge-line">📦 ${targetBillPackage ? `${escapeHtml(targetBillPackage.label)}: PKR ${Number(targetBillPackage.price).toLocaleString('en-PK')}` : 'Package'}${typeof targetBillTax === 'number' && targetBillTax > 0 ? ` · 🧾 Sales tax (19.5%): PKR ${Number(targetBillTax / 100).toLocaleString('en-PK')}` : ''}</span></div>`
           : '';
 
         customerHeader.innerHTML = `
@@ -4065,7 +4065,7 @@ export function setupQuickCollectModal({
               <strong class="qc-box-amt">PKR ${(hasExtras ? activeDefaults.payableTotal : activeDefaults.totalDues).toLocaleString('en-PK')}</strong>
             </div>
           </div>
-          ${hasExtras ? `<div class="qc-head-charges" style="margin-top:6px;font-size:0.85rem;"><span class="qc-head-charge-line" style="display:block;">🧾 Bill dues: PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}</span>${chargeLines}</div>` : ''}
+          ${hasExtras ? `<div class="qc-head-charges"><span class="qc-head-charge-line">🧾 Bill dues: PKR ${activeDefaults.totalDues.toLocaleString('en-PK')}</span>${chargeLines}</div>` : ''}
           ${packageTaxLine}
         `;
       }

@@ -223,7 +223,10 @@ test('html: every figure shows, user text is escaped, nothing when there is no p
   assert.match(html, /PKR 1,000/);
   assert.match(html, /Next due date/);
   assert.match(html, /2026-10-05/);
-  assert.match(html, /Collect again/);
+  // Plan 531: the button now names what it opens — the form with the
+  // full-dues prefill. Same button, same behaviour, only the wording
+  // changed.
+  assert.match(html, /Collect again — full dues/);
   assert.match(html, /data-sns-collect-again/);
   assert.match(html, /Customer One \(#41\)/);
   const nasty = successNextStepsFromReceipt({ ...receipt(), customerName: '<script>alert(1)</script>' }, '2026-10-05');

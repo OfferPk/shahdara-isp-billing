@@ -4228,11 +4228,15 @@ export function setupQuickCollectModal({
       // customer never carries over to the next.
       if (categoryTagSelect) categoryTagSelect.value = 'collection';
 
-      // Populate billing month select
+      // Populate billing month select — the visible label is the
+      // human month ("November 2026", via monthLabel, already used
+      // by the package box); the value stays YYYY-MM, which is what
+      // the submit path, the month-change handler and the package
+      // box all read.
       if (monthSelect) {
         const historyMonths = monthsForHistory();
         monthSelect.innerHTML = historyMonths.map(m =>
-          `<option value="${m}" ${m === activeDefaults.targetMonth ? 'selected' : ''}>${m}</option>`
+          `<option value="${m}" ${m === activeDefaults.targetMonth ? 'selected' : ''}>${monthLabel(m)}</option>`
         ).join('');
       }
 
@@ -4246,12 +4250,13 @@ export function setupQuickCollectModal({
       }
 
       // Advance month target: current month onward, next month
-      // pre-selected (the sheet's month select shows raw YYYY-MM, so
-      // this one does too). Only read when the Advance box is ticked.
+      // pre-selected. The label is the human month, like the billing
+      // month select above; the value stays YYYY-MM. Only read when
+      // the Advance box is ticked.
       if (advanceTargetSelect) {
         const targetDefault = defaultAdvanceTargetMonth();
         advanceTargetSelect.innerHTML = advanceTargetMonthOptions().map(m =>
-          `<option value="${m}" ${m === targetDefault ? 'selected' : ''}>${m}</option>`
+          `<option value="${m}" ${m === targetDefault ? 'selected' : ''}>${monthLabel(m)}</option>`
         ).join('');
       }
 

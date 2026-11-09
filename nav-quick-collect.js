@@ -94,7 +94,7 @@ import {
   doubleTapSaveGuardSetDisabled
 } from './double-tap-save-guard.js';
 import { bigWalletMethodIsOtherMethod } from './big-wallet-method-buttons.js';
-import { pendingClearanceFlagForMethod, pendingClearanceFlagForReceipt } from './pending-clearance-flag.js';
+import { pendingClearanceFlagForMethod, pendingClearanceFlagForReceipt, pendingClearanceEntryFlagForMethod } from './pending-clearance-flag.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
@@ -2059,8 +2059,8 @@ export function setupQuickCollectModal({
   const bigNameConfirmEl = typeof document !== 'undefined' ? document.getElementById('bncBigNameConfirm') : null;
   // Plan 444: the pending-clearance flag line under the method picker
   // (null when the host page predates it) — shown while the chosen
-  // method is a bank transfer or a cheque, so the customer knows at
-  // the counter that the bill settles only when the money clears.
+  // method is a Bank Transfer, so the customer knows at the counter
+  // that the bill settles only when the money clears.
   const pendingClearanceFlagEl = typeof document !== 'undefined' ? document.getElementById('pcfPendingClearanceFlag') : null;
   // Plan 382: the save confirmation summary hosts (null when the
   // host page predates them) — the summary panel and its Confirm /
@@ -2092,9 +2092,9 @@ export function setupQuickCollectModal({
   // first, with Send and Dismiss, prepared right after a save.
   const shareDraftBox = typeof document !== 'undefined' ? document.getElementById('rsdReceiptShareDraft') : null;
   // Plan 444: the pending-clearance flag host on the success step
-  // (null when the host page predates it) — the same flag as on the
-  // entry form, shown again after the save while the saved payment's
-  // method is a bank transfer or a cheque.
+  // (null when the host page predates it) — shown again after the
+  // save while the saved payment's method is a bank transfer or a
+  // cheque.
   const successPendingClearanceFlagEl = typeof document !== 'undefined' ? document.getElementById('pcfSuccessPendingClearanceFlag') : null;
   // Plan 449: the second-connection step host on the success step
   // (null when the host page predates it) — the customer's other
@@ -2292,17 +2292,23 @@ export function setupQuickCollectModal({
     suspendedWarningLine.hidden = line === '';
   }
   // Plan 444: the pending-clearance flag — shown on the entry form
-  // while the method currently picked is a bank transfer or a
-  // cheque, so the customer knows before saving that the bill
-  // settles only when the money clears. It flags only: the payment
-  // still records normally as pending, and the flag never changes
-  // any bill, payment, clearance status, or customer record by
-  // itself. It reads the select's current value, so every method
-  // change refreshes it through the same sync below.
+  // while either leg's method is a Bank Transfer, so the customer
+  // knows before saving that the bill settles only when the money
+  // clears. It flags only: the payment still records normally as
+  // pending, and the flag never changes any bill, payment,
+  // clearance status, or customer record by itself. Plan 535: the
+  // entry form flags a Bank Transfer only — the only clearable
+  // method the app offers. It reads both legs' selects, so every
+  // method change refreshes it through the same sync below
+  // (leg 1) or updateSplitVisibility (leg 2 / split toggle).
   function renderPendingClearanceFlag() {
     if (!pendingClearanceFlagEl) return;
     const method = methodSelect ? String(methodSelect.value || '') : '';
-    const flag = pendingClearanceFlagForMethod(method);
+    // Plan 535: the split's second leg can be the transfer — the
+    // split select holds nothing while the split is off, so it can
+    // never flag on its own.
+    const splitMethod = splitToggle?.checked && splitMethodSelect ? String(splitMethodSelect.value || '') : '';
+    const flag = pendingClearanceEntryFlagForMethod(method) || pendingClearanceEntryFlagForMethod(splitMethod);
     pendingClearanceFlagEl.textContent = flag;
     pendingClearanceFlagEl.hidden = flag === '';
   }
@@ -2928,6 +2934,12 @@ export function setupQuickCollectModal({
     // with the current leg figures. No new split change listener is
     // added here: the five-listener pin (Plan 527) stays exactly 5.
     renderSplitTotal();
+    // Plan 535: toggling the split, or picking the second leg's
+    // method, re-renders the pending-clearance flag with both
+    // legs' methods — a Bank Transfer leg 2 flags while entering,
+    // exactly like leg 1. No new split change listener is added
+    // here either: the five-listener pin (Plan 527) stays exactly 5.
+    renderPendingClearanceFlag();
   }
   splitToggle?.addEventListener('change', updateSplitVisibility);
   // Plan 386: splitting the payment hides the choice (each leg is an
@@ -4760,13 +4772,13 @@ export function setupQuickCollectModal({
     renderSuccessPendingClearanceFlag();
   }
 
-  // Plan 444: the pending-clearance flag on the success screen — the
-  // same flag as on the entry form, shown again after the save while
-  // the saved payment's method is a bank transfer or a cheque (any
-  // one leg, for a split collection). It flags only: the payment
-  // already recorded normally as pending, and the flag never changes
-  // any bill, payment, clearance status, or customer record by
-  // itself. With no receipt saved yet the host is cleared and hidden.
+  // Plan 444: the pending-clearance flag on the success screen —
+  // shown again after the save while the saved payment's method is
+  // a bank transfer or a cheque (any one leg, for a split
+  // collection). It flags only: the payment already recorded
+  // normally as pending, and the flag never changes any bill,
+  // payment, clearance status, or customer record by itself. With
+  // no receipt saved yet the host is cleared and hidden.
   function renderSuccessPendingClearanceFlag() {
     if (!successPendingClearanceFlagEl) return;
     if (!activeReceipt) {

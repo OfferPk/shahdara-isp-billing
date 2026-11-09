@@ -2131,11 +2131,17 @@ export function setupQuickCollectModal({
   // needed. It hides on a split payment (each leg is an ordinary
   // payment of its own, so the amount field is only the first leg).
   // Calculates only: rendering posts nothing and changes no record.
+  // Plan 537: when the box hides, the cash-received field is
+  // cleared with it, so a stale figure never re-computes change.
   function renderCashChange() {
     if (!cashChangeBox) return;
     const method = methodSelect ? String(methodSelect.value || 'Cash') : 'Cash';
     const show = isCashPaymentMethod(method) && !splitToggle?.checked;
     cashChangeBox.hidden = !show;
+    // Plan 537: the cash figure belongs to this payment only — clear
+    // it with the box, before the line guard, so a host page that
+    // predates the change line still clears it.
+    if (!show && cashReceivedInput) cashReceivedInput.value = '';
     if (!cashChangeLine) return;
     const line = show ? cashChangeLineText(cashReceivedInput?.value, amountInput?.value) : '';
     cashChangeLine.textContent = line;
@@ -2219,6 +2225,9 @@ export function setupQuickCollectModal({
   // nothing and changes no record. Plan 523: the base is the payable
   // figure, never bill dues alone — a payment exactly equal to the
   // payable total used to be offered a choice for a phantom extra.
+  // Plan 537: when the box hides, the checked radio is cleared with
+  // it — a choice made for one amount never rides along with a
+  // different amount.
   function renderOverpaymentChoice() {
     if (!overpaymentChoiceBox) return;
     let extraCents = 0;
@@ -2229,6 +2238,16 @@ export function setupQuickCollectModal({
     }
     if (overpaymentExtraLine) overpaymentExtraLine.textContent = formatPKR(extraCents / 100);
     overpaymentChoiceBox.hidden = extraCents <= 0;
+    // Plan 537: a choice belongs to the amount it was offered for —
+    // when the box hides, the checked radio clears with it, so the
+    // submit handler never reads a stale choice for a different
+    // amount. Only the checked radio is cleared, through the same
+    // box-scoped read the submit handler uses; the guard keeps stub
+    // hosts without querySelector working.
+    if (overpaymentChoiceBox.hidden && typeof overpaymentChoiceBox.querySelector === 'function') {
+      const picked = overpaymentChoiceBox.querySelector('input[name="quickCollectOverpaymentChoice"]:checked');
+      if (picked) picked.checked = false;
+    }
     // Plan 529: while the choice box is shown the radios own the
     // extra-cash question, so the excess-purpose select is disabled
     // (with its note) and cannot record a second, contradicting

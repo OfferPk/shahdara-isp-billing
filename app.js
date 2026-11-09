@@ -52,7 +52,7 @@ import { ipv4HintState } from './ipv4-validation.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, dirtyProfileFieldKeys } from './profile-field-save.js?v=1.11.0';
 import { zonesUnderArea } from './zone-suggestions.js?v=1.11.0';
 import { profileTabCounts } from './profile-tab-counts.js?v=1.11.0';
-import { customerDeleteCleanCheck, customerDeleteRefusalText } from './customer-delete-clean-check.js?v=1.11.0';
+import { purgeCustomerHistoryFromStorage, restoreCustomerHistoryToStorage } from './customer-history-purge.js';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
 import { countProfileCompletion, countProfileCompletionFromControls, PROFILE_COMPLETION_EXCLUDED_KEYS } from './profile-completion.js?v=1.11.0';
 import { resolveProfileErrorTarget, profileErrorBannerClearsOnInput } from './profile-error-jump.js?v=1.11.0';
@@ -1695,7 +1695,7 @@ function mountCustomerProfileContent() {
   if (!mounts) return;
   const groups = {
     billing:['#customerReceiptSummary','#manualBaqayaSection','#stxProfileShareDraft','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
-    info:['.customer-meta','.uptime-section','.profile-danger-zone'],
+    info:['.customer-meta','.uptime-section'],
     complaints:['.incident-section:not(.uptime-section)']
   };
   for (const [name, selectors] of Object.entries(groups)) {
@@ -7003,7 +7003,7 @@ function renderCustomerProfileView(customer) {
   // zero form fields (history is recorded by the app, never typed in), so
   // an Edit button would be a dead control with no group to scroll to.
   const profileSectionHistoryHtml = profileDetailSectionHtml({ key: 'history', heading: t('prof_sec_history'), summary: `${t('prof_tab_complaints')} ${customerComplaints.length} · ${t('fdisp_type_ticket')} ${customerTickets.length}`, body: profileSectionHistoryBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'history') });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="editProfileButton" class="primary-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileSectionConnectionHtml}${profileSectionNetworkHtml}${profileSectionHardwareHtml}${profileSectionHistoryHtml}`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileSectionConnectionHtml}${profileSectionNetworkHtml}${profileSectionHardwareHtml}${profileSectionHistoryHtml}`;
   // Plan 508 — the register complaints list renders on the Complaints tab,
   // after the manual service log that mountCustomerProfileContent moved
   // there at load. The panel is re-rendered per customer, so the previous
@@ -7099,11 +7099,6 @@ function renderCustomerProfileView(customer) {
     save: t('save'),
     remove: t('prof_pcd_remove'),
   }));
-  $('#customerProfileView').querySelector('#editProfileButton').addEventListener('click', () => {    profileEditMode = true;    $('#customerProfileView').hidden = true;
-
-    $('#customerProfileForm').hidden = false;
-    $('#mohallaInput').focus();
-  });
   // Polish #28 Phase C (Req 5) — per-section Edit: the same full edit
   // form as the top Edit button, scrolled to the section's form group
   // with its first field focused (the jumpToProfileErrorTarget pattern:
@@ -11833,7 +11828,10 @@ function saveNewCustomer(allowDuplicateName = false) {
     const errorBox = $('#addCustomerError'); errorBox.textContent = error.message; errorBox.hidden = false;
   }
 }
-$('#addCustomerButton').addEventListener('click', () => {
+// Polish #24 — one draft-aware opener for the add-customer dialog, shared
+// by the list "+" and the profile header "+ New customer": a saved draft is
+// restored (and its notice shown), otherwise the form starts blank.
+function openAddCustomerDialog() {
   if (customerDraftController?.getDraft()) {
     customerDraftController.restore();
     const customerNotice = $('#newCustomerDraftNotice');
@@ -11848,7 +11846,8 @@ $('#addCustomerButton').addEventListener('click', () => {
   populateReferrerOptions();
   $('#addCustomerDialog').showModal();
   $('#newCustomerName').focus();
-});
+}
+$('#addCustomerButton').addEventListener('click', openAddCustomerDialog);
 $('#addCustomerForm').addEventListener('submit', event => { event.preventDefault(); saveNewCustomer(false); });
 $('#continueNewCustomerAnyway').addEventListener('click', () => saveNewCustomer(true));
 $('#editNewCustomerDetails').addEventListener('click', () => {
@@ -12844,6 +12843,21 @@ $('#archiveCustomerButton').addEventListener('click', () => {
 });
 $('#unarchiveCustomerButton').addEventListener('click', () => { const customer = selectedCustomer(); if (customer) restoreCustomer(customer.id); });
 
+// Polish #24 — Edit moved up into the header action group (static markup
+// in index.html), so its wiring lives here with the other static header
+// buttons instead of being re-attached on every profile render. The
+// button is visible from every tab, so the Info tab is activated first —
+// the form lives in the Info panel, the same as the header "Edit name"
+// button above.
+$('#editProfileButton').addEventListener('click', () => {
+  activateProfileTab('info');
+  profileEditMode = true;
+  $('#customerProfileView').hidden = true;
+  $('#customerProfileForm').hidden = false;
+  $('#mohallaInput').focus();
+});
+$('#profileNewCustomerButton').addEventListener('click', openAddCustomerDialog);
+
 // Plan 494: one name-edit path, not two. The header "Edit name" button
 // opens the full edit form at the name field — reusing the error-jump
 // scroll/focus — instead of a separate inline editor with its own Save.
@@ -12866,26 +12880,26 @@ $('#deleteCustomerButton').addEventListener('click', async () => {
   if (!customer) return;
   // Plan 33: deleting is owner-only.
   if (collectorBlocked('customer-delete')) return;
-  // Polish #10: delete only when the money state is fully clean — no
-  // bills, payments, dues or manual baqaya. Otherwise refuse with the
-  // reason instead of deleting a customer who still has money on the
-  // account; the Archive button above stays the way to keep the history.
-  const baqayaCents = manualBaqayaOutstandingCents(customer);
-  const duesCents = stillOwesCents(customer, calculatePaymentAllocations(state), baqayaCents);
-  const cleanCheck = customerDeleteCleanCheck(customer, { duesCents, baqayaOutstandingCents: baqayaCents });
-  if (!cleanCheck.clean) {
-    toast(customerDeleteRefusalText(cleanCheck), { type: 'error', title: `#${customer.customerNumber} ${customer.name} — cannot delete`, duration: 6000 });
-    return;
-  }
-  const choice = await appConfirm({ tone:'danger', title:`Are you sure you want to delete ${customer.name}'s profile?`, subject:`#${customer.customerNumber}`, message:'This removes the profile from this device. Nothing is owed and no bills or payments are recorded, so nothing else is lost. You can undo for a few seconds.', confirmLabel:'Yes', cancelLabel:'No' });
+  // Polish #24 — the polish #10 clean-account gate is REMOVED (user
+  // decision 2026-11-09): deleting a customer deletes the profile AND
+  // its entire history — bills, payments, baqaya, wada promises and
+  // complaints — whether or not anything is owed. The main use case is
+  // a duplicate profile for one household. The popup says so plainly,
+  // and the 5-second Undo puts everything back.
+  const choice = await appConfirm({ tone:'danger', title:`Are you sure you want to delete ${customer.name}'s profile?`, subject:`#${customer.customerNumber}`, message:'This permanently deletes the profile and all of its history — bills, payments, baqaya, wada promises and complaints. Nothing is kept. You can undo for 5 seconds.', confirmLabel:'Delete', cancelLabel:'Cancel' });
   if (choice !== 'confirm' || selectedCustomer()?.id !== customer.id) return;
   await snapshotBeforeDestructiveAction();
-  // Soft delete for the undo window: keep the exact record and its position so Undo restores it as it was.
+  // Snapshot the whole history BEFORE deleting: the record carries its
+  // bills, payments, baqaya and complaints, and the separate
+  // per-customer stores are purged next — Undo must restore both, or it
+  // restores a bare record with the history gone.
   const index = state.customers.findIndex(item => item.id === customer.id);
   const removed = state.customers[index];
+  const removedHistory = purgeCustomerHistoryFromStorage(localStorage, { customerId: customer.id, complaintRefs: (customer.incidents ?? []).map(incident => incident.id).filter(Boolean) });
   state = deleteCustomer(state, customer.id); selectedCustomerId = null; appShell.classList.remove('show-detail'); save(); renderDetail();
   toast('Customer deleted from this device.', { type:'success', title:`#${customer.customerNumber} ${customer.name} deleted`, duration:5000, actionLabel:'Undo', onAction: () => {
     if (state.customers.some(item => item.id === removed.id)) return;
+    restoreCustomerHistoryToStorage(localStorage, removedHistory.removed);
     const customers = [...state.customers];
     customers.splice(Math.min(index, customers.length), 0, removed);
     state = { ...state, customers };

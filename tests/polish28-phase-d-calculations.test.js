@@ -507,7 +507,10 @@ test('a new customer starts with otherInstallCost missing, not zero', () => {
 test('core wires otherInstallCost through create, update, load-sanitize and backup', () => {
   const js = coreJs();
   assert.match(js, /const otherInstallCost = checkCost\(options\.otherInstallCost\)/);
-  assert.match(js, /otherInstallCost: checkCost\(valueOrCurrent\('otherInstallCost'\)\)/);
+  // Polish #28 Phase E threads the field id through checkCost so the
+  // error banner jumps to the field; the call still goes through
+  // checkCost with the same value.
+  assert.match(js, /otherInstallCost: checkCost\(valueOrCurrent\('otherInstallCost'\)(?:, 'otherInstallCostInput')?\)/);
   assert.match(js, /otherInstallCost: ?normalizeMoneyOrNull\(customer\.otherInstallCost\)/);
   assert.match(js, /otherInstallCost:customer\.otherInstallCost \?\? null/);
   assert.ok(js.includes("'otherInstallCost'"), 'backup merge carries the field');

@@ -11,10 +11,14 @@
 // Cost model (all amounts PKR, all fields optional, never invented):
 //   totalCost = routerPrice + mediaConverterCost
 //             + (fiberMeters x fiberPerMeterRate) + linemanInstallFee
+//             + otherInstallCost
 //   net       = connectionFee - totalCost
 //   subsidy   = -net when net < 0, otherwise 0
 //   breakEvenMonths = ceil(subsidy / monthlySellingAmount) when the
 //     subsidy is positive and a monthly amount is known, else null.
+// otherInstallCost (Polish #28 Phase D) is any further install cost
+// that fits none of the named components — recorded on its own line so
+// it never corrupts the router, converter, labor or fiber figures.
 //
 // Unknown fiber rate: the per-meter rate has no stored field before this
 // phase, so when fiber was used but no rate is recorded the fiber cost
@@ -49,6 +53,7 @@ export function calculateInstallationCost(customer = {}, options = {}) {
   const routerPrice = moneyOrNull(source.routerPrice);
   const mediaConverterCost = moneyOrNull(source.mediaConverterCost);
   const linemanInstallFee = moneyOrNull(source.linemanInstallFee);
+  const otherInstallCost = moneyOrNull(source.otherInstallCost);
   const fiberMeters = metersOrNull(source.fiberMeters);
   const fiberPerMeterRate = moneyOrNull(options.perMeterRate ?? source.fiberPerMeterRate);
   // Fiber cost is known only when both the length and the rate are known.
@@ -57,7 +62,7 @@ export function calculateInstallationCost(customer = {}, options = {}) {
     ? roundMoney(fiberMeters * fiberPerMeterRate)
     : null;
   const fiberCostUnknown = fiberMeters !== null && fiberMeters > 0 && fiberPerMeterRate === null;
-  const knownParts = [routerPrice, mediaConverterCost, linemanInstallFee, fiberCost]
+  const knownParts = [routerPrice, mediaConverterCost, linemanInstallFee, fiberCost, otherInstallCost]
     .filter(part => part !== null);
   const hasAnyCost = knownParts.length > 0;
   const totalCost = roundMoney(knownParts.reduce((sum, part) => sum + part, 0));
@@ -81,6 +86,7 @@ export function calculateInstallationCost(customer = {}, options = {}) {
     routerPrice,
     mediaConverterCost,
     linemanInstallFee,
+    otherInstallCost,
     fiberMeters,
     fiberPerMeterRate,
     fiberCost,

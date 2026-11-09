@@ -2040,6 +2040,10 @@ export function setupQuickCollectModal({
   // the owner's approval, and the approver's initials or name.
   const largeCashThresholdInput = document.getElementById('quickCollectLargeCashThreshold');
   const largeCashApproverInput = document.getElementById('quickCollectLargeCashApprover');
+  // Plan 547: the More Options <details> (null when the host page
+  // predates it) — the approver field lives inside it, so a focus on
+  // the approver must open the details first.
+  const moreOptionsDetails = document.getElementById('quickCollectMoreOptions');
   // Plan 398: the category tag select (null when the host page
   // predates it) — the kind of transaction in plain words, set at
   // entry and used only for filtering.
@@ -5847,6 +5851,41 @@ export function setupQuickCollectModal({
     executeReversalUndo();
   });
 
+  // Plan 547: the TID pattern (Plans 292/296) as a shared helper —
+  // an inline <p role="alert"> under the field, aria-invalid on the
+  // field, focus on the field; the toast is only the fallback when
+  // the field is missing. The error element is created once and
+  // reused; typing in the field clears it. Returns true when the
+  // inline error was shown, false when there was no field to show
+  // it under. The companion clear hides a stale error once the
+  // value is valid again — the amount chips set the field
+  // programmatically with no input event (SISP-101), so the typed
+  // clear alone would leave a fixed amount's error showing.
+  function showQuickCollectFieldError(input, errorId, message) {
+    if (!input) return false;
+    let err = document.getElementById(errorId);
+    if (!err) {
+      err = document.createElement('p');
+      err.id = errorId;
+      err.className = 'qc-field-error';
+      err.setAttribute('role', 'alert');
+      input.insertAdjacentElement('afterend', err);
+      const clear = () => { err.hidden = true; input.removeAttribute('aria-invalid'); };
+      input.addEventListener('input', clear);
+    }
+    err.textContent = message;
+    err.hidden = false;
+    input.setAttribute('aria-invalid', 'true');
+    input.setAttribute('aria-describedby', errorId);
+    input.focus();
+    return true;
+  }
+  function clearQuickCollectFieldError(input, errorId) {
+    const err = document.getElementById(errorId);
+    if (err) err.hidden = true;
+    if (input) input.removeAttribute('aria-invalid');
+  }
+
   // Form submit
   paymentForm?.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -5878,9 +5917,31 @@ export function setupQuickCollectModal({
       // record time, so Field Mode and every other entry path stay
       // covered even where this pre-check does not run.
       if (isFuturePaymentDate(dateVal, getPakistanLocalDate())) {
-        if (typeof onToast === 'function') onToast(t('bdate_future_error'), { type: 'error' });
+        // Plan 547: the future-date refusal gets the TID treatment
+        // (Plans 292/296) — an inline error under the date field with
+        // focus, not a toast alone; the toast is only the fallback
+        // when the field is missing.
+        const dateMsg = t('bdate_future_error');
+        if (!showQuickCollectFieldError(dateInput, 'quickCollectDateError', dateMsg)
+          && typeof onToast === 'function') {
+          onToast(dateMsg, { type: 'error' });
+        }
         return;
       }
+      clearQuickCollectFieldError(dateInput, 'quickCollectDateError');
+      // Plan 547: an invalid amount is refused the same way — an
+      // inline error under the amount field with focus, not a toast
+      // alone. The throw in executeQuickCollection stays as the
+      // backstop for every other entry path.
+      if (!Number.isFinite(amountVal) || amountVal <= 0) {
+        const amountMsg = 'Enter a valid collected amount greater than zero.';
+        if (!showQuickCollectFieldError(amountInput, 'quickCollectAmountError', amountMsg)
+          && typeof onToast === 'function') {
+          onToast(amountMsg, { type: 'error' });
+        }
+        return;
+      }
+      clearQuickCollectFieldError(amountInput, 'quickCollectAmountError');
       const methodVal = methodSelect?.value || 'Cash';
       const monthVal = monthSelect?.value || activeDefaults.targetMonth;
       const paidByVal = paidByInput?.value || '';
@@ -6045,6 +6106,14 @@ export function setupQuickCollectModal({
       const largeCashApprover = (largeCashApproverInput?.value || '').trim();
       if (requiresLargeCashApproval(isCashPaymentMethod(methodVal), Math.round(amountVal * 100), largeCashThresholdCents) && !largeCashApprover) {
         if (typeof onToast === 'function') onToast('Large cash payments need the owner\'s approval recorded — enter the approver\'s name.', { type: 'error' });
+        // Plan 547: the approver field lives inside the collapsed
+        // More Options — focus on a hidden element is invisible, so
+        // open the details and scroll it into view before focusing.
+        // It is the only submit-time focus target inside the section.
+        if (moreOptionsDetails) {
+          moreOptionsDetails.open = true;
+          moreOptionsDetails.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+        }
         largeCashApproverInput?.focus();
         return;
       }

@@ -106,7 +106,11 @@ test('Plan 507: the lower Waada section renders not at all', () => {
     assert.ok(!app.includes(`t('${key}'`), `app.js must not wire ${key}`);
   }
   const assembly = viewAssembly();
-  assert.ok(assembly.includes('${wadaProfileBannerHtml(customer)}'), 'banner call stays in the view assembly');
+  // Polish #28 Phase A — the banner opens the Financial section body
+  // now; the lower section stays out of the assembly entirely.
+  const financialBodyAt = app.indexOf('const profileSectionFinancialBody = ');
+  const financialBody = app.slice(financialBodyAt, app.indexOf('\n', financialBodyAt));
+  assert.ok(financialBody.indexOf('${wadaProfileBannerHtml(customer)}') < financialBody.indexOf('${duesBreakdownSectionMarkup}'), 'banner call opens the Financial section');
   assert.ok(!assembly.includes('${waadaSectionHtml}'), 'lower section is not in the view assembly');
 });
 

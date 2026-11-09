@@ -312,7 +312,9 @@ test('Plan 393: the payer picker never lists the account holder as their own cro
 });
 
 test('Plan 393: the payer\'s own profile shows the payments they made for others, after the profile info groups', () => {
-  assert.equal(appSrc.includes('${profileInfoGroupsHtml}${crossPaymentsMadeSectionMarkup}'), true);
+  // Polish #28 Phase A — the cross-payments section follows the money
+  // fragment inside the Financial section body.
+  assert.equal(appSrc.includes('${profileInfoGroupFragments.money}${crossPaymentsMadeSectionMarkup}'), true);
   assert.equal(appSrc.includes('crossPaymentsMadeSectionHtml(customer, crossPaymentsMadeBy(listTransactions(state), customer.id), formatAmount)'), true);
 });
 

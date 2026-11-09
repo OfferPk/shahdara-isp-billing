@@ -11,6 +11,7 @@
 
 .qc-all-collected h4 { color: var(--green-dark, #094338); }
 .qc-show-all-btn { margin-top: 10px; min-height: 44px; }
+.qc-clear-mohalla-btn { margin-top: 10px; min-height: 44px; }
 
 #bulkCollectModal.bulk-collect-modal { width: min(680px, calc(100vw - 16px)); max-width: none; max-height: calc(100dvh - 24px); padding: 0; overflow: hidden; }
 #bulkCollectModal .bulk-collect-card {

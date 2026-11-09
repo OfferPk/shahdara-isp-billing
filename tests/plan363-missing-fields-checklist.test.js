@@ -203,12 +203,20 @@ test('wiring: tapping a checklist item opens edit mode and reuses the error-jump
 });
 
 test('wiring: the profile order assertion still holds — banner, strip, then groups', () => {
-  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
-  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}', bannerAt);
-  const groupsAt = appSrc.indexOf('${profileInfoGroupsHtml}', stripAt);
-  assert.ok(bannerAt > 0, 'wada banner is in the profile template');
-  assert.ok(stripAt > bannerAt, 'strip sits after the wada banner');
-  assert.ok(groupsAt > stripAt, 'strip sits before the field groups');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections. The counter and checklist anchors are untouched — they
+  // still sit directly under the heading, above the strip.
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  const customerAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAt);
+  const historyAt = appSrc.indexOf('${profileSectionHistoryHtml}', customerAt);
+  assert.ok(stripAt > 0, 'strip is in the profile assembly');
+  assert.ok(customerAt > stripAt, 'sections sit after the strip');
+  assert.ok(historyAt > customerAt, 'sections render in order');
+  assert.ok(appSrc.includes("querySelector('.profile-view-heading')?.insertAdjacentHTML('afterend', `<p class=\"profile-completion-counter\">"), 'counter still sits directly under the heading');
 });
 
 test('styles: the checklist rules exist and reuse existing colours only', () => {

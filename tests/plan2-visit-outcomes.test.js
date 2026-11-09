@@ -39,11 +39,17 @@ const visit = (overrides = {}) => ({
 
 // ---- catalogue ----
 
+// QC-1 why-comment: the catalogue is now Plan 2's six outcomes
+// PLUS 'call_later' — the Field Mode "Call Later" reason the audit
+// prescribes ("route sheet's outcome set + new call_later"). The
+// pin's intent is unchanged: the list is exact, no stray outcomes;
+// only the designed seventh entry was added.
 test('catalogue holds exactly Plan 2 six outcomes with labels', () => {
-  assert.deepEqual([...VISIT_OUTCOMES], ['paid', 'promised', 'not_home', 'refused', 'dispute', 'no_answer']);
+  assert.deepEqual([...VISIT_OUTCOMES], ['paid', 'promised', 'not_home', 'refused', 'dispute', 'no_answer', 'call_later']);
   assert.equal(VISIT_OUTCOME_LABELS.not_home, 'Not home');
   assert.equal(VISIT_OUTCOME_LABELS.no_answer, 'No answer');
   assert.equal(VISIT_OUTCOME_LABELS.dispute, 'Dispute');
+  assert.equal(VISIT_OUTCOME_LABELS.call_later, 'Call later');
 });
 
 test('normalize maps aliases and rejects non-outcomes without inventing one', () => {
@@ -64,11 +70,15 @@ test('queueable outcomes are promised and missed visits only', () => {
   assert.equal(isQueueableOutcome('no_answer'), true);
   assert.equal(isQueueableOutcome('refused'), true);
   assert.equal(isQueueableOutcome('dispute'), true);
+  // QC-1: a call-later visit is a missed visit too — it belongs in
+  // the follow-up queue (the follow-up IS a call).
+  assert.equal(isQueueableOutcome('call_later'), true);
+  assert.equal(isPlan2Outcome('call_later'), true);
   assert.equal(isQueueableOutcome('paid'), false);
   assert.equal(isQueueableOutcome('pending'), false);
   assert.equal(isPlan2Outcome('paid'), true);
   assert.equal(isPlan2Outcome('pending'), false);
-  assert.deepEqual([...QUEUEABLE_VISIT_OUTCOMES], ['promised', 'not_home', 'refused', 'dispute', 'no_answer']);
+  assert.deepEqual([...QUEUEABLE_VISIT_OUTCOMES], ['promised', 'not_home', 'refused', 'dispute', 'no_answer', 'call_later']);
 });
 
 // ---- next-action date ----
@@ -171,7 +181,9 @@ test('queueSummary counts match the queue itself, including overdue and per-outc
   assert.equal(summary.byOutcome.not_home, 2);
   assert.equal(summary.byOutcome.promised, 1);
   assert.equal(summary.byOutcome.paid, undefined);
-  assert.deepEqual(queueSummary([]), { total: 0, overdue: 0, byOutcome: { promised: 0, not_home: 0, refused: 0, dispute: 0, no_answer: 0 } });
+  // QC-1: the empty-queue summary carries a zero slot for the new
+  // call_later outcome too.
+  assert.deepEqual(queueSummary([]), { total: 0, overdue: 0, byOutcome: { promised: 0, not_home: 0, refused: 0, dispute: 0, no_answer: 0, call_later: 0 } });
 });
 
 test('queue never mutates its input visits', () => {

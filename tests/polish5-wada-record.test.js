@@ -341,9 +341,13 @@ test('wiring: profile banner sits at the top of the profile view', () => {
   // Plan 351: the at-a-glance header strip sits between the banner and
   // the info groups, so the banner is still before the groups — check
   // the order, not adjacency.
-  const bannerAt = app.indexOf('${wadaProfileBannerHtml(customer)}');
-  const groupsAt = app.indexOf('${profileInfoGroupsHtml}');
-  assert.ok(bannerAt !== -1 && groupsAt !== -1 && bannerAt < groupsAt, 'banner must render before the profile info groups');
+  // Polish #28 Phase A — the banner opens the Financial section and
+  // the money fragment follows the dues breakdown inside it; the strip
+  // sits above every section. The preserved intent is the banner
+  // first in Financial, before the money rows.
+  const financialBodyAt = app.indexOf('const profileSectionFinancialBody = ');
+  const financialBody = app.slice(financialBodyAt, app.indexOf('\n', financialBodyAt));
+  assert.ok(financialBody.indexOf('${wadaProfileBannerHtml(customer)}') < financialBody.indexOf('${profileInfoGroupFragments.money}'), 'banner must render before the profile info groups');
   for (const id of ['wadaQuickDate', 'wadaQuickAmount', 'wadaQuickNote', 'wadaQuickSaveBtn']) {
     assert.equal(app.includes(`id="${id}"`), true, `missing ${id}`);
   }

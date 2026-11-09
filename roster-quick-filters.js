@@ -2,9 +2,9 @@
  * roster-quick-filters.js — SISP-136: 1-tap financial & status filter
  * pills for the main customer roster.
  *
- * A horizontal pill bar above the roster (All Active, 🔴 Unpaid This
- * Month, ⚠️ 2+ Months Arrears, 🤝 Active Waada, 🟢 Paid, 💎 Advance
- * Credit, ⏸️ Paused, 📦 Active Kist). Every pill's membership, count and
+ * A horizontal pill bar above the roster (All Active, Unpaid This
+ * Month with a designed red dot, ⚠️ 2+ Months Arrears, 🤝 Active Waada,
+ * 🟢 Paid, 💎 Advance Credit, ⏸️ Paused, 📦 Active Kist). Every pill's membership, count and
  * PKR total is derived in ONE pass from the app's real sources — never a
  * second balance computation:
  *
@@ -58,7 +58,7 @@ export const ROSTER_PILL_IDS = Object.freeze(['all', 'unpaid', 'arrears', 'waada
 /** Rendering metadata for the bar: label keys live in nav-language.js. */
 export const ROSTER_PILL_DEFS = Object.freeze([
   { id: 'all', emoji: '', labelKey: 'cust_pill_all', hasTotal: false },
-  { id: 'unpaid', emoji: '🔴', labelKey: 'cust_pill_unpaid', hasTotal: true },
+  { id: 'unpaid', emoji: '', labelKey: 'cust_pill_unpaid', hasTotal: true },
   { id: 'arrears', emoji: '⚠️', labelKey: 'cust_pill_arrears', hasTotal: true },
   { id: 'waada', emoji: '🤝', labelKey: 'cust_pill_waada', hasTotal: true },
   { id: 'paid', emoji: '🟢', labelKey: 'cust_pill_paid', hasTotal: true },

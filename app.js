@@ -3572,7 +3572,10 @@ function renderRosterPillBar(summary) {
     const pill = summary?.pills?.[def.id] ?? { count: 0, totalCents: null };
     const label = `${def.emoji ? `${def.emoji} ` : ''}${t(def.labelKey)}`;
     const totalText = def.hasTotal && pill.totalCents > 0 ? formatAmount(pill.totalCents / 100) : '';
-    return `<button class="roster-pill" type="button" data-roster-pill="${def.id}" aria-pressed="${customerRosterPill === def.id ? 'true' : 'false'}" aria-label="${escapeHtml(`${label}: ${pill.count}${totalText ? ` · ${totalText}` : ''}`)}"><span class="roster-pill-label">${escapeHtml(label)}</span><span class="roster-pill-count">${pill.count}</span>${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</button>`;
+    // Polish #27: the unpaid signal is a designed CSS dot, not the
+    // red-circle emoji — first child of the button, decorative only.
+    const dot = def.id === 'unpaid' ? '<span class="roster-pill-dot" aria-hidden="true"></span>' : '';
+    return `<button class="roster-pill" type="button" data-roster-pill="${def.id}" aria-pressed="${customerRosterPill === def.id ? 'true' : 'false'}" aria-label="${escapeHtml(`${label}: ${pill.count}${totalText ? ` · ${totalText}` : ''}`)}">${dot}<span class="roster-pill-label">${escapeHtml(label)}</span><span class="roster-pill-count">${pill.count}</span>${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</button>`;
   }).join('');
   bar.querySelectorAll('[data-roster-pill]').forEach((button) => button.addEventListener('click', () => {
     customerRosterPill = normalizeRosterPill(button.dataset.rosterPill);

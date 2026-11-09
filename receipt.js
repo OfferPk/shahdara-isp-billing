@@ -206,6 +206,12 @@ export function buildPaymentReceipt(customer, bill, payment) {
   // balance (and the PAID / PARTIAL seal) reflect the net due.
   const feederHostCreditAmount = positiveAmount(bill.feederHostCreditAmount) || 0;
   const feederHostCreditReason = text(bill.feederHostCreditReason);
+  // Polish #23: a first-month tag (🔖) waived this bill's whole gross —
+  // subtracted here exactly like the concession, the referral credit and
+  // the feeder-host credit, so the balance (and the PAID / PARTIAL seal)
+  // reflect the net due. The bill amount itself is untouched.
+  const firstMonthWaivedAmount = positiveAmount(bill.firstMonthWaivedAmount) || 0;
+  const firstMonthWaivedReason = text(bill.firstMonthWaivedReason);
   const nominalPrice = packageSnapshot?.nominalPrice ?? billDue ?? positiveAmount(bill.priceSnapshot);
   // Polish #11: the sales tax recorded on this bill (integer cents),
   // read from the bill itself — never recomputed — so the receipt
@@ -232,7 +238,7 @@ export function buildPaymentReceipt(customer, bill, payment) {
   // discount coverage, printed as Prepay Coverage above).
   let looseChangeCreditValue = 0;
   if (billDue !== null && selectedIndex >= 0) {
-    const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount) - cents(referralCreditAmount) - cents(depositOffsetAmount) - cents(creditTransferInAmount) - cents(feederHostCreditAmount));
+    const dueCents = Math.max(0, cents(billDue) + cents(lateFee) - cents(concessionAmount) - cents(referralCreditAmount) - cents(depositOffsetAmount) - cents(creditTransferInAmount) - cents(feederHostCreditAmount) - cents(firstMonthWaivedAmount));
     const allocations = calculatePaymentAllocations({ customers:[customer] });
     if (!isAdvancePayment(payment) && !prepayTermsOf(payment)) {
       const ledger = allocations.byPaymentId.get(payment.id);
@@ -256,7 +262,12 @@ export function buildPaymentReceipt(customer, bill, payment) {
       .reduce((sum, row) => sum + billPortionCents(row) + cents(positiveAmount(row.discount) ?? 0), 0);
     const thisEffectiveCents = isVoidedPayment(payment) ? 0 : billPortionCents(payment) + cents(positiveAmount(payment.discount) ?? 0);
     const receivedThroughCents = paidBeforeCents + thisEffectiveCents;
-    const coveredBeforeReceipt = carryInCents + paidBeforeCents >= dueCents;
+    // Polish #23: a zero due was never owed, so it cannot have been
+    // "covered before this receipt" — the old `>=` was vacuously true
+    // at dueCents 0 and stamped CREDIT RECEIVED on a bill that was
+    // waived in full (tag, or a concession equalling the gross). A
+    // zero-due receipt reads PAID, exactly like its PKR 0 balance label.
+    const coveredBeforeReceipt = dueCents > 0 && carryInCents + paidBeforeCents >= dueCents;
     balanceDueCents = Math.max(0, dueCents - carryInCents - receivedThroughCents);
     if (coveredBeforeReceipt) status = 'CREDIT RECEIVED';
     else if (balanceDueCents === 0) status = 'PAID';
@@ -353,6 +364,10 @@ export function buildPaymentReceipt(customer, bill, payment) {
     waivedAmount,
     feederHostCreditAmount,
     feederHostCreditReason,
+    // Polish #23: the first-month waiver on this bill (0 on every
+    // untagged receipt, so non-tagged layouts stay byte-identical).
+    firstMonthWaivedAmount,
+    firstMonthWaivedReason,
     // SISP-43: billed ticket charges this payment settled (from the
     // payment's stamp), printed as their own lines on every receipt.
     ticketCharges: ticketChargeLinesOf(payment),
@@ -695,7 +710,8 @@ export function generatePaymentReceiptHtml(receipt, {
     + (receipt.referralCreditAmount > 0 ? receipt.referralCreditAmount : 0)
     + (receipt.depositOffsetAmount > 0 ? receipt.depositOffsetAmount : 0)
     + (receipt.creditTransferInAmount > 0 ? receipt.creditTransferInAmount : 0)
-    + (receipt.feederHostCreditAmount > 0 ? receipt.feederHostCreditAmount : 0);
+    + (receipt.feederHostCreditAmount > 0 ? receipt.feederHostCreditAmount : 0)
+    + (receipt.firstMonthWaivedAmount > 0 ? receipt.firstMonthWaivedAmount : 0);
   const hasReceiptTotalAdjustments = (receipt.salesTaxCents > 0) || receipt.lateFee > 0
     || receipt.waivedAmount > 0 || receiptDeductions > 0;
   const grossBilled = Number(receipt.totalBilled) || 0;
@@ -735,6 +751,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
     ${receipt.creditTransferInAmount > 0 ? `<div class="receipt-field"><dt>Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر:</dt><dd>-${formatAmount(receipt.creditTransferInAmount)}</dd></div>` : ''}
     ${receipt.feederHostCreditAmount > 0 ? `<div class="receipt-field"><dt>Feeder Host Credit / فیڈر ہوسٹ کریڈٹ:</dt><dd>-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${escapeHtml(receipt.feederHostCreditReason)})` : ''}</dd></div>` : ''}
+    ${receipt.firstMonthWaivedAmount > 0 ? `<div class="receipt-field"><dt>First month included / پہلا مہینہ شامل ہے:</dt><dd>-${formatAmount(receipt.firstMonthWaivedAmount)}${receipt.firstMonthWaivedReason ? ` (${escapeHtml(receipt.firstMonthWaivedReason)})` : ''}</dd></div>` : ''}
     ${hasReceiptTotalAdjustments ? `<div class="receipt-field"><dt>Total Gross Payable / کل واجب الادا (gross):</dt><dd>${formatAmount(grossBilled)}</dd></div>` : ''}
     ${receiptDeductions > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(netPayable)}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
@@ -792,6 +809,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
     ${receipt.creditTransferInAmount > 0 ? `<div class="receipt-field"><dt>Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر:</dt><dd>-${formatAmount(receipt.creditTransferInAmount)}</dd></div>` : ''}
     ${receipt.feederHostCreditAmount > 0 ? `<div class="receipt-field"><dt>Feeder Host Credit / فیڈر ہوسٹ کریڈٹ:</dt><dd>-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${escapeHtml(receipt.feederHostCreditReason)})` : ''}</dd></div>` : ''}
+    ${receipt.firstMonthWaivedAmount > 0 ? `<div class="receipt-field"><dt>First month included / پہلا مہینہ شامل ہے:</dt><dd>-${formatAmount(receipt.firstMonthWaivedAmount)}${receipt.firstMonthWaivedReason ? ` (${escapeHtml(receipt.firstMonthWaivedReason)})` : ''}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${addonChargeReceiptRows(receipt, formatAmount)}
     ${manualBaqayaReceiptRows(receipt, formatAmount)}
@@ -861,6 +879,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.depositOffsetAmount > 0 ? [['Security Deposit Offset', `-${formatAmount(receipt.depositOffsetAmount)}`]] : []),
     ...(receipt.creditTransferInAmount > 0 ? [['Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر', `-${formatAmount(receipt.creditTransferInAmount)}`]] : []),
     ...(receipt.feederHostCreditAmount > 0 ? [['Feeder Host Bijli Credit', `-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${receipt.feederHostCreditReason})` : ''}`]] : []),
+    ...(receipt.firstMonthWaivedAmount > 0 ? [['First month included / پہلا مہینہ شامل ہے', `-${formatAmount(receipt.firstMonthWaivedAmount)}${receipt.firstMonthWaivedReason ? ` (${receipt.firstMonthWaivedReason})` : ''}`]] : []),
     ...(Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges.map((line) => [`Murammat / Material Charge (${line.ticketId})`, formatAmount(line.amount)]) : []),
     ...(Array.isArray(receipt.addonCharges) ? receipt.addonCharges.map((line) => [`Speed Boost / سپیڈ بوسٹ (${line.boostId})`, formatAmount(line.amount)]) : []),
     ...(Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements.map((line) => [`Manual Baqaya / دستی بقایا (${line.entryId})`, formatAmount(line.amount)]) : []),

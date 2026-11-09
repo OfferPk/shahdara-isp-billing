@@ -2499,6 +2499,23 @@ export function setupQuickCollectModal({
   const splitTotalLine = splitFields && typeof splitFields.querySelector === 'function'
     ? splitFields.querySelector('.qc-split-total-line')
     : null;
+  // Plan 534: the leg-2 duplicate card (null when the host page
+  // predates it) — the same treatment as the leg-1 duplicate card,
+  // beside the leg-2 TID field. The card carries no id: it and its
+  // message, reason input and buttons are found by class through
+  // the split fields block, never through the bare document, and
+  // the lookups are guarded for stub documents without
+  // querySelector (polish #13 harness).
+  const leg2DupCard = splitFields && typeof splitFields.querySelector === 'function'
+    ? splitFields.querySelector('.qc-split-duplicate-card')
+    : null;
+  const leg2DupEl = (cls) => (leg2DupCard && typeof leg2DupCard.querySelector === 'function'
+    ? leg2DupCard.querySelector(cls)
+    : null);
+  const leg2DupMsg = leg2DupEl('.qc-split-duplicate-msg');
+  const leg2DupReasonInput = leg2DupEl('.qc-split-duplicate-reason');
+  const leg2DupProceedBtn = leg2DupEl('.qc-split-duplicate-proceed');
+  const leg2DupCancelBtn = leg2DupEl('.qc-split-duplicate-cancel');
   const splitTransactionIdInput = document.getElementById('quickCollectSplitTransactionIdInput');
   const splitOverrideReasonInput = document.getElementById('quickCollectSplitOverrideReasonInput');
   // FU-SISP121-SENDER: leg-2 sender proof inputs (SISP-63 mirror) —
@@ -2514,6 +2531,10 @@ export function setupQuickCollectModal({
   const dupProceedBtn = document.getElementById('quickCollectDuplicateProceedBtn');
   const dupCancelBtn = document.getElementById('quickCollectDuplicateCancelBtn');
   let duplicateBypassedForTxn = null;
+  // Plan 534: the leg-2 duplicate's one confirmed bypass — the
+  // leg-2 TID the operator chose to save anyway, with its reason,
+  // exactly like duplicateBypassedForTxn for leg 1.
+  let duplicateBypassedForLeg2Txn = null;
   // SISP-146: the double-tap guard's one confirmed bypass (key of
   // customer|amount|method|earlier payment id) — see the submit handler.
   let duplicatePaymentBypassedKey = null;
@@ -4354,6 +4375,7 @@ export function setupQuickCollectModal({
     secondConnectionRecorded = false;
     hideSecondConnectionStep();
     duplicateBypassedForTxn = null;
+    duplicateBypassedForLeg2Txn = null;
     duplicatePaymentBypassedKey = null;
     // Plan 437: closing abandons any in-flight save — the guard can
     // never stay armed into the next opening.
@@ -4362,6 +4384,7 @@ export function setupQuickCollectModal({
     doubleTapSaveGuardSetDisabled(quickCollectConfirmBtn, false);
     doubleTapSaveGuardSetDisabled(confirmSaveBtn, false);
     if (dupWarningCard) dupWarningCard.hidden = true;
+    if (leg2DupCard) leg2DupCard.hidden = true;
     // Closing during the undo window keeps the payment (it is NOT undone).
     // Say so briefly, with no Undo of its own, so there is no doubt it saved.
     // SISP-141: with a host onCollected, the floating 10s undo toast is
@@ -4431,6 +4454,40 @@ export function setupQuickCollectModal({
   transactionIdInput?.addEventListener('input', () => {
     duplicateBypassedForTxn = null;
     if (dupWarningCard) dupWarningCard.hidden = true;
+  });
+
+  // Plan 534: wire the leg-2 duplicate card buttons — the same
+  // reason-and-proceed path as leg 1 (#279). "Save anyway" needs a
+  // reason; it is stored as leg 2's reference override reason.
+  function syncLeg2DupProceed() {
+    if (!leg2DupProceedBtn) return;
+    const ok = Boolean((leg2DupReasonInput?.value || '').trim()) || !leg2DupReasonInput;
+    leg2DupProceedBtn.disabled = !ok;
+    leg2DupProceedBtn.title = ok ? '' : 'Write why this reference is used again';
+  }
+  leg2DupReasonInput?.addEventListener('input', syncLeg2DupProceed);
+  leg2DupProceedBtn?.addEventListener('click', () => {
+    if (leg2DupProceedBtn.disabled) { leg2DupReasonInput?.focus(); return; }
+    duplicateBypassedForLeg2Txn = splitTransactionIdInput ? splitTransactionIdInput.value.trim() : '';
+    if (leg2DupCard) leg2DupCard.hidden = true;
+    if (paymentForm) {
+      if (typeof paymentForm.requestSubmit === 'function') {
+        paymentForm.requestSubmit();
+      } else {
+        paymentForm.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+      }
+    }
+  });
+
+  leg2DupCancelBtn?.addEventListener('click', () => {
+    duplicateBypassedForLeg2Txn = null;
+    if (leg2DupCard) leg2DupCard.hidden = true;
+    splitTransactionIdInput?.focus();
+  });
+
+  splitTransactionIdInput?.addEventListener('input', () => {
+    duplicateBypassedForLeg2Txn = null;
+    if (leg2DupCard) leg2DupCard.hidden = true;
   });
 
   // Plan 446: fill the mohalla filter from the app's own mohalla
@@ -5571,7 +5628,29 @@ export function setupQuickCollectModal({
         }
         if (leg2Txn) {
           const dup2 = findDuplicatePaymentReference(state, leg2Txn);
-          if (dup2) {
+          if (dup2 && duplicateBypassedForLeg2Txn !== leg2Txn) {
+            const dup2Date = dup2.date || dup2.paymentDate || 'recently';
+            const dup2Month = dup2.month || dup2.billMonth || 'unknown';
+            const dup2Amt = Number(dup2.amount || 0).toLocaleString('en-PK');
+            if (leg2DupCard) {
+              // Plan 534: the leg-2 duplicate gets the same in-app
+              // card as leg 1, beside the leg-2 TID field — a toast
+              // alone hides behind the sheet (Plan 296). This check
+              // runs after the confirm step, so go back to the form
+              // step first, or the card would sit unseen.
+              if (leg2DupMsg) {
+                leg2DupMsg.textContent = `Transaction ID "${leg2Txn}" was already recorded on ${dup2Date} for ${dup2.customerName || 'customer'} (#${dup2.customerNumber || '?'}) in month ${dup2Month} (PKR ${dup2Amt}).`;
+              }
+              if (leg2DupReasonInput) leg2DupReasonInput.value = '';
+              syncLeg2DupProceed();
+              showStep('form');
+              leg2DupCard.hidden = false;
+              leg2DupCard.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' });
+              (leg2DupCancelBtn || leg2DupProceedBtn)?.focus(); // Cancel is the safe default (#279)
+              return;
+            }
+            // No card in the page (older markup): the toast is all
+            // there is, exactly as before this plan.
             if (typeof onToast === 'function') onToast(`Leg 2 Transaction ID "${leg2Txn}" was already recorded on ${dup2.date || dup2.paymentDate || 'recently'} for ${dup2.customerName || 'a customer'} (#${dup2.customerNumber || '?'}). Give leg 2 its own Transaction ID.`, { type: 'error' });
             splitTransactionIdInput?.focus();
             return;
@@ -5590,6 +5669,13 @@ export function setupQuickCollectModal({
           const leg1Reference = (duplicateBypassedForTxn && txnIdVal === duplicateBypassedForTxn && (dupReasonInput?.value || '').trim())
             ? (dupReasonInput.value.trim() + (overrideReasonVal ? ` · ${overrideReasonVal}` : ''))
             : overrideReasonVal;
+          // Plan 534: leg 2's duplicate reason, exactly like leg 1's
+          // above — the card's reason is recorded as leg 2's
+          // reference override reason, joined with any override
+          // reason the operator typed for leg 2.
+          const leg2Reference = (duplicateBypassedForLeg2Txn && leg2Txn === duplicateBypassedForLeg2Txn && (leg2DupReasonInput?.value || '').trim())
+            ? (leg2DupReasonInput.value.trim() + (leg2Override ? ` · ${leg2Override}` : ''))
+            : leg2Override;
           const splitResult = executeSplitTenderCollection(state, {
             customerId: activeCustomerId,
             month: monthVal,
@@ -5601,7 +5687,7 @@ export function setupQuickCollectModal({
               // method is digital); core keeps them for digital methods
               // only, exactly as in the single-payment submit below.
               { amount: amountVal, method: methodVal, transactionId: txnIdVal, senderTitle: (senderNameInput?.value || '').trim(), senderDigits: (senderDigitsInput?.value || '').trim(), referenceOverrideReason: leg1Reference, screenshot: currentScreenshotDataUrl },
-              { amount: leg2Amount, method: leg2Method, transactionId: leg2Txn, senderTitle: (splitSenderNameInput?.value || '').trim(), senderDigits: (splitSenderDigitsInput?.value || '').trim(), referenceOverrideReason: leg2Override }
+              { amount: leg2Amount, method: leg2Method, transactionId: leg2Txn, senderTitle: (splitSenderNameInput?.value || '').trim(), senderDigits: (splitSenderDigitsInput?.value || '').trim(), referenceOverrideReason: leg2Reference }
             ],
             tickets: loadTickets()
           }, { execute: executeQuickCollection });

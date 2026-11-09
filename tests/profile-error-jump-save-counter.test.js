@@ -31,23 +31,24 @@ test('completion: counts the per-field-save controls except pure opt-in flags', 
   const empty = {};
   for (const key of Object.values(PROFILE_FIELD_SAVE_MAP)) empty[key] = '';
   const counted = countProfileCompletion(empty);
-  // Plan 513 — the counted total is 67, not 69: the pure opt-in flags
+  // Plan 513 — the counted total is 68, not 70: the pure opt-in flags
   // (prefersSms, paused) are legitimately false for most customers, so
   // they are excluded from what "complete" means and full marks are
-  // reachable. The per-field-save map itself is unchanged (still 69
-  // fields — pinned in the Plan 499/500 tests).
-  assert.equal(counted.total, 67);
+  // reachable. The per-field-save map holds 70 fields since Polish
+  // #28 Phase D added otherInstallCost (pinned in the Plan 499/500
+  // tests and the Phase D tests).
+  assert.equal(counted.total, 68);
   assert.equal(counted.filled, 0);
-  assert.equal(counted.text, '0/67 fields filled');
+  assert.equal(counted.text, '0/68 fields filled');
 });
 
 test('completion: filled/total label is filled first, then total', () => {
   const record = { name: 'Orient school', phone: '03001234567', cnic: '', mohalla: 'Not set' };
   const counted = countProfileCompletion(record);
   assert.equal(counted.filled, 2);
-  // Plan 513 — total is 67 (opt-in flags excluded); see the test above.
-  assert.equal(counted.total, 67);
-  assert.equal(counted.text, '2/67 fields filled');
+  // Plan 513 — total is 68 (opt-in flags excluded); see the test above.
+  assert.equal(counted.total, 68);
+  assert.equal(counted.text, '2/68 fields filled');
 });
 
 test('completion: form controls map through the same map, others ignored', () => {
@@ -63,9 +64,10 @@ test('completion: form controls map through the same map, others ignored', () =>
   // Plan 513 — only the phone counts here: both checkboxes are pure
   // opt-in flags, excluded from the counted total, so even a checked
   // prefersSms adds nothing to filled (and an unchecked pauseBilling
-  // never reads as missing). Total is 67.
+  // never reads as missing). Total is 68 since Polish #28 Phase D
+  // added otherInstallCost to the counted list.
   assert.equal(counted.filled, 1);
-  assert.equal(counted.total, 67);
+  assert.equal(counted.total, 68);
 });
 
 // --- Error jump targets ---------------------------------------------------

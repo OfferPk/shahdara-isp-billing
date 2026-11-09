@@ -679,6 +679,28 @@ export function generatePaymentReceiptHtml(receipt, {
   const balanceStr = receipt.balanceDueCents === null ? 'PKR 0' : formatAmount(receipt.balanceDueCents / 100);
   const balanceLabel = receipt.balanceDueCents === 0 ? 'PKR 0 (مکمل ادا شدہ / Paid)' : `${balanceStr} (بقایا جات / Due)`;
 
+  // Plan 553: the honest totals. totalBilled is the GROSS (nominal price
+  // + late fee + tax) — it never subtracts the printed deductions — so
+  // the net payable is the gross minus every printed deduction. The
+  // late-fee waiver is NOT one of them: SISP-101 zeroes the bill's
+  // lateFee when a waiver exists, so the waived late fee was never
+  // inside the gross — subtracting it would double-count it. The
+  // total rows appear whenever ANY adjustment exists (tax, late fee,
+  // waiver, discount, concession, referral, deposit offset, credit
+  // transfer, feeder-host credit); a plain receipt shows no total row,
+  // because the Billed figure already is the total. A hand-built
+  // receipt without totalBilled reads as PKR 0, never PKR NaN.
+  const receiptDeductions = (receipt.discount > 0 ? receipt.discount : 0)
+    + (receipt.concessionAmount > 0 ? receipt.concessionAmount : 0)
+    + (receipt.referralCreditAmount > 0 ? receipt.referralCreditAmount : 0)
+    + (receipt.depositOffsetAmount > 0 ? receipt.depositOffsetAmount : 0)
+    + (receipt.creditTransferInAmount > 0 ? receipt.creditTransferInAmount : 0)
+    + (receipt.feederHostCreditAmount > 0 ? receipt.feederHostCreditAmount : 0);
+  const hasReceiptTotalAdjustments = (receipt.salesTaxCents > 0) || receipt.lateFee > 0
+    || receipt.waivedAmount > 0 || receiptDeductions > 0;
+  const grossBilled = Number(receipt.totalBilled) || 0;
+  const netPayable = grossBilled - receiptDeductions;
+
   if (format === 'thermal-58') {
     // Plan Q: the shared thermal header — the canonical bilingual
     // title replaces the old Urdu-only "(58mm)" title, and the number
@@ -713,6 +735,8 @@ export function generatePaymentReceiptHtml(receipt, {
     ${receipt.depositOffsetAmount > 0 ? `<div class="receipt-field"><dt>Security Deposit Offset / سیکیورٹی ڈپازٹ تصفیہ:</dt><dd>-${formatAmount(receipt.depositOffsetAmount)}</dd></div>` : ''}
     ${receipt.creditTransferInAmount > 0 ? `<div class="receipt-field"><dt>Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر:</dt><dd>-${formatAmount(receipt.creditTransferInAmount)}</dd></div>` : ''}
     ${receipt.feederHostCreditAmount > 0 ? `<div class="receipt-field"><dt>Feeder Host Credit / فیڈر ہوسٹ کریڈٹ:</dt><dd>-${formatAmount(receipt.feederHostCreditAmount)}${receipt.feederHostCreditReason ? ` (${escapeHtml(receipt.feederHostCreditReason)})` : ''}</dd></div>` : ''}
+    ${hasReceiptTotalAdjustments ? `<div class="receipt-field"><dt>Total Gross Payable / کل واجب الادا (gross):</dt><dd>${formatAmount(grossBilled)}</dd></div>` : ''}
+    ${receiptDeductions > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(netPayable)}</dd></div>` : ''}
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${addonChargeReceiptRows(receipt, formatAmount)}
     ${manualBaqayaReceiptRows(receipt, formatAmount)}
@@ -771,7 +795,8 @@ export function generatePaymentReceiptHtml(receipt, {
     ${ticketChargeReceiptRows(receipt, formatAmount)}
     ${addonChargeReceiptRows(receipt, formatAmount)}
     ${manualBaqayaReceiptRows(receipt, formatAmount)}
-    ${receipt.lateFee > 0 || receipt.discount > 0 || receipt.waivedAmount > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(receipt.totalBilled)}</dd></div>` : ''}
+    ${hasReceiptTotalAdjustments ? `<div class="receipt-field"><dt>Total Gross Payable / کل واجب الادا (gross):</dt><dd>${formatAmount(grossBilled)}</dd></div>` : ''}
+    ${receiptDeductions > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(netPayable)}</dd></div>` : ''}
 
     ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
@@ -816,7 +841,8 @@ export function generatePaymentReceiptHtml(receipt, {
     ...(receipt.salesTaxCents > 0 ? [[SALES_TAX_RECEIPT_LABEL, `+${formatAmount(receipt.salesTaxCents / 100)}`]] : []),
     ...(receipt.lateFee > 0 ? [['Late Fee Surcharge', `+${formatAmount(receipt.lateFee)}`]] : []),
     ...(receipt.waivedAmount > 0 ? [['Late Fee Waived', `-${formatAmount(receipt.waivedAmount)}`]] : []),
-    ...(receipt.lateFee > 0 ? [['Total Gross Payable', formatAmount(receipt.totalBilled)]] : []),
+    ...(hasReceiptTotalAdjustments ? [['Total Gross Payable', formatAmount(grossBilled)]] : []),
+    ...(receiptDeductions > 0 ? [['Total Payable / کل واجب الادا', formatAmount(netPayable)]] : []),
     ...(receipt.concessionAmount > 0 ? [['Outage Concession (Reaayat)', `-${formatAmount(receipt.concessionAmount)}${receipt.concessionReason ? ` (${receipt.concessionReason})` : ''}`]] : []),
     ...(receipt.referralCreditAmount > 0 ? [['Hamsaya Referral Credit', `-${formatAmount(receipt.referralCreditAmount)}${receipt.referralCreditReason ? ` (${receipt.referralCreditReason})` : ''}`]] : []),
     ...(receipt.depositOffsetAmount > 0 ? [['Security Deposit Offset', `-${formatAmount(receipt.depositOffsetAmount)}`]] : []),

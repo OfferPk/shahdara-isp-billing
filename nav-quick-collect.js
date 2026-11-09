@@ -96,6 +96,7 @@ import {
 import { bigWalletMethodIsOtherMethod } from './big-wallet-method-buttons.js';
 import { pendingClearanceFlagForMethod, pendingClearanceFlagForReceipt, pendingClearanceEntryFlagForMethod } from './pending-clearance-flag.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
+import { monthLabel } from './monthly-complaint-report.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { isBillingPaused } from './pause-billing.js';
@@ -3748,11 +3749,28 @@ export function setupQuickCollectModal({
           amount: Number.isFinite(fee) && fee > 0 ? formatPKR(fee) : t('qcpkg_fee_not_set')
         })
         : t('qcpkg_none');
-      const freeNote = customer.isFreeConnection === true
+      const isFree = customer.isFreeConnection === true;
+      const isPaused = !isFree && isBillingPaused(customer, month);
+      const freeNote = isFree
         ? `<p class="qc-package-note">${escapeHtml(t('qcpkg_free_note'))}</p>`
         : '';
-      const pausedNote = customer.isFreeConnection !== true && isBillingPaused(customer, month)
+      const pausedNote = isPaused
         ? `<p class="qc-package-note">${escapeHtml(t('qcpkg_paused_note'))}</p>`
+        : '';
+      // Plan 541: name the month the change reprices. The change
+      // always touches the CURRENT month's bill, while the form's
+      // payment targets the earliest unpaid month — often an older
+      // one — so the box states the month and flags the difference.
+      // When billing is paused or the connection is free, no bill is
+      // repriced at all, so the line is omitted: naming the current
+      // month would contradict the paused note, and a free connection
+      // has no bill to name. The existing paused/free note speaks.
+      const formTargetMonth = monthSelect?.value || activeDefaults?.targetMonth || null;
+      const appliesFromLine = (!isFree && !isPaused)
+        ? `<p class="qc-package-note">${escapeHtml(t('qcpkg_applies_from', null, { month: monthLabel(month) }))}</p>`
+        : '';
+      const differsNote = (!isFree && !isPaused && formTargetMonth && formTargetMonth !== month)
+        ? `<p class="qc-package-note">${escapeHtml(t('qcpkg_applies_differs', null, { month: monthLabel(formTargetMonth) }))}</p>`
         : '';
       packageBox.innerHTML = `
         <div class="qc-package-row">
@@ -3765,7 +3783,7 @@ export function setupQuickCollectModal({
           </select>
           <button type="button" class="secondary-button qc-package-apply" data-qc-change-package disabled>${escapeHtml(t('qcpkg_change_btn'))}</button>
         </div>
-        ${freeNote}${pausedNote}`;
+        ${appliesFromLine}${differsNote}${freeNote}${pausedNote}`;
       const select = packageBox.querySelector('#quickCollectPackageSelect');
       const applyBtn = packageBox.querySelector('[data-qc-change-package]');
       select?.addEventListener('change', () => {

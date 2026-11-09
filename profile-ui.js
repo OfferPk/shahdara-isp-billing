@@ -21,7 +21,7 @@ import { activeDepositOffsetQuote, depositOffsetsOf } from './deposit-to-bill-of
 import { contributorSplitStatus, subContributorsOf } from './shared-router-contributors.js';
 import { normalizeOccupancyFields, hasOccupancyRecord, tenantDepositRisk } from './occupancy-guarantor.js';
 import { evaluateStarTimelyPayer } from './star-subscribers.js';
-import { isRandomizedMac, macOuiVendor } from './mac-oui-lookup.js';
+import { isRandomizedMac, macOuiVendor, normalizeMacHex } from './mac-oui-lookup.js';
 import { disconnectDetailsOf, disconnectReasonLabel } from './churn-winback.js';
 import { computeWaadaScore } from './waada-queue.js';
 import { activeDownstreamCount, feederHostCreditOf, isFeederHost } from './feeder-host-credit.js';
@@ -974,12 +974,32 @@ export function macAddressDisplaySuffix(mac) {
  * SISP-113: live hint under the profile form's MAC field — a vendor
  * badge span, or the randomized-MAC warning span, or '' (hint hidden).
  * Display only: saving is never blocked and the value is never changed.
+ *
+ * Polish #28 Phase E (Req 8): a non-empty value that is not a full
+ * MAC also shows an invalid-format warning live. A partial address
+ * (all hex/separators, fewer than 12 digits) is still being typed,
+ * so it reads as the amber tip; anything else (a non-hex character,
+ * or more than 12 digits) cannot become valid by typing more, so it
+ * reads as the red invalid note. Both still never block and never
+ * rewrite the value — only the save-time check refuses it.
  */
 export function macOuiHintHtml(mac) {
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const raw = String(mac ?? '').trim();
+  if (!raw) return '';
+  const hex = normalizeMacHex(raw);
+  // A malformed value (a non-hex character, or more than 12 digits)
+  // cannot become valid by typing more — and it cannot save — so the
+  // red invalid note outranks the randomized/vendor notes, which
+  // describe a value that can save.
+  if (hex === null || hex.length > 12) return `<span class="mac-oui-invalid">${esc(t('prof_mac_invalid'))}</span>`;
   if (isRandomizedMac(mac)) return `<span class="mac-oui-warning">${esc(t('macoui_random_warn'))}</span>`;
   const vendor = macOuiVendor(mac);
-  return vendor ? `<span class="mac-oui-badge">${esc(t('macoui_vendor_label', null, { vendor }))}</span>` : '';
+  if (vendor) return `<span class="mac-oui-badge">${esc(t('macoui_vendor_label', null, { vendor }))}</span>`;
+  // A partial address (all hex/separators, fewer than 12 digits) is
+  // still being typed, so it reads as the amber tip.
+  if (hex.length < 12) return `<span class="mac-oui-warning">${esc(t('prof_mac_invalid'))}</span>`;
+  return '';
 }
 
 export function prepaidUntilBadgeHtml(state, customer, referenceDate = new Date()) {

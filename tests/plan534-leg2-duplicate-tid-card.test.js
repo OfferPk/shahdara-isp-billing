@@ -12,7 +12,8 @@
 //  - a leg-2 TID already recorded shows the duplicate card beside
 //    the leg-2 TID field (not only a toast) with the earlier
 //    payment's date, customer and amount, and returns to the form
-//    step so the card is visible (the check runs after confirm);
+//    step so the card is visible (the check runs before confirm —
+//    Plan 536 — so the card shows on the first submit);
 //    nothing is recorded yet (REPRO: fails on the pristine head,
 //    which toasts only);
 //  - the card's "Save anyway" needs a reason, then records both
@@ -203,8 +204,10 @@ async function recordFirstPayment(getEl, getState, tid) {
 }
 
 // Arm a split whose leg 2 re-uses the given TID: leg 1 Cash Rs 600,
-// leg 2 Easypaisa Rs 400. Then submit, confirm, and submit again —
-// the second submit is where the leg-2 duplicate check runs.
+// leg 2 Easypaisa Rs 400. One submit only — Plan 536 moved the
+// leg-2 duplicate check before the confirm step, so the card shows
+// on the first submit, with no confirm round-trip (exactly like the
+// leg-1 check below).
 async function submitSplitWithLeg2Tid(getEl, tid) {
   getEl('quickCollectAmountInput').value = '600';
   // Leg 1 is Cash: the method is remembered per customer (Plan 431),
@@ -219,8 +222,6 @@ async function submitSplitWithLeg2Tid(getEl, tid) {
   getEl('quickCollectSplitAmountInput').value = '400';
   getEl('quickCollectSplitMethodSelect').value = 'Easypaisa';
   getEl('quickCollectSplitTransactionIdInput').value = tid;
-  await getEl('quickCollectPaymentForm').dispatch('submit');
-  await getEl('quickCollectConfirmSaveBtn').click();
   await getEl('quickCollectPaymentForm').dispatch('submit');
 }
 
@@ -264,9 +265,10 @@ test('bypass: Save anyway needs a reason, then records both legs with the reason
     assert.equal(leg2Proceed.disabled, false, 'a reason enables Save anyway');
 
     await leg2Proceed.click();
-    // Proceed resubmits: the confirm summary is shown again (the
-    // key was consumed), so confirm once more to post.
-    assert.equal(getEl('quickCollectStepConfirm').hidden, false, 'the summary is shown again after proceeding');
+    // Proceed resubmits: the confirm summary is shown for the
+    // first time here (the card came before any confirm — Plan
+    // 536), so confirm once to post.
+    assert.equal(getEl('quickCollectStepConfirm').hidden, false, 'the summary is shown after proceeding');
     await getEl('quickCollectConfirmSaveBtn').click();
     await getEl('quickCollectPaymentForm').dispatch('submit');
 

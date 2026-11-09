@@ -1716,7 +1716,6 @@ export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MO
  */
 export function renderQuickCollectReceiptCardHtml(receipt) {
   const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues;
-  const isSettled = remainingPayable <= 0;
   const shared = isReceiptShared(receipt.id);
   const sharedBadge = renderReceiptSharedBadgeHtml(Boolean(shared?.shared), shared);
   // SISP-43: ticket charges settled by this receipt, one row per ticket.
@@ -1742,9 +1741,10 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
   return `
     <div class="qc-receipt-card" role="region" aria-label="Payment Receipt Slip">
       <div class="qc-receipt-header">
-        <span class="qc-receipt-badge ${isSettled ? 'settled' : 'partial'}">
-          ${isSettled ? '✓ Settle in Full' : '⏳ Partial Payment'}
-        </span>
+        <!-- Polish 21 (Req 6): the settle/partial badge moved out of the
+             card header into the merged status section
+             (renderSettleStatusBadge) — the header keeps only the shared
+             badge + the receipt id, on one line. -->
         ${sharedBadge}
         <span class="qc-receipt-id">${escapeHtml(receipt.receiptNumber)}</span>
       </div>
@@ -1828,7 +1828,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           <strong class="qc-meta-val">${escapeHtml(receipt.paidBy)}</strong>
         </div>` : ''}
       </div>
-      ${receiptTermsNoteHtml().replace('class="receipt-urdu-notice"', 'class="receipt-urdu-notice qc-urdu-nastaliq qc-urdu-gradient"')}
+      ${receiptTermsNoteHtml({ contactActions: true }).replace('class="receipt-urdu-notice"', 'class="receipt-urdu-notice qc-urdu-nastaliq qc-urdu-gradient"')}
     </div>
   `;
 }
@@ -2087,6 +2087,11 @@ export function setupQuickCollectModal({
   // payment, in plain words, or "Bill dues fully paid", shown
   // immediately at the top of the success screen.
   const stillOwesBox = typeof document !== 'undefined' ? document.getElementById('sowStillOwesLine') : null;
+  // Polish 21 (Req 6): the settle/partial badge host in the merged
+  // status section (null when the host page predates it) — the card
+  // header no longer carries it; the badge is written here from the
+  // same receipt data the card builder used.
+  const settleStatusBadgeBox = typeof document !== 'undefined' ? document.getElementById('qcSettleStatusBadge') : null;
   // Plan 443: the receipt share draft host on the success step (null
   // when the host page predates it) — the receipt's share text, read
   // first, with Send and Dismiss, prepared right after a save.
@@ -3239,6 +3244,22 @@ export function setupQuickCollectModal({
     // Polish 17: the success-only compact + eyebrow rules hang off this
     // class on the modal (the header sits outside the step div).
     if (modal) modal.classList.toggle('qc-success-open', stepName === 'success');
+    // Polish 21 (Req 7): the tick animation must visibly play on EVERY
+    // showing. The base rules carry no animation (it would run once at
+    // page load while the step is hidden), so re-trigger it here: drop
+    // the trigger class, force a reflow, re-add it. A DOM change the
+    // engine must honour on every WebView — unlike display toggling,
+    // it cannot be optimised away. Guarded for stub hosts (no modal /
+    // no querySelector / no tick): the screen works exactly as before
+    // with a static tick, no toast, no throw.
+    if (stepName === 'success' && modal && typeof modal.querySelector === 'function') {
+      const tick = modal.querySelector('.qc-success-check');
+      if (tick && tick.classList) {
+        tick.classList.remove('qc-tick-play');
+        void tick.offsetWidth;
+        tick.classList.add('qc-tick-play');
+      }
+    }
   }
 
   // SISP-30: outage concession badge + 1-click apply/remove for one bill
@@ -5055,6 +5076,7 @@ export function setupQuickCollectModal({
       renderRepeatPayment();
       renderStillOwesLine();
       renderOfflineSavedBadge();
+      renderSettleStatusBadge();
       renderReceiptShareDraft();
       renderSuccessPendingClearanceFlag();
       hideSecondConnectionStep();
@@ -5204,6 +5226,28 @@ export function setupQuickCollectModal({
     const html = badge ? offlineSavedBadgeHtml(badge, { compact: true }) : '';
     savedBadgeBox.innerHTML = html;
     savedBadgeBox.hidden = html === '';
+  }
+
+  // Polish 21 (Req 6): the settle/partial badge in the merged status
+  // section — "✓ Settle in Full" when nothing is left to pay,
+  // "⏳ Partial Payment" otherwise — written from the same receipt data
+  // the card builder used (ordinary: payableRemaining ?? newTotalDues
+  // <= 0; split: the combined receipt's PAID status). The badge is
+  // layout-only: rendering posts nothing and changes no record. No
+  // active receipt clears it and hides the host.
+  function renderSettleStatusBadge() {
+    if (!settleStatusBadgeBox) return;
+    if (!activeReceipt) {
+      settleStatusBadgeBox.textContent = '';
+      settleStatusBadgeBox.hidden = true;
+      return;
+    }
+    const settled = activeReceipt.splitTender
+      ? activeReceipt.splitTender.status === 'PAID'
+      : (activeReceipt.payableRemaining ?? activeReceipt.newTotalDues) <= 0;
+    settleStatusBadgeBox.className = `qc-receipt-badge ${settled ? 'settled' : 'partial'}`;
+    settleStatusBadgeBox.textContent = settled ? '✓ Settle in Full' : '⏳ Partial Payment';
+    settleStatusBadgeBox.hidden = false;
   }
 
   // Plan 443: the receipt share draft — the receipt's share text,
@@ -5898,6 +5942,7 @@ export function setupQuickCollectModal({
           renderRepeatPayment();
           renderStillOwesLine();
           renderOfflineSavedBadge();
+          renderSettleStatusBadge();
           renderReceiptShareDraft();
           renderSuccessPendingClearanceFlag();
           showStep('success');
@@ -6094,6 +6139,7 @@ export function setupQuickCollectModal({
       renderRepeatPayment();
       renderStillOwesLine();
       renderOfflineSavedBadge();
+      renderSettleStatusBadge();
       renderReceiptShareDraft();
       renderSuccessPendingClearanceFlag();
       // Plan 449: a fresh pass offers the second connection again —

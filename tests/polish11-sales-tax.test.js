@@ -545,8 +545,10 @@ test('Req 5 profile: 1,000 -> PKR 195, 1,500 -> PKR 292.5, no package -> Not set
   // Wiring pin: the profile Service group carries the line.
   // Plan 504: the literal label became the i18n key prof_field_sales_tax
   // (EN reads exactly as before, UR reads in Urdu) — the pin now checks
-  // the key is used, not the literal.
-  assert.ok(appSrc.includes("[t('prof_field_sales_tax'), formatSalesTaxAmount(customerSalesTaxCents(customer))]"), 'the Service group shows the customer tax');
+  // the key is used, not the literal. Polish #28 Phase B (Req 3): the
+  // value goes through profileEmptyTax — the dash when there is no
+  // figure, the same formatSalesTaxAmount figure otherwise.
+  assert.ok(appSrc.includes("[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))]"), 'the Service group shows the customer tax');
 });
 
 // --- Regression: the priced-month follow must not invent a next-month bill ---

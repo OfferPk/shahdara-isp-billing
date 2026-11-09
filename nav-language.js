@@ -2024,6 +2024,15 @@ export const TRANSLATIONS = {
     prof_status_vacation_since: 'Vacation · since {date}',
     prof_status_expired: 'Expired',
     prof_missing_note: 'missing: {items}',
+    // Polish #28 Phase E (Req 8) — profile validation messages. The
+    // core save errors throw these exact English strings; the live
+    // MAC / IP hints read the same keys through t().
+    prof_mac_invalid: 'MAC address must be 12 hex digits, e.g. AA:BB:CC:DD:EE:FF.',
+    prof_ip_invalid: 'Enter a valid IPv4 address, e.g. 192.168.1.10.',
+    prof_ip_valid: '✓ Valid IPv4 address',
+    prof_speed_invalid: 'Enter the speed as a number followed by Mbps, e.g. 15 Mbps.',
+    prof_expiry_before_connection: 'Expiry date cannot be before the connection date.',
+    prof_cancellation_before_connection: 'Cancellation date cannot be before the connection date.',
     prof_archive_active: 'Profile: Active',
     prof_archive_archived: 'Profile: Archived',
     prof_archive_since: 'Profile: Archived since {date}',
@@ -6474,6 +6483,13 @@ export const TRANSLATIONS = {
     prof_status_vacation_since: 'چھٹی · {date} سے',
     prof_status_expired: 'ختم شدہ',
     prof_missing_note: 'نامکمل: {items}',
+    // Polish #28 Phase E (Req 8) — profile validation messages (UR values carry Urdu script, as urdu-auto-phase3 requires).
+    prof_mac_invalid: 'MAC ایڈریس 12 ہیکس ہندسوں پر مشتمل ہونا چاہیے، مثلاً AA:BB:CC:DD:EE:FF۔',
+    prof_ip_invalid: 'درست IPv4 ایڈریس درج کریں، مثلاً 192.168.1.10۔',
+    prof_ip_valid: '✓ درست IPv4 ایڈریس',
+    prof_speed_invalid: 'اسپیڈ نمبر کے بعد Mbps لکھ کر درج کریں، مثلاً 15 Mbps۔',
+    prof_expiry_before_connection: 'ختم ہونے کی تاریخ کنکشن کی تاریخ سے پہلے نہیں ہو سکتی۔',
+    prof_cancellation_before_connection: 'منسوخی کی تاریخ کنکشن کی تاریخ سے پہلے نہیں ہو سکتی۔',
     prof_archive_active: 'پروفائل: فعال',
     prof_archive_archived: 'پروفائل: آرکائیو شدہ',
     prof_archive_since: 'پروفائل: آرکائیو شدہ از {date}',

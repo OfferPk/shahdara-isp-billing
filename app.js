@@ -45,6 +45,8 @@ import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 // Polish #28 Phase D: the profile calculations — one shared module for
 // the view and the form profit preview, so the two can never disagree.
 import { profileMonthlyProfit, profileGrossProfit, profileInvestmentBreakdown, profileInvestmentRecovery } from './profile-profit.js?v=1.11.0';
+// Polish #28 Phase E: the static-IP live hint state (pure, no DOM).
+import { ipv4HintState } from './ipv4-validation.js?v=1.11.0';
 import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, dirtyProfileFieldKeys } from './profile-field-save.js?v=1.11.0';
 import { zonesUnderArea } from './zone-suggestions.js?v=1.11.0';
 import { profileTabCounts } from './profile-tab-counts.js?v=1.11.0';
@@ -8837,12 +8839,58 @@ function renderDetail() {
       const hintHtml = macOuiHintHtml(macAddressInputEl.value);
       hintEl.innerHTML = hintHtml;
       hintEl.hidden = !hintHtml;
+      // Polish #28 Phase E — the red invalid-format note marks the
+      // field invalid for assistive tech; the amber tip, the vendor
+      // badge and the randomized warning never do (the value may
+      // still be mid-typing).
+      if (hintEl.querySelector('.mac-oui-invalid')) macAddressInputEl.setAttribute('aria-invalid', 'true');
+      else macAddressInputEl.removeAttribute('aria-invalid');
     };
     if (!macAddressInputEl.dataset.macOuiBound) {
       macAddressInputEl.dataset.macOuiBound = '1';
       macAddressInputEl.addEventListener('input', refreshMacOuiHint);
     }
     refreshMacOuiHint();
+  }
+  // Polish #28 Phase E — live static-IP hint on the phone/CNIC
+  // pattern (never blocking, never rewriting): empty hides it, a
+  // valid address reads green, a still-typable partial reads as an
+  // amber tip, a malformed value reads red and marks the field
+  // invalid. The hint element carries no id — it is found by its
+  // data attribute, so no new element-id prefix is consumed.
+  const staticIpInputEl = $('#staticIpInput');
+  if (staticIpInputEl) {
+    const refreshStaticIpHint = () => {
+      const hintEl = $('[data-static-ip-hint]');
+      if (!hintEl) return;
+      const hintState = ipv4HintState(staticIpInputEl.value);
+      if (hintState.empty) {
+        hintEl.textContent = '';
+        hintEl.className = 'static-ip-hint';
+        hintEl.hidden = true;
+        staticIpInputEl.removeAttribute('aria-invalid');
+        return;
+      }
+      hintEl.hidden = false;
+      if (hintState.valid) {
+        hintEl.textContent = t('prof_ip_valid');
+        hintEl.className = 'static-ip-hint valid';
+        staticIpInputEl.removeAttribute('aria-invalid');
+      } else if (hintState.tip) {
+        hintEl.textContent = t('prof_ip_invalid');
+        hintEl.className = 'static-ip-hint tip';
+        staticIpInputEl.removeAttribute('aria-invalid');
+      } else {
+        hintEl.textContent = t('prof_ip_invalid');
+        hintEl.className = 'static-ip-hint invalid';
+        staticIpInputEl.setAttribute('aria-invalid', 'true');
+      }
+    };
+    if (!staticIpInputEl.dataset.staticIpHintBound) {
+      staticIpInputEl.dataset.staticIpHintBound = '1';
+      staticIpInputEl.addEventListener('input', refreshStaticIpHint);
+    }
+    refreshStaticIpHint();
   }
   // SISP-94: router credential vault fields.
   if ($('#wifiSsidInput')) $('#wifiSsidInput').value = customer.wifiSsid ?? '';
@@ -12156,7 +12204,7 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     }
     saveProfileButton?.classList.remove('is-saving');
     saveProfileButton?.removeAttribute('aria-busy');
-  } catch (error) { saveProfileButton?.classList.remove('is-saving'); saveProfileButton?.removeAttribute('aria-busy'); showProfileFormError(error.message, null); }
+  } catch (error) { saveProfileButton?.classList.remove('is-saving'); saveProfileButton?.removeAttribute('aria-busy'); showProfileFormError(error?.i18nKey ? t(error.i18nKey) : error.message, error?.fieldId ?? null); }
 });
 // Profile polish: one inline Save button per editable profile field.
 // Each button saves ONLY its own field through updateCustomerProfile —
@@ -12266,7 +12314,7 @@ async function saveProfileField(control, button, labelText) {
     // mid-feedback.)
     setTimeout(() => { if (!document.body.contains(button)) return; button.textContent = 'Save'; syncProfileFieldSaveButtons(); }, 1500);
   } catch (error) {
-    showProfileFormError(error.message, control.id);
+    showProfileFormError(error?.i18nKey ? t(error.i18nKey) : error.message, control.id);
     button.textContent = 'Save';
   } finally {
     button.disabled = false;

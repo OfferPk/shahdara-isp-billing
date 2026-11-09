@@ -414,15 +414,14 @@ test('profile mount: faithful deep-querySelector simulation — every child clai
   // (#stxProfileShareDraft) joins the billing panel, right after the
   // manual-baqaya section — it is a claimed mounts child, in mount
   // order, like the summary and baqaya sections above it.
-  // Plan 492 (2026-11-08): the Danger zone (.profile-danger-zone)
-  // joins the info panel LAST, below the profile view and uptime — it
-  // is a claimed mounts child, in mount order, so Delete is not
-  // visible until the operator scrolls past the profile.
   // Plan 509 (2026-11-08): the static package-history section is gone,
   // so it no longer appears in the info panel's mount order.
+  // Polish #24 (2026-11-10): the danger zone is REMOVED — Delete moved
+  // into the header action group — so the info panel ends with the
+  // uptime section and no zone is claimed anywhere.
   assert.deepEqual(placement, {
     billing: ['#customerReceiptSummary', '#manualBaqayaSection', '#stxProfileShareDraft', '.ledger-heading', '.notice.history-retention-note', '#customerEmptyNote'],
-    info: ['.customer-meta', '.incident-section.uptime-section', '.profile-danger-zone'],
+    info: ['.customer-meta', '.incident-section.uptime-section'],
     complaints: ['.incident-section']
   }, 'every mounts child lands in its expected tab panel, in mount order');
 });

@@ -1657,7 +1657,7 @@ body.field-mode-open { overflow: hidden; }
 }
 
 /* Owner feature (2026-10-29): customer search field filter + Mohalla dashboard cards — theme tokens only, mobile-first. */
-.customer-search-field-select { flex: 0 0 auto; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 0 8px; font: 600 12px 'DM Sans', sans-serif; }
+.customer-search-field-select { flex: 0 0 auto; max-width: 132px; height: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 0 8px; font: 600 12px 'DM Sans', sans-serif; }
 .customer-search-field-select:focus-visible { outline: 3px solid var(--green); outline-offset: 2px; }
 .mohalla-dashboard-section { margin: 14px 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 14px; }
 .mohalla-dashboard-heading h3 { margin: 2px 0 4px; color: var(--ink); font-size: 17px; }
@@ -3285,6 +3285,11 @@ button.field-dispatch-item { cursor: pointer; }
   outline: 3px solid var(--color-neutral-0);
   outline-offset: 2px;
 }
+/* Polish #26 D3: the Customers header ℹ️ is 44px like the buttons beside
+   it (same precedent as .field-mode-head .help-info-btn at :3442). The
+   inline margin is redundant inside the flex row's 8px gap, so it is
+   dropped here. The base 28px circle is untouched everywhere else. */
+#customerPane .pane-heading-actions .help-info-btn { width: 44px; height: 44px; margin-inline-start: 0; }
 .help-guide-body {
   color: var(--ink);
   font-size: var(--text-md);

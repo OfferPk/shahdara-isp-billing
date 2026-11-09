@@ -125,7 +125,7 @@ import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFee
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
 import { findRecentDuplicate, duplicatePaymentBypassKey, askDuplicatePayment } from './duplicate-payment-guard.js';
 import { buildMonthlyUptime, splitMinutes } from './uptime-tracking.js';
-import { computePaymentDateChip, isFuturePaymentDate } from './backdated-payment-helper.js';
+import { computePaymentDateChip, isFuturePaymentDate, paymentDateChipForDate } from './backdated-payment-helper.js';
 import {
   setCustomerWaada,
   clearCustomerWaada,
@@ -2913,9 +2913,32 @@ export function setupQuickCollectModal({
         dateInput.value = value;
         dateInput.dispatchEvent(new Event('input', { bubbles: true }));
         dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+        // Plan 544: light the tapped chip at once (the dispatched
+        // events land in the listeners below too — both paths agree).
+        syncDateChips();
       }
     });
   });
+
+  // Plan 544: the chips show which shortcut the date input holds —
+  // the lit chip follows the date however it was set (a chip tap, a
+  // hand edit, or a reopen that pre-fills a date), so it can never
+  // sit stale beside a date it does not describe. The chip kind
+  // comes from the same targets the taps use, so a lit chip always
+  // agrees with what tapping it would set. Toggling classes only —
+  // no focus moves, so Plan 540's focus restores are untouched.
+  function syncDateChips() {
+    if (!dateInput) return;
+    const active = paymentDateChipForDate(dateInput.value, getPakistanLocalDate());
+    dateChips.forEach(chip => {
+      chip.classList.toggle('is-active', chip.getAttribute('data-qc-date-chip') === active);
+    });
+  }
+
+  // Plan 544: a hand edit of the date re-lights the chips (a chip tap
+  // dispatches input/change too, so taps land here as well).
+  dateInput?.addEventListener('input', syncDateChips);
+  dateInput?.addEventListener('change', syncDateChips);
 
   // SISP-30 / SISP-181 / SISP-101 / Plans 381, 385, 386, 387: the
   // month-dependent boxes follow the picked month — concession,
@@ -3554,7 +3577,11 @@ export function setupQuickCollectModal({
       syncMethodChips(entries.method);
       updateDigitalVisibility(entries.method);
     }
-    if (dateInput && entries.date) dateInput.value = entries.date;
+    if (dateInput && entries.date) {
+      dateInput.value = entries.date;
+      // Plan 544: the restored date re-lights its chip.
+      syncDateChips();
+    }
     if (transactionIdInput) transactionIdInput.value = entries.transactionId || '';
     if (senderNameInput) senderNameInput.value = entries.senderName || '';
     if (senderDigitsInput) senderDigitsInput.value = entries.senderDigits || '';
@@ -3948,6 +3975,8 @@ export function setupQuickCollectModal({
     backToPickDraft = null;
     if (amountInput) amountInput.value = draft.amount;
     if (dateInput) dateInput.value = draft.date;
+    // Plan 544: the restored date re-lights its chip.
+    syncDateChips();
     if (methodSelect) {
       methodSelect.value = draft.method;
       syncMethodChips(draft.method);
@@ -4134,6 +4163,8 @@ export function setupQuickCollectModal({
         methodSelect.value = activeDefaults.defaultMethod ?? '';
       }
       syncMethodChips(activeDefaults.defaultMethod ?? '');
+      // Plan 544: the prefilled date (today) lights the Today chip.
+      syncDateChips();
       // Plan 432: the cash field starts empty for the new customer,
       // and the calculator refreshes for the pre-selected method.
       if (cashReceivedInput) cashReceivedInput.value = '';
@@ -4571,6 +4602,10 @@ export function setupQuickCollectModal({
     if (amountInput) amountInput.value = draft.amount.toFixed(2);
     if (methodSelect) methodSelect.value = draft.method;
     if (dateInput) dateInput.value = getPakistanLocalDate();
+    // Plan 544: the one-screen submit re-dates the hidden form to
+    // today — if the TID switch then shows the form step, its chips
+    // must already agree with the date (Plan 543).
+    syncDateChips();
     if (monthSelect) monthSelect.value = activeDefaults.targetMonth;
     // Plan 543: the one screen does not collect a Transaction ID or an
     // override reason, so a digital payment with neither would fail

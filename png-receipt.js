@@ -28,6 +28,9 @@ import { brandTitleLine, DOCUMENT_TITLES, sanitizeBrand } from './document-brand
 import { receiptCodeForReceipt } from './receipt-verifier.js';
 import { transactionPayerNameOf } from './transaction-payer-name.js';
 import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preferences.js';
+// Plan 551: the sales-tax receipt label, shared with the HTML receipt
+// and both WhatsApp drafts (polish #11) — never re-typed here.
+import { SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
 
 export const PNG_RECEIPT_WIDTH = 1600; // 800 CSS pt @ HiDPI 2x
 export const PNG_RECEIPT_HEIGHT = 2000; // 1000 CSS pt @ HiDPI 2x
@@ -51,6 +54,17 @@ const text = (value) => (typeof value === 'string' ? value.trim() : '');
 const money = (value) => {
   const num = Number(value);
   return `PKR ${Number.isFinite(num) ? num.toLocaleString() : 0}`;
+};
+// Plan 551: split the sales tax back out of a tax-inclusive package
+// amount, in integer cents — a 1,195 figure with 19,500 tax cents
+// reads 1,000, the package price the customer recognises. The
+// original amount is returned when there is no positive tax to split
+// out, or when the split would not leave a positive price (absurd
+// data — never a guessed figure).
+const preTaxPackageAmount = (packageAmount, taxCents) => {
+  if (!(taxCents > 0)) return packageAmount;
+  const preTaxCents = Math.round(packageAmount * 100) - taxCents;
+  return preTaxCents > 0 ? preTaxCents / 100 : packageAmount;
 };
 const sanitizeFilePart = (value) =>
   text(value).replace(/[^A-Za-z0-9-_]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
@@ -125,10 +139,24 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   if (breakdown) {
     financial.push({ label: L('Previous Balance / Sabiqa Baqaya'), value: money(breakdown.previousArrears) });
   }
+  // Plan 551: the sales tax recorded on the bill (polish #11) — the
+  // same cents the HTML receipt and both WhatsApp drafts show.
+  // breakdown.packageAmount is dueAmount minus kist, and dueAmount
+  // already includes the tax, so the package row shows the PRE-TAX
+  // package price (the tax split back out in integer cents, exactly
+  // like the kist split) and the tax row explains the extra. The
+  // tax row is shown only when positive — never PKR 0.
+  const salesTaxCents = receipt.salesTaxCents;
+  const hasSalesTax = salesTaxCents > 0;
   financial.push({
     label: L('Current Month Bill / Mahana Package'),
-    value: money(breakdown ? breakdown.packageAmount : receipt.nominalPrice),
+    value: money(breakdown
+      ? preTaxPackageAmount(breakdown.packageAmount, hasSalesTax ? salesTaxCents : 0)
+      : receipt.nominalPrice),
   });
+  if (hasSalesTax) {
+    financial.push({ label: L(SALES_TAX_RECEIPT_LABEL), value: `+${money(salesTaxCents / 100)}` });
+  }
   if (breakdown?.kistAmount > 0) {
     financial.push({ label: L('Hardware / Kist'), value: money(breakdown.kistAmount) });
     for (const line of Array.isArray(breakdown.kistLines) ? breakdown.kistLines : []) {

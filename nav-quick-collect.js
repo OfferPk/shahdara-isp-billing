@@ -3427,6 +3427,7 @@ export function setupQuickCollectModal({
       selectedRemainderWaadaDate = null;
       remainderWaadaSkipped = true;
       renderRemainderWaadaRow();
+      focusRemainderWaadaChip(key);
       return;
     }
     const baseDate = isValidWaadaDate(dateInput?.value ?? '') ? dateInput.value : getPakistanLocalDate();
@@ -3436,7 +3437,15 @@ export function setupQuickCollectModal({
     selectedRemainderWaadaDate = picked;
     remainderWaadaSkipped = false;
     renderRemainderWaadaRow();
+    focusRemainderWaadaChip(key);
   });
+
+  // Plan 540: after a re-render, focus the replacement of the chip
+  // just tapped — the re-render replaces the node the operator was
+  // on, and without this focus falls back to the document body.
+  function focusRemainderWaadaChip(key) {
+    remainderWaadaRow?.querySelector(`[data-remwaada-chip="${key}"]`)?.focus();
+  }
 
   // Plan 538: capture the operator's entries before a concession
   // reopen, and restore them after it — the same capture/restore
@@ -3694,6 +3703,12 @@ export function setupQuickCollectModal({
           // refreshes explicitly too.
           renderCashChange();
           renderWaiverBox(customerId, month);
+          // Plan 540: the re-render replaces the checkbox just
+          // ticked — without this, focus falls back to the document
+          // body and a keyboard operator loses their place in the
+          // form. The replacement is the same control, re-created.
+          const replacement = waiverBox.querySelector('[data-qc-waive-late-fee]');
+          if (replacement && !replacement.disabled) replacement.focus();
         });
       } else {
         waiverBox.innerHTML = `

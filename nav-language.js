@@ -3858,6 +3858,16 @@ export const TRANSLATIONS = {
 
     // 2-Tap Quick Collect Sheet
     qc_title: '⚡ Quick Collect Cash',
+    // QC-11: home top shortcuts (Quick Collect / Bulk Collect / Record
+    // Payment at the top of home, below the search). Labels are the
+    // user-named features; subtitles reuse the flows' own words.
+    qc11_top_label: 'Most used',
+    qc11_quick_collect: 'Quick Collect',
+    qc11_quick_collect_sub: '2-tap cash collection',
+    qc11_bulk_collect: 'Bulk Collect',
+    qc11_bulk_collect_sub: 'Many payments, one batch',
+    qc11_record_payment: 'Record Payment',
+    qc11_record_payment_sub: 'Record a customer payment',
     qc_subtitle: 'Fast 2-tap field collection and receipt generation',
     qc_pick_customer: 'Select Subscriber with Outstanding Dues',
     qc_search_placeholder: 'Search by name, #ID, phone, or area...',
@@ -8229,6 +8239,14 @@ export const TRANSLATIONS = {
 
     // 2-Tap Quick Collect Sheet
     qc_title: '⚡ فوری نقد وصولی (2-Tap)',
+    // QC-11: home top shortcuts (see the EN block above).
+    qc11_top_label: 'سب سے زیادہ استعمال',
+    qc11_quick_collect: 'فوری وصولی',
+    qc11_quick_collect_sub: 'دو ٹیپ میں نقد وصولی',
+    qc11_bulk_collect: 'بلک وصولی',
+    qc11_bulk_collect_sub: 'ایک بیچ میں کئی ادائیگیاں',
+    qc11_record_payment: 'ادائیگی درج کریں',
+    qc11_record_payment_sub: 'گاہک کی ادائیگی درج کریں',
     qc_subtitle: 'فیلڈ میں موقع پر وصولی اور رسید بنانے کا تیز ترین طریقہ',
     qc_pick_customer: 'بقایا دار صارف منتخب کریں',
     qc_search_placeholder: 'نام، نمبر #ID، فون یا علاقہ تلاش کریں...',

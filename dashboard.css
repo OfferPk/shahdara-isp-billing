@@ -5366,3 +5366,46 @@
   color: var(--muted);
   margin: var(--space-1) 0 0;
 }
+
+/* QC-11: most-used shortcuts at the top of home, below the search.
+   Three shortcuts (Quick Collect / Bulk Collect / Record Payment) reuse
+   the primary-action tile styles; the label spans the full row. Token
+   values only, no new hex. */
+.home-top-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: var(--space-4);
+}
+
+.home-top-shortcuts-label {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 620px) {
+  .home-top-shortcuts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+  .home-top-shortcut {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: var(--space-2) 4px;
+    gap: 4px;
+    min-height: 64px;
+  }
+  .home-top-shortcut .home-primary-icon {
+    width: 28px;
+    height: 28px;
+  }
+  .home-top-shortcut .home-primary-title {
+    font-size: var(--text-xs);
+  }
+  .home-top-shortcut .home-primary-subtitle {
+    display: none;
+  }
+}

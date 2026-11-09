@@ -260,6 +260,40 @@
         <div><p class="eyebrow" data-i18n="dash_eyebrow_live">LIVE SUMMARY</p><h2 id="dashboardTitle" data-i18n="dash_title">Billing dashboard</h2></div>
         <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units" data-i18n="dash_units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button" data-i18n="dash_add_payment">+ Add payment</button><button id="dplBackToTop" class="secondary-button" type="button" data-i18n="dash_place_top">Back to top</button><button id="dulLabelsToggle" class="secondary-button" type="button">اردو لیبل</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance" data-i18n-aria-label="dash_guidance_aria">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip" data-i18n="dash_guidance">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
       </div>
+      <!-- QC-11: most-used shortcuts at the top of home, below the search.
+           Quick Collect / Bulk Collect / Record Payment reuse their existing
+           openers (see the QC-11 wiring block in app.js); nothing new is
+           built here. Class-found wiring via data-shortcut, no new id. -->
+      <div class="home-top-shortcuts" role="region" data-i18n-aria-label="qc11_top_label">
+        <p class="home-top-shortcuts-label eyebrow" data-i18n="qc11_top_label">Most used</p>
+        <button class="home-primary-btn quick-action-tile home-top-shortcut" type="button" data-shortcut="quick-collect">
+          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </span>
+          <span class="home-primary-text quick-action-text">
+            <span class="home-primary-title quick-action-label" data-i18n="qc11_quick_collect">Quick Collect</span>
+            <span class="home-primary-subtitle quick-action-sub" data-i18n="qc11_quick_collect_sub">2-tap cash collection</span>
+          </span>
+        </button>
+        <button class="home-primary-btn quick-action-tile home-top-shortcut" type="button" data-shortcut="bulk-collect">
+          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+          </span>
+          <span class="home-primary-text quick-action-text">
+            <span class="home-primary-title quick-action-label" data-i18n="qc11_bulk_collect">Bulk Collect</span>
+            <span class="home-primary-subtitle quick-action-sub" data-i18n="qc11_bulk_collect_sub">Many payments, one batch</span>
+          </span>
+        </button>
+        <button class="home-primary-btn quick-action-tile home-top-shortcut" type="button" data-shortcut="record-payment">
+          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </span>
+          <span class="home-primary-text quick-action-text">
+            <span class="home-primary-title quick-action-label" data-i18n="qc11_record_payment">Record Payment</span>
+            <span class="home-primary-subtitle quick-action-sub" data-i18n="qc11_record_payment_sub">Record a customer payment</span>
+          </span>
+        </button>
+      </div>
       <div id="overheadsDueBanner" class="overheads-due-banner" role="alert" hidden></div>
       <!-- Plan X: first-run banner host. Filled by app.js only for a fresh
            business (zero customers, WhatsApp identity and receipt branding

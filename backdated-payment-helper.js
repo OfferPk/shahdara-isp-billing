@@ -86,6 +86,26 @@ export function computePaymentDateChip(chip, todayStr, customDate = null) {
 }
 
 /**
+ * Plan 544: the reverse of computePaymentDateChip — which chip, if any,
+ * describes a date already sitting in the input. 'today' / 'yesterday' /
+ * 'prev-month-end' in that order, then 'custom' for any other valid
+ * date; an empty or invalid date matches no chip (null). On the 1st of
+ * a month yesterday and prev-month-end are the same day, and
+ * 'yesterday' wins — it is the more recent description. Uses the same
+ * targets the taps use, so a lit chip can never disagree with what
+ * tapping it would set.
+ */
+export function paymentDateChipForDate(dateStr, todayStr) {
+  if (!isValidPaymentDateKey(dateStr)) return null;
+  const targets = paymentDateChipTargets(todayStr);
+  if (!targets) return null;
+  if (dateStr === targets.today) return 'today';
+  if (dateStr === targets.yesterday) return 'yesterday';
+  if (dateStr === targets.prevMonthEnd) return 'prev-month-end';
+  return 'custom';
+}
+
+/**
  * The month-attribution guard, mirrored for UI pre-checks: a payment date
  * after the PKT entry day is refused (core validatePayment enforces the
  * same rule at record time). String comparison is exact for valid

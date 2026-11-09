@@ -109,7 +109,10 @@ export function salesTaxCentsOfBill(bill) {
 
 // The receipt tax line for one bill — { label, taxCents } — or null
 // when the bill carries no tax, so untaxed receipts show no line.
+// Polish #23: a tagged month (first month free) carries no tax line
+// either — the whole gross was waived, so 0 tax was collected.
 export function salesTaxReceiptLine(bill) {
+  if (bill && Number(bill.firstMonthWaivedAmount) > 0) return null;
   const taxCents = salesTaxCentsOfBill(bill);
   if (taxCents === null) return null;
   return { label: SALES_TAX_RECEIPT_LABEL, taxCents };
@@ -137,7 +140,12 @@ export function salesTaxDashboardRows(customers, month) {
     const bill = monthKey !== ''
       ? (Array.isArray(customer.bills) ? customer.bills.find((entry) => entry?.month === monthKey) : undefined)
       : undefined;
-    const billTaxCents = salesTaxCentsOfBill(bill);
+    // Polish #23: a tagged month was waived in full, so 0 tax was
+    // charged on it — the dashboard's charged total must exclude it
+    // (the recorded cents stay on the bill as the audit trail). The
+    // derived total is unchanged: it sums the per-package taxes.
+    const firstMonthWaived = Boolean(bill && Number(bill.firstMonthWaivedAmount) > 0);
+    const billTaxCents = firstMonthWaived ? 0 : salesTaxCentsOfBill(bill);
     const label = salesTaxRowText(customer.packageSpeed);
     const plan = label !== '' ? (billPackageByLabel(label) ?? billPackageById(label)) : null;
     const priceCents = plan ? Math.round(Number(plan.price) * 100) : salesTaxPriceCents(customer.monthlySellingAmount);
@@ -152,6 +160,7 @@ export function salesTaxDashboardRows(customers, month) {
       priceCents: taxCents === null ? null : priceCents,
       taxCents,
       billTaxCents,
+      firstMonthWaived,
     });
   }
   rows.sort((a, b) => (a.customerName.localeCompare(b.customerName))

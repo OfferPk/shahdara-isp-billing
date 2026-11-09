@@ -341,7 +341,7 @@ function escapeHtml(str) {
  *
  * @param {Object} state - Billing state
  * @param {string} [query=''] - Search term (matches name, number, phone, area, mohalla)
- * @param {('all-dues'|'high-dues'|'all')} [filterType='all-dues']
+ * @param {('all-dues'|'high-dues'|'all'|'paid')} [filterType='all-dues']
  * @param {Date} [referenceDate=new Date()]
  * @returns {Array<Object>}
  */
@@ -403,6 +403,11 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
     // Apply filter criteria
     if (filterType === 'all-dues' && totalDues <= 0) continue;
     if (filterType === 'high-dues' && totalDues < 2000) continue;
+    // QC-12: the Paid view is the complement of the pending pool —
+    // customers with nothing outstanding (settled in full, or no
+    // bill yet). It reuses this same pool, so Paid and Unpaid always
+    // partition the whole customer list.
+    if (filterType === 'paid' && totalDues > 0) continue;
 
     // Apply search query
     if (normalizedQuery) {
@@ -448,6 +453,33 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
   });
 
   return list;
+}
+
+// QC-12: the bill-status dropdown above the picker search (Unpaid /
+// Paid / All) sets the same pool the filter chips below the search
+// set, so the two controls never disagree. The dropdown values are
+// the operator's words; the filter types are the pool's words.
+// Unknown values fall back to the default pending view — never to
+// an empty list.
+export const QC_STATUS_FILTER_UNPAID = 'unpaid';
+export const QC_STATUS_FILTER_PAID = 'paid';
+export const QC_STATUS_FILTER_ALL = 'all';
+
+/** Dropdown value -> picker pool filter type. */
+export function qcStatusFilterFromDropdown(value) {
+  const v = String(value ?? '').trim().toLowerCase();
+  if (v === QC_STATUS_FILTER_PAID) return 'paid';
+  if (v === QC_STATUS_FILTER_ALL) return 'all';
+  return 'all-dues';
+}
+
+/** Picker pool filter type -> dropdown value. No chip maps to Paid
+ * (chips are dues-based), so the dropdown is the only control that
+ * shows it. */
+export function qcStatusFilterForChip(filterType) {
+  if (filterType === 'paid') return QC_STATUS_FILTER_PAID;
+  if (filterType === 'all') return QC_STATUS_FILTER_ALL;
+  return QC_STATUS_FILTER_UNPAID;
 }
 
 /**
@@ -1638,7 +1670,7 @@ export function quickCollectSearchHintHtml(query) {
  *
  * @param {Object} state
  * @param {string} query
- * @param {('all-dues'|'high-dues'|'all')} filterType
+ * @param {('all-dues'|'high-dues'|'all'|'paid')} filterType
  * @param {string|null} [activeCustomerId]
  * @param {string} [mohallaFilter=''] - Plan 446: chosen mohalla;
  *   blank means the full list, a mohalla lists exactly its
@@ -1648,12 +1680,20 @@ export function quickCollectSearchHintHtml(query) {
 export function renderQuickCollectPickerHtml(state, query = '', filterType = 'all-dues', activeCustomerId = null, mohallaFilter = '') {
   const customers = filterQuickCollectByMohalla(getPendingCollectionCustomers(state, query, filterType), mohallaFilter);
   const allCollected = customers.length === 0
-    && filterType !== 'all'
+    && (filterType === 'all-dues' || filterType === 'high-dues')
     && !String(query ?? '').trim()
     && !quickCollectMohallaFilterKey(mohallaFilter)
     && getPendingCollectionCustomers(state, '', 'all-dues').length === 0;
   const withoutFee = allCollected ? countCustomersWithoutFee(state) : 0;
   const needsSetup = allCollected && withoutFee > 0;
+  // QC-12: the Paid view has its own empty state — nobody paid up
+  // yet is not "all collected", it is the opposite. Only when no
+  // query and no mohalla narrow the list, so a searched or
+  // mohalla-filtered empty list keeps its own honest message.
+  const paidEmpty = customers.length === 0
+    && filterType === 'paid'
+    && !String(query ?? '').trim()
+    && !quickCollectMohallaFilterKey(mohallaFilter);
   // SISP-77: same-name badges are computed against the FULL ledger (a
   // namesake with no dues still makes this pick ambiguous), then handed
   // to the list renderer keyed by customer id.
@@ -1667,8 +1707,26 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
     withoutFee,
     html: needsSetup
       ? renderQuickCollectNeedsSetupHtml(withoutFee)
-      : allCollected ? renderQuickCollectAllCollectedHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter)
+      : allCollected ? renderQuickCollectAllCollectedHtml() : paidEmpty ? renderQuickCollectPaidEmptyHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter)
   };
+}
+
+/**
+ * QC-12: empty state for the Paid view when nobody is paid up yet.
+ * The one-tap button returns to the Unpaid pool (same pattern as
+ * the all-collected state's Show-all button).
+ *
+ * @returns {string}
+ */
+export function renderQuickCollectPaidEmptyHtml() {
+  return `
+      <div class="qc-empty-state qc-paid-empty" role="status">
+        <span class="qc-empty-icon" aria-hidden="true">🧾</span>
+        <h4>No paid-up customers yet</h4>
+        <p>Everyone still has a bill to collect — switch the filter above to Unpaid to see who owes.</p>
+        <button type="button" class="secondary-button qc-show-all-btn" data-qc-show-unpaid>Show unpaid customers</button>
+      </div>
+    `;
 }
 
 export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null, sameNameBadges = null, mohallaFilter = '') {
@@ -1987,6 +2045,10 @@ export function setupQuickCollectModal({
   // dues, in name order; clearing it returns the full list.
   const mohallaFilterSelect = document.getElementById('mhfMohallaFilter');
   const mohallaFilterSummary = document.getElementById('mhfMohallaFilterSummary');
+  // QC-12: the bill-status dropdown above the picker search (null
+  // when the host page predates it) — Unpaid / Paid / All; it sets
+  // the same pool the chips filter. Class-found, no new element id.
+  const statusFilterSelect = modal.querySelector('[data-qc-status-filter]');
   // Plan 428: the recent-customers quick-pick row (null when the
   // host page predates it) — the last ten customers collected from,
   // latest first, with name, mohalla and dues.
@@ -3343,6 +3405,12 @@ export function setupQuickCollectModal({
       c.classList.toggle('is-active', isActive);
       c.setAttribute('aria-selected', String(isActive));
     });
+    // QC-12: keep the bill-status dropdown on the same pool — no
+    // chip maps to Paid, so the dropdown is the only control that
+    // shows it, and the chips go quiet while it is active.
+    if (statusFilterSelect) {
+      statusFilterSelect.value = qcStatusFilterForChip(activeFilter);
+    }
   }
 
   function showStep(stepName) {
@@ -4970,6 +5038,14 @@ export function setupQuickCollectModal({
     });
   });
 
+  // QC-12: the bill-status dropdown above the search sets the same
+  // pool the chips filter — Unpaid is the pending pool, Paid is the
+  // paid-up pool, All is everyone. One pool, two controls.
+  statusFilterSelect?.addEventListener('change', () => {
+    setFilter(qcStatusFilterFromDropdown(statusFilterSelect.value));
+    renderList();
+  });
+
   // Wire list card selection
   customerListContainer?.addEventListener('click', (e) => {
     if (e.target.closest('[data-qc-clear-mohalla]')) {
@@ -4983,6 +5059,12 @@ export function setupQuickCollectModal({
     }
     if (e.target.closest('[data-qc-show-all]')) {
       setFilter('all');
+      renderList();
+      return;
+    }
+    // QC-12: the paid-empty state's one-tap return to the Unpaid pool.
+    if (e.target.closest('[data-qc-show-unpaid]')) {
+      setFilter('all-dues');
       renderList();
       return;
     }

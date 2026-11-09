@@ -13003,7 +13003,9 @@ dialog::backdrop {
   background: #f0f6f3;
   border-color: #60a68d;
 }
-.quick-method-chip.is-active {
+/* Plan 544: the payment-date chips share the method chips' active
+   styling — one active-chip rule, so no new colour enters the file. */
+.quick-method-chip.is-active, .qc-date-chip.is-active {
   background: var(--primary, #0e5b4d);
   color: #ffffff;
   border-color: var(--primary, #0e5b4d);
@@ -13064,7 +13066,7 @@ dialog::backdrop {
   background: #1b332b;
   border-color: #3fbf9f;
 }
-[data-theme="dark"] .quick-method-chip.is-active {
+[data-theme="dark"] .quick-method-chip.is-active, [data-theme="dark"] .qc-date-chip.is-active {
   background: #3fbf9f;
   color: #00201a;
   border-color: #3fbf9f;

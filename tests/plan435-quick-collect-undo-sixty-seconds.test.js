@@ -388,8 +388,14 @@ test('wiring: the undo reverses through the recorder and returns to the entry fo
 test('wiring: undo after sixty seconds is refused with a plain message', () => {
   const start = wiringSrc.indexOf('function executeReversalUndo()');
   const slice = wiringSrc.slice(start, start + 2600);
-  assert.match(slice, /sixty-second undo window has passed/);
-  assert.match(slice, /Use the correction flow/);
+  // Plan 549: the refusal wording moved into nav-language.js (key
+  // qc_toast_reversal_window_passed, English byte-identical) — the
+  // wording itself is unchanged, only its home moved, so this pin
+  // now checks the routing plus the dictionary value.
+  assert.match(slice, /t\('qc_toast_reversal_window_passed'\)/);
+  const lang = readFileSync(join(dir, '..', 'nav-language.js'), 'utf8');
+  assert.match(lang, /sixty-second undo window has passed/);
+  assert.match(lang, /Use the correction flow/);
 });
 
 test('wiring: the five-second delete-undo clears the reversal undo, and is itself untouched', () => {

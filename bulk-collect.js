@@ -8,6 +8,11 @@
  * records every payment through the existing Quick Collect payment path
  * (executeQuickCollection → core addPayment), then saves once via the app's onSaveState.
  *
+ * Method, per line (QC-10): the batch Method is the DEFAULT for lines added afterwards;
+ * each pick row and each review line carries its own method select, and changing a line's
+ * own method overrides it for that line only (lineMethod / applyBatchMethod). The batch
+ * total still sums every line; batchTotals already splits it byMethod.
+ *
  * Duplicates (same customer twice in the batch, or a payment already recorded for that
  * customer on the batch date) are blocked with an "Already added" popup unless confirmed.
  *
@@ -131,6 +136,23 @@ export function batchTotals(batch) {
 }
 
 /**
+ * Per-line method resolution (QC-10): the method the operator picked on this line wins;
+ * otherwise the line follows the batch default; otherwise Cash.
+ */
+export const lineMethod = (pickedMethod, batchMethod) => pickedMethod || batchMethod || 'Cash';
+
+/**
+ * Apply the batch default method to a batch (QC-10): every entry the operator has NOT
+ * picked individually takes `method`; touched entries keep theirs (same object reference).
+ * History and order are untouched.
+ */
+export function applyBatchMethod(batch, method, touchedEntryIds = new Set()) {
+  if (!PAYMENT_METHODS.includes(method)) throw new Error(`Choose a valid payment method from: ${PAYMENT_METHODS.join(', ')}`);
+  const touched = touchedEntryIds instanceof Set ? touchedEntryIds : new Set(touchedEntryIds ?? []);
+  return { ...batch, entries: batch.entries.map(e => (touched.has(e.id) ? e : { ...e, method })) };
+}
+
+/**
  * Picker rows: customers with a pending balance (fully paid excluded, partial stays with the
  * remaining amount), minus customers already in the batch. When a search is typed, matching
  * customers already in the batch are listed too, flagged `inBatch`, so tapping them shows
@@ -245,11 +267,11 @@ function buildDialogs(doc) {
         <button id="closeBulkCollectBtn" class="close-button" type="button" aria-label="Close bulk collect">↩</button>
       </div>
 
-      <div class="bc-settings" role="group" aria-label="Batch settings (apply to every payment)">
+      <div class="bc-settings" role="group" aria-label="Batch settings (method is the default for new lines)">
         <label class="bc-field bc-date">Date
           <input id="bulkCollectDate" type="date" required>
         </label>
-        <label class="bc-field">Method
+        <label class="bc-field">Method (default)
           <select id="bulkCollectMethod"></select>
         </label>
         <label class="bc-field bc-note"><span>Collected by / location <span class="bc-optional">(optional)</span></span>
@@ -307,6 +329,46 @@ const STATUS_BADGE = {
   paid: () => '<span class="bc-badge bc-badge-paid">Paid</span>'
 };
 
+/** <option> list for PAYMENT_METHODS with `selected` marked (QC-10). */
+export function methodOptionsHtml(selected) {
+  return PAYMENT_METHODS.map(m => `<option value="${esc(m)}"${m === selected ? ' selected' : ''}>${esc(m)}</option>`).join('');
+}
+
+/** One picker row: info + its own method select + amount + Add (QC-10). */
+export function pickRowHtml(c, { amountValue = '', method = 'Cash' } = {}) {
+  return `<div class="bc-row${c.inBatch ? ' is-in-batch' : ''}" role="listitem" data-bulk-row="${esc(c.id)}">
+        <div class="bc-row-info">
+          <span class="bc-row-name"><span class="bc-row-num">#${esc(c.customerNumber)}</span> ${esc(c.name)}</span>
+          <span class="bc-row-meta">${esc(c.area)}${c.phone ? ' · ' + esc(c.phone) : ''}</span>
+          <span class="bc-row-badges">${STATUS_BADGE[c.status](c)}${c.inBatch ? '<span class="bc-badge bc-badge-added">In batch ✓</span>' : ''}</span>
+        </div>
+        <div class="bc-row-entry">
+          <select class="bc-method" data-bulk-method="${esc(c.id)}" aria-label="Payment method for ${esc(c.name)}">${methodOptionsHtml(method)}</select>
+          <input class="bc-amount" type="number" inputmode="decimal" min="0" step="0.01" enterkeyhint="done"
+                 value="${esc(amountValue)}" placeholder="${c.status === 'due' ? '0' : 'Enter amount'}"
+                 data-bulk-amount="${esc(c.id)}" aria-label="Amount for ${esc(c.name)} (PKR)">
+          <button type="button" class="primary-button bc-row-add" data-bulk-add="${esc(c.id)}" aria-label="Add ${esc(c.name)} to batch">Add</button>
+        </div>
+      </div>`;
+}
+
+/** The review line's meta: #number · method · note · duplicate flag (QC-10). */
+export function reviewMetaHtml(e) {
+  return `#${esc(e.customerNumber)} · ${esc(e.method)}${e.note ? ' · ' + esc(e.note) : ''}${e.confirmedDuplicate ? ' · <b class="bc-dup-flag">duplicate confirmed</b>' : ''}`;
+}
+
+/** One review line: name/meta + its own method select + amount + Remove (QC-10). */
+export function reviewItemHtml(e) {
+  return `
+      <li class="bc-review-item" data-entry-id="${esc(e.id)}">
+        <div class="bc-review-main"><strong class="bc-review-name">${esc(e.name)}</strong>
+          <span class="bc-review-meta">${reviewMetaHtml(e)}</span></div>
+        <select class="bc-review-method" data-bulk-review-method="${esc(e.id)}" aria-label="Payment method for ${esc(e.name)}">${methodOptionsHtml(e.method)}</select>
+        <strong class="bc-review-amt">${esc(pkr(e.amount))}</strong>
+        <button type="button" class="bc-remove-btn" data-bulk-remove="${esc(e.id)}" aria-label="Remove ${esc(e.name)} from batch">Remove</button>
+      </li>`;
+}
+
 export function setupBulkCollect({ win = window, doc = document, getController = () => win.quickCollectModalController, toast } = {}) {
   if (doc.getElementById('bulkCollectModal')) return win.bulkCollect;
   buildDialogs(doc);
@@ -330,6 +392,9 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   let hashOnOpen = null;
   let resolveDup = null;
   const typed = new Map(); // customerId -> amount typed in its row (kept across re-renders)
+  let batchMethod = 'Cash'; // batch Method select: the default for lines added afterwards (QC-10)
+  const pickedMethods = new Map(); // customerId -> method chosen on its pick row (kept across re-renders)
+  const touchedEntries = new Set(); // entry ids whose method the operator picked: never follow the batch default
 
   // The page toast sits under the top-layer dialog, so messages are shown inside the dialog.
   const say = (msg, kind = 'info') => {
@@ -369,19 +434,7 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     pickList.innerHTML = head + rows.map(c => {
       const d = entryDefaults(st, batch, c.id);
       const value = typed.has(c.id) ? typed.get(c.id) : (d.amount > 0 ? String(d.amount) : '');
-      return `<div class="bc-row${c.inBatch ? ' is-in-batch' : ''}" role="listitem" data-bulk-row="${esc(c.id)}">
-        <div class="bc-row-info">
-          <span class="bc-row-name"><span class="bc-row-num">#${esc(c.customerNumber)}</span> ${esc(c.name)}</span>
-          <span class="bc-row-meta">${esc(c.area)}${c.phone ? ' · ' + esc(c.phone) : ''}</span>
-          <span class="bc-row-badges">${STATUS_BADGE[c.status](c)}${c.inBatch ? '<span class="bc-badge bc-badge-added">In batch ✓</span>' : ''}</span>
-        </div>
-        <div class="bc-row-entry">
-          <input class="bc-amount" type="number" inputmode="decimal" min="0" step="0.01" enterkeyhint="done"
-                 value="${esc(value)}" placeholder="${c.status === 'due' ? '0' : 'Enter amount'}"
-                 data-bulk-amount="${esc(c.id)}" aria-label="Amount for ${esc(c.name)} (PKR)">
-          <button type="button" class="primary-button bc-row-add" data-bulk-add="${esc(c.id)}" aria-label="Add ${esc(c.name)} to batch">Add</button>
-        </div>
-      </div>`;
+      return pickRowHtml(c, { amountValue: value, method: lineMethod(pickedMethods.get(c.id), batchMethod) });
     }).join('');
   }
 
@@ -389,13 +442,7 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     const t = batchTotals(batch);
     $('bulkCollectTotal').textContent = pkr(t.total);
     $('bulkCollectCount').textContent = `${t.count} customer${t.count === 1 ? '' : 's'}`;
-    reviewList.innerHTML = batch.entries.length ? batch.entries.slice().reverse().map(e => `
-      <li class="bc-review-item" data-entry-id="${esc(e.id)}">
-        <div class="bc-review-main"><strong class="bc-review-name">${esc(e.name)}</strong>
-          <span class="bc-review-meta">#${esc(e.customerNumber)} · ${esc(e.method)}${e.note ? ' · ' + esc(e.note) : ''}${e.confirmedDuplicate ? ' · <b class="bc-dup-flag">duplicate confirmed</b>' : ''}</span></div>
-        <strong class="bc-review-amt">${esc(pkr(e.amount))}</strong>
-        <button type="button" class="bc-remove-btn" data-bulk-remove="${esc(e.id)}" aria-label="Remove ${esc(e.name)} from batch">Remove</button>
-      </li>`).join('') : '<li class="bc-review-empty">Nothing added yet — find a customer above and tap Add.</li>';
+    reviewList.innerHTML = batch.entries.length ? batch.entries.slice().reverse().map(reviewItemHtml).join('') : '<li class="bc-review-empty">Nothing added yet — find a customer above and tap Add.</li>';
     undoBtn.disabled = !canUndo(batch);
     saveBtn.disabled = t.count === 0;
     saveBtn.textContent = t.count ? `Save ${t.count} payment${t.count === 1 ? '' : 's'} · ${pkr(t.total)}` : 'Save payments';
@@ -444,7 +491,8 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     const st = state();
     if (!st) return;
     const box = amountBox(id);
-    const fields = { ...entryDefaults(st, batch, id), amount: Number(box?.value), method: methodSelect.value || 'Cash', note: noteInput.value };
+    const rowMethod = pickList.querySelector(`[data-bulk-method="${CSS.escape(id)}"]`);
+    const fields = { ...entryDefaults(st, batch, id), amount: Number(box?.value), method: rowMethod?.value || methodSelect.value || 'Cash', note: noteInput.value };
     let res;
     try {
       res = addEntry(batch, st, fields);
@@ -459,6 +507,10 @@ export function setupBulkCollect({ win = window, doc = document, getController =
       return;
     }
     batch = res.batch;
+    // A method picked on the row stays picked: the new entry must not follow a
+    // later batch-default change (QC-10). The row itself starts fresh next time.
+    if (pickedMethods.has(id)) touchedEntries.add(res.added.id);
+    pickedMethods.delete(id);
     typed.delete(id);
     say(`✓ ${res.added.name} · ${pkr(res.added.amount)} added · batch ${pkr(batchTotals(batch).total)}`, 'success');
     nextCustomer();
@@ -484,6 +536,13 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     const box = e.target.closest('[data-bulk-amount]');
     if (box) typed.set(box.getAttribute('data-bulk-amount'), box.value);
   });
+  // Per-line method (QC-10): changing a row's own select overrides the batch
+  // default for that customer only. No re-render: the select already shows it.
+  pickList.addEventListener('change', e => {
+    const sel = e.target.closest('[data-bulk-method]');
+    if (!sel) return;
+    pickedMethods.set(sel.getAttribute('data-bulk-method'), sel.value);
+  });
   pickList.addEventListener('keydown', e => {
     const box = e.target.closest('[data-bulk-amount]');
     if (!box) return;
@@ -499,7 +558,22 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     const add = e.target.closest('[data-bulk-add]');
     if (add) { addCustomer(add.getAttribute('data-bulk-add')); return; }
     const row = e.target.closest('[data-bulk-row]');
-    if (row && !e.target.closest('input')) { const box = row.querySelector('[data-bulk-amount]'); box?.focus(); box?.select?.(); }
+    if (row && !e.target.closest('input, select')) { const box = row.querySelector('[data-bulk-amount]'); box?.focus(); box?.select?.(); }
+  });
+  // Per-line method on a review line (QC-10): update the entry in place and mark it
+  // touched, so a later batch-default change leaves it alone. The meta line is
+  // refreshed without re-rendering, so the select keeps focus.
+  reviewList.addEventListener('change', e => {
+    const sel = e.target.closest('[data-bulk-review-method]');
+    if (!sel) return;
+    const entryId = sel.getAttribute('data-bulk-review-method');
+    const entry = batch.entries.find(x => x.id === entryId);
+    if (!entry || !PAYMENT_METHODS.includes(sel.value)) return;
+    batch = { ...batch, entries: batch.entries.map(x => (x.id === entryId ? { ...x, method: sel.value } : x)) };
+    touchedEntries.add(entryId);
+    const item = reviewList.querySelector(`[data-entry-id="${CSS.escape(entryId)}"]`);
+    const meta = item?.querySelector('.bc-review-meta');
+    if (meta) meta.innerHTML = reviewMetaHtml({ ...entry, method: sel.value });
   });
   reviewList.addEventListener('click', e => {
     const btn = e.target.closest('[data-bulk-remove]');
@@ -509,6 +583,13 @@ export function setupBulkCollect({ win = window, doc = document, getController =
     say('Removed from batch — Undo to bring it back.');
   });
   undoBtn.addEventListener('click', () => { batch = undoLast(batch); renderAll(); });
+  // Batch default (QC-10): changing the batch Method follows only the lines the
+  // operator has not picked individually.
+  methodSelect.addEventListener('change', () => {
+    batchMethod = methodSelect.value || 'Cash';
+    batch = applyBatchMethod(batch, batchMethod, touchedEntries);
+    renderAll();
+  });
   dateInput.addEventListener('change', () => {
     batch = { ...batch, date: dateInput.value || getPakistanLocalDate() };
     renderAll();
@@ -524,6 +605,8 @@ export function setupBulkCollect({ win = window, doc = document, getController =
       controller.commitState(nextState);
       batch = createBatch(batch.date);
       typed.clear();
+      pickedMethods.clear();
+      touchedEntries.clear();
       searchInput.value = '';
       renderAll();
       say(`✓ ${receipts.length} payment${receipts.length === 1 ? '' : 's'} saved · ${pkr(totals.total)}`, 'success');

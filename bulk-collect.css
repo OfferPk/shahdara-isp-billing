@@ -42,7 +42,8 @@
 #bulkCollectModal .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 #bulkCollectModal h2 { margin: 2px 0 0; font: 700 1.25rem Manrope, system-ui, sans-serif; }
 
-/* Batch settings: one compact row (date · method · note), applied to every payment. */
+/* Batch settings: one compact row (date · default method · note). The method is the
+   default for lines added afterwards; each line can pick its own (QC-10). */
 .bc-settings { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 170px) minmax(0, 1fr); gap: var(--space-2); }
 .bc-field { display: grid; gap: var(--space-1); min-width: 0; color: var(--muted, #546b61); font-size: 0.72rem; font-weight: 700; }
 .bc-optional { font-weight: 500; opacity: .8; }
@@ -96,6 +97,16 @@
 .bc-amount::placeholder { font-size: 13px; font-weight: 600; color: var(--muted, #8a9a94); }
 .bc-row-add { min-height: 48px; min-width: 64px; padding: 0 14px; font-size: 0.95rem; font-weight: 800; border-radius: var(--radius-sm); }
 
+/* QC-10: each pick row carries its own method select (the batch Method above is the
+   default for lines not changed individually). Compact so the amount stays visible. */
+.bc-method {
+  flex: 0 1 128px; min-width: 0; max-width: 140px; min-height: 48px; padding: 0 6px;
+  font-size: var(--text-md); font-weight: 700;
+  border: 1px solid var(--line, #cbd5e1); border-radius: var(--radius-sm);
+  background: var(--surface-soft, #f6f9f7); color: var(--ink, #172e29);
+}
+.bc-method:focus { outline: 3px solid color-mix(in srgb, var(--green, #0e5b4d) 35%, transparent); border-color: var(--green, #0e5b4d); background: var(--surface, #fff); }
+
 /* "In this batch" list, directly above Save */
 .bc-review { display: grid; gap: 6px; padding-top: var(--space-1); border-top: 1px solid var(--line, #dce6e1); }
 .bc-review-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
@@ -104,13 +115,20 @@
 .bc-review-head .secondary-button { min-height: 44px; }
 .bc-review-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 150px; overflow-y: auto; }
 .bc-review-item {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-2); min-width: 0;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; gap: var(--space-2); min-width: 0;
   padding: var(--space-2) 10px; border: 1px solid var(--line, #dce6e1); border-radius: var(--radius-sm); background: var(--surface-soft, #f6f9f7); color: var(--ink, #172e29);
 }
 .bc-review-main { display: grid; min-width: 0; font-size: 0.9rem; }
 .bc-review-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bc-review-meta { font-size: 0.72rem; color: var(--muted, #586e65); overflow-wrap: anywhere; }
 .bc-review-amt { font-size: 0.95rem; white-space: nowrap; }
+/* QC-10: each review line carries its own method select. */
+.bc-review-method {
+  min-width: 0; max-width: 132px; min-height: 44px; padding: 0 6px;
+  font-size: var(--text-md); font-weight: 700;
+  border: 1px solid var(--line, #dce6e1); border-radius: var(--radius-sm);
+  background: var(--surface, #fff); color: var(--ink, #172e29);
+}
 .bc-dup-flag { color: var(--amber, #9a5e06); }
 .bc-remove-btn {
   min-height: 44px; min-width: 44px; padding: 0 10px; border-radius: 9px; cursor: pointer;
@@ -154,10 +172,18 @@
   .bc-row-entry { width: 100%; }
   .bc-amount { flex: 1 1 auto; width: auto; min-width: 0; }
   .bc-row-add { flex: 0 0 auto; min-width: 84px; }
+  /* QC-10: review lines go 2x2 (name + amount / method + Remove) so the method
+     select stays tappable and untruncated at 360px. */
+  .bc-review-item { grid-template-columns: minmax(0, 1fr) auto; }
+  .bc-review-main { grid-column: 1; grid-row: 1; }
+  .bc-review-amt { grid-column: 2; grid-row: 1; }
+  .bc-review-method { grid-column: 1; grid-row: 2; max-width: none; }
+  .bc-remove-btn { grid-column: 2; grid-row: 2; }
 }
 
 [data-theme="dark"] .bc-row, [data-theme="dark"] .bc-review-item { background: var(--surface, #14241f); border-color: var(--line, #253d35); }
 [data-theme="dark"] .bc-amount { background: #0f1d19; border-color: #335247; }
+[data-theme="dark"] .bc-method, [data-theme="dark"] .bc-review-method { background: #0f1d19; border-color: #335247; }
 [data-theme="dark"] .bc-amount:focus { background: #0b1714; }
 [data-theme="dark"] #bulkCollectSearch.bc-search-input { background: #0f1d19; border-color: var(--green, #29b88f); }
 [data-theme="dark"] .bc-badge-due { background: var(--color-danger-bg); color: var(--color-danger); }

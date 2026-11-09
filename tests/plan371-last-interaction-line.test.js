@@ -195,14 +195,13 @@ test('Plan 371: app.js wires the line after the dues breakdown and before the ho
   assert.ok(appSrc.includes('latestMessageDateForCustomer('));
   assert.ok(appSrc.includes('lastInteractionFor('));
   assert.ok(appSrc.includes('lastInteractionLineHtml('));
-  // Order, not adjacency: the line is still after the dues
-  // breakdown and still before the household link. (Plan 514 moved
-  // the verification tick out from between this line and the
-  // household link, into the freshness group after the strip.)
-  const duesAt = appSrc.indexOf('${duesBreakdownSectionMarkup}');
-  const lastAt = appSrc.indexOf('${lastInteractionLineMarkup}');
-  const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}');
-  assert.ok(duesAt > 0 && lastAt > duesAt && householdAt > lastAt);
+  // Polish #28 Phase A — the line opens the History section; the dues
+  // breakdown lives in Financial and the household link in Customer,
+  // so sections now order household (S1) → dues (S3) → line (S7) in
+  // the DOM. The preserved intent is the line first in History.
+  const historyBodyAt = appSrc.indexOf('const profileSectionHistoryBody = ');
+  const historyBody = appSrc.slice(historyBodyAt, appSrc.indexOf('\n', historyBodyAt));
+  assert.ok(historyBody.startsWith('const profileSectionHistoryBody = `${lastInteractionLineMarkup}'), 'last-interaction line opens the History section');
 });
 
 test('Plan 371: language tables carry the last-interaction labels in both languages', () => {
@@ -212,10 +211,18 @@ test('Plan 371: language tables carry the last-interaction labels in both langua
 });
 
 test('Plan 371: profile order still holds — banner, then strip, then groups', () => {
-  const bannerAt = appSrc.indexOf('wadaProfileBannerHtml(customer)');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections and the last-interaction line first in History.
   const stripAt = appSrc.indexOf('profileHeaderStripSectionHtml}');
-  const groupsAt = appSrc.indexOf('profileInfoGroupsHtml}');
-  assert.ok(bannerAt > 0 && stripAt > bannerAt && groupsAt > stripAt);
+  const historyAt = appSrc.indexOf('profileSectionHistoryHtml}');
+  assert.ok(stripAt > 0 && historyAt > stripAt);
+  const historyBodyAt = appSrc.indexOf('const profileSectionHistoryBody = ');
+  const historyBody = appSrc.slice(historyBodyAt, appSrc.indexOf('\n', historyBodyAt));
+  assert.ok(historyBody.startsWith('const profileSectionHistoryBody = `${lastInteractionLineMarkup}'));
 });
 
 test('Plan 371: no real customer names or phone numbers in the module or its tests', () => {

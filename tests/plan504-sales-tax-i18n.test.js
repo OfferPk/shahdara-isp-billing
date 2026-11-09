@@ -39,8 +39,12 @@ test('Plan 504: the Service group row uses the i18n key, not a literal', () => {
   // profileEmptyTax (dash when there is no figure, the same
   // formatSalesTaxAmount figure otherwise); the label still renders
   // through t() with the same key, never a literal.
+  // Polish #28 Phase D — the label now appends the pass-through note
+  // ("collected on top, not a business cost") to the same key, so
+  // the tax is never read as a business cost. The key itself is
+  // unchanged and still renders through t().
   assert.ok(
-    appSrc.includes("[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))]"),
+    appSrc.includes("[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))]"),
     'the Service group row renders through t()'
   );
   assert.ok(

@@ -282,16 +282,22 @@ test('Plan 390: app.js wires the module, store, profile section and bindings', (
   // Order, not adjacency: the standing instruction sits between the
   // handling note and the spoken language note, so the handling note
   // is still right after the wada banner and still before the strip.
-  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
-  const handlingAt = appSrc.indexOf('${handlingNoteSectionMarkup}');
-  const standingAt = appSrc.indexOf('${standingInstructionSectionMarkup}');
-  const spokenAt = appSrc.indexOf('${spokenLanguageNoteSectionMarkup}');
-  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
-  assert.ok(bannerAt !== -1 && handlingAt !== -1 && standingAt !== -1 && spokenAt !== -1 && stripAt !== -1);
+  // Polish #28 Phase A — handling, standing instruction and spoken
+  // language all open the Customer section in the same order; the
+  // strip sits above every section in the assembly.
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  const handlingAt = customerBody.indexOf('${handlingNoteSectionMarkup}');
+  const standingAt = customerBody.indexOf('${standingInstructionSectionMarkup}');
+  const spokenAt = customerBody.indexOf('${spokenLanguageNoteSectionMarkup}');
+  assert.ok(handlingAt !== -1 && standingAt !== -1 && spokenAt !== -1);
   assert.ok(
-    bannerAt < handlingAt && handlingAt < standingAt && standingAt < spokenAt && spokenAt < stripAt,
-    'standing instruction section sits after the handling note and before the spoken language note',
+    handlingAt < standingAt && standingAt < spokenAt,
+    'standing instruction section sits after the handling note and before the spoken language note, inside Customer',
   );
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  const customerShellAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAt);
+  assert.ok(stripAt !== -1 && customerShellAt > stripAt, 'Customer section sits after the header strip');
   assert.ok(appSrc.includes('sinForm'));
   assert.ok(appSrc.includes('sinRemoveBtn'));
   assert.ok(appSrc.includes('loadStandingInstructionNotes: () => loadStandingInstructionNotes()'));

@@ -80,7 +80,18 @@ function infoViewTemplate() {
   assert.notEqual(start, -1, '#customerProfileView innerHTML assignment must exist');
   const end = app.indexOf('`;', start);
   assert.notEqual(end, -1, 'innerHTML template must close');
-  return app.slice(start, end);
+  // Polish #28 Phase A — the Info view renders as 7 <details> sections:
+  // the assembly line carries only the heading + section shells, and
+  // each section's items live in its body const. The Info view's full
+  // render is the assembly plus the seven bodies.
+  const bodies = ['Customer', 'Service', 'Financial', 'Connection', 'Network', 'Hardware', 'History']
+    .map((name) => {
+      const at = app.indexOf(`const profileSection${name}Body = `);
+      assert.notEqual(at, -1, `${name} section body must exist`);
+      return app.slice(at, app.indexOf('\n', at));
+    })
+    .join('\n');
+  return `${app.slice(start, end)}\n${bodies}`;
 }
 
 const DEAD_PKG_HIST_KEYS = [

@@ -451,12 +451,20 @@ test('profile mount: 100% survival of protected form controllers inside the moun
     assert.ok(owner, `#${id} is inside #profileContentMounts`);
     assert.ok(panels[expectedGroup]?.includes(owner), `#${id} (inside ${owner.label}) survives into the ${expectedGroup} panel`);
   }
-  // The Referral, Custody and Deposit Settlement sections are
-  // rendered into #customerProfileView on every profile render — pin
-  // that the render still targets the surviving container.
-  assert.match(app, /\$\('#customerProfileView'\)\.innerHTML = `[\s\S]*?\$\{referralSectionHtml\}/, 'referral section renders into #customerProfileView');
-  assert.match(app, /\$\('#customerProfileView'\)\.innerHTML = `[\s\S]*?\$\{custodySectionHtml\}/, 'custody section renders into #customerProfileView');
-  assert.match(app, /\$\('#customerProfileView'\)\.innerHTML = `[\s\S]*?\$\{depositSettlementHtml\}/, 'deposit settlement renders into #customerProfileView');
+  // Polish #28 Phase A — the Referral, Custody and Deposit Settlement
+  // sections now render inside the Financial / Hardware section bodies,
+  // which the assembly renders into #customerProfileView via the
+  // section shells. Pin that the render still targets the surviving
+  // container, through the shells.
+  assert.match(app, /\$\('#customerProfileView'\)\.innerHTML = `[\s\S]*?\$\{profileSectionFinancialHtml\}/, 'Financial section renders into #customerProfileView');
+  assert.match(app, /\$\('#customerProfileView'\)\.innerHTML = `[\s\S]*?\$\{profileSectionHardwareHtml\}/, 'Hardware section renders into #customerProfileView');
+  const financialBodyAt = app.indexOf('const profileSectionFinancialBody = ');
+  const financialBody = app.slice(financialBodyAt, app.indexOf('\n', financialBodyAt));
+  assert.ok(financialBody.includes('${referralSectionHtml}'), 'referral section renders inside Financial');
+  assert.ok(financialBody.includes('${depositSettlementHtml}'), 'deposit settlement renders inside Financial');
+  const hardwareBodyAt = app.indexOf('const profileSectionHardwareBody = ');
+  const hardwareBody = app.slice(hardwareBodyAt, app.indexOf('\n', hardwareBodyAt));
+  assert.ok(hardwareBody.includes('${custodySectionHtml}'), 'custody section renders inside Hardware');
 });
 
 test('profile mount: form controllers outside the mounts exist exactly once and stay out of reach', () => {

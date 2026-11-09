@@ -241,15 +241,27 @@ test('Plan 372: app.js wires the tick inside the freshness group, after the stri
   // Order, not adjacency: Plan 514 groups the verification tick
   // with the freshness stamp under one heading, right after the
   // header strip — so the tick is no longer after the
-  // last-interaction line. What this pin still guards: the tick
-  // sits inside the group (after the strip, before the dues
-  // breakdown) and still before the household link.
+  // last-interaction line. Polish #28 Phase A — the freshness group
+  // lives in the Customer section; the strip sits above every section
+  // and the dues breakdown is in Financial, after Customer in the
+  // assembly. What this pin still guards: the tick sits inside the
+  // group (stamp then tick, adjacent) and the group sits before the
+  // dues breakdown, with the away flag and household link after it in
+  // Customer.
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  const groupAt = customerBody.indexOf('class="profile-freshness-group"');
+  const stampAt = customerBody.indexOf('${profileFreshnessStampMarkup}');
+  const tickAt = customerBody.indexOf('${profileVerificationTickSectionMarkup}');
+  assert.ok(groupAt > 0 && stampAt > groupAt && tickAt > stampAt, 'stamp then tick, adjacent inside the freshness group');
+  assert.equal(customerBody.slice(tickAt, customerBody.indexOf('</section>', tickAt)).trim(), '${profileVerificationTickSectionMarkup}', 'nothing sits between the tick and the group close');
+  const awayAt = customerBody.indexOf('${temporarilyAwayFlagSectionMarkup}');
+  const householdAt = customerBody.indexOf('${householdLinkSectionMarkup}');
+  assert.ok(awayAt > tickAt && householdAt > awayAt, 'away flag then household link follow the group, inside Customer');
   const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
-  const tickAt = appSrc.indexOf('${profileVerificationTickSectionMarkup}');
-  const duesAt = appSrc.indexOf('${duesBreakdownSectionMarkup}');
-  const awayAt = appSrc.indexOf('${temporarilyAwayFlagSectionMarkup}');
-  const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}');
-  assert.ok(stripAt > 0 && tickAt > stripAt && duesAt > tickAt && awayAt > duesAt && householdAt > awayAt);
+  const customerShellAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAt);
+  const financialShellAt = appSrc.indexOf('${profileSectionFinancialHtml}', customerShellAt);
+  assert.ok(customerShellAt > stripAt && financialShellAt > customerShellAt, 'Customer section (with the tick) sits after the strip and before Financial (with the dues breakdown)');
   assert.ok(appSrc.includes('profileVerificationTickSectionEl'));
   assert.ok(appSrc.includes("querySelector('#pvtForm')"));
   assert.ok(appSrc.includes("querySelector('#pvtRemoveBtn')"));
@@ -262,10 +274,18 @@ test('Plan 372: language tables carry the verification-tick labels in both langu
 });
 
 test('Plan 372: profile order still holds — banner, then strip, then groups', () => {
-  const bannerAt = appSrc.indexOf('wadaProfileBannerHtml(customer)');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections and the tick inside the freshness group in Customer.
   const stripAt = appSrc.indexOf('profileHeaderStripSectionHtml}');
-  const groupsAt = appSrc.indexOf('profileInfoGroupsHtml}');
-  assert.ok(bannerAt > 0 && stripAt > bannerAt && groupsAt > stripAt);
+  const customerAt = appSrc.indexOf('profileSectionCustomerHtml}');
+  assert.ok(stripAt > 0 && customerAt > stripAt);
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  assert.ok(customerBody.indexOf('${profileVerificationTickSectionMarkup}') > customerBody.indexOf('${profileFreshnessStampMarkup}'), 'tick sits with the stamp inside the freshness group');
 });
 
 test('Plan 372: no real customer names or phone numbers in the module or its tests', () => {

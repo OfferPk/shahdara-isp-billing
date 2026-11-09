@@ -150,8 +150,11 @@ test('Plan 503: name, free-text and password fields carry no placeholder at all'
 test('Plan 503: the view still shows "Not set" for the same fields', () => {
   assert.equal(TRANSLATIONS.en.prof_not_set, 'Not set');
   const app = read('app.js');
-  const start = app.indexOf('const profileInfoGroupsHtml = ');
-  assert.notEqual(start, -1, 'four-groups literal must exist');
+  // Polish #28 Phase A — the four-groups literal became the eight
+  // fragments object (profileInfoGroupFragments); the view pin follows
+  // the new name, rows verbatim.
+  const start = app.indexOf('const profileInfoGroupFragments = {');
+  assert.notEqual(start, -1, 'fragments object must exist');
   const groups = app.slice(start, app.indexOf('\n', start));
   assert.ok(groups.includes("customer.routerModel || t('prof_not_set')"), 'router model must still read Not set in the view');
   assert.ok(groups.includes("fiberMeters === '' ? t('prof_not_set')"), 'fiber meters must still read Not set in the view');

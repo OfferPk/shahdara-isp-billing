@@ -241,14 +241,16 @@ test('Plan 361: app.js wires the module, store, profile section and bindings', (
   // Order, not adjacency: the Plan 366 spoken-language section now sits
   // between the handling note and the header strip, so the handling note
   // is still right after the wada banner and still before the strip.
-  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
-  const handlingAt = appSrc.indexOf('${handlingNoteSectionMarkup}');
+  // Polish #28 Phase A — the handling note opens the Customer section
+  // and the wada banner opens Financial; the strip sits above every
+  // section in the assembly. The preserved intent is the handling note
+  // first in Customer.
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  assert.ok(customerBody.startsWith('const profileSectionCustomerBody = `${handlingNoteSectionMarkup}'), 'handling note section opens the Customer section');
   const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
-  assert.ok(bannerAt !== -1 && handlingAt !== -1 && stripAt !== -1);
-  assert.ok(
-    bannerAt < handlingAt && handlingAt < stripAt,
-    'handling note section sits right after the wada banner, before the header strip',
-  );
+  const customerShellAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAt);
+  assert.ok(stripAt !== -1 && customerShellAt > stripAt, 'Customer section sits after the header strip');
   assert.ok(appSrc.includes('chnForm'));
   assert.ok(appSrc.includes('chnRemoveBtn'));
   assert.ok(appSrc.includes('loadHandlingNotes: () => loadHandlingNotes()'));

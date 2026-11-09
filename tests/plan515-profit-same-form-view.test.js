@@ -149,8 +149,11 @@ test('Plan 515: the static preview text in the form reads the same unset line', 
 
 test('Plan 515: the view profit row (Plan 506) is untouched', () => {
   const app = read('app.js');
-  const start = app.indexOf('const profileInfoGroupsHtml = ');
-  assert.notEqual(start, -1, 'four-groups literal must exist');
+  // Polish #28 Phase A — the four-groups literal became the eight
+  // fragments object (profileInfoGroupFragments); the view pin follows
+  // the new name, rows verbatim.
+  const start = app.indexOf('const profileInfoGroupFragments = {');
+  assert.notEqual(start, -1, 'fragments object must exist');
   const groups = app.slice(start, app.indexOf('\n', start));
   assert.ok(groups.includes("[t('prof_field_profit'), profit === null ? t('prof_not_set') : formatAmount(profit)]"), 'view row must keep the label + Not set + PKR figure pattern');
   const selling = "[t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]";

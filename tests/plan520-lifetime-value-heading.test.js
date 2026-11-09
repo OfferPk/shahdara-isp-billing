@@ -74,9 +74,17 @@ test('Plan 520: the view heading stays the h3, so levels run h3 (view) then h4 (
 });
 
 test('Plan 520: the block is still appended last (leave-it-last decision)', () => {
+  // Polish #28 Phase A — lifetime value appends last inside the
+  // Financial section (field map item 63), not at the end of the whole
+  // view, which would now put it after the closed History section.
+  // The preserved intent is CLV renders last in its area.
   assert.ok(
-    appSrc.includes("$('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue))"),
-    'the CLV block must still be appended at the end of #customerProfileView',
+    appSrc.includes("querySelector('[data-profile-section=\"financial\"] .profile-section-body')?.insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue))"),
+    'the CLV block must still be appended last, inside the Financial section body',
+  );
+  assert.ok(
+    !appSrc.includes("$('#customerProfileView').insertAdjacentHTML('beforeend', customerLifetimeValueMarkup(lifetimeValue))"),
+    'CLV must no longer append at the end of the whole view',
   );
 });
 

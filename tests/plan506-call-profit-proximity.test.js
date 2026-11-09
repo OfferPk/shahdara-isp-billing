@@ -15,6 +15,10 @@ const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 // line moves from a lone paragraph mid-page into the Service group beside
 // the selling amount. No figure changes; all money stays PKR only.
 //
+// Polish #28 Phase A — the money rows (tax, purchase, selling, profit)
+// moved out of the Service group into the money fragment, which renders
+// in the Financial section; profit still sits immediately after selling.
+//
 // Boundaries, stated plainly: the print card and the header strip carry
 // neither the shortcuts nor the profit line, so they are untouched. The
 // `.profile-view-profit` CSS rule is left in place, unreferenced —
@@ -23,8 +27,11 @@ const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 
 function groupsLiteral() {
   const app = read('app.js');
-  const start = app.indexOf('const profileInfoGroupsHtml = ');
-  assert.notEqual(start, -1, 'four-groups literal must exist');
+  // Polish #28 Phase A — the four-groups literal became the eight
+  // fragments object (profileInfoGroupFragments); the proximity pins
+  // follow the new name, rows verbatim.
+  const start = app.indexOf('const profileInfoGroupFragments = {');
+  assert.notEqual(start, -1, 'fragments object must exist');
   const end = app.indexOf('\n', start);
   return app.slice(start, end);
 }
@@ -97,7 +104,10 @@ test('Plan 506: without the block, the group renders its rows in order and uncha
 
 test('Plan 506: Contact group passes the actions block as its third argument', () => {
   const groups = groupsLiteral();
-  assert.ok(groups.includes('], contactActionsHtml)}'), 'Contact group must pass contactActionsHtml after its rows');
+  // Polish #28 Phase A — the contact call now ends `], contactActionsHtml)`
+  // inside the fragments object (the old literal closed the template
+  // interpolation with `)}` after it — same call, new container).
+  assert.ok(groups.includes('], contactActionsHtml)'), 'Contact group must pass contactActionsHtml after its rows');
   assert.ok(groups.indexOf('contactActionsHtml') < groups.indexOf("t('prof_group_location')"), 'Contact group (with shortcuts) still comes before the Location group');
 });
 
@@ -111,21 +121,26 @@ test('Plan 506: the actions block keeps the shortcuts div and the hint, spanning
 
 // ------------------------------------------------------------ the Service group
 
-test('Plan 506: profit row sits immediately after the selling row in the Service group', () => {
+test('Plan 506: profit row sits immediately after the selling row in the money fragment', () => {
   const groups = groupsLiteral();
+  // Polish #28 Phase A — tax, purchase, selling and profit moved out of
+  // the Service group into the money fragment (Financial section); the
+  // profit-after-selling adjacency is pinned inside that fragment.
+  const moneyAt = groups.indexOf('money: profileInfoGroupMarkup(');
+  const money = groups.slice(moneyAt, groups.indexOf('lifecycle: profileInfoGroupMarkup(', moneyAt));
   const selling = "[t('prof_field_selling'), formatAmount(customer.monthlySellingAmount)]";
   const profit = "[t('prof_field_profit'), profit === null ? t('prof_not_set') : formatAmount(profit)]";
-  const sellingIdx = groups.indexOf(selling);
-  const profitIdx = groups.indexOf(profit);
+  const sellingIdx = money.indexOf(selling);
+  const profitIdx = money.indexOf(profit);
   assert.ok(sellingIdx !== -1, 'selling row must exist');
   assert.ok(profitIdx !== -1, 'profit row must exist beside it');
-  assert.equal(groups.slice(sellingIdx + selling.length, profitIdx), ', ', 'profit must follow selling with nothing between');
+  assert.equal(money.slice(sellingIdx + selling.length, profitIdx), ', ', 'profit must follow selling with nothing between');
 });
 
 test('Plan 506: profit row uses the shared PKR format with the Not set path, never a hand-built figure', () => {
   const groups = groupsLiteral();
   assert.ok(groups.includes("profit === null ? t('prof_not_set') : formatAmount(profit)"), 'null profit reads Not set, like the other money rows');
-  assert.equal(groups.indexOf('toLocaleString'), -1, 'no hand-built number formatting may remain in the four groups');
+  assert.equal(groups.indexOf('toLocaleString'), -1, 'no hand-built number formatting may remain in the fragments');
 });
 
 // ------------------------------------------------------------ the old mid-page blocks are gone
@@ -136,7 +151,13 @@ test('Plan 506: view assembly no longer renders the shortcuts, hint or profit li
   assert.ok(!assembly.includes('${phoneHint}'), 'no phone hint after the groups');
   assert.ok(!assembly.includes('profile-view-profit'), 'no lone profit paragraph after the groups');
   assert.ok(!assembly.includes('prof_view_profit'), 'the old profit sentence key is no longer rendered');
-  assert.ok(assembly.indexOf('profileInfoGroupsHtml') < assembly.indexOf('crossPaymentsMadeSectionMarkup'), 'groups still come first, then the cross-payments section');
+  // Polish #28 Phase A — the groups are fragments inside section
+  // bodies now; the money fragment still comes before the
+  // cross-payments section, inside Financial.
+  const app = read('app.js');
+  const financialBodyAt = app.indexOf('const profileSectionFinancialBody = ');
+  const financialBody = app.slice(financialBodyAt, app.indexOf('\n', financialBodyAt));
+  assert.ok(financialBody.indexOf('profileInfoGroupFragments.money') < financialBody.indexOf('crossPaymentsMadeSectionMarkup'), 'money fragment still comes first, then the cross-payments section');
 });
 
 // ------------------------------------------------------------ i18n

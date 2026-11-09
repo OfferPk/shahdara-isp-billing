@@ -233,16 +233,22 @@ test('wiring: the strip is built from the profile balance figures in renderCusto
 });
 
 test('wiring: the strip sits at the top of the profile, after the wada banner and before the field groups', () => {
-  // Order check, not exact adjacency: Plan 356 inserts the household
-  // link section between the strip and the field groups, so the strip
-  // is no longer glued to the groups — it still sits after the wada
-  // banner and before the field groups, which is the intent here.
-  const bannerAt = appJs.indexOf('${wadaProfileBannerHtml(customer)}');
-  const stripAt = appJs.indexOf('${profileHeaderStripSectionHtml}', bannerAt);
-  const groupsAt = appJs.indexOf('${profileInfoGroupsHtml}', stripAt);
-  assert.ok(bannerAt > 0, 'wada banner is in the profile template');
-  assert.ok(stripAt > bannerAt, 'strip sits after the wada banner');
-  assert.ok(groupsAt > stripAt, 'strip sits before the field groups');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections, banner first in Financial, groups inside their sections.
+  const stripAt = appJs.indexOf('${profileHeaderStripSectionHtml}');
+  const customerAt = appJs.indexOf('${profileSectionCustomerHtml}', stripAt);
+  const historyAt = appJs.indexOf('${profileSectionHistoryHtml}', customerAt);
+  assert.ok(stripAt > 0, 'strip is in the profile assembly');
+  assert.ok(customerAt > stripAt, 'sections sit after the strip');
+  assert.ok(historyAt > customerAt, 'sections render in order');
+  const financialAt = appJs.indexOf('const profileSectionFinancialBody = ');
+  const financialBody = appJs.slice(financialAt, appJs.indexOf('\n', financialAt));
+  assert.ok(financialBody.indexOf('${wadaProfileBannerHtml(customer)}') < financialBody.indexOf('${duesBreakdownSectionMarkup}'), 'wada banner opens the Financial section');
+  assert.ok(appJs.includes('profileInfoGroupFragments.contact'), 'field groups live on as fragments');
 });
 
 test('wiring: no store is added for the strip — it is composed live, never saved', () => {

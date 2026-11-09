@@ -247,7 +247,11 @@ test('wiring: app.js imports the module and wires load/save plus the profile sec
   assert.ok(appSrc.includes('function loadPreferredCollectionDayNotes()'));
   assert.ok(appSrc.includes('function savePreferredCollectionDayNotes('));
   assert.ok(appSrc.includes('preferredCollectionDaySectionHtml('));
-  assert.ok(appSrc.includes("querySelector('.profile-field-change-history')"));
+  // Polish #28 Phase A — the collection-day note appends last inside
+  // the Customer section; the old anchor chained off the history list,
+  // which now lives in History.
+  assert.ok(appSrc.includes("querySelector('[data-profile-section=\"customer\"] .profile-section-body')?.insertAdjacentHTML('beforeend', preferredCollectionDaySectionHtml("), 'collection day appends into the Customer section body');
+  assert.ok(!appSrc.includes("querySelector('.profile-field-change-history')"), 'collection day no longer anchors on the history list');
   assert.ok(appSrc.includes("querySelector('.profile-preferred-collection-day')"));
   assert.ok(appSrc.includes("querySelector('#pcdForm')"));
   assert.ok(appSrc.includes("querySelector('#pcdRemoveBtn')"));

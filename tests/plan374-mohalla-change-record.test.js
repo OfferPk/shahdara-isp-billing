@@ -289,24 +289,36 @@ test('wiring: app.js imports the module, loads and saves the record, and shows t
   assert.ok(appSrc.includes("querySelector('#mcrOldMohalla')"));
   assert.ok(appSrc.includes('currentMohallaForCustomer(loadMohallaChangeRecord(), customer.id)'));
   // Order, not adjacency: the record sits between the number-change
-  // log and the package history, so the log is still after the
-  // move-house history and still before the package history.
-  const logAt = appSrc.indexOf('${numberChangeLogSectionMarkup}');
-  const recordAt = appSrc.indexOf('${mohallaChangeRecordSectionMarkup}');
-  const packageAt = appSrc.indexOf('${packageHistorySectionMarkup}');
-  assert.ok(logAt > 0 && recordAt > logAt && packageAt > recordAt);
+  // log and the package history — Polish #28 Phase A: the log and the
+  // record both live in History (log then record), while the package
+  // history opens Service (S2), so sections order package history
+  // before History in the DOM. The preserved intent is log → record
+  // inside History.
+  const historyBodyAt = appSrc.indexOf('const profileSectionHistoryBody = ');
+  const historyBody = appSrc.slice(historyBodyAt, appSrc.indexOf('\n', historyBodyAt));
+  const moveAt = historyBody.indexOf('${moveHouseHistorySectionMarkup}');
+  const logAt = historyBody.indexOf('${numberChangeLogSectionMarkup}');
+  const recordAt = historyBody.indexOf('${mohallaChangeRecordSectionMarkup}');
+  assert.ok(moveAt > 0 && logAt > moveAt && recordAt > logAt);
 });
 
 test('wiring: the profile order assertion still holds — banner, strip, then groups', () => {
-  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
-  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}', bannerAt);
-  const groupsAt = appSrc.indexOf('${profileInfoGroupsHtml}', stripAt);
-  assert.ok(bannerAt > 0, 'wada banner is in the profile template');
-  assert.ok(stripAt > bannerAt, 'strip sits after the wada banner');
-  assert.ok(groupsAt > stripAt, 'strip sits before the field groups');
-  const recordAt = appSrc.indexOf('${mohallaChangeRecordSectionMarkup}');
-  assert.ok(recordAt > stripAt, 'mohalla change record sits after the strip');
-  assert.ok(recordAt < groupsAt, 'mohalla change record sits before the field groups');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections and the mohalla record inside History, after the
+  // number-change log.
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  const historyAt = appSrc.indexOf('${profileSectionHistoryHtml}', stripAt);
+  assert.ok(stripAt > 0, 'strip is in the profile assembly');
+  assert.ok(historyAt > stripAt, 'History section sits after the strip');
+  const historyBodyAt = appSrc.indexOf('const profileSectionHistoryBody = ');
+  const historyBody = appSrc.slice(historyBodyAt, appSrc.indexOf('\n', historyBodyAt));
+  const logAt = historyBody.indexOf('${numberChangeLogSectionMarkup}');
+  const recordAt = historyBody.indexOf('${mohallaChangeRecordSectionMarkup}');
+  assert.ok(logAt > 0 && recordAt > logAt, 'mohalla change record sits after the number-change log, inside History');
 });
 
 test('styles: the record rules exist and reuse an existing colour only', () => {

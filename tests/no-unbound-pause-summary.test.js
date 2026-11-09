@@ -19,8 +19,11 @@ const appJs = readFileSync(path.join(root, 'app.js'), 'utf8');
 test('pauseSummary is defined inside renderCustomerProfileView before its use', () => {
   const fnStart = appJs.indexOf('function renderCustomerProfileView(customer)');
   assert.ok(fnStart >= 0, 'renderCustomerProfileView exists');
-  const useAt = appJs.indexOf('const profileInfoGroupsHtml =', fnStart);
-  assert.ok(useAt > fnStart, 'profile info groups are built inside renderCustomerProfileView');
+  // Polish #28 Phase A — the four-groups literal became the eight
+  // fragments object (profileInfoGroupFragments); the pauseSummary
+  // definition-before-use pin follows the new name.
+  const useAt = appJs.indexOf('const profileInfoGroupFragments = {', fnStart);
+  assert.ok(useAt > fnStart, 'profile info group fragments are built inside renderCustomerProfileView');
   const defAt = appJs.indexOf('const pauseSummary = pauseBillingSummary(customer);', fnStart);
   assert.ok(defAt >= 0, 'renderCustomerProfileView defines pauseSummary');
   assert.ok(defAt < useAt, 'pauseSummary is defined before the info groups use it');

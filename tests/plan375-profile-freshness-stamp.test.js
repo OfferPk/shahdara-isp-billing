@@ -279,25 +279,39 @@ test('wiring: import, stamp after the strip, before the dues breakdown', () => {
   assert.ok(appSrc.includes('loadFieldChanges()'));
   assert.ok(appSrc.includes('loadProfileVerificationTicks()'));
   // Order, not adjacency: the stamp sits between the header strip
-  // and the dues breakdown, so the strip is still before the dues
-  // breakdown and the breakdown is still before the household link.
+  // and the dues breakdown — Polish #28 Phase A: the stamp lives in
+  // the freshness group inside Customer, the dues breakdown in
+  // Financial, and the household link in Customer after the group;
+  // the strip sits above every section. The preserved intent is
+  // stamp in the group, group before dues, household after the group.
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  const groupAt = customerBody.indexOf('class="profile-freshness-group"');
+  const stampAt = customerBody.indexOf('${profileFreshnessStampMarkup}');
+  assert.ok(groupAt > 0 && stampAt > groupAt, 'stamp sits inside the freshness group');
+  const householdAt = customerBody.indexOf('${householdLinkSectionMarkup}');
+  assert.ok(householdAt > stampAt, 'household link still follows the freshness group, inside Customer');
   const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
-  const stampAt = appSrc.indexOf('${profileFreshnessStampMarkup}');
-  const breakdownAt = appSrc.indexOf('${duesBreakdownSectionMarkup}');
-  const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}');
-  assert.ok(stripAt > 0 && stampAt > stripAt && breakdownAt > stampAt && householdAt > breakdownAt);
+  const customerShellAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAt);
+  const financialShellAt = appSrc.indexOf('${profileSectionFinancialHtml}', customerShellAt);
+  assert.ok(customerShellAt > stripAt && financialShellAt > customerShellAt, 'Customer (stamp) sits after the strip and before Financial (dues breakdown)');
 });
 
 test('wiring: the profile order assertion still holds — banner, strip, then groups', () => {
-  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
-  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}', bannerAt);
-  const groupsAt = appSrc.indexOf('${profileInfoGroupsHtml}', stripAt);
-  assert.ok(bannerAt > 0, 'wada banner is in the profile template');
-  assert.ok(stripAt > bannerAt, 'strip sits after the wada banner');
-  assert.ok(groupsAt > stripAt, 'strip sits before the field groups');
-  const stampAt = appSrc.indexOf('${profileFreshnessStampMarkup}');
-  assert.ok(stampAt > stripAt, 'freshness stamp sits after the strip');
-  assert.ok(stampAt < groupsAt, 'freshness stamp sits before the field groups');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections and the freshness stamp inside the group in Customer.
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  const customerAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAt);
+  assert.ok(stripAt > 0, 'strip is in the profile assembly');
+  assert.ok(customerAt > stripAt, 'Customer section sits after the strip');
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  const stampAt = customerBody.indexOf('${profileFreshnessStampMarkup}');
+  assert.ok(stampAt > customerBody.indexOf('class="profile-freshness-group"'), 'freshness stamp sits inside the group, in Customer');
 });
 
 test('styles: the stamp rules exist and reuse an existing colour only', () => {

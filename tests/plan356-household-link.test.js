@@ -370,9 +370,20 @@ test('wiring: the app imports the module, loads and saves the links, and shows t
   assert.ok(appSrc.includes('HOUSEHOLD_LINK_STORE_KEY'), 'app uses the module store key');
   assert.ok(appSrc.includes('householdLinkSectionHtml(customer, loadHouseholdLinks(), state.customers'), 'app builds the section from the stored links');
   assert.ok(appSrc.includes('${householdLinkSectionMarkup}'), 'profile template carries the household link section');
+  // Polish #28 Phase A — the household link lives in the Customer
+  // section body, after the freshness group and before the contact
+  // fragment; the strip sits above every section in the assembly.
+  // The preserved intent is the link renders in Customer, right after
+  // the group that used to follow the strip.
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  const groupAt = customerBody.indexOf('class="profile-freshness-group"');
+  const householdAt = customerBody.indexOf('${householdLinkSectionMarkup}');
+  const contactAt = customerBody.indexOf('${profileInfoGroupFragments.contact}');
+  assert.ok(groupAt > 0 && householdAt > groupAt && contactAt > householdAt, 'household link section sits after the freshness group and before the contact fragment, inside Customer');
   const stripAnchor = appSrc.indexOf('${profileHeaderStripSectionHtml}');
-  assert.ok(stripAnchor > 0, 'header strip anchor exists');
-  assert.ok(appSrc.indexOf('${householdLinkSectionMarkup}', stripAnchor) > stripAnchor, 'household link section sits right after the header strip');
+  const customerShellAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAnchor);
+  assert.ok(stripAnchor > 0 && customerShellAt > stripAnchor, 'Customer section sits after the header strip');
 });
 
 test('wiring: the profile binds the add form, the remove buttons, and the one-tap open', () => {

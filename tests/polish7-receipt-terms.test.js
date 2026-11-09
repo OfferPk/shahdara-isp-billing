@@ -83,12 +83,17 @@ test('wiring: every receipt renderer imports the terms module and calls its help
 
   const split = read('split-tender-collect.js');
   assert.ok(split.includes("from './receipt-terms.js'"));
-  assert.ok(split.includes('receiptTermsNoteHtml()'));
+  // Polish 21: the split QC card site passes { contactActions: true },
+  // so the bare-call form no longer appears there — the wiring intent
+  // (every renderer calls the helper) is what this pins.
+  assert.ok(split.includes('receiptTermsNoteHtml('));
   assert.ok(split.includes('receiptTermsNoteText()'));
 
   const qc = read('nav-quick-collect.js');
   assert.ok(qc.includes("from './receipt-terms.js'"));
-  assert.ok(qc.includes('receiptTermsNoteHtml()'));
+  // Polish 21: the ordinary QC card site passes { contactActions: true }
+  // too (see above).
+  assert.ok(qc.includes('receiptTermsNoteHtml('));
   assert.ok(qc.includes('receiptTermsNoteText()'));
 
   const profileUi = read('profile-ui.js');
@@ -140,7 +145,14 @@ test('Quick Collect success card shows the terms phrase and the support line (so
   const html = renderQuickCollectReceiptCardHtml({ ...QC_RECEIPT });
   assert.ok(html.includes(TERMS_PHRASE));
   assert.ok(html.includes(SUPPORT_LABEL));
-  assert.match(html, PHONE_PATTERN);
+  // Polish 21 (amended Req 4): the QC card shows the number in its
+  // simple local form (derived from the module, never re-typed) with
+  // tappable WhatsApp + call links — the international form with + and
+  // spaces no longer appears as the displayed number.
+  const local = `0${RECEIPT_SUPPORT_LINE.replace(/\D/g, '').slice(2)}`;
+  assert.ok(html.includes(local), 'QC card must show the local form');
+  assert.ok(!html.includes(RECEIPT_SUPPORT_LINE.match(/[+\d][\d ]*$/)[0]), 'QC card must not show the spaced international form');
+  assert.ok(html.includes('wa.me/') && html.includes('tel:+'), 'QC card must carry both contact links');
   assert.ok(html.indexOf(TERMS_PHRASE) > html.indexOf('Remaining Balance'), 'the terms sit at the foot of the card');
   assert.ok(html.includes('qc-receipt-card'));
 });
@@ -167,7 +179,12 @@ test('split-tender card and printable sheet both show the terms phrase and the s
   const card = renderSplitReceiptCardHtml(SPLIT_COMBINED);
   assert.ok(card.includes(TERMS_PHRASE));
   assert.ok(card.includes(SUPPORT_LABEL));
-  assert.match(card, PHONE_PATTERN);
+  // Polish 21 (amended Req 4): the split QC card shows the local form
+  // with the contact links (derived from the module, never re-typed);
+  // the printable sheet keeps the international form.
+  const local = `0${RECEIPT_SUPPORT_LINE.replace(/\D/g, '').slice(2)}`;
+  assert.ok(card.includes(local), 'split QC card must show the local form');
+  assert.ok(card.includes('wa.me/') && card.includes('tel:+'), 'split QC card must carry both contact links');
 
   const sheet = generateSplitTenderReceiptHtml(SPLIT_COMBINED);
   assert.ok(sheet.includes(TERMS_PHRASE));

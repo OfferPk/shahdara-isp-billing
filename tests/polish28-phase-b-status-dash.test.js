@@ -328,12 +328,17 @@ test('phase B Req 3: lifecycle and install rows dash empty values', () => {
   assert.ok(install.includes("[t('prof_field_install'), installationCostProfileLine(customer)]"), 'install line still renders through its own line helper');
 });
 
+// Polish #28 Phase C — the three network rows carry a fourth tuple
+// element now (the copy field: 'pppoeUsername' / 'staticIp' /
+// 'macAddress'). The VALUE expressions are untouched, so the dash
+// behaviour this test pins is unchanged — only the pinned strings
+// grew by the trailing copy field.
 test('phase B Req 3: network and hardware rows dash empty values', () => {
   const frags = groupFragments();
   const network = fragmentSlice(frags, 'network', 'hardware');
-  assert.ok(network.includes("[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername)]"), 'pppoe must dash when empty');
-  assert.ok(network.includes("[t('prof_field_static_ip'), profileEmptyText(customer.staticIp)]"), 'static ip must dash when empty');
-  assert.ok(network.includes("[t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH]"), 'mac must dash when empty');
+  assert.ok(network.includes("[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername), false, 'pppoeUsername']"), 'pppoe must dash when empty');
+  assert.ok(network.includes("[t('prof_field_static_ip'), profileEmptyText(customer.staticIp), false, 'staticIp']"), 'static ip must dash when empty');
+  assert.ok(network.includes("[t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH, false, 'macAddress']"), 'mac must dash when empty');
   const hardware = fragmentSlice(frags, 'hardware', null);
   assert.ok(hardware.includes("[t('prof_field_router'), profileEmptyText(customer.routerModel)]"), 'router model must dash when empty');
   assert.ok(hardware.includes("[t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)]"), 'router price must dash when empty');

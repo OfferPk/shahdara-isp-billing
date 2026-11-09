@@ -14537,3 +14537,10 @@ same chevron pattern as the month cards, tokens only, no new hex. */
 .profile-detail-section summary h3{margin:0;font-size:15px;flex:1;min-width:0}
 .profile-section-summary{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .profile-section-body{display:grid;gap:12px;padding:14px 15px 16px;border-top:1px solid var(--line)}
+/* Polish #28 Phase C — the per-section Edit button sits between the
+summary text and the chevron; it must not stretch or shrink. */
+.profile-section-edit{flex:none;min-height:0;padding:4px 10px;font-size:12px}
+/* Polish #28 Phase C — the value copy button sits beside its value in
+the same row; the dd becomes a flex row so the button never stretches. */
+.profile-readonly-field dd.profile-copy-dd{display:flex;align-items:center;gap:6px}
+.profile-copy-value{flex:none;min-height:0;padding:2px 7px;font-size:12px;line-height:1.3}

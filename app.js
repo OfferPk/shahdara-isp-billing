@@ -5991,11 +5991,17 @@ function renderIncidents(customer) {
   $('#incidentList').querySelectorAll('[data-edit-incident]').forEach(button => button.addEventListener('click', () => showIncidentEditor(incidents.find(item => item.id === button.dataset.editIncident))));
   $('#incidentList').querySelectorAll('[data-delete-incident]').forEach(button => button.addEventListener('click', () => requestDeleteIncident(customer.id, button.dataset.deleteIncident)));
 }
-function profileReadonlyField(label, value, wide = false) {
+function profileReadonlyField(label, value, wide = false, copyField = '') {
   // Polish #28 Phase B (Req 3) — the bare dash renders as a subtle
   // empty-value span; every other value escapes exactly as today.
   const display = value === PROFILE_EMPTY_DASH ? `<span class="profile-empty-value">${PROFILE_EMPTY_DASH}</span>` : escapeHtml(value);
-  return `<div class="profile-readonly-field${wide ? ' profile-readonly-field-wide' : ''}"><dt>${escapeHtml(label)}</dt><dd>${display}</dd></div>`;
+  // Polish #28 Phase C (Req 6) — copyField is the customer-record key
+  // whose raw value the button copies (never the displayed text, so the
+  // MAC display suffix can never leak into the clipboard). The button
+  // is disabled, not hidden, when the record has no value.
+  const copy = copyField ? `<button type="button" class="profile-copy-value secondary-button" data-profile-copy-field="${copyField}" aria-label="${escapeHtml(t('rcred_copy'))}"${value === PROFILE_EMPTY_DASH ? ' disabled' : ''}>📋</button>` : '';
+  const ddClass = copy ? ' class="profile-copy-dd"' : '';
+  return `<div class="profile-readonly-field${wide ? ' profile-readonly-field-wide' : ''}"><dt>${escapeHtml(label)}</dt><dd${ddClass}>${display}${copy}</dd></div>`;
 }
 
 // Profile UI polish: compact grouped info. Related fields share one
@@ -6006,7 +6012,7 @@ function profileReadonlyField(label, value, wide = false) {
 // renders immediately after its first row (the phone row), so the operator
 // finds Call/WhatsApp beside the number instead of halfway down the page.
 function profileInfoGroupMarkup(heading, rows, afterFirstRowHtml = '') {
-  const fields = rows.map(([label, value, wide]) => profileReadonlyField(label, value, wide));
+  const fields = rows.map(([label, value, wide, copyField]) => profileReadonlyField(label, value, wide, copyField));
   if (afterFirstRowHtml) fields.splice(1, 0, afterFirstRowHtml);
   return `<section class="profile-info-group"><h4>${escapeHtml(heading)}</h4><dl class="profile-readonly-grid">${fields.join('')}</dl></section>`;
 }
@@ -6367,7 +6373,7 @@ function renderCustomerProfileView(customer) {
   // prof_group_connection), so no group is renamed in this phase.
   // The <div class="profile-info-groups"> wrapper is dropped — each
   // section body provides the gap — its CSS rule stays, harmless.
-  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), profileEmptyText(phone)], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), profileEmptyText(customer.mohalla)], [t('prof_field_zone'), profileEmptyText(customer.zone)], [t('prof_field_address'), profileEmptyText(customer.address), true], [t('prof_field_notes'), profileEmptyText(customer.notes), true]]), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), profileEmptyText(customer.ispProvider)], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), profileEmptyText(customer.packageSpeed)], [t('prof_field_payday'), paydaySummary.label]]), money: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)], [t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)], [t('prof_field_profit'), profileProfitDisplay(customer, profit)]]), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH]]), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH], [t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), profileEmptyMoney(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)]]), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername)], [t('prof_field_static_ip'), profileEmptyText(customer.staticIp)], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH]]), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), profileEmptyText(customer.routerModel)], [t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)], [t('prof_field_mc_cost'), profileEmptyMoney(customer.mediaConverterCost)]]) };
+  const profileInfoGroupFragments = { contact: profileInfoGroupMarkup(t('prof_group_contact'), [[t('prof_field_phone'), profileEmptyText(phone)], [t('prof_field_cnic'), cnic ? formatCnicDisplay(cnic) : PROFILE_EMPTY_DASH], ...(customer.fatherOrReferenceName?.trim() ? [[t('fas_field_father'), customer.fatherOrReferenceName.trim()]] : []), ...((customer.searchAliases ?? []).length ? [[t('fas_field_aliases'), (customer.searchAliases ?? []).join(', ')]] : [])], contactActionsHtml), location: profileInfoGroupMarkup(t('prof_group_location'), [[t('prof_field_area'), profileEmptyText(customer.mohalla)], [t('prof_field_zone'), profileEmptyText(customer.zone)], [t('prof_field_address'), profileEmptyText(customer.address), true], [t('prof_field_notes'), profileEmptyText(customer.notes), true]]), service: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_isp'), profileEmptyText(customer.ispProvider)], [t('prof_field_service_status'), manualServiceStatusLabel(customer.serviceStatus)], [t('prof_field_hold'), pauseSummary.detail], [t('prof_field_shield'), shieldSummary.detail], ...(seasonalSummary.active ? [[t('prof_field_seasonal'), seasonalSummary.detail]] : []), [t('prof_field_package'), profileEmptyText(customer.packageSpeed)], [t('prof_field_payday'), paydaySummary.label]]), money: profileInfoGroupMarkup(t('prof_group_service'), [[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))], [t('prof_field_purchase_cost'), profileEmptyMoney(customer.monthlyPurchaseCost)], [t('prof_field_selling'), profileEmptyMoney(customer.monthlySellingAmount)], [t('prof_field_profit'), profileProfitDisplay(customer, profit)]]), lifecycle: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_expiry'), customer.expiryDate ? humanDate(customer.expiryDate) : PROFILE_EMPTY_DASH], [t('prof_field_cancel_date'), customer.cancellationDate ? humanDate(customer.cancellationDate) : PROFILE_EMPTY_DASH]]), install: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_conn_start'), customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH], [t('prof_field_conn_fee'), profileEmptyMoney(customer.connectionFee)], [t('prof_field_fiber'), customer.fiberMeters === null || customer.fiberMeters === undefined || customer.fiberMeters === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_meters', null, { meters: customer.fiberMeters })], [t('prof_field_lineman_fee'), profileEmptyMoney(customer.linemanInstallFee)], [t('prof_field_fiber_rate'), customer.fiberPerMeterRate === null || customer.fiberPerMeterRate === undefined || customer.fiberPerMeterRate === '' ? PROFILE_EMPTY_DASH : t('prof_fiber_rate_unit', null, { amount: formatAmount(customer.fiberPerMeterRate) })], [t('prof_field_install'), installationCostProfileLine(customer)]]), network: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_pppoe'), profileEmptyText(customer.pppoeUsername), false, 'pppoeUsername'], [t('prof_field_static_ip'), profileEmptyText(customer.staticIp), false, 'staticIp'], [t('prof_field_mac'), customer.macAddress ? customer.macAddress + macAddressDisplaySuffix(customer.macAddress) : PROFILE_EMPTY_DASH, false, 'macAddress']]), hardware: profileInfoGroupMarkup(t('prof_group_connection'), [[t('prof_field_router'), profileEmptyText(customer.routerModel)], [t('prof_field_router_price'), profileEmptyMoney(customer.routerPrice)], [t('prof_field_mc_cost'), profileEmptyMoney(customer.mediaConverterCost)]]) };
   // SISP-19: profile hardware custody — ownership fields on the record,
   // plus the disconnection recovery checklist once archived (archive is
   // the app's disconnect action). Fiber drop length reuses fiberMeters.
@@ -6905,12 +6911,15 @@ function renderCustomerProfileView(customer) {
   const profileSectionNetworkBody = `${profileInfoGroupFragments.network}${bottleneckSectionHtml}${opticalSectionHtml}${gpsSectionHtml}${poleSectionHtml}${feederSectionHtml}${mikrotikSectionHtml}${routerCredSectionHtml}`;
   const profileSectionHardwareBody = `${profileInfoGroupFragments.hardware}${custodySectionHtml}${nocSectionHtml}`;
   const profileSectionHistoryBody = `${lastInteractionLineMarkup}${moveHouseHistorySectionMarkup}${numberChangeLogSectionMarkup}${mohallaChangeRecordSectionMarkup}${rootCauseBanner}${ticketsSectionHtml}${downtimeSectionHtml}${uptimeCertSectionHtml}${lifecycleJourneyHtml(buildLifecycleJourney(customer))}${statusReplySectionHtml}${onboardingChecklistHtml(buildOnboardingChecklist(customer.id, findOnboardingTicks(loadOnboardingChecklists(), customer.id)), customer.name || customer.customerName)}${renderRelocationTimeline(customer)}`;
-  const profileSectionCustomerHtml = profileDetailSectionHtml({ key: 'customer', heading: t('prof_sec_customer'), summary: `${customer.name || customer.customerName || t('prof_not_set')} · ${profileEmptyText(phone)}`, body: profileSectionCustomerBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'customer') });
-  const profileSectionServiceHtml = profileDetailSectionHtml({ key: 'service', heading: t('prof_sec_service'), summary: `${profileEmptyText(customer.packageSpeed)} · ${serviceState.label}`, body: profileSectionServiceBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'service') });
-  const profileSectionFinancialHtml = profileDetailSectionHtml({ key: 'financial', heading: t('prof_sec_financial'), summary: `Dues ${formatAmount(duesBreakdownFigures.total)} · ${t('prof_field_profit')} ${profit === null ? PROFILE_EMPTY_DASH : formatAmount(profit)}`, body: profileSectionFinancialBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'financial') });
-  const profileSectionConnectionHtml = profileDetailSectionHtml({ key: 'connection', heading: t('prof_sec_connection'), summary: `${customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH} · ${profileEmptyMoney(customer.connectionFee)}`, body: profileSectionConnectionBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'connection') });
-  const profileSectionNetworkHtml = profileDetailSectionHtml({ key: 'network', heading: t('prof_sec_network'), summary: `${profileEmptyText(customer.pppoeUsername)} · ${profileEmptyText(customer.macAddress)}`, body: profileSectionNetworkBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'network') });
-  const profileSectionHardwareHtml = profileDetailSectionHtml({ key: 'hardware', heading: t('prof_sec_hardware'), summary: `${profileEmptyText(customer.routerModel)} · ${profileEmptyText(custodyFields.serialNumber)}`, body: profileSectionHardwareBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'hardware') });
+  const profileSectionCustomerHtml = profileDetailSectionHtml({ key: 'customer', heading: t('prof_sec_customer'), summary: `${customer.name || customer.customerName || t('prof_not_set')} · ${profileEmptyText(phone)}`, body: profileSectionCustomerBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'customer'), editLabel: t('prof_view_edit') });
+  const profileSectionServiceHtml = profileDetailSectionHtml({ key: 'service', heading: t('prof_sec_service'), summary: `${profileEmptyText(customer.packageSpeed)} · ${serviceState.label}`, body: profileSectionServiceBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'service'), editLabel: t('prof_view_edit') });
+  const profileSectionFinancialHtml = profileDetailSectionHtml({ key: 'financial', heading: t('prof_sec_financial'), summary: `Dues ${formatAmount(duesBreakdownFigures.total)} · ${t('prof_field_profit')} ${profit === null ? PROFILE_EMPTY_DASH : formatAmount(profit)}`, body: profileSectionFinancialBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'financial'), editLabel: t('prof_view_edit') });
+  const profileSectionConnectionHtml = profileDetailSectionHtml({ key: 'connection', heading: t('prof_sec_connection'), summary: `${customer.connectionDate ? humanDate(customer.connectionDate) : PROFILE_EMPTY_DASH} · ${profileEmptyMoney(customer.connectionFee)}`, body: profileSectionConnectionBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'connection'), editLabel: t('prof_view_edit') });
+  const profileSectionNetworkHtml = profileDetailSectionHtml({ key: 'network', heading: t('prof_sec_network'), summary: `${profileEmptyText(customer.pppoeUsername)} · ${profileEmptyText(customer.macAddress)}`, body: profileSectionNetworkBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'network'), editLabel: t('prof_view_edit') });
+  const profileSectionHardwareHtml = profileDetailSectionHtml({ key: 'hardware', heading: t('prof_sec_hardware'), summary: `${profileEmptyText(customer.routerModel)} · ${profileEmptyText(custodyFields.serialNumber)}`, body: profileSectionHardwareBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'hardware'), editLabel: t('prof_view_edit') });
+  // Polish #28 Phase C — History carries NO Edit button: Table A gives it
+  // zero form fields (history is recorded by the app, never typed in), so
+  // an Edit button would be a dead control with no group to scroll to.
   const profileSectionHistoryHtml = profileDetailSectionHtml({ key: 'history', heading: t('prof_sec_history'), summary: `${t('prof_tab_complaints')} ${customerComplaints.length} · ${t('fdisp_type_ticket')} ${customerTickets.length}`, body: profileSectionHistoryBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'history') });
   $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="editProfileButton" class="primary-button profile-edit-button" type="button">${t('prof_view_edit')}</button><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileSectionConnectionHtml}${profileSectionNetworkHtml}${profileSectionHardwareHtml}${profileSectionHistoryHtml}`;
   // Plan 508 — the register complaints list renders on the Complaints tab,
@@ -7013,6 +7022,22 @@ function renderCustomerProfileView(customer) {
     $('#customerProfileForm').hidden = false;
     $('#mohallaInput').focus();
   });
+  // Polish #28 Phase C (Req 5) — per-section Edit: the same full edit
+  // form as the top Edit button, scrolled to the section's form group
+  // with its first field focused (the jumpToProfileErrorTarget pattern:
+  // scroll, then focus the target with preventScroll so the focus does
+  // not undo the scroll). The top Edit button keeps its own behaviour
+  // (opens at the top, focused on Area).
+  function openProfileFormAtSection(sectionKey) {
+    profileEditMode = true;
+    $('#customerProfileView').hidden = true;
+    const form = $('#customerProfileForm');
+    form.hidden = false;
+    const group = form.querySelector(`[data-profile-form-section="${sectionKey}"]`);
+    const firstField = group?.querySelector('input, select, textarea');
+    if (group) group.scrollIntoView({ block: 'start' });
+    if (firstField) firstField.focus({ preventScroll: true });
+  }
   // Polish #28 Phase A — a section toggle persists the operator's
   // choice for this customer, so a re-render (or reload) re-opens the
   // same sections. The render replaces innerHTML, so the choice must
@@ -7020,6 +7045,15 @@ function renderCustomerProfileView(customer) {
   $('#customerProfileView').querySelectorAll('.profile-detail-section').forEach((section) => {
     section.addEventListener('toggle', () => {
       saveProfileSectionOpen(localStorage, withProfileSectionOpen(loadProfileSectionOpen(localStorage), customer.id, section.dataset.profileSection, section.open));
+    });
+  });
+  // Polish #28 Phase C (Req 5) — the per-section Edit buttons live
+  // inside the <summary>, so the click must not toggle the disclosure.
+  $('#customerProfileView').querySelectorAll('[data-profile-section-edit]').forEach((btn) => {
+    btn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openProfileFormAtSection(btn.getAttribute('data-profile-section-edit'));
     });
   });
   // SISP-14: QR Khata Card button on the profile.
@@ -8139,6 +8173,34 @@ function renderCustomerProfileView(customer) {
     });
   };
   wireRouterCredSection();
+  // Polish #28 Phase C (Req 6) — copy buttons for PPPoE username,
+  // static IP and MAC (class-found, Plan 534 precedent, same clipboard
+  // + textarea fallback + toasts as the router-credential copies
+  // above). The value is read from the customer record, never from the
+  // DOM text, so the MAC copies raw — without its display suffix.
+  $('#customerProfileView').querySelectorAll('[data-profile-copy-field]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const field = btn.getAttribute('data-profile-copy-field');
+      if (!['pppoeUsername', 'staticIp', 'macAddress'].includes(field)) return;
+      const value = customer[field];
+      if (!value) return;
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(value);
+        } else {
+          const scratch = document.createElement('textarea');
+          scratch.value = value;
+          document.body.appendChild(scratch);
+          scratch.select();
+          document.execCommand('copy');
+          scratch.remove();
+        }
+        toast(t('rcred_copied'));
+      } catch {
+        toast(t('rcred_copy_failed'));
+      }
+    });
+  });
   // SISP-4 + SISP-29: wire the profile kist form (add plan + remove
   // unbilled plan + optional down-payment record + early payoff).
   // Adding a plan only records it — billing happens in the cycle. Only
@@ -11738,6 +11800,14 @@ $('#additionalPendingForm').addEventListener('submit', event => {
 });
 $('#saveMohallaButton').addEventListener('click', async () => {
   if (!selectedCustomer()) return;
+  // Polish #28 Phase C — the during-save guard the retired ui-feedback
+  // handler used to own: a second click while this save is in flight
+  // returns at once. The flag is set only below, right before the
+  // try (after every validation and confirm has passed), so a
+  // validation failure or a cancelled confirm never leaves the button
+  // stuck in the saving state.
+  const saveProfileButton = $('#saveMohallaButton');
+  if (saveProfileButton?.classList.contains('is-saving')) return;
   const current = selectedCustomer();
   // SISP-158: contributor rows are collected FIRST — a half-filled
   // neighbour row aborts the save with a message (before any pro-rata
@@ -11887,6 +11957,10 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     }
   }
 
+  // Polish #28 Phase C — mark the save in flight (see the guard at the
+  // top of this handler); cleared on success below and in the catch.
+  saveProfileButton?.classList.add('is-saving');
+  saveProfileButton?.setAttribute('aria-busy', 'true');
   try {
     state = updateCustomerProfile(state, selectedCustomerId, {
       ...($('#profileNameInput') ? { name: $('#profileNameInput').value } : {}),
@@ -12020,7 +12094,9 @@ $('#saveMohallaButton').addEventListener('click', async () => {
     } else {
       toast('Customer profile saved on this device.');
     }
-  } catch (error) { showProfileFormError(error.message, null); }
+    saveProfileButton?.classList.remove('is-saving');
+    saveProfileButton?.removeAttribute('aria-busy');
+  } catch (error) { saveProfileButton?.classList.remove('is-saving'); saveProfileButton?.removeAttribute('aria-busy'); showProfileFormError(error.message, null); }
 });
 // Profile polish: one inline Save button per editable profile field.
 // Each button saves ONLY its own field through updateCustomerProfile —
@@ -12137,6 +12213,10 @@ async function saveProfileField(control, button, labelText) {
     // Plan 499 — a per-field save just changed the stored record, so a
     // field may have become clean; re-read the Cancel label from the
     // stored record (recomputing is harmless when nothing changed).
+    // Polish #28 Phase C — the same re-sync for the in-form hint and
+    // the Save button: the stored record changed, so the hint must read
+    // clean when the saved field was the only dirty one.
+    syncProfileSaveHint();
     syncProfileCancelButton();
   }
 }
@@ -12231,6 +12311,34 @@ function syncProfileCancelButton() {
   button.dataset.i18n = key;
   button.textContent = t(key);
 }
+// Polish #28 Phase C — Plan 499 is the single dirty source of truth for
+// the profile form. The ui-feedback second dirty system
+// (setupProfileSaveState, with its own baseline snapshot) is retired:
+// the Save button's disabled state and the in-form hint read the same
+// dirtyProfileFieldKeys check that drives the per-field Save buttons
+// and the Cancel label, so a per-field save leaves the hint clean
+// instead of still saying dirty. The hint element is static markup in
+// index.html now (it was created at runtime by the retired function).
+function syncProfileSaveHint() {
+  const form = $('#customerProfileForm');
+  const save = $('#saveMohallaButton');
+  const hint = $('#profileSaveHint');
+  if (!form || !save || !hint) return;
+  if (form.hidden) {
+    // Plan 498 — the form closed: the hint must not keep the previous
+    // session's text, or it flashes stale on reopen.
+    hint.textContent = '';
+    hint.dataset.state = 'clean';
+    save.classList.remove('is-saving');
+    save.removeAttribute('aria-busy');
+    return;
+  }
+  const dirty = profileCancelHasUnsavedEdits();
+  save.disabled = !dirty || save.classList.contains('is-saving');
+  save.classList.toggle('is-dirty', dirty);
+  hint.textContent = dirty ? 'Unsaved changes' : 'No changes yet';
+  hint.dataset.state = dirty ? 'dirty' : 'clean';
+}
 $('#cancelProfileEditButton').addEventListener('click', async () => {
   if (profileCancelHasUnsavedEdits()) {
     const confirmed = await appConfirm({ tone: 'warning', title: t('prof_discard_title'), message: t('prof_discard_message'), confirmLabel: t('prof_discard_changes'), cancelLabel: t('prof_cancel') });
@@ -12301,6 +12409,7 @@ function onProfileFormVisibilityChange() {
   syncProfileStickySaveBar();
   updateProfileCompletionCounter();
   syncProfileCancelButton();
+  syncProfileSaveHint();
   syncProfileFieldSaveButtons();
 }
 function syncProfileStickySaveBar() {
@@ -12343,9 +12452,10 @@ profileFormEl?.addEventListener('input', (event) => {
   updateProfileCompletionCounter();
   syncProfileStickySaveBar();
   syncProfileCancelButton();
+  syncProfileSaveHint();
   syncProfileFieldSaveButtons();
 });
-profileFormEl?.addEventListener('change', () => { updateProfileCompletionCounter(); syncProfileStickySaveBar(); syncProfileCancelButton(); syncProfileFieldSaveButtons(); });
+profileFormEl?.addEventListener('change', () => { updateProfileCompletionCounter(); syncProfileStickySaveBar(); syncProfileCancelButton(); syncProfileSaveHint(); syncProfileFieldSaveButtons(); });
 syncProfileStickySaveBar();
 updateProfileCompletionCounter();
 

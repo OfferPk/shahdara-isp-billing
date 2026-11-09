@@ -442,71 +442,12 @@ export function createConfirmDialog(doc = document, win = window) {
 
 /* ------------------------- profile + payment polish ------------------------ */
 
-function fieldValues(form) {
-  return [...form.querySelectorAll('input, select, textarea')]
-    .filter(el => el.type !== 'button' && el.type !== 'submit' && el.type !== 'file')
-    .map(el => (el.type === 'checkbox' || el.type === 'radio') ? `${el.id || el.name}:${el.checked}` : `${el.id || el.name}:${el.value}`)
-    .join('\u0001');
-}
-
-export function setupProfileSaveState(doc = document, win = window) {
-  const form = doc.getElementById('customerProfileForm');
-  const save = doc.getElementById('saveMohallaButton');
-  if (!form || !save) return null;
-  let baseline = null;
-  const hint = doc.createElement('span');
-  hint.id = 'profileSaveHint';
-  hint.className = 'profile-save-hint';
-  hint.setAttribute('aria-live', 'polite');
-  save.insertAdjacentElement('afterend', hint);
-  save.setAttribute('aria-describedby', 'profileSaveHint');
-
-  const update = () => {
-    if (baseline === null) return;
-    const dirty = fieldValues(form) !== baseline;
-    save.disabled = !dirty || save.classList.contains('is-saving');
-    save.classList.toggle('is-dirty', dirty);
-    hint.textContent = dirty ? 'Unsaved changes' : 'No changes yet';
-    hint.dataset.state = dirty ? 'dirty' : 'clean';
-  };
-  const snapshot = () => { baseline = fieldValues(form); save.classList.remove('is-saving'); save.removeAttribute('aria-busy'); update(); };
-  const onShown = () => win.setTimeout(snapshot, 0); // after app.js / customer-plan fill the fields
-  new win.MutationObserver(() => {
-    if (!form.hidden) onShown();
-    else {
-      // Plan 498 — the form closed (saved, cancelled, or navigated
-      // away): the hint must not keep the previous session's text.
-      // On reopen the sticky bar syncs before the fresh snapshot
-      // lands, and a stale "Unsaved changes" would flash there.
-      baseline = null;
-      hint.textContent = '';
-      hint.dataset.state = 'clean';
-    }
-  }).observe(form, { attributes: true, attributeFilter: ['hidden'] });
-  if (!form.hidden) onShown();
-  form.addEventListener('input', update);
-  form.addEventListener('change', update);
-  // Saving state: set before app.js's click handler runs; cleared if the form is still open after it
-  // (validation stopped the save) or when the form closes.
-  save.addEventListener('click', e => {
-    if (save.disabled) { e.stopImmediatePropagation(); return; }
-    save.classList.add('is-saving');
-    save.setAttribute('aria-busy', 'true');
-    hint.textContent = 'Saving…';
-    win.setTimeout(() => {
-      // The in-app duplicate confirm may still be open; keep the saving state until it closes.
-      const confirmOpen = doc.getElementById('appConfirmDialog')?.open;
-      if (confirmOpen) {
-        doc.getElementById('appConfirmDialog').addEventListener('close', () => win.setTimeout(() => { save.classList.remove('is-saving'); save.removeAttribute('aria-busy'); if (form.hidden) baseline = null; else update(); }, 0), { once: true });
-        return;
-      }
-      save.classList.remove('is-saving');
-      save.removeAttribute('aria-busy');
-      if (!form.hidden) update();
-    }, 0);
-  }, true);
-  return { snapshot, update };
-}
+// Polish #28 Phase C — the second dirty system lived here
+// (setupProfileSaveState + its fieldValues baseline snapshot). It is
+// retired: Plan 499 is the single dirty source of truth, and app.js
+// syncProfileSaveHint drives the Save button and the (now static)
+// #profileSaveHint from it. Keeping both meant a per-field save left
+// the hint saying dirty while Plan 499 already read clean.
 
 const PAYMENT_MESSAGES = {
   amount: { valueMissing: 'Enter the amount received, e.g. 1500.', rangeUnderflow: 'Amount must be more than 0.', stepMismatch: 'Use at most 2 decimals (paisa).', badInput: 'Enter numbers only, e.g. 1500.' },
@@ -797,7 +738,6 @@ export function setupUiFeedback(doc = document, win = window) {
   };
   if (typeof win.toast !== 'function') win.toast = win.__toastImpl;
   win.appConfirm = confirmer.confirmDialog;
-  setupProfileSaveState(doc, win);
   setupPaymentFormPolish(doc, win);
   setupCustomerSection(doc, win);
   win.__uiFeedback = { toasts, confirmDialog: confirmer.confirmDialog };

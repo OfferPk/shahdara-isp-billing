@@ -286,12 +286,18 @@ test('Plan 373: app.js wires the flag after the verification tick and before the
   // Order, not adjacency: Plan 514 moved the verification tick into
   // the freshness group after the header strip, so the tick no
   // longer sits between the last-interaction line and this flag.
-  // What this pin still guards: the flag sits after the
-  // last-interaction line and still before the household link.
-  const lastAt = appSrc.indexOf('${lastInteractionLineMarkup}');
-  const awayAt = appSrc.indexOf('${temporarilyAwayFlagSectionMarkup}');
-  const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}');
-  assert.ok(lastAt > 0 && awayAt > lastAt && householdAt > awayAt);
+  // Polish #28 Phase A — the flag, the tick and the household link
+  // all live in the Customer section, while the last-interaction line
+  // opens History (S7); sections order by topic, so the flag no
+  // longer follows the line in the DOM. What this pin still guards:
+  // the flag sits after the freshness group (tick) and still before
+  // the household link, inside Customer.
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  const tickAt = customerBody.indexOf('${profileVerificationTickSectionMarkup}');
+  const awayAt = customerBody.indexOf('${temporarilyAwayFlagSectionMarkup}');
+  const householdAt = customerBody.indexOf('${householdLinkSectionMarkup}');
+  assert.ok(tickAt > 0 && awayAt > tickAt && householdAt > awayAt);
 });
 
 test('Plan 373: language tables carry the temporarily-away labels in both languages', () => {
@@ -303,10 +309,21 @@ test('Plan 373: language tables carry the temporarily-away labels in both langua
 });
 
 test('Plan 373: profile order still holds — banner, then strip, then groups', () => {
-  const bannerAt = appSrc.indexOf('wadaProfileBannerHtml(customer)');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections and the away flag inside Customer, after the freshness
+  // group and before the household link.
   const stripAt = appSrc.indexOf('profileHeaderStripSectionHtml}');
-  const groupsAt = appSrc.indexOf('profileInfoGroupsHtml}');
-  assert.ok(bannerAt > 0 && stripAt > bannerAt && groupsAt > stripAt);
+  const customerAt = appSrc.indexOf('profileSectionCustomerHtml}');
+  assert.ok(stripAt > 0 && customerAt > stripAt);
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  const awayAt = customerBody.indexOf('${temporarilyAwayFlagSectionMarkup}');
+  const householdAt = customerBody.indexOf('${householdLinkSectionMarkup}');
+  assert.ok(awayAt > 0 && householdAt > awayAt, 'away flag sits before the household link, inside Customer');
 });
 
 test('Plan 373: round list shows the away line and skips reminders while flagged', () => {

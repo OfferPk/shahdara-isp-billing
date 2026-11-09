@@ -139,7 +139,13 @@ export function withProfileSectionOpen(map, customerId, key, isOpen) {
  * The <details> shell for one profile section. The heading and summary
  * are escaped; the body is the section's already-rendered markup and
  * passes through untouched.
+ *
+ * Polish #28 Phase C (Req 5) — an optional editLabel adds a small Edit
+ * button to the summary (class-found wiring in app.js opens the same
+ * edit form at this section's group). Omitting it renders exactly the
+ * Phase A output, so sections without an edit control are byte-identical.
  */
-export function profileDetailSectionHtml({ key, heading, summary, body, open }) {
-  return `<details class="profile-detail-section" data-profile-section="${escapeProfileSectionHtml(key)}"${open ? ' open' : ''}><summary><h3>${escapeProfileSectionHtml(heading)}</h3><span class="profile-section-summary">${escapeProfileSectionHtml(summary)}</span></summary><div class="profile-section-body">${body ?? ''}</div></details>`;
+export function profileDetailSectionHtml({ key, heading, summary, body, open, editLabel }) {
+  const edit = editLabel ? `<button type="button" class="profile-section-edit secondary-button" data-profile-section-edit="${escapeProfileSectionHtml(key)}">${escapeProfileSectionHtml(editLabel)}</button>` : '';
+  return `<details class="profile-detail-section" data-profile-section="${escapeProfileSectionHtml(key)}"${open ? ' open' : ''}><summary><h3>${escapeProfileSectionHtml(heading)}</h3><span class="profile-section-summary">${escapeProfileSectionHtml(summary)}</span>${edit}</summary><div class="profile-section-body">${body ?? ''}</div></details>`;
 }

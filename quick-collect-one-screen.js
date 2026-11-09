@@ -208,7 +208,7 @@ export function quickCollectOneScreenHtml({ customers, methods, selectedCustomer
     )),
   ].join('');
   return `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+    <div class="qc-one-screen-top-row">
       <button id="qosOneScreenBackBtn" class="secondary-button qc-back-btn" type="button" aria-label="Back to customer list">
         ← ${escapeHtml(QUICK_COLLECT_ONE_SCREEN_BACK_TEXT)}
       </button>
@@ -228,6 +228,6 @@ export function quickCollectOneScreenHtml({ customers, methods, selectedCustomer
       <select id="qosOneScreenMethod" class="qc-input" required>${methodChoices}</select>
     </div>
     <div class="qc-field-group">
-      <button id="qosOneScreenSaveBtn" class="primary-button" type="button" style="width:100%;">${escapeHtml(QUICK_COLLECT_ONE_SCREEN_SAVE_TEXT)}</button>
+      <button id="qosOneScreenSaveBtn" class="primary-button qc-one-screen-save" type="button">${escapeHtml(QUICK_COLLECT_ONE_SCREEN_SAVE_TEXT)}</button>
     </div>`;
 }

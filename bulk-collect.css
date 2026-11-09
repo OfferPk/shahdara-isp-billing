@@ -13,6 +13,27 @@
 .qc-show-all-btn { margin-top: 10px; min-height: 44px; }
 .qc-clear-mohalla-btn { margin-top: 10px; min-height: 44px; }
 
+/* Plan 548: Quick Collect inline styles moved onto tokens — no style=
+   attribute remains on the duplicate, undo, header or one-screen elements.
+   No new hex: every colour comes from tokens.css. The duplicate red was
+   a hardcoded hex no token owns; it is now var(--color-danger) (light
+   theme: the danger token, a darker red than the old bright one) with a
+   dark-theme override to var(--color-danger-strong), because the danger
+   token resolves to a light pink in dark and would not read as a red
+   button with white text there. The delete-undo red hangs off the button
+   id, not the shared .qc-undo-btn class: the reversal undo shares that
+   class and must stay plain secondary. Its old inline style used a var
+   with a fallback hex; the var was never defined anywhere, so the
+   fallback was the live colour — the token that owns the overdue red is
+   --color-overdue (same value in both themes). */
+.primary-button.qc-duplicate-proceed { background: var(--color-danger); font-size: var(--text-xs); padding: 6px 12px; }
+[data-theme="dark"] .primary-button.qc-duplicate-proceed { background: var(--color-danger-strong); }
+#quickCollectUndoBtn { border-color: var(--color-overdue); color: var(--color-overdue); }
+.qc-head-charge-line { display: block; }
+.qc-head-charges { margin-top: 6px; font-size: 0.85rem; }
+.qc-one-screen-top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.qc-one-screen-save { width: 100%; }
+
 #bulkCollectModal.bulk-collect-modal { width: min(680px, calc(100vw - 16px)); max-width: none; max-height: calc(100dvh - 24px); padding: 0; overflow: hidden; }
 #bulkCollectModal .bulk-collect-card {
   display: flex; flex-direction: column; gap: var(--space-3); min-width: 0;

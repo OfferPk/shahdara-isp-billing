@@ -68,7 +68,14 @@ test('hierarchy: the reversal undo is secondary weight, the delete undo keeps it
   assert.doesNotMatch(reversalTag, /style=/);
   const deleteTag = buttonTag('quickCollectUndoBtn');
   assert.match(deleteTag, /secondary-button qc-undo-btn/);
-  assert.match(deleteTag, /border-color:var\(--overdue, #c62828\);color:var\(--overdue, #c62828\);/);
+  // Plan 548: the warning red moved off the tag into the stylesheet — the
+  // tag carries no inline style any more; the red lives in the
+  // #quickCollectUndoBtn rule (bulk-collect.css), still var(--color-overdue).
+  // The rule hangs off the id, not the shared qc-undo-btn class, because
+  // the reversal undo shares that class and must stay plain secondary.
+  // The pin that the red still exists moved to plan548's test file.
+  assert.doesNotMatch(deleteTag, /style=/);
+  assert.doesNotMatch(deleteTag, /#c62828/);
 });
 
 test('note: a one-line note explains when only the five-second undo is offered', () => {

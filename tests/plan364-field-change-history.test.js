@@ -274,17 +274,17 @@ test('wiring: import, store helpers, and the section hook exist in app.js', () =
 });
 
 test('wiring: the history section sits after the tenure section and before the field groups', () => {
-  // The section is inserted after the tenure section element (Plan 363
-  // pattern: labels resolve from the form, so the markup is built
-  // after the template lands in the DOM). The tenure section sits
-  // immediately before the field groups in the template, so inserting
-  // after it keeps banner -> strip -> groups intact.
-  const templateTenureAt = appSrc.indexOf('${serviceTenureSectionMarkup}');
-  const templateGroupsAt = appSrc.indexOf('${profileInfoGroupsHtml}', templateTenureAt);
-  assert.ok(templateTenureAt > 0, 'tenure section is in the profile template');
-  assert.ok(templateGroupsAt > templateTenureAt, 'tenure section sits before the field groups');
-  const insertAt = appSrc.indexOf("querySelector('.stv-section')");
-  assert.ok(insertAt > 0, 'history section is inserted after the tenure section element');
+  // Polish #28 Phase A — the tenure section now lives in the Service
+  // section and the history list appends last inside the History
+  // section; the old .stv-section anchor would have dropped the list
+  // inside Service. The preserved intent is the list renders in
+  // History, after every History item, and tenure still follows the
+  // package history inside Service.
+  const serviceBodyAt = appSrc.indexOf('const profileSectionServiceBody = ');
+  const serviceBody = appSrc.slice(serviceBodyAt, appSrc.indexOf('\n', serviceBodyAt));
+  assert.ok(serviceBody.indexOf('${serviceTenureSectionMarkup}') > serviceBody.indexOf('${packageHistorySectionMarkup}'), 'tenure section still follows the package history, inside Service');
+  assert.ok(appSrc.includes("querySelector('[data-profile-section=\"history\"] .profile-section-body')?.insertAdjacentHTML('beforeend', fieldChangeHistorySectionHtml("), 'history appends into the History section body');
+  assert.ok(!appSrc.includes("querySelector('.stv-section')?.insertAdjacentHTML('afterend', fieldChangeHistorySectionHtml("), 'history no longer anchors on the tenure section');
   assert.ok(appSrc.includes('fieldChangeHistorySectionHtml('));
 });
 

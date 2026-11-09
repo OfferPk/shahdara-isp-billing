@@ -4492,7 +4492,28 @@ export function setupQuickCollectModal({
         return;
       }
       activeCustomerId = customerId;
-      activeDefaults = getCustomerPaymentDefaults(getState(), customerId, new Date(), loadTickets());
+      // Plan 543: the defaults lookup can throw (an archived customer
+      // cannot receive payments) — with no guard the dues line, amount
+      // and remembered method kept showing the PREVIOUS customer's
+      // figures while the select named the new one. A failed lookup
+      // clears the figures instead; the select itself is untouched, so
+      // the operator still sees which customer they picked.
+      let defaults = null;
+      try {
+        defaults = getCustomerPaymentDefaults(getState(), customerId, new Date(), loadTickets());
+      } catch {
+        defaults = null;
+      }
+      if (!defaults) {
+        activeCustomerId = null;
+        activeDefaults = null;
+        if (amountInputOne) amountInputOne.value = '';
+        if (duesLine) { duesLine.textContent = ''; duesLine.hidden = true; }
+        if (methodSelectOne) methodSelectOne.value = '';
+        renderOneScreenQuickAmounts();
+        return;
+      }
+      activeDefaults = defaults;
       if (amountInputOne) {
         amountInputOne.value = activeDefaults.suggestedAmount > 0 ? activeDefaults.suggestedAmount.toFixed(2) : '';
       }
@@ -4535,11 +4556,38 @@ export function setupQuickCollectModal({
     }
     const draft = result.draft;
     activeCustomerId = draft.customerId;
-    activeDefaults = getCustomerPaymentDefaults(getState(), activeCustomerId, new Date(), loadTickets());
+    // Plan 543: the same defaults lookup can throw here too — the
+    // select can still name an archived customer (the change handler
+    // clears the figures but never the select), and a typed amount
+    // plus Save would otherwise throw out of the click handler with
+    // nothing recorded and no explanation. Fail safely instead: toast
+    // the guard's own message and stay on the one screen.
+    try {
+      activeDefaults = getCustomerPaymentDefaults(getState(), activeCustomerId, new Date(), loadTickets());
+    } catch (error) {
+      if (typeof onToast === 'function') onToast(error instanceof Error ? error.message : String(error), { type: 'error' });
+      return;
+    }
     if (amountInput) amountInput.value = draft.amount.toFixed(2);
     if (methodSelect) methodSelect.value = draft.method;
     if (dateInput) dateInput.value = getPakistanLocalDate();
     if (monthSelect) monthSelect.value = activeDefaults.targetMonth;
+    // Plan 543: the one screen does not collect a Transaction ID or an
+    // override reason, so a digital payment with neither would fail
+    // the main submit's TID guard on a hidden step — its inline error
+    // would sit under an invisible field and (per the Plan 296 rule)
+    // no toast would explain it. Switch to the form step first, so the
+    // guard's inline error is visible and the field is focused. The
+    // switch runs before requestSubmit, so before the submit handler's
+    // confirm-summary check (Plan 536) — and to the form step, never
+    // the success step, so polish #21's tick re-trigger is untouched.
+    // Cash flows as before: no switch, the submit runs from the one
+    // screen.
+    if (isDigitalPaymentMethod(draft.method)
+      && !(transactionIdInput?.value || '').trim()
+      && !(overrideReasonInput?.value || '').trim()) {
+      showStep('form');
+    }
     if (typeof paymentForm?.requestSubmit === 'function') paymentForm.requestSubmit();
   }
 

@@ -94,10 +94,10 @@ test('agreement: missing plus the counter filled always equals the counter total
   // Plan 513 — the real field list is the counter's counted list: the
   // pure opt-in flags (prefersSms, paused) are excluded, exactly as
   // app.js builds it, so the agreement fixture must use the same list
-  // or the two would disagree by two. The per-field-save map itself
-  // is unchanged (still 69 fields).
+  // or the two would disagree by two. The per-field-save map holds
+  // 70 fields since Polish #28 Phase D added otherInstallCost.
   const realFields = Object.entries(PROFILE_FIELD_SAVE_MAP).filter(([, fieldKey]) => !PROFILE_COMPLETION_EXCLUDED_KEYS.includes(fieldKey)).map(([controlId, fieldKey]) => ({ controlId, fieldKey }));
-  assert.equal(realFields.length, 67);
+  assert.equal(realFields.length, 68);
   const fixtures = [
     {},
     { name: 'Customer One', phone: '03012345678', mohalla: 'Shahdara', monthlySellingAmount: 3000, paused: false, connectionFee: 0 },
@@ -108,8 +108,9 @@ test('agreement: missing plus the counter filled always equals the counter total
     const counted = countProfileCompletion(record);
     const missing = missingProfileFields(record, realFields);
     assert.equal(missing.length + counted.filled, counted.total, 'checklist and counter must agree');
-    // Plan 513 — total is 67 (opt-in flags excluded); see above.
-    assert.equal(counted.total, 67);
+    // Plan 513 — total is 68 (opt-in flags excluded); Phase D added
+    // otherInstallCost to the counted list, see above.
+    assert.equal(counted.total, 68);
   }
 });
 

@@ -196,7 +196,11 @@ const SPLIT_COMBINED = {
 
 test('split card without a select keeps the plain-text area (backward compatible)', () => {
   const html = renderSplitReceiptCardHtml(SPLIT_COMBINED);
-  assert.ok(html.includes('Partial Payment'));
+  // Polish 21 (Req 6): the partial badge moved out of the card header
+  // into the status section — the card still shows the partial state as
+  // the remaining-balance row.
+  assert.ok(!html.includes('Partial Payment'), 'split card header must not carry the partial badge any more');
+  assert.ok(html.includes('Remaining Balance') && html.includes('PKR 1,000'), 'split card must still show the remaining balance');
   assert.ok(html.includes('<strong class="qc-meta-val">Unassigned</strong>'));
   assert.equal(html.includes('data-qc-area-select'), false);
   assert.equal(renderSplitReceiptCardHtml(null), '');
@@ -209,7 +213,9 @@ test('split card with a select renders the select instead of plain-text area', (
   assert.ok(html.includes(selectHtml));
   assert.ok(html.includes('data-qc-area-select'));
   assert.equal(html.includes('<strong class="qc-meta-val">Unassigned</strong>'), false);
-  assert.ok(html.includes('Partial Payment'));
+  // Polish 21 (Req 6): the partial badge moved out of the card header
+  // into the status section (see the test above).
+  assert.ok(!html.includes('Partial Payment'), 'split card header must not carry the partial badge any more');
 });
 
 // --- (B) picker + payment defaults read the profile area first ------------

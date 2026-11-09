@@ -3418,6 +3418,14 @@ html, body {
   line-height: 1.6;
 }
 
+/* Polish 21 (Req 4): the support number in the terms never splits
+   across lines — a spaced LTR run in RTL text breaks at any space, so
+   the number is wrapped in a non-breaking LTR span (receipt-terms.js).
+   Global on purpose: the helper is shared across the thermal/A4/
+   split-tender/NOC surfaces, and the same wrap happens on a narrow
+   thermal-58 receipt. Display-only. */
+.receipt-support-number { white-space: nowrap; }
+
 .receipt-signatures {
   display: flex;
   justify-content: space-between;
@@ -8418,11 +8426,15 @@ html, body {
 
 /* Req 3 — Animated green tick: the check draws itself (~0.6s) and the
    circle pops once on arrival. The pop lives on the circle span only —
-   putting it on the path too would double-scale the check. */
+   putting it on the path too would double-scale the check.
+   Polish 21 (Req 7): the base rule carries NO animation — an animation
+   here runs once at page load while the success step is hidden, so the
+   tick looks static on every showing. Both animations are gated behind
+   the .qc-tick-play trigger class (below), which showStep re-adds on
+   every entry to the success screen. */
 .qc-check-draw {
   stroke-dasharray: 24;
   stroke-dashoffset: 24;
-  animation: qc-check-draw .6s ease-out .1s forwards;
 }
 
 @keyframes qc-check-draw {
@@ -8439,8 +8451,17 @@ html, body {
 /* H1: hide the modal header's eyebrow on success (title + close stay). */
 #quickCollectModal.qc-success-open .modal-heading .eyebrow { display: none; }
 
-/* B1: hero check circle 48 → 40px; the pop animation plays once on arrival. */
-#quickCollectModal.qc-success-open .qc-success-check { width: 40px; height: 40px; animation: qc-check-pop .45s cubic-bezier(.2,1.4,.4,1) forwards; }
+/* B1 (polish 21): the hero check row is gone — the tick is inline in
+   the heading row at 28px (see the Polish 21 block). This rule is the
+   size only; the pop lives under the .qc-tick-play trigger class. */
+#quickCollectModal.qc-success-open .qc-success-check { width: 28px; height: 28px; }
+
+/* Req 7 (polish 21): the tick animations, gated behind the trigger
+   class. showStep removes .qc-tick-play, forces a reflow, and re-adds
+   it on every entry to the success screen, so the draw + pop replay on
+   every showing instead of running once at page load. */
+#quickCollectModal.qc-success-open .qc-success-check.qc-tick-play { animation: qc-check-pop .45s cubic-bezier(.2,1.4,.4,1) forwards; }
+#quickCollectModal.qc-success-open .qc-success-check.qc-tick-play .qc-check-draw { animation: qc-check-draw .6s ease-out .1s forwards; }
 
 /* B2: banner padding 16 → 10px vertical. */
 #quickCollectModal.qc-success-open .qc-success-banner { padding: 10px 8px; }
@@ -8464,7 +8485,10 @@ html, body {
 
 #quickCollectModal.qc-success-open .qc-success-status-row .sow-still-owes {
   margin: 0;
-  padding: 8px 10px;
+  /* Polish 21 (Req 6 S2): compact badge sizing — 12px, 2px 8px — so the
+     three merged pills read as one equal "all settled" group. */
+  font-size: 12px;
+  padding: 2px 8px;
   border-radius: 9px;
 }
 
@@ -8474,7 +8498,9 @@ html, body {
 
 #quickCollectModal.qc-success-open .qc-success-status-row .osb-saved-badge {
   margin: 0;
-  padding: 8px 10px;
+  /* Polish 21 (Req 6 S2): compact badge sizing — 2px 8px — matching the
+     still-owes pill and the card badges. */
+  padding: 2px 8px;
 }
 
 /* C1 + C2: receipt card padding 14 → 10px, gap 10 → 8px. */
@@ -8513,6 +8539,53 @@ html, body {
 }
 
 /* End Polish 17 — Quick Collect success screen (Nastaliq + compact + tick). */
+
+/* Polish 21 — Quick Collect success screen: tick inline beside the
+   heading, animation re-triggered on every showing, Urdu message
+   separated from the heading, status pills merged into one compact
+   section, terms fit one screenshot, support number on one line with
+   tappable contact icons, WhatsApp Pending red. Every rule is scoped
+   to the success step (via #quickCollectModal.qc-success-open) or to
+   success-only elements, so no other screen moves. On-screen only:
+   the PNG/print/WhatsApp surfaces keep their existing rendering. */
+
+/* Req 1 — Heading row: the tick + heading share one centred flex row.
+   The row's align-items centres the tick against the heading; the
+   tick never squeezes (flex-shrink 0) and the base 8px bottom margin
+   does not apply inside the row. */
+.qc-success-heading-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.qc-success-heading-row .qc-success-check { margin-bottom: 0; flex-shrink: 0; }
+
+/* Req 2 — Separation: 8px of air between the heading (and its focus
+   ring) and the Urdu message, so the message reads as its own block
+   instead of as part of the heading. The base M2 rule (margin: 0)
+   stays; this success-scoped rule adds only the top margin. */
+#quickCollectModal.qc-success-open #quickCollectSuccessMessage { margin-top: 8px; }
+
+/* Req 6 — Merged status section: one section, three pills. The gap
+   drops 8 → 6px so the two wrapped badge lines + gap come to 44px. */
+#quickCollectModal.qc-success-open .qc-success-status-row { gap: 6px; }
+
+/* Req 4 (amended) — Tappable contact icons beside the support number
+   on the QC success screen: inline on the number's line, WhatsApp
+   green for the WhatsApp mark, the call mark in the terms ink. The
+   links are display-only; the number itself is rendered by the shared
+   terms helper. */
+.qc-receipt-card .receipt-support-action { display: inline-flex; vertical-align: -3px; margin-inline-start: 5px; color: var(--color-whatsapp); text-decoration: none; }
+.qc-receipt-card .receipt-support-action.receipt-support-call { color: inherit; }
+.qc-receipt-card .receipt-support-action svg { display: block; }
+
+/* Req 8 — "WhatsApp Pending" reads as a task still pending on the
+   success screen: red background, white text, clock icon kept (the
+   icon uses stroke="currentColor", so it turns white with the text).
+   Token stops only, zero new hex. The global .badge-receipt-unshared
+   rule is untouched (other surfaces keep the grey pending look); the
+   sent state (green shared badge) is unchanged. This ID-scoped rule
+   wins over the dark-theme global override by specificity, so the red
+   shows in both themes. */
+#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { background: var(--color-danger); color: var(--color-neutral-0); border-color: var(--color-danger-strong); }
+
+/* End Polish 21 — Quick Collect success screen (tick inline + replay + status merge + red pending). */
 
 /* Dark Mode Overrides for Quick Collect */
 [data-theme="dark"] #quickCollectModal,

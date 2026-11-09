@@ -1,14 +1,20 @@
-// Polish 17 (Req 2) — Compact fit: the Quick Collect success view fits
-// one mobile screenshot — from the top of the dialog to the end of the
-// receipt card (terms included) ≤ 700 CSS px at 360 px width, with no
-// scrolling. The blocks below the card (next steps, repeat, share draft,
-// second connection, actions) stay below the fold by design.
-// This test asserts the structural facts (terms inside the card,
-// banner/status/card order, merged status row) plus the static height
-// budget: it reads the changed stylesheet values (the whitelist from the
-// design's Req 2 table) and asserts the computed total ≤ 700 px. The
-// static test guards against regressions; the real-phone screenshot is
-// the authority for the true total.
+// Polish 21 (Req 3 + Req 5) — BUDGET REWRITE of the polish #17 fit
+// test: the Quick Collect success view fits one mobile screenshot —
+// from the top of the dialog to the end of the receipt card (terms
+// included) ≤ 700 CSS px at 360 px width, with no scrolling. The blocks
+// below the card (next steps, repeat, share draft, second connection,
+// actions) stay below the fold by design.
+// The baseline is re-based on the PHONE-OBSERVED total (design RC3):
+// polish #17's static 677 px under-read the phone by ~70 px (terms +24,
+// header +9, message −28, residual uncertainty ~+62), so the true total
+// was ≈745 px. The savings below are the polish #21 deltas only
+// (T1-inline 42, SEP −8, NUM 24, S2 6 = 64), computed total 681 px.
+// The polish #17 stylesheet values stay as regression guards (they no
+// longer carry savings rows — the savings are the four deltas), except
+// the three this polish changes (B1 inline tick, S1 compact badges +
+// settle host, C3 header without the settle badge), which are updated
+// in place. The static test guards against regressions; the real-phone
+// screenshot is the authority for the true total.
 // Pattern-fake data only: Test Customer, RCPT-12-202611-01.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -43,19 +49,45 @@ test('structure: the success step orders banner, status row, receipt card, then 
   }
 });
 
-test('structure: the merged status row wraps the still-owes line + the saved badge, after the pending-clearance flag', () => {
+test('structure: the merged status row wraps the still-owes line + the saved badge + the settle host, after the pending-clearance flag', () => {
   const row = pageSrc.indexOf('class="qc-success-status-row"');
   assert.ok(row >= 0, 'status row missing');
   const flag = pageSrc.indexOf('id="pcfSuccessPendingClearanceFlag"');
   const stillOwes = pageSrc.indexOf('id="sowStillOwesLine"');
   const badge = pageSrc.indexOf('id="osbOfflineSavedBadge"');
+  const settle = pageSrc.indexOf('id="qcSettleStatusBadge"');
   assert.ok(flag >= 0 && flag < row, 'pending-clearance flag must sit just before the status row');
   assert.ok(stillOwes > row, 'still-owes line must sit inside the status row');
   assert.ok(badge > stillOwes, 'saved badge must sit inside the status row, after the still-owes line');
-  assert.ok(badge > row, 'saved badge must sit inside the status row');
-  const rowClose = pageSrc.indexOf('</div>', badge);
+  assert.ok(settle > badge, 'settle host must sit inside the status row, after the saved badge (third pill)');
+  assert.ok(settle > row, 'settle host must sit inside the status row');
+  const rowClose = pageSrc.indexOf('</div>', settle);
   const card = pageSrc.indexOf('id="quickCollectReceiptCard"');
   assert.ok(rowClose >= 0 && rowClose < card, 'status row must close before the receipt card');
+});
+
+test('structure: the card header holds only the shared badge + the receipt id (the settle badge moved to the status section)', () => {
+  const receipt = {
+    id: 'receipt-12',
+    receiptNumber: 'RCPT-12-202611-01',
+    amount: 1000,
+    customerName: 'Test Customer',
+    customerNumber: 12,
+    date: '2026-11-08',
+    method: 'Easypaisa',
+    area: 'Sodaa',
+    payableRemaining: 0,
+    newTotalDues: 0,
+  };
+  const html = renderQuickCollectReceiptCardHtml(receipt);
+  const headerStart = html.indexOf('qc-receipt-header');
+  assert.ok(headerStart >= 0, 'card header missing');
+  const headerEnd = html.indexOf('</div>', headerStart);
+  const header = html.slice(headerStart, headerEnd);
+  assert.ok(!header.includes('Settle in Full'), 'card header must not carry the settle badge');
+  assert.ok(!header.includes('Partial Payment'), 'card header must not carry the partial badge');
+  assert.ok(header.includes('badge-receipt-unshared') || header.includes('badge-receipt-shared'), 'card header must keep the shared badge');
+  assert.ok(header.includes('RCPT-12-202611-01'), 'card header must keep the receipt id');
 });
 
 test('structure: the terms sit inside the receipt card (last block of the card)', () => {
@@ -91,12 +123,10 @@ test('structure: the still-owes line and the badge render into the row (the row 
 });
 
 // --- Static height budget ---
-// Baseline (design, screenshot-measured): the terms end at ≈955 CSS px.
-// Each row below reads the changed stylesheet value and counts the
-// design's saving. Design constants (H1, B3/M2, M1, S1, C3, C4, C5, T1)
-// are PIL-measured or margin-collapse arithmetic from the design table;
-// computed rows (H2, B1, B2, C1, C2, G1, D1) derive the saving from the
-// before/after declared values.
+// Baseline (design RC3, phone-observed): the terms end at ≈745 CSS px.
+// The savings below are the polish #21 deltas only. The polish #17
+// stylesheet values are regression guards — they no longer carry
+// savings rows.
 
 function ruleBlock(css, selectorWithBrace) {
   const start = css.indexOf(selectorWithBrace);
@@ -112,102 +142,109 @@ function firstPx(block, property) {
   return parseFloat(m[1]);
 }
 
-const BASELINE_PX = 955;
+const BASELINE_PX = 745;
 const TARGET_PX = 700;
+// The fold on the user's phone is ≈712 px; the observed overshoot is
+// BASELINE_PX − 712 = 33 px, which the savings must cover.
+const FOLD_PX = 712;
 
 test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px width', () => {
   const savings = [];
 
-  // H1 — eyebrow hidden on success (design constant 18: 10px line + 6px margin + rounding).
+  // --- Polish #17 regression guards (values stay, savings no longer
+  // counted here — the savings are the four polish #21 deltas below).
+  // H1 — eyebrow hidden on success.
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .modal-heading .eyebrow { display: none; }'), 'H1: eyebrow must hide on success');
-  savings.push(['H1 eyebrow hidden', 18]);
 
   // H2 — header margin-bottom 12 → 8.
   const header = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .modal-heading {');
   assert.ok(header.includes('margin-bottom: 8px'), 'H2: header margin-bottom must be 8px on success');
-  savings.push(['H2 header margin 12→8', 12 - firstPx(header, 'margin-bottom')]);
-
-  // B1 — hero check circle 48 → 40.
-  const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
-  assert.ok(check.includes('width: 40px') && check.includes('height: 40px'), 'B1: check circle must be 40px on success');
-  savings.push(['B1 check 48→40', 48 - firstPx(check, 'width')]);
 
   // B2 — banner padding 16 → 10 vertical (top + bottom).
   const banner = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-banner {');
   assert.ok(banner.includes('padding: 10px 8px'), 'B2: banner padding must be 10px 8px on success');
-  savings.push(['B2 banner padding 16→10', 2 * (16 - firstPx(banner, 'padding'))]);
 
-  // B3 + M2 — heading explicit 18px + margin 0; message <p> margins → 0
-  // (design constant 46: collapsed h3/p margins 54px → the check's 8px gap).
+  // B3 + M2 — heading explicit 18px + margin 0; message <p> margins → 0.
   const heading = ruleBlock(stylesSrc, '#quickCollectSuccessHeading {');
   assert.ok(heading.includes('font-size: 18px'), 'B3: heading must be explicit 18px');
   assert.ok(heading.includes('margin: 0'), 'B3: heading margin must be 0');
   const message = ruleBlock(stylesSrc, '#quickCollectSuccessMessage {');
   assert.ok(message.includes('margin: 0'), 'M2: message margins must be 0');
-  savings.push(['B3/M2 heading + message margins → 0', 46]);
 
-  // M1 — message Nastaliq 14px / line-height 2.0 (design measured 18: 3 lines × 28 vs 4 lines ≈ 102).
+  // M1 — message Nastaliq 14px / line-height 2.0.
   const messageNastaliq = ruleBlock(stylesSrc, '#quickCollectSuccessMessage.qc-urdu-nastaliq {');
   assert.ok(messageNastaliq.includes('font-size: 14px'), 'M1: Urdu message must be 14px');
   const nastaliq = stylesSrc.slice(stylesSrc.indexOf('#quickCollectSuccessMessage.qc-urdu-nastaliq,'), stylesSrc.indexOf('}', stylesSrc.indexOf('#quickCollectSuccessMessage.qc-urdu-nastaliq,')));
   assert.ok(nastaliq.includes('line-height: 2.0'), 'M1: Nastaliq line-height must be 2.0');
-  savings.push(['M1 message Nastaliq 14px/2.0', 18]);
-
-  // S1 — still-owes + saved badge merged into one status row (design constant 40).
-  assert.ok(stylesSrc.includes('.qc-success-status-row'), 'S1: status row must exist');
-  const rowOwes = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-status-row .sow-still-owes {');
-  assert.ok(rowOwes.includes('margin: 0'), 'S1: still-owes margin must be 0 inside the row');
-  const rowBadge = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-status-row .osb-saved-badge {');
-  assert.ok(rowBadge.includes('margin: 0'), 'S1: badge margin must be 0 inside the row');
-  assert.ok(rowBadge.includes('padding: 8px 10px'), 'S1: badge padding must tighten to 8px 10px inside the row');
-  savings.push(['S1 merged status row', 40]);
 
   // C1 — card padding 14 → 10 (top + bottom).
   const card = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card {');
   assert.ok(card.includes('padding: 10px'), 'C1: card padding must be 10px on success');
-  savings.push(['C1 card padding 14→10', 2 * (14 - firstPx(card, 'padding'))]);
 
-  // C2 — card gap 10 → 8 (3 gaps between header / amount / grid / terms).
+  // C2 — card gap 10 → 8.
   assert.ok(card.includes('gap: 8px'), 'C2: card gap must be 8px on success');
-  savings.push(['C2 card gap 10→8', 3 * (10 - firstPx(card, 'gap'))]);
 
-  // C3 — card header badges stop wrapping (design constant 11: header ~47 → ≤36).
+  // C3 — card header badges stop wrapping; the receipt id drops to its
+  // own right-aligned line only if it cannot fit.
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }'), 'C3: header must allow the id to drop to its own line');
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }'), 'C3: receipt badges must not wrap');
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-id { white-space: nowrap; margin-left: auto; }'), 'C3: receipt id must not wrap and must right-align on its own line');
-  savings.push(['C3 header badges stop wrapping', 11]);
 
-  // C4 — amount 1.5rem → 1.3rem, row padding 4 → 2 (design constant 8).
+  // C4 — amount 1.5rem → 1.3rem, row padding 4 → 2.
   const amount = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount {');
   assert.ok(amount.includes('font-size: 1.3rem'), 'C4: amount must be 1.3rem on success');
   const amountRow = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount-row {');
   assert.ok(amountRow.includes('padding: 2px 0'), 'C4: amount row padding must be 2px 0 on success');
-  savings.push(['C4 amount 1.5rem→1.3rem + row padding', 8]);
 
-  // C5 — grid gap 8 → 6, Area select explicit height 34px (design constant 7).
+  // C5 — grid gap 8 → 6, Area select explicit height 34px.
   const grid = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid {');
   assert.ok(grid.includes('gap: 6px'), 'C5: grid gap must be 6px on success');
   const areaSelect = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-select {');
   assert.ok(areaSelect.includes('height: 34px'), 'C5: Area select must be 34px tall on success');
-  savings.push(['C5 grid gap 8→6 + Area select 34px', 7]);
 
-  // T1 — terms block 184 → 108 (design constant 76: margins 12 + padding 4 + <p> margins 36 + Nastaliq text 24).
+  // T1 — terms block (margins, padding, <p> margins).
   const terms = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .receipt-urdu-notice.qc-urdu-nastaliq {');
   assert.ok(terms.includes('margin: 10px 0'), 'T1: terms margin must be 10px 0 on success');
   assert.ok(terms.includes('padding: 8px 10px'), 'T1: terms padding must be 8px 10px on success');
   const termsP = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .receipt-urdu-notice.qc-urdu-nastaliq p {');
   assert.ok(termsP.includes('margin: 0'), 'T1: terms <p> margins must be 0 on success');
-  savings.push(['T1 terms block 184→108', 76]);
 
-  // G1 — step gap 12 → 8 (2 gaps between banner / status row / card).
+  // G1 — step gap 12 → 8.
   const step = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open #quickCollectStepSuccess {');
   assert.ok(step.includes('gap: 8px'), 'G1: success step gap must be 8px');
-  savings.push(['G1 step gap 12→8', 2 * (12 - firstPx(step, 'gap'))]);
 
   // D1 — dialog padding-top 16 → 8 on success.
   const dialog = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open {');
   assert.ok(dialog.includes('padding-top: 8px'), 'D1: dialog padding-top must be 8px on success');
-  savings.push(['D1 dialog padding-top 16→8', 16 - firstPx(dialog, 'padding-top')]);
+
+  // --- Polish #21 deltas (design Req 3 table) ---
+  // T1-inline — hero tick row gone (check 40px + 8px margin removed),
+  // heading row grows 22 → 28px (+6). Net 48 − 6 = 42.
+  const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
+  assert.ok(check.includes('width: 28px') && check.includes('height: 28px'), 'T1-inline: inline tick must be 28px on success');
+  assert.ok(pageSrc.includes('<div class="qc-success-heading-row">'), 'T1-inline: tick must live in the heading row');
+  assert.equal((pageSrc.match(/class="qc-success-check"/g) || []).length, 1, 'T1-inline: no hero tick row may remain');
+  savings.push(['T1-inline tick inline (hero row gone)', 42]);
+
+  // SEP — separation: message margin-top 0 → 8px. A cost, booked negative.
+  const successMessage = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open #quickCollectSuccessMessage {');
+  assert.ok(successMessage.includes('margin-top: 8px'), 'SEP: message margin-top must be 8px on success');
+  savings.push(['SEP separation margin-top 0→8', -8]);
+
+  // NUM — support number nowrap: support line 2 → 1 line.
+  assert.ok(stylesSrc.includes('.receipt-support-number { white-space: nowrap; }'), 'NUM: support number must be nowrap');
+  savings.push(['NUM support number nowrap (2→1 line)', 24]);
+
+  // S2 — status merge, compact badges: status + header 85 → 79px.
+  const rowOwes = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-status-row .sow-still-owes {');
+  assert.ok(rowOwes.includes('margin: 0'), 'S2: still-owes margin must be 0 inside the row');
+  assert.ok(rowOwes.includes('font-size: 12px'), 'S2: still-owes must demote to 12px (compact badges)');
+  assert.ok(rowOwes.includes('padding: 2px 8px'), 'S2: still-owes padding must tighten to 2px 8px inside the row');
+  const rowBadge = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-status-row .osb-saved-badge {');
+  assert.ok(rowBadge.includes('margin: 0'), 'S2: badge margin must be 0 inside the row');
+  assert.ok(rowBadge.includes('padding: 2px 8px'), 'S2: badge padding must tighten to 2px 8px inside the row');
+  assert.ok(pageSrc.includes('id="qcSettleStatusBadge"'), 'S2: settle host must sit in the status section');
+  savings.push(['S2 merged status section, compact badges', 6]);
 
   const totalSaved = savings.reduce((sum, [, value]) => sum + value, 0);
   const total = BASELINE_PX - totalSaved;
@@ -215,28 +252,35 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
     total <= TARGET_PX,
     `fit budget: baseline ${BASELINE_PX}px − saved ${totalSaved}px = ${total}px must be ≤ ${TARGET_PX}px; savings: ${savings.map(([label, value]) => `${label} ${value}`).join(', ')}`
   );
-  // The plan carries ~75px of slack against the worst case; guard it.
-  assert.ok(totalSaved >= 202, `savings ${totalSaved}px must cover the ≈202px overshoot`);
+  // The saving must cover the observed overshoot over the phone fold.
+  assert.ok(totalSaved >= BASELINE_PX - FOLD_PX, `savings ${totalSaved}px must cover the ${BASELINE_PX - FOLD_PX}px overshoot over the ${FOLD_PX}px fold`);
 });
 
 test('fit guard: no success-scoped rule shrinks text below 11px', () => {
-  const start = stylesSrc.indexOf('/* Polish 17');
-  assert.ok(start >= 0, 'Polish 17 CSS block missing');
-  const end = stylesSrc.indexOf('/* End Polish 17', start);
-  assert.ok(end > start, 'Polish 17 CSS block must have an end marker');
-  const block = stylesSrc.slice(start, end);
-  const sizes = [...block.matchAll(/font-size:\s*([\d.]+)(px|rem)/g)];
-  for (const [, value, unit] of sizes) {
-    const px = unit === 'rem' ? parseFloat(value) * 16 : parseFloat(value);
-    assert.ok(px >= 11, `Polish 17 must never shrink text below 11px, found font-size ${value}${unit}`);
+  // Note the Polish 21 start marker is the block header, not the bare
+  // '/* Polish 21' — in-place Polish 21 comments sit earlier in the
+  // sheet (the Req 4 nowrap rule), so the bare marker would slice
+  // thousands of unrelated lines into the scan.
+  for (const [startMarker, endMarker] of [['/* Polish 17', '/* End Polish 17'], ['/* Polish 21 — Quick Collect', '/* End Polish 21']]) {
+    const start = stylesSrc.indexOf(startMarker);
+    assert.ok(start >= 0, `${startMarker} CSS block missing`);
+    const end = stylesSrc.indexOf(endMarker, start);
+    assert.ok(end > start, `${startMarker} CSS block must have an end marker`);
+    const block = stylesSrc.slice(start, end);
+    const sizes = [...block.matchAll(/font-size:\s*([\d.]+)(px|rem)/g)];
+    for (const [, value, unit] of sizes) {
+      const px = unit === 'rem' ? parseFloat(value) * 16 : parseFloat(value);
+      assert.ok(px >= 11, `${startMarker} must never shrink text below 11px, found font-size ${value}${unit}`);
+    }
   }
 });
 
 test('fit guard: the success-screen change rewords no text and drops no block', () => {
-  // The heading, message, still-owes, badge, card and actions all stay.
-  for (const id of ['quickCollectSuccessHeading', 'quickCollectSuccessMessage', 'sowStillOwesLine', 'osbOfflineSavedBadge', 'quickCollectReceiptCard', 'snsSuccessNextSteps', 'rptRepeatPayment', 'rsdReceiptShareDraft', 'sccSecondConnectionStep']) {
+  // The heading, message, still-owes, badge, settle host, card and actions all stay.
+  for (const id of ['quickCollectSuccessHeading', 'quickCollectSuccessMessage', 'sowStillOwesLine', 'osbOfflineSavedBadge', 'qcSettleStatusBadge', 'quickCollectReceiptCard', 'snsSuccessNextSteps', 'rptRepeatPayment', 'rsdReceiptShareDraft', 'sccSecondConnectionStep']) {
     assert.ok(pageSrc.includes(`id="${id}"`), `success step must keep #${id}`);
   }
   assert.ok(pageSrc.includes('Payment Recorded Successfully'), 'heading wording must stay');
+  assert.ok(pageSrc.includes('class="qc-success-heading-row"'), 'heading-row wrapper must exist');
   assert.ok(quickCollectSrc.includes("packageSuccessMessageOrDefault(amount)"), 'message source must stay the package message');
 });

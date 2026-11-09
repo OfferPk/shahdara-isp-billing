@@ -27162,12 +27162,12 @@
           <div id="quickCollectDigitalFields" class="qc-digital-fields" hidden>
             <div class="qc-field-group">
               <label for="quickCollectTransactionIdInput" class="qc-label">
-                Transaction ID / Ref (Last 6+ digits) <span class="qc-required">*</span>
+                Transaction ID / Ref — full ID <span class="qc-required">*</span>
               </label>
               <input id="quickCollectTransactionIdInput"
                      type="text"
                      maxlength="64"
-                     placeholder="e.g. 12345678901 (JazzCash / Easypaisa / Raast ID)"
+                     placeholder="e.g. 12345678901 — full ID (JazzCash / Easypaisa / Raast)"
                      class="qc-input qc-txnid-input">
             </div>
 
@@ -27186,7 +27186,7 @@
               <input id="quickCollectSenderDigitsInput"
                      type="text"
                      inputmode="numeric"
-                     maxlength="19"
+                     maxlength="4"
                      data-i18n-placeholder="spay_sender_digits_ph"
                      placeholder="e.g. 3310"
                      class="qc-input">
@@ -27283,7 +27283,7 @@
                 <input id="quickCollectSplitSenderDigitsInput"
                        type="text"
                        inputmode="numeric"
-                       maxlength="19"
+                       maxlength="4"
                        data-i18n-placeholder="spay_sender_digits_ph"
                        placeholder="e.g. 3310"
                        class="qc-input">

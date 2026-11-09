@@ -19,9 +19,13 @@ const read = (name) => readFileSync(join(here, '..', name), 'utf8');
 //   group (the identity block, the feed/occupancy/staff tail runs).
 // - Phase C needs one scroll target per VIEW section, so the form now
 //   has SIX groups (S1–S6, prof_sec_* keys — the same headings the
-//   profile view sections carry), and EVERY one of the 69 fields sits
+//   profile view sections carry), and EVERY one of the 70 fields sits
 //   under a heading. The old prof_group_* headings appear nowhere in
 //   the form (the keys still exist — the view info groups use them).
+// - Polish #28 Phase D (2026-11-10) added the 70th field:
+//   otherInstallCost in S4 (Connection), after linemanInstallFee —
+//   an optional install cost that fits none of the named components.
+//   The counts below moved 69 → 70 for exactly that one field.
 // - Within each section the Plan 496 relative order is preserved: the
 //   only moves are the tail runs joining their sections (residence +
 //   landlord into S1, expiry/cancellation + staff name into S2,
@@ -83,7 +87,7 @@ const VIEW_PINNED = {
   ],
   connection: [
     'connectionDateInput', 'connectionFeeInput', 'fiberMetersInput',
-    'linemanInstallFeeInput', 'installedByLinemanInput', 'fiberPerMeterRateInput',
+    'linemanInstallFeeInput', 'otherInstallCostInput', 'installedByLinemanInput', 'fiberPerMeterRateInput',
   ],
   network: [
     'splitterBoxIdInput', 'splitterPortInput', 'oltPonPortInput', 'lastRxDbmInput',
@@ -139,7 +143,7 @@ test('plan 496: each section holds all its fields, nothing split', () => {
   assert.equal(byKey.get('customer').length, 18, 'all 18 Customer fields in one section');
   assert.equal(byKey.get('service').length, 16, 'all 16 Service fields in one section');
   assert.equal(byKey.get('financial').length, 4, 'all 4 Financial fields in one section');
-  assert.equal(byKey.get('connection').length, 6, 'all 6 Connection fields in one section');
+  assert.equal(byKey.get('connection').length, 7, 'all 7 Connection fields in one section (Phase D added otherInstallCost)');
   assert.equal(byKey.get('network').length, 19, 'all 19 Network fields in one section');
   assert.equal(byKey.get('hardware').length, 6, 'all 6 Hardware fields in one section');
 });
@@ -164,7 +168,7 @@ test('plan 496: no ungrouped fields remain — the serial number is last', () =>
   const order = fieldOrder(formHtml());
   const at = (id) => order.indexOf(id);
   const grouped = parseSections(formHtml()).flatMap((s) => s.fields);
-  assert.equal(grouped.length, 69, 'all 69 fields grouped');
+  assert.equal(grouped.length, 70, 'all 70 fields grouped (Phase D added otherInstallCost)');
   for (const f of order) {
     assert.ok(grouped.includes(f), `${f} must sit under a section heading`);
   }
@@ -174,8 +178,8 @@ test('plan 496: no ungrouped fields remain — the serial number is last', () =>
 
 test('plan 496: no field lost, duplicated or re-marked up', () => {
   const order = fieldOrder(formHtml());
-  assert.equal(order.length, 69, 'still 69 fields');
-  assert.equal(new Set(order).size, 69, 'no duplicate field ids');
+  assert.equal(order.length, 70, 'still 70 fields (Phase D added otherInstallCost)');
+  assert.equal(new Set(order).size, 70, 'no duplicate field ids');
   const form = formHtml();
   // Every field keeps its input/select/textarea and its label markup.
   for (const id of order) {

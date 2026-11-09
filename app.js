@@ -15,6 +15,7 @@ import { initDigitalPaymentsSettingsModal, getDigitalPaymentsSettings, saveDigit
 import { initReceiptFooterStudioModal, getReceiptFooter, saveReceiptFooter, buildReceiptFooterText, RECEIPT_FOOTER_STORAGE_KEY } from './receipt-footer-studio.js?v=1.11.0';
 import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
 import { calculateDashboardTodayCard, renderDashboardTodayCard } from './dashboard-today-card.js?v=1.11.0';
+import { calculateFieldRecoveryToday, renderFieldRecoveryTodayCard } from './dashboard-field-recovery.js?v=1.11.0';
 import { calculateUpcomingDues, renderUpcomingDues } from './dashboard-upcoming-dues.js?v=1.11.0';
 import { calculateOverdueList, renderOverdueList } from './dashboard-overdue-list.js?v=1.11.0';
 import { calculateMethodStrip, renderMethodStrip } from './dashboard-method-strip.js?v=1.11.0';
@@ -2776,6 +2777,10 @@ function renderDashboard() {
   // Plan 471: the today card — collections so far today, the count of
   // payments today, and the dues falling due today, in one glance.
   renderDashboardTodayCard(document, calculateDashboardTodayCard(state, referenceDate));
+  // QC-5: the field recovery card — today's recovered vs the day
+  // target with a progress bar, payments, customers visited,
+  // remaining target and pending customers, in one glance.
+  renderFieldRecoveryTodayCard(document, calculateFieldRecoveryToday(state, referenceDate, typeof localStorage !== 'undefined' ? localStorage : null));
   // Plan 472: the upcoming-dues view — bills falling due in the next
   // seven days, split per day, with the seven-day total in PKR.
   renderUpcomingDues(document, calculateUpcomingDues(state, referenceDate));

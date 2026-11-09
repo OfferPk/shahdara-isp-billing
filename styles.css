@@ -7548,6 +7548,9 @@ html, body {
 }
 
 .quick-collect-filter-chip {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   padding: 6px 12px;
   font-size: 0.8rem;
   font-weight: 600;
@@ -8112,6 +8115,9 @@ html, body {
 }
 
 .quick-amount-chip {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   padding: 4px 10px;
   font-size: 0.78rem;
   font-weight: 600;
@@ -8129,6 +8135,9 @@ html, body {
 /* Plan 430: the one screen's quick amount buttons — the same look
    as the entry form's quick chips, reusing their colours only. */
 .qab-amount-chip {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   padding: 4px 10px;
   font-size: 0.78rem;
   font-weight: 600;
@@ -8186,6 +8195,9 @@ html, body {
 }
 
 .qc-date-chip {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   padding: 4px 10px;
   font-size: 0.78rem;
   font-weight: 600;

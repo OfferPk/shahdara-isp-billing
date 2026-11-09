@@ -62,13 +62,16 @@ import { oneScreenQuickAmountFigures, oneScreenQuickAmountButtonsHtml } from './
 import { addPaymentDuesFigures, addPaymentDuesButtonsHtml } from './add-payment-dues-buttons.js';
 import { repeatPaymentFormTarget, repeatPaymentHtml } from './repeat-payment.js';
 import {
+  NAME_PREFIX_LOOKUP_MIN_LETTERS,
   namePrefixLookupHtml,
   namePrefixLookupMatches
 } from './name-prefix-lookup.js';
 import { pickerDuesTextForMatches } from './picker-dues.js';
 import {
+  LAST_FOUR_DIGITS_COUNT,
   findCustomersByLastFourDigits,
-  lastFourDigitsHtml
+  lastFourDigitsHtml,
+  lastFourDigitsOf
 } from './last-four-digits-search.js';
 import {
   filterQuickCollectByMohalla,
@@ -1598,6 +1601,37 @@ export function renderQuickCollectAllCollectedHtml() {
     `;
 }
 
+// Plan 542: the search-guidance hint for the two live lookups.
+// The name-prefix lookup needs 2+ letters and the last-four lookup
+// needs exactly 4 digits; a shorter query runs no lookup at all,
+// so the lists under the search box sit blank and the operator
+// cannot tell whether there are no customers or the lookup simply
+// has not started. These are the one short line that says what to
+// type next — or '' when a lookup runs (or nothing is typed yet:
+// the recent-customers list owns the empty query, never this hint).
+// The thresholds are the lookups' own constants, never copied
+// numbers, so a rule change moves the hint with it.
+export const QUICK_COLLECT_SEARCH_HINT_LETTERS = 'Type 2+ letters to match names.';
+export const QUICK_COLLECT_SEARCH_HINT_DIGITS = 'Type 4 digits to match phone endings.';
+export function quickCollectSearchHintText(query) {
+  const trimmed = String(query ?? '').trim();
+  if (!trimmed) return '';
+  const digits = lastFourDigitsOf(trimmed);
+  const nameChars = trimmed.replace(/[\d٠-٩۰-۹\s+\-().]/gu, '');
+  if (!nameChars) {
+    if (digits.length >= 1 && digits.length < LAST_FOUR_DIGITS_COUNT) return QUICK_COLLECT_SEARCH_HINT_DIGITS;
+    return '';
+  }
+  const needle = trimmed.normalize('NFKC').replace(/\s+/gu, ' ').trim().toLowerCase();
+  if (needle.length < NAME_PREFIX_LOOKUP_MIN_LETTERS) return QUICK_COLLECT_SEARCH_HINT_LETTERS;
+  return '';
+}
+export function quickCollectSearchHintHtml(query) {
+  const text = quickCollectSearchHintText(query);
+  if (!text) return '';
+  return `<p class="field-help qc-lookup-hint" role="status">${escapeHtml(text)}</p>`;
+}
+
 /**
  * Picker contents for a filter: pending (default) lists only customers with an unpaid balance
  * (partially paid customers stay, with their remaining amount); "all" also shows paid ones.
@@ -1633,17 +1667,39 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
     withoutFee,
     html: needsSetup
       ? renderQuickCollectNeedsSetupHtml(withoutFee)
-      : allCollected ? renderQuickCollectAllCollectedHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges)
+      : allCollected ? renderQuickCollectAllCollectedHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter)
   };
 }
 
-export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null, sameNameBadges = null) {
+export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null, sameNameBadges = null, mohallaFilter = '') {
   if (!customers || customers.length === 0) {
+    // Plan 542: when a mohalla filter is what emptied the list, name
+    // the mohalla and offer a one-tap clear — the generic message
+    // never says so, so the operator does not know the filter is
+    // what emptied it. The clear action itself lives on the list
+    // container's click handler and clears only the mohalla filter.
+    if (quickCollectMohallaFilterKey(mohallaFilter)) {
+      const place = String(mohallaFilter).normalize('NFKC').replace(/\s+/gu, ' ').trim();
+      return `
+      <div class="qc-empty-state" role="status">
+        <span class="qc-empty-icon" aria-hidden="true">🔍</span>
+        <h4>No customers in ${escapeHtml(place)}</h4>
+        <p>The mohalla filter is hiding everyone else — clear it to see the full list.</p>
+        <button type="button" class="secondary-button qc-clear-mohalla-btn" data-qc-clear-mohalla>Clear mohalla filter</button>
+      </div>
+    `;
+    }
+    // Plan 542: the old line promised a "3-digit phone" search that
+    // does not exist — name-prefix needs 2+ letters, last-four
+    // needs exactly 4 digits, and the main search matches a phone
+    // substring. The guidance now names the real search rules:
+    // name, #ID, phone number, area — the same four the search
+    // box's own placeholder promises.
     return `
       <div class="qc-empty-state" role="status">
         <span class="qc-empty-icon" aria-hidden="true">🔍</span>
         <h4>No matching accounts found</h4>
-        <p>Try searching by customer name, 3-digit phone, or clear filters.</p>
+        <p>Try searching by customer name, #ID, phone number, or area — or clear filters.</p>
       </div>
     `;
   }
@@ -3198,6 +3254,14 @@ export function setupQuickCollectModal({
     if (!namePrefixList) return;
     const state = getState();
     const query = searchInput?.value ?? '';
+    // Plan 542: while the query is too short for a lookup, say what
+    // to type next instead of leaving the list blank — the hint sits
+    // directly under the search box, in this first list container.
+    const hint = quickCollectSearchHintHtml(query);
+    if (hint) {
+      namePrefixList.innerHTML = hint;
+      return;
+    }
     const matches = filterQuickCollectByMohalla(namePrefixLookupMatches(state?.customers ?? [], query), activeMohallaFilter);
     namePrefixList.innerHTML = namePrefixLookupHtml(matches, pickerDuesTextForMatches(state?.customers ?? [], matches, pickerLookupDuesContext(state)));
   }
@@ -4811,6 +4875,15 @@ export function setupQuickCollectModal({
 
   // Wire list card selection
   customerListContainer?.addEventListener('click', (e) => {
+    if (e.target.closest('[data-qc-clear-mohalla]')) {
+      // Plan 542: clear ONLY the mohalla filter — the search query
+      // and the recent list are untouched — and re-render, so the
+      // full (query-filtered) list returns at once.
+      if (mohallaFilterSelect) mohallaFilterSelect.value = '';
+      activeMohallaFilter = '';
+      renderList();
+      return;
+    }
     if (e.target.closest('[data-qc-show-all]')) {
       setFilter('all');
       renderList();

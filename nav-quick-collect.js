@@ -116,7 +116,7 @@ import {
   settleAddonCharges,
   unsettleAddonChargesForPayment
 } from './speed-addon.js';
-import { buildConcessionSuggestion, buildUptimeConcessionSuggestion, concessionBadgeText, netDueAfterConcession, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
+import { buildConcessionSuggestion, buildUptimeConcessionSuggestion, concessionBadgeText, roundedConcessionSuggestion } from './concession-helper.js?v=1.11.0';
 import { planLateFeeWaiver, lateFeeWaiverRefusal, waivedLateFeeStampFor, lateFeeWaiverOf, restoreWaivedLateFee } from './late-fee-waiver.js';
 import { normalPaymentBlockReason, advanceTargetMonthOptions, defaultAdvanceTargetMonth } from './advance-payment.js';
 import { findRecentDuplicate, duplicatePaymentBypassKey, askDuplicatePayment } from './duplicate-payment-guard.js';
@@ -3404,6 +3404,75 @@ export function setupQuickCollectModal({
     renderRemainderWaadaRow();
   });
 
+  // Plan 538: capture the operator's entries before a concession
+  // reopen, and restore them after it — the same capture/restore
+  // pattern as polish #13's package-change reopen, which restores
+  // only the amount. The concession reopen (openCustomerCollectionForm)
+  // resets method, date, digital fields, split leg 2 and the
+  // screenshot to defaults, so without this the operator re-types
+  // the whole payment at the counter. The amount is NOT carried
+  // here: the Apply handler sets it to the post-concession net
+  // balance after the reopen, and the Remove handler leaves the
+  // fresh prefill (full dues, concession gone).
+  function captureConcessionFormEntries() {
+    return {
+      method: methodSelect ? String(methodSelect.value || '') : '',
+      date: dateInput ? String(dateInput.value || '') : '',
+      transactionId: transactionIdInput ? String(transactionIdInput.value || '') : '',
+      senderName: senderNameInput ? String(senderNameInput.value || '') : '',
+      senderDigits: senderDigitsInput ? String(senderDigitsInput.value || '') : '',
+      overrideReason: overrideReasonInput ? String(overrideReasonInput.value || '') : '',
+      paidBy: paidByInput ? String(paidByInput.value || '') : '',
+      urduNote: urduNoteInput ? String(urduNoteInput.value || '') : '',
+      splitOn: !!splitToggle?.checked,
+      splitAmount: splitAmountInput ? String(splitAmountInput.value || '') : '',
+      splitMethod: splitMethodSelect ? String(splitMethodSelect.value || '') : '',
+      splitTransactionId: splitTransactionIdInput ? String(splitTransactionIdInput.value || '') : '',
+      splitOverrideReason: splitOverrideReasonInput ? String(splitOverrideReasonInput.value || '') : '',
+      splitSenderName: splitSenderNameInput ? String(splitSenderNameInput.value || '') : '',
+      splitSenderDigits: splitSenderDigitsInput ? String(splitSenderDigitsInput.value || '') : '',
+      screenshotDataUrl: currentScreenshotDataUrl || ''
+    };
+  }
+
+  function restoreConcessionFormEntries(entries) {
+    if (!entries || typeof entries !== 'object') return;
+    // Method first: the chips, the digital-field visibility and the
+    // clearance flag all follow the method. An empty method means
+    // the operator never picked one — the reopen's remembered
+    // default stands.
+    if (methodSelect && entries.method) {
+      methodSelect.value = entries.method;
+      syncMethodChips(entries.method);
+      updateDigitalVisibility(entries.method);
+    }
+    if (dateInput && entries.date) dateInput.value = entries.date;
+    if (transactionIdInput) transactionIdInput.value = entries.transactionId || '';
+    if (senderNameInput) senderNameInput.value = entries.senderName || '';
+    if (senderDigitsInput) senderDigitsInput.value = entries.senderDigits || '';
+    if (overrideReasonInput) overrideReasonInput.value = entries.overrideReason || '';
+    if (paidByInput) paidByInput.value = entries.paidBy || '';
+    if (urduNoteInput) urduNoteInput.value = entries.urduNote || '';
+    // Split second: values in first, then one visibility pass, so
+    // the total and the flag render with the restored leg in place.
+    if (splitToggle) splitToggle.checked = entries.splitOn === true;
+    if (splitAmountInput) splitAmountInput.value = entries.splitAmount || '';
+    if (splitMethodSelect) splitMethodSelect.value = entries.splitMethod || '';
+    if (splitTransactionIdInput) splitTransactionIdInput.value = entries.splitTransactionId || '';
+    if (splitOverrideReasonInput) splitOverrideReasonInput.value = entries.splitOverrideReason || '';
+    if (splitSenderNameInput) splitSenderNameInput.value = entries.splitSenderName || '';
+    if (splitSenderDigitsInput) splitSenderDigitsInput.value = entries.splitSenderDigits || '';
+    if (entries.splitOn === true) updateSplitVisibility();
+    // Screenshot: the file input itself cannot be re-filled, but the
+    // data URL is what the submit records — restore it and the
+    // preview, so the proof survives the reopen.
+    if (entries.screenshotDataUrl) {
+      currentScreenshotDataUrl = entries.screenshotDataUrl;
+      if (screenshotPreview) screenshotPreview.src = entries.screenshotDataUrl;
+      if (screenshotPreviewWrap) screenshotPreviewWrap.hidden = false;
+    }
+  }
+
   function renderConcessionBox(customerId, month) {
     if (!concessionBox) return;
     concessionBox.innerHTML = '';
@@ -3424,7 +3493,14 @@ export function setupQuickCollectModal({
       const balanceCents = allocations.forMonth(customerId, month)?.balanceDueCents;
       const balance = typeof balanceCents === 'number' ? balanceCents / 100 : null;
       if (suggestion.alreadyApplied) {
-        const net = balance !== null ? netDueAfterConcession(balance, suggestion.existingAmount) : null;
+        // Plan 538: balance is the engine's figure, already net of
+        // the concession (core.js subtracts bill.concessionAmount
+        // before receipts apply) — netDueAfterConcession would
+        // subtract it a second time (900 − 100 = 800 on a 1,000
+        // bill with a 100 concession). The helper's contract is a
+        // GROSS due minus the concession (pinned by
+        // tests/concession.test.js); the balance here is already net.
+        const net = balance;
         concessionBox.innerHTML = `<span class="discount-badge-applied">Outage concession (Reaayat): −PKR ${suggestion.existingAmount}</span> <small>(${escapeHtml(suggestion.existingReason || 'Outage Reaayat')})</small>${net !== null ? ` <span>Net due: PKR ${net}</span>` : ''} <button type="button" class="waive-late-fee-btn" data-qc-remove-concession>Remove</button>`;
       } else if (suggestion.eligible) {
         // SISP-131: [Round to Rs. 50] toggle + mode beside the apply
@@ -3437,6 +3513,10 @@ export function setupQuickCollectModal({
       }
       concessionBox.querySelector('[data-qc-apply-concession]')?.addEventListener('click', () => {
         try {
+          // Plan 538: capture the operator's entries before the
+          // reopen below — the reopen resets method, date, digital
+          // fields, split leg 2 and the screenshot to defaults.
+          const entriesBeforeConcession = captureConcessionFormEntries();
           const freshState = getState();
           const freshCustomer = freshState.customers.find(c => c.id === customerId);
           const freshBill = freshCustomer?.bills?.find(b => b.month === month);
@@ -3458,10 +3538,24 @@ export function setupQuickCollectModal({
           if (typeof onSaveState === 'function') onSaveState(next);
           uptimeConcessionFill = null;
           openCustomerCollectionForm(customerId);
+          // Plan 538: restore the captured entries — the reopen
+          // above reset them; the amount is set separately below
+          // to the post-concession net balance, not the old figure.
+          restoreConcessionFormEntries(entriesBeforeConcession);
           const netAllocations = calculatePaymentAllocations(getState());
           const netBalanceCents = netAllocations.forMonth(customerId, month)?.balanceDueCents;
+          // Plan 538: the engine's balance is ALREADY net of the
+          // concession (core.js subtracts bill.concessionAmount
+          // before receipts apply), so the amount IS the balance —
+          // netDueAfterConcession would subtract the concession a
+          // second time (900 − 100 = 800 on a 1,000 bill with a 100
+          // concession) and the operator would under-collect by the
+          // concession. The helper's contract is a GROSS due minus
+          // the concession (pinned by tests/concession.test.js).
+          // Nothing due covers the whole bill: blank, like the
+          // prefill's own "nothing due" rule.
           if (amountInput && typeof netBalanceCents === 'number') {
-            amountInput.value = netDueAfterConcession(netBalanceCents / 100, effective.suggestedAmount).toFixed(2);
+            amountInput.value = netBalanceCents > 0 ? (netBalanceCents / 100).toFixed(2) : '';
           }
           // Plan 377: the concession sets the amount after the form
           // opened, so the words refresh explicitly.
@@ -3494,10 +3588,17 @@ export function setupQuickCollectModal({
       }));
       concessionBox.querySelector('[data-qc-remove-concession]')?.addEventListener('click', () => {
         try {
+          // Plan 538: capture first — the reopen below resets the
+          // form, exactly like the Apply path above.
+          const entriesBeforeConcession = captureConcessionFormEntries();
           const next = removeConcessionFromBill(getState(), customerId, month, { reason: 'Outage concession removed by owner' });
           if (typeof onSaveState === 'function') onSaveState(next);
           uptimeConcessionFill = null;
           openCustomerCollectionForm(customerId);
+          // Plan 538: restore the captured entries. The amount is
+          // NOT touched here: the fresh prefill is the full dues
+          // again, which is exactly right once the concession is gone.
+          restoreConcessionFormEntries(entriesBeforeConcession);
           if (typeof onToast === 'function') onToast(`Outage concession removed from bill ${month}.`);
         } catch (err) {
           if (typeof onToast === 'function') onToast(err.message);

@@ -371,10 +371,15 @@ test('wiring: the clear lives in the two render functions and the call-site coun
     'the Plan 529 select disable is untouched');
 
   // No new refresh sites: the clears ride the existing renders.
-  assert.equal((src.match(/renderCashChange\(\)/g) || []).length, 12,
-    'renderCashChange call sites unchanged (11 sites + definition)');
-  assert.equal((src.match(/renderOverpaymentChoice\(\)/g) || []).length, 10,
-    'renderOverpaymentChoice call sites unchanged (9 sites + definition)');
+  // Plan 539 adds one site each: the Back-draft restore refreshes
+  // the amount-dependent lines after restoring the amount, mirroring
+  // the APD chip handler's set — the clears themselves still live
+  // only in the two render functions above, so the counts move by
+  // exactly one each and nothing else changes.
+  assert.equal((src.match(/renderCashChange\(\)/g) || []).length, 13,
+    'renderCashChange call sites unchanged (12 sites + definition)');
+  assert.equal((src.match(/renderOverpaymentChoice\(\)/g) || []).length, 11,
+    'renderOverpaymentChoice call sites unchanged (10 sites + definition)');
   // The submit handler still reads the checked radio the same way —
   // the clear only changes what is checked, never how it is read.
   assert.ok(src.includes("overpaymentChoiceBox?.querySelector('input[name=\"quickCollectOverpaymentChoice\"]:checked')"),

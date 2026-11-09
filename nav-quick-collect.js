@@ -2633,6 +2633,12 @@ export function setupQuickCollectModal({
   let activeCustomerId = null;
   let activeDefaults = null;
   let activeReceipt = null;
+  // Plan 539: the Back-to-picker draft — what the operator had typed
+  // (amount, method, date, TID, month) when leaving the form via Back,
+  // kept in memory for this modal opening only. Restored when the same
+  // customer is re-picked; cleared on save, on picking a different
+  // customer, and on modal close. Never persisted, no store key.
+  let backToPickDraft = null;
   // Polish 4: true once the success card's area-select change listener
   // has been wired (setup runs once, but the flag keeps a re-run safe).
   let areaSelectWired = false;
@@ -2854,8 +2860,12 @@ export function setupQuickCollectModal({
     });
   });
 
-  // SISP-30: refresh the concession badge when the operator picks another month.
-  monthSelect?.addEventListener('change', () => {
+  // SISP-30 / SISP-181 / SISP-101 / Plans 381, 385, 386, 387: the
+  // month-dependent boxes follow the picked month — concession,
+  // uptime, waiver, next receipt, settlement, over/underpayment.
+  // One function so the month picker's change handler and the Plan
+  // 539 draft restore refresh exactly the same boxes.
+  function refreshMonthDependentBoxes() {
     // SISP-181: an uptime fill belongs to the month it was made for.
     uptimeConcessionFill = null;
     if (activeCustomerId) renderConcessionBox(activeCustomerId, monthSelect.value);
@@ -2876,7 +2886,10 @@ export function setupQuickCollectModal({
     // Plan 387: a month switch moves the dues too, so the warning is
     // re-shown for the new remaining figure before anything is saved.
     renderUnderpaymentWarning();
-  });
+  }
+
+  // SISP-30: refresh the concession badge when the operator picks another month.
+  monthSelect?.addEventListener('change', refreshMonthDependentBoxes);
 
   // SISP-101: the waiver gate depends on the amount being collected, so
   // the box re-plans on every amount edit (chips re-render explicitly —
@@ -3799,6 +3812,81 @@ export function setupQuickCollectModal({
     }
   }
 
+  // Plan 539: capture the form's entries when the operator leaves
+  // via Back to the picker, and restore them when the same customer
+  // is re-picked in the same modal opening. A different customer, a
+  // save, or a modal close drops the draft — see the clear sites in
+  // restoreBackToPickDraft, the success paths and handleDialogClosed.
+  // The restore is a plain re-pick only: it never runs for a
+  // package-change reopen (amountOverride) or a repeat payment
+  // (emptyAmount), where those callers own the amount.
+  function captureBackToPickDraft() {
+    if (!activeCustomerId) return;
+    backToPickDraft = {
+      customerId: activeCustomerId,
+      amount: amountInput ? String(amountInput.value || '') : '',
+      method: methodSelect ? String(methodSelect.value || '') : '',
+      date: dateInput ? String(dateInput.value || '') : '',
+      transactionId: transactionIdInput ? String(transactionIdInput.value || '') : '',
+      month: monthSelect ? String(monthSelect.value || '') : ''
+    };
+  }
+
+  function restoreBackToPickDraft(customerId, options = {}) {
+    if (!backToPickDraft) return;
+    // Picking a different customer drops the draft — it belongs to
+    // the customer it was typed for.
+    if (backToPickDraft.customerId !== customerId) {
+      backToPickDraft = null;
+      return;
+    }
+    // A package-change reopen (amountOverride) and a repeat payment
+    // (emptyAmount) own the amount; the draft never overrides them.
+    // Polish #13's rule still decides a package-change amount — the
+    // restored typed figure survives it exactly like any typed
+    // figure, because the package-change caller captures the field
+    // after this restore.
+    if (options && (options.emptyAmount === true || (options.amountOverride !== undefined && options.amountOverride !== null))) return;
+    const draft = backToPickDraft;
+    backToPickDraft = null;
+    if (amountInput) amountInput.value = draft.amount;
+    if (dateInput) dateInput.value = draft.date;
+    if (methodSelect) {
+      methodSelect.value = draft.method;
+      syncMethodChips(draft.method);
+      updateDigitalVisibility(draft.method);
+    }
+    if (transactionIdInput) transactionIdInput.value = draft.transactionId;
+    if (monthSelect && draft.month) {
+      monthSelect.value = draft.month;
+      // The draft month always came from this same select in this
+      // same opening, so it is one of the rebuilt options; refresh
+      // the month-dependent boxes exactly as a manual month pick
+      // would — but only when the month actually moved.
+      if (draft.month !== activeDefaults?.targetMonth) refreshMonthDependentBoxes();
+    }
+    // The amount-dependent lines follow the restored amount, exactly
+    // as a typed amount refreshes them. (No next-receipt re-render
+    // here: the receipt number follows the month, not the amount —
+    // the month refresh above already re-numbers it when the month
+    // moved, and the open already rendered it when it did not.)
+    renderAmountWordsLine();
+    renderCashChange();
+    renderSettlementPreview();
+    renderOverpaymentChoice();
+    renderUnderpaymentWarning();
+    renderRemainderWaadaRow();
+    renderSplitTotal();
+    // The prefill line names the oldest open bill as the amount's
+    // source — hide it when the restored amount is the operator's
+    // own figure rather than the suggested one (the polish #13
+    // precedent: the amount no longer "came from" that bill).
+    if (prefillLine && Number(draft.amount) !== activeDefaults?.suggestedAmount) {
+      prefillLine.innerHTML = '';
+      prefillLine.hidden = true;
+    }
+  }
+
   function openCustomerCollectionForm(customerId, options = {}) {
     const state = getState();
     if (!state) return;
@@ -4149,6 +4237,13 @@ export function setupQuickCollectModal({
 
       // SISP-116: loose-change chips for the payable just computed.
       renderLooseChangeChips();
+
+      // Plan 539: re-picking the same customer after Back restores
+      // the typed draft (plain re-picks only — see
+      // restoreBackToPickDraft for the package-change and repeat
+      // carve-outs, and for dropping the draft on a different
+      // customer).
+      restoreBackToPickDraft(customerId, options);
 
       showStep('form');
       setTimeout(() => {
@@ -4523,6 +4618,9 @@ export function setupQuickCollectModal({
     activeCustomerId = null;
     activeDefaults = null;
     activeReceipt = null;
+    // Plan 539: closing drops the Back draft with the rest of the
+    // form — the next opening starts fresh.
+    backToPickDraft = null;
     // Plan 449: closing drops the second-connection step with the
     // rest of the save — the next opening offers it afresh.
     secondConnectionRecorded = false;
@@ -4871,6 +4969,9 @@ export function setupQuickCollectModal({
 
   // Back to pick
   backToPickBtn?.addEventListener('click', () => {
+    // Plan 539: keep what the operator typed, so re-picking the same
+    // customer restores the form instead of a blank one.
+    captureBackToPickDraft();
     showStep('pick');
     renderList();
     searchInput?.focus();
@@ -5945,6 +6046,9 @@ export function setupQuickCollectModal({
           renderSettleStatusBadge();
           renderReceiptShareDraft();
           renderSuccessPendingClearanceFlag();
+          // Plan 539: a saved payment drops the Back draft — a later
+          // "Collect again" opens a fresh form, not the just-saved one.
+          backToPickDraft = null;
           showStep('success');
           updateCounts();
           announcePaymentSuccess(activeReceipt);
@@ -6148,6 +6252,9 @@ export function setupQuickCollectModal({
       secondConnectionRecorded = false;
       renderSecondConnectionStep();
 
+      // Plan 539: a saved payment drops the Back draft — a later
+      // "Collect again" opens a fresh form, not the just-saved one.
+      backToPickDraft = null;
       showStep('success');
       updateCounts();
 

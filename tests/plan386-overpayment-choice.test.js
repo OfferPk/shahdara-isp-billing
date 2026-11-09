@@ -345,7 +345,11 @@ test('Plan 386: the choice refreshes on every keystroke, month, Advance, split, 
   // like every other programmatic amount set. The count moves from
   // 9 to 10 for that one new call site only; the intent (the choice
   // refreshes on every programmatic amount set) is unchanged.
-  assert.equal(calls.length, 10, `expected 10 renderOverpaymentChoice() sites, found ${calls.length}`);
+  // Plan 539: the Back-draft restore is the tenth refresh site — a
+  // restored amount re-offers the choice like every other
+  // programmatic amount set. The count moves from 10 to 11 for that
+  // one new call site only; the intent is unchanged.
+  assert.equal(calls.length, 11, `expected 11 renderOverpaymentChoice() sites, found ${calls.length}`);
 });
 
 test('Plan 386: the submit posts the choice and the dues through the collection path', () => {

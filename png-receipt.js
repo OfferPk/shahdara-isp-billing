@@ -184,6 +184,11 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   if (receipt.creditTransferInAmount > 0) financial.push({ label: 'Advance Credit Transfer / ایڈوانس کریڈٹ ٹرانسفر', value: `-${money(receipt.creditTransferInAmount)}` });
   // SISP-97: the feeder-host bijli credit line, next to the deposit offset.
   if (receipt.feederHostCreditAmount > 0) financial.push({ label: L('Feeder Host Credit / فیڈر ہوسٹ کریڈٹ'), value: `-${money(receipt.feederHostCreditAmount)}` });
+  // Polish #23: the first-month tag line, next to the other waiver lines.
+  // The tax row above is already suppressed for a tagged bill (the
+  // receipt carries no tax), so the package row shows the full gross
+  // and this line nets it to zero.
+  if (receipt.firstMonthWaivedAmount > 0) financial.push({ label: L('First month included / پہلا مہینہ شامل ہے'), value: `-${money(receipt.firstMonthWaivedAmount)}` });
   // SISP-194: the advance-credit pair (credit applied to this bill /
   // recorded by this advance payment + the balance still held after
   // it), derived by buildPaymentReceipt from the allocation engine.

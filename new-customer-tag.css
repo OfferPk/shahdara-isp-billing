@@ -1,0 +1,98 @@
+/* Polish #23 — Due list: batch new-customer tag (first month free).
+   Mobile-first; matches Quick Collect / app greens. No hex colours:
+   every colour comes from tokens.css. */
+.nct-open-btn {
+  display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--space-1) var(--space-2);
+  width: 100%; min-height: 48px; padding: var(--space-2) 14px;
+  border: 1px dashed var(--green); border-radius: 12px;
+  background: var(--mint); color: var(--green-dark);
+  font: 700 0.95rem 'DM Sans', system-ui, sans-serif; cursor: pointer;
+}
+.nct-open-btn small { font-weight: 500; font-size: 0.75rem; color: var(--muted); }
+.nct-open-btn:focus-visible { outline: 3px solid var(--color-info-strong); outline-offset: 2px; }
+
+#nctTagModal.nct-tag-modal { width: min(680px, calc(100vw - 16px)); max-width: none; max-height: calc(100dvh - 24px); padding: 0; overflow: hidden; }
+#nctTagModal .nct-tag-card {
+  display: flex; flex-direction: column; gap: var(--space-3); min-width: 0;
+  max-height: calc(100dvh - 24px); overflow-y: auto; overflow-x: hidden; padding: var(--space-4);
+}
+#nctTagModal .modal-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+#nctTagModal h2 { margin: 2px 0 0; font: 700 1.25rem Manrope, system-ui, sans-serif; }
+.nct-tag-intro { margin: 0; font-size: 0.85rem; color: var(--muted); }
+
+/* View toggle: Tag / Tagged. */
+.nct-view-toggle { display: flex; gap: var(--space-2); }
+.nct-view-btn { flex: 1; min-height: 44px; }
+.nct-view-btn.is-active { border-color: var(--green); color: var(--green-dark); background: var(--mint); }
+.nct-count { margin-left: 6px; padding: 2px var(--space-2); border-radius: var(--radius-pill); background: var(--mint); color: var(--green-dark); font: 700 0.75rem 'DM Sans', system-ui, sans-serif; }
+
+/* Search */
+.nct-search { display: grid; gap: var(--space-1); }
+.nct-search-label { font-size: 0.8rem; font-weight: 800; color: var(--ink); }
+.nct-search-box { position: relative; }
+.nct-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-size: 1rem; pointer-events: none; }
+#nctTagSearchInput.nct-search-input {
+  width: 100%; min-height: 52px; padding: 0 14px 0 42px; font-size: 17px; font-weight: 600;
+  border: 2px solid var(--green); border-radius: 12px; background: var(--surface); color: var(--ink);
+}
+.nct-search-input:focus { outline: 3px solid color-mix(in srgb, var(--green) 35%, transparent); outline-offset: 1px; }
+.nct-hint { margin: 0; font-size: 0.72rem; color: var(--muted); }
+@media (pointer: coarse) { .nct-hint { display: none; } }
+
+/* Lists: the pick list is the only part that shrinks, so the review + Apply always stay on screen. */
+#nctTagModal .nct-tag-card > * { flex-shrink: 0; }
+#nctTagModal .nct-tag-card > #nctTagTagView,
+#nctTagModal .nct-tag-card > #nctTagTaggedView { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+#nctTagModal .nct-tag-card > #nctTagTagView[hidden],
+#nctTagModal .nct-tag-card > #nctTagTaggedView[hidden] { display: none; }
+.nct-pick-list { display: flex; flex-direction: column; gap: 6px; overflow-y: auto; overflow-x: hidden; padding: 2px; min-width: 0; }
+.nct-list-caption { flex: 0 0 auto; margin: 0 2px 2px; font-size: 0.75rem; font-weight: 700; color: var(--muted); }
+.nct-row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px;
+  min-height: 60px; padding: var(--space-2) 10px; min-width: 0; flex: 0 0 auto;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink);
+  cursor: pointer;
+}
+.nct-row:focus-within { border-color: var(--green); box-shadow: inset 0 0 0 1px var(--green); }
+.nct-row.is-untaggable { opacity: 0.75; cursor: default; }
+.nct-select { width: 22px; height: 22px; accent-color: var(--green); flex: 0 0 auto; }
+.nct-row-info { display: grid; gap: 2px; min-width: 0; }
+.nct-row-name { font-weight: 700; font-size: 0.95rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nct-row-num { font-weight: 800; color: var(--muted); }
+.nct-row-meta { font-size: 0.78rem; color: var(--muted); overflow-wrap: anywhere; }
+.nct-row-badges { display: flex; flex-wrap: wrap; gap: 4px; }
+.nct-badge { display: inline-block; padding: 2px var(--space-2); border-radius: var(--radius-pill); background: var(--mint); color: var(--green-dark); font-size: 0.72rem; font-weight: 800; }
+.nct-badge-new { background: var(--color-pending-bg); color: var(--color-pending); }
+.nct-row-note { font-size: 0.75rem; font-weight: 600; color: var(--color-danger); }
+.nct-row-amount { display: grid; gap: 2px; text-align: right; white-space: nowrap; }
+.nct-row-month { font-size: 0.78rem; font-weight: 700; color: var(--muted); }
+.nct-row-amount strong { font-size: 0.95rem; }
+.nct-row-entry { display: grid; gap: 6px; justify-items: end; }
+.nct-untag-btn { min-height: 44px; }
+
+/* Review */
+.nct-review { display: grid; gap: 6px; padding-top: var(--space-1); border-top: 1px solid var(--line); }
+.nct-review-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.nct-review-head h3 { margin: 0; font: 800 1rem Manrope, system-ui, sans-serif; color: var(--ink); }
+.nct-review-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 150px; overflow-y: auto; }
+.nct-review-item {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: var(--space-2) 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+}
+.nct-review-main { display: grid; min-width: 0; font-size: 0.9rem; }
+.nct-review-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nct-review-meta { font-size: 0.72rem; color: var(--muted); overflow-wrap: anywhere; }
+.nct-review-empty { padding: 10px; text-align: center; font-size: 0.82rem; color: var(--muted); }
+.nct-remove-btn { min-height: 44px; padding: 6px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--color-danger); font-weight: 700; cursor: pointer; }
+
+/* Footer */
+.nct-footer {
+  position: sticky; bottom: -16px; margin: 0 calc(-1 * var(--space-4)) calc(-1 * var(--space-4)); padding: 10px var(--space-4) var(--space-4); display: grid; gap: 6px;
+  background: var(--surface); border-top: 1px solid var(--line);
+}
+.nct-total-line { display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; color: var(--muted); font-size: 0.85rem; }
+.nct-total-line strong { font: 800 1.25rem Manrope, system-ui, sans-serif; color: var(--ink); }
+#nctTagApplyBtn { width: 100%; min-height: 52px; font-size: 1rem; font-weight: 800; border-radius: 12px; }
+
+.nct-status { margin: 0; padding: var(--space-2) 10px; border-radius: var(--radius-sm); font-size: 0.85rem; font-weight: 600; background: var(--mint); color: var(--green-dark); }
+.nct-status[data-kind="error"] { background: var(--color-danger-bg); color: var(--color-danger); }

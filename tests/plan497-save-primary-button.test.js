@@ -51,7 +51,12 @@ test('Plan 497: both Saves keep their identity — same id, label, i18n key, typ
   assert.equal(html.split('id="saveMohallaButton"').length - 1, 1, 'exactly one #saveMohallaButton may exist');
   assert.equal(html.split('id="profileStickySaveButton"').length - 1, 1, 'exactly one #profileStickySaveButton may exist');
   assert.equal(html.split('id="cancelProfileEditButton"').length - 1, 1, 'exactly one #cancelProfileEditButton may exist');
-  assert.ok(formActionsLine().includes('type="button" data-i18n="prof_form_save">Save profile</button>'), 'in-form Save keeps its label and i18n key');
+  // Polish #28 Phase C — the in-form Save now also carries
+  // aria-describedby="profileSaveHint" in static markup. That attribute
+  // used to be set at runtime by the retired setupProfileSaveState
+  // (ui-feedback.js); moving it into the tag keeps the link after the
+  // retirement. Label and i18n key are unchanged.
+  assert.ok(formActionsLine().includes('type="button" data-i18n="prof_form_save" aria-describedby="profileSaveHint">Save profile</button>'), 'in-form Save keeps its label and i18n key');
   assert.ok(stickyBarLine().includes('type="button" data-i18n="prof_form_save">Save profile</button>'), 'sticky Save keeps its label and i18n key');
 });
 

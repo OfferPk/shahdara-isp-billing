@@ -505,7 +505,6 @@ export function splitBadgeMarkup(payment) {
 export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '') {
   if (!combined) return '';
   const remaining = combined.balanceDueCents / 100;
-  const isSettled = combined.status === 'PAID';
   const legRows = combined.legs.map(leg => `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))} · ${escapeHtml(leg.method)}${leg.voided ? ` (${escapeHtml(t('split_voided_leg'))})` : ''}</span>
@@ -514,9 +513,11 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '') {
   return `
     <div class="qc-receipt-card" role="region" aria-label="Split Payment Receipt Slip">
       <div class="qc-receipt-header">
-        <span class="qc-receipt-badge ${isSettled ? 'settled' : 'partial'}">
-          ${isSettled ? '✓ Settle in Full' : '⏳ Partial Payment'}
-        </span>
+        <!-- Polish 21 (Req 6): the settle/partial badge moved out of the
+             card header into the merged status section
+             (renderSettleStatusBadge) — the header keeps only the
+             receipt id, on one line. The settled state itself is still
+             shown by that badge and by the remaining-balance row. -->
         <span class="qc-receipt-id">${escapeHtml(t('split_receipt_title'))}</span>
       </div>
 
@@ -542,7 +543,7 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '') {
         </div>
         ${legRows}
       </div>
-      ${receiptTermsNoteHtml().replace('class="receipt-urdu-notice"', 'class="receipt-urdu-notice qc-urdu-nastaliq qc-urdu-gradient"')}
+      ${receiptTermsNoteHtml({ contactActions: true }).replace('class="receipt-urdu-notice"', 'class="receipt-urdu-notice qc-urdu-nastaliq qc-urdu-gradient"')}
     </div>
   `;
 }

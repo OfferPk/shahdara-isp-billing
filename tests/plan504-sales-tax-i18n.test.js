@@ -35,12 +35,16 @@ test('Plan 504: the key exists in EN and UR, defined once each', () => {
 });
 
 test('Plan 504: the Service group row uses the i18n key, not a literal', () => {
+  // Polish #28 Phase B (Req 3) — the row value now goes through
+  // profileEmptyTax (dash when there is no figure, the same
+  // formatSalesTaxAmount figure otherwise); the label still renders
+  // through t() with the same key, never a literal.
   assert.ok(
-    appSrc.includes("[t('prof_field_sales_tax'), formatSalesTaxAmount(customerSalesTaxCents(customer))]"),
+    appSrc.includes("[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))]"),
     'the Service group row renders through t()'
   );
   assert.ok(
-    !appSrc.includes("['Sales tax (19.5%)', formatSalesTaxAmount(customerSalesTaxCents(customer))]"),
+    !appSrc.includes("['Sales tax (19.5%)', profileEmptyTax(customerSalesTaxCents(customer))]"),
     'the Service group row no longer carries the literal English label'
   );
 });

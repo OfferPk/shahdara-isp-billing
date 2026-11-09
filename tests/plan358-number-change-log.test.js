@@ -381,15 +381,24 @@ test('wiring: app.js imports the module, loads and saves the log, and shows the 
 });
 
 test('wiring: the profile order assertion still holds — banner, strip, then groups', () => {
-  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
-  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}', bannerAt);
-  const groupsAt = appSrc.indexOf('${profileInfoGroupsHtml}', stripAt);
-  assert.ok(bannerAt > 0, 'wada banner is in the profile template');
-  assert.ok(stripAt > bannerAt, 'strip sits after the wada banner');
-  assert.ok(groupsAt > stripAt, 'strip sits before the field groups');
-  const logAt = appSrc.indexOf('${numberChangeLogSectionMarkup}');
-  assert.ok(logAt > stripAt, 'number change log sits after the strip');
-  assert.ok(logAt < groupsAt, 'number change log sits before the field groups');
+  // Polish #28 Phase A — the profile renders as 7 <details> sections:
+  // the strip sits in the assembly above every section, the wada banner
+  // opens the Financial section, and the field groups are fragments
+  // inside the section bodies. The old flat order (banner → strip →
+  // groups) no longer exists; the preserved intent is strip above the
+  // sections, banner first in Financial, and each item inside its
+  // section — here the number-change log inside History, after the
+  // move-house history and before the mohalla record.
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  const historyAt = appSrc.indexOf('${profileSectionHistoryHtml}', stripAt);
+  assert.ok(stripAt > 0, 'strip is in the profile assembly');
+  assert.ok(historyAt > stripAt, 'History section sits after the strip');
+  const historyBodyAt = appSrc.indexOf('const profileSectionHistoryBody = ');
+  const historyBody = appSrc.slice(historyBodyAt, appSrc.indexOf('\n', historyBodyAt));
+  const moveAt = historyBody.indexOf('${moveHouseHistorySectionMarkup}');
+  const logAt = historyBody.indexOf('${numberChangeLogSectionMarkup}');
+  const mohallaAt = historyBody.indexOf('${mohallaChangeRecordSectionMarkup}');
+  assert.ok(moveAt > 0 && logAt > moveAt && mohallaAt > logAt, 'number change log sits after the move-house history and before the mohalla record, inside History');
 });
 
 test('styles: the log rules exist and reuse an existing colour only', () => {

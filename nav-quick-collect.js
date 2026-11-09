@@ -2522,6 +2522,13 @@ export function setupQuickCollectModal({
   // Plan 435: the sixty-second reversal undo button on the success
   // screen (null when the host page predates it).
   const reversalUndoBtn = document.getElementById('quickCollectReversalUndoBtn');
+  // Plan 532: the one-line note shown when only the five-second undo
+  // is available — found by class through the undo button's own
+  // parent, never through a new id (null when the host page
+  // predates it, or its document has no querySelector).
+  const reversalUndoNote = typeof undoBtn?.parentElement?.querySelector === 'function'
+    ? undoBtn.parentElement.querySelector('.qc-undo-note')
+    : null;
   const printReceiptBtn = document.getElementById('quickCollectPrintReceiptBtn');
   const anotherBtn = document.getElementById('quickCollectAnotherBtn');
   const doneCloseBtn = document.getElementById('quickCollectDoneCloseBtn');
@@ -4192,8 +4199,9 @@ export function setupQuickCollectModal({
     }
   }
 
-  // Live countdown on the in-dialog Undo button ("Undo Payment (4s)" ... 1s),
-  // so the 5-second window is visible instead of a static "(5s)" label.
+  // Live countdown on the in-dialog Undo button ("Undo — deletes this
+  // payment (4s)" ... 1s), so the 5-second window is visible instead
+  // of a static "(5s)" label.
   // (Was 10s until 2026-10-21 — the user asked for 5s: 10 felt uselessly long.)
   function startUndoCountdown() {
     stopUndoCountdown();
@@ -4201,7 +4209,7 @@ export function setupQuickCollectModal({
     const render = () => {
       if (!undoBtn || undoBtn.hidden) return;
       const left = Math.max(0, Math.ceil((undoDeadline - Date.now()) / 1000));
-      undoBtn.textContent = `↩ Undo Payment (${left}s)`;
+      undoBtn.textContent = `↩ Undo — deletes this payment (${left}s)`;
     };
     render();
     undoCountdownId = setInterval(render, 250);
@@ -4228,13 +4236,17 @@ export function setupQuickCollectModal({
     stopReversalUndoCountdown();
     activeReversalUndo = null;
     if (reversalUndoBtn) reversalUndoBtn.hidden = true;
+    // Plan 532: the note only explains a missing reversal undo — it
+    // never outlives the arming it describes.
+    if (reversalUndoNote) reversalUndoNote.hidden = true;
   }
 
   // Live countdown on the reversal Undo button ("↩ Undo by reversal
-  // (59s)" ... 1s), so the sixty-second window is visible instead of
-  // a static "(60s)" label. The seconds come from the pure window
-  // check against the saved instant, so the label can never drift
-  // from the rule that decides whether the undo runs.
+  // — original stays visible (59s)" ... 1s), so the sixty-second
+  // window is visible instead of a static "(60s)" label. The seconds
+  // come from the pure window check against the saved instant, so the
+  // label can never drift from the rule that decides whether the
+  // undo runs.
   function startReversalUndoCountdown() {
     stopReversalUndoCountdown();
     const render = () => {
@@ -4263,7 +4275,12 @@ export function setupQuickCollectModal({
       hasWaiver: !!lateFeeWaiverOf(savedPayment),
       hasWaadaStamp: !!remainderWaadaOf(savedPayment),
     });
-    if (!plain) return;
+    // Plan 532: when the reversal is not offered, the note says why
+    // only the five-second undo is available.
+    if (!plain) {
+      if (reversalUndoNote) reversalUndoNote.hidden = false;
+      return;
+    }
     activeReversalUndo = { customerId, month, paymentId, amount, customerName, savedAtMs: Date.now() };
     reversalUndoBtn.hidden = false;
     reversalUndoBtn.disabled = false;
@@ -5569,7 +5586,7 @@ export function setupQuickCollectModal({
           if (undoBtn) {
             undoBtn.hidden = false;
             undoBtn.disabled = false;
-            undoBtn.textContent = '↩ Undo Payment (5s)';
+            undoBtn.textContent = '↩ Undo — deletes this payment (5s)';
           }
           if (undoTimeoutId) clearTimeout(undoTimeoutId);
           undoTimeoutId = setTimeout(() => {
@@ -5577,6 +5594,9 @@ export function setupQuickCollectModal({
             activeUndoContext = null;
             stopUndoCountdown();
             if (undoBtn) undoBtn.hidden = true;
+            // Plan 532: the note's premise stops being true when the
+            // five-second window lapses, so it hides with the button.
+            if (reversalUndoNote) reversalUndoNote.hidden = true;
           }, UNDO_WINDOW_MS);
           startUndoCountdown();
           // Plan 435: a split collection records two legs of its own,
@@ -5727,7 +5747,7 @@ export function setupQuickCollectModal({
       if (undoBtn) {
         undoBtn.hidden = false;
         undoBtn.disabled = false;
-        undoBtn.textContent = '↩ Undo Payment (5s)';
+        undoBtn.textContent = '↩ Undo — deletes this payment (5s)';
       }
 
       if (undoTimeoutId) clearTimeout(undoTimeoutId);
@@ -5736,6 +5756,9 @@ export function setupQuickCollectModal({
         activeUndoContext = null;
         stopUndoCountdown();
         if (undoBtn) undoBtn.hidden = true;
+        // Plan 532: the note's premise stops being true when the
+        // five-second window lapses, so it hides with the button.
+        if (reversalUndoNote) reversalUndoNote.hidden = true;
       }, UNDO_WINDOW_MS);
       startUndoCountdown();
 

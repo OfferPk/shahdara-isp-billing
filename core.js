@@ -72,6 +72,13 @@ import { normalizeTransactionCategoryTag, transactionCategoryTagOf } from './tra
 import { normalizePromisePaymentLink, promisePaymentLinkOf } from './promise-payment-link.js';
 import { normalizeUrduNote, urduNoteOf } from './urdu-note.js';
 import { normalizeCrossPaymentNote, crossPaymentNoteOf } from './cross-payment-note.js';
+// Polish #28 Phase E — profile validation (Req 8): MAC format reuses
+// the strict normalizer from mac-oui-lookup.js (any non-hex character
+// makes the value malformed, never silently stripped), and static IP
+// uses the strict IPv4 check from ipv4-validation.js. Both modules
+// are pure and import-free, so neither can cycle back into core.
+import { isFullMacAddress } from './mac-oui-lookup.js';
+import { isValidIpv4 } from './ipv4-validation.js';
 // Privacy (owner order, 2026-10-29): NO customer names ship with this
 // public app. The customer list starts EMPTY; every record is entered
 // by the owner locally and lives only in the browser's storage.
@@ -943,10 +950,22 @@ export function updateMohalla(state, customerId, mohalla) {
 function checkMonth(month, referenceDate) {
   if (!monthsForHistory(referenceDate).includes(month)) throw new Error(`Choose a month within the last ${MONTH_LIMIT} months.`);
 }
-function checkPositiveAmount(value, optional = false) {
+// Polish #28 Phase E — a validation error that knows which profile
+// control it belongs to (and, for the new Phase E messages, which
+// dictionary key translates it). The full-save catch in app.js reads
+// both: the banner jumps to the field instead of the top of the form,
+// and shows the translated message when the operator uses Urdu.
+// Errors without a field id keep the old form-level behaviour.
+function fieldError(message, fieldId = null, i18nKey = null) {
+  const error = new Error(message);
+  if (fieldId) error.fieldId = fieldId;
+  if (i18nKey) error.i18nKey = i18nKey;
+  return error;
+}
+function checkPositiveAmount(value, optional = false, fieldId = null) {
   if (optional && (value === '' || value === null || value === undefined)) return null;
   const number = Number(value);
-  if (!Number.isFinite(number) || number <= 0) throw new Error('Amount must be greater than zero.');
+  if (!Number.isFinite(number) || number <= 0) throw fieldError('Amount must be greater than zero.', fieldId);
   return Math.round(number * 100) / 100;
 }
 function checkPaymentAmount(value) {
@@ -974,10 +993,10 @@ function checkReversalPaymentAmount(value) {
   }
   return normalizedAmount;
 }
-function checkCost(value) {
+function checkCost(value, fieldId = null) {
   if (value === '' || value === null || value === undefined) return null;
   const number = Number(value);
-  if (!Number.isFinite(number) || number < 0) throw new Error('Monthly purchase cost cannot be negative.');
+  if (!Number.isFinite(number) || number < 0) throw fieldError('Monthly purchase cost cannot be negative.', fieldId);
   return Math.round(number * 100) / 100;
 }
 function checkFiberMeters(value) {
@@ -1041,13 +1060,46 @@ function checkCustodyOwnership(value) {
   if (value !== 'isp-owned' && value !== 'customer-owned') throw new Error('Choose ISP Owned — Returnable, Customer Purchased, or Not recorded for hardware ownership.');
   return value;
 }
-function checkOptionalDate(value, label = 'Due date') {
+function checkOptionalDate(value, label = 'Due date', fieldId = null) {
   if (value === '' || value === null || value === undefined) return null;
   const date = String(value);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Enter a valid ${label.toLowerCase()}.`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw fieldError(`Enter a valid ${label.toLowerCase()}.`, fieldId);
   const parsed = new Date(`${date}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) throw new Error(`Enter a valid ${label.toLowerCase()}.`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) throw fieldError(`Enter a valid ${label.toLowerCase()}.`, fieldId);
   return date;
+}
+// Polish #28 Phase E — profile validation (Req 8). These run only on
+// a value the save actually changed (see the block after the fields
+// literal); a pre-existing value the operator did not touch is never
+// re-checked, so legacy records keep saving. Values are stored as
+// entered — a check never rewrites the operator's text.
+function checkMacAddress(value) {
+  const cleaned = String(value ?? '').trim();
+  if (!cleaned) return cleaned;
+  if (!isFullMacAddress(cleaned)) throw fieldError('MAC address must be 12 hex digits, e.g. AA:BB:CC:DD:EE:FF.', 'macAddressInput', 'prof_mac_invalid');
+  return cleaned;
+}
+function checkStaticIp(value) {
+  const cleaned = String(value ?? '').trim();
+  if (!cleaned) return cleaned;
+  if (!isValidIpv4(cleaned)) throw fieldError('Enter a valid IPv4 address, e.g. 192.168.1.10.', 'staticIpInput', 'prof_ip_invalid');
+  return cleaned;
+}
+function checkPackageSpeed(value) {
+  const cleaned = String(value ?? '').trim();
+  if (!cleaned) return cleaned;
+  // The field is a package LABEL that may carry a speed, not a speed
+  // alone: production code writes the catalog labels ("5Mbps / 200GB",
+  // "15Mbps Unlimited") through this same function, and the pinned
+  // phase3 custom-label test saves "Gold Plan" as a legitimate label.
+  // So a value is valid when it carries a usable speed (the design's
+  // derivation pattern, or a bare number read as Mbps) or when it is a
+  // digit-free custom label. Only a digit-bearing value with no usable
+  // speed — or a bare "Mbps" claim with no number — is a typo.
+  if (/^\d+(?:\.\d+)?$/.test(cleaned)) return cleaned;
+  if (/(\d+(?:\.\d+)?)\s*Mbps/i.test(cleaned)) return cleaned;
+  if (!/\d/.test(cleaned) && !/Mbps/i.test(cleaned)) return cleaned;
+  throw fieldError('Enter the speed as a number followed by Mbps, e.g. 15 Mbps.', 'packageSpeedInput', 'prof_speed_invalid');
 }
 function customerOrThrow(state, customerId) {
   const customer = state.customers.find(c => c.id === customerId);
@@ -1096,10 +1148,10 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     // SISP-84: connection type (residential / commercial_vip SLA tag).
     connectionType: checkConnectionType(valueOrCurrent('connectionType')),
     packageSpeed: cleanText(valueOrCurrent('packageSpeed') ?? '', 80, 'Package/speed'),
-    monthlyPurchaseCost: checkCost(valueOrCurrent('monthlyPurchaseCost')),
-    monthlySellingAmount: checkPositiveAmount(valueOrCurrent('monthlySellingAmount'), true),
-    connectionDate: checkOptionalDate(valueOrCurrent('connectionDate'), 'Connection date'),
-    connectionFee: checkCost(valueOrCurrent('connectionFee')),
+    monthlyPurchaseCost: checkCost(valueOrCurrent('monthlyPurchaseCost'), 'monthlyPurchaseCostInput'),
+    monthlySellingAmount: checkPositiveAmount(valueOrCurrent('monthlySellingAmount'), true, 'monthlySellingAmountInput'),
+    connectionDate: checkOptionalDate(valueOrCurrent('connectionDate'), 'Connection date', 'connectionDateInput'),
+    connectionFee: checkCost(valueOrCurrent('connectionFee'), 'connectionFeeInput'),
     // SISP-24: optical splitter assignment + last RX reading (optional;
     // absent on pre-SISP-24 records, which read back as empty / null).
     splitterBoxId: cleanText(valueOrCurrent('splitterBoxId') ?? '', 100, 'Splitter box'),
@@ -1124,7 +1176,7 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     // scorecard's per-installer new-connection split).
     installedByLineman: cleanText(valueOrCurrent('installedByLineman') ?? '', 100, 'Installed by lineman'),
     routerModel: cleanText(valueOrCurrent('routerModel') ?? '', 100, 'Router model'),
-    routerPrice: checkCost(valueOrCurrent('routerPrice')),
+    routerPrice: checkCost(valueOrCurrent('routerPrice'), 'routerPriceInput'),
     fiberMeters: checkFiberMeters(valueOrCurrent('fiberMeters')),
     // SISP-19: custody fields edited on the profile form. Recovery dates
     // are NOT edited here — they are set only by the mark-recovered action
@@ -1132,18 +1184,18 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     routerOwnership: checkCustodyOwnership(valueOrCurrent('routerOwnership')),
     mediaConverterOwnership: checkCustodyOwnership(valueOrCurrent('mediaConverterOwnership')),
     serialNumber: cleanText(valueOrCurrent('serialNumber') ?? '', 100, 'Serial / MAC number'),
-    securityDeposit: checkCost(valueOrCurrent('securityDeposit')),
+    securityDeposit: checkCost(valueOrCurrent('securityDeposit'), 'securityDepositInput'),
     // SISP-143: occupancy + guarantor fields (optional; a junk residence
     // type coerces to not-recorded so it can never block an unrelated
     // profile save; guarantor texts use the house cleanText caps).
     residenceType: sanitizeResidenceType(valueOrCurrent('residenceType')),
     landlordOrGuarantorName: cleanText(String(valueOrCurrent('landlordOrGuarantorName') ?? '').replace(/[\r\n\u2028\u2029]+/g, ' '), 100, 'Landlord / guarantor name'),
     landlordPhone: cleanText(String(valueOrCurrent('landlordPhone') ?? '').replace(/[\r\n\u2028\u2029]+/g, ' '), 40, 'Landlord / guarantor phone'),
-    mediaConverterCost: checkCost(valueOrCurrent('mediaConverterCost')),
-    linemanInstallFee: checkCost(valueOrCurrent('linemanInstallFee')),
-    fiberPerMeterRate: checkCost(valueOrCurrent('fiberPerMeterRate')),
+    mediaConverterCost: checkCost(valueOrCurrent('mediaConverterCost'), 'mediaConverterCostInput'),
+    linemanInstallFee: checkCost(valueOrCurrent('linemanInstallFee'), 'linemanInstallFeeInput'),
+    fiberPerMeterRate: checkCost(valueOrCurrent('fiberPerMeterRate'), 'fiberPerMeterRateInput'),
     // Polish #28 Phase D: any further install cost — optional, blank means not recorded.
-    otherInstallCost: checkCost(valueOrCurrent('otherInstallCost')),    nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
+    otherInstallCost: checkCost(valueOrCurrent('otherInstallCost'), 'otherInstallCostInput'),    nameUrdu: cleanText(valueOrCurrent('nameUrdu') ?? '', 100, 'Urdu name'),
     // SISP-165: father / reference name + search aliases (finding aids).
     fatherOrReferenceName: cleanText(valueOrCurrent('fatherOrReferenceName') ?? '', 100, 'Father / reference name'),
     searchAliases: sanitizeSearchAliases(valueOrCurrent('searchAliases')),
@@ -1156,8 +1208,8 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     wifiPassword: cleanText(valueOrCurrent('wifiPassword') ?? '', 100, 'Wi-Fi password'),
     routerAdminPort: checkAdminPort(valueOrCurrent('routerAdminPort')),
     routerAdminPassword: cleanText(valueOrCurrent('routerAdminPassword') ?? '', 100, 'Router admin password'),
-    expiryDate: checkOptionalDate(valueOrCurrent('expiryDate'), 'Expiry date'),
-    cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date'),
+    expiryDate: checkOptionalDate(valueOrCurrent('expiryDate'), 'Expiry date', 'expiryDateInput'),
+    cancellationDate: checkOptionalDate(valueOrCurrent('cancellationDate'), 'Cancellation date', 'cancellationDateInput'),
     // SISP-7: feeder link — whose converter/switch feeds this customer, and
     // which feeder zone (Side 1 to Side 4c) the drop belongs to. An unknown
     // zone value coerces to '' rather than blocking an unrelated save.
@@ -1178,8 +1230,8 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
     preferredReceiptLang: sanitizeReceiptLang(valueOrCurrent('preferredReceiptLang')),
     preferredReceiptChannel: sanitizeReceiptChannel(valueOrCurrent('preferredReceiptChannel')),
     paused: valueOrCurrent('paused') === true,
-    pauseStartDate: checkOptionalDate(valueOrCurrent('pauseStartDate'), 'Pause start date'),
-    autoResumeDate: checkOptionalDate(valueOrCurrent('autoResumeDate'), 'Auto-resume date'),
+    pauseStartDate: checkOptionalDate(valueOrCurrent('pauseStartDate'), 'Pause start date', 'pauseStartDateInput'),
+    autoResumeDate: checkOptionalDate(valueOrCurrent('autoResumeDate'), 'Auto-resume date', 'autoResumeDateInput'),
     // SISP-148: do-not-suspend shield — sanitized, never throws: an
     // invalid date or an unknown reason saves as "no shield" rather
     // than blocking an unrelated profile save. Clearing the form's
@@ -1222,6 +1274,29 @@ export function updateCustomerProfile(state, customerId, values = {}, referenceD
   // live regardless; this keeps the stored value honest too.)
   if (fields.feederHostCreditPKR > 0 && !isFeederHost(state.customers, current)) {
     fields.feederHostCreditPKR = 0;
+  }
+  // Polish #28 Phase E — validate-on-change (Req 8): a format check
+  // runs only when the incoming value differs from the stored record.
+  // A pre-existing invalid value the operator did NOT touch never
+  // blocks an unrelated save — garbage MACs and IPs saved before
+  // Phase E exist in real records, and the first full save after
+  // Phase E (which passes every key) must not hard-block on a field
+  // the operator never touched. Per-field save passes a single key,
+  // so it validates only that key.
+  if (fields.macAddress !== String(current.macAddress ?? '')) checkMacAddress(fields.macAddress);
+  if (fields.staticIp !== String(current.staticIp ?? '')) checkStaticIp(fields.staticIp);
+  if (fields.packageSpeed !== String(current.packageSpeed ?? '')) checkPackageSpeed(fields.packageSpeed);
+  // Date ordering (Req 8): expiry / cancellation must not precede the
+  // connection date (same day is valid; ISO dates compare as strings).
+  // Only when the later date changed — a save that only moves the
+  // connection date (reconnect, install completion) legitimately sets
+  // connectionDate=today against a possibly-past stored expiry date,
+  // so that direction never trips this check.
+  if (fields.expiryDate !== (current.expiryDate ?? null) && fields.expiryDate !== null && fields.connectionDate !== null && fields.expiryDate < fields.connectionDate) {
+    throw fieldError('Expiry date cannot be before the connection date.', 'expiryDateInput', 'prof_expiry_before_connection');
+  }
+  if (fields.cancellationDate !== (current.cancellationDate ?? null) && fields.cancellationDate !== null && fields.connectionDate !== null && fields.cancellationDate < fields.connectionDate) {
+    throw fieldError('Cancellation date cannot be before the connection date.', 'cancellationDateInput', 'prof_cancellation_before_connection');
   }
   const pauseError = validatePauseFields(fields);
   if (pauseError) throw new Error(pauseError);

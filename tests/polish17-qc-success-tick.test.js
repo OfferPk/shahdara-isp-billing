@@ -1,8 +1,12 @@
-// Polish 17 (Req 3) — Animated green tick: the hero tick on the Quick
-// Collect success screen is an inline SVG check that draws itself and
-// pops in (Lottie-style), built with SVG + CSS keyframes — NOT Lottie
-// (no new dependency, fully offline). It plays once per showing, then
-// rests as a clear green ✓; prefers-reduced-motion shows a static ✓.
+// Polish 17 (Req 3) as amended by Polish 21 (Req 1 + Req 7) — Animated
+// green tick: the tick on the Quick Collect success screen is an inline
+// SVG check beside the heading that draws itself and pops in
+// (Lottie-style), built with SVG + CSS keyframes — NOT Lottie (no new
+// dependency, fully offline). Polish 21 moved it inline (28 px, in the
+// heading row — no hero row) and gated BOTH animations behind the
+// .qc-tick-play trigger class, which showStep re-adds on EVERY entry to
+// the success screen, so it visibly plays on every showing and rests as
+// a clear green ✓; prefers-reduced-motion shows a static ✓.
 // The small ✓s ("✓ Saved on this device", "✓ Settle in Full") stay
 // static text. On-screen only — the PNG/print/WhatsApp surfaces keep
 // their static ✓.
@@ -40,44 +44,71 @@ function extractBalanced(css, marker) {
   return '';
 }
 
-test('tick markup: the hero tick is the inline SVG check (not the text glyph), inside the same circle', () => {
-  const spanStart = pageSrc.indexOf('<span class="qc-success-check"');
-  assert.ok(spanStart >= 0, 'hero tick span missing');
+test('tick markup: the inline tick is the SVG check beside the heading (not the text glyph), inside the heading row', () => {
+  const row = pageSrc.indexOf('<div class="qc-success-heading-row">');
+  assert.ok(row >= 0, 'heading row missing');
+  const spanStart = pageSrc.indexOf('<span class="qc-success-check"', row);
+  assert.ok(spanStart > row, 'tick span must sit inside the heading row');
+  const heading = pageSrc.indexOf('id="quickCollectSuccessHeading"', row);
+  assert.ok(spanStart < heading, 'tick must sit before the heading in the row');
   const spanEnd = pageSrc.indexOf('</span>', spanStart);
   const span = pageSrc.slice(spanStart, spanEnd);
   assert.ok(span.includes('aria-hidden="true"'), 'tick stays aria-hidden (the heading announces success)');
-  assert.ok(!span.includes('✓'), 'hero tick must not be the text glyph any more');
-  assert.ok(span.includes('<svg viewBox="0 0 24 24" width="26" height="26" fill="none">'), 'tick must be the 26px SVG');
+  assert.ok(!span.includes('✓'), 'tick must not be the text glyph any more');
+  assert.ok(span.includes('<svg viewBox="0 0 24 24" width="18" height="18" fill="none">'), 'tick must be the 18px SVG');
   assert.ok(span.includes('<path class="qc-check-draw" d="M5 12.5l4.5 4.5L19 7.5"'), 'tick path must be the design check');
   assert.ok(span.includes('stroke="#16a34a"'), 'tick stroke must reuse the existing check green');
   assert.ok(span.includes('stroke-width="3"'), 'tick stroke must be 3px');
   assert.ok(span.includes('stroke-linecap="round"'), 'tick must have round caps');
   assert.ok(span.includes('stroke-linejoin="round"'), 'tick must have round joins');
+  assert.equal((pageSrc.match(/class="qc-success-check"/g) || []).length, 1, 'exactly one tick on the screen — the hero row is gone');
 });
 
-test('tick draw: the path starts fully hidden (dashoffset 24) and draws once in ~0.6s', () => {
+test('tick draw: the path starts fully hidden (dashoffset 24) and draws once in ~0.6s — only under the play trigger', () => {
   const draw = ruleBlock(stylesSrc, '.qc-check-draw {');
   assert.ok(draw.includes('stroke-dasharray: 24'), 'path length must be 24');
   assert.ok(draw.includes('stroke-dashoffset: 24'), 'path must start fully hidden');
-  assert.ok(draw.includes('animation: qc-check-draw .6s ease-out .1s forwards'), 'path must draw in 0.6s after a 0.1s delay, once, forwards');
-  assert.ok(!draw.includes('infinite'), 'path animation must not loop');
-  assert.ok(!draw.includes('qc-check-pop'), 'the pop lives on the circle span only (no double-scaling the path)');
+  // Polish 21 (Req 7): the base rule carries NO animation — an animation
+  // here would run once at page load while the step is hidden, so the
+  // tick would look static on every showing.
+  assert.ok(!draw.includes('animation'), 'base draw rule must carry no animation');
+  const playDraw = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check.qc-tick-play .qc-check-draw {');
+  assert.ok(playDraw.includes('animation: qc-check-draw .6s ease-out .1s forwards'), 'triggered path must draw in 0.6s after a 0.1s delay, once, forwards');
+  assert.ok(!playDraw.includes('infinite'), 'path animation must not loop');
+  assert.ok(!playDraw.includes('qc-check-pop'), 'the pop lives on the circle span only (no double-scaling the path)');
   const keyframes = extractBalanced(stylesSrc, '@keyframes qc-check-draw');
   assert.ok(keyframes.includes('stroke-dashoffset: 0'), 'draw keyframes must end at dashoffset 0 (fully drawn)');
 });
 
-test('tick pop: the circle pops once on arrival (scale .6 → 1.08 → 1)', () => {
+test('tick pop: the circle pops once on arrival (scale .6 → 1.08 → 1) — only under the play trigger', () => {
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
-  assert.ok(check.includes('animation: qc-check-pop .45s cubic-bezier(.2,1.4,.4,1) forwards'), 'circle must pop in 0.45s, once, forwards');
-  assert.ok(!check.includes('infinite'), 'pop animation must not loop');
+  assert.ok(check.includes('width: 28px') && check.includes('height: 28px'), 'inline tick must be 28px on success');
+  assert.ok(!check.includes('animation:'), 'the pop must not live on the size rule any more (it is trigger-gated)');
+  const playPop = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check.qc-tick-play {');
+  assert.ok(playPop.includes('animation: qc-check-pop .45s cubic-bezier(.2,1.4,.4,1) forwards'), 'triggered circle must pop in 0.45s, once, forwards');
+  assert.ok(!playPop.includes('infinite'), 'pop animation must not loop');
   const keyframes = extractBalanced(stylesSrc, '@keyframes qc-check-pop');
   assert.ok(keyframes.includes('transform: scale(.6)'), 'pop must start at scale .6');
   assert.ok(keyframes.includes('transform: scale(1.08)'), 'pop must overshoot to 1.08');
   assert.ok(keyframes.includes('transform: scale(1)'), 'pop must rest at scale 1');
 });
 
-test('tick replay: un-hiding the success step restarts the animation (showStep toggles hidden)', () => {
-  assert.ok(quickCollectSrc.includes("if (stepSuccess) stepSuccess.hidden = (stepName !== 'success');"), 'showStep must toggle the success step hidden flag (the replay mechanism)');
+test('tick replay: showStep re-triggers the animation on EVERY success entry (remove class, reflow, re-add)', () => {
+  // Polish 21 (Req 7): un-hiding does NOT restart CSS animations on the
+  // user's WebView (the polish #17 mechanism), so showStep must remove
+  // the trigger class, force a reflow, and re-add it — a DOM change the
+  // engine must honour on every entry.
+  const start = quickCollectSrc.indexOf('function showStep(stepName)');
+  assert.ok(start >= 0, 'showStep missing');
+  const end = quickCollectSrc.indexOf('\n  function ', start + 1);
+  const body = quickCollectSrc.slice(start, end === -1 ? undefined : end);
+  assert.ok(body.includes("stepName === 'success'"), 're-trigger must run on the success entry');
+  const removeAt = body.indexOf("classList.remove('qc-tick-play')");
+  const reflowAt = body.indexOf('offsetWidth');
+  const addAt = body.indexOf("classList.add('qc-tick-play')");
+  assert.ok(removeAt > 0, 'showStep must remove the trigger class');
+  assert.ok(reflowAt > removeAt, 'showStep must force a reflow after removing the class');
+  assert.ok(addAt > reflowAt, 'showStep must re-add the trigger class after the reflow');
 });
 
 test('tick reduced motion: a static ✓ (drawn, unscaled, no animation)', () => {
@@ -97,9 +128,11 @@ test('tick reduced motion: a static ✓ (drawn, unscaled, no animation)', () => 
 test('tick colours: zero new hex — only the existing circle colours', () => {
   const draw = ruleBlock(stylesSrc, '.qc-check-draw {');
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
+  const playPop = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check.qc-tick-play {');
+  const playDraw = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check.qc-tick-play .qc-check-draw {');
   const drawFrames = extractBalanced(stylesSrc, '@keyframes qc-check-draw');
   const popFrames = extractBalanced(stylesSrc, '@keyframes qc-check-pop');
-  const tickCss = draw + check + drawFrames + popFrames;
+  const tickCss = draw + check + playPop + playDraw + drawFrames + popFrames;
   const hex = tickCss.match(/#[0-9a-fA-F]{3,8}\b/g) || [];
   assert.deepEqual(hex, [], `tick CSS must add zero hex literals, found ${hex.join(', ')}`);
   // The circle background + check stroke are the existing colours, reused

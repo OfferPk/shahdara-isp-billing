@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import { TRANSLATIONS } from '../nav-language.js';
-import { customerPackageProfit, formatPKR } from '../core.js';
+import { formatPKR } from '../core.js';
+import { profileGrossProfit } from '../profile-profit.js';
 import { profileProfitDisplay } from '../profile-ui.js';
 
 const dir = dirname(fileURLToPath(import.meta.url));
@@ -22,7 +23,7 @@ const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 // (prof_margin_ok / prof_margin_unset — "Expected monthly package
 // profit: ...") and hand-computed selling - cost on raw typed numbers,
 // while the view used the prof_field_profit label, the shared
-// customerPackageProfit cents computation, and the plain Not set
+// profileGrossProfit computation, and the plain Not set
 // fallback. The fix unifies the preview onto the view's rendering:
 // same label key, same figure function, same fallback. The old
 // sentence keys are removed from EN + UR (Plan 506/507 precedent);
@@ -30,6 +31,13 @@ const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 // profit line. The dashboard card (dash_card_exp_profit) and the
 // history text export (core.js) are different surfaces and are
 // untouched.
+// Polish #28 Phase D (2026-11-10): the shared figure function moved
+// from customerPackageProfit to profileGrossProfit (the same cents
+// formula, plus the missing-data guard that treats an empty string
+// as missing, not zero) and the label moved from "Monthly package
+// profit" to "Monthly gross profit". The preview and the view still
+// share one implementation — the name of the function changed, the
+// rule did not.
 
 function previewFunctionSource() {
   const app = read('app.js');
@@ -57,13 +65,13 @@ function runPreview(sellingText, costText) {
     $: (selector) => inputs[selector],
     t,
     formatAmount: formatPKR,
-    customerPackageProfit,
+    profileGrossProfit,
   });
   return preview.textContent;
 }
 
 function viewProfitLine(customer) {
-  const profit = customerPackageProfit(customer);
+  const profit = profileGrossProfit(customer);
   return `${TRANSLATIONS.en.prof_field_profit}: ${profileProfitDisplay(customer, profit)}`;
 }
 
@@ -81,7 +89,7 @@ test('Plan 515: the unification is written down as a code comment at the preview
 
 test('Plan 515: the preview uses the view label key, the shared figure function and the Not set fallback', () => {
   const src = previewFunctionSource();
-  assert.ok(src.includes("customerPackageProfit({ monthlySellingAmount: selling, monthlyPurchaseCost: cost })"), 'preview must compute the figure with the shared customerPackageProfit, not hand-rolled subtraction');
+  assert.ok(src.includes("profileGrossProfit({ monthlySellingAmount: selling, monthlyPurchaseCost: cost })"), 'preview must compute the figure with the shared profileGrossProfit, not hand-rolled subtraction');
   assert.ok(src.includes("`${t('prof_field_profit')}: ${profit === null ? t('prof_not_set') : formatAmount(profit)}`"), 'preview must render label + figure exactly like the view row');
   // Polish #28 Phase B (Req 3) — the preview keeps "Not set" while
   // the view row dashes with the missing-component note; the form is
@@ -107,23 +115,23 @@ test('Plan 515: the old sentence keys are removed from English and Urdu; the inv
   assert.equal(TRANSLATIONS.ur.prof_margin_unset, undefined, 'old unset sentence key must be gone from UR');
   assert.equal(TRANSLATIONS.en.prof_margin_invalid, 'Enter a selling amount above zero and a provider cost of zero or more.');
   assert.equal(TRANSLATIONS.ur.prof_margin_invalid, 'صفر سے زیادہ فروخت رقم اور صفر یا زیادہ فراہم کنندہ لاگت درج کریں۔');
-  assert.equal(TRANSLATIONS.en.prof_field_profit, 'Monthly package profit');
-  assert.equal(TRANSLATIONS.ur.prof_field_profit, 'ماہانہ پیکیج منافع');
+  assert.equal(TRANSLATIONS.en.prof_field_profit, 'Monthly gross profit');
+  assert.equal(TRANSLATIONS.ur.prof_field_profit, 'ماہانہ مجموعی منافع');
 });
 
 test('Plan 515: the preview reads Not set until both monthly amounts are entered', () => {
-  assert.equal(runPreview('', ''), 'Monthly package profit: Not set');
-  assert.equal(runPreview('2000', ''), 'Monthly package profit: Not set');
-  assert.equal(runPreview('', '1500'), 'Monthly package profit: Not set');
-  assert.equal(runPreview('   ', '1500'), 'Monthly package profit: Not set');
+  assert.equal(runPreview('', ''), 'Monthly gross profit: Not set');
+  assert.equal(runPreview('2000', ''), 'Monthly gross profit: Not set');
+  assert.equal(runPreview('', '1500'), 'Monthly gross profit: Not set');
+  assert.equal(runPreview('   ', '1500'), 'Monthly gross profit: Not set');
 });
 
 test('Plan 515: the preview figure is the same PKR figure the view shows for the same amounts', () => {
-  assert.equal(runPreview('2000', '1500'), 'Monthly package profit: PKR 500');
-  assert.equal(runPreview('3000', '3000'), 'Monthly package profit: PKR 0');
+  assert.equal(runPreview('2000', '1500'), 'Monthly gross profit: PKR 500');
+  assert.equal(runPreview('3000', '3000'), 'Monthly gross profit: PKR 0');
   // The shared cents computation, not raw float subtraction: 1500.5 - 1000.1
   // is 500.39999999999998 as a raw double, but the cents path reads 500.40.
-  assert.equal(runPreview('1500.5', '1000.1'), 'Monthly package profit: PKR 500.40');
+  assert.equal(runPreview('1500.5', '1000.1'), 'Monthly gross profit: PKR 500.40');
   assert.equal(
     runPreview('2000', '1500'),
     viewProfitLine({ monthlySellingAmount: 2000, monthlyPurchaseCost: 1500 }),
@@ -133,10 +141,10 @@ test('Plan 515: the preview figure is the same PKR figure the view shows for the
   // the form preview reads Not set, the view row reads the dash with
   // the missing-component note. The amounts still agree; only the
   // empty-state wording splits.
-  assert.equal(runPreview('', '1500'), 'Monthly package profit: Not set', 'the form preview keeps Not set when an amount is missing');
+  assert.equal(runPreview('', '1500'), 'Monthly gross profit: Not set', 'the form preview keeps Not set when an amount is missing');
   assert.equal(
     viewProfitLine({ monthlySellingAmount: undefined, monthlyPurchaseCost: 1500 }),
-    'Monthly package profit: — (missing: Monthly selling amount)',
+    'Monthly gross profit: — (missing: Monthly selling amount)',
     'the view row reads the dash with the missing component when an amount is missing',
   );
 });
@@ -155,7 +163,7 @@ test('Plan 515: the static preview text in the form reads the same unset line', 
   const start = html.indexOf('id="customerProfitPreview"');
   assert.notEqual(start, -1, 'the preview element must exist in the form');
   const line = html.slice(html.lastIndexOf('<p', start), html.indexOf('</p>', start));
-  assert.ok(line.includes('Monthly package profit: Not set'), 'static preview text must be the unified unset line');
+  assert.ok(line.includes('Monthly gross profit: Not set'), 'static preview text must be the unified unset line');
   assert.ok(!line.includes('Not set until both monthly amounts are entered.'), 'the old unset sentence must be gone from the form');
   assert.ok(!html.includes('Expected monthly package profit: Not set until both monthly amounts are entered.'), 'the old unset sentence must be gone from the page');
 });

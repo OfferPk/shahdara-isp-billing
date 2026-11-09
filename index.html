@@ -26881,6 +26881,21 @@
 
       <!-- Step 1: Customer Picker (Tap 1) -->
       <div id="quickCollectStepPick" class="qc-step">
+        <!-- QC-12: bill-status dropdown above the search — Unpaid /
+             Paid / All. One pool, two controls: this select and the
+             filter chips below the search set the same picker pool,
+             so they can never disagree. Default Unpaid, the picker's
+             long-standing default view. Wrapping label, so no new
+             element id; wiring is class-found. -->
+        <label class="qsf-status-filter-row">
+          <span class="qsf-status-filter-label" data-i18n="qc12_status_label">Bill status</span>
+          <select class="qc-input qsf-status-filter" data-qc-status-filter aria-label="Filter customers by bill status">
+            <option value="unpaid" selected data-i18n="qc12_status_unpaid">Unpaid</option>
+            <option value="paid" data-i18n="qc12_status_paid">Paid</option>
+            <option value="all" data-i18n="qc12_status_all">All</option>
+          </select>
+        </label>
+
         <div class="qc-search-box">
           <input id="quickCollectSearchInput"
                  type="search"

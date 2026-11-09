@@ -155,20 +155,27 @@ test('Plan 514: the tick date input keeps the raw ISO value, only the display li
 // ---------------------------------------------------------------------------
 
 test('Plan 514: app.js renders stamp and tick adjacent inside one group, after the strip, before the dues breakdown', () => {
-  const groupAt = appSrc.indexOf('class="profile-freshness-group"');
-  assert.ok(groupAt > 0, 'the group section exists in the template');
+  // Polish #28 Phase A — the freshness group lives in the Customer
+  // section body; the strip sits above every section in the assembly
+  // and the dues breakdown is in Financial (after Customer), so the
+  // group still sits before dues in the DOM; the last-interaction line
+  // opens History, after Financial.
+  const customerBodyAt = appSrc.indexOf('const profileSectionCustomerBody = ');
+  const customerBody = appSrc.slice(customerBodyAt, appSrc.indexOf('\n', customerBodyAt));
+  const groupAt = customerBody.indexOf('class="profile-freshness-group"');
+  assert.ok(groupAt > 0, 'the group section exists in the Customer body');
   assert.ok(appSrc.includes('<h4>${t(\'prof_dfs_heading\')}</h4>'), 'the group carries the one heading');
-  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
-  const stampAt = appSrc.indexOf('${profileFreshnessStampMarkup}');
-  const tickAt = appSrc.indexOf('${profileVerificationTickSectionMarkup}');
-  const duesAt = appSrc.indexOf('${duesBreakdownSectionMarkup}');
-  const lastAt = appSrc.indexOf('${lastInteractionLineMarkup}');
-  assert.ok(stripAt > 0 && groupAt > stripAt, 'the group sits after the header strip');
+  const stampAt = customerBody.indexOf('${profileFreshnessStampMarkup}');
+  const tickAt = customerBody.indexOf('${profileVerificationTickSectionMarkup}');
   assert.ok(stampAt > groupAt && tickAt > stampAt, 'stamp then tick, adjacent inside the group');
-  const groupCloseAt = appSrc.indexOf('</section>', tickAt);
-  assert.equal(appSrc.slice(tickAt, groupCloseAt).trim(), '${profileVerificationTickSectionMarkup}', 'nothing sits between the tick and the group close');
-  assert.ok(duesAt > groupCloseAt && lastAt > duesAt, 'the group sits before the dues breakdown and the last-interaction line');
-  assert.ok(tickAt < lastAt, 'the tick no longer sits after the last-interaction line');
+  const groupCloseAt = customerBody.indexOf('</section>', tickAt);
+  assert.equal(customerBody.slice(tickAt, groupCloseAt).trim(), '${profileVerificationTickSectionMarkup}', 'nothing sits between the tick and the group close');
+  const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
+  const customerShellAt = appSrc.indexOf('${profileSectionCustomerHtml}', stripAt);
+  const financialShellAt = appSrc.indexOf('${profileSectionFinancialHtml}', customerShellAt);
+  const historyShellAt = appSrc.indexOf('${profileSectionHistoryHtml}', financialShellAt);
+  assert.ok(customerShellAt > stripAt && financialShellAt > customerShellAt && historyShellAt > financialShellAt, 'the group sits after the strip and before the dues breakdown and the last-interaction line');
+  assert.ok(customerShellAt < historyShellAt, 'the tick no longer sits after the last-interaction line');
 });
 
 test('Plan 514: app.js passes the shared humanDate formatter to both builders', () => {
@@ -207,7 +214,10 @@ test('Plan 514: the change-history list keeps its history heading where it is', 
   assert.ok(langSrc.includes("prof_fch_heading: 'Field change history'"));
   assert.ok(langSrc.includes("prof_fch_heading: 'فیلڈ تبدیلی کی تاریخ'"));
   assert.ok(!fchSrc.includes('freshness'), 'the history module never speaks of freshness');
-  assert.ok(appSrc.includes("querySelector('.stv-section')?.insertAdjacentHTML('afterend', fieldChangeHistorySectionHtml("), 'history still lands after the tenure section');
+  // Polish #28 Phase A — the history list appends last inside the
+  // History section; the old .stv-section anchor would have dropped it
+  // inside Service, where tenure now lives.
+  assert.ok(appSrc.includes("querySelector('[data-profile-section=\"history\"] .profile-section-body')?.insertAdjacentHTML('beforeend', fieldChangeHistorySectionHtml("), 'history still lands last in the History section');
 });
 
 // ---------------------------------------------------------------------------

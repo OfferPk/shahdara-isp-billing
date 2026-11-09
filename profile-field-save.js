@@ -69,6 +69,9 @@ export const PROFILE_FIELD_SAVE_MAP = Object.freeze({
   dropWireCoreColorInput: 'dropWireCoreColor',
   mediaConverterCostInput: 'mediaConverterCost',
   linemanInstallFeeInput: 'linemanInstallFee',
+  // Polish #28 Phase D: any further install cost (optional) — the 70th
+  // map key; the displayed counter moves 67 → 68 (Plan 513).
+  otherInstallCostInput: 'otherInstallCost',
   installedByLinemanInput: 'installedByLineman',
   fiberPerMeterRateInput: 'fiberPerMeterRate',
   pppoeUsernameInput: 'pppoeUsername',

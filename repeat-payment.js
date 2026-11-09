@@ -33,7 +33,7 @@
 // page, takes no other module, and never mutates an input. All
 // user text is escaped before it reaches HTML.
 
-export const REPEAT_PAYMENT_BUTTON_TEXT = 'Record another payment';
+export const REPEAT_PAYMENT_BUTTON_TEXT = 'Record another — empty amount';
 
 function text(value) {
   return typeof value === 'string' ? value.trim() : '';

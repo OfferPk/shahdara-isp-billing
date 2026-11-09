@@ -52,7 +52,7 @@ import {
   persistState, readState
 } from '../core.js';
 import { executeQuickCollection } from '../nav-quick-collect.js';
-import { computePaymentDateChip, paymentDateChipTargets, isFuturePaymentDate, isValidPaymentDateKey } from '../backdated-payment-helper.js';
+import { computePaymentDateChip, paymentDateChipTargets, paymentDateChipForDate, isFuturePaymentDate, isValidPaymentDateKey } from '../backdated-payment-helper.js';
 import { collectDirectCashPayments, buildRoznamchaDay } from '../roznamcha.js';
 import { calculatePnlAnalytics } from '../dashboard-pnl.js';
 import { buildOwnerKhataReport } from '../owner-khata.js';
@@ -116,6 +116,35 @@ test('custom chip returns the operator date verbatim (validated); junk resolves 
   assert.equal(paymentDateChipTargets('2026-13-01'), null);
   assert.equal(isValidPaymentDateKey('2026-02-29'), false);
   assert.equal(isValidPaymentDateKey('2024-02-29'), true);
+});
+
+/* ---------------- Plan 544: date -> chip (reverse mapping) ---------------- */
+
+test('plan 544: paymentDateChipForDate names the chip a date belongs to, or custom', () => {
+  assert.equal(paymentDateChipForDate('2026-10-15', '2026-10-15'), 'today');
+  assert.equal(paymentDateChipForDate('2026-10-14', '2026-10-15'), 'yesterday');
+  assert.equal(paymentDateChipForDate('2026-09-30', '2026-10-15'), 'prev-month-end');
+  assert.equal(paymentDateChipForDate('2026-09-27', '2026-10-15'), 'custom');
+  assert.equal(paymentDateChipForDate('2026-09-01', '2026-10-15'), 'custom');
+});
+
+test('plan 544: paymentDateChipForDate matches no chip for an empty, invalid or unknowable date', () => {
+  assert.equal(paymentDateChipForDate('', '2026-10-15'), null);
+  assert.equal(paymentDateChipForDate('not-a-date', '2026-10-15'), null);
+  assert.equal(paymentDateChipForDate('2026-02-30', '2026-10-15'), null);
+  assert.equal(paymentDateChipForDate('2026-10-15', 'not-a-date'), null);
+  assert.equal(paymentDateChipForDate('2026-10-15', ''), null);
+});
+
+test('plan 544: on the 1st of a month yesterday and prev-month-end coincide — yesterday wins', () => {
+  // 2026-11-01: yesterday and prev-month-end are both 2026-10-31.
+  // The tap for either chip sets the same value, so the reverse map
+  // must pick one deterministically: 'yesterday', the more recent
+  // description. Same collision across the year boundary and February.
+  assert.equal(paymentDateChipForDate('2026-10-31', '2026-11-01'), 'yesterday');
+  assert.equal(paymentDateChipForDate('2025-12-31', '2026-01-01'), 'yesterday');
+  assert.equal(paymentDateChipForDate('2026-02-28', '2026-03-01'), 'yesterday');
+  assert.equal(paymentDateChipForDate('2024-02-29', '2024-03-01'), 'yesterday');
 });
 
 test('future-date mirror: after PKT today is future; today and any past date are not', () => {

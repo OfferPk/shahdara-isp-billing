@@ -548,7 +548,9 @@ test('Req 5 profile: 1,000 -> PKR 195, 1,500 -> PKR 292.5, no package -> Not set
   // the key is used, not the literal. Polish #28 Phase B (Req 3): the
   // value goes through profileEmptyTax — the dash when there is no
   // figure, the same formatSalesTaxAmount figure otherwise.
-  assert.ok(appSrc.includes("[t('prof_field_sales_tax'), profileEmptyTax(customerSalesTaxCents(customer))]"), 'the Service group shows the customer tax');
+  // Polish #28 Phase D: the label appends the pass-through note
+  // ("collected on top, not a business cost") to the same key.
+  assert.ok(appSrc.includes("[`${t('prof_field_sales_tax')} — ${t('prof_field_tax_passthrough')}`, profileEmptyTax(customerSalesTaxCents(customer))]"), 'the Service group shows the customer tax');
 });
 
 // --- Regression: the priced-month follow must not invent a next-month bill ---

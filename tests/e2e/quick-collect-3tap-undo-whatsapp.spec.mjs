@@ -131,7 +131,9 @@ test.describe('Quick Collect 3-tap collection, 5s Undo, and WhatsApp normalizati
     // Undo button is visible
     const undoBtn = page.locator('#quickCollectUndoBtn');
     await expect(undoBtn).toBeVisible();
-    await expect(undoBtn).toContainText('Undo Payment');
+    // Plan 532: the five-second undo now names that it deletes the
+    // payment; the button is the same element, only reworded.
+    await expect(undoBtn).toContainText('Undo — deletes this payment');
 
     // Click Undo
     await undoBtn.click();

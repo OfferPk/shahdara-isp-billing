@@ -132,12 +132,14 @@ test('seconds left: counts down 60 to 0, never negative, never a guess', () => {
 });
 
 test('button text: plain words with the seconds left, never a guess', () => {
-  assert.equal(quickCollectReversalUndoButtonText(60), '↩ Undo by reversal (60s)');
-  assert.equal(quickCollectReversalUndoButtonText(1), '↩ Undo by reversal (1s)');
-  assert.equal(quickCollectReversalUndoButtonText(59.5), '↩ Undo by reversal (59s)');
-  assert.equal(quickCollectReversalUndoButtonText(0), '↩ Undo by reversal');
-  assert.equal(quickCollectReversalUndoButtonText(61), '↩ Undo by reversal');
-  assert.equal(quickCollectReversalUndoButtonText(NaN), '↩ Undo by reversal');
+  // Plan 532: the label now names that the original stays visible;
+  // the countdown shape is unchanged, only the distinguishing words.
+  assert.equal(quickCollectReversalUndoButtonText(60), '↩ Undo by reversal — original stays visible (60s)');
+  assert.equal(quickCollectReversalUndoButtonText(1), '↩ Undo by reversal — original stays visible (1s)');
+  assert.equal(quickCollectReversalUndoButtonText(59.5), '↩ Undo by reversal — original stays visible (59s)');
+  assert.equal(quickCollectReversalUndoButtonText(0), '↩ Undo by reversal — original stays visible');
+  assert.equal(quickCollectReversalUndoButtonText(61), '↩ Undo by reversal — original stays visible');
+  assert.equal(quickCollectReversalUndoButtonText(NaN), '↩ Undo by reversal — original stays visible');
 });
 
 // ---------------------------------------------------------------------------
@@ -427,5 +429,7 @@ test('wiring: the reversal undo button sits on the success step after the five-s
   const buttonAt = pageSrc.indexOf('id="quickCollectReversalUndoBtn"');
   const tag = pageSrc.slice(buttonAt - 120, buttonAt + 220);
   assert.match(tag, /hidden/);
-  assert.match(tag, /Undo by reversal \(60s\)/);
+  // Plan 532: the label now names that the original stays visible;
+  // the countdown shape is unchanged, only the distinguishing words.
+  assert.match(tag, /Undo by reversal — original stays visible \(60s\)/);
 });

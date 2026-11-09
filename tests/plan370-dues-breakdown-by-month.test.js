@@ -351,16 +351,20 @@ test('Plan 370: wiring — import, section after the strip, before the household
   assert.ok(appSrc.includes('calculatePaymentAllocations(state)'));
   assert.ok(appSrc.includes('totalOutstandingFigures(customer, duesBreakdownAllocations)'));
   const stripAt = appSrc.indexOf('${profileHeaderStripSectionHtml}');
-  const breakdownAt = appSrc.indexOf('${duesBreakdownSectionMarkup}', stripAt);
-  const householdAt = appSrc.indexOf('${householdLinkSectionMarkup}', breakdownAt);
-  assert.ok(stripAt !== -1 && breakdownAt !== -1 && householdAt !== -1);
-  assert.ok(stripAt < breakdownAt && breakdownAt < householdAt,
-    'dues breakdown sits on the profile after the header strip and before the household link');
-  // The Plan 351 banner → strip → groups order still holds.
-  const bannerAt = appSrc.indexOf('${wadaProfileBannerHtml(customer)}');
-  const groupsAt = appSrc.indexOf('${profileInfoGroupsHtml}');
-  assert.ok(bannerAt !== -1 && stripAt !== -1 && groupsAt !== -1);
-  assert.ok(bannerAt < stripAt && stripAt < groupsAt, 'banner → strip → groups order intact');
+  const financialAt = appSrc.indexOf('${profileSectionFinancialHtml}', stripAt);
+  assert.ok(stripAt !== -1 && financialAt !== -1 && financialAt > stripAt, 'Financial section sits after the header strip');
+  // Polish #28 Phase A — the dues breakdown is second in the Financial
+  // section (after the wada banner) and the household link is in the
+  // Customer section, so sections now order household (S1) before dues
+  // (S3) in the DOM; the strip sits above every section. The preserved
+  // intent is dues near the top of Financial, strip above all sections.
+  const financialBodyAt = appSrc.indexOf('const profileSectionFinancialBody = ');
+  const financialBody = appSrc.slice(financialBodyAt, appSrc.indexOf('\n', financialBodyAt));
+  const bannerAt = financialBody.indexOf('${wadaProfileBannerHtml(customer)}');
+  const breakdownAt = financialBody.indexOf('${duesBreakdownSectionMarkup}');
+  const moneyAt = financialBody.indexOf('${profileInfoGroupFragments.money}');
+  assert.ok(bannerAt !== -1 && breakdownAt > bannerAt && moneyAt > breakdownAt,
+    'dues breakdown sits in Financial after the wada banner and before the money fragment');
 });
 
 test('Plan 370: dues breakdown keys exist in both language tables', () => {

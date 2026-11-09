@@ -470,6 +470,100 @@ export function gpsPinPresentation(customer) {
   };
 }
 
+// Polish #28 Phase B (Req 3) — the profile view renders an empty
+// OPTIONAL value as the language-neutral em dash "—" instead of "Not
+// set" / "Not recorded" / a blank. The dash is applied at the profile
+// render site through these helpers — never by changing the shared
+// prof_not_set / prof_not_recorded dictionary values (they are also
+// read by router-credentials.js and welcome-agreement-slip.js) and
+// never by changing the shared money formatters, whose literal 'Not
+// set' fallback stays for callers outside the profile view. A value
+// that carries a STATE (service status, vacation hold, shield, usual
+// pay day) keeps its label — a state is not an empty value.
+export const PROFILE_EMPTY_DASH = '—';
+
+export function profileEmptyText(value) {
+  return value === null || value === undefined || (typeof value === 'string' && value.trim() === '') ? PROFILE_EMPTY_DASH : value;
+}
+
+export function profileEmptyMoney(value) {
+  // Rupees: null / undefined / '' / boolean / non-finite is empty; a
+  // real 0 is a figure and formats as PKR 0.
+  return value === null || value === undefined || value === '' || typeof value === 'boolean' || !Number.isFinite(value) ? PROFILE_EMPTY_DASH : formatPKR(value);
+}
+
+export function profileEmptyTax(cents) {
+  // Cents: same empty rule as profileEmptyMoney, through the shared
+  // sales-tax formatter.
+  return cents === null || cents === undefined || cents === '' || typeof cents === 'boolean' || !Number.isFinite(cents) ? PROFILE_EMPTY_DASH : formatSalesTaxAmount(cents);
+}
+
+function profileProfitMissingLabels(customer) {
+  // The missing-component rule mirrors customerPackageProfit exactly:
+  // profit is null ONLY when the provider cost or the selling amount
+  // is null / undefined — the '' empty-string edge is Phase D's.
+  const labels = [];
+  if (customer.monthlyPurchaseCost === null || customer.monthlyPurchaseCost === undefined) labels.push(t('prof_field_purchase_cost'));
+  if (customer.monthlySellingAmount === null || customer.monthlySellingAmount === undefined) labels.push(t('prof_field_selling'));
+  return labels;
+}
+
+export function profileProfitDisplay(customer, profit) {
+  if (profit !== null) return formatPKR(profit);
+  // Req 7's note, in its Phase B form: the dash plus the missing
+  // components, never a zero and never a silent gap. The full Req 7
+  // machinery (net profit, investment breakdown, recovery) is Phase D.
+  return `${PROFILE_EMPTY_DASH} (${t('prof_missing_note', null, { items: profileProfitMissingLabels(customer).join(' / ') })})`;
+}
+
+// Polish #28 Phase B (Req 4) — the DERIVED service status. Precedence:
+// Suspended > Expired > Vacation > Offline > Active > Not chosen. The
+// pill is the derived indicator; the Service-group row keeps the
+// STORED status label exactly as today, and the detail-head
+// #profileServiceStatusBadge (stored status) is untouched. Pure: the
+// caller passes the open suspension record in — this module never
+// reads a store. `today` is the Asia/Karachi local date ('YYYY-MM-DD',
+// string compare) passed by the caller.
+export function profileServiceState(customer, { today, openSuspension } = {}) {
+  const suspensionDate = openSuspension?.suspensionDate;
+  if (openSuspension?.status === 'open' && suspensionDate) {
+    return {
+      state: 'suspended',
+      label: t('prof_status_suspended_date', null, { date: formatReceiptDate(suspensionDate) || suspensionDate }),
+      modifier: 'offline',
+    };
+  }
+  if (customer.cancellationDate) {
+    return { state: 'expired', label: t('prof_status_expired'), modifier: 'not-set' };
+  }
+  if (customer.expiryDate && validCalendarDate(customer.expiryDate) && customer.expiryDate < today) {
+    return { state: 'expired', label: t('prof_status_expired'), modifier: 'not-set' };
+  }
+  if (pauseBillingSummary(customer).active) {
+    const start = customer.pauseStartDate;
+    return {
+      state: 'vacation',
+      label: start
+        ? t('prof_status_vacation_since', null, { date: formatReceiptDate(start) || start })
+        : t('prof_status_vacation'),
+      modifier: 'vacation',
+    };
+  }
+  if (customer.serviceStatus === 'offline') {
+    return { state: 'offline', label: t('prof_service_offline'), modifier: 'offline' };
+  }
+  if (customer.serviceStatus === 'active') {
+    return { state: 'active', label: t('prof_service_active'), modifier: 'active' };
+  }
+  // 'not-set' and any unknown stored value fall to Not chosen — an
+  // unknown status is never silently read as Active.
+  return { state: 'not-chosen', label: t('prof_service_not_chosen'), modifier: 'not-set' };
+}
+
+export function profileServiceStatusPillHtml(serviceState) {
+  return `<span class="profile-service-status profile-service-status-${serviceState.modifier}">${escapeHtml(serviceState.label)}</span>`;
+}
+
 // SISP-8: vacation-hold summary for the profile view (Service group row)
 // and the profile header badge. Reads only the stored hold fields — it
 // never decides billing; isBillingPaused in pause-billing.js does that.

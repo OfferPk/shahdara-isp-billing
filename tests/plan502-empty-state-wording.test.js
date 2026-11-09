@@ -42,8 +42,11 @@ function formHtml() {
 
 function groupsLiteral() {
   const app = read('app.js');
-  const start = app.indexOf('const profileInfoGroupsHtml = ');
-  assert.notEqual(start, -1, 'four-groups literal must exist');
+  // Polish #28 Phase A — the four-groups literal became the eight
+  // fragments object (profileInfoGroupFragments); the wording-rule
+  // pins follow the new name, rows verbatim.
+  const start = app.indexOf('const profileInfoGroupFragments = {');
+  assert.notEqual(start, -1, 'fragments object must exist');
   const end = app.indexOf('\n', start);
   return app.slice(start, end);
 }
@@ -85,7 +88,7 @@ test('Plan 502: Connection rows — never-recorded dates still read Not recorded
   assert.ok(groups.includes("customer.connectionDate ? humanDate(customer.connectionDate) : t('prof_not_recorded')"), 'connection start must read Not recorded');
   assert.ok(groups.includes("customer.expiryDate ? humanDate(customer.expiryDate) : t('prof_not_recorded')"), 'expiry must read Not recorded');
   assert.ok(groups.includes("customer.cancellationDate ? humanDate(customer.cancellationDate) : t('prof_not_recorded')"), 'cancellation must read Not recorded');
-  assert.equal((groups.match(/t\('prof_not_recorded'\)/g) || []).length, 3, 'only the three date rows may read Not recorded in the four groups');
+  assert.equal((groups.match(/t\('prof_not_recorded'\)/g) || []).length, 3, 'only the three date rows may read Not recorded in the fragments');
 });
 
 test('Plan 502: Contact / Location / Service rows still read Not set', () => {
@@ -102,7 +105,7 @@ test('Plan 502: Contact / Location / Service rows still read Not set', () => {
     "customer.pppoeUsername || t('prof_not_set')",
     "customer.staticIp || t('prof_not_set')",
   ]) {
-    assert.ok(groups.includes(fragment), `four-groups literal must keep ${fragment}`);
+    assert.ok(groups.includes(fragment), `fragments object must keep ${fragment}`);
   }
 });
 

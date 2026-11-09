@@ -13733,7 +13733,11 @@ test('Quick Collect: HTML renderers produce valid accessible markup', async () =
   assert.ok(receiptCardHtml.includes('RCPT-42-202610-01'));
   assert.ok(receiptCardHtml.includes('Ahmed Raza'));
   assert.ok(receiptCardHtml.includes('2,400'));
-  assert.ok(receiptCardHtml.includes('Settle in Full'));
+  // Polish 21 (Req 6): the settle badge moved out of the card header
+  // into the status section — the card header keeps only the shared
+  // badge + the receipt id.
+  assert.ok(!receiptCardHtml.includes('Settle in Full'), 'settle badge must not sit in the card header any more');
+  assert.ok(receiptCardHtml.includes('WhatsApp Pending'), 'card header must keep the shared badge');
 });
 
 test('Quick Collect: DOM integration and markup in index.html, styles.css, app.js, owner-ui.js, and nav.js', async () => {

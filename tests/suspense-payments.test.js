@@ -6,7 +6,9 @@
 // engine (saveBillMonth + calculatePaymentAllocations) and the REAL
 // quick-collection executor (the same payment path every other payment
 // uses). Also pins: SISP-21 normalizeTid duplicate semantics on logging
-// (whitespace/case-insensitive, hyphens NOT stripped), the double-count
+// (separators/whitespace/case-insensitive — QC-7: hyphens used to survive
+// the normaliser, so "TXN-9001" read as a different TID from "TXN9001";
+// they are the same TID now), the double-count
 // guard (a TID already recorded as a customer payment cannot be
 // claimed), claimed records kept for audit, and the backup safe-merge
 // round-trip.
@@ -126,7 +128,7 @@ test('logging validation: amount, wallet and date are required; wallet must be a
   assert.equal(fields.tid, 'X1');
 });
 
-test('duplicate TID on logging is refused under normalizeTid semantics; a hyphen makes a different TID', () => {
+test('duplicate TID on logging is refused under normalizeTid semantics; a hyphen is a separator, not a different TID (QC-7: the old rule kept hyphens, so TXN-9001 logged fine beside TXN9001)', () => {
   const entries = [entry3000()];
   // Same TID with different spacing/case = same TID (SISP-21 rule).
   assert.throws(
@@ -137,13 +139,15 @@ test('duplicate TID on logging is refused under normalizeTid semantics; a hyphen
     () => addSuspensePayment(entries, { amount: 500, wallet: 'JazzCash', tid: 'TXN9001', date: today }),
     /already in the suspense register/
   );
-  // Hyphens are NOT stripped: TXN-9001 is a different TID and logs fine.
-  const withHyphen = addSuspensePayment(entries, { amount: 500, wallet: 'JazzCash', tid: 'TXN-9001', date: today });
-  assert.equal(withHyphen.length, 2);
+  // Separators are stripped: TXN-9001 is the same TID and is refused too.
+  assert.throws(
+    () => addSuspensePayment(entries, { amount: 500, wallet: 'JazzCash', tid: 'TXN-9001', date: today }),
+    /already in the suspense register/
+  );
   // Empty TIDs never collide.
-  const noTid = addSuspensePayment(withHyphen, { amount: 100, wallet: 'Raast', tid: '', date: today });
+  const noTid = addSuspensePayment(entries, { amount: 100, wallet: 'Raast', tid: '', date: today });
   const noTid2 = addSuspensePayment(noTid, { amount: 200, wallet: 'Raast', tid: '', date: today });
-  assert.equal(noTid2.length, 4);
+  assert.equal(noTid2.length, 3);
   assert.equal(findSuspenseByTid(noTid2, '  txn 9001 ')?.suspenseId, 'SUS-101');
   assert.equal(findSuspenseByTid(noTid2, ''), null);
 });
@@ -198,7 +202,7 @@ test('findPaymentsByTid (SISP-21 helper): normalizeTid match, voided payments ig
   assert.equal(found[0].customerName, 'Customer 1');
   assert.equal(found[0].amount, 1200);
   assert.equal(findPaymentsByTid(state.customers, '').length, 0);
-  assert.equal(findPaymentsByTid(state.customers, 'JC-555').length, 0); // hyphen = different TID
+  assert.equal(findPaymentsByTid(state.customers, 'JC-555').length, 1); // QC-7: hyphen is a separator, so JC-555 is the recorded JC 555
   const voided = JSON.parse(JSON.stringify(state));
   voided.customers[0].bills[0].payments[0].voided = true;
   assert.equal(findPaymentsByTid(voided.customers, 'JC555').length, 0);

@@ -3490,27 +3490,58 @@ function customerCardMarkup(customer, archived = false, allocations = calculateP
   const tenure = cardIsUr ? buildUrduTenure(customer) : tenurePresentation(customer);
   const monthBill = (customer.bills ?? []).find(bill => bill.month === selectedBillingMonth);
   const billing = statusPresentation(customer, monthBill);
-  const CUST_BILL_WORDS = { paid: 'cust_bill_paid', pending: 'cust_bill_pending', partial: 'cust_bill_partial', 'not-set': 'cust_not_set' };
+  // Cards redesign (variant B): the payment pill says "Due" for the
+  // pending state on the card ONLY — cust_bill_pending is untouched, so
+  // reports, filters and the profile keep saying "Pending".
+  const CUST_BILL_WORDS = { paid: 'cust_bill_paid', pending: 'cust_bill_due', partial: 'cust_bill_partial', 'not-set': 'cust_not_set' };
   const billWord = t(CUST_BILL_WORDS[billing.value] || 'cust_not_set');
   const isFeeSet = customer.monthlySellingAmount !== null && customer.monthlySellingAmount !== undefined && Number(customer.monthlySellingAmount) > 0;
   const chipText = isFeeSet
-    ? (billing.value === 'not-set' ? t('cust_card_chip_fee', null, { amount: customer.monthlySellingAmount }) : `${billWord} · ${t('cust_card_chip_fee', null, { amount: customer.monthlySellingAmount })}`)
+    ? `${billWord} · ${t('cust_card_chip_fee', null, { amount: customer.monthlySellingAmount })}`
     : (billing.value === 'not-set' ? t('cust_bill_not_set') : billWord);
   const CUST_SERVICE_WORDS = { active: 'cust_service_active', offline: 'cust_service_offline', 'not-set': 'cust_not_set' };
-  const manualStatus = t('cust_service_status_chip', null, { status: t(CUST_SERVICE_WORDS[customer.serviceStatus] || 'cust_not_set') });
+  // Read-only service badge: the STORED serviceStatus only, never the
+  // derived profile state and never a live reading. The set control
+  // lives in the profile edit form (#serviceStatusInput).
+  const serviceStatus = ['active', 'offline', 'not-set'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set';
+  const serviceLabel = t(CUST_SERVICE_WORDS[serviceStatus]);
+  const serviceAria = t('cust_service_status_chip', null, { status: serviceLabel });
+  // TOP sub-line: mohalla (fallback zone) omitted when unrecorded;
+  // package fallback stays exactly "Package not set".
+  const mohallaPart = (customer.mohalla || customer.zone || '').trim();
+  const packagePart = customer.packageSpeed || t('cust_card_package_not_set');
+  const subline = mohallaPart ? `${mohallaPart} · ${packagePart}` : packagePart;
+  // Outstanding (bills + manual baqaya, the same figure the profile
+  // shows) — the row renders only when something is owed (D7).
+  const outstanding = totalOutstandingFigures(customer, allocations);
+  const canAddPending = !archived && customer.isFreeConnection !== true;
+  // The ＋ Additional affordance is a real button with the same
+  // data-additional-pending wiring + dialog as before. A button cannot
+  // live inside the whole-card <button>, so it rides on the Outstanding
+  // row when one exists and on its own compact row when paid up; when
+  // baqaya is owed it is the existing ✎ edit button next to the
+  // breakdown. (Canonical button markup lives in manual-baqaya.js
+  // additionalPendingControlsMarkup — keep the two in sync.)
+  const additionalButton = canAddPending
+    ? `<button type="button" class="additional-pending-btn" data-additional-pending="${escapeHtml(customer.id)}" aria-label="${escapeHtml(t('addpend_edit'))}">${outstanding.manualBaqayaCents > 0 ? '✎' : escapeHtml(t('addpend_add'))}</button>`
+    : '';
   const health = buildCustomerHealthScore(state, customer, new Date(), allocations);
   const CUST_HEALTH_CATS = { 'Insufficient history': 'cust_health_cat_insufficient', 'Insufficient recorded metrics': 'cust_health_cat_insufficient_metrics', 'Strong recorded indicators': 'cust_health_cat_strong', 'Mixed recorded indicators': 'cust_health_cat_mixed', 'Needs attention': 'cust_health_cat_attention' };
   const healthLabel = health?.score === null || !health ? `${t('cust_card_health')} · ${t('cust_health_cat_insufficient')}` : `${t('cust_card_health')} · ${health.score}/100 · ${CUST_HEALTH_CATS[health.category] ? t(CUST_HEALTH_CATS[health.category]) : health.category}`;
+  // Health row value (the row label carries "Health score", so the value
+  // is just score + category); coloured with the same health-* classes
+  // as the old badge pill.
+  const healthValue = health?.score === null || !health ? t('cust_health_cat_insufficient') : `${health.score}/100 · ${CUST_HEALTH_CATS[health.category] ? t(CUST_HEALTH_CATS[health.category]) : health.category}`;
+  const healthClass = health?.score === null || !health ? '' : `health-${(health.category ?? 'unknown').toLowerCase().replaceAll(' ', '-')}`;
   const healthReasons = (health?.reasons ?? []).map(reason => `<li>${escapeHtml(reason)}</li>`).join('');
   const receiptValue = receipts.receiptCount ? formatAmount(receipts.total) : t('cust_card_no_receipts');
   const receiptCount = receipts.receiptCount ? (cardIsUr ? t('cust_card_recorded_receipts', null, { count: receipts.receiptCount }) : plural(receipts.receiptCount, 'recorded receipt')) : t('cust_card_no_payment_entries');
   const openLabel = t('cust_card_open_profile_title', null, { number: customer.customerNumber, name: customer.name, receipts: receiptValue, health: healthLabel, tenurePrimary: tenure.primary, tenureDetail: tenure.detail });
-  const serviceButtons = ['active','offline','not-set'].map(status => {
-    const label = t(CUST_SERVICE_WORDS[status]);
-    const selected = status === customer.serviceStatus;
-    return `<button class="service-choice service-choice-${status} ${selected ? 'is-selected' : ''}" type="button" data-set-service="${escapeHtml(customer.id)}" data-service-status="${status}" aria-pressed="${selected}" aria-label="${t('cust_service_button_aria', null, { number: customer.customerNumber, status: label })}">${label}</button>`;
-  }).join('');
-  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">#${customer.customerNumber}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''}${taggedFirstMonths(customer).map(tagged => ` <span class="free-connection-badge">🔖 ${t('cust_first_month_free')} — ${escapeHtml(formatReceiptMonth(tagged.month) ?? tagged.month)}</span>`).join('')} ${prepaidUntilBadgeHtml(state, customer)} ${suspensionShieldBadgeHtml(customer, localDate())} ${loyaltyBadgeHtml(customer)} ${sameNameBadgeHtml(state, customer)}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>${knownAsInlineHtml(customer, 'customer-known-as')}${manualBaqayaCardBadgeMarkup(customer)}</span><span class="customer-manual-state">${escapeHtml(manualStatus)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span><span class="customer-card-package">${escapeHtml(customer.packageSpeed || t('cust_card_package_not_set'))}</span><span class="customer-health-badge health-${escapeHtml((health?.category??'unknown').toLowerCase().replaceAll(' ','-'))}">${escapeHtml(healthLabel)}</span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></button><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details><div class="customer-card-controls"><span role="button" tabindex="0" class="customer-billing-badge ${billing.className} ${isFeeSet ? 'has-fee' : 'no-fee'}" data-inline-bill-edit="${escapeHtml(customer.id)}" data-bill-unset="${!isFeeSet}" aria-label="${escapeHtml(t('cust_card_bill_badge_aria', null, { chip: chipText, month: displayMonthName(selectedBillingMonth), label: billWord, action: t(isFeeSet ? 'cust_card_bill_action_edit' : 'cust_card_bill_action_set') }))}">${escapeHtml(chipText)}</span>${additionalPendingControlsMarkup(customer, allocations)}<div class="service-choice-group" role="group" aria-label="${t('cust_service_group_aria', null, { number: customer.customerNumber, name: customer.name })}">${serviceButtons}</div>${liveSessionMarkup(customer)}</div>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
+  // Cards redesign (variant B): the service-status segmented control is
+  // gone from the card — the read-only badge above replaces it and the
+  // set control lives in the profile edit form. The live-session line
+  // is gone from the card too — it lives in the profile uptime panel.
+  return `<li class="customer-item ${archived ? 'archived-customer-item' : ''}"><button class="customer-select customer-profile-card-open" type="button" data-customer-id="${escapeHtml(customer.id)}" aria-current="${customer.id === selectedCustomerId}" title="${escapeHtml(openLabel)}"><span class="customer-card-heading"><span class="avatar" aria-hidden="true">${escapeHtml(initials(customer.name))}</span><span class="customer-copy"><span class="customer-number-line">${escapeHtml(t('cust_card_customer_number', null, { number: customer.customerNumber }))}${archived ? ` · ${t('cust_card_archived')}` : ''}${customer.isFreeConnection ? ` <span class="free-connection-badge">${t('cust_free_badge')}</span>` : ''}${taggedFirstMonths(customer).map(tagged => ` <span class="free-connection-badge">🔖 ${t('cust_first_month_free')} — ${escapeHtml(formatReceiptMonth(tagged.month) ?? tagged.month)}</span>`).join('')} ${prepaidUntilBadgeHtml(state, customer)} ${suspensionShieldBadgeHtml(customer, localDate())} ${loyaltyBadgeHtml(customer)} ${sameNameBadgeHtml(state, customer)}</span><span class="customer-name" dir="auto">${escapeHtml(displayCustomerName(customer, currentAppLanguage()))}</span>${knownAsInlineHtml(customer, 'customer-known-as')}<span class="customer-card-subline">${escapeHtml(subline)}</span>${manualBaqayaCardBadgeMarkup(customer)}</span><span class="customer-service-badge customer-service-${serviceStatus}" aria-label="${escapeHtml(serviceAria)}">${escapeHtml(serviceLabel)}</span></span><span class="customer-card-stats"><span class="customer-card-stat"><span>${t('cust_card_actually_received_lifetime')}</span><strong>${escapeHtml(receiptValue)}</strong><small>${escapeHtml(receiptCount)}</small></span><span class="customer-card-stat"><span>${t('cust_card_time_with_isp')}</span><strong>${escapeHtml(tenure.primary)}</strong><small>${escapeHtml(tenure.detail)}</small></span></span></button><div class="customer-card-rows" data-customer-id="${escapeHtml(customer.id)}"><span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_payment')}</span><span class="customer-billing-badge ${billing.className}">${escapeHtml(chipText)}</span></span>${outstanding.totalCents > 0 ? `<span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_outstanding')}</span><span class="customer-card-row-value"><span class="customer-card-row-amount"><strong>${escapeHtml(formatAmount(outstanding.total))}</strong>${additionalButton}</span>${outstanding.manualBaqayaCents > 0 ? `<small class="customer-card-row-sub">${escapeHtml(t('addpend_breakdown', null, { bill: formatPKR(outstanding.billDues), additional: formatPKR(outstanding.manualBaqaya) }))}</small>` : ''}</span></span>` : ''}<span class="customer-card-row"><span class="customer-card-row-label">${t('cust_card_row_health')}</span><strong class="customer-card-health-value ${healthClass}">${escapeHtml(healthValue)}</strong></span><span class="customer-card-open-hint">${t('cust_card_open_hint')} <span aria-hidden="true">${cardIsUr ? '←' : '→'}</span></span></div><details class="customer-health-reasons"><summary>${t('cust_card_health_reasons')}</summary><ul>${healthReasons || `<li>${t('cust_card_health_none')}</li>`}</ul></details>${archived ? `<button class="archived-unarchive-button" type="button" data-unarchive-customer="${escapeHtml(customer.id)}">${t('cust_card_unarchive')}</button>` : ''}</li>`;
 }
 let customerCurrentPage = 1;
 let customerPageSize = 15;

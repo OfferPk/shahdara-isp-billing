@@ -80,11 +80,14 @@ test('Plan 552: the card tax figure equals the WhatsApp draft tax figure on the 
   assert.equal(taxFigureOf(html), taxFigureOf(draft), 'card and draft must agree on the figure');
   assert.equal(taxFigureOf(html), 'PKR 195');
 
-  // A fractional tax (1,500 package) reads PKR 292.5 on both surfaces.
+  // A fractional tax (1,500 package) reads PKR 292.50 on both surfaces.
+  // Plan 555: the shared receipt format prints a fractional figure with
+  // two decimals (like formatPKR) — the intent pinned here, "card and
+  // draft agree on the fractional figure", is unchanged.
   const half = taxedReceipt({ amount: 1792.5, salesTaxCents: 29250 });
   const halfHtml = renderQuickCollectReceiptCardHtml(half);
   const halfDraft = formatQuickCollectWhatsAppReceipt(half).text;
-  assert.equal(taxFigureOf(halfHtml), 'PKR 292.5', 'card shows the fractional figure');
+  assert.equal(taxFigureOf(halfHtml), 'PKR 292.50', 'card shows the fractional figure');
   assert.equal(taxFigureOf(halfHtml), taxFigureOf(halfDraft), 'card and draft agree on the fractional figure');
 });
 

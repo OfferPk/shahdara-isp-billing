@@ -57,6 +57,7 @@ import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 import { normalizeTid } from './wallet-reconciliation.js';
 import { t } from './nav-language.js';
+import { formatReceiptMoney } from './receipt-money.js';
 
 export const SPLIT_TENDER_LEG_COUNT = 2;
 
@@ -390,7 +391,11 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
   };
 }
 
-const formatAmount = (value) => `PKR ${Number(value || 0).toLocaleString('en-PK')}`;
+// Plan 555: the ONE shared receipt money format (receipt-money.js,
+// modelled on formatPKR in core.js) — en-PK min-0/max-2, so 292.5
+// prints as PKR 292.50 everywhere, and a missing figure renders as
+// "—", never an invented PKR 0.
+const formatAmount = (value) => formatReceiptMoney(value);
 
 /**
  * Polish #14: the area line on the combined receipt. The combined

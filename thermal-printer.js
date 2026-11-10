@@ -16,6 +16,7 @@
  */
 
 import { buildReceiptFooterLines } from './receipt-footer-studio.js';
+import { formatReceiptMoneyFigure, netArrearsBalanceRupees } from './receipt-money.js';
 
 export const THERMAL_WIDTH_CHARS = 32;
 export const PRINTER_STORAGE_KEY = 'shahdara_bt_printer';
@@ -197,7 +198,12 @@ export function buildEscPosReceipt(fields = {}, { widthChars = THERMAL_WIDTH_CHA
 /** Adapts a receipt.js buildPaymentReceipt() result to builder fields. */
 export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahdara ISP', businessPhone = '', receiptFooter = null } = {}) {
   if (!receipt) return {};
-  const money = (v) => (v === null || v === undefined || v === '' ? '' : `PKR ${Number(v).toLocaleString('en-PK')}`);
+  // Plan 555: the shared receipt figure (receipt-money.js) — en-PK
+  // min-0/max-2, so 292.5 prints as PKR 292.50 everywhere. The
+  // ''-for-null contract stays: a missing figure omits the row on the
+  // thermal slip (guarded call sites + .filter(Boolean) history rows),
+  // it never prints a dash or an invented PKR 0.
+  const money = (v) => (v === null || v === undefined || v === '' ? '' : `PKR ${formatReceiptMoneyFigure(v)}`);
   const balance = receipt.balanceDueCents === null || receipt.balanceDueCents === undefined
     ? ''
     : money(receipt.balanceDueCents / 100);
@@ -257,7 +263,7 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     // SISP-126: the remainder waada set with this payment, when the
     // receipt snapshot carries one (receipt.js validates the stamp).
     remainderWaadaLine: (receipt.remainderWaada && receipt.remainderWaada.promiseDate)
-      ? `Baqi Rs. ${Number(receipt.remainderWaada.promiseAmount || 0).toLocaleString('en-PK')} • Waada: ${receipt.remainderWaada.promiseDate}`
+      ? `Baqi Rs. ${formatReceiptMoneyFigure(receipt.remainderWaada.promiseAmount || 0)} • Waada: ${receipt.remainderWaada.promiseDate}`
       : '',
     // SISP-2: itemized arrears breakdown (passed through from the receipt
     // object built by buildPaymentReceipt); rendered below by buildEscPosReceipt.
@@ -267,7 +273,11 @@ export function escPosFieldsFromPaymentReceipt(receipt, { businessName = 'Shahda
     arrearsPrevious: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.previousArrears) : '',
     arrearsTotal: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.totalDue) : '',
     arrearsPaid: receipt.arrearsBreakdown ? money(receipt.arrearsBreakdown.paidAmount) : '',
-    arrearsBalance: receipt.arrearsBreakdown ? money(Math.max(0, receipt.arrearsBreakdown.balanceDue - (receipt.concessionAmount || 0) - (receipt.referralCreditAmount || 0) - (receipt.depositOffsetAmount || 0) - (receipt.creditTransferInAmount || 0) - (receipt.feederHostCreditAmount || 0))) : '',
+    // Plan 555: the arrears balance IS the receipt's own net Balance
+    // Due (the shared helper nets all six bill-field waivers, including
+    // the polish #23 first-month tag the old five-waiver subtraction
+    // missed) — the same figure the HTML layouts print.
+    arrearsBalance: receipt.arrearsBreakdown ? money(netArrearsBalanceRupees(receipt)) : '',
     footerNote: 'Thank you! Please keep this receipt.',
     // SISP-96: owner-configured footer lines ([] when unconfigured).
     footerLines: buildReceiptFooterLines(receiptFooter)

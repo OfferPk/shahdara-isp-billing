@@ -1698,15 +1698,17 @@ function paymentProofButtonMarkup(customerId, month, payment) {
 const profileTabMap = {
   billing:['profileTabBilling','profilePanelBilling'],
   info:['profileTabInfo','profilePanelInfo'],
-  complaints:['profileTabComplaints','profilePanelComplaints']
+  complaints:['profileTabComplaints','profilePanelComplaints'],
+  baqaya:['profileTabBaqaya','profilePanelBaqaya']
 };
 function mountCustomerProfileContent() {
   const mounts = $('#profileContentMounts');
   if (!mounts) return;
   const groups = {
-    billing:['#customerReceiptSummary','#manualBaqayaSection','#stxProfileShareDraft','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
+    billing:['#customerReceiptSummary','#stxProfileShareDraft','.ledger-heading','.history-retention-note','#customerEmptyNote','#historyContainer'],
     info:['.customer-meta','.uptime-section'],
-    complaints:['.incident-section:not(.uptime-section)']
+    complaints:['.incident-section:not(.uptime-section)'],
+    baqaya:['#manualBaqayaSection']
   };
   for (const [name, selectors] of Object.entries(groups)) {
     const panel = $(`#${profileTabMap[name][1]}`);
@@ -1739,13 +1741,15 @@ function activateProfileTab(name, focus = false) {
 // a complaint resolved from the register modal refreshes them through
 // handleRegisterComplaintsChanged's renderDetail. The static HTML
 // keeps the bare data-i18n labels for the first paint.
+// The counts write into the tab's .profile-tab-label span only —
+// writing the button's textContent would wipe the tab number span.
 function updateProfileTabCounts(customer) {
   if (!customer) return;
   const counts = profileTabCounts(customer, loadComplaints());
-  const billingTab = $('#profileTabBilling');
-  if (billingTab) billingTab.textContent = counts.billingMonths > 0 ? t('prof_tab_billing_count', null, { count: counts.billingMonths }) : t('prof_tab_billing');
-  const complaintsTab = $('#profileTabComplaints');
-  if (complaintsTab) complaintsTab.textContent = counts.openComplaints > 0 ? t('prof_tab_complaints_count', null, { count: counts.openComplaints }) : t('prof_tab_complaints');
+  const billingLabel = $('#profileTabBilling .profile-tab-label');
+  if (billingLabel) billingLabel.textContent = counts.billingMonths > 0 ? t('prof_tab_billing_count', null, { count: counts.billingMonths }) : t('prof_tab_billing');
+  const complaintsLabel = $('#profileTabComplaints .profile-tab-label');
+  if (complaintsLabel) complaintsLabel.textContent = counts.openComplaints > 0 ? t('prof_tab_complaints_count', null, { count: counts.openComplaints }) : t('prof_tab_complaints');
 }
 mountCustomerProfileContent();
 
@@ -8638,7 +8642,7 @@ function renderCurrentBillSummary(customer) {
   $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>${t('prof_current_heading', null, { month: displayMonthName(month) })}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_current_help_label')}" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">${t('prof_current_help')}</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_monthly_bill')}</span><strong>${summary.billAmount === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.billAmount))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_received')}</span><strong>${summary.receiptCount?escapeHtml(formatAmount(summary.receivedAmount)):t('prof_current_no_receipts')}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_status')}</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(currentStatusKey ? t(currentStatusKey) : summary.statusLabel)}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_net_due')}</span><strong class="${netDueClass}">${summary.balanceDueCents === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.balanceDueCents / 100))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_unused_credit')}</span><strong>${unusedCreditCents?escapeHtml(formatAmount(unusedCreditCents/100)):t('prof_none_recorded')}</strong></article>${ticketChargesPending > 0 ? `<article class="current-bill-stat ds-stat-box"><span>${t('prof_current_ticket_charges')}</span><strong>${escapeHtml(formatAmount(ticketChargesPending))}</strong></article>` : ''}${boostChargesPending > 0 ? `<article class="current-bill-stat ds-stat-box"><span>${t('boost_current_charges')}</span><strong>${escapeHtml(formatAmount(boostChargesPending))}</strong></article>` : ''}</div>${summary.fifo && (summary.fifo.previousArrears > 0 || summary.fifo.kistTotal > 0) ? `<div class="current-bill-grid" aria-label="${t('prof_fifo_aria')}"><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_arrears')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingArrears))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_package')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingPackage))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_kist')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingKist))}</strong></article></div>` : ''}`;
 }
 // Owner feature (2026-10-29): Manual Baqaya profile flows. The
-// section lives in the Billing tab (mounted from #manualBaqayaSection);
+// section lives in the Manual Baqaya tab (mounted from #manualBaqayaSection);
 // entries stay readable on archived profiles but the Add/Edit/Remove
 // controls render only for a live, non-FREE connection (core enforces
 // the same rules again in its mutations).

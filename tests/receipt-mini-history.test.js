@@ -315,7 +315,8 @@ test('Quick Collect WhatsApp: prior payments attach to the receipt and render in
   assert.equal(receipt.previousPayments[0].amount, 1000);
   const draft = formatQuickCollectWhatsAppReceipt(receipt);
   assert.ok(draft.text.includes('Last 3 Payments / پچھلی 3 ادائیگیاں'), 'WhatsApp draft carries the bilingual heading');
-  assert.ok(draft.text.includes('2026-09-05') && draft.text.includes('PKR 1,000'), 'WhatsApp draft carries the prior row');
+  // Date-format fix: the history row date prints DD/MM/YYYY now.
+  assert.ok(draft.text.includes('05/09/2026') && draft.text.includes('PKR 1,000'), 'WhatsApp draft carries the prior row');
   assert.ok(draft.text.indexOf('Last 3 Payments') < draft.text.indexOf('Shukriya!'), 'history is above the thank-you lines');
 
   // First-ever collection: no history, draft unchanged.

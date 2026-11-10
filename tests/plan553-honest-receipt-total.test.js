@@ -66,7 +66,7 @@ test('taxed-only receipt shows a PKR 1195 gross total on all three layouts, and 
   }
 });
 
-test('fractional tax: a taxed 1500-package receipt totals PKR 1,792.5 on all three layouts', () => {
+test('fractional tax: a taxed 1500-package receipt totals PKR 1,792.50 on all three layouts', () => {
   const paid = payment('plan553-taxed-frac', 1792.5, '2026-08-10');
   const { customer, bill } = fixture({ dueAmount: 1500, payments: [paid] });
   bill.salesTaxCents = 29250;
@@ -74,9 +74,12 @@ test('fractional tax: a taxed 1500-package receipt totals PKR 1,792.5 on all thr
   assert.equal(receipt.totalBilled, 1792.5);
 
   const { a4, t80, t58 } = layouts(receipt);
-  assert.ok(a4.includes(GROSS_A4('PKR 1,792.5')), 'a4: gross total is PKR 1,792.5');
-  assert.ok(t80.includes(GROSS_THERMAL('PKR 1,792.5')), 'thermal-80: gross total is PKR 1,792.5');
-  assert.ok(t58.includes(GROSS_THERMAL('PKR 1,792.5')), 'thermal-58: gross total is PKR 1,792.5');
+  // Plan 555: the shared receipt format prints a fractional figure with
+  // two decimals (PKR 1,792.50, like formatPKR) — the intent pinned
+  // here, "the same gross total on all three layouts", is unchanged.
+  assert.ok(a4.includes(GROSS_A4('PKR 1,792.50')), 'a4: gross total is PKR 1,792.50');
+  assert.ok(t80.includes(GROSS_THERMAL('PKR 1,792.50')), 'thermal-80: gross total is PKR 1,792.50');
+  assert.ok(t58.includes(GROSS_THERMAL('PKR 1,792.50')), 'thermal-58: gross total is PKR 1,792.50');
 });
 
 test('untaxed, unadjusted receipt shows no total row on any layout', () => {

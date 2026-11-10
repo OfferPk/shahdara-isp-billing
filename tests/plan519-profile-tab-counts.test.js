@@ -8,11 +8,12 @@ import { profileTabCounts } from '../profile-tab-counts.js';
 const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 
-// Plan 519 — Profile tabs carry counts: the three tab buttons were
-// bare labels ("Billing & Ledger", "Customer Info", "Complaints"),
-// so the operator could not tell from the tab whether there was
-// anything to look at. The fix: Billing shows the months with a
-// recorded bill, Complaints shows the unresolved register complaints,
+// Plan 519 — Profile tabs carry counts: the tab buttons were
+// bare labels ("Billing", "Info", "Complaints", "Baqaya" — the short
+// forms, measured to fit four numbered tabs at 360px), so the
+// operator could not tell from the tab whether there was anything
+// to look at. The fix: Billing shows the months with a recorded
+// bill, Complaints shows the unresolved register complaints,
 // updated on every profile render. A zero count shows the bare label.
 //
 // Boundaries, stated plainly:
@@ -96,8 +97,8 @@ test('Plan 519: updateProfileTabCounts sets both counts and falls back to the ba
   assert.notEqual(start, -1, 'updateProfileTabCounts must exist');
   const body = app.slice(start, app.indexOf('\nmountCustomerProfileContent();', start));
   assert.ok(body.includes("profileTabCounts(customer, loadComplaints())"), 'counts derive from this customer and the register');
-  assert.ok(body.includes("$('#profileTabBilling')"), 'billing tab is updated');
-  assert.ok(body.includes("$('#profileTabComplaints')"), 'complaints tab is updated');
+  assert.ok(body.includes("$('#profileTabBilling .profile-tab-label')"), 'billing tab label span is updated');
+  assert.ok(body.includes("$('#profileTabComplaints .profile-tab-label')"), 'complaints tab label span is updated');
   assert.ok(body.includes("t('prof_tab_billing_count', null, { count: counts.billingMonths })"), 'billing count uses its i18n key with the count param');
   assert.ok(body.includes("t('prof_tab_complaints_count', null, { count: counts.openComplaints })"), 'complaints count uses its i18n key with the count param');
   assert.ok(body.includes("t('prof_tab_billing')"), 'zero billed months falls back to the bare billing label');
@@ -126,9 +127,10 @@ test('Plan 519: resolving a complaint refreshes the counts through the register 
 
 test('Plan 519: the static HTML keeps the bare labels for the first paint', () => {
   const html = read('index.html');
-  assert.match(html, /id="profileTabBilling"[^>]*data-i18n="prof_tab_billing">Billing &amp; Ledger</, 'Billing tab starts as the bare label');
-  assert.match(html, /id="profileTabInfo"[^>]*data-i18n="prof_tab_info">Customer Info</, 'Info tab starts as the bare label');
-  assert.match(html, /id="profileTabComplaints"[^>]*data-i18n="prof_tab_complaints">Complaints</, 'Complaints tab starts as the bare label');
+  assert.match(html, /id="profileTabBilling"[^>]*><span class="profile-tab-number" aria-hidden="true">1<\/span><span class="profile-tab-label" data-i18n="prof_tab_billing">Billing</, 'Billing tab starts as the bare label');
+  assert.match(html, /id="profileTabInfo"[^>]*><span class="profile-tab-number" aria-hidden="true">2<\/span><span class="profile-tab-label" data-i18n="prof_tab_info">Info</, 'Info tab starts as the bare label');
+  assert.match(html, /id="profileTabComplaints"[^>]*><span class="profile-tab-number" aria-hidden="true">3<\/span><span class="profile-tab-label" data-i18n="prof_tab_complaints">Complaints</, 'Complaints tab starts as the bare label');
+  assert.match(html, /id="profileTabBaqaya"[^>]*><span class="profile-tab-number" aria-hidden="true">4<\/span><span class="profile-tab-label" data-i18n="prof_tab_baqaya">Baqaya</, 'Baqaya tab starts as the bare label');
 });
 
 test('Plan 519: the count keys exist in both languages with the count param', () => {
@@ -137,9 +139,9 @@ test('Plan 519: the count keys exist in both languages with the count param', ()
     assert.ok(lang.includes(`${key}:`), `${key} must exist`);
     assert.ok(lang.includes(`{count}`), 'count keys must carry the {count} param');
   }
-  assert.ok(lang.includes("prof_tab_billing_count: 'Billing & Ledger ({count} months)'"), 'EN billing count label');
+  assert.ok(lang.includes("prof_tab_billing_count: 'Billing ({count} months)'"), 'EN billing count label');
   assert.ok(lang.includes("prof_tab_complaints_count: 'Complaints ({count} open)'"), 'EN complaints count label');
-  assert.ok(lang.includes("prof_tab_billing_count: 'بلنگ اور کھاتہ ({count} ماہ)'"), 'UR billing count label carries Urdu script');
+  assert.ok(lang.includes("prof_tab_billing_count: 'بلنگ ({count} ماہ)'"), 'UR billing count label carries Urdu script');
   assert.ok(lang.includes("prof_tab_complaints_count: 'شکایات ({count} کھلی)'"), 'UR complaints count label carries Urdu script');
 });
 
@@ -148,6 +150,7 @@ test('Plan 519: the tab mechanism is untouched — map, activation, bindings, ke
   assert.match(app, /billing:\['profileTabBilling','profilePanelBilling'\]/);
   assert.match(app, /info:\['profileTabInfo','profilePanelInfo'\]/);
   assert.match(app, /complaints:\['profileTabComplaints','profilePanelComplaints'\]/);
+  assert.match(app, /baqaya:\['profileTabBaqaya','profilePanelBaqaya'\]/);
   assert.ok(app.includes("$(`#${tabId}`).addEventListener('click', () => activateProfileTab(name));"), 'click bindings kept');
   assert.match(app, /event\.key === 'ArrowRight'/, 'arrow-key nav kept');
   assert.match(app, /event\.key === 'ArrowLeft'/, 'arrow-key nav kept');

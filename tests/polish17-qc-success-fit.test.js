@@ -12,14 +12,19 @@
 // plus the tick-in-box fix's TICK-BOX −12 (row border + padding),
 // computed total 693 px, plus the BUT HOUSE phone row's PHONE-ROW −43
 // (one new grid row), computed total 736 px — 36 px OVER the 700 px
-// gate, recorded in the budget test below, not blessed. The hide-
+// gate, recorded in the budget test below, not blessed, plus the
+// receipt-number presentation fix's HEADER-WRAP −26 (the labelled chip
+// group wraps to its own line at 360px), computed total 762 px —
+// 62 px OVER the gate, recorded the same way. The hide-
 // zero-remaining fix swaps the last two bookings but not the total:
 // on a fully-paid card the Remaining Balance row is hidden, so the
 // grid goes from 6 items (3 rows) to 5 (still 3 rows) — the hide
 // costs 0 px in this shape (Chromium 360 px: grid 156.2 px saved,
 // 200.2 px no-phone, before AND after) and the Month row now adds
 // the third row instead of filling the lone-Remaining one: PHONE-ROW
-// 0, MONTH-ROW −43. The computed total stays 736 px — no new overage.
+// 0, MONTH-ROW −43. The computed total stays 736 px through the
+// hide — no new overage from that fix; the receipt-number header wrap
+// (HEADER-WRAP −26, booked below) moves it to 762 px.
 // The polish #17 stylesheet values stay as regression guards (they no
 // longer carry savings rows — the savings are the four deltas), except
 // the three this polish changes (B1 inline tick, S1 compact badges +
@@ -195,11 +200,17 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
   // C2 — card gap 10 → 8.
   assert.ok(card.includes('gap: 8px'), 'C2: card gap must be 8px on success');
 
-  // C3 — card header badges stop wrapping; the receipt id drops to its
-  // own right-aligned line only if it cannot fit.
+  // C3 — card header badges stop wrapping; the receipt reference group
+  // drops to its own right-aligned line only if it cannot fit.
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }'), 'C3: header must allow the id to drop to its own line');
   assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }'), 'C3: receipt badges must not wrap');
-  assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-id { white-space: nowrap; margin-left: auto; }'), 'C3: receipt id must not wrap and must right-align on its own line');
+  // Receipt-number presentation: the id rule is scoped to the split
+  // card's direct-child title ("> .qc-receipt-id") — the ordinary id
+  // is nested inside .qc-receipt-ref now and the wrapper carries the
+  // auto margin; the old unscoped rule would have reached the wrapped
+  // id and split its label from the chip. The split title keeps its
+  // nowrap + right-align exactly as before.
+  assert.ok(stylesSrc.includes('#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header > .qc-receipt-id { white-space: nowrap; margin-left: auto; }'), 'C3: split title must not wrap and must right-align on its own line');
 
   // C4 — amount 1.5rem → 1.3rem, row padding 4 → 2.
   const amount = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount {');
@@ -373,20 +384,36 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
   assert.equal(rowsAfter - rowsBefore, 1, 'MONTH-ROW: the Month row adds one grid row, so it costs 43px');
   savings.push(['MONTH-ROW Month row (adds the third grid row)', -phoneRowCostPx]);
 
+  // HEADER-WRAP — receipt-number presentation: the header reference
+  // grows from a bare id (~109px) to a labelled chip group (~221px),
+  // so at 360px the group no longer fits beside the shared pill and
+  // drops to its own right-aligned line (the C3 fallback, intended).
+  // Measured in Chromium at 360px on the real fixed sources (harness
+  // ~/workspace/qc-receipt-number-repro/, 0 pageerrors): card 399.4 →
+  // 425px (+25.6, rounded to 26) and header 33 → 58.6px, IDENTICAL in
+  // both pill states (Pending + Sent) and in both shapes (partial +
+  // fully-paid). Before, both states fit on one line (Pending badge +
+  // id ≈ 254px, Sent badge + id ≈ 289px of 292px available — the
+  // shared state only just fit); after, the group wraps in both. The
+  // computed total becomes 736 + 26 = 762px, 62px OVER the 700px
+  // gate. Recorded, not blessed — no reserve knob is applied here.
+  savings.push(['HEADER-WRAP receipt reference group wraps to its own line', -26]);
+
   const totalSaved = savings.reduce((sum, [, value]) => sum + value, 0);
   const total = BASELINE_PX - totalSaved;
   // PHONE-ROW overage (recorded, not blessed): the user-asked Mobile
   // Number row pushes the computed total to 736px, 36px over the gate.
-  // The static test guards against regressions; the real-phone
-  // screenshot is the authority for the true total.
-  assert.equal(totalSaved, 9, `savings must be 9px (42 − 8 − 12 + 24 + 6 + 0 − 43), got ${totalSaved}px`);
-  assert.equal(total, 736, `fit budget: computed total must be 736px (baseline ${BASELINE_PX}px − saved ${totalSaved}px)`);
+  // The receipt-number header wrap adds a further 26px, total 762px,
+  // 62px over the gate. The static test guards against regressions;
+  // the real-phone screenshot is the authority for the true total.
+  assert.equal(totalSaved, -17, `savings must be -17px (42 − 8 − 12 + 24 + 6 + 0 − 43 − 26), got ${totalSaved}px`);
+  assert.equal(total, 762, `fit budget: computed total must be 762px (baseline ${BASELINE_PX}px − saved ${totalSaved}px)`);
   assert.ok(
     total > TARGET_PX,
-    `fit budget: the computed total ${total}px is ${total - TARGET_PX}px OVER the ${TARGET_PX}px gate — recorded here (BUT HOUSE phone row), to be confirmed by the phone screenshot`,
+    `fit budget: the computed total ${total}px is ${total - TARGET_PX}px OVER the ${TARGET_PX}px gate — recorded here (BUT HOUSE phone row + receipt-number header wrap), to be confirmed by the phone screenshot`,
   );
   // The savings no longer cover the observed overshoot over the phone
-  // fold (33px): 9px of saving against a 33px overshoot. Recorded,
+  // fold (33px): −17px of saving against a 33px overshoot. Recorded,
   // not waived — the polish #21 reserve knobs recover it if the user
   // wants the card back under 700.
 });

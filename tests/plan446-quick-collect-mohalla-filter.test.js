@@ -302,7 +302,10 @@ test('wiring: the select is filled from the app\'s own mohalla list and a change
 test('wiring: renderList passes the active mohalla to the picker and writes the count line', () => {
   const renderList = wiringSrc.match(/function renderList\(\) \{[\s\S]*?\n  \}/);
   assert.ok(renderList, 'renderList not found');
-  assert.ok(renderList[0].includes('renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId, activeMohallaFilter)'), 'renderList must pass the active mohalla to the picker');
+  // QC-2 added a 6th options argument (sort order) to the picker
+  // call — the assertion tolerates it and still pins that the active
+  // mohalla is passed as the 5th argument.
+  assert.ok(/renderQuickCollectPickerHtml\(state, query, activeFilter, activeCustomerId, activeMohallaFilter(, \{[^}]*\})?\)/.test(renderList[0]), 'renderList must pass the active mohalla to the picker');
   assert.ok(renderList[0].includes('quickCollectMohallaFilterSummaryText(picked.customers, activeMohallaFilter)'), 'renderList must write the filtered count line');
 });
 

@@ -609,9 +609,9 @@ export function setupNetworkStatusIndicator({ onToast } = {}) {
     }
     if (text) {
       if (isSyncing) {
-        text.textContent = 'Syncing...';
+        text.textContent = 'Saving to device...';
       } else if (pendingChanges > 0) {
-        text.textContent = `${pendingChanges} pending`;
+        text.textContent = `${pendingChanges} queued on this device`;
       } else {
         text.textContent = isOnlineNow() ? 'Online · Cached' : 'Offline · Local Only';
       }
@@ -2048,7 +2048,7 @@ export function startOfflineQueueAutoRetryEngine({
           onQueueUpdated(getOfflineSyncQueue(storage), res);
         }
         if (res.succeeded > 0 && typeof onToast === 'function') {
-          onToast(`Auto-retry synced ${res.succeeded} offline transaction${res.succeeded === 1 ? '' : 's'}`);
+          onToast(`Auto-retry confirmed ${res.succeeded} offline transaction${res.succeeded === 1 ? '' : 's'}`);
         }
       }
     } catch {
@@ -2187,11 +2187,11 @@ export function setupOfflineSyncBanner({
         banner.hidden = false;
         banner.className = 'offline-sync-banner is-syncing';
         if (textEl) {
-          textEl.textContent = `Online · Syncing ${queueCount} local change${queueCount === 1 ? '' : 's'}...`;
+          textEl.textContent = `Online · Confirming ${queueCount} queued action${queueCount === 1 ? '' : 's'} on this device...`;
         }
         if (retryBtn) {
           retryBtn.hidden = false;
-          retryBtn.textContent = 'Sync Now';
+          retryBtn.textContent = 'Confirm Queue';
         }
 
         if (syncTimeout) clearTimeout(syncTimeout);
@@ -2228,7 +2228,7 @@ export function setupOfflineSyncBanner({
         }
         if (retryBtn) retryBtn.hidden = true;
         if (typeof onToast === 'function') {
-          onToast(`Sync complete: ${res.processedCount} changes saved to ledger`);
+          onToast(`Queue confirmed: ${res.processedCount} queued action${res.processedCount === 1 ? '' : 's'} — already saved on this device`);
         }
         setTimeout(() => {
           banner.hidden = true;
@@ -2674,7 +2674,7 @@ export function setupOfflineQueueModal({
           } else if (status === 'retrying') {
             statusTag.textContent = `Retry #${item.retryCount || 1}`;
           } else if (status === 'synced') {
-            statusTag.textContent = 'Synced';
+            statusTag.textContent = 'Confirmed';
           } else {
             statusTag.textContent = 'Pending';
           }
@@ -2694,12 +2694,12 @@ export function setupOfflineQueueModal({
           infoDiv.appendChild(statusTag);
           infoDiv.appendChild(time);
           // Plan G: a dead-letter item says plainly what happened and
-          // what to do next — it is not synced yet, and discarding is
+          // what to do next — it is not confirmed yet, and discarding is
           // only safe if the entry was recorded another way.
           if (status === 'dead_letter') {
             const guidance = document.createElement('div');
             guidance.className = 'queue-item-guidance';
-            guidance.textContent = 'Max retries reached — not synced yet. Retry again, or discard only if this entry was recorded another way.';
+            guidance.textContent = 'Max retries reached — not confirmed yet. Retry again, or discard only if this entry was recorded another way.';
             infoDiv.appendChild(guidance);
           }
           card.appendChild(infoDiv);
@@ -2718,11 +2718,11 @@ export function setupOfflineQueueModal({
               itemRetryBtn.textContent = 'Retrying...';
               const outcome = await retryOfflineQueueItem(item.id, { storage });
               if (outcome.success) {
-                if (typeof onToast === 'function') onToast(`Synced: ${item.summary || item.action}`);
+                if (typeof onToast === 'function') onToast(`Confirmed: ${item.summary || item.action}`);
               } else {
                 // Plan G: a failed retry says what failed, that nothing
                 // was synced, and what to do next — never just a status.
-                if (typeof onToast === 'function') onToast(`Retry failed (${outcome.status}): ${outcome.error || 'Network error'}. Entry not synced yet — check connection and retry, or discard if recorded another way.`);
+                if (typeof onToast === 'function') onToast(`Retry failed (${outcome.status}): ${outcome.error || 'Network error'}. Entry not confirmed yet — check connection and retry, or discard if recorded another way.`);
               }
               renderQueue();
               if (typeof onRetryItem === 'function') onRetryItem(outcome);
@@ -2781,7 +2781,7 @@ export function setupOfflineQueueModal({
         storage,
         onComplete: (r) => {
           if (typeof onSync === 'function') onSync(r);
-          if (typeof onToast === 'function') onToast(`Synced ${r.processedCount} queued items`);
+          if (typeof onToast === 'function') onToast(`Confirmed ${r.processedCount} queued items`);
           renderQueue();
           closeModal();
         }
@@ -2836,7 +2836,7 @@ export function setupOfflineQueueModal({
       retryFailedBtn.textContent = 'Retrying...';
       const res = await processEligibleOfflineRetries({ storage });
       if (typeof onToast === 'function') {
-        onToast(`Processed ${res.attempted} items (${res.succeeded} synced, ${res.failed} failed)`);
+        onToast(`Processed ${res.attempted} items (${res.succeeded} confirmed, ${res.failed} failed)`);
       }
       retryFailedBtn.disabled = false;
       retryFailedBtn.textContent = 'Retry Eligible Now';

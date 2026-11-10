@@ -220,7 +220,11 @@ test('split card with a select renders the select instead of plain-text area', (
 
 // --- (B) picker + payment defaults read the profile area first ------------
 
-test('picker and payment defaults show mohalla first, legacy area second, Unassigned last', () => {
+// Plan 556: the payment-defaults fallback is now the receipt convention
+// 'Not recorded' (polish #12); the picker row keeps 'Unassigned' — its
+// area is the QC-4 filter key input, so only the card translates it at
+// render (see tests/plan556-area-wording-one-wording.test.js).
+test('picker and payment defaults show mohalla first, legacy area second, fallback last', () => {
   const month = '2026-11';
   let state = { customers: [
     { id: 'm', customerNumber: 1, name: 'Mohalla Only', phone: '03000000001', mohalla: 'CHARYAA', archived: false, bills: [] },
@@ -241,7 +245,7 @@ test('picker and payment defaults show mohalla first, legacy area second, Unassi
   assert.equal(getCustomerPaymentDefaults(state, 'm', refDate).area, 'CHARYAA');
   assert.equal(getCustomerPaymentDefaults(state, 'a', refDate).area, 'Jia Musa');
   assert.equal(getCustomerPaymentDefaults(state, 'b', refDate).area, 'GANGALL');
-  assert.equal(getCustomerPaymentDefaults(state, 'n', refDate).area, 'Unassigned');
+  assert.equal(getCustomerPaymentDefaults(state, 'n', refDate).area, 'Not recorded'); // Plan 556: defaults use the receipt convention now
 });
 
 // --- (B) wiring: split card select + area-save sync -----------------------

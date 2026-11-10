@@ -639,7 +639,10 @@ export function getCustomerPaymentDefaults(state, customerId, referenceDate = ne
     customerNumber: customer.customerNumber,
     name: customer.name,
     phone: customer.phone || '',
-    area: customer.mohalla || customer.area || 'Unassigned',
+    // Plan 556: the receipt convention 'Not recorded' (polish #12) —
+    // the sheet header and the save confirmation show the same words
+    // as the printed receipt and the WhatsApp draft.
+    area: customer.mohalla || customer.area || 'Not recorded',
     targetMonth,
     suggestedAmount,
     balanceDue: targetDue,
@@ -1237,7 +1240,10 @@ export function executeQuickCollection(state, {
     // Polish 4: the receipt shows the profile area — the mohalla first,
     // the legacy area field only as a fallback — so an area saved from
     // the success screen shows here on the next collection too.
-    area: customer.mohalla || customer.area || 'Unassigned',
+    // Plan 556: the fallback is the receipt convention 'Not recorded'
+    // (polish #12), so the QC WhatsApp draft agrees with the printed
+    // receipt instead of printing 'Unassigned'.
+    area: customer.mohalla || customer.area || 'Not recorded',
     month: targetMonth,
     date: pDate,
     amount: numAmount,
@@ -1772,6 +1778,19 @@ export function renderQuickCollectPaidEmptyHtml() {
     `;
 }
 
+/**
+ * Plan 556: the picker card's area line. A mohalla-less entry carries
+ * 'Unassigned' (the QC-4 mohalla filter's key input — entryMohalla
+ * reads mohalla || area — and the Field Mode zone grouping's input),
+ * so the builder value stays and the card translates it at render,
+ * the polish #14 pattern (splitAreaDisplay): the receipt convention
+ * 'Not recorded' (polish #12), never a blank, never a guessed mohalla.
+ */
+function qcCardAreaDisplay(area) {
+  const value = String(area ?? '').trim();
+  return value && value !== 'Unassigned' ? value : 'Not recorded';
+}
+
 export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null, sameNameBadges = null, mohallaFilter = '', priorityById = null) {
   if (!customers || customers.length === 0) {
     // Plan 542: when a mohalla filter is what emptied the list, name
@@ -1864,7 +1883,7 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
             <div class="qc-cust-info">
               <span class="qc-cust-name">${escapeHtml(c.name)}</span>
               ${sameNameBadges?.get(c.id) ?? ''}
-              <span class="qc-cust-meta">${escapeHtml(c.area)}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</span>
+              <span class="qc-cust-meta">${escapeHtml(qcCardAreaDisplay(c.area))}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</span>
               ${priorityRow}
             </div>
           </div>
@@ -1909,7 +1928,10 @@ export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MO
     options.push({ value: String(value).trim(), label });
   };
   const current = String(currentArea ?? '').trim();
-  const currentCanon = current && current.toLowerCase() !== 'unassigned' ? canonicalMohalla(current) : null;
+  // Plan 556: 'Not recorded' is the receipt convention for no area
+  // (polish #12) — like 'Unassigned' it is not a place, so it is
+  // never added as a saveable option; the placeholder stays selected.
+  const currentCanon = current && current.toLowerCase() !== 'unassigned' && current.toLowerCase() !== 'not recorded' ? canonicalMohalla(current) : null;
   if (currentCanon) push(currentCanon.stored, currentCanon.label);
   for (const name of (Array.isArray(areaOptions) ? areaOptions : [])) {
     const canon = canonicalMohalla(name);

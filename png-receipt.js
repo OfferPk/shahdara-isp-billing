@@ -278,7 +278,7 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
     subLabels: {
       customer: L('Customer / صارف'),
       connection: L('Connection ID / کھاتہ'),
-      area: L('Area / Zone'),
+      area: L('Area / علاقہ'),
       package: L('Package / پیکیج')
     },
     ...sanitizeBrand(options),
@@ -371,7 +371,7 @@ export function computePngReceiptLayout(model, measureFn) {
       ? [{ label: '', value: model.urduName, font: `500 58px ${FONT_URDU}`, direction: 'rtl' }]
       : []),
     { label: model.subLabels?.connection ?? 'Connection ID / کھاتہ', value: model.connectionId ? `#${model.connectionId}` : '—', font: `500 44px ${FONT_LATIN}` },
-    { label: model.subLabels?.area ?? 'Area / Zone', value: model.areaZone, font: `500 44px ${FONT_LATIN}` },
+    { label: model.subLabels?.area ?? 'Area / علاقہ', value: model.areaZone, font: `500 44px ${FONT_LATIN}` },
     { label: model.subLabels?.package ?? 'Package / پیکیج', value: model.packageLine || '—', font: `500 44px ${FONT_LATIN}` },
   ];
   const subPitch = 78;

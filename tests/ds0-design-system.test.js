@@ -259,7 +259,7 @@ test('DS-0 tabs: equal-flex segmented control, sticky under the topbar', () => {
   assert.ok(stylesSrc.includes('.profile-tabs.profile-tabs { top: 56px; }'), 'tabs must stick at 56px at 360px (the topbar is 56px there)');
   // Tabs keep their ids, counts, keyboard arrow-nav and aria-selected
   // behaviour — DS-0 changes only their presentation.
-  for (const tabId of ['profileTabBilling', 'profileTabInfo', 'profileTabComplaints']) {
+  for (const tabId of ['profileTabBilling', 'profileTabInfo', 'profileTabComplaints', 'profileTabBaqaya']) {
     assert.ok(htmlSrc.includes(`id="${tabId}"`), `the ${tabId} tab must keep its id`);
   }
   assert.ok(htmlSrc.includes('role="tab"') && htmlSrc.includes('aria-selected='), 'tabs must keep their tab roles and aria-selected state');

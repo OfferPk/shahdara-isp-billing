@@ -227,6 +227,14 @@
  * past the gap, so it reads as a bar. */
 .detail-pane { overflow: clip; }
 .month-card { overflow: clip; }
+/* Profile tabs: the sticky tab bar was still disabled by a fourth
+ * hidden overflow — `.customer-profile-card` itself (styles.css) is
+ * the tabs' nearest scroll container, so the bar scrolled away with
+ * the page instead of sticking at 56px. Same fix as above: clip
+ * keeps the rounded-corner clipping without creating a scroll
+ * container. Measured in Chromium at 360px: tab top after scrolling
+ * 600px went from -430px (gone) to 56px (stuck). */
+.customer-profile-card { overflow: clip; }
 .payment-form > .primary-button[type="submit"] {
   position: sticky;
   bottom: calc(var(--bottom-nav-height, 60px) + 8px);

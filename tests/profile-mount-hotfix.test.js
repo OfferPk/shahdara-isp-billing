@@ -412,17 +412,18 @@ test('profile mount: faithful deep-querySelector simulation — every child clai
   const placement = Object.fromEntries(Object.entries(panels).map(([k, v]) => [k, v.map(c => c.label)]));
   // Polish #11 (2026-11-07): the profile receipt share-draft host
   // (#stxProfileShareDraft) joins the billing panel, right after the
-  // manual-baqaya section — it is a claimed mounts child, in mount
-  // order, like the summary and baqaya sections above it.
+  // summary. The manual-baqaya section used to sit there too; it now
+  // owns the fourth tab's panel (see the baqaya group below).
   // Plan 509 (2026-11-08): the static package-history section is gone,
   // so it no longer appears in the info panel's mount order.
   // Polish #24 (2026-11-10): the danger zone is REMOVED — Delete moved
   // into the header action group — so the info panel ends with the
   // uptime section and no zone is claimed anywhere.
   assert.deepEqual(placement, {
-    billing: ['#customerReceiptSummary', '#manualBaqayaSection', '#stxProfileShareDraft', '.ledger-heading', '.notice.history-retention-note', '#customerEmptyNote'],
+    billing: ['#customerReceiptSummary', '#stxProfileShareDraft', '.ledger-heading', '.notice.history-retention-note', '#customerEmptyNote'],
     info: ['.customer-meta', '.incident-section.uptime-section'],
-    complaints: ['.incident-section']
+    complaints: ['.incident-section'],
+    baqaya: ['#manualBaqayaSection']
   }, 'every mounts child lands in its expected tab panel, in mount order');
 });
 

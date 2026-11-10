@@ -125,9 +125,10 @@ test('help disclosures and profile tabs have accessible names, relationships, an
   assert.match(index, /id="dashboardGuidance" class="help-tip-content" role="tooltip"/);
   assert.match(index, /id="filterGuidance" class="help-tip-content" role="tooltip"/);
   for (const [tabId,panelId,label] of [
-    ['profileTabBilling','profilePanelBilling','Billing &amp; Ledger'],
-    ['profileTabInfo','profilePanelInfo','Customer Info'],
-    ['profileTabComplaints','profilePanelComplaints','Complaints']
+    ['profileTabBilling','profilePanelBilling','Billing'],
+    ['profileTabInfo','profilePanelInfo','Info'],
+    ['profileTabComplaints','profilePanelComplaints','Complaints'],
+    ['profileTabBaqaya','profilePanelBaqaya','Baqaya']
   ]) {
     assert.match(index, new RegExp(`id="${tabId}"[^>]*role="tab"[^>]*aria-controls="${panelId}"`));
     assert.match(index, new RegExp(`id="${panelId}"[^>]*role="tabpanel"[^>]*aria-labelledby="${tabId}"`));

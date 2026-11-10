@@ -59,6 +59,9 @@ test('Plan 491: the static HTML starts with Customer Info selected and visible',
     /id="profileTabComplaints"[^>]*aria-selected="false"[^>]*tabindex="-1"/,
     'Complaints tab starts unselected and untabbable');
   assert.match(indexHtml,
+    /id="profileTabBaqaya"[^>]*aria-selected="false"[^>]*tabindex="-1"/,
+    'Baqaya tab starts unselected and untabbable');
+  assert.match(indexHtml,
     /id="profilePanelInfo"[^>]*role="tabpanel"[^>]*aria-labelledby="profileTabInfo"[^>]*tabindex="0">/,
     'Info panel starts visible (no hidden attribute)');
   assert.match(indexHtml,
@@ -67,14 +70,20 @@ test('Plan 491: the static HTML starts with Customer Info selected and visible',
   assert.match(indexHtml,
     /id="profilePanelComplaints"[^>]*role="tabpanel"[^>]*aria-labelledby="profileTabComplaints"[^>]*tabindex="0" hidden>/,
     'Complaints panel starts hidden');
+  assert.match(indexHtml,
+    /id="profilePanelBaqaya"[^>]*role="tabpanel"[^>]*aria-labelledby="profileTabBaqaya"[^>]*tabindex="0" hidden>/,
+    'Baqaya panel starts hidden');
 });
 
 test('Plan 491: the tab mechanism is untouched — map, mounts, bindings, keys', () => {
   assert.match(appJs, /billing:\['profileTabBilling','profilePanelBilling'\]/);
   assert.match(appJs, /info:\['profileTabInfo','profilePanelInfo'\]/);
   assert.match(appJs, /complaints:\['profileTabComplaints','profilePanelComplaints'\]/);
+  assert.match(appJs, /baqaya:\['profileTabBaqaya','profilePanelBaqaya'\]/);
   assert.ok(appJs.includes("billing:['#customerReceiptSummary'"),
     'billing mount group kept');
+  assert.ok(appJs.includes("baqaya:['#manualBaqayaSection']"),
+    'baqaya mount group owns the Manual Baqaya section');
   assert.ok(appJs.includes("info:['.customer-meta'"),
     'info mount group kept — the profile view and edit form live there');
   assert.ok(appJs.includes("complaints:['.incident-section:not(.uptime-section)']"),

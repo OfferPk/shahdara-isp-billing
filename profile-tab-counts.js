@@ -1,5 +1,5 @@
 /* Plan 519 — profile tab counts. Pure rule only: which figures the
- * three profile tab buttons carry. No DOM, no storage, no dates — the
+ * four profile tab buttons carry. No DOM, no storage, no dates — the
  * caller (app.js updateProfileTabCounts) renders the result, so the
  * rule is testable without a DOM and can never invent a figure:
  * - billingMonths: distinct months with a recorded bill on this
@@ -16,7 +16,9 @@
  *   is already shown inside the Complaints panel
  *   (#incidentCount30Days). The Customer Info tab carries no count:
  *   the completion counter (Plan 512/513) already lives inside that
- *   panel, and duplicating it on the tab would say nothing new.
+ *   panel, and duplicating it on the tab would say nothing new. The
+ *   Manual Baqaya tab carries no count either: its panel heading
+ *   already shows the total unpaid baqaya prominently.
  */
 export function profileTabCounts(customer, complaints) {
   if (!customer || typeof customer !== 'object') return { billingMonths: 0, openComplaints: 0 };

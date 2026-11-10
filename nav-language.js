@@ -3949,6 +3949,16 @@ export const TRANSLATIONS = {
     qc2_priority_low: 'Low priority',
     qc2_tier_multi_month: '2+ months arrears',
     qc2_tier_long_overdue: '90+ days overdue',
+    // QC-3: proposed customer card — Outstanding vs Monthly package
+    // figures, and the Call / Location / Collect action row.
+    qc3_call: 'Call',
+    qc3_location: 'Location',
+    qc3_collect: 'Collect',
+    qc3_monthly_package: 'Monthly package',
+    qc3_outstanding: 'Outstanding',
+    qc3_no_phone: 'No phone number recorded',
+    qc3_no_location: 'No location recorded',
+    qc3_card_actions: 'Customer actions',
     // QC-5: Today's Field Recovery card on the main dashboard.
     qc5_card_title: "Today's Field Recovery",
     qc5_target_label: 'Day target',
@@ -8415,6 +8425,17 @@ export const TRANSLATIONS = {
     qc2_priority_low: 'کم ترجیح',
     qc2_tier_multi_month: 'دو ماہ یا زیادہ کا بقایا',
     qc2_tier_long_overdue: 'نوے دن سے زیادہ تاخیر',
+    // QC-3: proposed customer card — Outstanding vs Monthly package
+    // figures, and the Call / Location / Collect action row
+    // (see the EN block above).
+    qc3_call: 'کال',
+    qc3_location: 'لوکیشن',
+    qc3_collect: 'وصول کریں',
+    qc3_monthly_package: 'ماہانہ پیکیج',
+    qc3_outstanding: 'بقایا',
+    qc3_no_phone: 'فون نمبر درج نہیں ہے',
+    qc3_no_location: 'لوکیشن درج نہیں ہے',
+    qc3_card_actions: 'کسٹمر کے اقدامات',
     // QC-5: Today's Field Recovery card on the main dashboard
     // (see the EN block above).
     qc5_card_title: 'آج کی فیلڈ وصولی',

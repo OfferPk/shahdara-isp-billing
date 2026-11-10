@@ -7727,6 +7727,95 @@ html, body {
   box-shadow: inset 3px 0 0 var(--color-danger);
 }
 
+/* QC-3 — proposed customer card: the card is now a wrapper div (the
+ * tap target is the inner .qc3-card-main button) so the Call /
+ * Location / Collect row can sit below it — a button cannot contain
+ * links or buttons. The wrapper keeps the .qc-customer-card /
+ * .field-mode-customer-btn class, so the existing card border,
+ * background, dark-theme and QC-2 accent rules still apply. The
+ * action buttons are 44px tappable; Collect uses the green token.
+ * Token-only, no new hex. */
+.qc3-card-actions {
+  display: flex;
+  gap: 8px;
+}
+.qc3-action-btn {
+  flex: 1 1 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-card, #ffffff);
+  color: var(--text-main, #0f172a);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+}
+.qc3-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.qc-customer-card.qc3-card,
+.field-mode-customer-btn.qc3-card {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.qc3-card-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.qc3-figures {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.qc3-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  min-width: 0;
+}
+.qc3-figure-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted, #64748b);
+  white-space: nowrap;
+}
+.qc3-figure-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.qc3-package-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+  white-space: nowrap;
+}
+.qc3-collect {
+  border-color: var(--green);
+  color: var(--green);
+}
+
 .qc-empty-state {
   text-align: center;
   padding: 30px 10px;

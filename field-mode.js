@@ -1225,7 +1225,30 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const distanceNote = Number.isFinite(entry.distanceMeters)
         ? ` · 📍 ${escapeHtml(t('gpspin_distance_away', null, { distance: formatGpsDistance(entry.distanceMeters) }))}`
         : '';
-      return `<button type="button" class="field-mode-customer-btn field-mode-status--${status.key}${selectedId === entry.id ? ' is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}" data-field-customer-id="${escapeHtml(entry.id)}" aria-pressed="${selectedId === entry.id}">
+      // QC-3: the same Call / Location / Collect row as the picker
+      // card, from the same pool fields (getPendingCollectionCustomers
+      // computes them once). A missing phone / pin disables that
+      // action — never a fake location or a dead link.
+      const callHref = entry.callHref ?? null;
+      const mapsUrl = entry.mapsUrl ?? null;
+      const actionsRow = `
+        <div class="qc3-card-actions" role="group" aria-label="${escapeHtml(t('qc3_card_actions'))}">
+          ${callHref
+            ? `<a class="qc3-action-btn" href="${escapeHtml(callHref)}" data-qc3-action="call" data-field-customer-id="${escapeHtml(entry.id)}">📞 ${escapeHtml(t('qc3_call'))}</a>`
+            : `<button type="button" class="qc3-action-btn" data-qc3-action="call" data-field-customer-id="${escapeHtml(entry.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_phone'))}">📞 ${escapeHtml(t('qc3_call'))}</button>`}
+          ${mapsUrl
+            ? `<a class="qc3-action-btn" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" data-qc3-action="location" data-field-customer-id="${escapeHtml(entry.id)}">📍 ${escapeHtml(t('qc3_location'))}</a>`
+            : `<button type="button" class="qc3-action-btn" data-qc3-action="location" data-field-customer-id="${escapeHtml(entry.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_location'))}">📍 ${escapeHtml(t('qc3_location'))}</button>`}
+          <button type="button" class="qc3-action-btn qc3-collect" data-qc3-action="collect" data-field-customer-id="${escapeHtml(entry.id)}">💳 ${escapeHtml(t('qc3_collect'))}</button>
+        </div>`;
+      // QC-3: the card is now a wrapper div so the Call / Location /
+      // Collect row can sit beside the tap target — a button cannot
+      // contain links or buttons. The wrapper keeps the
+      // .field-mode-customer-btn class, the data-field-customer-id and
+      // the selected / status / tier classes, so the existing selectors
+      // and styles still apply; the inner main button is the tap target.
+      return `<div class="field-mode-customer-btn qc3-card field-mode-status--${status.key}${selectedId === entry.id ? ' is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}" data-field-customer-id="${escapeHtml(entry.id)}">
+        <button type="button" class="qc3-card-main" data-field-customer-id="${escapeHtml(entry.id)}" aria-pressed="${selectedId === entry.id}">
         <span class="field-mode-status-strip" aria-hidden="true"></span>
         <span class="field-mode-customer-main">
           <strong>${escapeHtml(entry.name)}</strong>
@@ -1239,7 +1262,9 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           ${tierRow}
         </span>
         <span class="field-mode-customer-due">${escapeHtml(figure)}</span>
-      </button>`;
+        </button>
+        ${actionsRow}
+      </div>`;
     }).join('');
   }
 
@@ -2025,6 +2050,13 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
   }
   if (listEl) {
     listEl.addEventListener('click', (event) => {
+      // QC-3: the card's Call / Location / Collect row is checked
+      // FIRST. Call and Location are plain links — the browser follows
+      // them, so they need no handler here. Collect does exactly what
+      // tapping the card does, so it falls through to the card path
+      // below instead of opening a second payment flow.
+      const qc3Action = event.target.closest?.('[data-qc3-action]');
+      if (qc3Action && qc3Action.dataset.qc3Action !== 'collect') return;
       const card = event.target.closest?.('[data-field-customer-id]');
       if (!card) return;
       selectCustomer(card.getAttribute('data-field-customer-id'));

@@ -216,13 +216,17 @@ test('plan565 BEHAVIOUR: image receipt on Fixture B(a) falls back to newBalanceD
   assert.match(imageStatusOf(fills), /Partial payment recorded/, JSON.stringify(fills));
 });
 
-test('plan565 PIN: Fixture B(b) — newTotalDues 0 wins over newBalanceDue 500 on draft, card and image alike', async () => {
+test('plan565 PIN: Fixture B(b) — newTotalDues 0 wins over newBalanceDue 500 on draft and image; the card hides its zero row', async () => {
   const receipt = receiptNoPayableRemaining({ newTotalDues: 0 });
   const draft = formatQuickCollectWhatsAppReceipt(receipt).text;
   assert.ok(draft.includes('⚖️ *Remaining Balance:* PKR 0'), draft);
   assert.ok(draft.includes('PAID IN FULL'), draft);
   const html = renderQuickCollectReceiptCardHtml(receipt);
-  assert.equal(cardRemainingOf(html), 'PKR 0', html);
+  // Hide-zero-remaining: the card no longer prints "Remaining
+  // Balance: PKR 0" for a fully-settled receipt — the row is hidden
+  // (the draft and the image receipt still show PKR 0; only the card
+  // hides it). cardRemainingOf returns null when the row is absent.
+  assert.equal(cardRemainingOf(html), null, html);
   const { fills } = await imageFills(receipt);
   assert.equal(imageBalanceOf(fills), 'PKR 0', JSON.stringify(fills));
   assert.match(imageStatusOf(fills), /Bill settled in full/, JSON.stringify(fills));

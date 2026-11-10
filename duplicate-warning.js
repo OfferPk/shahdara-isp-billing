@@ -84,12 +84,14 @@ function daysBetween(a, b) {
 }
 
 // Reference comparison mirrors wallet-reconciliation.js normalizeTid
-// (strip all whitespace, lowercase) without importing it, because
+// (strip all non-alphanumerics, lowercase) without importing it, because
 // this module stays import-free. The two copies must stay in
-// lockstep: a reference that differs only by case or spacing is
-// the same reference.
+// lockstep: a reference that differs only by separators, case, or
+// spacing is the same reference. (QC-7: the old copy stripped
+// whitespace/case only, so "TID-100" and "TID100" never warned as the
+// same reference.)
 function normalizeReference(value) {
-  return text(value).replace(/\s+/g, '').toLowerCase();
+  return text(value).replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
 
 function normalizeChannel(value) {

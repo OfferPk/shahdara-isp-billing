@@ -194,17 +194,18 @@ test('Plan 552 fit budget: the tax row costs ~43px; a taxed receipt computes to 
   assert.ok(taxedTotalPx > 700, 'the taxed total is 24px OVER the 700px gate — recorded here, to be confirmed by the phone screenshot');
 });
 
-test('Plan 552: the Month row renders on the taxed card and now adds the third row (the Remaining row is hidden)', () => {
+test('Plan 552: the Month row renders on the taxed card and now adds the fourth row (the merged row is always shown)', () => {
   // Month-name fix: the taxed fixture already carries month '2026-11',
   // so the card now renders a Month / November row between Date &
-  // Method and Area. Hide-zero-remaining changed what it costs: the
-  // taxed fixture is fully paid, so the Remaining Balance row is
-  // hidden — the grid goes from 4 half-width items (2 rows) without
-  // the Month row to 5 (3 rows) with it, so the Month row ADDS the
-  // third row (43px). The 681 baseline predates the phone row; the
-  // polish17 fit test owns the live total (736px), and re-baselining
-  // this test's 724px arithmetic is a separate small item, not folded
-  // in here.
+  // Method and Area. QC receipt-modal overhaul (§4.3.2, decision (j)):
+  // the merged Still-owed + Next-due row is ALWAYS shown — the taxed
+  // fixture is fully paid, so it reads "Fully paid" instead of hiding
+  // — and it adds two half-width items. The grid goes from 6
+  // half-width items (3 rows) without the Month row to 7 (4 rows)
+  // with it, so the Month row ADDS the fourth row (43px). The 681
+  // baseline predates the phone row; the polish17 fit test owns the
+  // live total (736px), and re-baselining this test's 724px arithmetic
+  // is a separate small item, not folded in here.
   const html = renderQuickCollectReceiptCardHtml(taxedReceipt());
   const at = html.indexOf('>Month<');
   assert.ok(at >= 0, 'taxed card must carry the Month row');
@@ -224,7 +225,7 @@ test('Plan 552: the Month row renders on the taxed card and now adds the third r
   };
   const noMonth = taxedReceipt();
   delete noMonth.month;
-  assert.equal(halfWidth(html), 5, 'five half-width items with the Month row (Remaining hidden on a fully-paid card)');
-  assert.equal(Math.ceil(halfWidth(html) / 2), 3, '3 half-width rows with the Month row');
-  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 2, '2 half-width rows without the Month row — the Month row adds the third row, cost 43px');
+  assert.equal(halfWidth(html), 7, 'seven half-width items with the Month row (merged Still-owed + Next-due row always shown)');
+  assert.equal(Math.ceil(halfWidth(html) / 2), 4, '4 half-width rows with the Month row');
+  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row — the Month row adds the fourth row, cost 43px');
 });

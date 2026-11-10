@@ -6,11 +6,15 @@
  * customer/settlement data and returns a reconciliation report.
  *
  * TID NORMALIZATION (the one rule, shared with core.js's duplicate guard):
- * a TID is compared after removing ALL whitespace and lowercasing it.
- * Wallet TIDs arrive from screenshots and WhatsApp messages with stray
- * spaces ("1234 5678 901") and mixed case ("txn-AB12"); without this rule
- * the same screenshot could be logged twice under two spellings. Two TIDs
- * that differ only by whitespace or case are the SAME TID.
+ * a TID is compared after removing every non-alphanumeric character
+ * and lowercasing it. Wallet TIDs arrive from screenshots and WhatsApp
+ * messages with stray spaces ("1234 5678 901"), separators ("1234-5678")
+ * and mixed case ("txn-AB12"); without this rule the same screenshot
+ * could be logged twice under two spellings. Two TIDs that differ only
+ * by separators, whitespace, or case are the SAME TID. (QC-7: separators
+ * used to slip past the duplicate guard — the old rule stripped
+ * whitespace/case only, so "1234-5678" and "12345678" read as different
+ * TIDs. The shared normaliser now strips all non-alphanumerics.)
  *
  * Wallet verification status lives on the payment itself:
  *   walletVerified === true  → "Verified in Statement"
@@ -24,7 +28,7 @@ export const WALLET_METHODS = Object.freeze(['Easypaisa', 'JazzCash', 'NayaPay',
 export const DIGITAL_BREAKDOWN_METHODS = Object.freeze(['Easypaisa', 'JazzCash', 'NayaPay', 'Bank Transfer', 'Raast']);
 
 export function normalizeTid(tid) {
-  return String(tid ?? '').replace(/\s+/g, '').toLowerCase();
+  return String(tid ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
 }
 
 /**

@@ -58,6 +58,7 @@ import { isVoidedPayment } from './payment-void-audit.js';
 import { normalizeTid } from './wallet-reconciliation.js';
 import { t } from './nav-language.js';
 import { formatReceiptMoney } from './receipt-money.js';
+import { SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
 
 export const SPLIT_TENDER_LEG_COUNT = 2;
 
@@ -353,8 +354,13 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
     if (summary?.balanceDueCents && summary.balanceDueCents > 0) totalDuesCents += summary.balanceDueCents;
   }
 
+  const legTaxes = [];
   const legs = entries.map(({ leg, payment, bill }) => {
     const receipt = buildPaymentReceipt(customer, bill, payment);
+    // Plan 557: the tax on the bill this leg settled, read off the
+    // leg's own receipt — never recomputed. Carried alongside the leg
+    // so the combined tax below is derived from the legs' receipts.
+    legTaxes.push({ month: bill.month, salesTaxCents: receipt.salesTaxCents ?? null });
     return {
       leg,
       paymentId: payment.id,
@@ -369,6 +375,19 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
   const liveLegs = legs.filter(leg => !leg.voided);
   const totalReceivedCents = liveLegs.reduce((sum, leg) => sum + centsOf(leg.amount), 0);
   const firstReceipt = buildPaymentReceipt(customer, entries[0].bill, entries[0].payment);
+  // Plan 557: the combined tax line is the tax on the bill(s) the legs
+  // settled, summed over DISTINCT bills — never recomputed. Both legs
+  // of a normal split settle the SAME bill, so each leg receipt carries
+  // the same salesTaxCents; a naive sum across legs would print double
+  // tax (PKR 390 for a PKR 195 bill tax). Null when no leg's bill
+  // carries tax, so untaxed splits show no line, never PKR 0.
+  const salesTaxByBill = new Map();
+  for (const { month, salesTaxCents } of legTaxes) {
+    if (salesTaxByBill.has(month)) continue;
+    if (typeof salesTaxCents !== 'number' || !Number.isFinite(salesTaxCents) || salesTaxCents <= 0) continue;
+    salesTaxByBill.set(month, salesTaxCents);
+  }
+  const combinedSalesTaxCents = [...salesTaxByBill.values()].reduce((sum, cents) => sum + cents, 0);
 
   return {
     splitGroupId: groupId,
@@ -383,6 +402,10 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
     month: entries[0].bill.month,
     date: legs[0]?.date || '',
     package: firstReceipt.package,
+    // Plan 557: the bill tax, in integer cents (null when untaxed —
+    // the combined surfaces print no tax line then, never PKR 0).
+    // Every combined surface reads it from here.
+    salesTaxCents: combinedSalesTaxCents > 0 ? combinedSalesTaxCents : null,
     legs,
     totalReceivedCents,
     totalReceived: totalReceivedCents / 100,
@@ -409,6 +432,25 @@ function splitAreaDisplay(area) {
   return value && value !== 'Unassigned' ? value : 'Not recorded';
 }
 
+// Plan 557: the package line shows the package the legs settled
+// (firstReceipt.package, carried on the combined object). Empty when
+// the bill carries no package, so unpackaged splits show no line.
+// The combined object may also be hand-built (see the Plan 557 pin
+// test), so the field is read defensively here.
+function splitPackageDisplay(combined) {
+  const value = typeof combined?.package === 'string' ? combined.package.trim() : '';
+  return value;
+}
+
+// Plan 557: the combined tax in integer cents — the bill tax, read
+// off the legs' receipts and summed over distinct bills by the
+// builder (never recomputed). 0 when the split is untaxed, so the
+// surfaces print no tax line then, never PKR 0.
+function splitSalesTaxCents(combined) {
+  const cents = Number(combined?.salesTaxCents);
+  return Number.isFinite(cents) && cents > 0 ? Math.round(cents) : 0;
+}
+
 /** WhatsApp / plain-text combined receipt (house receipt text style). */
 export function formatSplitTenderWhatsAppText(combined) {
   const legLines = combined.legs.map(leg => {
@@ -416,6 +458,12 @@ export function formatSplitTenderWhatsAppText(combined) {
     const voided = leg.voided ? ` (${t('split_voided_leg')})` : '';
     return `${t('split_leg_label', null, { leg: leg.leg })}: ${leg.method} — ${formatAmount(leg.amount)}${tid} · ${t('split_receipt_no')}: ${leg.receiptNumber}${voided}`;
   });
+  // Plan 557: the package the legs settled, then the bill tax — in
+  // the same field order as the single receipt, so the two surfaces
+  // read alike. No package line when the bill carries no package,
+  // no tax line when the split is untaxed.
+  const splitPackage = splitPackageDisplay(combined);
+  const taxCents = splitSalesTaxCents(combined);
   const lines = [
     '*SHAHDARA FIBER NETWORK & ISP BILLING*',
     '━━━━━━━━━━━━━━━━━━━━━━━━',
@@ -425,6 +473,8 @@ export function formatSplitTenderWhatsAppText(combined) {
     `📍 *Area:* ${splitAreaDisplay(combined.area)}`,
     `🗓️ *Billing Month:* ${combined.month}`,
     `📅 *Date:* ${combined.date}`,
+    ...(splitPackage ? [`📦 *Package / پیکیج:* ${splitPackage}`] : []),
+    ...(taxCents > 0 ? [`🧾 *${SALES_TAX_RECEIPT_LABEL}:* ${formatAmount(taxCents / 100)}`] : []),
     '',
     ...legLines,
     '',
@@ -455,6 +505,11 @@ export function generateSplitTenderReceiptHtml(combined, {
     ? `${combined.customerNameUrdu} (${combined.customerName})`
     : combined.customerName;
   const statusClass = combined.status === 'PAID' ? 'receipt-status-paid' : combined.status === 'PARTIAL' ? 'receipt-status-partial' : '';
+  // Plan 557: the package the legs settled and the bill tax, in the
+  // same field order as the single receipt (receipt.js). No package
+  // row when the bill carries no package, no tax row when untaxed.
+  const splitPackage = splitPackageDisplay(combined);
+  const taxCents = splitSalesTaxCents(combined);
   const legRows = combined.legs.map(leg => `
     <div class="receipt-field"><dt>${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))} — ${escapeHtml(leg.method)}:</dt><dd>${formatAmount(leg.amount)}${leg.voided ? ` (${escapeHtml(t('split_voided_leg'))})` : ''}</dd></div>
     <div class="receipt-field"><dt>${escapeHtml(t('split_receipt_no'))} (${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))}):</dt><dd>${escapeHtml(leg.receiptNumber)}</dd></div>
@@ -474,6 +529,8 @@ export function generateSplitTenderReceiptHtml(combined, {
     <div class="receipt-field"><dt>Account / Customer ID:</dt><dd>#${escapeHtml(combined.customerId)}</dd></div>
     <div class="receipt-field"><dt>Billing Month / بل کا مہینہ:</dt><dd>${escapeHtml(combined.month)}</dd></div>
     <div class="receipt-field"><dt>Payment Date / تاریخ ادائیگی:</dt><dd>${escapeHtml(combined.date)}</dd></div>
+    ${splitPackage ? `<div class="receipt-field"><dt>Package / پیکیج:</dt><dd>${escapeHtml(splitPackage)}</dd></div>` : ''}
+    ${taxCents > 0 ? `<div class="receipt-field"><dt>${escapeHtml(SALES_TAX_RECEIPT_LABEL)}:</dt><dd>+${formatAmount(taxCents / 100)}</dd></div>` : ''}
     ${legRows}
     <div class="receipt-field receipt-paid-field"><dt><strong>${escapeHtml(t('split_total_received'))}:</strong></dt><dd><strong>${formatAmount(combined.totalReceived)}</strong></dd></div>
     <div class="receipt-field receipt-balance-field"><dt><strong>${escapeHtml(t('split_balance_due'))}:</strong></dt><dd class="${statusClass}"><strong>${formatAmount(combined.balanceDueCents / 100)}</strong></dd></div>

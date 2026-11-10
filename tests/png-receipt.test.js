@@ -331,15 +331,18 @@ test('Plan 551: kist + tax — the package row excludes both kist and tax', () =
   assert.equal(taxRowOf(model).value, '+PKR 195');
 });
 
-test('Plan 551: a fractional tax (1,500 package) reads PKR 292.5 on the PNG, same as the HTML receipt', () => {
+test('Plan 551: a fractional tax (1,500 package) reads PKR 292.50 on the PNG, same as the HTML receipt', () => {
   const { customer, bill, payment } = taxedFixture({ price: 1500, packageId: '5mbps-150gb' });
   const receipt = buildPaymentReceipt(customer, bill, payment);
   assert.equal(receipt.salesTaxCents, 29250);
   const model = buildPngReceiptModel(receipt, customer);
   assert.equal(packageRowOf(model).value, 'PKR 1,500');
-  assert.equal(taxRowOf(model).value, '+PKR 292.5');
+  // Plan 555: the shared receipt format prints a fractional figure with
+  // two decimals (PKR 292.50, like formatPKR) — the intent pinned here,
+  // "the same figure on both surfaces", is unchanged.
+  assert.equal(taxRowOf(model).value, '+PKR 292.50');
   const a4 = generatePaymentReceiptHtml(receipt, { format: 'a4' });
-  assert.ok(a4.includes('+PKR 292.5'), 'the A4 receipt shows the same fractional figure');
+  assert.ok(a4.includes('+PKR 292.50'), 'the A4 receipt shows the same fractional figure');
 });
 
 test('Plan 551: the taxed slip still fits the 1600x2000 canvas with the footer inside', () => {

@@ -59,6 +59,8 @@ import { normalizeTid } from './wallet-reconciliation.js';
 import { t } from './nav-language.js';
 import { formatReceiptMoney } from './receipt-money.js';
 import { SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
+import { brandHeaderContentHtml, documentFooterHtml } from './document-branding.js';
+import { receiptCodeForReceipt, verificationStampText } from './receipt-verifier.js';
 
 export const SPLIT_TENDER_LEG_COUNT = 2;
 
@@ -449,6 +451,23 @@ function splitPackageDisplay(combined) {
   return value;
 }
 
+// Plan 560: each leg's VER stamp, re-derived from the leg's own
+// receipt facts — the receipt.js:688 pattern (re-derive from a
+// hand-built receipt's own fields), so the split sheet carries exactly
+// the code the leg's own receipt carries. '' when the leg has no
+// receipt number, so hand-built legs without one render exactly as
+// before. The derivation is deterministic — same facts, same code on
+// every device — never recomputed from a rate.
+function splitLegVerificationStamp(leg, customerId) {
+  const code = receiptCodeForReceipt({
+    receiptNumber: leg?.receiptNumber,
+    customerId,
+    paidAmount: leg?.amount,
+    paymentDate: leg?.date
+  });
+  return verificationStampText(code);
+}
+
 // Plan 557: the combined tax in integer cents — the bill tax, read
 // off the legs' receipts and summed over distinct bills by the
 // builder (never recomputed). 0 when the split is untaxed, so the
@@ -522,7 +541,11 @@ export function formatSplitTenderWhatsAppText(combined) {
 export function generateSplitTenderReceiptHtml(combined, {
   businessName = 'Shahdara ISP',
   businessPhone = '0300-1234567',
-  areaName = 'Shahdara, Islamabad'
+  areaName = 'Shahdara, Islamabad',
+  // Plan 560: the owner-configured studio footer, like the other
+  // generators (receipt.js, buildDownPaymentKistReceiptHtml). Null
+  // when unconfigured — the sheet then renders no footer block.
+  receiptFooter = null
 } = {}) {
   if (!combined) return '';
   const displayName = combined.customerNameUrdu && combined.customerNameUrdu !== combined.customerName
@@ -534,25 +557,47 @@ export function generateSplitTenderReceiptHtml(combined, {
   // row when the bill carries no package, no tax row when untaxed.
   const splitPackage = splitPackageDisplay(combined);
   const taxCents = splitSalesTaxCents(combined);
+  // Plan 560: the shared footer (thank-you + studio footer block).
+  // Called with no thank-you, so with nothing configured it returns
+  // '' and the unconfigured sheet is byte-identical below the terms
+  // note; the footer block appears only when a studio footer is set.
+  const splitFooter = documentFooterHtml(receiptFooter);
   // Plan 559: each TID row carries its leg (same t('split_leg_label')
   // pattern as the receipt-number row), and each leg shows its sender
   // proof and payer name when present — the single receipt's labels
   // ('Sender / بھیجنے والا', 'Paid by / ادا کنندہ', payer right after
   // sender), only when present, so legs without either read exactly
   // as before. Voided legs keep their rows (they stay listed).
-  const legRows = combined.legs.map(leg => `
+  const legRows = combined.legs.map(leg => {
+    // Plan 560: this leg's VER stamp (re-derived from the leg's own
+    // receipt facts), qualified with the leg label — the Plan 559 TID
+    // pattern — so two digital legs have distinguishable stamps, each
+    // independently verifiable. No row when the leg carries no receipt
+    // number, so hand-built legs without one render exactly as before.
+    const legVerStamp = splitLegVerificationStamp(leg, combined.customerId);
+    return `
     <div class="receipt-field"><dt>${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))} — ${escapeHtml(leg.method)}:</dt><dd>${formatAmount(leg.amount)}${leg.voided ? ` (${escapeHtml(t('split_voided_leg'))})` : ''}</dd></div>
     <div class="receipt-field"><dt>${escapeHtml(t('split_receipt_no'))} (${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))}):</dt><dd>${escapeHtml(leg.receiptNumber)}</dd></div>
     ${leg.transactionId ? `<div class="receipt-field"><dt>Transaction ID (${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))}):</dt><dd>${escapeHtml(leg.transactionId)}</dd></div>` : ''}
     ${leg.senderLabel ? `<div class="receipt-field"><dt>Sender / بھیجنے والا:</dt><dd>${escapeHtml(leg.senderLabel)}</dd></div>` : ''}
-    ${leg.paidBy ? `<div class="receipt-field"><dt>Paid by / ادا کنندہ:</dt><dd>${escapeHtml(leg.paidBy)}</dd></div>` : ''}`).join('');
+    ${leg.paidBy ? `<div class="receipt-field"><dt>Paid by / ادا کنندہ:</dt><dd>${escapeHtml(leg.paidBy)}</dd></div>` : ''}
+    ${legVerStamp ? `<div class="receipt-field"><dt>Verify (${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))}) / تصدیق:</dt><dd><strong>${escapeHtml(legVerStamp)}</strong></dd></div>` : ''}`;
+  }).join('');
   return `<article class="receipt-sheet a4-receipt split-tender-receipt" data-receipt-format="a4">
   <header class="receipt-head">
-    <div>
-      <span class="receipt-brand">${escapeHtml(businessName)}</span>
-      <h1>${escapeHtml(t('split_receipt_title'))} / رسید ادائیگی</h1>
-      <p>Official Customer Record · ${escapeHtml(areaName)} · Phone: ${escapeHtml(businessPhone)}</p>
-    </div>
+    ${brandHeaderContentHtml({ businessName, businessPhone, areaName }, {
+    // Plan 560: the shared A4 header — the same builder and the same
+    // metaPrefix the main A4 receipt uses, so the meta line reads
+    // "Tel:" (the canonical label; "Phone:" is retired) and the sheet
+    // no longer looks like it came from a different business. The
+    // title is passed as explicit overrides (t('split_receipt_title')
+    // + the 'رسید ادائیگی' the old h1 already printed), NOT as a new
+    // DOCUMENT_TITLES entry, so the rendered title is byte-identical
+    // to before in every language mode. No combined number — there is
+    // deliberately no combined receipt number, so no number line.
+    titleEn: t('split_receipt_title'), titleUr: 'رسید ادائیگی',
+    metaPrefix: 'Official Customer Record', variant: 'a4'
+  })}
     <span class="receipt-mark ${statusClass}">${escapeHtml(combined.status)}</span>
   </header>
   <dl class="receipt-fields">
@@ -571,6 +616,9 @@ export function generateSplitTenderReceiptHtml(combined, {
     <strong>اہم معلوماتی نوٹ:</strong> ${escapeHtml(RECEIPT_URDU_NOTE)}
   </div>
   ${receiptTermsNoteHtml()}
+  ${splitFooter ? `<footer class="receipt-terms">
+    ${splitFooter}
+  </footer>` : ''}
 </article>`;
 }
 

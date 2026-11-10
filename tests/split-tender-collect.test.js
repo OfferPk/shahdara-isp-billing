@@ -454,7 +454,16 @@ test('SENDER: sanitization parity with the single-payment path (newline title cl
   assert.equal(billOf(s0).payments.length, 0);
 });
 
-test('SENDER: the combined receipt model is unchanged by sender metadata (no sender keys leak into it)', () => {
+// Plan 559 DELIBERATE RULE CHANGE (why-comment): this test used to
+// pin that no sender keys leak into the combined receipt model — the
+// SISP-121 sender work kept sender metadata on the recorded payments
+// only. Plan 559 reverses exactly that for the two display fields:
+// the legs map now carries `senderLabel` (SISP-63, from the leg's own
+// receipt) and `paidBy` (Plan 378, from the leg's own receipt) so the
+// combined surfaces can identify who paid each leg and whose account
+// sent it. The model gains exactly those two keys — nothing else —
+// and the totals/status assertions below are unchanged.
+test('SENDER: the combined receipt model carries the sender label and payer name (Plan 559)', () => {
   const { combinedReceipt } = run(fixture(), {
     customerId: 'a', month: MONTH, date: DATE,
     legs: [
@@ -464,8 +473,11 @@ test('SENDER: the combined receipt model is unchanged by sender metadata (no sen
   });
   assert.deepEqual(
     Object.keys(combinedReceipt.legs[1]).sort(),
-    ['amount', 'date', 'leg', 'method', 'paymentId', 'receiptNumber', 'transactionId', 'voided']
+    ['amount', 'date', 'leg', 'method', 'paidBy', 'paymentId', 'receiptNumber', 'senderLabel', 'transactionId', 'voided']
   );
+  assert.equal(combinedReceipt.legs[1].senderLabel, 'Hamza (…3310)', 'the digital leg carries its SISP-63 sender label');
+  assert.equal(combinedReceipt.legs[0].senderLabel, '', 'the cash leg carries no sender');
+  assert.equal(combinedReceipt.legs[1].paidBy, '', 'no payer name was given on this spec');
   assert.equal(combinedReceipt.totalReceived, 3000);
   assert.equal(combinedReceipt.status, 'PAID');
 });

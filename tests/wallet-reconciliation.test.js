@@ -38,9 +38,10 @@ function pay(state, customerId, fields) {
   return addPayment(state, customerId, '2026-10', fields, new Date('2026-10-20'));
 }
 
-test('SISP-21: normalizeTid strips all whitespace and lowercases', () => {
+test('SISP-21: normalizeTid strips all non-alphanumerics and lowercases (QC-7: separators used to survive, so "TXN-AB12" read as a different TID from "TXNAB12")', () => {
   assert.equal(normalizeTid(' 1234 5678 901 '), '12345678901');
-  assert.equal(normalizeTid('TXN-AB12'), 'txn-ab12');
+  assert.equal(normalizeTid('TXN-AB12'), 'txnab12');
+  assert.equal(normalizeTid('1234-5678'), '12345678');
   assert.equal(normalizeTid(''), '');
   assert.equal(normalizeTid(null), '');
   assert.equal(isWalletMethod('Easypaisa'), true);

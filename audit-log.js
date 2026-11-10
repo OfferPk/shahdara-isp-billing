@@ -39,6 +39,8 @@
 //     identity to supply, it stays null and renders as
 //     "Not recorded", never as an invented name.
 
+export const AUDIT_LOG_STORAGE_KEY = 'shahdara_operator_audit_log_v1';
+
 export const AUDIT_ACTIONS = Object.freeze([
   { value: 'payment_recorded', label: 'Payment recorded' },
   { value: 'payment_voided', label: 'Payment voided' },
@@ -59,6 +61,11 @@ export const AUDIT_ACTIONS = Object.freeze([
   // reason in this log, recorded by the month-close wiring.
   // No other Plan 31 behaviour changes.
   { value: 'month_close_reopened', label: 'Month close reopened' },
+  // QC-8 adds the eleventh action: every field visit outcome
+  // (route-sheet marks and QC-1 Field Mode marks alike, payments
+  // included) leaves an audit trace, recorded by the route outcome
+  // writer. A cleared mark writes nothing — a clear is not a visit.
+  { value: 'field_visit', label: 'Field visit recorded' },
 ]);
 
 const ACTION_LABELS = new Map(AUDIT_ACTIONS.map((a) => [a.value, a.label]));

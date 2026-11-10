@@ -1413,6 +1413,18 @@ const QC_RECEIPT_TEXT = Object.freeze({
   }
 });
 
+// Plan 564: the history-row date check, mirroring the profile draft's
+// validCalendarDate (profile-ui.js) — a YYYY-MM-DD shape whose day
+// really exists (2026-02-30 fails the UTC round-trip). The QC history
+// block applies the profile draft's validation, not a looser one.
+const validQcHistoryDate = (value) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ''));
+  if (!match) return false;
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+};
+
 export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   const { whatsappPhone = '' } = options;
   const amountStr = formatReceiptMoneyFigure(receipt.amount);
@@ -1453,8 +1465,12 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   const remainderWaadaLine = formatRemainderWaadaLine(receipt);
   // SISP-128: "Last 3 Payments" mini-history — body content above the
   // thank-you lines; absent/empty = the draft is exactly as before.
+  // Plan 564: rows are validated exactly like the profile draft's
+  // (profile-ui.js) — a valid calendar date and a finite amount — and
+  // capped at 3, so a malformed row never reaches the customer.
   const historyLines = (Array.isArray(receipt.previousPayments) ? receipt.previousPayments : [])
-    .filter((row) => row && typeof row === 'object')
+    .filter((row) => row && typeof row === 'object' && validQcHistoryDate(row.date) && Number.isFinite(Number(row.amount)))
+    .slice(0, 3)
     .map((row) => `• ${[row.date, `PKR ${formatReceiptMoneyFigure(row.amount)}`, row.method, row.receiptLabel].filter(Boolean).join(' · ')}`);
   const historyBlock = historyLines.length
     ? [`📜 *${t('rcpt_hist_heading', 'en')} / ${t('rcpt_hist_heading', 'ur')}:*`, ...historyLines, ``]

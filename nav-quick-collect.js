@@ -1345,6 +1345,13 @@ const QC_RECEIPT_TEXT = Object.freeze({
     billingMonth: 'Billing Month', amountReceived: 'Amount Received',
     ticketCharge: (ticketId) => `Murammat / Material Charge (${ticketId})`,
     baqaya: (entryId) => `Manual Baqaya / دستی بقایا (${entryId})`,
+    // Plan 563: the tax, boost and package-updated lines respect the
+    // receipt language like the ticket/baqaya lines beside them — the
+    // bilingual entries keep the exact literals the drafts printed
+    // before, so the no-preference draft is byte-identical.
+    salesTax: 'Sales tax / سیلز ٹیکس (19.5%)',
+    boost: (boostId) => `Speed Boost / سپیڈ بوسٹ (${boostId})`,
+    packageUpdated: 'Package updated / پیکیج اپڈیٹ',
     method: 'Payment Method', txnId: 'Transaction ID / Ref', sender: 'Sender / بھیجنے والا',
     refNote: 'Ref Note', paidBy: 'Paid By', remaining: 'Remaining Balance', status: 'Status',
     statusPaid: 'مکمل ادا شدہ (PAID IN FULL)', statusPartial: 'جزوی ادائیگی (PARTIAL)',
@@ -1357,6 +1364,12 @@ const QC_RECEIPT_TEXT = Object.freeze({
     billingMonth: 'بل کا مہینہ', amountReceived: 'موصولہ رقم',
     ticketCharge: (ticketId) => `مرمت / سامان چارج (${ticketId})`,
     baqaya: (entryId) => `دستی بقایا (${entryId})`,
+    // Plan 563: Urdu-script forms of the tax, boost and
+    // package-updated lines (the app's own Urdu words, as on the
+    // bilingual literals and the PNG advance pair).
+    salesTax: 'سیلز ٹیکس (19.5%)',
+    boost: (boostId) => `سپیڈ بوسٹ (${boostId})`,
+    packageUpdated: 'پیکیج اپڈیٹ',
     method: 'طریقہ ادائیگی', txnId: 'ٹرانزیکشن نمبر', sender: 'بھیجنے والا',
     refNote: 'حوالہ نوٹ', paidBy: 'ادا کنندہ', remaining: 'باقی بقایا', status: 'کیفیت',
     statusPaid: 'مکمل ادا شدہ', statusPartial: 'جزوی ادائیگی',
@@ -1369,6 +1382,12 @@ const QC_RECEIPT_TEXT = Object.freeze({
     billingMonth: 'Bill ka maheena', amountReceived: 'Wasool shuda raqam',
     ticketCharge: (ticketId) => `Murammat / Material Charge (${ticketId})`,
     baqaya: (entryId) => `Manual Baqaya (${entryId})`,
+    // Plan 563: Roman-Urdu forms of the tax, boost and
+    // package-updated lines — the loanwords the Roman entries already
+    // use for these concepts (cf. 'Manual Baqaya').
+    salesTax: 'Sales tax (19.5%)',
+    boost: (boostId) => `Speed Boost (${boostId})`,
+    packageUpdated: 'Package updated',
     method: 'Adaigi ka tareeqa', txnId: 'Transaction ID / Ref', sender: 'Sender',
     refNote: 'Ref Note', paidBy: 'Ada karne wala', remaining: 'Baqi baqaya', status: 'Status',
     statusPaid: 'Mukammal ada shuda (PAID IN FULL)', statusPartial: 'Juzwi adaigi (PARTIAL)',
@@ -1381,6 +1400,11 @@ const QC_RECEIPT_TEXT = Object.freeze({
     billingMonth: 'Billing Month', amountReceived: 'Amount Received',
     ticketCharge: (ticketId) => `Repair / Material Charge (${ticketId})`,
     baqaya: (entryId) => `Manual Balance (${entryId})`,
+    // Plan 563: English forms of the tax, boost and package-updated
+    // lines — the bilingual literal with its Urdu half dropped.
+    salesTax: 'Sales tax (19.5%)',
+    boost: (boostId) => `Speed Boost (${boostId})`,
+    packageUpdated: 'Package updated',
     method: 'Payment Method', txnId: 'Transaction ID / Ref', sender: 'Sender',
     refNote: 'Ref Note', paidBy: 'Paid By', remaining: 'Remaining Balance', status: 'Status',
     statusPaid: 'PAID IN FULL', statusPartial: 'PARTIAL',
@@ -1400,23 +1424,29 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   const ticketChargeLines = (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : [])
     .map(line => `🔧 *${L.ticketCharge(line.ticketId)}:* PKR ${formatReceiptMoneyFigure(line.amount)}`);
   // SISP-106: settled boost fees print as their own receipt lines too.
+  // Plan 563: the label comes from the dictionary, like the ticket and
+  // baqaya lines beside it — the bilingual entry is the exact literal
+  // this line printed before.
   const addonChargeLines = (Array.isArray(receipt.addonCharges) ? receipt.addonCharges : [])
-    .map(line => `⚡ *Speed Boost / سپیڈ بوسٹ (${line.boostId}):* PKR ${formatReceiptMoneyFigure(line.amount)}`);
+    .map(line => `⚡ *${L.boost(line.boostId)}:* PKR ${formatReceiptMoneyFigure(line.amount)}`);
   // Owner feature (2026-10-29): manual baqaya settled by this payment
   // prints as its own receipt lines too (bilingual, like the charges).
   const baqayaLines = (Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [])
     .map(line => `🧾 *${L.baqaya(line.entryId)}:* PKR ${formatReceiptMoneyFigure(line.amount)}`);
   // Polish #11: the sales tax recorded on the bill, printed as its
   // own line like the ticket / boost / baqaya lines. An untaxed
-  // receipt shows no line, never PKR 0.
+  // receipt shows no line, never PKR 0. Plan 563: the label comes
+  // from the dictionary — the bilingual entry is the exact literal
+  // this line printed before.
   const salesTaxLines = (Number(receipt.salesTaxCents) > 0)
-    ? [`🧾 *Sales tax / سیلز ٹیکس (19.5%):* PKR ${formatReceiptMoneyFigure(receipt.salesTaxCents / 100)}`]
+    ? [`🧾 *${L.salesTax}:* PKR ${formatReceiptMoneyFigure(receipt.salesTaxCents / 100)}`]
     : [];
   // Polish #11: the package this payment just moved the profile to
-  // (the follow note), when it fired.
+  // (the follow note), when it fired. Plan 563: the label comes from
+  // the dictionary, like the tax line above.
   const autoPackage = receipt?.packageAutoSet;
   const autoPackageLines = (autoPackage && typeof autoPackage === 'object' && Number.isFinite(Number(autoPackage.fee)) && Number(autoPackage.fee) > 0)
-    ? [`📦 *Package updated / پیکیج اپڈیٹ:* ${typeof autoPackage.packageLabel === 'string' && autoPackage.packageLabel.trim() !== '' ? `${autoPackage.packageLabel.trim()} — ` : ''}PKR ${formatReceiptMoneyFigure(autoPackage.fee)}`]
+    ? [`📦 *${L.packageUpdated}:* ${typeof autoPackage.packageLabel === 'string' && autoPackage.packageLabel.trim() !== '' ? `${autoPackage.packageLabel.trim()} — ` : ''}PKR ${formatReceiptMoneyFigure(autoPackage.fee)}`]
     : [];
 
   // SISP-126: the remainder waada line, only when one was set with this payment.

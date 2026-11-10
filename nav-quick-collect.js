@@ -38,6 +38,7 @@ import {
 import { looseChangeChipsMarkup, looseChangeCreditCents } from './loose-change-credit.js';
 import { BILL_PACKAGES, billPackageById, billPackageByLabel, validateBillPackageSnapshot } from './package-catalog.js';
 import { salesTaxCentsForPrice, salesTaxCentsOfBill, SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
+import { formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js';
 import { packageSuccessMessage, packageSuccessMessageOrDefault } from './package-success-message.js';
 import { handlingNoteAlertHtml, handlingNoteForCustomer } from './handling-note.js';
 import { openPromisesForCustomer, promisePaymentLinkSelectOptions } from './promise-payment-link.js';
@@ -1313,7 +1314,7 @@ export function executeQuickCollection(state, {
 export function formatRemainderWaadaLine(source) {
   const stamp = remainderWaadaOf({ remainderWaada: source?.remainderWaada });
   if (!stamp) return null;
-  return `Baqi Rs. ${stamp.promiseAmount.toLocaleString('en-PK')} • Waada: ${stamp.promiseDate}`;
+  return `Baqi Rs. ${formatReceiptMoneyFigure(stamp.promiseAmount)} • Waada: ${stamp.promiseDate}`;
 }
 
 /**
@@ -1384,32 +1385,32 @@ const QC_RECEIPT_TEXT = Object.freeze({
 
 export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   const { whatsappPhone = '' } = options;
-  const amountStr = Number(receipt.amount).toLocaleString('en-PK');
+  const amountStr = formatReceiptMoneyFigure(receipt.amount);
   const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
-  const balanceStr = Number(remainingPayable).toLocaleString('en-PK');
+  const balanceStr = formatReceiptMoneyFigure(remainingPayable);
   const L = QC_RECEIPT_TEXT[sanitizeReceiptLang(options.lang ?? receipt?.receiptLang)] ?? QC_RECEIPT_TEXT.bilingual;
   const statusText = (remainingPayable <= 0) ? L.statusPaid : L.statusPartial;
   // SISP-43: settled ticket charges print as their own receipt lines.
   const ticketChargeLines = (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : [])
-    .map(line => `🔧 *${L.ticketCharge(line.ticketId)}:* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
+    .map(line => `🔧 *${L.ticketCharge(line.ticketId)}:* PKR ${formatReceiptMoneyFigure(line.amount)}`);
   // SISP-106: settled boost fees print as their own receipt lines too.
   const addonChargeLines = (Array.isArray(receipt.addonCharges) ? receipt.addonCharges : [])
-    .map(line => `⚡ *Speed Boost / سپیڈ بوسٹ (${line.boostId}):* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
+    .map(line => `⚡ *Speed Boost / سپیڈ بوسٹ (${line.boostId}):* PKR ${formatReceiptMoneyFigure(line.amount)}`);
   // Owner feature (2026-10-29): manual baqaya settled by this payment
   // prints as its own receipt lines too (bilingual, like the charges).
   const baqayaLines = (Array.isArray(receipt.manualBaqayaSettlements) ? receipt.manualBaqayaSettlements : [])
-    .map(line => `🧾 *${L.baqaya(line.entryId)}:* PKR ${Number(line.amount).toLocaleString('en-PK')}`);
+    .map(line => `🧾 *${L.baqaya(line.entryId)}:* PKR ${formatReceiptMoneyFigure(line.amount)}`);
   // Polish #11: the sales tax recorded on the bill, printed as its
   // own line like the ticket / boost / baqaya lines. An untaxed
   // receipt shows no line, never PKR 0.
   const salesTaxLines = (Number(receipt.salesTaxCents) > 0)
-    ? [`🧾 *Sales tax / سیلز ٹیکس (19.5%):* PKR ${Number(receipt.salesTaxCents / 100).toLocaleString('en-PK')}`]
+    ? [`🧾 *Sales tax / سیلز ٹیکس (19.5%):* PKR ${formatReceiptMoneyFigure(receipt.salesTaxCents / 100)}`]
     : [];
   // Polish #11: the package this payment just moved the profile to
   // (the follow note), when it fired.
   const autoPackage = receipt?.packageAutoSet;
   const autoPackageLines = (autoPackage && typeof autoPackage === 'object' && Number.isFinite(Number(autoPackage.fee)) && Number(autoPackage.fee) > 0)
-    ? [`📦 *Package updated / پیکیج اپڈیٹ:* ${typeof autoPackage.packageLabel === 'string' && autoPackage.packageLabel.trim() !== '' ? `${autoPackage.packageLabel.trim()} — ` : ''}PKR ${Number(autoPackage.fee).toLocaleString('en-PK')}`]
+    ? [`📦 *Package updated / پیکیج اپڈیٹ:* ${typeof autoPackage.packageLabel === 'string' && autoPackage.packageLabel.trim() !== '' ? `${autoPackage.packageLabel.trim()} — ` : ''}PKR ${formatReceiptMoneyFigure(autoPackage.fee)}`]
     : [];
 
   // SISP-126: the remainder waada line, only when one was set with this payment.
@@ -1418,7 +1419,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   // thank-you lines; absent/empty = the draft is exactly as before.
   const historyLines = (Array.isArray(receipt.previousPayments) ? receipt.previousPayments : [])
     .filter((row) => row && typeof row === 'object')
-    .map((row) => `• ${[row.date, `PKR ${Number(row.amount).toLocaleString('en-PK')}`, row.method, row.receiptLabel].filter(Boolean).join(' · ')}`);
+    .map((row) => `• ${[row.date, `PKR ${formatReceiptMoneyFigure(row.amount)}`, row.method, row.receiptLabel].filter(Boolean).join(' · ')}`);
   const historyBlock = historyLines.length
     ? [`📜 *${t('rcpt_hist_heading', 'en')} / ${t('rcpt_hist_heading', 'ur')}:*`, ...historyLines, ``]
     : [];
@@ -1436,8 +1437,8 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     `🗓️ *${L.billingMonth}:* ${receipt.month}`,
     ``,
     `💵 *${L.amountReceived}:* PKR ${amountStr}`,
-    ...(Number(receipt.advanceCreditGenerated) > 0 ? [`🪙 *Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ:* PKR ${Number(receipt.advanceCreditGenerated).toLocaleString('en-PK')}`] : []),
-    ...(Number(receipt.waivedAmount) > 0 ? [`🎟️ *${t('lfw_whatsapp', null, { amount: `PKR ${Number(receipt.waivedAmount).toLocaleString('en-PK')}` })}*`] : []),
+    ...(Number(receipt.advanceCreditGenerated) > 0 ? [`🪙 *Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ:* PKR ${formatReceiptMoneyFigure(receipt.advanceCreditGenerated)}`] : []),
+    ...(Number(receipt.waivedAmount) > 0 ? [`🎟️ *${t('lfw_whatsapp', null, { amount: `PKR ${formatReceiptMoneyFigure(receipt.waivedAmount)}` })}*`] : []),
     ...ticketChargeLines,
     ...addonChargeLines,
     ...baqayaLines,
@@ -1547,7 +1548,7 @@ export async function generateReceiptImageBlob(receipt) {
 
   ctx.fillStyle = '#059669';
   ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
-  ctx.fillText(`PKR ${Number(receipt.amount || 0).toLocaleString('en-PK')}`, 50, 295);
+  ctx.fillText(`PKR ${formatReceiptMoneyFigure(receipt.amount)}`, 50, 295);
 
   // Grid details
   ctx.fillStyle = '#64748b';
@@ -1563,7 +1564,7 @@ export async function generateReceiptImageBlob(receipt) {
 
   const balColor = (receipt.newTotalDues <= 0) ? '#059669' : '#dc2626';
   ctx.fillStyle = balColor;
-  ctx.fillText(`PKR ${Number(receipt.newTotalDues || 0).toLocaleString('en-PK')}`, 420, 375);
+  ctx.fillText(`PKR ${formatReceiptMoneyFigure(receipt.newTotalDues)}`, 420, 375);
 
   // Status badge line
   ctx.fillStyle = '#64748b';
@@ -1933,13 +1934,13 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
   const ticketChargeRows = (Array.isArray(receipt.ticketCharges) ? receipt.ticketCharges : []).map(line => `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Murammat / Material Charge (${escapeHtml(line.ticketId)})</span>
-          <strong class="qc-meta-val">PKR ${Number(line.amount).toLocaleString('en-PK')}</strong>
+          <strong class="qc-meta-val">PKR ${formatReceiptMoneyFigure(line.amount)}</strong>
         </div>`).join('');
   // SISP-106: boost fees settled by this receipt, one row per boost.
   const addonChargeRows = (Array.isArray(receipt.addonCharges) ? receipt.addonCharges : []).map(line => `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Speed Boost / سپیڈ بوسٹ (${escapeHtml(line.boostId)})</span>
-          <strong class="qc-meta-val">PKR ${Number(line.amount).toLocaleString('en-PK')}</strong>
+          <strong class="qc-meta-val">PKR ${formatReceiptMoneyFigure(line.amount)}</strong>
         </div>`).join('');
   // Owner feature (2026-10-29): manual baqaya settled by this receipt,
   // one row per entry.
@@ -1947,7 +1948,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">${escapeHtml(t('baqaya_receipt_line', null, { id: line.entryId }))}</span>
 
-          <strong class="qc-meta-val">PKR ${Number(line.amount).toLocaleString('en-PK')}</strong>
+          <strong class="qc-meta-val">PKR ${formatReceiptMoneyFigure(line.amount)}</strong>
         </div>`).join('');
   return `
     <div class="qc-receipt-card" role="region" aria-label="Payment Receipt Slip">
@@ -1962,7 +1963,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
 
       <div class="qc-receipt-amount-row">
         <span class="qc-receipt-label">Amount Collected</span>
-        <strong class="qc-receipt-amount">PKR ${Number(receipt.amount).toLocaleString('en-PK')}</strong>
+        <strong class="qc-receipt-amount">PKR ${formatReceiptMoneyFigure(receipt.amount)}</strong>
       </div>
 
       <div class="qc-receipt-grid">
@@ -1986,7 +1987,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Remaining Balance</span>
           <strong class="qc-meta-val ${remainingPayable > 0 ? 'has-balance' : 'zero-balance'}">
-            PKR ${Number(remainingPayable).toLocaleString('en-PK')}
+            PKR ${formatReceiptMoneyFigure(remainingPayable)}
           </strong>
         </div>
         ${ticketChargeRows}
@@ -1998,25 +1999,25 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
         ${Number(receipt.advanceCreditGenerated) > 0 ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">🪙 ${escapeHtml(t('khula_credit_row'))}</span>
-          <strong class="qc-meta-val">PKR ${Number(receipt.advanceCreditGenerated).toLocaleString('en-PK')}</strong>
+          <strong class="qc-meta-val">PKR ${formatReceiptMoneyFigure(receipt.advanceCreditGenerated)}</strong>
         </div>` : ''}
         ${addonChargeRows}
         ${Number(receipt.waivedAmount) > 0 ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Late Fee</span>
-          <strong class="qc-meta-val">🎟️ ${escapeHtml(t('lfw_card', null, { amount: `PKR ${Number(receipt.waivedAmount).toLocaleString('en-PK')}` }))}</strong>
+          <strong class="qc-meta-val">🎟️ ${escapeHtml(t('lfw_card', null, { amount: `PKR ${formatReceiptMoneyFigure(receipt.waivedAmount)}` }))}</strong>
         </div>` : ''}
         ${Number(receipt.salesTaxCents) > 0 ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">🧾 ${escapeHtml(SALES_TAX_RECEIPT_LABEL)}</span>
-          <strong class="qc-meta-val">PKR ${Number(receipt.salesTaxCents / 100).toLocaleString('en-PK')}</strong>
+          <strong class="qc-meta-val">PKR ${formatReceiptMoneyFigure(receipt.salesTaxCents / 100)}</strong>
         </div>` : ''}
         ${baqayaRows}
 
         ${receipt.packageAutoSet ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Package</span>
-          <strong class="qc-meta-val">📦 ${escapeHtml(t('pkg_auto_set_note', null, { amount: Number(receipt.packageAutoSet.fee).toLocaleString('en-PK') }))}</strong>
+          <strong class="qc-meta-val">📦 ${escapeHtml(t('pkg_auto_set_note', null, { amount: formatReceiptMoneyFigure(receipt.packageAutoSet.fee) }))}</strong>
         </div>` : ''}
         ${receipt.transactionId ? `
         <div class="qc-receipt-item full-width" data-qc-receipt-txnid>
@@ -6947,7 +6948,7 @@ export function setupQuickCollectModal({
       }
       try {
         if (!thermalPrinter.isConnected()) await thermalPrinter.connect();
-        const money = (v) => `PKR ${Number(v || 0).toLocaleString('en-PK')}`;
+        const money = (v) => formatReceiptMoney(v);
         // SISP-121: a split collection prints the combined total with
         // one line per leg (the leg lines ride the slip's extra-lines
         // slot, the same channel SISP-43 ticket charges use).

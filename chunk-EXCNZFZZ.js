@@ -265,7 +265,9 @@ ${Xr}`}function Gm(){return Xr.replace(/\D/g,"")}function s0(){let e=Gm();return
              card header into the merged status section
              (renderSettleStatusBadge) \u2014 the header keeps only the
              receipt id, on one line. The settled state itself is still
-             shown by that badge and by the remaining-balance row. -->
+             shown by that badge alone when the remaining-balance row
+             is hidden (a fully-paid split hides the row \u2014 see the
+             hide-zero-remaining wrap below). -->
         <span class="qc-receipt-id">${nn(_("split_receipt_title"))}</span>
       </div>
 
@@ -283,12 +285,13 @@ ${Xr}`}function Gm(){return Xr.replace(/\D/g,"")}function s0(){let e=Gm();return
           <span class="qc-meta-label">Area / Location</span>
           ${t||`<strong class="qc-meta-val">${nn(e.area)}</strong>`}
         </div>
+        ${n>0?`
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Remaining Balance</span>
-          <strong class="qc-meta-val ${n>0?"has-balance":"zero-balance"}">
+          <strong class="qc-meta-val has-balance">
             PKR ${Number(n).toLocaleString("en-PK")}
           </strong>
-        </div>
+        </div>`:""}
         ${o}
       </div>
       ${Zr({contactActions:!0}).replace('class="receipt-urdu-notice"','class="receipt-urdu-notice qc-urdu-nastaliq qc-urdu-gradient"')}
@@ -498,12 +501,13 @@ ${Xr}`}function Gm(){return Xr.replace(/\D/g,"")}function s0(){let e=Gm();return
           <span class="qc-meta-label">Area / Location</span>
           ${ag(e.area)}
         </div>
+        ${n>0?`
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Remaining Balance</span>
-          <strong class="qc-meta-val ${n>0?"has-balance":"zero-balance"}">
+          <strong class="qc-meta-val has-balance">
             PKR ${De(n)}
           </strong>
-        </div>
+        </div>`:""}
         ${l}
         ${Us(e)?`
         <div class="qc-receipt-item full-width">

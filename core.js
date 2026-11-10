@@ -2465,7 +2465,7 @@ export function paymentSenderLabel(payment) {
 export function findDuplicatePaymentReference(state, transactionId, excludePaymentId = null) {
   if (!state || !Array.isArray(state.customers)) return null;
   // SISP-21: one normalization rule, shared with wallet-reconciliation.js —
-  // whitespace and case are ignored, so a re-typed screenshot TID still matches.
+  // separators, whitespace and case are ignored, so a re-typed screenshot TID still matches.
   const cleanRef = normalizeTid(transactionId);
   if (!cleanRef) return null;
 

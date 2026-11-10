@@ -4020,6 +4020,17 @@ export const TRANSLATIONS = {
     qc_success_msg: 'Receipt created in offline ledger with zero cloud dependency.',
     qc_send_whatsapp: 'Send WhatsApp Receipt',
     qc_collect_another: 'Collect Another Payment',
+    // QC receipt-modal overhaul: the success screen's action hierarchy —
+    // the two next-action buttons, the empty-amount ghost button, and the
+    // three output-grid buttons. The old qc_collect_another key stays in
+    // the dictionary (the third path is still a distinct action) but no
+    // button reads it any more; the applier below targets the new ids.
+    qc_same_customer: 'Same Customer (+ Payment)',
+    qc_next_customer: 'Next Customer / Empty',
+    qc_empty_amount: 'Empty amount',
+    qc_share_image: 'Share Image',
+    qc_print_slip: 'Print Slip',
+    qc_bt_print: 'BT Thermal Print',
     qc_invalid_amount: 'Please enter a valid positive payment amount.',
     // Plan 549: Quick Collect toast strings, so confirmations and
     // errors speak the operator's language. English values are
@@ -4028,6 +4039,9 @@ export const TRANSLATIONS = {
     qc_toast_concession_removed: 'Outage concession removed from bill {month}.',
     qc_toast_payment_saved: 'Payment of PKR {amount} for {name} saved.',
     qc_toast_payment_saved_title: 'Payment saved',
+    // QC receipt-modal overhaul (§4.4.2): the draft accordion's Copy Text toast.
+    qc_toast_draft_copied: 'Draft copied — paste it anywhere.',
+    qc_toast_draft_copy_failed: 'Could not copy the draft — open the preview and copy it manually.',
     qc_toast_second_invalid_amount: 'Enter a valid amount greater than zero for the second connection.',
     qc_toast_second_customer_missing: 'Customer not found.',
     qc_toast_second_first_gone: 'The first payment is no longer recorded, so the second connection cannot be recorded after it.',
@@ -8530,6 +8544,12 @@ export const TRANSLATIONS = {
     qc_success_msg: 'رسید آف لائن محفوظ ہو گئی، کلاؤڈ یا انٹرنیٹ کی ضرورت نہیں۔',
     qc_send_whatsapp: 'واٹس ایپ پر رسید بھیجیں',
     qc_collect_another: 'اگلی وصولی درج کریں',
+    qc_same_customer: 'اسی گاہک کی مزید ادائیگی',
+    qc_next_customer: 'اگلا گاہک / خالی',
+    qc_empty_amount: 'خالی رقم',
+    qc_share_image: 'تصویر شیئر کریں',
+    qc_print_slip: 'رسید پرنٹ کریں',
+    qc_bt_print: 'بلوتوتھ پرنٹ',
     qc_invalid_amount: 'براہ کرم درست نقد رقم درج کریں۔',
     // Plan 549: Quick Collect toast strings, so confirmations and
     // errors speak the operator's language.
@@ -8537,6 +8557,8 @@ export const TRANSLATIONS = {
     qc_toast_concession_removed: 'بل {month} سے بندش رعایت ہٹا دی گئی۔',
     qc_toast_payment_saved: '{name} کی PKR {amount} ادائیگی محفوظ ہو گئی۔',
     qc_toast_payment_saved_title: 'ادائیگی محفوظ ہو گئی',
+    qc_toast_draft_copied: 'مسودہ کاپی ہو گیا — کہیں بھی پیسٹ کریں۔',
+    qc_toast_draft_copy_failed: 'مسودہ کاپی نہیں ہو سکا — پیش نظارہ کھول کر دستی کاپی کریں۔',
     qc_toast_second_invalid_amount: 'دوسرے کنکشن کے لیے صفر سے زیادہ درست رقم درج کریں۔',
     qc_toast_second_customer_missing: 'کسٹمر نہیں ملا۔',
     qc_toast_second_first_gone: 'پہلی ادائیگی اب درج نہیں ہے، اس لیے اس کے بعد دوسرے کنکشن کی ادائیگی درج نہیں ہو سکتی۔',
@@ -9639,8 +9661,32 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
   const qcWa = container.querySelector('#quickCollectWhatsAppBtn');
   if (qcWa) qcWa.textContent = t('qc_send_whatsapp', activeLang);
 
-  const qcAnother = container.querySelector('#quickCollectAnotherBtn');
-  if (qcAnother) qcAnother.textContent = t('qc_collect_another', activeLang);
+  // QC receipt-modal overhaul: the three next-action buttons read their
+  // labels directly (no icons inside them); the three output-grid
+  // buttons keep a Lucide icon span, so only their label span is
+  // rewritten — setting the button's textContent would wipe the icon.
+  // The old #quickCollectAnotherBtn is gone (its two paths are the
+  // Same-Customer and Next-Customer buttons now). The three new buttons
+  // carry data hooks, not new ids (fence §7.4 — no new element id).
+  const qcSameCustomer = container.querySelector('[data-qc-same-customer]');
+  if (qcSameCustomer) qcSameCustomer.textContent = t('qc_same_customer', activeLang);
+
+  const qcNextCustomer = container.querySelector('[data-qc-next-customer]');
+  if (qcNextCustomer) qcNextCustomer.textContent = t('qc_next_customer', activeLang);
+
+  const qcEmptyAmount = container.querySelector('[data-qc-empty-amount]');
+  if (qcEmptyAmount) qcEmptyAmount.textContent = t('qc_empty_amount', activeLang);
+
+  const qcGridLabels = [
+    ['#quickCollectShareImageBtn', 'qc_share_image'],
+    ['#quickCollectPrintReceiptBtn', 'qc_print_slip'],
+    ['#quickCollectBluetoothPrintBtn', 'qc_bt_print'],
+  ];
+  for (const [selector, key] of qcGridLabels) {
+    const button = container.querySelector(selector);
+    const label = button?.querySelector('.qc-action-label');
+    if (label) label.textContent = t(key, activeLang);
+  }
 
   // 9. Update Fast Customer Search Modal
   const fcsTitle = container.querySelector('#fastCustomerSearchTitle');

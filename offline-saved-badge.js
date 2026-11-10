@@ -14,8 +14,11 @@
 // offline queue status view already uses for its entry times: Pakistan
 // is UTC+5, so only the hour shifts, and a stamp past 19:00 UTC wraps
 // to the next day's early hours, which is the time the stamp itself
-// means. This module never reads the clock: the caller supplies the
-// stamp (or stamps), so the badge can never drift from the record.
+// means. The shown time is 12-hour with AM/PM — the +5 hour shift is
+// applied first, then the hour folds to 1–12 with its period, so 13:47
+// reads "1:47 PM" and midnight reads "12:00 AM". This module never reads
+// the clock: the caller supplies the stamp (or stamps), so the badge can
+// never drift from the record.
 //
 // A split collection records two legs of its own in one save; the badge
 // takes the later of the two stamps, so the time shown is the time the
@@ -31,7 +34,10 @@ export function offlineSavedBadgeTime(recordedAt) {
   const hour = Number(match[4]);
   const minute = Number(match[5]);
   if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) return '';
-  return `${String((hour + 5) % 24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+  const pkHour = (hour + 5) % 24;
+  const period = pkHour < 12 ? 'AM' : 'PM';
+  const hour12 = pkHour % 12 === 0 ? 12 : pkHour % 12;
+  return `${hour12}:${String(minute).padStart(2, '0')} ${period}`;
 }
 
 export function offlineSavedBadge(recordedAt) {
@@ -54,7 +60,7 @@ export function offlineSavedBadgeLatestTime(recordedAts) {
 export function offlineSavedBadgeLineText(badge, options = {}) {
   if (!badge || typeof badge !== 'object' || typeof badge.time !== 'string' || badge.time === '') return '';
   // Polish 17 (Req 2 S1): the merged status row on the success screen
-  // shows the badge as a compact "✓ Saved 20:29" pill. The full line
+  // shows the badge as a compact "✓ Saved 8:29 PM" pill. The full line
   // stays the default everywhere else.
   if (options.compact) return `✓ Saved ${badge.time}`;
   return `✓ Saved on this device · ${badge.time}`;

@@ -206,7 +206,9 @@ test('SPEC PIN: preferredReceiptLang urdu renders the profile receipt in Urdu sc
   assert.equal(action.type, 'draft');
   const text = action.draft.message;
   assert.ok(text.includes('ادائیگی کی رسید'), text);
-  assert.ok(text.includes('رقم ادا شدہ'), text);
+  // Plan 561: one amount label on both branches — the paid draft says
+  // "رقم موصول" now, matching the Quick Collect draft.
+  assert.ok(text.includes('رقم موصول'), text);
   assert.ok(!text.includes('Payment Receipt'), text);
   assert.ok(!text.includes('PAYMENT RECEIPT'), text);
 });
@@ -222,7 +224,9 @@ test('profile receipt without a preference keeps the English draft under an Engl
   assert.equal(action.type, 'draft');
   const text = action.draft.message;
   assert.ok(text.includes('PAYMENT RECEIPT'), text);
-  assert.ok(text.includes('Amount Paid'), text);
+  // Plan 561: one amount label on both branches — "Amount Received",
+  // matching the Quick Collect draft.
+  assert.ok(text.includes('Amount Received'), text);
   assert.ok(!text.includes('ادائیگی'), text);
 });
 
@@ -235,7 +239,9 @@ test('profile receipt honours roman + english preferences too', () => {
   const { customer: romanFan } = stateWithCustomer('Synthetic Roman Fan', { preferredReceiptLang: 'roman' });
   const romanText = resolveReceiptWhatsAppAction(romanFan, receiptFor(romanFan, 3)).draft.message;
   assert.ok(romanText.includes('ADAIGI KI RASEED'), romanText);
-  assert.ok(romanText.includes('Raqam Ada'), romanText);
+  // Plan 561: one amount label on both branches — "Raqam Wasool",
+  // matching the Quick Collect draft.
+  assert.ok(romanText.includes('Raqam Wasool'), romanText);
   assert.ok(!romanText.includes('ادائیگی'), romanText);
 
   const { customer: englishFan } = stateWithCustomer('Synthetic English Fan', { preferredReceiptLang: 'english' });

@@ -41,6 +41,7 @@
 .ds-chip--pending { background: var(--color-pending-bg); color: var(--color-pending); }
 .ds-chip--overdue { background: var(--color-pending-bg); color: var(--color-overdue); }
 .ds-chip--info { background: var(--color-brand-soft); color: var(--color-info); }
+.ds-chip[aria-pressed="true"] { background: var(--ds-brand); color: var(--white); }
 
 .ds-card {
   background: var(--surface);
@@ -122,6 +123,17 @@
   color: var(--ds-brand);
 }
 .ds-icon-tile svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+}
+.ds-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.ds-action-icon svg {
   display: block;
   width: 20px;
   height: 20px;

@@ -27,13 +27,21 @@ test('profile Edit button is a filled primary button', () => {
   assert.match(body, /box-shadow:/);
 });
 
-test('profile Edit button keeps its thumb-sized target and pencil icon', () => {
+test('profile Edit button keeps its thumb-sized target and single pencil icon', () => {
   const css = read('ui-feedback.css');
   const body = ruleBody(css, /#editProfileButton\.profile-edit-button:not\(\[hidden\]\) \{([^}]*)\}/);
   assert.match(body, /min-height: 48px/);
   assert.match(body, /font-size: 14px/);
   assert.match(body, /padding: 0 16px/);
-  assert.match(css, /\.profile-edit-button::before \{ content: '✎'/);
+  // Live visual bugs (Nov 2026): the button rendered TWO pencils — the
+  // old .profile-edit-button::before '✎' plus the ds-icons Pencil SVG
+  // in the button's .ds-action-icon span. The ::before is deleted; the
+  // SVG is the single pencil. The old pin below used to assert the
+  // ::before existed; it now asserts it is gone.
+  assert.doesNotMatch(css, /\.profile-edit-button::before\s*\{[^}]*content:\s*'✎'/);
+  const html = read('index.html');
+  assert.match(html, /id="editProfileButton"[^>]*><span class="ds-action-icon" data-ds-icon="Pencil" aria-hidden="true"><\/span>/,
+    'the Edit button carries exactly one pencil: the ds-icons Pencil hook');
 });
 
 // Profile redesign (DS 8.1, user-locked): the utility row is an even

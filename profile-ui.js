@@ -189,12 +189,17 @@ const RECEIPT_DRAFT_TEXT = Object.freeze({
     // Polish #12: the customer's area, same words as the Quick Collect
     // WhatsApp receipt's Area line.
     area: '📍 Area',
-    amountPaid: '💰 Amount Paid', amountReceived: '💰 Amount Received',
+    amountReceived: '💰 Amount Received',
     receivedDate: '📅 Received date', method: '💳 Method', billingMonth: '📆 Billing Month',
     packageDate: '📦 Package date', renewalNote: '(renewal day: 1st of every month)',
     breakdownHeading: '📋 Bill breakdown:', fifoHeading: '💠 FIFO taqseem:',
     ticketCharge: (ticketId) => `🔧 Murammat / Material Charge (${ticketId})`,
     statusPaid: '✅ Status: PAID', statusPartial: '🟠 Status: PARTIAL',
+    // Plan 561: the status lines for the receipts billStatus cannot
+    // express — CREDIT RECEIVED, RECEIVED (balance unknown) and VOID.
+    statusCredit: '✅ Status: CREDIT RECEIVED', statusReceived: '✅ Status: RECEIVED', statusVoid: '❌ Status: VOID',
+    creditNote: '💡 Bill already covered before this payment — recorded as credit',
+    voidNote: '❌ This payment was voided and counts as no payment',
     outstanding: '💵 Outstanding', outstandingZero: '💵 Outstanding: PKR 0',
     nextBillDue: '📅 Next Bill Due', billAmount: '💳 Bill Amount', currentBillDue: '📅 Current Bill Due',
     payBy5: '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰',
@@ -204,12 +209,15 @@ const RECEIPT_DRAFT_TEXT = Object.freeze({
     header: '🧾 شاہدرہ آئی ایس پی — ادائیگی کی رسید',
     customer: '👤 صارف', customerNumber: '🆔 صارف نمبر', paidBy: 'ادا کنندہ',
     area: '📍 علاقہ',
-    amountPaid: '💰 رقم ادا شدہ', amountReceived: '💰 رقم موصول',
+    amountReceived: '💰 رقم موصول',
     receivedDate: '📅 وصولی کی تاریخ', method: '💳 طریقہ ادائیگی', billingMonth: '📆 بل کا مہینہ',
     packageDate: '📦 پیکیج کی تاریخ', renewalNote: '(تجدید ہر مہینے کی 1 تاریخ کو)',
     breakdownHeading: '📋 بل کی تفصیل:', fifoHeading: '💠 فائیفو تقسیم:',
     ticketCharge: (ticketId) => `🔧 مرمت / سامان چارج (${ticketId})`,
     statusPaid: '✅ کیفیت: مکمل ادا شدہ', statusPartial: '🟠 کیفیت: جزوی ادائیگی',
+    statusCredit: '✅ کیفیت: کریڈٹ موصول', statusReceived: '✅ کیفیت: موصول', statusVoid: '❌ کیفیت: منسوخ',
+    creditNote: '💡 بل اس ادائیگی سے پہلے مکمل ہو چکا تھا — کریڈٹ کے طور پر درج ہے',
+    voidNote: '❌ یہ ادائیگی منسوخ کر دی گئی ہے اور اسے کوئی ادائیگی نہیں مانا جائے گا',
     outstanding: '💵 بقایا رقم', outstandingZero: '💵 بقایا رقم: PKR 0',
     nextBillDue: '📅 اگلے بل کی آخری تاریخ', billAmount: '💳 بل کی رقم', currentBillDue: '📅 موجودہ بل کی آخری تاریخ',
     payBy5: '⚠️ سروس کی بندش سے بچنے کے لیے ہر مہینے کی 5 تاریخ تک ادائیگی فرمائیں۔ شکریہ 🥰',
@@ -219,12 +227,15 @@ const RECEIPT_DRAFT_TEXT = Object.freeze({
     header: '🧾 SHAHDARA ISP — ADAIGI KI RASEED',
     customer: '👤 Customer', customerNumber: '🆔 Customer #', paidBy: 'Ada karne wala',
     area: '📍 Ilaqa',
-    amountPaid: '💰 Raqam Ada', amountReceived: '💰 Raqam Wasool',
+    amountReceived: '💰 Raqam Wasool',
     receivedDate: '📅 Wasooli ki tareekh', method: '💳 Tareeqa-e-Adaigi', billingMonth: '📆 Bill ka maheena',
     packageDate: '📦 Package ki tareekh', renewalNote: '(tajdeed har maheenay ki 1 tareekh ko)',
     breakdownHeading: '📋 Bill ki tafseel:', fifoHeading: '💠 FIFO taqseem:',
     ticketCharge: (ticketId) => `🔧 Murammat / Material Charge (${ticketId})`,
     statusPaid: '✅ Status: MUKAMMAL ADA SHUDA', statusPartial: '🟠 Status: JUZWI ADAIGI',
+    statusCredit: '✅ Status: CREDIT WASOOL', statusReceived: '✅ Status: WASOOL', statusVoid: '❌ Status: MANSUKH',
+    creditNote: '💡 Bill is adaigi se pehle mukammal ho chuka tha — credit ke tor par darj hai',
+    voidNote: '❌ Ye adaigi mansukh kar di gayi hai aur isay koi adaigi nahi mana jaye ga',
     outstanding: '💵 Baqaya raqam', outstandingZero: '💵 Baqaya raqam: PKR 0',
     nextBillDue: '📅 Aglay bill ki aakhri tareekh', billAmount: '💳 Bill ki raqam', currentBillDue: '📅 Mojooda bill ki aakhri tareekh',
     payBy5: '⚠️ Service bandish se bachne ke liye har maheenay ki 5 tareekh tak adaigi kar dein. Shukriya 🥰',
@@ -252,11 +263,57 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
   const balanceDueCents = Number(receipt?.balanceDueCents);
   const hasBillContext = Number.isFinite(billAmount) && billAmount > 0 && Number.isSafeInteger(balanceDueCents) && balanceDueCents >= 0;
   const requestedStatus = receipt?.billStatus ?? receipt?.status;
-  const billStatus = hasBillContext
-    ? requestedStatus === 'paid' && balanceDueCents === 0 ? 'paid'
-      : requestedStatus === 'partial' && balanceDueCents > 0 ? 'partial'
+  // Plan 561: buildPaymentReceipt stamps its status uppercase ('PAID',
+  // 'PARTIAL', 'CREDIT RECEIVED', 'RECEIVED', 'VOID'); the draft's
+  // billStatus mapping reads lowercase ('paid', 'partial'). Normalise
+  // the two settled values so a caller passing the receipt status
+  // straight through — or the full snapshot (Plan 562) — still lands in
+  // the paid/partial branches exactly as the mapped values do.
+  const normalizedStatus = requestedStatus === 'PAID' ? 'paid'
+    : requestedStatus === 'PARTIAL' ? 'partial'
+    : requestedStatus;
+  // A voided payment's receipt status is VOID by construction
+  // (receipt.js stamps VOID regardless of the figures), so it can never
+  // land in the paid/partial branches — the Transactions list spreads the
+  // row into the draft, and its bill status ('partial' for the bill the
+  // voided payment sits on) would otherwise satisfy the partial branch's
+  // own figure check and masquerade as the receipt status.
+  const billStatus = hasBillContext && receipt?.voided !== true
+    ? normalizedStatus === 'paid' && balanceDueCents === 0 ? 'paid'
+      : normalizedStatus === 'partial' && balanceDueCents > 0 ? 'partial'
         : null
     : null;
+  // Plan 561: the receipt status for the drafts billStatus cannot
+  // express. Every production caller maps only PAID/PARTIAL into
+  // billStatus, so CREDIT RECEIVED, RECEIVED and VOID arrive as
+  // billStatus null and the draft used to print nothing after the
+  // amount — no status, no outstanding, no next-bill date. Resolve them
+  // here: the receipt status first when the caller passed it (uppercase,
+  // exactly as buildPaymentReceipt stamps it — a lowercase bill status
+  // leaking in through a spread row is never one), else the voided flag,
+  // else the figures the draft already receives. Only VOID can carry a
+  // positive balance with billStatus null (PARTIAL maps to 'partial'),
+  // and only a covered bill can read balanceDueCents 0 with billStatus
+  // null — so the figure fallback is exact except for a voided payment
+  // on an already-covered bill via a caller that passes neither status
+  // nor voided, which reads CREDIT RECEIVED with a true PKR 0
+  // outstanding; Plan 562 (full snapshot at the call sites) removes
+  // even that ambiguity. A caller claiming paid/partial whose figures
+  // disagree gets no block at all, exactly as before.
+  const settledClaim = ['paid', 'partial'].includes(String(receipt?.billStatus ?? '').toLowerCase())
+    || requestedStatus === 'PAID' || requestedStatus === 'PARTIAL';
+  let draftReceiptStatus = null;
+  if (billStatus === null) {
+    if (requestedStatus === 'CREDIT RECEIVED' || requestedStatus === 'RECEIVED' || requestedStatus === 'VOID') {
+      draftReceiptStatus = requestedStatus;
+    } else if (receipt?.voided === true) {
+      draftReceiptStatus = 'VOID';
+    } else if (!hasBillContext) {
+      draftReceiptStatus = 'RECEIVED';
+    } else if (!settledClaim) {
+      draftReceiptStatus = balanceDueCents > 0 ? 'VOID' : 'CREDIT RECEIVED';
+    }
+  }
   const paidBy = safeLine(receipt?.paidBy, 100);
   // Polish #12: the customer's area, passed in from buildPaymentReceipt
   // by the caller (app.js). Never a blank or a guess: without one the
@@ -272,7 +329,11 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
     `${L.area}: ${area}`,
     ...(paidBy ? [`${L.paidBy}: ${paidBy}`] : []),
     '',
-    `${billStatus === 'paid' ? L.amountPaid : L.amountReceived}: ${formatPKR(amount)}`,
+    // Plan 561: one amount label on both branches — the Quick Collect
+    // draft always says "Amount Received"
+    // (formatQuickCollectWhatsAppReceipt), and the paid/partial flip said
+    // two different things for the same money.
+    `${L.amountReceived}: ${formatPKR(amount)}`,
     englishLayout ? `📅 Received date: ${formatReceiptDate(date)}` : `${L.receivedDate}: ${formatReceiptDate(date)}`,
     `${L.method}: ${method}`,
     `${L.billingMonth}: ${formatReceiptMonth(month)}`,
@@ -385,6 +446,44 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
       L.statusPartial,
       `${L.outstanding}: ${formatPKR(balanceDueCents / 100)}`,
       `${L.billAmount}: ${formatPKR(billAmount)}`,
+      englishLayout ? `📅 Current Bill Due: ${currentBillDue}` : `${L.currentBillDue}: ${currentBillDue}`,
+      L.payBy5
+    );
+  } else if (draftReceiptStatus === 'CREDIT RECEIVED') {
+    // Plan 561: the bill was already covered before this payment, so
+    // this payment arrived as credit — outstanding PKR 0, credit noted,
+    // and the next bill due exactly as on a paid draft.
+    const nextBillDueDate = nextCycleDueDateFromBillMonth(month);
+    const nextBillDue = formatReceiptDate(nextBillDueDate) ?? L.notAvailable;
+    lines.push(
+      '',
+      L.statusCredit,
+      L.outstandingZero,
+      L.creditNote,
+      '',
+      '━━━━━━━━━━━━━━',
+      englishLayout ? `📅 Next Bill Due: ${nextBillDue}` : `${L.nextBillDue}: ${nextBillDue}`,
+      '',
+      L.payBy5
+    );
+  } else if (draftReceiptStatus === 'VOID') {
+    // Plan 561: a voided payment counts as no payment — the draft says
+    // so and shows no outstanding figure that could read as owed.
+    lines.push(
+      '',
+      L.statusVoid,
+      L.voidNote
+    );
+  } else if (draftReceiptStatus === 'RECEIVED') {
+    // Plan 561: the balance is unknown (unpriced bill, or no bill
+    // context at all) — the draft says the payment was received and
+    // states the outstanding as not available, never a guessed figure.
+    const currentBillDue = formatReceiptDate(receipt?.billDueDate) ?? L.notRecorded;
+    lines.push(
+      '',
+      L.statusReceived,
+      `${L.outstanding}: ${L.notAvailable}`,
+      ...(Number.isFinite(billAmount) && billAmount > 0 ? [`${L.billAmount}: ${formatPKR(billAmount)}`] : []),
       englishLayout ? `📅 Current Bill Due: ${currentBillDue}` : `${L.currentBillDue}: ${currentBillDue}`,
       L.payBy5
     );

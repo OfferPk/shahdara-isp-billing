@@ -22,6 +22,11 @@ import { fieldViewRouteOutcomeButtons } from './field-view.js';
 import { loadPreferredCollectionDayList, preferredCollectionDayForCustomer, preferredCollectionDayLineHtml } from './preferred-collection-day.js';
 import { loadGateAccessInstructionList, gateAccessInstructionForCustomer, gateAccessInstructionLineHtml } from './gate-access-instruction.js';
 import { loadTemporarilyAwayFlagList, temporarilyAwayFlagForCustomer, temporarilyAwayLineHtml, isTemporarilyAwayFlagActive } from './temporarily-away-flag.js';
+// QC-8: the append-only visit log (history beside the single-slot
+// round stores) and the operator audit log (one field_visit entry
+// per recorded visit).
+import { loadVisitLog, visitLogDates, visitLogEntriesForDate, visitHistoryDayHtml, visitHistoryDateOptionsHtml, recordVisitLogEntry, VISIT_LOG_OUTCOME_LABELS } from './route-visit-history.js';
+import { appendAuditEntry, normalizeAuditLog, AUDIT_LOG_STORAGE_KEY } from './audit-log.js';
 
 export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
@@ -357,7 +362,61 @@ export function saveFieldRouteOutcome(customerId, outcomeData, storage, dateStr,
     } catch {}
   }
 
+  // QC-8: every recorded visit (any non-pending outcome) appends to
+  // the append-only visit log and to the operator audit log. A
+  // re-mark appends a new entry — the earlier entry is never
+  // overwritten. Clearing a mark ('pending') is not a visit: it
+  // writes nothing here. Both writes are best-effort and never
+  // block the outcome save itself.
+  if (outcome !== 'pending') {
+    recordVisitLogEntry(store, {
+      date: targetDate,
+      customerId: String(customerId),
+      customerNumber: options.customer?.customerNumber ?? null,
+      customerName: options.customer?.name ?? '',
+      outcome,
+      note: noteVal,
+      timestamp: nowIso,
+      source: typeof options.source === 'string' ? options.source : '',
+    }, targetDate);
+    appendFieldVisitAudit(store, {
+      customerId: String(customerId),
+      customerName: String(options.customer?.name ?? ''),
+      outcome,
+      note: noteVal,
+      timestamp: nowIso,
+    });
+  }
+
   return currentOutcomes[customerId] || { outcome: 'pending' };
+}
+
+/**
+ * QC-8: one `field_visit` audit entry per recorded visit, so the
+ * audit trail shows what happened on each stop. The audit log is
+ * append-only by construction; a logging failure is contained (the
+ * visit itself was already recorded) and never throws.
+ * @param {Storage|object} store
+ * @param {object} fields
+ */
+function appendFieldVisitAudit(store, { customerId, customerName, outcome, note, timestamp }) {
+  if (!store || typeof store.getItem !== 'function' || typeof store.setItem !== 'function') return;
+  try {
+    const label = VISIT_LOG_OUTCOME_LABELS[outcome] || outcome;
+    const detail = note ? `${label} · ${note}` : label;
+    const raw = store.getItem(AUDIT_LOG_STORAGE_KEY);
+    const current = raw ? normalizeAuditLog(JSON.parse(raw)) : [];
+    const updated = appendAuditEntry(current, {
+      id: `audit-${Date.now()}-${customerId}`,
+      timestamp,
+      action: 'field_visit',
+      recordRef: customerId,
+      customerId,
+      customerName,
+      detail,
+    });
+    store.setItem(AUDIT_LOG_STORAGE_KEY, JSON.stringify(updated));
+  } catch {}
 }
 
 /**
@@ -711,6 +770,11 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
   let totalDue = 0;
   let collectedStops = 0;
   let collectedAmount = 0;
+  // QC-8: stop-based progress — visited means any non-pending
+  // outcome was recorded for the stop today; marked means visited
+  // without money (a marked stop counts as visited, never pending).
+  let visitedStops = 0;
+  let markedStops = 0;
 
   for (const s of filteredStops) {
     totalDue += s.totalDue;
@@ -718,11 +782,20 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
       collectedStops++;
       collectedAmount += s.totalDue;
     }
+    if (s.isCollected || (s.outcome && s.outcome !== 'pending')) {
+      visitedStops++;
+      if (!(s.isCollected || s.outcome === 'paid' || s.outcome === 'partial')) {
+        markedStops++;
+      }
+    }
   }
 
   const pendingStops = totalStops - collectedStops;
   const pendingAmount = totalDue - collectedAmount;
   const completionRate = totalStops > 0 ? Math.round((collectedStops / totalStops) * 100) : 0;
+  // QC-8: stop-visit figures, alongside the money-based ones above.
+  const pendingVisitStops = totalStops - visitedStops;
+  const visitedRate = totalStops > 0 ? Math.round((visitedStops / totalStops) * 100) : 0;
 
   const roundStatus = completionRate === 100 && totalStops > 0
     ? 'COMPLETED'
@@ -761,7 +834,7 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
   for (const s of candidateStops) {
     // Sector map
     if (!sectorMap.has(s.sector)) {
-      sectorMap.set(s.sector, { sector: s.sector, totalStops: 0, totalDue: 0, collectedStops: 0, collectedAmount: 0 });
+      sectorMap.set(s.sector, { sector: s.sector, totalStops: 0, totalDue: 0, collectedStops: 0, collectedAmount: 0, visitedStops: 0, markedStops: 0 });
     }
     const sec = sectorMap.get(s.sector);
     sec.totalStops++;
@@ -770,10 +843,16 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
       sec.collectedStops++;
       sec.collectedAmount += s.totalDue;
     }
+    // QC-8: stop-visit counts per sector (same visited rule as the
+    // overall figures above).
+    if (s.isCollected || (s.outcome && s.outcome !== 'pending')) {
+      sec.visitedStops++;
+      if (!(s.isCollected || s.outcome === 'paid' || s.outcome === 'partial')) sec.markedStops++;
+    }
 
     // Area map
     if (!areaMap.has(s.area)) {
-      areaMap.set(s.area, { area: s.area, totalStops: 0, totalDue: 0, collectedStops: 0, collectedAmount: 0 });
+      areaMap.set(s.area, { area: s.area, totalStops: 0, totalDue: 0, collectedStops: 0, collectedAmount: 0, visitedStops: 0, markedStops: 0 });
     }
     const ar = areaMap.get(s.area);
     ar.totalStops++;
@@ -781,6 +860,11 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     if (s.isCollected) {
       ar.collectedStops++;
       ar.collectedAmount += s.totalDue;
+    }
+    // QC-8: stop-visit counts per area (same visited rule).
+    if (s.isCollected || (s.outcome && s.outcome !== 'pending')) {
+      ar.visitedStops++;
+      if (!(s.isCollected || s.outcome === 'paid' || s.outcome === 'partial')) ar.markedStops++;
     }
   }
 
@@ -803,6 +887,12 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     pendingStops,
     pendingAmount,
     completionRate,
+    // QC-8: stop-based route progress (visited / marked / pending
+    // stops + visited rate) — the money figures above are untouched.
+    visitedStops,
+    markedStops,
+    pendingVisitStops,
+    visitedRate,
     roundStatus,
     stops: filteredStops,
     allSectors: ['All', ...Array.from(allSectors).sort()],
@@ -810,6 +900,23 @@ export function calculateFieldCollectionRoutes(state, options = {}) {
     sectors,
     areas
   };
+}
+
+/**
+ * QC-8: the stop-based progress line for the route sheet —
+ * "Visited X of Y stops · Z collected · W marked · V pending".
+ * Pure; reads the QC-8 fields calculateFieldCollectionRoutes
+ * returns, so the line always agrees with the route figures.
+ * @param {object} routeData calculateFieldCollectionRoutes output
+ * @returns {string}
+ */
+export function routeVisitProgressText(routeData) {
+  const total = Math.max(0, Number(routeData?.totalStops || 0));
+  const visited = Math.max(0, Number(routeData?.visitedStops || 0));
+  const collected = Math.max(0, Number(routeData?.collectedStops || 0));
+  const marked = Math.max(0, Number(routeData?.markedStops || 0));
+  const pending = Math.max(0, total - visited);
+  return `Visited ${visited} of ${total} stops · ${collected} collected · ${marked} marked · ${pending} pending`;
 }
 
 /**
@@ -1044,6 +1151,32 @@ export function setupFieldRouteSheet({
     }
   }
 
+  // QC-8: the multi-day visit history — the append-only log,
+  // viewable by day. Independent of today's route figures: a past
+  // day renders from the log even when the route list is empty.
+  // The date select keeps its selection across recalculations when
+  // the day still has entries; otherwise it shows the newest day.
+  // Names resolve against the live state first, so a mark shows
+  // the customer's current name; the stored name (or id) is the
+  // fallback for a customer no longer in the list.
+  function renderRouteVisitHistory() {
+    const historyDateEl = document.getElementById('routeHistoryDateFilter');
+    const historyListEl = document.getElementById('routeHistoryList');
+    if (!historyDateEl || !historyListEl) return;
+    const log = loadVisitLog(storage);
+    const dates = visitLogDates(log);
+    const previous = historyDateEl.value;
+    const selected = dates.includes(previous) ? previous : (dates[0] || getTodayDateString());
+    historyDateEl.innerHTML = visitHistoryDateOptionsHtml(dates, selected);
+    historyDateEl.value = selected;
+    const state = getCurrentState();
+    const customers = Array.isArray(state?.customers) ? state.customers : [];
+    historyListEl.innerHTML = visitHistoryDayHtml(visitLogEntriesForDate(log, selected), selected, (row) => {
+      const live = customers.find((c) => c.id === row.customerId);
+      return live?.name || row.customerName || row.customerId;
+    });
+  }
+
   function updateUi() {
     const s = getCurrentState();
     const sector = sectorFilter ? sectorFilter.value : 'All';
@@ -1105,6 +1238,13 @@ export function setupFieldRouteSheet({
     if (progressBarFill) {
       progressBarFill.style.width = `${routeData.completionRate}%`;
     }
+
+    // QC-8: stop-based progress line — visited stops (collected +
+    // marked) beside the money-based completion above — and the
+    // multi-day visit history below the stops list.
+    const visitTextEl = document.getElementById('routeVisitText');
+    if (visitTextEl) visitTextEl.textContent = routeVisitProgressText(routeData);
+    renderRouteVisitHistory();
 
     // Plan 3 (Plan 1-100): day-target view, rebuilt from the same
     // routeData on every recalculation, so target, collected,
@@ -1441,6 +1581,14 @@ export function setupFieldRouteSheet({
       });
     }
   });
+
+  // QC-8: changing the history day re-renders only the history
+  // list (the route figures are untouched).
+  const historyDateEl = document.getElementById('routeHistoryDateFilter');
+  if (historyDateEl && !historyDateEl.dataset?.wiredRouteHistory) {
+    if (historyDateEl.dataset) historyDateEl.dataset.wiredRouteHistory = 'true';
+    historyDateEl.addEventListener('change', () => { renderRouteVisitHistory(); });
+  }
 
   // Open Daily Closing Cash Handover from Field Route Sheet
   const handoverFromRouteBtn = document.getElementById('openHandoverFromRouteBtn');

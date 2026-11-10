@@ -78,6 +78,12 @@
   min-height: 44px;
   justify-content: flex-start;
 }
+/* Live visual bugs (Nov 2026): the Advance payment button sat
+   half-width in the 2-column grid; it is a full row like the
+   back-dated link below it. */
+.profile-more-actions-category-grid > #advancePaymentButton {
+  grid-column: 1 / -1;
+}
 .profile-more-actions-category-grid > .backdated-payment-link .qa-backdated-chevron { margin-left: auto; }
 
 /* #302 (1024 px): the profile pane beside the customer list is only ~300 px wide, so the name ("NA/ZE/ER") and the

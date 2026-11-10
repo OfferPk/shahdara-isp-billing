@@ -1,4 +1,5 @@
-// Polish #24 — Profile: Delete visible at the top, Edit + New customer
+// Polish #24 — Profile: Delete visible at the top, Edit beside it
+// (profile redesign D6 removed + New customer from the header)
 // beside it, placement reordered, and the delete rule changed (the
 // polish #10 clean-account gate is REMOVED by the user's 2026-11-09
 // decision: deleting a customer deletes the profile AND its entire
@@ -79,24 +80,27 @@ function storesFor(stores, customerId, otherId) {
   return out;
 }
 
-test('Polish #24: header row order is Edit → Delete → + New customer → Archive, all visible above the tabs with no disclosure open', () => {
+// Profile redesign D6 (user-confirmed twice) REMOVES + New customer
+// from the profile header: Row 1 is Edit / Archive / Delete ONLY.
+// The list keeps its own "+" (the shared opener below still serves it).
+test('Polish #24: header row order is Edit → Delete → Archive, all visible above the tabs with no disclosure open (profile redesign D6)', () => {
   const groupAt = index.indexOf('class="profile-action-group"');
   assert.ok(groupAt >= 0, 'action group exists');
   const editAt = index.indexOf('id="editProfileButton"', groupAt);
   const deleteAt = index.indexOf('id="deleteCustomerButton"', groupAt);
-  const newAt = index.indexOf('id="profileNewCustomerButton"', groupAt);
   const archiveAt = index.indexOf('id="archiveCustomerButton"', groupAt);
   const detailsAt = index.indexOf('id="profileMoreActionsDetails"', groupAt);
   assert.ok(editAt > groupAt && deleteAt > editAt, 'Edit comes first, Delete second');
-  assert.ok(newAt > deleteAt && archiveAt > newAt, '+ New customer third, Archive fourth');
-  assert.ok(detailsAt > archiveAt, 'the More actions disclosure still follows the four primary actions');
-  // None of the four sits inside a <details>: they are direct children
+  assert.ok(archiveAt > deleteAt, 'Archive third');
+  assert.ok(!index.includes('id="profileNewCustomerButton"'), 'no + New customer button in the header (D6)');
+  assert.ok(detailsAt > archiveAt, 'the More actions disclosure still follows the three primary actions');
+  // None of the three sits inside a <details>: they are direct children
   // of the action group, visible on every tab without opening anything.
   // The slice ends at the <details tag itself, which opens before its
   // id attribute appears in the markup.
   const detailsTagAt = index.lastIndexOf('<details', detailsAt);
   const groupSlice = index.slice(groupAt, detailsTagAt);
-  assert.ok(!groupSlice.includes('<details'), 'no disclosure wraps the four primary actions');
+  assert.ok(!groupSlice.includes('<details'), 'no disclosure wraps the three primary actions');
 });
 
 test('Polish #24: exactly one Delete button, in the header — the danger zone is gone', () => {
@@ -128,7 +132,10 @@ test('Polish #24: Record payment stays first inside More actions; no delete on l
   assert.ok(!cardBody.includes('prof_action_delete'), 'no delete label on a list card');
 });
 
-test('Polish #24: + New customer opens the add-customer dialog through the same draft-aware opener as the list "+"', () => {
+// Profile redesign D6: the profile "+ New customer" button is GONE,
+// so this test pins the removal — and that the shared opener still
+// serves the list "+" (the only New-customer entry left).
+test('Polish #24: + New customer is gone from the profile header (D6); the list "+" still uses the shared draft-aware opener', () => {
   assert.ok(app.includes('function openAddCustomerDialog()'), 'one shared opener, not two inline openers');
   const openStart = app.indexOf('function openAddCustomerDialog()');
   const openBody = app.slice(openStart, app.indexOf('\n}\n', openStart));
@@ -136,9 +143,9 @@ test('Polish #24: + New customer opens the add-customer dialog through the same 
   assert.ok(openBody.includes("$('#addCustomerDialog').showModal()"), 'the shared opener shows the dialog');
   assert.ok(openBody.includes("$('#newCustomerName').focus()"), 'the shared opener focuses the name field');
   assert.ok(app.includes("$('#addCustomerButton').addEventListener('click', openAddCustomerDialog)"), 'the list "+" calls the shared opener');
-  assert.ok(app.includes("$('#profileNewCustomerButton').addEventListener('click', openAddCustomerDialog)"), 'the profile "+ New customer" calls the same opener');
-  assert.ok(lang.includes("prof_action_new_customer: '+ New customer'"), 'English label exists');
-  assert.match(lang, /prof_action_new_customer:\s*'\+[^']*[\u0600-\u06FF]/, 'Urdu label carries Urdu script');
+  assert.ok(!app.includes("$('#profileNewCustomerButton')"), 'no profile "+ New customer" wiring remains');
+  assert.ok(!index.includes('id="profileNewCustomerButton"'), 'no profile "+ New customer" button remains');
+  assert.ok(!lang.includes('prof_action_new_customer'), 'the dead + New customer key is gone from the dictionaries');
 });
 
 test('Polish #24: Edit in the header opens the full edit form, and editCustomerProfile still works through the moved button', () => {
@@ -326,7 +333,9 @@ test('Polish #24: no new hex, no new store key, no new element-id prefix', async
   for (const entry of CUSTOMER_HISTORY_STORES) {
     assert.ok(haystack.includes(entry.key), `${entry.key}: the registry key already exists in the codebase`);
   }
-  // One new id, in the existing `profile` family — no new prefix.
-  assert.ok(index.includes('id="profileNewCustomerButton"'), 'the one new id is profileNewCustomerButton');
+  // Profile redesign D6 removed polish #24's one new id
+  // (profileNewCustomerButton) — no new element id at all now, and
+  // still no new prefix.
+  assert.ok(!index.includes('id="profileNewCustomerButton"'), 'the polish #24 id is gone (D6)');
   assert.ok(!/id="(nct|p24|del)[A-Z]/.test(index), 'no new element-id prefix is consumed');
 });

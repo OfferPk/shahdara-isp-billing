@@ -47,13 +47,13 @@ test('customer and payment flows use the in-app confirm, not window.confirm (#27
   assert.doesNotMatch(qc, /window\.confirm\(/, 'Quick Collect duplicate warning is the in-app card only');
   // Delete keeps an Undo window.
   assert.match(app, /title:`#\$\{customer\.customerNumber\} \$\{customer\.name\} deleted`[^\n]*actionLabel:'Undo'/);
-  // Polish #10: the delete confirm asks "Are you sure you want to delete
-  // <name>'s profile?" with Yes/No buttons — the user asked for exactly
-  // that wording, and the Archive option moved to the refusal message
-  // and the separate Archive button on the profile.
+  // Polish #24: the delete confirm still asks "Are you sure you want
+  // to delete <name>'s profile?" but the buttons are Delete/Cancel
+  // now (user decision 2026-11-09) — Yes/No was the polish #10
+  // wording, and the gate it guarded is removed with it.
   assert.match(app, /title:`Are you sure you want to delete \$\{customer\.name\}'s profile\?`/);
-  assert.match(app, /confirmLabel:'Yes'/);
-  assert.match(app, /cancelLabel:'No'/);
+  assert.match(app, /confirmLabel:'Delete'/);
+  assert.match(app, /cancelLabel:'Cancel'/);
   assert.doesNotMatch(app, /altLabel: customer\.archived \? '' : 'Archive instead'/);
 });
 

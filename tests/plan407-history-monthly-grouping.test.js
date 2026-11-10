@@ -62,6 +62,16 @@ function gapEntries() {
   ];
 }
 
+// Billing & ledger redesign §6.3: a month that paid more than it
+// billed is a credit month — December billed PKR 1,000 and paid
+// PKR 2,000, so it still owes PKR -1,000.
+function creditMonthEntries() {
+  return [
+    entry({ type: 'charge', date: '2026-12-01', amountCents: 100000, runningBalanceCents: 100000, method: '', ref: 'BILL-3' }),
+    entry({ type: 'payment', date: '2026-12-05', amountCents: 200000, runningBalanceCents: -100000, method: 'Cash', ref: 'PAY-5' }),
+  ];
+}
+
 // --- Month of an entry ---
 
 test('Plan 407: the month of an entry follows its date', () => {
@@ -288,6 +298,21 @@ test('Plan 407: the summary names months, billed, paid and still owed', () => {
     historyMonthlyGroupingSummaryText(mixedEntries().slice(0, 3), mixedEntries()),
     '1 month · Billed PKR 3,000 · Paid PKR 3,000 · Still owed PKR 0 · Full history: Billed PKR 6,200 · Paid PKR 4,100 · Still owed PKR 2,100',
   );
+});
+
+test('Plan 407 (billing & ledger §6.3): a credit month reads "Credit PKR X", never "Still owed -PKR X"', () => {
+  const [december] = historyMonthlyGroupingGroups(creditMonthEntries());
+  assert.equal(
+    historyMonthlyGroupingGroupText(december),
+    'December 2026 · 2 entries · Billed PKR 1,000 · Paid PKR 2,000 · Credit PKR 1,000',
+  );
+  assert.equal(
+    historyMonthlyGroupingSummaryText(creditMonthEntries(), creditMonthEntries()),
+    '1 month · Billed PKR 1,000 · Paid PKR 2,000 · Credit PKR 1,000',
+  );
+  const html = historyMonthlyGroupingHtml(creditMonthEntries(), creditMonthEntries());
+  assert.ok(html.includes('Credit PKR 1,000'), 'credit month cell prints the Credit wording');
+  assert.equal(html.includes('-PKR 1,000'), false, 'no negative still-owed figure anywhere');
 });
 
 // --- HTML ---

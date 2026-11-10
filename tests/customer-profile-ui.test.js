@@ -28,13 +28,16 @@ function present(bill) {
   return currentBillPresentation(customer, '2026-09', allocations);
 }
 
+// Plan 561: the draft's amount line is one label on both branches —
+// "Amount Received", matching the Quick Collect draft. The paid draft
+// used to say "Amount Paid" here.
 const fullPaidTemplate = `🧾 SHAHDARA ISP — PAYMENT RECEIPT
 
 👤 Customer: Test Customer 03
 🆔 Customer #: 3
 📍 Area: Not recorded
 
-💰 Amount Paid: PKR 2,000
+💰 Amount Received: PKR 2,000
 📅 Received date: Oct 5 2026
 💳 Method: Cash
 📆 Billing Month: Oct 2026

@@ -338,6 +338,28 @@ export function getPakistanLocalDate(date = new Date()) {
 }
 
 /**
+ * Formats a stored YYYY-MM-DD receipt date as DD/MM/YYYY for the
+ * Quick Collect surfaces (success card, WhatsApp draft + history,
+ * PNG receipt, Bluetooth slip) — the operator reads day-first.
+ * A value that is not a valid calendar date is returned unchanged
+ * ('' stays '', '2026-02-30' stays '2026-02-30'), never reformatted
+ * or blanked; the validation is the same UTC round-trip
+ * validCalendarDate (profile-ui.js) and validStoredDate (receipt.js)
+ * use. Display only: the stored date itself stays YYYY-MM-DD.
+ * @param {string} value
+ * @returns {string}
+ */
+export function formatQcReceiptDate(value) {
+  const date = String(value ?? '');
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return date;
+  const [, year, month, day] = match.map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) return date;
+  return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+}
+
+/**
  * Helper to escape HTML characters in strings for safe rendering.
  * @param {string} str
  * @returns {string}
@@ -1471,7 +1493,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
   const historyLines = (Array.isArray(receipt.previousPayments) ? receipt.previousPayments : [])
     .filter((row) => row && typeof row === 'object' && validQcHistoryDate(row.date) && Number.isFinite(Number(row.amount)))
     .slice(0, 3)
-    .map((row) => `• ${[row.date, `PKR ${formatReceiptMoneyFigure(row.amount)}`, row.method, row.receiptLabel].filter(Boolean).join(' · ')}`);
+    .map((row) => `• ${[formatQcReceiptDate(row.date), `PKR ${formatReceiptMoneyFigure(row.amount)}`, row.method, row.receiptLabel].filter(Boolean).join(' · ')}`);
   const historyBlock = historyLines.length
     ? [`📜 *${t('rcpt_hist_heading', 'en')} / ${t('rcpt_hist_heading', 'ur')}:*`, ...historyLines, ``]
     : [];
@@ -1482,7 +1504,7 @@ export function formatQuickCollectWhatsAppReceipt(receipt, options = {}) {
     `*${L.title}*`,
     ``,
     `🧾 *${L.receiptNo}:* ${receipt.receiptNumber}`,
-    `📅 *${L.date}:* ${receipt.date}`,
+    `📅 *${L.date}:* ${formatQcReceiptDate(receipt.date)}`,
     `👤 *${L.customer}:* ${receipt.customerName} (#${receipt.customerNumber})`,
     receipt.phone ? `📱 *${L.phone}:* ${receipt.phone}` : null,
     `📍 *${L.area}:* ${receipt.area}`,
@@ -1569,7 +1591,7 @@ export async function generateReceiptImageBlob(receipt) {
   ctx.fillStyle = '#64748b';
   ctx.font = '13px monospace';
   ctx.fillText(`Receipt: ${receipt.receiptNumber || 'RCPT'}`, 30, 125);
-  ctx.fillText(`Date: ${receipt.date || ''}`, 420, 125);
+  ctx.fillText(`Date: ${formatQcReceiptDate(receipt.date)}`, 420, 125);
 
   // Divider
   ctx.strokeStyle = '#e2e8f0';
@@ -2074,7 +2096,7 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
         </div>` : ''}
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Date &amp; Method</span>
-          <strong class="qc-meta-val">${escapeHtml(receipt.date)} · ${escapeHtml(receipt.method)}</strong>
+          <strong class="qc-meta-val">${escapeHtml(formatQcReceiptDate(receipt.date))} · ${escapeHtml(receipt.method)}</strong>
         </div>
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Area / Location</span>
@@ -7083,7 +7105,7 @@ export function setupQuickCollectModal({
           customerName: activeReceipt.customerName || '',
           customerNumber: activeReceipt.customerNumber ? String(activeReceipt.customerNumber) : '',
           monthLabel: activeReceipt.month || '',
-          dateTimeLabel: activeReceipt.date || '',
+          dateTimeLabel: formatQcReceiptDate(activeReceipt.date),
           amount: money(split ? split.totalReceived : activeReceipt.amount),
           method: split ? 'Split' : (activeReceipt.method || ''),
           reference: split ? (split.legs.find(leg => leg.transactionId)?.transactionId || '') : (activeReceipt.transactionId || ''),

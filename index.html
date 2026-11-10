@@ -26901,6 +26901,19 @@
           </select>
         </label>
 
+        <!-- QC-2: sort-order dropdown above the search — Highest dues
+             first (the default, the picker's long-standing order) /
+             Oldest due first (by oldest unpaid bill month). It
+             re-orders the same pool, never the pool itself. Wrapping
+             label, so no new element id; wiring is class-found. -->
+        <label class="qsf-status-filter-row">
+          <span class="qsf-status-filter-label" data-i18n="qc2_sort_label">Sort by</span>
+          <select class="qc-input qsf-status-filter" data-qc-sort-order aria-label="Sort customers by dues or oldest due date">
+            <option value="amount" selected data-i18n="qc2_sort_amount">Highest dues first</option>
+            <option value="oldest" data-i18n="qc2_sort_oldest">Oldest due first</option>
+          </select>
+        </label>
+
         <div class="qc-search-box">
           <input id="quickCollectSearchInput"
                  type="search"

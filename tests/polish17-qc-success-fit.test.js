@@ -12,11 +12,14 @@
 // plus the tick-in-box fix's TICK-BOX −12 (row border + padding),
 // computed total 693 px, plus the BUT HOUSE phone row's PHONE-ROW −43
 // (one new grid row), computed total 736 px — 36 px OVER the 700 px
-// gate, recorded in the budget test below, not blessed. The Month row
-// (this fix) costs 0 px: it fills the lone-Remaining row, so the grid
-// stays 3 rows in both shapes (Chromium 360 px: grid 156.2 px saved,
-// 200.2 px no-phone, before AND after) and the computed total stays
-// 736 px — no new overage.
+// gate, recorded in the budget test below, not blessed. The hide-
+// zero-remaining fix swaps the last two bookings but not the total:
+// on a fully-paid card the Remaining Balance row is hidden, so the
+// grid goes from 6 items (3 rows) to 5 (still 3 rows) — the hide
+// costs 0 px in this shape (Chromium 360 px: grid 156.2 px saved,
+// 200.2 px no-phone, before AND after) and the Month row now adds
+// the third row instead of filling the lone-Remaining one: PHONE-ROW
+// 0, MONTH-ROW −43. The computed total stays 736 px — no new overage.
 // The polish #17 stylesheet values stay as regression guards (they no
 // longer carry savings rows — the savings are the four deltas), except
 // the three this polish changes (B1 inline tick, S1 compact badges +
@@ -267,19 +270,27 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
 
   // PHONE-ROW — BUT HOUSE fix: the success card gains a "Mobile Number"
   // row after the Customer row (a half-width grid item, label above
-  // value). The grid goes from 4 items (2 rows) to 5 (3 rows), so the
-  // card grows by one row: label + value + one success grid gap =
+  // value). One grid row costs label + value + one success grid gap =
   // 17.28 + 19.68 + 6 = 42.96px, rounded to 43px — measured in Chromium
-  // at 360px (grid 113.2 → 156.2px, card 356.4 → 399.4px). A cost,
-  // booked negative. Total becomes 745 − (42 − 8 − 12 + 24 + 6 − 43) =
-  // 736px, 36px OVER the 700px gate. This test RECORDS that overage;
-  // it does not bless it. Worst case, when no number is saved and the
+  // at 360px when the Remaining Balance row still showed (grid 113.2 →
+  // 156.2px, card 356.4 → 399.4px). The computed total stays 736px,
+  // 36px OVER the 700px gate (the bookings still sum to 9px — the
+  // 43px grid-row cost moves to the Month row below). This test
+  // RECORDS that overage; it does not bless it. Worst case, when no number is saved and the
   // "Add number" button shows (label + "Not saved" + 44px button =
   // ~81px row), the grid grows ~87px and the total computes to ~780px.
   // The phone screenshot is the authority for the true total, and the
   // polish #21 reserve knobs recover the 36px if the user wants the
   // card back under 700 — none of them is applied here, per the plan:
   // nothing else is silently shrunk to compensate.
+  // Hide-zero-remaining: in the fully-paid shape this budget models,
+  // the Remaining Balance row is hidden, so the grid goes from 3 items
+  // (2 rows) without the phone row to 4 (still 2 rows) with it — the
+  // phone row fills the second row's empty cell and adds no grid row,
+  // so it books 0px here. The 43px cost of one grid row is now booked
+  // on the Month row below, which adds the third row; the total stays
+  // 736px. (On a PARTIAL card the Remaining row shows and the phone
+  // row does add a row — this budget models the fully-paid shape only.)
   const phoneHtml = renderQuickCollectReceiptCardHtml({
     id: 'receipt-12',
     receiptNumber: 'RCPT-12-202611-01',
@@ -305,18 +316,26 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
   const phoneValuePx = parseFloat(phoneGridBlock.match(/font-size:\s*([\d.]+)rem/)[1]) * 16 * phoneLineHeight;
   const phoneRowCostPx = Math.round(phoneLabelPx + phoneValuePx + 6);
   assert.equal(phoneRowCostPx, 43, `PHONE-ROW: one new grid row must cost 43px (label ${phoneLabelPx}px + value ${phoneValuePx}px + gap 6px)`);
-  savings.push(['PHONE-ROW Mobile Number row (one new grid row)', -phoneRowCostPx]);
+  // Hide-zero-remaining (see the section comment above): in the
+  // fully-paid shape the phone row adds no grid row, so it books 0px;
+  // the 43px cost of one grid row is booked on the Month row below.
+  savings.push(['PHONE-ROW Mobile Number row (fills the second row, no new grid row)', 0]);
 
-  // MONTH-ROW — this fix: the card gains a "Month" row after Date &
-  // Method (a half-width grid item, label above value). The grid goes
-  // from 5 half-width items (3 rows: the Remaining Balance row stands
-  // alone) to 6 (still 3 rows — the Month row fills that lone row), so
-  // the card grows by 0px. Measured in Chromium at 360px on the real
-  // fixed sources (harness ~/workspace/qc-month-name-repro/, 0
-  // pageerrors): grid 156.2px and card 399.4px phone-saved, grid
-  // 200.2px and card 443.4px no-phone — identical before and after in
-  // both shapes. A cost of 0px, booked as such; the computed total
-  // stays 736px and the 36px overage recorded by PHONE-ROW is unchanged.
+  // MONTH-ROW — the card gains a "Month" row after Date & Method (a
+  // half-width grid item, label above value). Hide-zero-remaining
+  // changed what it costs: on a fully-paid card the Remaining Balance
+  // row is hidden, so the grid goes from 4 half-width items (2 rows)
+  // without the Month row to 5 (3 rows) with it — the Month row ADDS
+  // the third row, costing one grid row (43px, the same label + value
+  // + gap as the phone row above). Measured in Chromium at 360px on
+  // the real fixed sources (harness ~/workspace/qc-hide-zero-repro/,
+  // 0 pageerrors): grid 156.2px and card 399.4px phone-saved, grid
+  // 200.2px and card 443.4px no-phone — identical before and after
+  // the hide in both shapes, because the grid stays 3 rows. The
+  // 43px the Month row now costs is exactly the 43px the Phone row
+  // stopped costing (it fills the second row once the Remaining row
+  // is hidden), so the computed total stays 736px and the 36px
+  // overage recorded by PHONE-ROW is unchanged.
   const monthHtml = renderQuickCollectReceiptCardHtml({
     id: 'receipt-12',
     receiptNumber: 'RCPT-12-202611-01',
@@ -348,11 +367,11 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
   };
   const rowsBefore = Math.ceil(halfWidth(phoneHtml) / 2);
   const rowsAfter = Math.ceil(halfWidth(monthHtml) / 2);
-  assert.equal(halfWidth(monthHtml), 6, 'MONTH-ROW: six half-width grid items with the Month row');
-  assert.equal(rowsBefore, 3, 'MONTH-ROW: five half-width items already made 3 rows (Remaining stood alone)');
-  assert.equal(rowsAfter, 3, 'MONTH-ROW: six half-width items still make 3 rows — the Month row fills the lone row');
-  assert.equal(rowsAfter - rowsBefore, 0, 'MONTH-ROW: the Month row adds no grid row, so it costs 0px');
-  savings.push(['MONTH-ROW Month row (fills lone-Remaining row)', 0]);
+  assert.equal(halfWidth(monthHtml), 5, 'MONTH-ROW: five half-width grid items with the Month row (Remaining hidden on a fully-paid card)');
+  assert.equal(rowsBefore, 2, 'MONTH-ROW: four half-width items make 2 rows (no Month row, Remaining hidden)');
+  assert.equal(rowsAfter, 3, 'MONTH-ROW: five half-width items make 3 rows — the Month row adds the third row');
+  assert.equal(rowsAfter - rowsBefore, 1, 'MONTH-ROW: the Month row adds one grid row, so it costs 43px');
+  savings.push(['MONTH-ROW Month row (adds the third grid row)', -phoneRowCostPx]);
 
   const totalSaved = savings.reduce((sum, [, value]) => sum + value, 0);
   const total = BASELINE_PX - totalSaved;
@@ -360,7 +379,7 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
   // Number row pushes the computed total to 736px, 36px over the gate.
   // The static test guards against regressions; the real-phone
   // screenshot is the authority for the true total.
-  assert.equal(totalSaved, 9, `savings must be 9px (42 − 8 − 12 + 24 + 6 − 43 + 0), got ${totalSaved}px`);
+  assert.equal(totalSaved, 9, `savings must be 9px (42 − 8 − 12 + 24 + 6 + 0 − 43), got ${totalSaved}px`);
   assert.equal(total, 736, `fit budget: computed total must be 736px (baseline ${BASELINE_PX}px − saved ${totalSaved}px)`);
   assert.ok(
     total > TARGET_PX,

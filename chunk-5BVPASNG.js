@@ -467,9 +467,14 @@ ${Xr}`}function Gm(){return Xr.replace(/\D/g,"")}function s0(){let e=Gm();return
         <!-- Polish 21 (Req 6): the settle/partial badge moved out of the
              card header into the merged status section
              (renderSettleStatusBadge) \u2014 the header keeps only the shared
-             badge + the receipt id, on one line. -->
+             badge + the receipt reference, on one line. The reference
+             is a labelled chip ("Receipt No." + the id in the
+             Transaction ID row's .qc-txnid-code): the card was the only
+             receipt surface showing the number with no label at all.
+             The id stays byte-identical \u2014 never respaced \u2014 so the
+             operator can copy it into receipt search. -->
         ${i}
-        <span class="qc-receipt-id">${F(e.receiptNumber)}</span>
+        <span class="qc-receipt-ref"><span class="qc-receipt-label">Receipt No.</span> <span class="qc-receipt-id qc-txnid-code">${F(e.receiptNumber)}</span></span>
       </div>
 
       <div class="qc-receipt-amount-row">

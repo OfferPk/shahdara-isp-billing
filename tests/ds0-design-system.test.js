@@ -125,9 +125,12 @@ const EXPECTED_ICON_NAMES = [
   // Profile redesign adds 6: Pencil (Edit), Trash2 (Delete), Archive,
   // Star (QA favourite), ChevronDown (back-dated footer), Plus (Add).
   'Pencil', 'Trash2', 'Archive', 'Star', 'ChevronDown', 'Plus',
+  // QC receipt-modal overhaul adds 4: Bluetooth (BT Thermal Print),
+  // Image (Share Image), Copy (draft accordion), Info (the (i) button).
+  'Bluetooth', 'Image', 'Copy', 'Info',
 ];
 
-test('DS-0 icons: the full §3.2 path set is exported (43 names: 37 DS-0 + 6 profile redesign)', () => {
+test('DS-0 icons: the full §3.2 path set is exported (47 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul)', () => {
   assert.deepEqual([...DS_ICON_NAMES].sort(), [...EXPECTED_ICON_NAMES].sort(), 'ds-icons.js must export exactly the §3.2 icon set');
   for (const name of EXPECTED_ICON_NAMES) {
     assert.ok(isDsIconName(name), `${name} must be a known icon name`);

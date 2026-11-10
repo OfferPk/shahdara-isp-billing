@@ -25,7 +25,9 @@
  * entry's TID as its transaction reference and the sender as paidBy.
  *
  * Duplicate safety, two layers, both on SISP-21 TID semantics
- * (normalizeTid: strip ALL whitespace + lowercase; hyphens NOT stripped):
+ * (normalizeTid: strip ALL non-alphanumerics + lowercase — QC-7:
+ * separators used to survive the normaliser, so "TXN-9001" and
+ * "TXN9001" read as different TIDs; they are the same TID now):
  *  - logging an entry whose TID is already in the register is refused;
  *  - claiming an entry whose TID is already recorded as a customer
  *    payment (findPaymentsByTid, wallet-reconciliation.js) is refused,

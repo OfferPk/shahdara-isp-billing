@@ -207,6 +207,10 @@ import {
   qc2SortCollectionEntries,
   qc2SortOrderFromValue,
 } from './qc2-priority.js';
+// QC-3: the proposed customer card fields (monthly package, Call,
+// Location) — one shared read-only layer for the picker and Field
+// Mode cards.
+import { qc3CardActions } from './qc3-customer-card.js';
 
 export const QUICK_COLLECT_STORAGE_KEY = 'shahdara_quick_collect_last_used_v1';
 export const QUICK_COLLECT_AUDIT_KEY = 'shahdara_quick_collect_audits_v1';
@@ -455,7 +459,12 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
       // QC-2: the oldest unpaid bill month, for the oldest-first sort
       // toggle. Null when no bill has a balance (e.g. baqaya-only) —
       // those entries sort last under the oldest-first order.
-      earliestUnpaidMonth
+      earliestUnpaidMonth,
+      // QC-3: the proposed customer card fields — the monthly package
+      // figure, the tel: link for the recorded phone, and the maps URL
+      // for the recorded GPS pin. Nulls stay null: the renderers show
+      // the em dash / disabled state, never a guessed value.
+      ...qc3CardActions(customer, BILL_PACKAGES),
     });
   }
 
@@ -1806,26 +1815,67 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     const dueLabel = hasDues
       ? `<strong class="qc-due-val">PKR ${c.totalDues.toLocaleString('en-PK')}</strong><span class="qc-due-tag">DUE</span>`
       : `<strong class="qc-due-val qc-val-settled">PKR 0</strong><span class="qc-settled-tag">SETTLED</span>`;
+    // QC-3: the proposed customer card — Outstanding vs Monthly
+    // package as two figure columns, and Call / Location / Collect
+    // below. The fields come from the pool entry (qc3CardActions);
+    // plain fixtures without them fall back honestly: no priced
+    // package shows the em dash, no phone / no pin disables that
+    // action — never a guessed figure or a fake location.
+    const monthlyPackage = c.monthlyPackage ?? null;
+    const monthlyPackageText = typeof monthlyPackage === 'number'
+      ? `PKR ${monthlyPackage.toLocaleString('en-PK')}`
+      : '—';
+    const callHref = c.callHref ?? null;
+    const mapsUrl = c.mapsUrl ?? null;
+    const actionsRow = `
+      <div class="qc3-card-actions" role="group" aria-label="${escapeHtml(t('qc3_card_actions'))}">
+        ${callHref
+          ? `<a class="qc3-action-btn" href="${escapeHtml(callHref)}" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}">📞 ${escapeHtml(t('qc3_call'))}</a>`
+          : `<button type="button" class="qc3-action-btn" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_phone'))}">📞 ${escapeHtml(t('qc3_call'))}</button>`}
+        ${mapsUrl
+          ? `<a class="qc3-action-btn" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}">📍 ${escapeHtml(t('qc3_location'))}</a>`
+          : `<button type="button" class="qc3-action-btn" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_location'))}">📍 ${escapeHtml(t('qc3_location'))}</button>`}
+        <button type="button" class="qc3-action-btn qc3-collect" data-qc3-action="collect" data-customer-id="${escapeHtml(c.id)}">💳 ${escapeHtml(t('qc3_collect'))}</button>
+      </div>`;
 
+    // QC-3: the card is now a wrapper div so the Call / Location /
+    // Collect row can sit beside the tap target — a button cannot
+    // contain links or buttons. The wrapper keeps the .qc-customer-card
+    // class, the data-customer-id and the selected / tier classes, so
+    // the existing selectors, dark-theme rules and QC-2 accent still
+    // apply; the inner main button is the tap-to-collect target.
     return `
-      <button type="button"
-              class="qc-customer-card ${dueClass} ${isSelected ? 'is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}"
-              data-customer-id="${escapeHtml(c.id)}"
-              aria-label="Pick ${escapeHtml(c.name)} with dues PKR ${c.totalDues}">
-        <div class="qc-card-left">
-          <span class="qc-cust-num">#${escapeHtml(String(c.customerNumber))}</span>
-          <div class="qc-cust-info">
-            <span class="qc-cust-name">${escapeHtml(c.name)}</span>
-            ${sameNameBadges?.get(c.id) ?? ''}
-            <span class="qc-cust-meta">${escapeHtml(c.area)}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</span>
-            ${priorityRow}
+      <div class="qc-customer-card qc3-card ${dueClass} ${isSelected ? 'is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}"
+           data-customer-id="${escapeHtml(c.id)}">
+        <button type="button"
+                class="qc3-card-main"
+                data-customer-id="${escapeHtml(c.id)}"
+                aria-label="Pick ${escapeHtml(c.name)} with dues PKR ${c.totalDues}">
+          <div class="qc-card-left">
+            <span class="qc-cust-num">#${escapeHtml(String(c.customerNumber))}</span>
+            <div class="qc-cust-info">
+              <span class="qc-cust-name">${escapeHtml(c.name)}</span>
+              ${sameNameBadges?.get(c.id) ?? ''}
+              <span class="qc-cust-meta">${escapeHtml(c.area)}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</span>
+              ${priorityRow}
+            </div>
           </div>
-        </div>
-        <div class="qc-card-right">
-          ${dueLabel}
-          ${tierLabels}
-        </div>
-      </button>
+          <div class="qc-card-right">
+            <div class="qc3-figures">
+              <span class="qc3-figure">
+                <span class="qc3-figure-label">${escapeHtml(t('qc3_outstanding'))}</span>
+                <span class="qc3-figure-value">${dueLabel}</span>
+              </span>
+              <span class="qc3-figure">
+                <span class="qc3-figure-label">${escapeHtml(t('qc3_monthly_package'))}</span>
+                <strong class="qc3-package-val">${monthlyPackageText}</strong>
+              </span>
+            </div>
+            ${tierLabels}
+          </div>
+        </button>
+        ${actionsRow}
+      </div>
     `;
   }).join('');
 }
@@ -5131,6 +5181,13 @@ export function setupQuickCollectModal({
       renderList();
       return;
     }
+    // QC-3: the card's Call / Location / Collect row is checked
+    // FIRST. Call and Location are plain links — the browser follows
+    // them, so they need no handler here. Collect does exactly what
+    // tapping the card does, so it falls through to the card path
+    // below instead of opening a second payment flow.
+    const qc3Action = e.target.closest('[data-qc3-action]');
+    if (qc3Action && qc3Action.dataset.qc3Action !== 'collect') return;
     const card = e.target.closest('.qc-customer-card');
     if (!card) return;
     const cid = card.getAttribute('data-customer-id');

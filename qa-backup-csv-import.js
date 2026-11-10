@@ -19,7 +19,7 @@ export const STORAGE_KEYS_CATALOG = Object.freeze([
   { key: 'shahdara_equipment_retrievals_v1', label: 'ONU/Router Equipment Retrievals', critical: false, category: 'inventory' },
   { key: 'shahdara_collection_promises_v1', label: 'Customer Collection Promises', critical: false, category: 'billing' },
   { key: 'shahdara_receipts_shared_v1', label: 'WhatsApp Receipt Share Tracker', critical: false, category: 'billing' },
-  { key: 'shahdara_offline_payment_queue', label: 'Offline Payment Sync Queue', critical: false, category: 'offline' },
+  { key: 'shahdara_offline_payment_queue', label: 'Offline Payment Queue', critical: false, category: 'offline' },
   { key: 'shahdara_quick_collect_last_used_v1', label: 'Quick Collect Method Preference', critical: false, category: 'ui' },
   { key: 'shahdara_quick_collect_audits_v1', label: 'Quick Collect Audit Trail', critical: false, category: 'billing' },
   { key: 'shahdara_area_recovery_rounds_v1', label: 'Area Recovery Field Rounds', critical: false, category: 'billing' },

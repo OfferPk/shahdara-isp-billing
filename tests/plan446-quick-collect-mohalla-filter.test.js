@@ -286,13 +286,19 @@ test('acceptance: filtering never changes any bill, payment, or customer record'
 // --- Wiring ---
 
 test('wiring: the controller imports the mohalla filter view', () => {
-  assert.ok(wiringSrc.includes("import {\n  filterQuickCollectByMohalla,\n  quickCollectMohallaFilterKey,\n  quickCollectMohallaFilterOptionsHtml,\n  quickCollectMohallaFilterSummaryText,\n  resolveQuickCollectMohallaFilter\n} from './quick-collect-mohalla-filter.js';"), 'missing mohalla filter import');
+  // QC-4: the counted options builder replaced the plain one — the
+  // import still brings in the mohalla filter view, now with its
+  // pending-counts builder alongside.
+  assert.ok(wiringSrc.includes("import {\n  filterQuickCollectByMohalla,\n  quickCollectMohallaFilterKey,\n  quickCollectMohallaFilterCountOptionsHtml,\n  quickCollectMohallaFilterSummaryText,\n  quickCollectMohallaPendingCounts,\n  resolveQuickCollectMohallaFilter\n} from './quick-collect-mohalla-filter.js';"), 'missing mohalla filter import');
   assert.ok(wiringSrc.includes("document.getElementById('mhfMohallaFilter')"), 'missing filter select lookup');
   assert.ok(wiringSrc.includes("document.getElementById('mhfMohallaFilterSummary')"), 'missing filter summary lookup');
 });
 
 test('wiring: the select is filled from the app\'s own mohalla list and a change re-renders the list', () => {
-  assert.ok(wiringSrc.includes('mohallaFilterSelect.innerHTML = quickCollectMohallaFilterOptionsHtml(DEFAULT_MOHALLAS, \'\');'), 'options must come from the app\'s own mohalla list');
+  // QC-4: the select is seeded with counted options from the same
+  // app list — the options still come from the app's own mohalla
+  // list, now carrying each mohalla's pending count.
+  assert.ok(wiringSrc.includes('mohallaFilterSelect.innerHTML = quickCollectMohallaFilterCountOptionsHtml(quickCollectMohallaPendingCounts([], DEFAULT_MOHALLAS), \'\');'), 'options must come from the app\'s own mohalla list');
   const change = wiringSrc.match(/mohallaFilterSelect\?\.addEventListener\('change', \(\) => \{[\s\S]*?\n  \}\);/);
   assert.ok(change, 'missing mohalla filter change listener');
   assert.ok(change[0].includes('resolveQuickCollectMohallaFilter(mohallaFilterSelect.value, DEFAULT_MOHALLAS)'), 'change must resolve the chosen value against the app list');
@@ -312,7 +318,11 @@ test('wiring: renderList passes the active mohalla to the picker and writes the 
 test('wiring: the picker applies the filter and keeps the all-collected state for the whole round only', () => {
   const picker = wiringSrc.match(/export function renderQuickCollectPickerHtml\([\s\S]*?\n\}/);
   assert.ok(picker, 'renderQuickCollectPickerHtml not found');
-  assert.ok(picker[0].includes('filterQuickCollectByMohalla(getPendingCollectionCustomers(state, query, filterType), mohallaFilter)'), 'picker must filter the dues list by mohalla');
+  // QC-4 hoisted the pool into a const so the same pool feeds the
+  // per-mohalla counts — the picker still filters the dues list by
+  // mohalla from that pool.
+  assert.ok(picker[0].includes('const pool = getPendingCollectionCustomers(state, query, filterType);'), 'picker must build the pool once');
+  assert.ok(picker[0].includes('filterQuickCollectByMohalla(pool, mohallaFilter)'), 'picker must filter the dues list by mohalla');
   assert.ok(picker[0].includes('!quickCollectMohallaFilterKey(mohallaFilter)'), 'all-collected must stay false while a mohalla is chosen');
 });
 

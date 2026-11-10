@@ -145,8 +145,8 @@ test.describe('Issue #279 & #281: Quick Collect polish & Duplicate Warning', () 
     // Should complete first payment
     await expect(page.locator('#quickCollectStepSuccess')).toBeVisible();
 
-    // Click "Collect Another Customer"
-    await page.locator('#quickCollectAnotherBtn').click();
+    // Click "Next Customer" (the old Collect Another button)
+    await page.locator('[data-qc-next-customer]').click();
     await expect(page.locator('#quickCollectStepPick')).toBeVisible();
 
     // Pick second customer

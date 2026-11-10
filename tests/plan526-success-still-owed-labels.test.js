@@ -239,8 +239,12 @@ test('wiring: the controller still renders both lines from the same modules', ()
 });
 
 test('wiring: the receipt card badge is untouched — it still reads the payable remainder', () => {
-  assert.ok(wiringSrc.includes('function renderQuickCollectReceiptCardHtml(receipt)'), 'missing receipt card');
-  const start = wiringSrc.indexOf('function renderQuickCollectReceiptCardHtml(receipt)');
+  // BUT HOUSE fix: the renderer takes an optional second argument
+  // carrying the live-state WhatsApp resolution (whatsappPhone first,
+  // else the primary phone) — the signature changed, the card builder
+  // and its canonical remaining figure did not.
+  assert.ok(wiringSrc.includes('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {})'), 'missing receipt card');
+  const start = wiringSrc.indexOf('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {})');
   const slice = wiringSrc.slice(start, start + 2600);
   assert.match(slice, /receipt\.payableRemaining \?\? receipt\.newTotalDues/);
   // Polish 21 (Req 6): the settle/partial badge moved out of the card

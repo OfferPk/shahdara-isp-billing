@@ -91,7 +91,7 @@ test('Plan 519: app.js imports the tab-count helper at the pinned version', () =
   assert.ok(app.includes('profileTabCounts'), 'app.js uses the helper');
 });
 
-test('Plan 519: updateProfileTabCounts sets both counts and falls back to the bare labels at zero', () => {
+test('Plan 519: updateProfileTabCounts sets the complaints count and keeps the Billing tab bare', () => {
   const app = read('app.js');
   const start = app.indexOf('function updateProfileTabCounts(customer)');
   assert.notEqual(start, -1, 'updateProfileTabCounts must exist');
@@ -99,9 +99,16 @@ test('Plan 519: updateProfileTabCounts sets both counts and falls back to the ba
   assert.ok(body.includes("profileTabCounts(customer, loadComplaints())"), 'counts derive from this customer and the register');
   assert.ok(body.includes("$('#profileTabBilling .profile-tab-label')"), 'billing tab label span is updated');
   assert.ok(body.includes("$('#profileTabComplaints .profile-tab-label')"), 'complaints tab label span is updated');
-  assert.ok(body.includes("t('prof_tab_billing_count', null, { count: counts.billingMonths })"), 'billing count uses its i18n key with the count param');
+  // Live visual bugs (Nov 2026): "Billing (3 months)" on the tab
+  // clipped the 4th tab ("4 Baqa") at 360px, so the Billing tab is
+  // always the bare label now and the same figure lives in the Billing
+  // panel header (#profileBillingMonthsCount). The retired
+  // prof_tab_billing_count key must not be referenced anywhere.
+  assert.ok(!body.includes('prof_tab_billing_count'), 'the billing count key must not be used on the tab anymore');
+  assert.ok(body.includes("billingLabel.textContent = t('prof_tab_billing')"), 'billing tab always shows the bare label');
+  assert.ok(body.includes("$('#profileBillingMonthsCount')"), 'the months figure is written into the Billing panel header');
+  assert.ok(body.includes("t('prof_billing_months_count', null, { count: counts.billingMonths })"), 'panel months figure uses its i18n key with the count param');
   assert.ok(body.includes("t('prof_tab_complaints_count', null, { count: counts.openComplaints })"), 'complaints count uses its i18n key with the count param');
-  assert.ok(body.includes("t('prof_tab_billing')"), 'zero billed months falls back to the bare billing label');
   assert.ok(body.includes("t('prof_tab_complaints')"), 'zero open complaints falls back to the bare complaints label');
   assert.ok(!body.includes('profileTabInfo'), 'the Info tab carries no count — its completion counter already lives in the panel');
 });
@@ -127,21 +134,29 @@ test('Plan 519: resolving a complaint refreshes the counts through the register 
 
 test('Plan 519: the static HTML keeps the bare labels for the first paint', () => {
   const html = read('index.html');
-  assert.match(html, /id="profileTabBilling"[^>]*><span class="profile-tab-number" aria-hidden="true">1<\/span><span class="profile-tab-label" data-i18n="prof_tab_billing">Billing</, 'Billing tab starts as the bare label');
-  assert.match(html, /id="profileTabInfo"[^>]*><span class="profile-tab-number" aria-hidden="true">2<\/span><span class="profile-tab-label" data-i18n="prof_tab_info">Info</, 'Info tab starts as the bare label');
-  assert.match(html, /id="profileTabComplaints"[^>]*><span class="profile-tab-number" aria-hidden="true">3<\/span><span class="profile-tab-label" data-i18n="prof_tab_complaints">Complaints</, 'Complaints tab starts as the bare label');
-  assert.match(html, /id="profileTabBaqaya"[^>]*><span class="profile-tab-number" aria-hidden="true">4<\/span><span class="profile-tab-label" data-i18n="prof_tab_baqaya">Baqaya</, 'Baqaya tab starts as the bare label');
+  // Live visual bugs (Nov 2026): the number span carries the user's
+  // middle dot — "1· Billing", "2· Info", "3· Complaints", "4· Baqaya".
+  assert.match(html, /id="profileTabBilling"[^>]*><span class="profile-tab-number" aria-hidden="true">1·<\/span><span class="profile-tab-label" data-i18n="prof_tab_billing">Billing</, 'Billing tab starts as the bare label');
+  assert.match(html, /id="profileTabInfo"[^>]*><span class="profile-tab-number" aria-hidden="true">2·<\/span><span class="profile-tab-label" data-i18n="prof_tab_info">Info</, 'Info tab starts as the bare label');
+  assert.match(html, /id="profileTabComplaints"[^>]*><span class="profile-tab-number" aria-hidden="true">3·<\/span><span class="profile-tab-label" data-i18n="prof_tab_complaints">Complaints</, 'Complaints tab starts as the bare label');
+  assert.match(html, /id="profileTabBaqaya"[^>]*><span class="profile-tab-number" aria-hidden="true">4·<\/span><span class="profile-tab-label" data-i18n="prof_tab_baqaya">Baqaya</, 'Baqaya tab starts as the bare label');
 });
 
 test('Plan 519: the count keys exist in both languages with the count param', () => {
   const lang = read('nav-language.js');
-  for (const key of ['prof_tab_billing_count', 'prof_tab_complaints_count']) {
+  // Live visual bugs (Nov 2026): the billing count moved off the tab
+  // into the Billing panel header, so its key is now the panel-only
+  // prof_billing_months_count ("3 months"); the old
+  // prof_tab_billing_count key is retired. The complaints count stays
+  // on its tab.
+  assert.ok(!lang.includes('prof_tab_billing_count'), 'the retired billing tab-count key must be gone');
+  for (const key of ['prof_billing_months_count', 'prof_tab_complaints_count']) {
     assert.ok(lang.includes(`${key}:`), `${key} must exist`);
     assert.ok(lang.includes(`{count}`), 'count keys must carry the {count} param');
   }
-  assert.ok(lang.includes("prof_tab_billing_count: 'Billing ({count} months)'"), 'EN billing count label');
+  assert.ok(lang.includes("prof_billing_months_count: '{count} months'"), 'EN billing panel months figure');
   assert.ok(lang.includes("prof_tab_complaints_count: 'Complaints ({count} open)'"), 'EN complaints count label');
-  assert.ok(lang.includes("prof_tab_billing_count: 'بلنگ ({count} ماہ)'"), 'UR billing count label carries Urdu script');
+  assert.ok(lang.includes("prof_billing_months_count: '{count} ماہ'"), 'UR billing panel months figure carries Urdu script');
   assert.ok(lang.includes("prof_tab_complaints_count: 'شکایات ({count} کھلی)'"), 'UR complaints count label carries Urdu script');
 });
 

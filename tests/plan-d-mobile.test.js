@@ -265,10 +265,17 @@ test('Plan D pinned: Quick Collect dialog is contained at ≤640px', () => {
 });
 
 test('Plan D pinned: Quick Collect form rows collapse to one column at ≤480px', () => {
-  const at = styles.indexOf('@media (max-width: 480px)');
+  // There are several ≤480px blocks now (the QA tools grid has one too),
+  // so scan every one instead of assuming the first is the QC block.
+  const needle = '@media (max-width: 480px)';
+  let found = false;
+  let at = styles.indexOf(needle);
   assert.ok(at >= 0, 'styles.css has a ≤480px block');
-  const block = styles.slice(at, at + 400);
-  assert.match(block, /\.qc-form-row \{\s*\n?\s*grid-template-columns: 1fr;/);
+  while (at >= 0) {
+    if (/\.qc-form-row \{\s*\n?\s*grid-template-columns: 1fr;/.test(styles.slice(at, at + 400))) found = true;
+    at = styles.indexOf(needle, at + needle.length);
+  }
+  assert.ok(found, '.qc-form-row collapses to one column in a ≤480px block');
 });
 
 test('Plan D pinned: Field Mode zone chips are already 44px', () => {
@@ -311,10 +318,24 @@ test('Plan D pinned: Customers filter and service-choice buttons are 44px at ≤
 
 test('Plan D pinned: profile payment form-grid is one column at ≤700px', () => {
   assert.match(styles, /\.form-grid, \.phase3-form, \.incident-form \{ grid-template-columns: minmax\(0, 1fr\); \}/);
+  // Billing & ledger redesign §3.1: the two `.month-forms .form-grid`
+  // 2-column overrides are deleted — with either one present it
+  // out-specified this rule at 360px and the form measured 2×150px.
+  // The harness measures the true computed columns at 360/480/320px.
+  assert.doesNotMatch(styles, /\.month-forms \.form-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
 });
 
-test('Plan D pinned: profile payment inputs are 44px with 16px text', () => {
-  assert.match(styles, /\.form-grid input, \.form-grid select \{ min-height: 44px; font-size: 16px; \}/);
+test('Plan D pinned: profile payment inputs are 46px with the DS border (billing & ledger §3.2)', () => {
+  // Billing & ledger redesign: the old pin asserted the TEXT of the
+  // ≤620px `.form-grid input` rule (min-height 44px) but never the
+  // computed style — the rule's effect depended on the cascade
+  // against the base `.payment-form input` height, so the pin could
+  // pass while the form measured 40px. The replacement pins the
+  // cascade that determines the computed result — the redesign's own
+  // `.payment-form input` rule (46px, later in the file, same
+  // specificity, so it wins) — and the harness measures the true
+  // computed height at 360/480/320px (see the PR body).
+  assert.match(styles, /\.payment-form input, \.payment-form select, \.bill-form input, \.bill-form select \{ height: 46px; border: 1px solid var\(--ds-input-border\); border-radius: var\(--radius-sm\); \}/);
 });
 
 test('Plan D pinned: profile shortcut already spans a full row at ≤800px', () => {

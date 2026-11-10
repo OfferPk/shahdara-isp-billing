@@ -259,17 +259,36 @@ export function historyMonthlyGroupingReconciliation(groups, entries) {
   };
 }
 
+// The owed wording (billing & ledger redesign §6.3): a month that
+// paid more than it billed is a credit month, never a negative
+// "Still owed". The cell prints the amount with the Credit prefix
+// under the "Still owed" header; the text lines print the full
+// "Still owed PKR X" / "Credit PKR X" wording. Presentation strings
+// only — the grouping math, totals and reconciliation below are
+// untouched and still compare signed figures.
+function monthlyGroupingOwedCellText(cents) {
+  const owed = finiteMonthlyGroupingCents(cents);
+  if (owed === null || owed >= 0) return formatMonthlyGroupingAmount(owed ?? 0);
+  return `Credit ${formatMonthlyGroupingAmount(-owed)}`;
+}
+
+function monthlyGroupingOwedLineText(cents) {
+  const owed = finiteMonthlyGroupingCents(cents);
+  if (owed === null || owed >= 0) return `Still owed ${formatMonthlyGroupingAmount(owed ?? 0)}`;
+  return `Credit ${formatMonthlyGroupingAmount(-owed)}`;
+}
+
 export function historyMonthlyGroupingGroupText(group) {
   if (!group || typeof group !== 'object') return '';
   const label = group.label || historyMonthlyGroupingMonthLabel(group.month || '');
   const billed = formatMonthlyGroupingAmount(group.billedCents);
   const paid = formatMonthlyGroupingAmount(group.paidCents);
-  const owed = formatMonthlyGroupingAmount(group.stillOwedCents);
+  const owed = monthlyGroupingOwedLineText(group.stillOwedCents);
   if (group.entryCount === 0) {
-    return `${label} · No transactions · Billed ${billed} · Paid ${paid} · Still owed ${owed}`;
+    return `${label} · No transactions · Billed ${billed} · Paid ${paid} · ${owed}`;
   }
   const count = group.entryCount === 1 ? '1 entry' : `${group.entryCount} entries`;
-  return `${label} · ${count} · Billed ${billed} · Paid ${paid} · Still owed ${owed}`;
+  return `${label} · ${count} · Billed ${billed} · Paid ${paid} · ${owed}`;
 }
 
 export function historyMonthlyGroupingSummaryText(shownEntries, allEntries) {
@@ -279,11 +298,11 @@ export function historyMonthlyGroupingSummaryText(shownEntries, allEntries) {
   const groups = historyMonthlyGroupingGroups(shownEntries);
   const totals = historyMonthlyGroupingTotals(shownEntries);
   const months = groups.length === 1 ? '1 month' : `${groups.length} months`;
-  const line = `${months} · Billed ${formatMonthlyGroupingAmount(totals.billedCents)} · Paid ${formatMonthlyGroupingAmount(totals.paidCents)} · Still owed ${formatMonthlyGroupingAmount(totals.stillOwedCents)}`;
+  const line = `${months} · Billed ${formatMonthlyGroupingAmount(totals.billedCents)} · Paid ${formatMonthlyGroupingAmount(totals.paidCents)} · ${monthlyGroupingOwedLineText(totals.stillOwedCents)}`;
   const full = Array.isArray(allEntries) ? allEntries : shownEntries;
   if (full.length === shownEntries.length) return line;
   const fullTotals = historyMonthlyGroupingTotals(full);
-  return `${line} · Full history: Billed ${formatMonthlyGroupingAmount(fullTotals.billedCents)} · Paid ${formatMonthlyGroupingAmount(fullTotals.paidCents)} · Still owed ${formatMonthlyGroupingAmount(fullTotals.stillOwedCents)}`;
+  return `${line} · Full history: Billed ${formatMonthlyGroupingAmount(fullTotals.billedCents)} · Paid ${formatMonthlyGroupingAmount(fullTotals.paidCents)} · ${monthlyGroupingOwedLineText(fullTotals.stillOwedCents)}`;
 }
 
 function escapeMonthlyGroupingHtml(value) {
@@ -313,15 +332,15 @@ export function historyMonthlyGroupingHtml(shownEntries, allEntries) {
       : group.label;
     const count = group.entryCount === 0 ? '0' : String(group.entryCount);
     const owedClass = group.stillOwedCents > 0 ? 'is-due' : 'is-settled';
-    return `<tr><td>${escapeMonthlyGroupingHtml(label)}</td><td class="col-num">${escapeMonthlyGroupingHtml(count)}</td><td class="col-num">${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(group.billedCents))}</td><td class="col-num">${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(group.paidCents))}</td><td class="col-num balance-num ${owedClass}">${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(group.stillOwedCents))}</td></tr>`;
+    return `<tr><td>${escapeMonthlyGroupingHtml(label)}</td><td class="col-num">${escapeMonthlyGroupingHtml(count)}</td><td class="col-num">${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(group.billedCents))}</td><td class="col-num">${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(group.paidCents))}</td><td class="col-num balance-num ${owedClass}">${escapeMonthlyGroupingHtml(monthlyGroupingOwedCellText(group.stillOwedCents))}</td></tr>`;
   }).join('');
   const totalsOwedClass = totals.stillOwedCents > 0 ? 'is-due' : 'is-settled';
-  let footer = `<tr><td colspan="2"><strong>Totals</strong></td><td class="col-num"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(totals.billedCents))}</strong></td><td class="col-num"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(totals.paidCents))}</strong></td><td class="col-num balance-num ${totalsOwedClass}"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(totals.stillOwedCents))}</strong></td></tr>`;
+  let footer = `<tr><td colspan="2"><strong>Totals</strong></td><td class="col-num"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(totals.billedCents))}</strong></td><td class="col-num"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(totals.paidCents))}</strong></td><td class="col-num balance-num ${totalsOwedClass}"><strong>${escapeMonthlyGroupingHtml(monthlyGroupingOwedCellText(totals.stillOwedCents))}</strong></td></tr>`;
   const full = Array.isArray(allEntries) ? allEntries : shownEntries;
   if (full.length !== shownEntries.length) {
     const fullTotals = historyMonthlyGroupingTotals(full);
     const fullOwedClass = fullTotals.stillOwedCents > 0 ? 'is-due' : 'is-settled';
-    footer += `<tr><td colspan="2"><strong>Full history</strong></td><td class="col-num"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(fullTotals.billedCents))}</strong></td><td class="col-num"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(fullTotals.paidCents))}</strong></td><td class="col-num balance-num ${fullOwedClass}"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(fullTotals.stillOwedCents))}</strong></td></tr>`;
+    footer += `<tr><td colspan="2"><strong>Full history</strong></td><td class="col-num"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(fullTotals.billedCents))}</strong></td><td class="col-num"><strong>${escapeMonthlyGroupingHtml(formatMonthlyGroupingAmount(fullTotals.paidCents))}</strong></td><td class="col-num balance-num ${fullOwedClass}"><strong>${escapeMonthlyGroupingHtml(monthlyGroupingOwedCellText(fullTotals.stillOwedCents))}</strong></td></tr>`;
   }
   return `<table class="statement-table"><thead><tr><th>Month</th><th class="col-num">Entries</th><th class="col-num">Billed</th><th class="col-num">Paid</th><th class="col-num">Still owed</th></tr></thead><tbody>${body}</tbody><tfoot>${footer}</tfoot></table>`;
 }

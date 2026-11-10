@@ -24,7 +24,16 @@ test('profile tabs: month summary renders as stat cells, not bare rows', () => {
 });
 
 test('profile tabs: month forms use form-cell wrappers, all fields kept', () => {
-  const cells = appJs.match(/<div class="form-cell">/g) || [];
+  // Billing & ledger redesign (2026-11-11): the payment-form cells
+  // carry a data-pay-group attribute (always/cash/digital/thirdparty)
+  // and the field-builder cells carry a ${group} expression, so the
+  // bare `<div class="form-cell">` count no longer covers them. The
+  // wrappers are still 23, counted in their three shapes: bill form
+  // 2 plain + payment template 9 grouped + field builders 12.
+  const plainCells = appJs.match(/<div class="form-cell">/g) || [];
+  const groupedCells = appJs.match(/<div class="form-cell" data-pay-group="/g) || [];
+  const builderCells = appJs.match(/<div class="form-cell"\$\{group/g) || [];
+  const cells = plainCells.length + groupedCells.length + builderCells.length;
   // Bill form: amount + due date = 2; payment form: amount, method,
   // paid-by, date, txn id, discount = 6 — plus the payment-proof file
   // field added by the 2026-10-29 proof-screenshot feature = 7, plus
@@ -37,7 +46,7 @@ test('profile tabs: month forms use form-cell wrappers, all fields kept', () => 
   // approval fields (threshold, approver) = 19, plus the Plan 398
   // category tag field = 20, plus the Plan 399 promise-payment link
   // field = 21, so 2 + 21 = 23.
-  assert.equal(cells.length, 23, `expected 23 form-cell wrappers, found ${cells.length}`);
+  assert.equal(cells, 23, `expected 23 form-cell wrappers, found ${cells}`);
   for (const name of ['name="dueAmount"', 'name="dueDate"', 'name="packageId"',
     'name="amount"', 'name="method"', 'name="paidBy"', 'name="date"',
     'name="transactionId"', 'name="senderTitle"', 'name="senderDigits"',
@@ -74,8 +83,15 @@ test('profile tabs: billing metrics grid + incidents section kept', () => {
 test('profile tabs: phone CSS uses compact 2-col grids', () => {
   assert.match(stylesCss, /\.month-summary\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
     'month summary must be a 2-col grid on phones');
-  assert.match(stylesCss, /\.month-forms\s+\.form-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
-    'month forms must use a 2-col field grid');
+  // Billing & ledger redesign (2026-11-11, user-locked resolution
+  // 1): 1-column always wins ≤480px on the month forms — the old
+  // `.month-forms .form-grid` 2-column overrides are deleted, so
+  // the form is one column at phone widths by the ≤700px rule.
+  // The month summary and billing metrics stay 2-col.
+  assert.match(stylesCss, /\.form-grid,\s*\.phase3-form,\s*\.incident-form\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/,
+    'month forms must be one column at phone widths');
+  assert.doesNotMatch(stylesCss, /\.month-forms\s+\.form-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
+    'no month-forms 2-col override may survive');
   assert.match(stylesCss, /\.profile-summary-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/,
     'billing metrics must stay 2-col on phones');
   assert.match(stylesCss, /\.form-grid\s+\.form-cell\s*\{[^}]*display:\s*flex/,

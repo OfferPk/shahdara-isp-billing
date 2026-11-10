@@ -135,7 +135,10 @@ button.app-confirm-btn:not([hidden]) { min-height: 48px !important; padding: 0 1
 /* Profile header action row: keep each label on one line so QR / Speak Due
    never break mid-label on narrow phones; the row itself wraps instead. */
 .profile-view-actions .secondary-button { white-space: nowrap; }
-.profile-edit-button::before { content: '✎'; font-size: 16px; }
+/* Live visual bugs (Nov 2026): the old .profile-edit-button::before
+   '✎' was deleted here — the button already carries the ds-icons
+   Pencil SVG in its .ds-action-icon span, so the ::before rendered
+   a second pencil beside it. Do not re-add it. */
 button.profile-action-btn:not([hidden]) { min-height: 48px !important; padding: 0 10px !important; white-space: nowrap; border-radius: 12px !important; font-size: 14px !important; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .profile-delete-btn { border: 1px solid #e3b4ae !important; background: #fff6f5 !important; color: #b3261e !important; text-decoration: none !important; }
 .profile-delete-btn:hover { background: #fde8e6 !important; }
@@ -255,7 +258,7 @@ button.profile-action-btn:not([hidden]) { min-height: 48px !important; padding: 
 .cust-compact .customer-billing-badge[data-short]::after { content: attr(data-short); font-size: 12px; }
 .customer-manual-state.is-unset { display: none; }
 
-.backdated-payment-link { justify-self: start; font-size: 13px !important; color: #0e5b4d; text-decoration: underline; }
+.backdated-payment-link { justify-self: start; font-size: 13px !important; color: #0e5b4d; text-decoration: none; }
 [data-theme="dark"] .cust-density-toggle { background: #1d352e !important; color: #e8f3ee !important; border-color: #2d4a40 !important; }
 
 /* ---------- #293 follow-up ---------- */

@@ -441,8 +441,20 @@ test('Plan 401: the profile wires the full history list after the month history'
 });
 
 test('Plan 401: no new styles are added — the list reuses existing classes only', () => {
-  const stylesSrc = readFileSync(new URL('../styles.css', import.meta.url), 'utf8');
-  assert.equal(stylesSrc.includes('fhl-'), false);
+  // Billing & ledger redesign (2026-11-11, user-locked): the redesign
+  // layers its own `fhl-*` / `hist-*` presentation on the Full History
+  // section (filter bar, Reset All Filters, summary, legend, table
+  // cards, row type borders — spec §§1–2, 6.5), so styles.css now
+  // carries `fhl-` rules and the old whole-file assertion no longer
+  // holds. What this test still pins is Plan 401's own fence: the
+  // list module emits only its original classes and carries no
+  // redesign class names; the redesign's styles are pinned by
+  // tests/billing-ledger-redesign.test.js instead.
+  const listSrc = readFileSync(new URL('../full-history-list.js', import.meta.url), 'utf8');
+  assert.equal(listSrc.includes('fhl-'), false);
+  assert.equal(listSrc.includes('hist-type'), false);
+  assert.equal(listSrc.includes('hist-amount'), false);
+  assert.equal(listSrc.includes('hist-ref'), false);
   const indexSrc = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(indexSrc.includes('class="payment-list"') || indexSrc.includes('fhlFullHistoryList'));
 });

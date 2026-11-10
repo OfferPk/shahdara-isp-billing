@@ -2210,7 +2210,7 @@ export const TRANSLATIONS = {
     adv_date_label: 'Payment date (Pakistan local date)',
     adv_method_label: 'Payment method',
     adv_paidby_label: 'Paid by (optional)',
-    adv_paidby_ph: 'Leave blank if not specified',
+    adv_paidby_ph: 'Leave blank',
     adv_cancel: 'Cancel',
     proof_attach_label: 'Payment proof screenshot',
     spay_sender_name_label: 'Sender name (as on wallet)',
@@ -2316,7 +2316,7 @@ export const TRANSLATIONS = {
     prof_tab_info: 'Info',
     prof_tab_complaints: 'Complaints',
     prof_tab_baqaya: 'Baqaya',
-    prof_tab_billing_count: 'Billing ({count} months)',
+    prof_billing_months_count: '{count} months',
     prof_tab_complaints_count: 'Complaints ({count} open)',
     prof_tabs_aria: 'Customer profile sections',
     prof_view_heading: 'Customer information',
@@ -3458,8 +3458,8 @@ export const TRANSLATIONS = {
     prof_hist_alloc_waiting: 'Credit waiting for a future generated bill: {amount}',
     prof_hist_voided: 'Voided: {reason}',
     prof_hist_void_badge: 'VOID',
-    prof_hist_pay_txn_ph: 'e.g. 1234567890 (Raast / JazzCash / Easypaisa)',
-    prof_hist_pay_discount_reason_ph: 'e.g. Loyalty concession, Outage credit',
+    prof_hist_pay_txn_ph: 'e.g. 1234567890',
+    prof_hist_pay_discount_reason_ph: 'e.g. Loyalty concession',
     prof_hist_void_no_reason: 'No reason recorded',
     prof_hist_payments_for: 'Payments for {month}',
     prof_hist_payments_1: '{count} payment',
@@ -3484,6 +3484,9 @@ export const TRANSLATIONS = {
     prof_hist_slip58_aria: 'Print 58mm thermal slip for customer {number}',
     prof_hist_png_receipt: 'PNG receipt',
     prof_hist_png_receipt_aria: 'Download or share PNG receipt for customer {number}',
+    fhl_clear_all_filters: 'Reset All Filters',
+    fhl_advanced_filters: 'Advanced Filters',
+    pay_optional_details: 'Optional & Third-Party Payer Details',
     // SISP-128: receipt "Last 3 Payments" mini-history block labels.
     rcpt_hist_heading: 'Last 3 Payments',
     rcpt_hist_date: 'Date',
@@ -3502,16 +3505,16 @@ export const TRANSLATIONS = {
     prof_bt_print: 'BT print',
     prof_bt_print_aria: 'Print receipt on Bluetooth printer for customer {number}',
     prof_paid_by_label: 'Paid by (optional)',
-    prof_paid_by_ph: 'Leave blank if not specified',
+    prof_paid_by_ph: 'Leave blank',
     // Plan 379: the collection note — who collected the payment, where
     // it was taken, and in which mohalla.
     prof_cpl_collected_by_label: 'Collected by (optional)',
-    prof_cpl_collected_by_ph: 'Leave blank if not specified',
+    prof_cpl_collected_by_ph: 'Leave blank',
     prof_cpl_place_label: 'Collected at (optional)',
     prof_cpl_place_shop: 'Shop',
     prof_cpl_place_field: 'Field',
     prof_cpl_mohalla_label: 'Collected in mohalla (optional)',
-    prof_cpl_mohalla_ph: 'Leave blank if not specified',
+    prof_cpl_mohalla_ph: 'Leave blank',
     prof_cpl_hist_collected_by: 'Collected by {name}',
     prof_cpl_hist_place_shop: 'Shop',
     prof_cpl_hist_place_field: 'Field',
@@ -3523,7 +3526,7 @@ export const TRANSLATIONS = {
     prof_sdc_should_label: 'What it should be (optional)',
     prof_sdc_should_ph: 'e.g. Easypaisa',
     prof_sdc_by_label: 'Recorded by (optional)',
-    prof_sdc_by_ph: 'Leave blank if not specified',
+    prof_sdc_by_ph: 'Leave blank',
     prof_sdc_hist_correction: 'Correction',
     prof_sdc_hist_should_be: 'should be',
     prof_sdc_hist_by: 'by',
@@ -6739,7 +6742,7 @@ export const TRANSLATIONS = {
     adv_date_label: 'ادائیگی کی تاریخ (پاکستان مقامی تاریخ)',
     adv_method_label: 'ادائیگی کا طریقہ',
     adv_paidby_label: 'ادائیگی کنندہ (اختیاری)',
-    adv_paidby_ph: 'اگر متعین نہ ہو تو خالی چھوڑیں',
+    adv_paidby_ph: 'خالی چھوڑیں',
     adv_cancel: 'منسوخ کریں',
     proof_attach_label: 'ادائیگی کے ثبوت کی اسکرین شاٹ',
     spay_sender_name_label: 'بھیجنے والے کا نام (والٹ پر درج)',
@@ -6845,7 +6848,7 @@ export const TRANSLATIONS = {
     prof_tab_info: 'معلومات',
     prof_tab_complaints: 'شکایات',
     prof_tab_baqaya: 'بقایا',
-    prof_tab_billing_count: 'بلنگ ({count} ماہ)',
+    prof_billing_months_count: '{count} ماہ',
     prof_tab_complaints_count: 'شکایات ({count} کھلی)',
     prof_tabs_aria: 'گاہک پروفائل کے حصے',
     prof_view_heading: 'گاہک کی معلومات',
@@ -7987,8 +7990,8 @@ export const TRANSLATIONS = {
     prof_hist_alloc_waiting: 'مستقبل میں بننے والے بل کے لیے منتظر کریڈٹ: {amount}',
     prof_hist_voided: 'منسوخ: {reason}',
     prof_hist_void_badge: 'کالعدم',
-    prof_hist_pay_txn_ph: 'مثلاً 1234567890 (راست / جاز کیش / ایزی پیسہ)',
-    prof_hist_pay_discount_reason_ph: 'مثلاً وفاداری رعایت، بندش کریڈٹ',
+    prof_hist_pay_txn_ph: 'مثلاً 1234567890',
+    prof_hist_pay_discount_reason_ph: 'مثلاً وفاداری رعایت',
     prof_hist_void_no_reason: 'کوئی وجہ ریکارڈ نہیں',
     prof_hist_payments_for: '{month} کی ادائیگیاں',
     prof_hist_payments_1: '{count} ادائیگی',
@@ -8013,6 +8016,9 @@ export const TRANSLATIONS = {
     prof_hist_slip58_aria: 'گاہک {number} کے لیے 58mm تھرمل پرچی پرنٹ کریں',
     prof_hist_png_receipt: 'PNG رسید',
     prof_hist_png_receipt_aria: 'گاہک {number} کی PNG رسید ڈاؤن لوڈ یا شیئر کریں',
+    fhl_clear_all_filters: 'تمام فلٹرز صاف کریں',
+    fhl_advanced_filters: 'ایڈوانسڈ فلٹرز',
+    pay_optional_details: 'اختیاری اور تیسرے فریق کی ادائیگی کی تفصیلات',
     // SISP-128: receipt "Last 3 Payments" mini-history block labels.
     rcpt_hist_heading: 'پچھلی 3 ادائیگیاں',
     rcpt_hist_date: 'تاریخ',
@@ -8031,16 +8037,16 @@ export const TRANSLATIONS = {
     prof_bt_print: 'بی ٹی پرنٹ',
     prof_bt_print_aria: 'گاہک {number} کے لیے بلوٹوتھ پرنٹر پر رسید پرنٹ کریں',
     prof_paid_by_label: 'ادائیگی کنندہ (اختیاری)',
-    prof_paid_by_ph: 'اگر متعین نہ ہو تو خالی چھوڑیں',
+    prof_paid_by_ph: 'خالی چھوڑیں',
     // Plan 379: the collection note — who collected the payment, where
     // it was taken, and in which mohalla.
     prof_cpl_collected_by_label: 'وصول کنندہ (اختیاری)',
-    prof_cpl_collected_by_ph: 'اگر متعین نہ ہو تو خالی چھوڑیں',
+    prof_cpl_collected_by_ph: 'خالی چھوڑیں',
     prof_cpl_place_label: 'وصولی کی جگہ (اختیاری)',
     prof_cpl_place_shop: 'دکان',
     prof_cpl_place_field: 'فیلڈ',
     prof_cpl_mohalla_label: 'وصولی کا محلہ (اختیاری)',
-    prof_cpl_mohalla_ph: 'اگر متعین نہ ہو تو خالی چھوڑیں',
+    prof_cpl_mohalla_ph: 'خالی چھوڑیں',
     prof_cpl_hist_collected_by: 'وصول کنندہ {name}',
     prof_cpl_hist_place_shop: 'دکان',
     prof_cpl_hist_place_field: 'فیلڈ',
@@ -8051,7 +8057,7 @@ export const TRANSLATIONS = {
     prof_sdc_should_label: 'کیا ہونا چاہیے تھا (اختیاری)',
     prof_sdc_should_ph: 'مثال: ایزی پیسہ',
     prof_sdc_by_label: 'درج کرنے والا (اختیاری)',
-    prof_sdc_by_ph: 'اگر متعین نہ ہو تو خالی چھوڑیں',
+    prof_sdc_by_ph: 'خالی چھوڑیں',
     prof_sdc_hist_correction: 'درستگی',
     prof_sdc_hist_should_be: 'ہونا چاہیے',
     prof_sdc_hist_by: 'بذریعہ',
@@ -9585,11 +9591,23 @@ export function updateDocumentTranslations(lang = null, container = (typeof docu
   };
   Object.entries(bottomNavMap).forEach(([target, key]) => {
     const btn = container.querySelector(`[data-mobile-nav="${target}"]`);
-    if (btn) {
-      const badge = btn.querySelector('.bottom-nav-badge');
-      btn.textContent = t(key, activeLang);
-      if (badge) btn.appendChild(badge);
+    if (!btn) return;
+    // Live visual bugs (Nov 2026): btn.textContent = ... wiped the
+    // DS-0 icon span (and the label span) on every language apply —
+    // the bottom nav showed text only with the badges intact, because
+    // only the badge was re-appended. Write the label span only,
+    // exactly like the drawer items in step 7. The fallback (no label
+    // span, e.g. a stale cached index.html) keeps the icon + badge.
+    const label = btn.querySelector('.bottom-nav-label');
+    if (label) {
+      label.textContent = t(key, activeLang);
+      return;
     }
+    const icon = btn.querySelector('.bottom-nav-icon');
+    const badge = btn.querySelector('.bottom-nav-badge');
+    btn.textContent = t(key, activeLang);
+    if (icon) btn.insertBefore(icon, btn.firstChild);
+    if (badge) btn.appendChild(badge);
   });
 
   const actionToggleSpan = container.querySelector('#mobileActionSheetToggle span:not(.mobile-action-plus)');

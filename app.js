@@ -634,6 +634,8 @@ import { normalizeLedgerReceiptBookFilter, ledgerReceiptBookOptions, searchLedge
 import { normalizeLedgerReferenceSearch, searchLedgerByReference, ledgerReferenceSearchSummaryText, ledgerReferenceSearchEmptyText, ledgerReferenceClearanceSuffix } from './ledger-reference-search.js';
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
+import { paymentMethodGroup, filterPaymentFormFieldsForMethod, filteredHistorySummaryText, historyTypeLegendText, historyEntryShortRef, historyEntryRunningNoteText, historyEntryTypeClass } from './billing-ledger-presentation.js';
+import { createDoubleTapSaveGuard, doubleTapSaveGuardKey, doubleTapSaveGuardTryStart, doubleTapSaveGuardFinish } from './double-tap-save-guard.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
 import { historyCsvExportButtonMarkup, historyCsvExportFilename, historyCsvExportText } from './history-csv-export.js';
 import { historyPrintedStatementButtonMarkup, buildHistoryPrintedStatementHtml } from './history-printed-statement.js';
@@ -1591,13 +1593,13 @@ function profileCrossPaymentMarkup(payment) {
 // in the text field instead. The labels are plain English, so they
 // read with no new language keys, like the other live lines on
 // the entry form.
-function crossPaymentNoteFieldsMarkup(prefix, currentCustomerId, customers = []) {
+function crossPaymentNoteFieldsMarkup(prefix, currentCustomerId, customers = [], group = '') {
   const options = [`<option value="">Account holder paid</option>`]
     .concat((Array.isArray(customers) ? customers : [])
       .filter((entry) => entry && typeof entry === 'object' && entry.id && entry.id !== currentCustomerId)
       .map((entry) => `<option value="${escapeHtml(entry.id)}">#${escapeHtml(entry.customerNumber ?? '?')} ${escapeHtml(entry.name || entry.customerName || '')}</option>`))
     .join('');
-  return `<div class="form-cell"><label class="field-label full" for="${prefix}-payer-customer">Paid by another customer <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-payer-customer" class="full" name="crossPayerCustomerId">${options}</select></div><div class="form-cell"><label class="field-label full" for="${prefix}-payer-name">Payer name <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-payer-name" class="full" name="crossPayerName" type="text" maxlength="100" autocomplete="off" placeholder="e.g. Ahmed"></div><div class="form-cell"><label class="field-label full" for="${prefix}-relationship">Relationship <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-relationship" class="full" name="crossRelationship" type="text" maxlength="60" autocomplete="off" placeholder="e.g. son, father, neighbour"></div>`;
+  return `<div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-payer-customer">Paid by another customer <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-payer-customer" class="full" name="crossPayerCustomerId">${options}</select></div><div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-payer-name">Payer name <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-payer-name" class="full" name="crossPayerName" type="text" maxlength="100" autocomplete="off" placeholder="e.g. Ahmed"></div><div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-relationship">Relationship <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-relationship" class="full" name="crossRelationship" type="text" maxlength="60" autocomplete="off" placeholder="e.g. son, father, neighbour"></div>`;
 }
 // Plan 383: the same-day correction note fields for the correction
 // form — what was wrong, what it should be, and who recorded it.
@@ -1612,9 +1614,9 @@ function sameDayCorrectionNoteFieldsMarkup(prefix, payment = {}) {
 // Plan 379: the three collection-note fields for the payment forms —
 // collector name, place (shop counter or field), and the mohalla
 // where it was collected. All optional; empty reads as no note.
-function collectionPlaceNoteFieldsMarkup(prefix, payment = {}) {
+function collectionPlaceNoteFieldsMarkup(prefix, payment = {}, group = '') {
   const place = String(payment?.collectionPlace ?? '').toLowerCase();
-  return `<div class="form-cell"><label class="field-label full" for="${prefix}-collected-by">${t('prof_cpl_collected_by_label')}</label><input id="${prefix}-collected-by" class="full" name="collectedBy" type="text" maxlength="100" autocomplete="off" placeholder="${t('prof_cpl_collected_by_ph')}" value="${escapeHtml(payment?.collectedBy ?? '')}"></div><div class="form-cell"><label class="field-label full" for="${prefix}-collection-place">${t('prof_cpl_place_label')}</label><select id="${prefix}-collection-place" class="full" name="collectionPlace"><option value=""${place === '' ? ' selected' : ''}>—</option><option value="shop"${place === 'shop' ? ' selected' : ''}>${t('prof_cpl_place_shop')}</option><option value="field"${place === 'field' ? ' selected' : ''}>${t('prof_cpl_place_field')}</option></select></div><div class="form-cell"><label class="field-label full" for="${prefix}-collection-mohalla">${t('prof_cpl_mohalla_label')}</label><input id="${prefix}-collection-mohalla" class="full" name="collectionMohalla" type="text" maxlength="60" autocomplete="off" placeholder="${t('prof_cpl_mohalla_ph')}" value="${escapeHtml(payment?.collectionMohalla ?? '')}"></div>`;
+  return `<div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-collected-by">${t('prof_cpl_collected_by_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-collected-by" class="full" name="collectedBy" type="text" maxlength="100" autocomplete="off" placeholder="${t('prof_cpl_collected_by_ph')}" value="${escapeHtml(payment?.collectedBy ?? '')}"></div><div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-collection-place">${t('prof_cpl_place_label')} <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-collection-place" class="full" name="collectionPlace"><option value=""${place === '' ? ' selected' : ''}>—</option><option value="shop"${place === 'shop' ? ' selected' : ''}>${t('prof_cpl_place_shop')}</option><option value="field"${place === 'field' ? ' selected' : ''}>${t('prof_cpl_place_field')}</option></select></div><div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-collection-mohalla">${t('prof_cpl_mohalla_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-collection-mohalla" class="full" name="collectionMohalla" type="text" maxlength="60" autocomplete="off" placeholder="${t('prof_cpl_mohalla_ph')}" value="${escapeHtml(payment?.collectionMohalla ?? '')}"></div>`;
 }
 // Plan 389: the Urdu-script note field for the payment forms — one
 // optional note on the transaction, written in Urdu script and shown
@@ -1622,8 +1624,8 @@ function collectionPlaceNoteFieldsMarkup(prefix, payment = {}) {
 // is bilingual in plain words (English + Urdu script), so it reads in
 // either language with no new language keys; the input itself is
 // right-to-left Urdu.
-function urduNoteFieldMarkup(prefix, payment = {}) {
-  return `<div class="form-cell"><label class="field-label full" for="${prefix}-urdu-note">Note in Urdu / اردو میں نوٹ <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-urdu-note" class="full" name="urduNote" type="text" maxlength="200" autocomplete="off" dir="rtl" lang="ur" placeholder="مثلاً: اگلے مہینے ادا کریں گے" value="${escapeHtml(payment?.urduNote ?? '')}"></div>`;
+function urduNoteFieldMarkup(prefix, payment = {}, group = '') {
+  return `<div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-urdu-note">Note in Urdu / اردو میں نوٹ <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-urdu-note" class="full" name="urduNote" type="text" maxlength="200" autocomplete="off" dir="rtl" lang="ur" placeholder="مثلاً: اگلے مہینے ادا کریں گے" value="${escapeHtml(payment?.urduNote ?? '')}"></div>`;
 }
 // Plan 397: the large-cash approval fields for the payment forms —
 // the operator-set threshold for cash that needs the owner's
@@ -1632,8 +1634,8 @@ function urduNoteFieldMarkup(prefix, payment = {}) {
 // as the standing default. The labels are plain English, so they
 // read with no new language keys, like the other live lines on the
 // entry form.
-function largeCashApprovalFieldsMarkup(prefix) {
-  return `<div class="form-cell"><label class="field-label full" for="${prefix}-threshold">Large cash threshold (PKR) <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-threshold" class="full" name="largeCashThreshold" type="number" min="0" step="1" inputmode="numeric" value="${LARGE_CASH_DEFAULT_THRESHOLD_CENTS / 100}" placeholder="10000"></div><div class="form-cell"><label class="field-label full" for="${prefix}-approver">Approved by (owner) <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-approver" class="full" name="largeCashApprover" type="text" maxlength="100" autocomplete="off" placeholder="e.g. owner initials"></div>`;
+function largeCashApprovalFieldsMarkup(prefix, group = '') {
+  return `<div class="form-cell"${group ? ` data-pay-group="${group}" data-pay-large-cash` : ''}><label class="field-label full" for="${prefix}-threshold">Large cash threshold (PKR) <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-threshold" class="full" name="largeCashThreshold" type="number" min="0" step="1" inputmode="numeric" value="${LARGE_CASH_DEFAULT_THRESHOLD_CENTS / 100}" placeholder="10000"></div><div class="form-cell"${group ? ` data-pay-group="${group}" data-pay-large-cash` : ''}><label class="field-label full" for="${prefix}-approver">Approved by (owner) <span class="optional-label">${t('prof_optional')}</span></label><input id="${prefix}-approver" class="full" name="largeCashApprover" type="text" maxlength="100" autocomplete="off" placeholder="e.g. owner initials"></div>`;
 }
 // Plan 398: the category tag field for the payment forms — the kind
 // of transaction in plain words: collection, advance, refund,
@@ -1641,8 +1643,8 @@ function largeCashApprovalFieldsMarkup(prefix) {
 // payment); the tag is set at entry and used only for filtering.
 // The label is plain English, so it reads with no new language
 // keys, like the other live lines on the entry form.
-function categoryTagFieldMarkup(prefix) {
-  return `<div class="form-cell"><label class="field-label full" for="${prefix}-category">Category <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-category" class="full" name="categoryTag">${transactionCategoryTagSelectOptions('collection')}</select></div>`;
+function categoryTagFieldMarkup(prefix, group = '') {
+  return `<div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-category">Category <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-category" class="full" name="categoryTag">${transactionCategoryTagSelectOptions('collection')}</select></div>`;
 }
 // Plan 399: the promise picker on the payment entry form — the
 // customer's still-unpaid promises, earliest promised first. The
@@ -1650,11 +1652,11 @@ function categoryTagFieldMarkup(prefix) {
 // none offers only the blank "No promise" option. The label is
 // plain English, so it reads with no new language keys, like the
 // other live lines on the entry form.
-function promisePaymentLinkFieldMarkup(prefix, customer) {
-  return `<div class="form-cell"><label class="field-label full" for="${prefix}-promise">Fulfils promise <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-promise" class="full" name="promiseLink">${promisePaymentLinkSelectOptions(openPromisesForCustomer(loadCollectionPromises(), customer))}</select></div>`;
+function promisePaymentLinkFieldMarkup(prefix, customer, group = '') {
+  return `<div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-promise">Fulfils promise <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-promise" class="full" name="promiseLink">${promisePaymentLinkSelectOptions(openPromisesForCustomer(loadCollectionPromises(), customer))}</select></div>`;
 }
-function billMonthSelectorFieldMarkup(prefix, months, selectedMonth) {
-  return `<div class="form-cell"><label class="field-label full" for="${prefix}-bill-month">Bill month <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-bill-month" class="full" name="billMonth">${billMonthSelectOptions(months, selectedMonth)}</select><p class="field-help bms-choice-line" hidden></p></div>`;
+function billMonthSelectorFieldMarkup(prefix, months, selectedMonth, group = '') {
+  return `<div class="form-cell"${group ? ` data-pay-group="${group}"` : ''}><label class="field-label full" for="${prefix}-bill-month">Bill month <span class="optional-label">${t('prof_optional')}</span></label><select id="${prefix}-bill-month" class="full" name="billMonth">${billMonthSelectOptions(months, selectedMonth)}</select><p class="field-help bms-choice-line" hidden></p></div>`;
 }
 // SISP-63: sender proof metadata on the payment row — who sent a
 // digital payment and the last 4 digits it came from, next to the
@@ -1732,9 +1734,13 @@ function activateProfileTab(name, focus = false) {
   if (focus) $(`#${profileTabMap[name][0]}`).focus();
 }
 // Plan 519 — the profile tabs carry counts, so the tab itself answers
-// "is there anything here?" before the tap: Billing shows the months
-// with a recorded bill, Complaints shows the unresolved register
-// complaints. A zero count shows the bare label (no "(0)"). The
+// "is there anything here?" before the tap: Complaints shows the
+// unresolved register complaints. Billing used to show the months with
+// a recorded bill on the tab itself ("Billing (3 months)"), but that
+// clipped the 4th tab at 360px — since Nov 2026 the Billing tab stays
+// bare ("1 Billing") and the same figure lives in the Billing panel
+// header (#profileBillingMonthsCount under "Last 24 months"). A zero
+// count shows the bare label (no "(0)") and hides the panel line. The
 // labels are set here on every renderDetail, which is also what the
 // language-change listener re-runs — so a language switch re-renders
 // the counts in the new language instead of leaving the old one, and
@@ -1747,7 +1753,17 @@ function updateProfileTabCounts(customer) {
   if (!customer) return;
   const counts = profileTabCounts(customer, loadComplaints());
   const billingLabel = $('#profileTabBilling .profile-tab-label');
-  if (billingLabel) billingLabel.textContent = counts.billingMonths > 0 ? t('prof_tab_billing_count', null, { count: counts.billingMonths }) : t('prof_tab_billing');
+  if (billingLabel) billingLabel.textContent = t('prof_tab_billing');
+  const billingMonthsCount = $('#profileBillingMonthsCount');
+  if (billingMonthsCount) {
+    if (counts.billingMonths > 0) {
+      billingMonthsCount.hidden = false;
+      billingMonthsCount.textContent = t('prof_billing_months_count', null, { count: counts.billingMonths });
+    } else {
+      billingMonthsCount.hidden = true;
+      billingMonthsCount.textContent = '';
+    }
+  }
   const complaintsLabel = $('#profileTabComplaints .profile-tab-label');
   if (complaintsLabel) complaintsLabel.textContent = counts.openComplaints > 0 ? t('prof_tab_complaints_count', null, { count: counts.openComplaints }) : t('prof_tab_complaints');
 }
@@ -4628,6 +4644,7 @@ function billPackageSelectorMarkup(bill, month) {
 // the customer history, alongside the type filter; it filters only
 // and changes nothing. The chosen dates live only while the profile
 // is open, and re-rendering the profile keeps the choice.
+let lastFullHistoryCustomerId;
 let fullHistoryTypeFilter = 'all';
 let fullHistoryDateFrom = '';
 let fullHistoryDateTo = '';
@@ -4635,9 +4652,47 @@ let fullHistoryMethodFilter = 'all';
 let fullHistoryAmountSearch = '';
 let fullHistoryDisputedFilter = 'all';
 let fullHistoryConnectionFilter = 'all';
+// Billing & ledger redesign §6.5: each history table rides in a
+// rounded card with an inner horizontal-scroll wrap, so a wide
+// figure scrolls instead of clipping under the pane's overflow.
+function historyTableCardHtml(tableHtml, label) {
+  if (!tableHtml) return '';
+  return `<div class="fhl-table-card"><div class="statement-table-wrap" tabindex="0" aria-label="${escapeHtml(label)}">${tableHtml}</div></div>`;
+}
+// DS §10.2: the footer row highlights settled green / owed red,
+// from the balance cell it already carries.
+function markHistoryTableFooter(host) {
+  if (!host || !host.querySelectorAll) return;
+  host.querySelectorAll('tfoot tr').forEach((row) => {
+    const balanceCell = row.querySelector('.balance-num');
+    if (!balanceCell) return;
+    if (balanceCell.classList.contains('is-due')) row.classList.add('fhl-footer-due');
+    if (balanceCell.classList.contains('is-settled')) row.classList.add('fhl-footer-settled');
+  });
+}
 function renderFullHistory(customer) {
   const host = $('#fhlFullHistoryList');
   if (!host) return;
+  // Billing & ledger redesign §1.6: a filter left on for customer A
+  // must not silently apply to customer B — the six filter values
+  // reset when the profile opens for a different customer. The
+  // filter hosts below re-read the current control values before
+  // re-rendering, so the old controls are cleared first; otherwise
+  // the re-read would restore the stale choice.
+  if (lastFullHistoryCustomerId !== undefined && lastFullHistoryCustomerId !== customer.id) {
+    fullHistoryTypeFilter = 'all';
+    fullHistoryDateFrom = '';
+    fullHistoryDateTo = '';
+    fullHistoryMethodFilter = 'all';
+    fullHistoryAmountSearch = '';
+    fullHistoryDisputedFilter = 'all';
+    fullHistoryConnectionFilter = 'all';
+    for (const filterHostId of ['#htfHistoryTypeFilterHost', '#hdrHistoryDateRangeHost', '#hmfHistoryMethodFilterHost', '#amtHistoryAmountSearchHost', '#hdfHistoryDisputedFlagHost', '#hcfHistoryConnectionFilterHost']) {
+      const filterHost = $(filterHostId);
+      if (filterHost) filterHost.innerHTML = '';
+    }
+  }
+  lastFullHistoryCustomerId = customer.id;
   const entries = fullHistoryEntries({
     customerId: customer.id,
     bills: customer.bills ?? [],
@@ -4814,6 +4869,36 @@ function renderFullHistory(customer) {
         : shown.some((entry) => entry.disputedCaseRef)
           ? historyDisputedFlagListHtml(shown)
           : fullHistoryListHtml(shown);
+  // Billing & ledger redesign §2: type distinction (a left border
+  // and a coloured type word), a prominent amount (12px label,
+  // 15px bold figure) and a short reference — as a presentation
+  // post-process over the fenced list HTML, so the list modules
+  // stay untouched. Rows stay in `shown` order, so row i is
+  // shown[i]; the Plan 422 row-tap and Plan 423 receipt button
+  // keep working because row count and order never change.
+  host.querySelectorAll('.payment-row').forEach((row, rowIndex) => {
+    const entry = shown[rowIndex];
+    if (!entry) return;
+    row.classList.add(historyEntryTypeClass(entry));
+    const amountEl = row.querySelector('.payment-amount');
+    if (amountEl) {
+      const parts = amountEl.textContent.split(' · ');
+      if (parts.length >= 2) {
+        const label = parts[0];
+        const amount = parts[1];
+        const rest = parts.slice(2).join(' · ');
+        amountEl.innerHTML = `<span class="hist-type-word">${escapeHtml(label)}</span> · <span class="hist-amount">${escapeHtml(amount)}</span>${rest ? ` · ${escapeHtml(rest)}` : ''}`;
+      }
+    }
+    const metaEl = row.querySelector('.payment-meta');
+    const shortRef = historyEntryShortRef(entry);
+    if (metaEl && shortRef) {
+      const refSpan = document.createElement('span');
+      refSpan.className = 'hist-ref';
+      refSpan.textContent = ` · Ref ${shortRef}`;
+      metaEl.appendChild(refSpan);
+    }
+  });
   // Plan 420 — History operator annotation on an old entry. One add
   // form under the list: pick a shown entry, write the note, who
   // wrote it, and the date. Only entries that can take a note are
@@ -4822,6 +4907,16 @@ function renderFullHistory(customer) {
   const annotationHost = $('#heaHistoryEntryAnnotation');
   if (annotationHost) {
     annotationHost.innerHTML = historyEntryAnnotationFormHtml(shown, entryAnnotations, customer.id, localDate());
+    // Billing & ledger redesign §7.2: each Entry option carries the
+    // entry's own running note ("Still owed PKR X" / "Credit PKR X"),
+    // so the operator picks the right entry without cross-checking.
+    const entrySelect = $('#heaHistoryEntryAnnotationEntry');
+    if (entrySelect) {
+      entrySelect.querySelectorAll('option').forEach((option) => {
+        const entry = shown.find((item) => historyEntryAnnotationKey(item) === option.value);
+        if (entry) option.textContent = `${option.textContent} · ${historyEntryRunningNoteText(entry)}`;
+      });
+    }
     const addButton = $('#heaHistoryEntryAnnotationAdd');
     if (addButton) addButton.addEventListener('click', () => {
       const entrySelect = $('#heaHistoryEntryAnnotationEntry');
@@ -4926,7 +5021,8 @@ function renderFullHistory(customer) {
   // entry's own running balance from the full history.
   const balanceHost = $('#hrbHistoryRunningBalance');
   if (balanceHost) {
-    balanceHost.innerHTML = historyRunningBalanceColumnHtml(shown, entries);
+    balanceHost.innerHTML = historyTableCardHtml(historyRunningBalanceColumnHtml(shown, entries), 'Running balance table');
+    markHistoryTableFooter(balanceHost);
   }
   // Plan 407 — History monthly grouping with subtotals. One monthly
   // grouping of the customer history, alongside the running-balance
@@ -4934,7 +5030,8 @@ function renderFullHistory(customer) {
   // the same shown rows as the list, so the filters apply to it too.
   const groupingHost = $('#hmgHistoryMonthlyGrouping');
   if (groupingHost) {
-    groupingHost.innerHTML = historyMonthlyGroupingHtml(shown, entries);
+    groupingHost.innerHTML = historyTableCardHtml(historyMonthlyGroupingHtml(shown, entries), 'Monthly grouping table');
+    markHistoryTableFooter(groupingHost);
   }
   // Plan 408 — History yearly summary per customer. One yearly
   // summary of the customer history, alongside the monthly
@@ -5139,6 +5236,69 @@ function renderFullHistory(customer) {
           ? fullHistorySummaryText(entries)
           : historyTypeFilterSummaryText(shown, entries, fullHistoryTypeFilter));
   }
+  // Billing & ledger redesign §1.3/§1.4/§1.5: Reset All Filters
+  // (visible but disabled while no filter is active, so the operator
+  // always sees where to clear from), the filtered summary headline
+  // over the shown rows (full-history totals while unfiltered,
+  // filtered totals while a filter is active) and the type legend.
+  const clearAllFiltersButton = $('#fhlClearAllFilters');
+  if (clearAllFiltersButton) {
+    if (!clearAllFiltersButton.dataset.wired) {
+      clearAllFiltersButton.dataset.wired = 'true';
+      clearAllFiltersButton.addEventListener('click', () => {
+        fullHistoryTypeFilter = 'all';
+        fullHistoryDateFrom = '';
+        fullHistoryDateTo = '';
+        fullHistoryMethodFilter = 'all';
+        fullHistoryAmountSearch = '';
+        fullHistoryDisputedFilter = 'all';
+        fullHistoryConnectionFilter = 'all';
+        const currentCustomer = selectedCustomer();
+        if (currentCustomer) renderFullHistory(currentCustomer);
+      });
+    }
+    clearAllFiltersButton.disabled = !(fullHistoryTypeFilter !== 'all'
+      || historyDateRangeActive(fullHistoryDateFrom, fullHistoryDateTo)
+      || fullHistoryMethodFilter !== 'all'
+      || fullHistoryAmountSearch !== ''
+      || fullHistoryDisputedFilter !== 'all'
+      || fullHistoryConnectionFilter !== HISTORY_CONNECTION_FILTER_ALL);
+  }
+  const filteredSummary = $('#fhlFilteredSummary');
+  if (filteredSummary) {
+    filteredSummary.hidden = entries.length === 0;
+    if (entries.length > 0) filteredSummary.textContent = filteredHistorySummaryText(shown);
+  }
+  const historyLegend = $('#fhlHistoryLegend');
+  if (historyLegend) {
+    historyLegend.hidden = shown.length === 0;
+    if (shown.length > 0) historyLegend.textContent = historyTypeLegendText(shown);
+  }
+}
+// Billing & ledger redesign §3.2: progressive disclosure on the
+// Record Actual Payment form. A blank method shows the Cash group
+// (the form opens there until a method is picked); the Digital
+// group shows only for a digital method; the third-party group
+// shows once any method is picked. The large-cash pair shows only
+// while the typed amount exceeds the threshold. Hidden cells keep
+// their DOM values (nothing is cleared on hide); the submit drops
+// the mismatched values instead (§3.3).
+function updatePaymentMethodGroups(form) {
+  if (!form || !form.querySelector) return;
+  const method = form.querySelector('[name="method"]')?.value || '';
+  const group = paymentMethodGroup(method);
+  const amountCents = Math.round(Number(form.querySelector('[name="amount"]')?.value || 0) * 100);
+  const thresholdCents = Math.round(Number(form.querySelector('[name="largeCashThreshold"]')?.value || 0) * 100);
+  const showLargeCash = group === 'cash' && requiresLargeCashApproval(true, amountCents, thresholdCents);
+  form.querySelectorAll('[data-pay-group]').forEach((cell) => {
+    const cellGroup = cell.getAttribute('data-pay-group');
+    let show = true;
+    if (cellGroup === 'cash') show = group === 'cash';
+    else if (cellGroup === 'digital') show = group === 'digital';
+    else if (cellGroup === 'thirdparty') show = method !== '';
+    if (cell.hasAttribute('data-pay-large-cash')) show = show && showLargeCash;
+    cell.hidden = !show;
+  });
 }
 function renderHistory(customer) {
   const monthList = monthsForHistory();
@@ -5182,7 +5342,7 @@ function renderHistory(customer) {
       // the count only; the previous values live on the payment record
       // (correctionHistory) and travel in backups.
       const correctionMarkup = Array.isArray(payment.correctionHistory) && payment.correctionHistory.length > 0 ? ` <span class="correction-badge">Corrected ×${payment.correctionHistory.length}</span>` : '';
-      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}${discountMarkup}${waiverMarkup}${advanceMarkup}${splitMarkup}${correctionMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentMethodDetailMarkup(payment)}${profilePaymentPayerMarkup(payment)}${profilePaymentSenderMarkup(payment)}${profilePaymentCollectionMarkup(payment)}${profileSameDayCorrectionMarkup(payment)}${profileReversalLinkMarkup(payment, customer)}${profileOverpaymentChoiceMarkup(payment)}${profileExcessCashNoteMarkup(payment)}${profileLargeCashApprovalMarkup(payment)}${profileCategoryTagMarkup(payment)}${profilePromisePaymentLinkMarkup(payment)}${payment.note ? ` · ${escapeHtml(payment.note)}` : ''}${profileUrduNoteMarkup(payment)}${profileCrossPaymentMarkup(payment)}</span>${allocation}</span><span class="payment-actions">${paymentProofButtonMarkup(customer.id, month, payment)}${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, status:receiptData.status, voided:payment.voided === true, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null, arrearsBreakdown:buildArrearsBreakdown(customer, bill), fifoAllocation:receiptData.fifoAllocation, fifoRemaining:receiptData.fifoRemaining, fifoShow:receiptData.fifoShow, ticketCharges:receiptData.ticketCharges, salesTaxCents:receiptData.salesTaxCents, area:receiptData.area, advanceCredit:receiptData.advanceCredit, contributorSplit:receiptData.contributorSplit, waivedAmount:receiptData.waivedAmount, previousPayments:receiptData.previousPayments, ...autoPackageFieldForDraft(payment) })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_print_receipt_aria', null, { number: customer.customerNumber, date: payment.date })}">${t('prof_hist_print_receipt')}</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip80_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip80')}</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip58_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip58')}</button>${pngReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}${profileBluetoothReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_edit_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_edit_pay')}</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_delete_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_delete_pay')}</button>${channelActionMarkup(payment, { customerId: customer.id, month })}<button class="void-payment" type="button" data-void-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_void_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_void_pay')}</button></span></li>`;    }).join('');
+      return `<li class="payment-row" data-payment-row="${escapeHtml(payment.id)}"><span class="payment-main"><span class="payment-amount">${escapeHtml(t('prof_hist_receipt_amount', null, { amount: formatAmount(payment.amount) }))}${discountMarkup}${waiverMarkup}${advanceMarkup}${splitMarkup}${correctionMarkup}</span><span class="payment-meta">${escapeHtml(humanDate(payment.date))} · ${escapeHtml(payment.method)}${profilePaymentMethodDetailMarkup(payment)}${profilePaymentPayerMarkup(payment)}${profilePaymentSenderMarkup(payment)}${profilePaymentCollectionMarkup(payment)}${profileSameDayCorrectionMarkup(payment)}${profileReversalLinkMarkup(payment, customer)}${profileOverpaymentChoiceMarkup(payment)}${profileExcessCashNoteMarkup(payment)}${profileLargeCashApprovalMarkup(payment)}${profileCategoryTagMarkup(payment)}${profilePromisePaymentLinkMarkup(payment)}${payment.note ? ` · ${escapeHtml(payment.note)}` : ''}${profileUrduNoteMarkup(payment)}${profileCrossPaymentMarkup(payment)}</span>${allocation}</span><span class="payment-actions"><span class="receipt-primary">${paymentProofButtonMarkup(customer.id, month, payment)}${receiptWhatsAppActionMarkup(customer, { customerId:customer.id, date:payment.date, amount:payment.amount, method:payment.method, paidBy:payment.paidBy, month, paymentId:payment.id, billStatus:receiptData.status === 'PAID' ? 'paid' : receiptData.status === 'PARTIAL' ? 'partial' : null, status:receiptData.status, voided:payment.voided === true, billAmount:receiptData.nominalPrice, balanceDueCents:receiptData.balanceDueCents, billDueDate:bill?.dueDate ?? null, arrearsBreakdown:buildArrearsBreakdown(customer, bill), fifoAllocation:receiptData.fifoAllocation, fifoRemaining:receiptData.fifoRemaining, fifoShow:receiptData.fifoShow, ticketCharges:receiptData.ticketCharges, salesTaxCents:receiptData.salesTaxCents, area:receiptData.area, advanceCredit:receiptData.advanceCredit, contributorSplit:receiptData.contributorSplit, waivedAmount:receiptData.waivedAmount, previousPayments:receiptData.previousPayments, ...autoPackageFieldForDraft(payment) })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_print_receipt_aria', null, { number: customer.customerNumber, date: payment.date })}">${t('prof_hist_print_receipt')}</button></span><details class="receipt-more-actions"><summary>${t('nav_more')}</summary><span class="receipt-more-body"><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip80_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip80')}</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(customer.id)}" data-month="${escapeHtml(month)}" data-payment-id="${escapeHtml(payment.id)}" aria-label="${t('prof_hist_slip58_aria', null, { number: customer.customerNumber })}">${t('prof_hist_slip58')}</button>${pngReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}${profileBluetoothReceiptButtonMarkup(customer.id, month, payment.id, customer.customerNumber)}<button class="edit-payment" type="button" data-edit-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_edit_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_edit_pay')}</button><button class="delete-payment" type="button" data-delete-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_delete_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_delete_pay')}</button>${channelActionMarkup(payment, { customerId: customer.id, month })}<button class="void-payment" type="button" data-void-payment="${escapeHtml(payment.id)}" data-customer-id="${escapeHtml(customer.id)}" data-month="${month}" aria-label="${t('prof_hist_void_pay_aria', null, { number: customer.customerNumber })}">${t('prof_hist_void_pay')}</button></span></details></span></li>`;    }).join('');
     const statusValue = status.value;
     const due = bill?.dueAmount ?? '';
     const hasPartial = statusValue === 'partial';
@@ -5228,7 +5388,7 @@ function renderHistory(customer) {
     const savedPackage = validateBillPackageSnapshot(bill?.packageSnapshot);
     const packageSelector = billPackageSelectorMarkup(bill, month);
     const archivedWithoutBill = customer.archived && !bill;
-    const formsMarkup = archivedWithoutBill ? `<p class="notice">${t('prof_hist_archived_notice')}</p>` : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? t('prof_hist_bill_update') : t('prof_hist_bill_record')}</h4><div class="form-grid">${packageSelector}<div class="form-cell"><label class="field-label full" for="due-${month}">${t('prof_hist_bill_amount_label')} <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}></div><div class="form-cell"><label class="field-label full" for="due-date-${month}">${t('prof_hist_due_date_label')}</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"></div><p class="field-help full">${t('prof_hist_due_help')}</p><button class="primary-button" type="submit">${bill ? t('prof_hist_bill_save') : t('prof_hist_bill_record_btn')}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>${t('prof_hist_pay_title')}</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">${t('prof_hist_pay_guidance')}</p><div class="form-grid"><div class="form-cell"><label class="field-label full" for="amount-${month}">${t('prof_hist_pay_amount_label')}</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_amount_ph')}" required></div><div class="form-cell"><label class="field-label full" for="method-${month}">${t('prof_hist_pay_method_label')}</label><select id="method-${month}" class="full" name="method" required><option value="">${t('prof_hist_pay_method_choose')}</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select></div>${billMonthSelectorFieldMarkup(`bms-${month}`, monthsForHistory(), month)}<div class="form-cell">${paidByFieldMarkup(`paid-by-${month}`)}</div>${collectionPlaceNoteFieldsMarkup(`cpl-${month}`)}${urduNoteFieldMarkup(`urn-${month}`)}${crossPaymentNoteFieldsMarkup(`xpn-${month}`, customer.id, state.customers)}${largeCashApprovalFieldsMarkup(`lca-${month}`)}${categoryTagFieldMarkup(`ctg-${month}`)}${promisePaymentLinkFieldMarkup(`ppl-${month}`, customer)}<div class="form-cell"><label class="field-label full" for="date-${month}">${t('prof_hist_pay_date_label')}</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required></div><div class="form-cell"><label class="field-label full" for="txnid-${month}">${t('prof_hist_pay_txn_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="${t('prof_hist_pay_txn_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-name-${month}">${t('spay_sender_name_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-name-${month}" class="full" name="senderTitle" type="text" maxlength="100" placeholder="${t('spay_sender_name_ph')}"></div><div class="form-cell"><label class="field-label full" for="sender-digits-${month}">${t('spay_sender_digits_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-digits-${month}" class="full" name="senderDigits" type="text" inputmode="numeric" maxlength="19" placeholder="${t('spay_sender_digits_ph')}"></div><div class="form-cell"><label class="field-label full" for="proof-${month}">${t('proof_attach_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="proof-${month}" class="full" name="proofScreenshot" type="file" accept="image/*"></div><div class="form-cell"><label class="field-label full" for="discount-${month}">${t('prof_hist_pay_discount_label')} <span class="optional-label">${t('prof_hist_discount_opt')}</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_discount_ph')}"></div><label class="field-label full" for="discount-reason-${month}">${t('prof_hist_pay_discount_reason')} <span class="optional-label">${t('prof_optional')}</span></label><input id="discount-reason-${month}" class="full" name="discountReason" type="text" maxlength="100" placeholder="${t('prof_hist_pay_discount_reason_ph')}">${billKistTotal(bill) > 0 ? `<label class="field-label full"><input type="checkbox" name="fifoPrioritizeKist"> ${t('prof_hist_fifo_first')} <span class="optional-label">${t('prof_hist_fifo_first_note')}</span></label>` : ''}<div class="profile-remwaada-row full" id="profile-remwaada-${month}" hidden></div></div><button class="primary-button" type="submit">${t('prof_hist_pay_submit')}</button></form></div>`;
+    const formsMarkup = archivedWithoutBill ? `<p class="notice">${t('prof_hist_archived_notice')}</p>` : `<div class="month-forms"><form class="form-card bill-form" data-kind="bill" data-month="${month}"><h4>${bill ? t('prof_hist_bill_update') : t('prof_hist_bill_record')}</h4><div class="form-grid">${packageSelector}<div class="form-cell"><label class="field-label full" for="due-${month}">${t('prof_hist_bill_amount_label')} <span class="optional-label">${amountLabel}</span></label><input id="due-${month}" class="full" name="dueAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${amountPlaceholder}" value="${escapeHtml(due)}" ${amountRequired} ${savedPackage ? 'readonly' : ''}></div><div class="form-cell"><label class="field-label full" for="due-date-${month}">${t('prof_hist_due_date_label')}</label><input id="due-date-${month}" class="full" name="dueDate" type="date" value="${escapeHtml(bill?.dueDate ?? '')}"></div><p class="field-help full">${t('prof_hist_due_help')}</p><button class="primary-button" type="submit">${bill ? t('prof_hist_bill_save') : t('prof_hist_bill_record_btn')}</button></div></form><form class="form-card payment-form" data-kind="payment" data-month="${month}"><h4>${t('prof_hist_pay_title')}</h4><p class="field-help payment-guidance" id="payment-guidance-${month}" role="status">${t('prof_hist_pay_guidance')}</p><div class="form-grid"><div class="form-cell" data-pay-group="always"><label class="field-label full" for="amount-${month}">${t('prof_hist_pay_amount_label')}</label><input id="amount-${month}" class="full" name="amount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_amount_ph')}" required></div><div class="form-cell" data-pay-group="always"><label class="field-label full" for="method-${month}">${t('prof_hist_pay_method_label')}</label><select id="method-${month}" class="full" name="method" required><option value="">${t('prof_hist_pay_method_choose')}</option>${PAYMENT_METHODS.map(method => `<option value="${method}">${method}</option>`).join('')}</select></div>${billMonthSelectorFieldMarkup(`bms-${month}`, monthsForHistory(), month, 'always')}<div class="form-cell" data-pay-group="always"><label class="field-label full" for="date-${month}">${t('prof_hist_pay_date_label')}</label><input id="date-${month}" class="full" name="date" type="date" max="${localDate()}" required></div><div class="form-cell" data-pay-group="cash">${paidByFieldMarkup(`paid-by-${month}`)}</div><div class="form-cell" data-pay-group="digital"><label class="field-label full" for="txnid-${month}">${t('prof_hist_pay_txn_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="txnid-${month}" class="full" name="transactionId" type="text" maxlength="64" placeholder="${t('prof_hist_pay_txn_ph')}"></div><div class="form-cell" data-pay-group="digital"><label class="field-label full" for="sender-name-${month}">${t('spay_sender_name_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-name-${month}" class="full" name="senderTitle" type="text" maxlength="100" placeholder="${t('spay_sender_name_ph')}"></div><div class="form-cell" data-pay-group="digital"><label class="field-label full" for="sender-digits-${month}">${t('spay_sender_digits_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="sender-digits-${month}" class="full" name="senderDigits" type="text" inputmode="numeric" maxlength="19" placeholder="${t('spay_sender_digits_ph')}"></div><div class="form-cell" data-pay-group="digital"><label class="field-label full" for="proof-${month}">${t('proof_attach_label')} <span class="optional-label">${t('prof_optional')}</span></label><input id="proof-${month}" class="full" name="proofScreenshot" type="file" accept="image/*"></div><details class="pay-optional-details" data-pay-optional><summary>${t('pay_optional_details')}</summary><div class="pay-optional-body">${crossPaymentNoteFieldsMarkup(`xpn-${month}`, customer.id, state.customers, 'thirdparty')}${collectionPlaceNoteFieldsMarkup(`cpl-${month}`, undefined, 'cash')}${largeCashApprovalFieldsMarkup(`lca-${month}`, 'cash')}${categoryTagFieldMarkup(`ctg-${month}`, 'always')}</div></details>${urduNoteFieldMarkup(`urn-${month}`, undefined, 'always')}<div class="form-cell" data-pay-group="always"><label class="field-label full" for="discount-${month}">${t('prof_hist_pay_discount_label')} <span class="optional-label">${t('prof_hist_discount_opt')}</span></label><input id="discount-${month}" class="full" name="discount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="${t('prof_hist_pay_discount_ph')}"></div><label class="field-label full" data-pay-group="always" for="discount-reason-${month}">${t('prof_hist_pay_discount_reason')} <span class="optional-label">${t('prof_optional')}</span></label><input id="discount-reason-${month}" class="full" data-pay-group="always" name="discountReason" type="text" maxlength="100" placeholder="${t('prof_hist_pay_discount_reason_ph')}">${billKistTotal(bill) > 0 ? `<label class="field-label full" data-pay-group="always"><input type="checkbox" name="fifoPrioritizeKist"> ${t('prof_hist_fifo_first')} <span class="optional-label">${t('prof_hist_fifo_first_note')}</span></label>` : ''}${promisePaymentLinkFieldMarkup(`ppl-${month}`, customer, 'always')}<div class="profile-remwaada-row full" id="profile-remwaada-${month}" hidden></div></div><button class="primary-button" type="submit">${t('prof_hist_pay_submit')}</button></form></div>`;
     return `<details class="month-card" data-month-card="${month}" ${isOpen ? 'open' : ''}><summary><span class="month-label">${escapeHtml(displayMonthName(month))}</span><span class="history-count">${bill ? ((bill.payments?.length ?? 0) === 1 ? t('prof_hist_payments_1', null, { count: bill.payments?.length ?? 0 }) : t('prof_hist_payments_n', null, { count: bill.payments?.length ?? 0 })) : ''}</span><span class="month-status ${status.className}">${status.label}</span></summary><div class="month-body">${summaryMarkup}${formsMarkup}<ul class="payment-list" aria-label="${t('prof_hist_payments_for', null, { month: displayMonthName(month) })}">${payments}</ul></div></details>`;
   }).join('');
   // Polish #11: the month summary's tax line follows the bill form
@@ -5286,6 +5446,17 @@ function renderHistory(customer) {
   }));
   historyContainer.querySelectorAll('form[data-kind="payment"]').forEach(form => {
     form.addEventListener('submit', onPaymentSubmit);
+    // Billing & ledger redesign §3: progressive disclosure by
+    // method — applied on load and on every method, amount or
+    // threshold change, so the large-cash pair appears the moment
+    // the typed amount crosses the threshold.
+    updatePaymentMethodGroups(form);
+    const methodSelect = form.querySelector('[name="method"]');
+    if (methodSelect) methodSelect.addEventListener('change', () => updatePaymentMethodGroups(form));
+    const amountField = form.querySelector('[name="amount"]');
+    if (amountField) amountField.addEventListener('input', () => updatePaymentMethodGroups(form));
+    const thresholdField = form.querySelector('[name="largeCashThreshold"]');
+    if (thresholdField) thresholdField.addEventListener('input', () => updatePaymentMethodGroups(form));
     // Polish #16: smart field guidance — a live hint under a field when
     // its value looks wrong for that field (a phone number as a mohalla,
     // digits as a name, letters in the last-4-digits). Hints never block
@@ -5904,7 +6075,7 @@ function renderTransactions() {
     // badge used to widen it and ellipsize the customer name ("#35 RA...").
     const advanceBadge = transaction.isAdvance ? `<span class="advance-badge">${transaction.targetMonth ? `${t('adv_badge')} · ${escapeHtml(t('adv_target_suffix', null, { month: displayMonthName(transaction.targetMonth) }))}` : t('adv_badge')}</span>` : '';
     const splitBadge = savedPayment ? splitBadgeMarkup(savedPayment) : '';
-    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${referenceSearch.active ? ledgerReferenceClearanceSuffix(referenceClearances, transaction.paymentId) : ''}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, status: receiptData?.status ?? null, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], salesTaxCents:receiptData?.salesTaxCents ?? null, area:receiptData?.area ?? null, advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)), ...autoPackageFieldForDraft(savedPayment) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</div></div></li>`;  }).join('');
+    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${referenceSearch.active ? ledgerReferenceClearanceSuffix(referenceClearances, transaction.paymentId) : ''}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions"><span class="receipt-primary">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, status: receiptData?.status ?? null, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], salesTaxCents:receiptData?.salesTaxCents ?? null, area:receiptData?.area ?? null, advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)), ...autoPackageFieldForDraft(savedPayment) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button></span><details class="receipt-more-actions"><summary>${t('nav_more')}</summary><span class="receipt-more-body"><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</span></details></div></div></li>`;  }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
   transactionList.querySelectorAll('[data-transaction-void]').forEach(button => button.addEventListener('click', () => openVoidPaymentDialog(button.dataset.customerId, button.dataset.month, button.dataset.transactionVoid)));
@@ -5913,6 +6084,10 @@ function renderTransactions() {
   transactionList.querySelectorAll('[data-print-thermal-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { isThermal: true })));
   transactionList.querySelectorAll('[data-print-thermal58-receipt]').forEach(button => button.addEventListener('click', () => printPaymentReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId, { format: 'thermal-58' })));
   transactionList.querySelectorAll('[data-print-bluetooth-receipt]').forEach(button => button.addEventListener('click', () => printBluetoothReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
+  // Billing & ledger redesign §5.2: PNG receipt on Transactions
+  // cards, the same downloadPngReceipt the profile history buttons
+  // already use — the button was never rendered here before.
+  transactionList.querySelectorAll('[data-png-receipt]').forEach(button => button.addEventListener('click', () => downloadPngReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   transactionList.querySelectorAll('[data-view-proof]').forEach(button => button.addEventListener('click', () => openPaymentProofDialog(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   bindReceiptPhoneActions(transactionList);
 }
@@ -10663,6 +10838,12 @@ function onBillSubmit(event) {
   }
   catch (error) { toast(error.message); }
 }
+// Billing & ledger redesign §9 (user-locked): Plan 437's double-
+// submit guard, extended from Quick Collect to this profile payment
+// form. The key names the payment, so a second tap for the same
+// payment while the first save is still running is ignored, while a
+// later, different payment still saves.
+const profilePaymentSaveGuard = createDoubleTapSaveGuard();
 async function onPaymentSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
@@ -10672,6 +10853,18 @@ async function onPaymentSubmit(event) {
   // with no choice lands exactly where it always did.
   const payMonth = billMonthChoiceOf(data, form.dataset.month);
   const submitBtn = form.querySelector('button[type="submit"]');
+  // Billing & ledger redesign §9: the guard starts BEFORE try — a
+  // return inside try still runs the finally below, so starting it
+  // inside try would clear the in-flight guard on a validation
+  // return and let a second tap through.
+  const profileSaveGuardKey = doubleTapSaveGuardKey({
+    customerId,
+    amount: data.get('amount'),
+    method: data.get('method'),
+    month: payMonth,
+    date: data.get('date'),
+  });
+  if (!doubleTapSaveGuardTryStart(profilePaymentSaveGuard, profileSaveGuardKey)) return;
   try {
     // Advance guard (owner rule): a normal payment is never recorded
     // against an already-paid bill — money received early goes through
@@ -10680,8 +10873,14 @@ async function onPaymentSubmit(event) {
       toast(t('adv_blocked_paid'), { type: 'error', title: 'Payment not saved' });
       return;
     }
+    // Billing & ledger redesign §3.3: the method group decides
+    // which fields exist on this submit. A TID or a proof is only
+    // checked for a digital method; a cash payment with a stale TID
+    // typed before switching methods keeps its history clean.
+    const payMethod = String(data.get('method') || '');
+    const payIsDigital = paymentMethodGroup(payMethod) === 'digital';
     const txnId = (data.get('transactionId') || '').trim();
-    if (txnId) {
+    if (payIsDigital && txnId) {
       const dup = findDuplicatePaymentReference(state, txnId);
       if (dup) {
         if (!(await duplicateTxnConfirm(txnId, dup))) { form.querySelector('[name="transactionId"]')?.focus(); return; }
@@ -10705,7 +10904,7 @@ async function onPaymentSubmit(event) {
     // a clear message — the ledger's storage quota is never gambled.
     let proofScreenshot;
     const proofFile = data.get('proofScreenshot');
-    if (proofFile && typeof proofFile === 'object' && Number(proofFile.size) > 0) {
+    if (payIsDigital && proofFile && typeof proofFile === 'object' && Number(proofFile.size) > 0) {
       try { proofScreenshot = await compressPaymentProofImage(proofFile); }
       catch { toast(t('proof_too_large'), { type: 'error', title: 'Payment not saved' }); return; }
     }
@@ -10724,7 +10923,13 @@ async function onPaymentSubmit(event) {
     if (submitBtn) { submitBtn.disabled = true; submitBtn.setAttribute('aria-busy', 'true'); }
     const beforeIds = new Set((state.customers.find(c => c.id === customerId)?.bills.find(b => b.month === payMonth)?.payments || []).map(p => p.id));
     const stateBeforePayment = state;
-    state = addPayment(state, customerId, payMonth, {
+    // Billing & ledger redesign §3.3: the mismatched group is
+    // dropped at the submit — a cash payment never stores a TID, a
+    // sender, or a screenshot typed before the method changed, and a
+    // digital payment never stores a payer or collection note. The
+    // visible fields keep their DOM values; only the saved record is
+    // filtered, so a method switch back restores the typed values.
+    state = addPayment(state, customerId, payMonth, filterPaymentFormFieldsForMethod(payMethod, {
       date: data.get('date'),
       amount: data.get('amount'),
       method: data.get('method'),
@@ -10762,7 +10967,7 @@ async function onPaymentSubmit(event) {
       senderTitle: (data.get('senderTitle') || '').trim() || undefined,
       senderDigits: (data.get('senderDigits') || '').trim() || undefined,
       screenshot: proofScreenshot
-    });
+    }));
     // SISP-33: FIFO payment-event effects — record the operator's kist
     // toggle choice and, when this payment fully covers the month's kist,
     // advance stored monthsPaid. Runs once per submit, before save, and
@@ -10826,7 +11031,7 @@ async function onPaymentSubmit(event) {
     }
   }
   catch (error) { toast(paymentSaveErrorMessage(error), { type:'error', title:'Payment not saved' }); }
-  finally { if (submitBtn && submitBtn.isConnected) { submitBtn.disabled = false; submitBtn.removeAttribute('aria-busy'); } }
+  finally { doubleTapSaveGuardFinish(profilePaymentSaveGuard); if (submitBtn && submitBtn.isConnected) { submitBtn.disabled = false; submitBtn.removeAttribute('aria-busy'); } }
 }
 function correctionForm(payment, customerId, month, origin) {
   const options = PAYMENT_METHODS.map(method => `<option value="${method}" ${method === payment.method ? 'selected' : ''}>${method}</option>`).join('');

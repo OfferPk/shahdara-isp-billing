@@ -69,6 +69,13 @@ const DS_ICON_PATHS = Object.freeze({
   Image: "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\" /> <circle cx=\"9\" cy=\"9\" r=\"2\" /> <path d=\"m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21\" />",
   Copy: "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\" /> <path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\" />",
   Info: "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M12 16v-4\" /> <path d=\"M12 8h.01\" />",
+  /* Live visual bugs (Nov 2026): the topbar language toggle and the
+   * field-mode toggle still showed 3D emoji. Globe is Lucide's globe
+   * (same paths as the inline globe already used by the Optical Signal
+   * Map drawer button); Bike is Lucide's bike, the closest Lucide
+   * glyph to the field-mode motorcycle. Same 24x24 stroke set. */
+  Globe: "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20\" /> <path d=\"M2 12h20\" />",
+  Bike: "<circle cx=\"18.5\" cy=\"17.5\" r=\"3.5\" /> <circle cx=\"5.5\" cy=\"17.5\" r=\"3.5\" /> <circle cx=\"15\" cy=\"5\" r=\"1\" /> <path d=\"M12 17.5V14l-3-3 4-3 2 3h2\" />",
 });
 
 export const DS_ICON_NAMES = Object.freeze(Object.keys(DS_ICON_PATHS));

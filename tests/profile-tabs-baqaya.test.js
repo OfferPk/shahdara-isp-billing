@@ -24,6 +24,13 @@
 // measured at 360px, the tab top after scrolling 600px went from
 // -430px (gone) to 56px (stuck).
 //
+// Nov 2026 (live visual bugs): the "(3 months)" count moved off Tab 1
+// into the Billing panel header, so the counted-EN 70px scroll above
+// is gone when no complaint is open; the tab numbers carry the user's
+// middle dot ("1· Billing") with a 4px gap, and the tab-bar scrollbar
+// is hidden. The complaints count still sits on Tab 3 when open
+// complaints exist.
+//
 // Synthetic data only; no real customer names or phone numbers.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,10 +42,12 @@ const dir = dirname(fileURLToPath(import.meta.url));
 const read = (name) => readFileSync(join(dir, '..', name), 'utf8');
 
 const TABS = [
-  ['profileTabBilling', 'profilePanelBilling', '1', 'Billing'],
-  ['profileTabInfo', 'profilePanelInfo', '2', 'Info'],
-  ['profileTabComplaints', 'profilePanelComplaints', '3', 'Complaints'],
-  ['profileTabBaqaya', 'profilePanelBaqaya', '4', 'Baqaya'],
+  // Live visual bugs (Nov 2026): the number span carries the user's
+  // middle dot — "1· Billing", "2· Info", "3· Complaints", "4· Baqaya".
+  ['profileTabBilling', 'profilePanelBilling', '1·', 'Billing'],
+  ['profileTabInfo', 'profilePanelInfo', '2·', 'Info'],
+  ['profileTabComplaints', 'profilePanelComplaints', '3·', 'Complaints'],
+  ['profileTabBaqaya', 'profilePanelBaqaya', '4·', 'Baqaya'],
 ];
 
 test('profile tabs: the Baqaya tab and panel exist and start hidden', () => {
@@ -91,7 +100,9 @@ test('profile tabs: counts rewrite the label span, never the button', () => {
   const start = app.indexOf('function updateProfileTabCounts(customer)');
   assert.notEqual(start, -1, 'updateProfileTabCounts must exist');
   const body = app.slice(start, app.indexOf('\nmountCustomerProfileContent();', start));
-  assert.ok(body.includes("$('#profileTabBilling .profile-tab-label')"), 'billing count targets the label span');
+  assert.ok(body.includes("$('#profileTabBilling .profile-tab-label')"), 'billing tab label is still set here');
+  assert.ok(body.includes("billingLabel.textContent = t('prof_tab_billing')"), 'billing tab is always the bare label — the count moved into the panel');
+  assert.ok(body.includes("$('#profileBillingMonthsCount')"), 'the months figure is written into the Billing panel header');
   assert.ok(body.includes("$('#profileTabComplaints .profile-tab-label')"), 'complaints count targets the label span');
   assert.ok(!body.includes("billingTab.textContent") && !body.includes("complaintsTab.textContent"),
     'no count write may touch the button textContent — that would wipe the number span');
@@ -121,14 +132,16 @@ test('profile tabs: the Baqaya label exists in both languages, Urdu script on th
   assert.ok(lang.includes("prof_tab_info: 'Info'"), 'EN Info tab label is the short form');
   assert.ok(lang.includes("prof_tab_billing: 'بلنگ'"), 'UR Billing tab label is the short form');
   assert.ok(lang.includes("prof_tab_info: 'معلومات'"), 'UR Info tab label is the short form');
-  assert.ok(lang.includes("prof_tab_billing_count: 'Billing ({count} months)'"), 'EN billing count follows the short label');
-  assert.ok(lang.includes("prof_tab_billing_count: 'بلنگ ({count} ماہ)'"), 'UR billing count follows the short label');
+  assert.ok(lang.includes("prof_billing_months_count: '{count} months'"), 'EN billing months figure lives in the panel, not on the tab');
+  assert.ok(lang.includes("prof_billing_months_count: '{count} ماہ'"), 'UR billing months figure lives in the panel, not on the tab');
 });
 
 test('profile tabs: number styling and the sticky fix exist', () => {
   const styles = read('styles.css');
-  assert.ok(styles.includes('.profile-tab-number{font-size:10px;font-weight:800;opacity:.75;margin-right:1px;flex:none}'),
-    'the number span is small, bold and muted');
+  assert.ok(styles.includes('.profile-tab-number{font-size:10px;font-weight:800;opacity:.75;margin-right:4px;flex:none}'),
+    'the number span is small, bold and muted, with a 4px gap to its label (1px glued them: "2Customer Info")');
+  assert.ok(styles.includes('scrollbar-width:none'), 'the tab bar hides its scrollbar (was a thick grey track on the phone)');
+  assert.ok(styles.includes('.profile-tabs::-webkit-scrollbar{display:none}'), 'the tab bar hides its WebKit scrollbar too');
   assert.ok(styles.includes('.profile-tabs{display:flex;gap:4px;'), 'the tab gap is tightened so four tabs fit');
   const profileUi = read('profile-ui.css');
   assert.ok(profileUi.includes('.customer-profile-card { overflow: clip; }'),

@@ -144,12 +144,13 @@ test('QC-1: a mark lands in both route stores and nowhere else', () => {
   assert.equal(record.note, 'Gate locked');
   assert.equal(getFieldRouteOutcomes(store, DATE)['cust-1'].outcome, 'not_home');
   assert.equal(getFieldRouteNotes(store, DATE)['cust-1'], 'Gate locked');
-  // No new store key: only the three pre-existing route keys were
-  // written (outcomes + notes + the progress sync write that every
-  // saveFieldRouteOutcome already performs).
+  // QC-8 why-comment: a mark now also writes the append-only visit
+  // log and the operator audit log (one field_visit entry) — that is
+  // the QC-8 design, not a leak. The pin's intent is unchanged: no
+  // payment, bill, dues or customer store is ever written by a mark.
   assert.deepEqual(
     store.keys().sort(),
-    ['shahdara_field_route_notes', 'shahdara_field_route_outcomes', 'shahdara_field_route_progress'],
+    ['shahdara_field_route_notes', 'shahdara_field_route_outcomes', 'shahdara_field_route_progress', 'shahdara_field_route_visit_log_v1', 'shahdara_operator_audit_log_v1'],
   );
   // No payment record, no dues change, no bill change.
   assert.equal(JSON.stringify(state), before);

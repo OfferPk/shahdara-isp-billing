@@ -35,8 +35,10 @@ test('Plan 31: audit catalogue covers exactly the seven plan actions, plus the P
   // switch to be recorded in this log. Plan 54 intentionally extends
   // it with one more, 'emergency_contact_edited', because Plan 54
   // acceptance requires every emergency-contact edit to be logged.
-  // No other Plan 31 behaviour changes.
-  assert.equal(AUDIT_ACTIONS.length, 10);
+  // QC-8 intentionally extends it with one more, 'field_visit',
+  // because QC-8 acceptance requires every field visit outcome to
+  // leave an audit trace. No other Plan 31 behaviour changes.
+  assert.equal(AUDIT_ACTIONS.length, 11);
   assert.deepEqual(AUDIT_ACTIONS.map((a) => a.value), [
     'payment_recorded',
     'payment_voided',
@@ -48,6 +50,7 @@ test('Plan 31: audit catalogue covers exactly the seven plan actions, plus the P
     'mode_switched',
     'emergency_contact_edited',
     'month_close_reopened',
+    'field_visit',
   ]);
   assert.equal(auditActionLabel('payment_voided'), 'Payment voided');
   assert.equal(auditActionLabel('waada_set'), 'Waada set');

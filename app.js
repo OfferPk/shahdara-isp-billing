@@ -294,7 +294,7 @@ import { canonicalCoverageMohalla, normalizeCoverageEstimate, upsertCoverageEsti
 import { normalizeReferral, upsertReferral, deriveReferralStatuses, buildReferralReport, referralSummaryText, referralReportHtml, referralReportCsv, referralReportFilename } from './referral-tracking.js';
 import { EXPANSION_STEP_IDS, buildExpansionChecklist, findExpansionChecklist, tickExpansionStep, untickExpansionStep, upsertExpansionChecklist, expansionSummaryText, expansionChecklistHtml, expansionChecklistCsv, expansionChecklistFilename } from './expansion-checklist.js';
 import { buildCampaign, findCampaign, upsertCampaign, removeCampaign, buildCampaignSummary, campaignSummaryText, campaignHtml, campaignCsv, campaignFilename } from './campaign-planner.js';
-import { AUDIT_ACTIONS, appendAuditEntry, normalizeAuditLog, filterAuditEntries, auditSummary, auditSummaryText, auditHtml, auditCsv, auditFilename } from './audit-log.js';
+import { AUDIT_ACTIONS, AUDIT_LOG_STORAGE_KEY, appendAuditEntry, normalizeAuditLog, filterAuditEntries, auditSummary, auditSummaryText, auditHtml, auditCsv, auditFilename } from './audit-log.js';
 import { validMonthlyAuditSummaryMonth, monthlyAuditSummaryMonthLabel, monthlyAuditMonths, monthlyAuditSummary, monthlyAuditSummaryText, monthlyAuditSummaryHtml, monthlyAuditSummaryCsv, monthlyAuditSummaryFilename } from './monthly-audit-summary.js';
 import { buildExportPack, exportPackSummaryText, exportPackHtml, exportPackCsv, exportPackJson, exportPackFilename } from './export-pack.js';
 import { normalizeOperatorMode, canPerformAction, viewAccess, requestModeSwitch, applyModeSwitch, operatorModeSummaryText, operatorModeHtml, operatorModeToggleLabel } from './operator-modes.js';
@@ -16522,7 +16522,10 @@ function renderCampaignPlanner() {
 // in Plan K's correctionHistory / the void log, and this entry says
 // when the action happened and which record it touched. The log never
 // changes a money total; it only records that an action happened.
-const AUDIT_LOG_KEY = 'shahdara_operator_audit_log_v1';
+// QC-8: the audit-log key lives in audit-log.js now (single source
+// of truth — the route outcome writer in nav-collection-rounds.js
+// uses the same key for its field_visit entries).
+const AUDIT_LOG_KEY = AUDIT_LOG_STORAGE_KEY;
 let auditLogBound = false;
 let auditLogFilterAction = '';
 let auditLogFilterDate = '';

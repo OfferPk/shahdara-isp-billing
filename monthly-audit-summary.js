@@ -56,6 +56,10 @@ const ACTION_LABELS = {
   mode_switched: 'Operator mode switched',
   emergency_contact_edited: 'Emergency contact edited',
   month_close_reopened: 'Month close reopened',
+  // QC-8: every field visit outcome leaves a field_visit audit
+  // entry, so the monthly summary must label it too — otherwise
+  // the summary would show the raw action value.
+  field_visit: 'Field visit recorded',
 };
 
 const KNOWN_ACTION_ORDER = [
@@ -69,6 +73,9 @@ const KNOWN_ACTION_ORDER = [
   'mode_switched',
   'emergency_contact_edited',
   'month_close_reopened',
+  // QC-8: the field_visit action sorts last, after the older
+  // actions, in the monthly summary's known-action order.
+  'field_visit',
 ];
 
 const NOT_RECORDED = 'Not recorded';

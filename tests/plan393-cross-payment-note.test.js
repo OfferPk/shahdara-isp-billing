@@ -300,7 +300,11 @@ test('Plan 393: app.js imports the note helpers and shows the note on both profi
 });
 
 test('Plan 393: the profile payment form carries the three cross-payment fields, and the submit passes the note', () => {
-  assert.equal(appSrc.includes('${crossPaymentNoteFieldsMarkup(`xpn-${month}`, customer.id, state.customers)}'), true);
+  // Billing & ledger redesign (2026-11-11): the builder call gains
+  // the 'thirdparty' group argument (the fields ride inside the
+  // collapsible Optional section); the three fields and the submit
+  // note are unchanged.
+  assert.equal(appSrc.includes('${crossPaymentNoteFieldsMarkup(`xpn-${month}`, customer.id, state.customers, \'thirdparty\')}'), true);
   assert.equal(appSrc.includes('name="crossPayerCustomerId"'), true);
   assert.equal(appSrc.includes('name="crossPayerName"'), true);
   assert.equal(appSrc.includes('name="crossRelationship"'), true);

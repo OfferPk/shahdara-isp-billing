@@ -2001,7 +2001,7 @@ export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MO
  * @param {Object} receipt
  * @returns {string}
  */
-export function renderQuickCollectReceiptCardHtml(receipt) {
+export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {}) {
   // Plan 565: the card reads the same canonical remaining figure as
   // the WhatsApp draft (payableRemaining ?? newTotalDues ??
   // newBalanceDue ?? 0) — payableRemaining is the most complete
@@ -2009,6 +2009,20 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
   // are the draft's own fallbacks. No finite-number guard here: a
   // non-finite figure is Plan 566's guard, not this plan's.
   const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
+  // BUT HOUSE fix: the card shows the customer's mobile number — the
+  // live-state resolution (whatsappPhone first, else the primary
+  // phone) passed in by the caller, falling back to the receipt's
+  // stamped primary phone, never the stamp alone: a whatsappPhone-only
+  // customer would otherwise read "Not saved". No usable number reads
+  // "Not saved" with an "Add number" button (only when the receipt
+  // carries a customerId — without one there is nobody to edit). The
+  // button is wired by delegation on the card container.
+  const displayPhone = String(whatsappPhone || '').trim() || String(receipt.phone || '').trim();
+  const phoneRow = `
+        <div class="qc-receipt-item" data-qc-receipt-phone>
+          <span class="qc-meta-label">Mobile Number</span>
+          ${displayPhone ? `<strong class="qc-meta-val">${escapeHtml(displayPhone)}</strong>` : `<strong class="qc-meta-val">Not saved</strong>${receipt.customerId ? `<button type="button" class="secondary-button" data-qc-add-phone>Add number</button>` : ''}`}
+        </div>`;
   const shared = isReceiptShared(receipt.id);
   const sharedBadge = renderReceiptSharedBadgeHtml(Boolean(shared?.shared), shared);
   // SISP-43: ticket charges settled by this receipt, one row per ticket.
@@ -2052,6 +2066,7 @@ export function renderQuickCollectReceiptCardHtml(receipt) {
           <span class="qc-meta-label">Customer</span>
           <strong class="qc-meta-val">${escapeHtml(receipt.customerName)} (#${escapeHtml(String(receipt.customerNumber))})</strong>
         </div>
+        ${phoneRow}
         ${receipt.connection ? `
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Connection</span>
@@ -2964,6 +2979,9 @@ export function setupQuickCollectModal({
   // Polish 4: true once the success card's area-select change listener
   // has been wired (setup runs once, but the flag keeps a re-run safe).
   let areaSelectWired = false;
+  // BUT HOUSE fix: true once the success card's "Add number" click
+  // listener has been wired (same once-only guard as the area select).
+  let addPhoneWired = false;
   let activeUndoContext = null;
   const UNDO_WINDOW_MS = 5000;
   let undoTimeoutId = null;
@@ -5526,9 +5544,15 @@ export function setupQuickCollectModal({
   // as the ordinary card, so an unassigned area can be picked right here.
   function renderActiveReceiptCard() {
     if (!receiptCardContainer || !activeReceipt) return;
+    // BUT HOUSE fix: resolve the receipt owner's WhatsApp number from
+    // live state (whatsappPhone first, else the primary phone) — the
+    // same resolution the WhatsApp draft uses — so the card shows the
+    // number even when the receipt's stamped primary phone is empty.
+    const receiptCustomer = getState()?.customers?.find(c => c.id === activeReceipt.customerId);
+    const receiptWhatsappPhone = receiptCustomer ? whatsappPhoneFor(receiptCustomer) : '';
     receiptCardContainer.innerHTML = activeReceipt.splitTender
       ? renderSplitReceiptCardHtml(activeReceipt.splitTender, quickCollectAreaSelectHtml(activeReceipt.splitTender.area))
-      : renderQuickCollectReceiptCardHtml(activeReceipt);
+      : renderQuickCollectReceiptCardHtml(activeReceipt, { whatsappPhone: receiptWhatsappPhone });
     // Plan 443: the card re-render refreshes the share draft too, so
     // an area change or a share never leaves a stale draft on screen.
     renderReceiptShareDraft();
@@ -5986,6 +6010,24 @@ export function setupQuickCollectModal({
         if (typeof onToast === 'function') onToast(err.message || t('qc_toast_area_update_failed'), { type: 'error' });
         renderActiveReceiptCard();
       }
+    });
+  }
+
+  // BUT HOUSE fix: the success card's "Add number" button opens the
+  // profile editor with the phone field focused — exactly the
+  // warnNoPhone toast action's path (close the modal, then
+  // onEditCustomer with focus 'phone' after 350ms, so the dialog's
+  // own history entry goes back first). Delegated on the card
+  // container like the area select above, so re-renders keep working.
+  if (receiptCardContainer && !addPhoneWired) {
+    addPhoneWired = true;
+    receiptCardContainer.addEventListener('click', (event) => {
+      const btn = event.target?.closest?.('[data-qc-add-phone]');
+      if (!btn || !activeReceipt?.customerId || typeof onEditCustomer !== 'function') return;
+      const customerId = activeReceipt.customerId;
+      closeModal();
+      // Let the dialog's own history entry go back first, then open the profile editor.
+      setTimeout(() => onEditCustomer(customerId, { focus: 'phone' }), 350);
     });
   }
 

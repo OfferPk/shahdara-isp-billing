@@ -510,16 +510,39 @@ body.drawer-open {
 
 .bottom-nav-badge {
   position: absolute;
-  top: 4px;
-  right: calc(50% - 24px);
-  min-width: 16px;
-  height: 16px;
+  top: 2px;
+  right: calc(50% - 26px);
+  min-width: 18px;
+  height: 18px;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--green, #0e5b4d);
-  color: #ffffff;
-  font: 800 9px/16px Manrope, system-ui, sans-serif;
+  background: var(--ds-brand);
+  color: var(--white);
+  font: 800 10px/18px Manrope, system-ui, sans-serif;
+  font-variant-numeric: var(--numeric);
   text-align: center;
+}
+
+/* DS-0: Lucide icons above the bottom-nav labels (22px) and in the
+   speed-dial menu (20px). The icons are injected by wireDsIcons()
+   (nav.js) into the [data-ds-icon] hooks; the hooks are empty spans
+   until then, so the labels render exactly as before without JS. */
+.bottom-nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  line-height: 0;
+}
+.bottom-nav-icon svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+.speed-action-icon svg {
+  display: block;
+  width: 20px;
+  height: 20px;
 }
 
 /* Floating Scroll to Top Button */
@@ -527,11 +550,11 @@ body.drawer-open {
   position: fixed;
   bottom: 74px;
   right: 18px;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: var(--green, #0e5b4d);
-  color: #ffffff;
+  background: var(--ds-brand);
+  color: var(--white);
   border: none;
   cursor: pointer;
   box-shadow: 0 6px 18px rgba(14, 91, 77, 0.35);
@@ -552,6 +575,16 @@ body.drawer-open {
   display: none;
 }
 
+/* DS-0: the 40px size is deliberate (brief §4.2). Two global 44px floors
+   would otherwise hold the button at 44px tall despite height: 40px:
+   the plain button floor (styles.css:798) and button:not([hidden])
+   with !important, which only matches once the button is shown — so
+   this override needs !important at higher specificity to win in the
+   visible state. */
+.scroll-top-button:not([hidden]) {
+  min-height: 40px !important;
+}
+
 .scroll-top-button.is-visible {
   opacity: 1;
   pointer-events: auto;
@@ -559,7 +592,7 @@ body.drawer-open {
 
 .scroll-top-button:hover {
   transform: translateY(-2px);
-  background: #094338;
+  background: var(--ds-brand-hover);
 }
 
 .scroll-top-button:active {
@@ -567,7 +600,7 @@ body.drawer-open {
 }
 
 .scroll-top-button:focus-visible {
-  outline: 3px solid #34d399;
+  outline: 3px solid var(--color-emerald-light);
   outline-offset: 2px;
 }
 
@@ -582,23 +615,23 @@ body.drawer-open {
 }
 
 .bottom-nav-badge.badge-alert {
-  background: #dc2626;
-  color: #ffffff;
+  background: var(--ds-danger-strong);
+  color: var(--white);
 }
 
 [data-theme="dark"] .bottom-nav-badge {
-  background: #10b981;
-  color: #0b1814;
+  background: var(--color-emerald);
+  color: var(--dk-bg);
 }
 
 [data-theme="dark"] .bottom-nav-badge.badge-alert {
-  background: #f87171;
-  color: #1a0505;
+  background: var(--ds-danger-strong);
+  color: var(--dk-bg);
 }
 
 [data-theme="dark"] .scroll-top-button {
-  background: #10b981;
-  color: #0b1814;
+  background: var(--color-emerald);
+  color: var(--dk-bg);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55);
 }
 
@@ -1644,6 +1677,12 @@ kbd {
     font-size: 10px;
     min-height: 38px;
     padding: 2px 4px;
+  }
+
+  /* DS-0: landscape keeps labels only — a 22px icon + label does not
+     fit the 38px compact button, so the icon hook stays hidden here. */
+  .mobile-bottom-nav .bottom-nav-icon {
+    display: none;
   }
 
   .mobile-action-toggle-btn {

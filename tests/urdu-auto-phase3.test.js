@@ -180,8 +180,10 @@ test('phase 3 guard: no prof_ data-i18n key appears inside any <dialog>', () => 
   for (const dialog of dialogs) {
     assert.ok(!/data-i18n(?:-placeholder|-title|-aria-label)?="prof_/.test(dialog), `dialog must not carry prof_ i18n keys: ${dialog.slice(0, 120)}`);
   }
-  // And the profile statics themselves ARE keyed: tabs, danger zone, ledger.
-  for (const key of ['prof_tab_billing', 'prof_tab_info', 'prof_tab_complaints', 'prof_danger_title', 'prof_ledger_heading', 'prof_ledger_export', 'prof_ledger_retention', 'prof_incident_heading']) {
+  // And the profile statics themselves ARE keyed: tabs and ledger.
+  // (Polish #24: the danger zone is gone, so prof_danger_title is no
+  // longer keyed anywhere — it was removed from both dictionaries.)
+  for (const key of ['prof_tab_billing', 'prof_tab_info', 'prof_tab_complaints', 'prof_ledger_heading', 'prof_ledger_export', 'prof_ledger_retention', 'prof_incident_heading']) {
     assert.ok(html.includes(`data-i18n="${key}"`), `index.html must key ${key}`);
   }
 });

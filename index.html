@@ -7438,6 +7438,9 @@
               </div>
               <div id="customerCurrentBillSummary" class="customer-current-bill-summary profile-bill-first" role="region" data-i18n-aria-label="prof_current_aria" aria-label="Current billing summary"></div>
               <div class="profile-action-group" role="group" data-i18n-aria-label="prof_actions_aria" aria-label="Customer quick actions">
+                <button id="editProfileButton" class="primary-button profile-action-btn profile-edit-button" type="button"><span data-i18n="prof_view_edit">Edit</span></button>
+                <button id="deleteCustomerButton" class="text-button danger profile-action-btn profile-delete-btn" type="button"><span aria-hidden="true">🗑</span> <span data-i18n="prof_action_delete">Delete customer</span></button>
+                <button id="profileNewCustomerButton" class="secondary-button profile-action-btn" type="button"><span data-i18n="prof_action_new_customer">+ New customer</span></button>
                 <button id="archiveCustomerButton" class="secondary-button profile-action-btn" type="button"><span aria-hidden="true">🗄</span> <span data-i18n="prof_action_archive">Archive</span></button>
                 <button id="unarchiveCustomerButton" class="secondary-button profile-action-btn" type="button" hidden><span aria-hidden="true">↺</span> <span data-i18n="prof_action_unarchive">Unarchive</span></button>
                 <details class="customer-technical-tools profile-more-actions" id="profileMoreActionsDetails">
@@ -7642,11 +7645,6 @@
               <div class="incident-section-heading"><div><p class="eyebrow" data-i18n="upt_eyebrow">UPTIME TRACKING</p><h3 id="uptimeHeading" data-i18n="upt_heading">Online / offline time</h3><button class="help-info-btn" type="button" data-help="uptime" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button><p class="incident-manual-note" data-i18n="upt_note">Counted from your own records: the complaint/outage entries below plus every manual service-status change. This app does not monitor the connection itself.</p></div><label class="uptime-month-label" for="uptimeMonthSelect"><span data-i18n="upt_month_label">Month</span><select id="uptimeMonthSelect"></select></label></div>
               <div id="uptimeSummaryBody"></div>
             </section>
-            <div class="profile-danger-zone" role="group" aria-labelledby="profileDangerZoneTitle">
-              <p id="profileDangerZoneTitle" class="profile-danger-title" data-i18n="prof_danger_title">Danger zone</p>
-              <p class="profile-danger-help" data-i18n="prof_danger_help">Deletes this profile only when nothing is owed — no bills, payments or baqaya. Archive keeps the history.</p>
-              <button id="deleteCustomerButton" class="text-button danger profile-action-btn profile-delete-btn" type="button"><span aria-hidden="true">🗑</span> <span data-i18n="prof_action_delete">Delete customer</span></button>
-            </div>
             <section class="incident-section" aria-labelledby="incidentHeading">
               <div class="incident-section-heading"><div><p class="eyebrow" data-i18n="prof_incident_eyebrow">MANUAL SERVICE LOG</p><h3 id="incidentHeading" data-i18n="prof_incident_heading">Complaints &amp; outages</h3><p class="incident-manual-note" data-i18n="prof_incident_note">Enter incidents yourself. This offline app does not monitor internet or connectivity.</p></div><p class="incident-count"><strong id="incidentCount30Days">0</strong><span data-i18n="prof_incident_last30">reported in the last 30 days</span></p></div>
               <button id="addIncidentButton" class="secondary-button incident-add-button" type="button" data-i18n="prof_incident_add">Add complaint/outage</button>

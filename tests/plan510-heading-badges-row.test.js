@@ -90,7 +90,11 @@ test('Plan 510: heading badges live in their own row, after the actions row, in 
     assert.ok(!beforeRow.includes(marker), `heading must not render ${marker} inline before the badges row`);
   }
   // The heading still carries its actions on the same line.
-  assert.ok(line.includes('id="editProfileButton"'), 'Edit button stays in the heading');
+  // Polish #24 — Edit moved out of the heading into the static header
+  // action group, so the heading line no longer carries it; QR and
+  // Print stay, and Edit is pinned in its new home instead.
+  assert.ok(!line.includes('id="editProfileButton"'), 'Edit no longer renders in the heading — it lives in the static header group');
+  assert.ok(index.includes('id="editProfileButton"'), 'Edit button exists in the static header action group');
   assert.ok(line.includes('id="profileQrCardButton"'), 'QR button stays in the heading');
   assert.ok(line.includes('id="profilePrintCardButton"'), 'Print button stays in the heading');
 });

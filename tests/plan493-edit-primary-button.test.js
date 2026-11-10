@@ -9,22 +9,41 @@ const read = (name) => readFileSync(join(here, '..', name), 'utf8');
 
 // Plan 493: Edit is the primary button in the profile heading, and the
 // heading help no longer sits inside the action row covering the buttons.
+// Polish #24 (2026-11-10): Edit MOVED out of the heading into the static
+// header action group (visible on every tab), keeping its primary token
+// class and its Edit-specific treatment class. The heading tests below
+// now read the heading line without Edit; the Edit assertions read the
+// static header markup in index.html instead.
 
 const headingLine = () => {
   const app = read('app.js');
-  const lines = app.split('\n').filter((l) => l.includes('profile-view-heading') && l.includes('editProfileButton'));
+  // The render line carries the heading markup and the QR button; the
+  // other 'profile-view-heading' line is a querySelector that inserts
+  // after the heading, not the render itself.
+  const lines = app.split('\n').filter((l) => l.includes('profile-view-heading') && l.includes('profileQrCardButton'));
   assert.equal(lines.length, 1, 'exactly one profile heading render must exist');
   return lines[0];
 };
 
-test('Plan 493: Edit is a primary-button in the profile heading', () => {
-  const line = headingLine();
-  assert.ok(line.includes('id="editProfileButton" class="primary-button profile-edit-button"'), 'Edit must carry the primary-button token class');
+const headerEditLine = () => {
+  const html = read('index.html');
+  const lines = html.split('\n').filter((l) => l.includes('id="editProfileButton"'));
+  assert.equal(lines.length, 1, 'exactly one static header Edit button must exist');
+  return lines[0];
+};
+
+test('Plan 493: Edit is a primary-button in the header action group (polish #24)', () => {
+  const line = headerEditLine();
+  assert.ok(line.includes('id="editProfileButton" class="primary-button profile-action-btn profile-edit-button"'), 'Edit must carry the primary-button token class and its Edit-specific treatment class');
   assert.ok(!line.includes('id="editProfileButton" class="text-button'), 'Edit must no longer be a text-button');
 });
 
-test('Plan 493: QR, Print and Speak Due stay secondary beside Edit', () => {
+// Polish #24 — QR, Print and Speak Due stay secondary in the heading
+// row; Edit is no longer beside them (it moved to the header action
+// group), so the heading line must not carry an Edit button any more.
+test('Plan 493: QR, Print and Speak Due stay secondary in the heading row (Edit moved to the header group)', () => {
   const line = headingLine();
+  assert.ok(!line.includes('id="editProfileButton"'), 'Edit no longer renders in the heading — it lives in the static header group');
   assert.ok(line.includes('id="profileQrCardButton" class="secondary-button"'), 'QR Khata Card stays secondary');
   assert.ok(line.includes('id="profilePrintCardButton" class="secondary-button"'), 'Print card stays secondary');
   assert.ok(line.includes('speakDueButtonMarkup(customer.customerNumber)'), 'Speak Due is still rendered in the heading row');
@@ -58,6 +77,9 @@ test('Plan 493: the stale small-button rule is gone from styles.css', () => {
 
 test('Plan 493: Edit behaviour is untouched', () => {
   const app = read('app.js');
-  assert.ok(app.includes("querySelector('#editProfileButton').addEventListener('click'"), 'Edit click listener must exist');
+  // Polish #24 — the button is static markup now, so its listener
+  // attaches once at startup to the id directly, not through a
+  // re-rendered querySelector. Same id, same edit flow.
+  assert.ok(app.includes("$('#editProfileButton').addEventListener('click'"), 'Edit click listener must exist');
   assert.ok(app.includes('profileEditMode = true'), 'Edit must still open the edit flow');
 });

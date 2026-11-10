@@ -135,28 +135,43 @@ test('money figures format min-0 decimals in PKR, and non-numbers are never zero
   assert.equal(customerDeleteFigureCents(1500.4), 1500);
 });
 
-test('the wiring gates the profile Delete button on the clean check and confirms Yes/No', () => {
+// Polish #24 — the clean-account gate is REMOVED (user decision
+// 2026-11-09): the wiring no longer refuses a customer with dues,
+// bills, payments or baqaya. The popup now asks the same question
+// with Delete/Cancel and warns that the delete is permanent and takes
+// the whole history. The pure gate functions above stay tested (the
+// module stays on disk, unused) — only the wiring changed.
+test('the wiring no longer gates on the clean check — it confirms Delete/Cancel and warns of permanent full-history deletion', () => {
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
   const start = app.indexOf("$('#deleteCustomerButton').addEventListener");
   assert.ok(start > 0, 'delete button handler exists');
   const body = app.slice(start, app.indexOf('\n});', start));
   assert.doesNotMatch(body, /window\.confirm\(/, 'delete must not use window.confirm');
-  assert.ok(body.includes('customerDeleteCleanCheck('), 'handler runs the clean check');
-  assert.ok(body.includes('customerDeleteRefusalText('), 'handler shows the refusal text');
+  assert.ok(!body.includes('customerDeleteCleanCheck('), 'handler no longer runs the clean check');
+  assert.ok(!body.includes('customerDeleteRefusalText('), 'handler no longer shows the refusal text');
   assert.ok(body.includes("title:`Are you sure you want to delete ${customer.name}'s profile?`"), 'confirm asks the exact question with the customer name');
-  assert.ok(body.includes("confirmLabel:'Yes'"), 'confirm button is Yes');
-  assert.ok(body.includes("cancelLabel:'No'"), 'cancel button is No');
+  assert.ok(body.includes("confirmLabel:'Delete'"), 'confirm button is Delete');
+  assert.ok(body.includes("cancelLabel:'Cancel'"), 'cancel button is Cancel');
   assert.ok(!body.includes('Archive instead'), 'no Archive instead button on the delete confirm');
   assert.ok(body.includes('snapshotBeforeDestructiveAction()'), 'safety snapshot still runs before deleting');
   assert.match(body, /title:`#\$\{customer\.customerNumber\} \$\{customer\.name\} deleted`[^]*actionLabel:'Undo'/, 'delete keeps the Undo window');
 });
 
-test('the danger-zone help says deletion only happens when nothing is owed', () => {
+// Polish #24 — the danger-zone help is GONE with the zone: deletion no
+// longer "only happens when nothing is owed". The warning moved into
+// the popup message, which says the delete is permanent and takes the
+// whole history.
+test('the danger-zone help is gone — the popup warns of permanent full-history deletion instead', () => {
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.ok(page.includes('Deletes this profile only when nothing is owed'), 'profile help text updated');
+  assert.ok(!page.includes('Deletes this profile only when nothing is owed'), 'no danger-zone help remains in the markup');
   const lang = readFileSync(new URL('../nav-language.js', import.meta.url), 'utf8');
-  assert.ok(lang.includes('Deletes this profile only when nothing is owed'), 'English help text updated');
-  assert.ok(lang.includes('صرف تب حذف ہوتی ہے جب کچھ واجب الادا نہ ہو'), 'Urdu help text updated');
+  assert.ok(!lang.includes('Deletes this profile only when nothing is owed'), 'no danger-zone help remains in English');
+  assert.ok(!lang.includes('صرف تب حذف ہوتی ہے جب کچھ واجب الادا نہ ہو'), 'no danger-zone help remains in Urdu');
+  const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
+  const start = app.indexOf("$('#deleteCustomerButton').addEventListener");
+  const body = app.slice(start, app.indexOf('\n});', start));
+  assert.ok(body.includes('permanently deletes the profile and all of its history'), 'popup message warns the delete is permanent and takes the whole history');
+  assert.ok(body.includes('Nothing is kept'), 'popup message says nothing is kept');
 });
 
 test('the new module names no fenced module file literally and reads no storage or clock', () => {

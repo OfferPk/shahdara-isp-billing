@@ -153,6 +153,13 @@ test('Plan 552: the row uses the shared polish #11 label constant, never a re-ty
 // applied here, per the plan: nothing else is silently shrunk to
 // compensate. Upper bound if the long label wraps to two lines:
 // one more label line (17.28px) → ~741px.
+// Month-name fix: the taxed fixture already carries month '2026-11',
+// so it now also renders the Month row — the row fills the
+// lone-Remaining half-width row (5 → 6 half-width items, still 3
+// rows), so the taxed total stays 724px in this arithmetic (pinned by
+// the test below). Why the 681 baseline still stands here: it predates
+// the BUT HOUSE phone row — the polish17 fit test owns the live total
+// (736px); this test pins the tax-row delta only.
 function ruleBlock(css, selectorWithBrace) {
   const start = css.indexOf(selectorWithBrace);
   assert.ok(start >= 0, `missing rule ${selectorWithBrace}`);
@@ -167,8 +174,7 @@ function remSize(block) {
   return parseFloat(m[1]);
 }
 
-test('Plan 552 fit budget: the tax row costs ~43px; a taxed receipt computes to 724px, 24px over the 700px gate', () => {
-  const labelBlock = ruleBlock(stylesSrc, '.qc-meta-label {');
+test('Plan 552 fit budget: the tax row costs ~43px; a taxed receipt computes to 724px, 24px over the 700px gate', () => {  const labelBlock = ruleBlock(stylesSrc, '.qc-meta-label {');
   const gridBlock = ruleBlock(stylesSrc, '.qc-receipt-grid {');
   const successGrid = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid {');
   const bodyBlock = ruleBlock(stylesSrc, 'body {');
@@ -184,4 +190,36 @@ test('Plan 552 fit budget: the tax row costs ~43px; a taxed receipt computes to 
   const taxedTotalPx = POLISH_21_COMPUTED_TOTAL_PX + rowCostPx;
   assert.equal(taxedTotalPx, 724, 'taxed receipt computed total must be 724px');
   assert.ok(taxedTotalPx > 700, 'the taxed total is 24px OVER the 700px gate — recorded here, to be confirmed by the phone screenshot');
+});
+
+test('Plan 552: the Month row renders on the taxed card and costs 0px (it fills the lone-Remaining row)', () => {
+  // Month-name fix: the taxed fixture already carries month '2026-11',
+  // so the card now renders a Month / November row between Date &
+  // Method and Area. The grid goes from 5 half-width items (3 rows)
+  // to 6 (still 3 rows — the tax row is full-width and unaffected),
+  // so the taxed computed total is unchanged at 724px in this test's
+  // arithmetic. The 681 baseline predates the phone row; the polish17
+  // fit test owns the live total (736px).
+  const html = renderQuickCollectReceiptCardHtml(taxedReceipt());
+  const at = html.indexOf('>Month<');
+  assert.ok(at >= 0, 'taxed card must carry the Month row');
+  assert.ok(html.includes('>November<'), 'Month row must read November');
+  const rowStart = html.lastIndexOf('<div class="qc-receipt-item', at);
+  const rowTag = html.slice(rowStart, html.indexOf('>', rowStart) + 1);
+  assert.ok(!rowTag.includes('full-width'), 'Month row must be a half-width grid item');
+  assert.ok(html.indexOf('Date &amp; Method') < at, 'Month row must sit after Date & Method');
+  assert.ok(at < html.indexOf('Area / Location'), 'Month row must sit before Area / Location');
+  // (The phone row carries a data-qc-receipt-phone attribute, so the
+  // half-width count matches the class prefix and subtracts full-width
+  // rows instead of matching the bare `>` form.)
+  const halfWidth = (h) => {
+    const all = (h.match(/<div class="qc-receipt-item/g) || []).length;
+    const full = (h.match(/<div class="qc-receipt-item full-width/g) || []).length;
+    return all - full;
+  };
+  const noMonth = taxedReceipt();
+  delete noMonth.month;
+  assert.equal(halfWidth(html), 6, 'six half-width items with the Month row');
+  assert.equal(Math.ceil(halfWidth(html) / 2), 3, 'still 3 half-width rows with the Month row');
+  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row too — cost 0px');
 });

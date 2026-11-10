@@ -163,6 +163,17 @@ export function monthLabel(month) {
   return index >= 0 && index < 12 ? `${MONTH_NAMES[index]} ${match[1]}` : String(month);
 }
 
+// Month name only ("2026-11" → "November") — the QC success card
+// shows the bill month's full name on its own row. A missing or
+// invalid month reads '' (never a guess, never the raw value), so the
+// caller renders no row. MONTH_NAMES stays module-local.
+export function monthName(month) {
+  const match = String(month || '').match(/^(\d{4})-(\d{2})$/);
+  if (!match) return '';
+  const index = Number(match[2]) - 1;
+  return index >= 0 && index < 12 ? MONTH_NAMES[index] : '';
+}
+
 function csvEscape(value) {
   const text = String(value ?? '');
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;

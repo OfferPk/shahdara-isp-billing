@@ -321,8 +321,11 @@ test('plan541 i18n: both new keys exist in both dictionaries with the {month} pa
 
 test('plan541 wiring: monthLabel import, label-only render, no new element id or CSS', () => {
   const qc = readFileSync(new URL('../nav-quick-collect.js', import.meta.url), 'utf8');
+  // Month-name fix: the import now carries monthName alongside
+  // monthLabel (same module, same line) — the pin's intent,
+  // "monthLabel reused from the existing helper module", is unchanged.
   assert.ok(
-    qc.includes("import { monthLabel } from './monthly-complaint-report.js'"),
+    qc.includes("import { monthLabel, monthName } from './monthly-complaint-report.js'"),
     'monthLabel reused from the existing helper module'
   );
   assert.ok(qc.includes('qcpkg_applies_from'), 'applies-from line rendered in the package box');

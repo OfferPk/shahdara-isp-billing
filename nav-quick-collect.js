@@ -101,7 +101,7 @@ import {
 import { bigWalletMethodIsOtherMethod } from './big-wallet-method-buttons.js';
 import { pendingClearanceFlagForMethod, pendingClearanceFlagForReceipt, pendingClearanceEntryFlagForMethod } from './pending-clearance-flag.js';
 import { DEFAULT_MOHALLAS, canonicalMohalla } from './phase3.js';
-import { monthLabel } from './monthly-complaint-report.js';
+import { monthLabel, monthName } from './monthly-complaint-report.js';
 import { billKistTotal } from './installment-plan.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { isBillingPaused } from './pause-billing.js';
@@ -2045,6 +2045,11 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
           <span class="qc-meta-label">Mobile Number</span>
           ${displayPhone ? `<strong class="qc-meta-val">${escapeHtml(displayPhone)}</strong>` : `<strong class="qc-meta-val">Not saved</strong>${receipt.customerId ? `<button type="button" class="secondary-button" data-qc-add-phone>Add number</button>` : ''}`}
         </div>`;
+  // Month name: the BILL month being paid ("2026-11" → "November"),
+  // never the device clock — an October payment recorded in November
+  // reads October. monthName returns '' for a missing/invalid month,
+  // so the row renders only for a valid bill month.
+  const billMonthName = monthName(receipt.month);
   const shared = isReceiptShared(receipt.id);
   const sharedBadge = renderReceiptSharedBadgeHtml(Boolean(shared?.shared), shared);
   // SISP-43: ticket charges settled by this receipt, one row per ticket.
@@ -2098,6 +2103,11 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
           <span class="qc-meta-label">Date &amp; Method</span>
           <strong class="qc-meta-val">${escapeHtml(formatQcReceiptDate(receipt.date))} · ${escapeHtml(receipt.method)}</strong>
         </div>
+        ${billMonthName ? `
+        <div class="qc-receipt-item">
+          <span class="qc-meta-label">Month</span>
+          <strong class="qc-meta-val">${escapeHtml(billMonthName)}</strong>
+        </div>` : ''}
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Area / Location</span>
           ${quickCollectAreaSelectHtml(receipt.area)}

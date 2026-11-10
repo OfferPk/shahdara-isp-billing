@@ -12,7 +12,11 @@
 // plus the tick-in-box fix's TICK-BOX −12 (row border + padding),
 // computed total 693 px, plus the BUT HOUSE phone row's PHONE-ROW −43
 // (one new grid row), computed total 736 px — 36 px OVER the 700 px
-// gate, recorded in the budget test below, not blessed.
+// gate, recorded in the budget test below, not blessed. The Month row
+// (this fix) costs 0 px: it fills the lone-Remaining row, so the grid
+// stays 3 rows in both shapes (Chromium 360 px: grid 156.2 px saved,
+// 200.2 px no-phone, before AND after) and the computed total stays
+// 736 px — no new overage.
 // The polish #17 stylesheet values stay as regression guards (they no
 // longer carry savings rows — the savings are the four deltas), except
 // the three this polish changes (B1 inline tick, S1 compact badges +
@@ -303,13 +307,60 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
   assert.equal(phoneRowCostPx, 43, `PHONE-ROW: one new grid row must cost 43px (label ${phoneLabelPx}px + value ${phoneValuePx}px + gap 6px)`);
   savings.push(['PHONE-ROW Mobile Number row (one new grid row)', -phoneRowCostPx]);
 
+  // MONTH-ROW — this fix: the card gains a "Month" row after Date &
+  // Method (a half-width grid item, label above value). The grid goes
+  // from 5 half-width items (3 rows: the Remaining Balance row stands
+  // alone) to 6 (still 3 rows — the Month row fills that lone row), so
+  // the card grows by 0px. Measured in Chromium at 360px on the real
+  // fixed sources (harness ~/workspace/qc-month-name-repro/, 0
+  // pageerrors): grid 156.2px and card 399.4px phone-saved, grid
+  // 200.2px and card 443.4px no-phone — identical before and after in
+  // both shapes. A cost of 0px, booked as such; the computed total
+  // stays 736px and the 36px overage recorded by PHONE-ROW is unchanged.
+  const monthHtml = renderQuickCollectReceiptCardHtml({
+    id: 'receipt-12',
+    receiptNumber: 'RCPT-12-202611-01',
+    amount: 1000,
+    customerName: 'Test Customer',
+    customerNumber: 12,
+    date: '2026-11-08',
+    month: '2026-11',
+    method: 'Easypaisa',
+    area: 'Sodaa',
+    payableRemaining: 0,
+    newTotalDues: 0,
+  });
+  const monthAt = monthHtml.indexOf('>Month<');
+  assert.ok(monthAt >= 0, 'MONTH-ROW: card must carry the Month row for a 2026-11 bill');
+  const monthRowStart = monthHtml.lastIndexOf('<div class="qc-receipt-item', monthAt);
+  const monthRowTag = monthHtml.slice(monthRowStart, monthHtml.indexOf('>', monthRowStart) + 1);
+  assert.ok(!monthRowTag.includes('full-width'), 'MONTH-ROW: the row is a half-width grid item, not a full-width row');
+  assert.ok(monthHtml.indexOf('Date &amp; Method') < monthAt, 'MONTH-ROW: Month row must sit after Date & Method');
+  assert.ok(monthAt < monthHtml.indexOf('Area / Location'), 'MONTH-ROW: Month row must sit before Area / Location');
+  assert.ok(monthHtml.includes('>November<'), 'MONTH-ROW: Month row must read November');
+  // (The phone row carries a data-qc-receipt-phone attribute, so the
+  // half-width count matches the class prefix and subtracts full-width
+  // rows instead of matching the bare `>` form.)
+  const halfWidth = (html) => {
+    const all = (html.match(/<div class="qc-receipt-item/g) || []).length;
+    const full = (html.match(/<div class="qc-receipt-item full-width/g) || []).length;
+    return all - full;
+  };
+  const rowsBefore = Math.ceil(halfWidth(phoneHtml) / 2);
+  const rowsAfter = Math.ceil(halfWidth(monthHtml) / 2);
+  assert.equal(halfWidth(monthHtml), 6, 'MONTH-ROW: six half-width grid items with the Month row');
+  assert.equal(rowsBefore, 3, 'MONTH-ROW: five half-width items already made 3 rows (Remaining stood alone)');
+  assert.equal(rowsAfter, 3, 'MONTH-ROW: six half-width items still make 3 rows — the Month row fills the lone row');
+  assert.equal(rowsAfter - rowsBefore, 0, 'MONTH-ROW: the Month row adds no grid row, so it costs 0px');
+  savings.push(['MONTH-ROW Month row (fills lone-Remaining row)', 0]);
+
   const totalSaved = savings.reduce((sum, [, value]) => sum + value, 0);
   const total = BASELINE_PX - totalSaved;
   // PHONE-ROW overage (recorded, not blessed): the user-asked Mobile
   // Number row pushes the computed total to 736px, 36px over the gate.
   // The static test guards against regressions; the real-phone
   // screenshot is the authority for the true total.
-  assert.equal(totalSaved, 9, `savings must be 9px (42 − 8 − 12 + 24 + 6 − 43), got ${totalSaved}px`);
+  assert.equal(totalSaved, 9, `savings must be 9px (42 − 8 − 12 + 24 + 6 − 43 + 0), got ${totalSaved}px`);
   assert.equal(total, 736, `fit budget: computed total must be 736px (baseline ${BASELINE_PX}px − saved ${totalSaved}px)`);
   assert.ok(
     total > TARGET_PX,

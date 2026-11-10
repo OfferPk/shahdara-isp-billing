@@ -50,12 +50,15 @@ test('tick markup: the inline tick is the SVG check beside the heading (not the 
   const spanStart = pageSrc.indexOf('<span class="qc-success-check"', row);
   assert.ok(spanStart > row, 'tick span must sit inside the heading row');
   const heading = pageSrc.indexOf('id="quickCollectSuccessHeading"', row);
-  assert.ok(spanStart < heading, 'tick must sit before the heading in the row');
+  // Tick-in-box fix: the tick follows the heading (was before it, so it
+  // sat outside the heading's focus outline on the left).
+  assert.ok(spanStart > heading, 'tick must sit after the heading in the row');
   const spanEnd = pageSrc.indexOf('</span>', spanStart);
   const span = pageSrc.slice(spanStart, spanEnd);
   assert.ok(span.includes('aria-hidden="true"'), 'tick stays aria-hidden (the heading announces success)');
   assert.ok(!span.includes('✓'), 'tick must not be the text glyph any more');
-  assert.ok(span.includes('<svg viewBox="0 0 24 24" width="18" height="18" fill="none">'), 'tick must be the 18px SVG');
+  // Tick-in-box fix: SVG 18 → 20px (with the 28 → 32px circle).
+  assert.ok(span.includes('<svg viewBox="0 0 24 24" width="20" height="20" fill="none">'), 'tick must be the 20px SVG');
   assert.ok(span.includes('<path class="qc-check-draw" d="M5 12.5l4.5 4.5L19 7.5"'), 'tick path must be the design check');
   assert.ok(span.includes('stroke="#16a34a"'), 'tick stroke must reuse the existing check green');
   assert.ok(span.includes('stroke-width="3"'), 'tick stroke must be 3px');
@@ -82,7 +85,10 @@ test('tick draw: the path starts fully hidden (dashoffset 24) and draws once in 
 
 test('tick pop: the circle pops once on arrival (scale .6 → 1.08 → 1) — only under the play trigger', () => {
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
-  assert.ok(check.includes('width: 28px') && check.includes('height: 28px'), 'inline tick must be 28px on success');
+  // Tick-in-box fix: 28 → 32px — the tick looked lost beside the
+  // two-line 18px heading. It costs 0px vertically (row height is
+  // driven by the ~54px heading).
+  assert.ok(check.includes('width: 32px') && check.includes('height: 32px'), 'inline tick must be 32px on success');
   assert.ok(!check.includes('animation:'), 'the pop must not live on the size rule any more (it is trigger-gated)');
   const playPop = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check.qc-tick-play {');
   assert.ok(playPop.includes('animation: qc-check-pop .45s cubic-bezier(.2,1.4,.4,1) forwards'), 'triggered circle must pop in 0.45s, once, forwards');

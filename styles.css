@@ -8509,6 +8509,18 @@ html, body {
   color: #64748b;
 }
 
+/* Receipt-number presentation: the label + id travel as one group, so
+   the header's flex-wrap drops the whole group (not the bare id) to
+   its own right-aligned line. No new colour: the id reuses the
+   Transaction ID row's .qc-txnid-code chip. */
+.qc-receipt-ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  margin-left: auto;
+}
+
 .qc-receipt-amount-row {
   display: flex;
   justify-content: space-between;
@@ -8715,13 +8727,16 @@ html, body {
 /* C1 + C2: receipt card padding 14 → 10px, gap 10 → 8px. */
 #quickCollectModal.qc-success-open .qc-receipt-card { padding: 10px; gap: 8px; }
 
-/* C3: card header badges stop wrapping; the receipt id drops to its own
-   right-aligned line only if it cannot fit. */
+/* C3: card header badges stop wrapping; the receipt reference group
+   drops to its own right-aligned line only if it cannot fit. The id
+   rule is scoped to the split card's direct-child title — the
+   ordinary id is nested inside .qc-receipt-ref now (the wrapper
+   carries the auto margin), and the unscoped rule would reach it. */
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header { flex-wrap: wrap; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-badge { white-space: nowrap; }
 #quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-shared,
 #quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { white-space: nowrap; }
-#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-id { white-space: nowrap; margin-left: auto; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-header > .qc-receipt-id { white-space: nowrap; margin-left: auto; }
 
 /* C4: amount 1.5rem → 1.3rem (still the largest figure on the card),
    amount row padding 4 → 2px. */

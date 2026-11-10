@@ -200,7 +200,10 @@ test('split card without a select keeps the plain-text area (backward compatible
   // into the status section — the card still shows the partial state as
   // the remaining-balance row.
   assert.ok(!html.includes('Partial Payment'), 'split card header must not carry the partial badge any more');
-  assert.ok(html.includes('Remaining Balance') && html.includes('PKR 1,000'), 'split card must still show the remaining balance');
+  // QC receipt-modal overhaul: the Remaining Balance row is the merged
+  // Still-owed row now — same figure, always shown.
+  assert.ok(!html.includes('Remaining Balance'), 'no Remaining Balance row may remain');
+  assert.ok(html.includes('Still owed') && html.includes('PKR 1,000'), 'split card must still show the remaining balance as Still owed');
   assert.ok(html.includes('<strong class="qc-meta-val">Unassigned</strong>'));
   assert.equal(html.includes('data-qc-area-select'), false);
   assert.equal(renderSplitReceiptCardHtml(null), '');
@@ -251,7 +254,9 @@ test('picker and payment defaults show mohalla first, legacy area second, fallba
 // --- (B) wiring: split card select + area-save sync -----------------------
 
 test('wiring: success screen passes the Area select into the split card and syncs the split receipt on save', () => {
-  assert.ok(QUICK_COLLECT_SOURCE.includes('renderSplitReceiptCardHtml(activeReceipt.splitTender, quickCollectAreaSelectHtml(activeReceipt.splitTender.area))'));
+  // QC receipt-modal overhaul: the split call now passes the merged-row
+  // options (next-due text + charges flag) as a third argument.
+  assert.ok(QUICK_COLLECT_SOURCE.includes('renderSplitReceiptCardHtml(activeReceipt.splitTender, quickCollectAreaSelectHtml(activeReceipt.splitTender.area), { nextDueDateText, chargesPending })'));
   assert.ok(QUICK_COLLECT_SOURCE.includes('splitTender: { ...activeReceipt.splitTender, area: stored }'));
   assert.ok(SPLIT_TENDER_SOURCE.includes('areaSelectHtml'));
   assert.ok(QUICK_COLLECT_SOURCE.includes("customer.mohalla || customer.area || 'Unassigned'"));

@@ -11,6 +11,19 @@
 // active rules and badges are all unchanged and pinned below.
 //
 // Pattern-fake data only: no customer data of any kind in this file.
+//
+// DS-0 (2026-11-10) updates the pins below, intent preserved:
+// - the bar is 64px tall (was 58px) and its backgrounds are the DS-0
+//   translucent surfaces (light rgba(255,255,255,0.92), dark
+//   rgba(21,39,34,0.92) compositing to #152726 over the dark page);
+//   the light/dark inactive ratios are still >= 7:1 (14.36:1 / 13.69:1).
+// - badge colours are the same values through --ds-* tokens (light
+//   badge var(--ds-brand) #0f5338, 9.07:1; alert var(--ds-danger-strong)
+//   #dc2626, 4.83:1; dark badge var(--color-emerald) #10b981 with text
+//   var(--dk-bg) #14241f, 6.36:1; dark alert var(--ds-danger-strong)
+//   #f87171 with text var(--dk-bg), 5.83:1) — all still >= 4.5:1.
+// - the button rule gains the DS-0 flex-column icon layout; the 11px
+//   labels, 44px targets and 5 columns are pinned as before.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -87,15 +100,41 @@ function lightGreen() {
 function resolveToHex(value, theme) {
   if (value === 'var(--ink)') return theme === 'dark' ? darkInk() : lightInk();
   if (value === 'var(--green)') return theme === 'dark' ? '#29b88f' : lightGreen();
+  // DS-0: the badge colours below resolve through the --ds-* tokens
+  // (asserted against tokens.css so a token change trips the test).
+  if (value === 'var(--ds-brand)') {
+    assert.ok(tokensSrc.includes('--ds-brand: #0f5338'), 'light --ds-brand must stay #0f5338');
+    assert.ok(tokensSrc.includes('--ds-brand: #29b88f'), 'dark --ds-brand must stay #29b88f');
+    return theme === 'dark' ? '#29b88f' : '#0f5338';
+  }
+  if (value === 'var(--ds-danger-strong)') {
+    assert.ok(tokensSrc.includes('--ds-danger-strong: #dc2626'), 'light --ds-danger-strong must stay #dc2626');
+    assert.ok(tokensSrc.includes('--ds-danger-strong: #f87171'), 'dark --ds-danger-strong must stay #f87171');
+    return theme === 'dark' ? '#f87171' : '#dc2626';
+  }
+  if (value === 'var(--color-emerald)') {
+    assert.ok(tokensSrc.includes('--color-emerald: #10b981'), 'token --color-emerald must stay #10b981');
+    return '#10b981';
+  }
+  if (value === 'var(--dk-bg)') {
+    assert.ok(tokensSrc.includes('--dk-bg: #14241f'), 'token --dk-bg must stay #14241f');
+    return '#14241f';
+  }
+  if (value === 'var(--white)') {
+    assert.ok(tokensSrc.includes('--white: var(--color-neutral-0)'), '--white must stay the neutral-0 alias');
+    assert.ok(tokensSrc.includes('--color-neutral-0: #ffffff'), 'token --color-neutral-0 must stay #ffffff');
+    return '#ffffff';
+  }
   if (/^#[0-9a-f]{6}$/i.test(value)) return value;
   assert.fail(`cannot resolve colour value ${value}`);
   return '';
 }
 
-// Bar backgrounds: light rgba(255,255,255,.98) over the white page
-// reads as white; dark rgba(18,30,27,.98) reads as #121e1b.
+// Bar backgrounds: light rgba(255,255,255,0.92) over the white page
+// reads as white; dark rgba(21,39,34,0.92) over the dark page (#14241f)
+// reads as #152726.
 const LIGHT_BAR_BG = '#ffffff';
-const DARK_BAR_BG = '#121e1b';
+const DARK_BAR_BG = '#152726';
 
 // --- Req 1: inactive labels readable in both themes ---------------------
 
@@ -146,49 +185,62 @@ test('active dark: #34d399 on #19382e stays >= 6.5:1 and the pill is unchanged',
 
 test('badges: all four pairs clear 4.5:1 in both themes, as-is', () => {
   const badge = ruleBlock(navSrc, '.bottom-nav-badge {');
-  assert.equal(backgroundValue(badge), 'var(--green, #0e5b4d)', 'light badge background must stay var(--green, #0e5b4d)');
-  assert.equal(colorValue(badge), '#ffffff', 'light badge text must stay white');
-  const lightRatio = contrastRatio(resolveToHex('var(--green)', 'light'), '#ffffff');
+  // DS-0: same values, through the --ds-* tokens (light badge was
+  // var(--green, #0e5b4d); #0f5338 is the DS-0 brand token; the white
+  // text is var(--white) now, not a #ffffff literal).
+  assert.equal(backgroundValue(badge), 'var(--ds-brand)', 'light badge background must stay the DS-0 brand token');
+  assert.equal(colorValue(badge), 'var(--white)', 'light badge text must stay white');
+  const lightRatio = contrastRatio(resolveToHex('var(--ds-brand)', 'light'), resolveToHex('var(--white)', 'light'));
   assert.ok(lightRatio >= 4.5, `light badge must clear 4.5:1 (got ${lightRatio.toFixed(2)}:1)`);
   const alert = ruleBlock(navSrc, '.bottom-nav-badge.badge-alert {');
-  assert.equal(backgroundValue(alert), '#dc2626', 'light alert badge background must stay #dc2626');
-  assert.equal(colorValue(alert), '#ffffff', 'light alert badge text must stay white');
-  const alertRatio = contrastRatio('#ffffff', '#dc2626');
+  assert.equal(backgroundValue(alert), 'var(--ds-danger-strong)', 'light alert badge background must stay the DS-0 danger token');
+  assert.equal(colorValue(alert), 'var(--white)', 'light alert badge text must stay white');
+  const alertRatio = contrastRatio(resolveToHex('var(--white)', 'light'), resolveToHex('var(--ds-danger-strong)', 'light'));
   assert.ok(alertRatio >= 4.5, `light alert badge must clear 4.5:1 (got ${alertRatio.toFixed(2)}:1)`);
   const darkBadge = ruleBlock(navSrc, '[data-theme="dark"] .bottom-nav-badge {');
-  assert.equal(backgroundValue(darkBadge), '#10b981', 'dark badge background must stay #10b981');
-  assert.equal(colorValue(darkBadge), '#0b1814', 'dark badge text must stay #0b1814');
-  const darkRatio = contrastRatio('#0b1814', '#10b981');
+  assert.equal(backgroundValue(darkBadge), 'var(--color-emerald)', 'dark badge background must stay the emerald token');
+  assert.equal(colorValue(darkBadge), 'var(--dk-bg)', 'dark badge text must stay the dark page token');
+  const darkRatio = contrastRatio(resolveToHex('var(--dk-bg)', 'dark'), resolveToHex('var(--color-emerald)', 'dark'));
   assert.ok(darkRatio >= 4.5, `dark badge must clear 4.5:1 (got ${darkRatio.toFixed(2)}:1)`);
   const darkAlert = ruleBlock(navSrc, '[data-theme="dark"] .bottom-nav-badge.badge-alert {');
-  assert.equal(backgroundValue(darkAlert), '#f87171', 'dark alert badge background must stay #f87171');
-  assert.equal(colorValue(darkAlert), '#1a0505', 'dark alert badge text must stay #1a0505');
-  const darkAlertRatio = contrastRatio('#1a0505', '#f87171');
+  assert.equal(backgroundValue(darkAlert), 'var(--ds-danger-strong)', 'dark alert badge background must stay the DS-0 danger token');
+  assert.equal(colorValue(darkAlert), 'var(--dk-bg)', 'dark alert badge text must stay the dark page token');
+  const darkAlertRatio = contrastRatio(resolveToHex('var(--dk-bg)', 'dark'), resolveToHex('var(--ds-danger-strong)', 'dark'));
   assert.ok(darkAlertRatio >= 4.5, `dark alert badge must clear 4.5:1 (got ${darkAlertRatio.toFixed(2)}:1)`);
+  // DS-0: badges are 18px pills docked to the icon's top-right corner.
+  assert.ok(badge.includes('height: 18px'), 'badge height must be 18px');
+  assert.ok(badge.includes('min-width: 18px'), 'badge min-width must be 18px');
+  assert.ok(badge.includes('top: 2px'), 'badge must dock to the icon top');
+  assert.ok(badge.includes('right: calc(50% - 26px)'), 'badge must dock to the icon right');
 });
 
 // --- Layout untouched ------------------------------------------------------
 
-test('layout untouched: 11px bold labels, 44px tap targets, 58px bar, 5 columns', () => {
+test('layout untouched: 11px bold labels, 44px tap targets, 64px bar, 5 columns', () => {
   const button = ruleBlock(stylesSrc, '.mobile-bottom-nav button{');
   assert.ok(button.includes("font:700 11px 'DM Sans'"), 'button font must stay 700 11px DM Sans');
   assert.ok(button.includes('min-height:44px'), 'button tap target must stay 44px');
   assert.ok(button.includes('padding:4px 2px'), 'button padding must stay 4px 2px');
   assert.ok(button.includes('border-radius:9px'), 'button radius must stay 9px');
   assert.ok(button.includes('background:transparent'), 'button background must stay transparent');
+  // DS-0: icon above the label — flex column, icon centred over the text.
+  assert.ok(button.includes('display:flex'), 'button must lay the icon over the label');
+  assert.ok(button.includes('flex-direction:column'), 'button must stack icon above label');
+  assert.ok(button.includes('align-items:center'), 'button must centre the icon and label');
   const bar = ruleBlock(stylesSrc, '.mobile-bottom-nav{');
-  assert.ok(bar.includes('min-height:58px'), 'bar min-height must stay 58px');
+  assert.ok(bar.includes('min-height:64px'), 'DS-0: bar min-height must be 64px (was 58px)');
   assert.ok(bar.includes('grid-template-columns:repeat(5,minmax(0,1fr))'), 'bar must stay a 5-column grid');
   assert.ok(bar.includes('gap:2px'), 'bar gap must stay 2px');
 });
 
 test('bar untouched: light and dark backgrounds and borders are as before', () => {
   const bar = ruleBlock(stylesSrc, '.mobile-bottom-nav{');
-  assert.ok(bar.includes('background:rgba(255,255,255,.98)'), 'light bar background must stay rgba(255,255,255,.98)');
-  assert.ok(bar.includes('border-top:1px solid var(--line,#dfe8e3)'), 'light bar top border must stay the --line token');
+  // DS-0: the bar is the translucent sticky surface now (was .98 opaque).
+  assert.ok(bar.includes('background:rgba(255,255,255,0.92)'), 'light bar background must be rgba(255,255,255,0.92)');
+  assert.ok(bar.includes('border-top:1px solid var(--ds-line)'), 'light bar top border must be the --ds-line token');
   const darkBar = ruleBlock(stylesSrc, '[data-theme="dark"] .mobile-bottom-nav{');
-  assert.ok(darkBar.includes('background:rgba(18,30,27,.98)!important'), 'dark bar background must stay rgba(18,30,27,.98)!important (the rule that renders)');
-  assert.ok(darkBar.includes('border-top-color:#274036!important'), 'dark bar border must stay #274036!important');
+  assert.ok(darkBar.includes('background:rgba(21,39,34,0.92)!important'), 'dark bar background must be rgba(21,39,34,0.92)!important (the rule that renders)');
+  assert.ok(darkBar.includes('border-top-color:var(--ds-line)!important'), 'dark bar border must be the --ds-line token');
 });
 
 // --- No new hex in the touched rules ----------------------------------------

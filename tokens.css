@@ -13,7 +13,7 @@
 
 :root {
   /* Type */
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   --font-urdu: "Noto Nastaliq Urdu", "Noto Naskh Arabic", serif;
   /* Plan A: --text-2xs (10px) was the one scale step the screens used
      without a token; the other sizes below already existed. */
@@ -24,6 +24,11 @@
   --text-lg: 20px;
   --text-xl: 24px;
   --text-2xl: 32px;
+  /* DS-0: brief sizes that fall between existing steps — card name 18px,
+     profile-tab labels 13px, ledger table headers 11px. */
+  --text-card-name: 18px;
+  --text-tab: 13px;
+  --text-table-head: 11px;
   --numeric: tabular-nums; /* money figures always tabular */
 
   /* Spacing — 4pt scale */
@@ -33,6 +38,11 @@
   --space-4: 16px;
   --space-5: 20px;
   --space-6: 24px;
+
+  /* DS-0: the fixed mobile bottom navigation is 64px tall (was 58px);
+     every calc(var(--bottom-nav-height, …)) consumer (speed dial,
+     scroll-top, sticky save bar, toast) follows this one value. */
+  --bottom-nav-height: 64px;
 
   /* Radius */
   /* Plan A: --radius-xs (8px) was used across dashboard/payment screens
@@ -116,6 +126,41 @@
   --white: var(--color-neutral-0);
   --amber: var(--color-pending);
   --amber-bg: var(--color-pending-bg);
+
+  /* DS-0 design-system palette (2026-11-10 brief): a NEW --ds-* family.
+     The existing tokens above are NOT redefined — redefining
+     --color-brand-600 (#0e5b4d) or --color-success (#059669) would
+     recolour every surface that uses them. Touched surfaces reference
+     var(--ds-*) only; the three genuinely new hexes in the whole brief
+     palette are --ds-brand, --ds-brand-hover and --ds-brand-soft — the
+     other twenty already existed in styles.css and are migrated to
+     these tokens as files are touched, so the hex ratchet only moves
+     down (tests/design-tokens-230.test.js). */
+  --ds-brand: #0f5338;
+  --ds-brand-hover: #0a3d28;
+  --ds-brand-soft: #e8f5ee;
+  --ds-success: #15803d;
+  --ds-success-bg: #dcfce7;
+  --ds-success-border: #86efac;
+  --ds-warning: #b45309;
+  --ds-warning-bg: #fef3c7;
+  --ds-warning-border: #fde68a;
+  --ds-danger: #b91c1c;
+  --ds-danger-bg: #fee2e2;
+  --ds-danger-border: #fca5a5;
+  --ds-danger-strong: #dc2626;
+  --ds-line: #e2e8f0;
+  --ds-canvas: #f4f7f5;
+  --ds-card: #ffffff;
+  --ds-nested: #f8fafc;
+  --ds-tabs-bg: #eef2f0;
+  --ds-input-border: #cbd5e1;
+  --ds-label: #475569;
+  --ds-divider: #f1f5f9;
+  --ds-footer-good: #f0fdf4;
+  --ds-footer-bad: #fef2f2;
+  --ds-radius: 12px;
+  --ds-focus-ring: rgba(15, 83, 56, 0.12);
 }
 
 [data-theme="dark"] {
@@ -159,6 +204,38 @@
   --color-slate-600: #cbd5e1;
   --color-slate-700: #e2e8f0;
   --color-slate-900: #f8fafc;
+
+  /* DS-0: dark values for the --ds-* family, derived from the existing
+     dark scale above — no new dark hex invented. Where no dark
+     equivalent exists, the nearest existing dark token is reused:
+     --ds-success / --ds-focus-ring reuse --dk-accent #86dcbb,
+     --ds-success-border / --ds-warning-border / --ds-danger-border /
+     --ds-input-border / --ds-divider reuse --dk-line #2d4a40,
+     --ds-danger-strong reuses the dark badge-alert #f87171. */
+  --ds-brand: #29b88f;
+  --ds-brand-hover: #1b8a6a;
+  --ds-brand-soft: #16362d;
+  --ds-success: #86dcbb;
+  --ds-success-bg: #16362d;
+  --ds-success-border: #2d4a40;
+  --ds-warning: #f6cf7a;
+  --ds-warning-bg: #3a2c10;
+  --ds-warning-border: #2d4a40;
+  --ds-danger: #ffb4a8;
+  --ds-danger-bg: #3a1513;
+  --ds-danger-border: #2d4a40;
+  --ds-danger-strong: #f87171;
+  --ds-line: #253d35;
+  --ds-canvas: #14241f;
+  --ds-card: #182d27;
+  --ds-nested: #1d352e;
+  --ds-tabs-bg: #182d27;
+  --ds-input-border: #2d4a40;
+  --ds-label: #b7cbc2;
+  --ds-divider: #2d4a40;
+  --ds-footer-good: #16362d;
+  --ds-footer-bad: #3a1513;
+  --ds-focus-ring: rgba(134, 220, 187, 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -201,5 +278,33 @@
     --color-slate-600: #cbd5e1;
     --color-slate-700: #e2e8f0;
     --color-slate-900: #f8fafc;
+
+    /* DS-0: dark values for the --ds-* family — same derivation as the
+       [data-theme="dark"] block above (nearest existing dark token
+       where no dark equivalent exists). */
+    --ds-brand: #29b88f;
+    --ds-brand-hover: #1b8a6a;
+    --ds-brand-soft: #16362d;
+    --ds-success: #86dcbb;
+    --ds-success-bg: #16362d;
+    --ds-success-border: #2d4a40;
+    --ds-warning: #f6cf7a;
+    --ds-warning-bg: #3a2c10;
+    --ds-warning-border: #2d4a40;
+    --ds-danger: #ffb4a8;
+    --ds-danger-bg: #3a1513;
+    --ds-danger-border: #2d4a40;
+    --ds-danger-strong: #f87171;
+    --ds-line: #253d35;
+    --ds-canvas: #14241f;
+    --ds-card: #182d27;
+    --ds-nested: #1d352e;
+    --ds-tabs-bg: #182d27;
+    --ds-input-border: #2d4a40;
+    --ds-label: #b7cbc2;
+    --ds-divider: #2d4a40;
+    --ds-footer-good: #16362d;
+    --ds-footer-bad: #3a1513;
+    --ds-focus-ring: rgba(134, 220, 187, 0.12);
   }
 }

@@ -4,6 +4,7 @@
 
 import { trapModalFocus, initUniversalDialogController } from './nav-accessibility.js';
 import { getPendingCollectionCustomers } from './nav-quick-collect.js';
+import { dsIcon } from './ds-icons.js';
 
 export function setupNavigationDrawer({
   onNavigate,
@@ -394,6 +395,27 @@ export function setupSidebarRailToggle() {
 }
 
 /**
+ * DS-0: fills every [data-ds-icon] hook in the static markup with its
+ * Lucide icon from ds-icons.js (bottom nav + speed-dial menu). The hooks
+ * are empty spans until this runs, so a failed script load leaves the
+ * text labels intact. Idempotent: a hook already filled is skipped.
+ */
+export function wireDsIcons(doc = (typeof document !== 'undefined' ? document : null)) {
+  if (!doc || typeof doc.querySelectorAll !== 'function') return 0;
+  let wired = 0;
+  for (const el of doc.querySelectorAll('[data-ds-icon]')) {
+    if (el.dataset?.dsIconWired) continue;
+    const svg = dsIcon(el.getAttribute?.('data-ds-icon') || '', 20);
+    if (!svg) continue;
+    el.innerHTML = svg;
+    if (el.dataset) el.dataset.dsIconWired = 'true';
+    else if (el.setAttribute) el.setAttribute('data-ds-icon-wired', 'true');
+    wired += 1;
+  }
+  return wired;
+}
+
+/**
  * Sets up accessible floating scroll-to-top button.
  */
 export function setupScrollToTop() {
@@ -417,7 +439,9 @@ export function setupScrollToTop() {
         ticking = true;
         const update = () => {
           const scrollY = typeof window !== 'undefined' ? (window.scrollY || document.documentElement?.scrollTop || 0) : 0;
-          const shouldShow = scrollY > 300;
+          // DS-0: the brief shows the button only once the operator has
+          // scrolled down >400px (was 300px).
+          const shouldShow = scrollY > 400;
           btn.hidden = !shouldShow;
           btn.classList.toggle('is-visible', shouldShow);
           ticking = false;

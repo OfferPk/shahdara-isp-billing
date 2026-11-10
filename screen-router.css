@@ -154,9 +154,12 @@ body.sr-screen-mode[data-screen="expenses"] #expensesView .table-card:has(#expen
   .sr-screen-header { position: static; }
   /* Bottom tabs stay on screen (styles.css makes them fixed; nav.css later reset them to relative). */
   .mobile-bottom-nav { position: fixed !important; left: 0; right: 0; bottom: 0; }
-  body { padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+  /* DS-0: the 96px floor + speed-dial clearance at the 64px nav — the
+     dial's top edge sits 130px above the viewport bottom (64px nav +
+     16px gap + 50px dial), so content stops at that line. */
+  body { padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
   /* Keep scrolled-to elements clear of the fixed bottom tabs. */
-  html { scroll-padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  html { scroll-padding-bottom: calc(130px + env(safe-area-inset-bottom, 0px)); }
 }
 
 [data-theme="dark"] .sr-screen-header { background: rgba(20, 36, 31, 0.95); border-color: #253d35; }

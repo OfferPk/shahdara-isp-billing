@@ -295,7 +295,10 @@ test('setupScrollToTop handles button click and scroll visibility', async () => 
   const origDoc = globalThis.document;
 
   globalThis.window = {
-    scrollY: 400,
+    // DS-0: the scroll-top threshold is now >400px (was >300px), so the
+    // visible case scrolls to 500px; the 400px boundary itself stays
+    // hidden (pinned below).
+    scrollY: 500,
     scrollTo(opts) { scrollCalled = opts; },
     addEventListener(ev, fn) { listeners.set(`win:${ev}`, fn); }
   };
@@ -317,6 +320,11 @@ test('setupScrollToTop handles button click and scroll visibility', async () => 
     assert.ok(typeof scrollFn === 'function');
     scrollFn();
     assert.ok(btn.classList.contains('is-visible'));
+
+    // DS-0 boundary: exactly 400px is still hidden (>400px shows).
+    globalThis.window.scrollY = 400;
+    scrollFn();
+    assert.ok(!btn.classList.contains('is-visible'));
 
     globalThis.window.scrollY = 50;
     scrollFn();

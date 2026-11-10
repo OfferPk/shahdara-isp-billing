@@ -1246,6 +1246,13 @@ let toastTimer;
 let refreshOwnerCenter = () => {};
 let customerDraftController = null;
 let expenseDraftController = null;
+// Installation-nav fix: the QA lazy-load promise used to be declared with
+// ensureQaModals() far below, after the boot-time renderDetail() call —
+// reading it during boot threw a TDZ ReferenceError that aborted module
+// evaluation on every load, so renderAnalytics never ran and the
+// Installation tile's scroll never fired. It lives here now, with the
+// other top-level state, so it is initialised before the boot call.
+let qaModalsPromise = null;
 const localBackupStore = createLocalBackupStore();
 const saveFallbackStore = createSaveFallbackStore();
 let automaticBackupInFlight = null;
@@ -3108,10 +3115,18 @@ function renderDashboard() {
     },
     // Polish #18: one tap from home opens the installation dashboard —
     // switch to Analytics, render it, then scroll its panel into view.
+    // Installation-nav fix: the scroll runs on a double requestAnimationFrame
+    // so it lands AFTER the screen router's own rAF instantTop (which the
+    // router schedules inside switchView and would otherwise cancel a smooth
+    // scroll), and it is instant because the panel sits ~190,000px down.
     onInstallationDashboard: () => {
       switchView('analytics');
       renderAnalytics();
-      $('#idaHeading')?.scrollIntoView({ behavior: 'smooth' });
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          document.getElementById('idaHeading')?.scrollIntoView({ behavior: 'instant', block: 'start' });
+        });
+      });
     },
     onRecordExpense: () => { expenseActiveTab = 'ledger'; switchView('expenses'); renderExpenses(); },
     onMonthlyReport: () => { switchView('reports'); renderMonthlyReport(); },
@@ -42682,7 +42697,6 @@ export let dailyRegisterController;
 // dialog.showModal() directly (setup wires the internals in place), and
 // controller?.open() buttons no-op until setup lands, then work on the next
 // tap. The two window.* exposures move here too (they were boot-time before).
-let qaModalsPromise = null;
 function ensureQaModals() {
   if (!qaModalsPromise) {
     qaModalsPromise = loadQaSetups().then((qa) => {

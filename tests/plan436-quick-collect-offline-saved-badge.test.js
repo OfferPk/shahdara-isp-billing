@@ -22,16 +22,35 @@ const pageSrc = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 // stored as the UTC ISO stamp the payment record carries.
 const SAVE_STAMP = '2026-11-07T08:36:41.123Z';
 
+// Saved-time fix: the pill reads 12-hour with AM/PM, not 24-hour —
+// 13:36 PKT is "1:36 PM", 05:00 is "5:00 AM", 17:05 is "5:05 PM".
 test('time: a UTC morning stamp reads as Pakistan afternoon time', () => {
-  assert.equal(offlineSavedBadgeTime(SAVE_STAMP), '13:36');
-  assert.equal(offlineSavedBadgeTime('2026-11-07T00:00:00.000Z'), '05:00');
-  assert.equal(offlineSavedBadgeTime('2026-11-07T12:05:00.000Z'), '17:05');
+  assert.equal(offlineSavedBadgeTime(SAVE_STAMP), '1:36 PM');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T00:00:00.000Z'), '5:00 AM');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T12:05:00.000Z'), '5:05 PM');
 });
 
+// Saved-time fix: midnight and noon fold to 12, not 00 — 00:00 PKT is
+// "12:00 AM", 01:00 is "1:00 AM", 23:59 is "11:59 PM".
 test('time: a stamp past 19:00 UTC wraps to the next day early hours', () => {
-  assert.equal(offlineSavedBadgeTime('2026-11-07T19:00:00.000Z'), '00:00');
-  assert.equal(offlineSavedBadgeTime('2026-11-07T20:00:00.000Z'), '01:00');
-  assert.equal(offlineSavedBadgeTime('2026-11-07T18:59:00.000Z'), '23:59');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T19:00:00.000Z'), '12:00 AM');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T20:00:00.000Z'), '1:00 AM');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T18:59:00.000Z'), '11:59 PM');
+});
+
+test('time: 12-hour form — midnight is 12 AM, noon is 12 PM, minutes stay padded', () => {
+  // The user's case: the pill read 13:47; in 12-hour form that is 1:47 PM.
+  assert.equal(offlineSavedBadgeTime('2026-11-07T08:47:00.000Z'), '1:47 PM');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T19:30:00.000Z'), '12:30 AM');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T06:59:00.000Z'), '11:59 AM');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T07:00:00.000Z'), '12:00 PM');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T07:59:00.000Z'), '12:59 PM');
+  assert.equal(offlineSavedBadgeTime('2026-11-07T08:05:00.000Z'), '1:05 PM');
+  // The compact pill the success screen shows, with a real badge.
+  assert.equal(
+    offlineSavedBadgeLineText(offlineSavedBadge('2026-11-07T08:47:00.000Z'), { compact: true }),
+    '✓ Saved 1:47 PM'
+  );
 });
 
 test('time: non-string and malformed stamps give no time', () => {
@@ -47,7 +66,8 @@ test('time: out-of-range fields give no time, never a guessed one', () => {
 });
 
 test('badge: a usable stamp gives a badge carrying the save time', () => {
-  assert.deepEqual(offlineSavedBadge(SAVE_STAMP), { time: '13:36' });
+  // Saved-time fix: the carried time is 12-hour form ("1:36 PM", not "13:36").
+  assert.deepEqual(offlineSavedBadge(SAVE_STAMP), { time: '1:36 PM' });
 });
 
 test('badge: a missing or unusable stamp gives no badge', () => {
@@ -101,9 +121,10 @@ test('html: no badge renders nothing, and a hostile time is escaped', () => {
 test('acceptance: the badge appears with the correct save time after every save', () => {
   const badge = offlineSavedBadge(SAVE_STAMP);
   assert.ok(badge);
-  assert.equal(badge.time, '13:36');
-  assert.equal(offlineSavedBadgeLineText(badge), '✓ Saved on this device · 13:36');
-  assert.match(offlineSavedBadgeHtml(badge), /13:36/);
+  // Saved-time fix: the badge time, line and html all carry 12-hour form.
+  assert.equal(badge.time, '1:36 PM');
+  assert.equal(offlineSavedBadgeLineText(badge), '✓ Saved on this device · 1:36 PM');
+  assert.match(offlineSavedBadgeHtml(badge), /1:36 PM/);
 });
 
 test('acceptance: a payment not yet saved shows no badge', () => {

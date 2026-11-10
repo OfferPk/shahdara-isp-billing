@@ -203,7 +203,15 @@ const RECEIPT_DRAFT_TEXT = Object.freeze({
     outstanding: '💵 Outstanding', outstandingZero: '💵 Outstanding: PKR 0',
     nextBillDue: '📅 Next Bill Due', billAmount: '💳 Bill Amount', currentBillDue: '📅 Current Bill Due',
     payBy5: '⚠️ Please pay by the 5th to avoid service interruption. thanks 🥰',
-    notAvailable: 'Not available', notRecorded: 'Not recorded'
+    notAvailable: 'Not available', notRecorded: 'Not recorded',
+    // Plan 563: the tax, package-updated and advance-credit lines
+    // respect the receipt language — English forms here; the bilingual
+    // literals these lines printed before live on in the Quick
+    // Collect bilingual dictionary, which is the bilingual default.
+    salesTax: 'Sales tax (19.5%)',
+    packageUpdated: 'Package updated',
+    advanceApplied: 'Advance Credit Applied',
+    advanceRemaining: 'Remaining Advance Balance'
   },
   urdu: {
     header: '🧾 شاہدرہ آئی ایس پی — ادائیگی کی رسید',
@@ -221,7 +229,14 @@ const RECEIPT_DRAFT_TEXT = Object.freeze({
     outstanding: '💵 بقایا رقم', outstandingZero: '💵 بقایا رقم: PKR 0',
     nextBillDue: '📅 اگلے بل کی آخری تاریخ', billAmount: '💳 بل کی رقم', currentBillDue: '📅 موجودہ بل کی آخری تاریخ',
     payBy5: '⚠️ سروس کی بندش سے بچنے کے لیے ہر مہینے کی 5 تاریخ تک ادائیگی فرمائیں۔ شکریہ 🥰',
-    notAvailable: 'دستیاب نہیں', notRecorded: 'درج نہیں'
+    notAvailable: 'دستیاب نہیں', notRecorded: 'درج نہیں',
+    // Plan 563: Urdu-script forms — the app's own Urdu words (the
+    // tax/boost words from the bilingual literals; the advance pair
+    // from the PNG model's 'پیشگی کریڈٹ' / 'باقی پیشگی بیلنس').
+    salesTax: 'سیلز ٹیکس (19.5%)',
+    packageUpdated: 'پیکیج اپڈیٹ',
+    advanceApplied: 'پیشگی کریڈٹ',
+    advanceRemaining: 'باقی پیشگی بیلنس'
   },
   roman: {
     header: '🧾 SHAHDARA ISP — ADAIGI KI RASEED',
@@ -239,7 +254,13 @@ const RECEIPT_DRAFT_TEXT = Object.freeze({
     outstanding: '💵 Baqaya raqam', outstandingZero: '💵 Baqaya raqam: PKR 0',
     nextBillDue: '📅 Aglay bill ki aakhri tareekh', billAmount: '💳 Bill ki raqam', currentBillDue: '📅 Mojooda bill ki aakhri tareekh',
     payBy5: '⚠️ Service bandish se bachne ke liye har maheenay ki 5 tareekh tak adaigi kar dein. Shukriya 🥰',
-    notAvailable: 'Dastiyab nahi', notRecorded: 'Darj nahi'
+    notAvailable: 'Dastiyab nahi', notRecorded: 'Darj nahi',
+    // Plan 563: Roman-Urdu forms — the loanwords the Roman entries
+    // already use for these concepts (cf. 'Manual Baqaya').
+    salesTax: 'Sales tax (19.5%)',
+    packageUpdated: 'Package updated',
+    advanceApplied: 'Advance Credit Istemal Hua',
+    advanceRemaining: 'Baqi Advance Balance'
   }
 });
 
@@ -365,30 +386,33 @@ export function createReceiptWhatsAppDraft(phone, receipt, options = {}) {
   // Polish #11: the sales tax recorded on the bill, when the caller
   // attached it (app.js passes it from buildPaymentReceipt). Only a
   // well-formed positive figure prints — an untaxed receipt shows no
-  // tax line, never PKR 0.
+  // tax line, never PKR 0. Plan 563: the label comes from the
+  // dictionary, so the line follows the receipt language.
   const salesTaxCents = Number(receipt?.salesTaxCents);
   if (Number.isFinite(salesTaxCents) && salesTaxCents > 0) {
-    lines.push(`🧾 Sales tax / سیلز ٹیکس (19.5%): ${formatSalesTaxAmount(salesTaxCents)}`);
+    lines.push(`🧾 ${L.salesTax}: ${formatSalesTaxAmount(salesTaxCents)}`);
   }
 
   // Polish #11: the package this payment just moved the profile to,
   // when the caller attached the follow note (app.js passes it from
-  // the follow). Only a well-formed follow prints.
+  // the follow). Only a well-formed follow prints. Plan 563: the
+  // label comes from the dictionary.
   const autoPackage = receipt?.autoPackage;
   if (autoPackage && typeof autoPackage === 'object' && Number.isFinite(Number(autoPackage.fee)) && Number(autoPackage.fee) > 0) {
     const autoLabel = typeof autoPackage.packageLabel === 'string' && autoPackage.packageLabel.trim() !== '' ? `${autoPackage.packageLabel.trim()} — ` : '';
-    lines.push(`📦 Package updated / پیکیج اپڈیٹ: ${autoLabel}${formatPKR(Number(autoPackage.fee))}`);
+    lines.push(`📦 ${L.packageUpdated}: ${autoLabel}${formatPKR(Number(autoPackage.fee))}`);
   }
 
   // SISP-194: advance credit involved in this receipt, when the caller
   // attached it (app.js passes it from buildPaymentReceipt). Only a
   // well-formed pair of figures prints — a malformed block never
-  // breaks the draft.
+  // breaks the draft. Plan 563: the labels come from the dictionary —
+  // the line was English-only before, in every language.
   const advanceCredit = receipt?.advanceCredit;
   if (advanceCredit
     && Number.isFinite(Number(advanceCredit.applied)) && Number(advanceCredit.applied) >= 0
     && Number.isFinite(Number(advanceCredit.remaining)) && Number(advanceCredit.remaining) >= 0) {
-    lines.push('', `💎 Advance Credit Applied: ${formatPKR(Number(advanceCredit.applied))} • Remaining Advance Balance: ${formatPKR(Number(advanceCredit.remaining))}`);
+    lines.push('', `💎 ${L.advanceApplied}: ${formatPKR(Number(advanceCredit.applied))} • ${L.advanceRemaining}: ${formatPKR(Number(advanceCredit.remaining))}`);
   }
 
   // SISP-158: shared-router split lines, when the caller attached the

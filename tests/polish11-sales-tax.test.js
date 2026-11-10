@@ -390,7 +390,12 @@ test('Req 3 receipt: a taxed 1,000 receipt shows the tax line and total 1,195 in
     salesTaxCents: receipt.salesTaxCents,
   });
   assert.ok(draft);
-  assert.match(draft.message, /🧾 Sales tax \/ سیلز ٹیکس \(19\.5%\): PKR 195/);
+  // Plan 563: the profile draft's tax line follows the receipt
+  // language — the default (English) layout now reads English-only,
+  // so the bilingual literal this pin used to assert moved to the
+  // Quick Collect bilingual dictionary (the HTML receipts above
+  // still carry it verbatim).
+  assert.match(draft.message, /🧾 Sales tax \(19\.5%\): PKR 195/);
 });
 
 test('Req 3 receipt: an untaxed receipt shows no tax line anywhere', () => {

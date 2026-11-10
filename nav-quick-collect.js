@@ -1614,14 +1614,21 @@ export async function generateReceiptImageBlob(receipt) {
   ctx.fillText(receipt.method || 'Cash', 30, 375);
   ctx.fillText(receipt.month || '-', 230, 375);
 
-  const balColor = (receipt.newTotalDues <= 0) ? '#059669' : '#dc2626';
+  // Plan 565: the image receipt reads the same canonical remaining
+  // figure as the WhatsApp draft (payableRemaining ?? newTotalDues ??
+  // newBalanceDue ?? 0) — for the figure, the colour AND the
+  // settled/partial line, so all three agree with the draft. Before,
+  // newTotalDues alone understated the remaining whenever ticket /
+  // baqaya charges were still pending after the payment.
+  const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
+  const balColor = (remainingPayable <= 0) ? '#059669' : '#dc2626';
   ctx.fillStyle = balColor;
-  ctx.fillText(`PKR ${formatReceiptMoneyFigure(receipt.newTotalDues)}`, 420, 375);
+  ctx.fillText(`PKR ${formatReceiptMoneyFigure(remainingPayable)}`, 420, 375);
 
   // Status badge line
   ctx.fillStyle = '#64748b';
   ctx.font = 'italic 13px system-ui, -apple-system, sans-serif';
-  ctx.fillText(receipt.newTotalDues <= 0 ? '✓ Bill settled in full (مکمل ادا شدہ)' : '⏳ Partial payment recorded (جزوی ادائیگی)', 30, 420);
+  ctx.fillText(remainingPayable <= 0 ? '✓ Bill settled in full (مکمل ادا شدہ)' : '⏳ Partial payment recorded (جزوی ادائیگی)', 30, 420);
   if (receipt.transactionId) {
     ctx.fillStyle = '#475569';
     ctx.font = '13px monospace';
@@ -1995,7 +2002,13 @@ export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MO
  * @returns {string}
  */
 export function renderQuickCollectReceiptCardHtml(receipt) {
-  const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues;
+  // Plan 565: the card reads the same canonical remaining figure as
+  // the WhatsApp draft (payableRemaining ?? newTotalDues ??
+  // newBalanceDue ?? 0) — payableRemaining is the most complete
+  // (bills + pending ticket/addon/baqaya charges), the later fields
+  // are the draft's own fallbacks. No finite-number guard here: a
+  // non-finite figure is Plan 566's guard, not this plan's.
+  const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
   const shared = isReceiptShared(receipt.id);
   const sharedBadge = renderReceiptSharedBadgeHtml(Boolean(shared?.shared), shared);
   // SISP-43: ticket charges settled by this receipt, one row per ticket.
@@ -5854,8 +5867,9 @@ export function setupQuickCollectModal({
   // Polish 21 (Req 6): the settle/partial badge in the merged status
   // section — "✓ Settle in Full" when nothing is left to pay,
   // "⏳ Partial Payment" otherwise — written from the same receipt data
-  // the card builder used (ordinary: payableRemaining ?? newTotalDues
-  // <= 0; split: the combined receipt's PAID status). The badge is
+  // the card builder used (ordinary: the Plan 565 canonical remaining
+  // payableRemaining ?? newTotalDues ?? newBalanceDue ?? 0 <= 0;
+  // split: the combined receipt's PAID status). The badge is
   // layout-only: rendering posts nothing and changes no record. No
   // active receipt clears it and hides the host.
   function renderSettleStatusBadge() {
@@ -5867,7 +5881,7 @@ export function setupQuickCollectModal({
     }
     const settled = activeReceipt.splitTender
       ? activeReceipt.splitTender.status === 'PAID'
-      : (activeReceipt.payableRemaining ?? activeReceipt.newTotalDues) <= 0;
+      : (activeReceipt.payableRemaining ?? activeReceipt.newTotalDues ?? activeReceipt.newBalanceDue ?? 0) <= 0;
     settleStatusBadgeBox.className = `qc-receipt-badge ${settled ? 'settled' : 'partial'}`;
     settleStatusBadgeBox.textContent = settled ? '✓ Settle in Full' : '⏳ Partial Payment';
     settleStatusBadgeBox.hidden = false;
@@ -7059,7 +7073,13 @@ export function setupQuickCollectModal({
           // SISP-96: owner-configured footer lines on the slip too.
           footerLines: buildReceiptFooterLines(getReceiptFooter()),
 
-          balanceDue: money(split ? split.balanceDueCents / 100 : (activeReceipt.payableRemaining ?? activeReceipt.newBalanceDue)),
+          // Plan 565: the slip's balance due is the same canonical
+          // remaining figure as the WhatsApp draft (payableRemaining
+          // ?? newTotalDues ?? newBalanceDue ?? 0) — before, it read
+          // payableRemaining ?? newBalanceDue, so a receipt without
+          // payableRemaining fell back to the month-only figure
+          // instead of the bills-only one the draft uses.
+          balanceDue: money(split ? split.balanceDueCents / 100 : (activeReceipt.payableRemaining ?? activeReceipt.newTotalDues ?? activeReceipt.newBalanceDue ?? 0)),
           statusLabel: split ? split.status : (activeReceipt.isSettled ? 'PAID' : 'PARTIAL')
         });
         await thermalPrinter.print(bytes);

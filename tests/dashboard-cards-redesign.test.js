@@ -58,7 +58,10 @@ test('every dashboard summary card adopted the shared card; plain KPI cards got 
   // QC-5: the count is 20, not 19 — the new Today's Field Recovery
   // card is a plain KPI summary card with an icon tile, same shape as
   // the today card it follows.
-  assert.equal(tiled.length, 20, 'the 20 plain KPI summary cards carry an icon tile');
+  // QC-6: the count is 21, not 20 — the new Collection insights card
+  // is a plain KPI summary card with an icon tile, same shape as the
+  // QC-5 card it follows.
+  assert.equal(tiled.length, 21, 'the 21 plain KPI summary cards carry an icon tile');
 });
 
 test('summary/today geometry parity is kept on the same tokens', () => {

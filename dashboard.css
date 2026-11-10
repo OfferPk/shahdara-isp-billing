@@ -5410,6 +5410,54 @@
   }
 }
 
+/* QC-6: Collection insights card — one named collection success rate
+   (this month, collected ÷ billed), average collected per visit today,
+   and day-over-day recovery. Token-only, mirroring the QC-5 card. */
+.qc6-collection-insights-card {
+  grid-column: span 2;
+}
+
+.qc6-collection-insights-card .qc6-line {
+  margin: var(--space-xs) 0 var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.qc6-insights-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.qc6-insights-tile {
+  border: var(--border-width) solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.qc6-insights-tile-label {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.qc6-insights-tile-value {
+  font-size: var(--text-md);
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.qc6-insights-tile-sub {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
 /* QC-5: Today's Field Recovery card — one card composing the day's
    recovery figures (today card + day target + picker pool). The card
    spans two grid columns so the progress bar and the 2x2 tiles read

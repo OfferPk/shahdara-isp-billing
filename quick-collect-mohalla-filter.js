@@ -23,8 +23,10 @@
 // the canonical list's own table, so a customer stored under an old
 // spelling is still found. A blank mohalla means the full list —
 // clearing the filter returns to every customer. An entry with no
-// recorded mohalla or area never matches a chosen mohalla: it is
-// left out of the filtered list, never guessed into one.
+// recorded mohalla or area never matches a chosen mohalla — except
+// 'Unassigned' (QC-4), which is exactly the filter for mohalla-less
+// entries: it matches entries with no recorded mohalla or area, as
+// well as entries recorded under the literal 'Unassigned' area.
 
 // Collapse whitespace and trim, so "  Bani  " and "Bani" compare
 // equal. Lowercased throughout: this is the comparison key, not
@@ -84,7 +86,13 @@ export function quickCollectMohallaFilterMatches(entry, mohalla) {
   const key = quickCollectMohallaFilterKey(mohalla);
   if (!key) return true;
   if (!entry || typeof entry !== 'object') return false;
-  return quickCollectMohallaFilterKey(entryMohalla(entry)) === key;
+  const entryKey = quickCollectMohallaFilterKey(entryMohalla(entry));
+  // QC-4: 'Unassigned' is a real filter value — it matches entries
+  // with no recorded mohalla or area, as well as entries recorded
+  // under the literal 'Unassigned' area. Any other chosen mohalla
+  // still never matches a mohalla-less entry.
+  if (key === 'unassigned') return !entryKey || entryKey === 'unassigned';
+  return entryKey === key;
 }
 
 function customerNumberOrZero(entry) {
@@ -149,6 +157,124 @@ function escapeHtml(value) {
     '"': '&quot;',
     "'": '&#39;',
   }[ch]));
+}
+
+/**
+ * QC-4 — Pending counts per mohalla, from the same pool the picker
+ * lists: one row per canonical mohalla, in list order (a row with
+ * nothing pending reads 0, never disappears), then an 'Unassigned'
+ * row when any entry has no recorded mohalla or area (entries
+ * recorded under the literal 'Unassigned' area fold into it), then
+ * any non-canonical mohalla found in the pool, in name order. The
+ * selected mohalla is always listed, at 0 when the pool narrowed
+ * past it, so the option never vanishes under the operator. A row
+ * is { mohalla, key, count, pendingPkr }; pendingPkr is the sum of
+ * the row's entries' totalDues (rupees, bills plus baqaya — the
+ * picker's own shared total). Archived entries and entries without
+ * an id or name are skipped, exactly like the filter, so the rows
+ * always add up to the pool: every entry counted exactly once, and
+ * no count ever disagrees with the list its mohalla produces. The
+ * input list is never mutated and every row is a fresh object.
+ *
+ * @param {Array<Object>} entries - picker-pool entries
+ * @param {Array<string>} mohallaList - the canonical mohalla list
+ * @param {string} [selected=''] - the mohalla currently chosen
+ * @returns {{ rows: Array<{mohalla: string, key: string, count: number, pendingPkr: number}>, totalCount: number, totalPendingPkr: number }}
+ */
+export function quickCollectMohallaPendingCounts(entries, mohallaList, selected = '') {
+  const list = (Array.isArray(mohallaList) ? mohallaList : [])
+    .map((entry) => String(entry ?? '').trim())
+    .filter((entry) => entry !== '');
+  const rowsByKey = new Map();
+  const rows = [];
+  for (const entry of list) {
+    const key = quickCollectMohallaFilterKey(entry);
+    if (!key || rowsByKey.has(key)) continue;
+    const row = { mohalla: entry, key, count: 0, pendingPkr: 0 };
+    rowsByKey.set(key, row);
+    rows.push(row);
+  }
+  let unassigned = null;
+  const extras = [];
+  const extrasByKey = new Map();
+  let totalCount = 0;
+  let totalPendingPkr = 0;
+  for (const entry of (Array.isArray(entries) ? entries : [])) {
+    if (!entry || typeof entry !== 'object' || entry.archived) continue;
+    const id = String(entry.id ?? '').trim();
+    const name = String(entry.name ?? '').trim();
+    if (!id || !name) continue;
+    totalCount += 1;
+    const dues = Number(entry.totalDues);
+    const pkr = Number.isFinite(dues) && dues > 0 ? dues : 0;
+    totalPendingPkr += pkr;
+    const key = quickCollectMohallaFilterKey(entryMohalla(entry));
+    if (!key || key === 'unassigned') {
+      if (!unassigned) {
+        unassigned = { mohalla: 'Unassigned', key: 'unassigned', count: 0, pendingPkr: 0 };
+      }
+      unassigned.count += 1;
+      unassigned.pendingPkr += pkr;
+      continue;
+    }
+    if (rowsByKey.has(key)) {
+      const row = rowsByKey.get(key);
+      row.count += 1;
+      row.pendingPkr += pkr;
+      continue;
+    }
+    if (!extrasByKey.has(key)) {
+      const row = { mohalla: String(entryMohalla(entry)).trim(), key, count: 0, pendingPkr: 0 };
+      extrasByKey.set(key, row);
+      extras.push(row);
+    }
+    const row = extrasByKey.get(key);
+    row.count += 1;
+    row.pendingPkr += pkr;
+  }
+  extras.sort((a, b) => a.mohalla.localeCompare(b.mohalla, 'en'));
+  const allRows = [...rows];
+  if (unassigned) allRows.push(unassigned);
+  allRows.push(...extras);
+  const selectedKey = quickCollectMohallaFilterKey(selected);
+  if (selectedKey && !allRows.some((row) => row.key === selectedKey)) {
+    const place = String(selected ?? '').normalize('NFKC').replace(/\s+/gu, ' ').trim();
+    allRows.push({ mohalla: place, key: selectedKey, count: 0, pendingPkr: 0 });
+  }
+  return { rows: allRows, totalCount, totalPendingPkr };
+}
+
+/** A count label for one option: "12 · PKR 36,000", or just "12"
+ *  when nothing is owed — a zero PKR figure is noise, never news. */
+function quickCollectMohallaCountLabel(count, pendingPkr) {
+  const pkr = Number(pendingPkr);
+  if (Number.isFinite(pkr) && pkr > 0) return `${count} · PKR ${pkr.toLocaleString('en-PK')}`;
+  return `${count}`;
+}
+
+/**
+ * QC-4 — The mohalla filter options with their pending counts: "All
+ * mohallas" first, carrying the whole pool's count and PKR, then one
+ * option per counted row in row order. The selected value is matched
+ * by key, so a variant spelling still selects its canonical entry.
+ * Every value and label is escaped before it reaches the page. A
+ * missing counts object renders only the All option, never a crash.
+ */
+export function quickCollectMohallaFilterCountOptionsHtml(counts, selected) {
+  const safe = counts && typeof counts === 'object' ? counts : {};
+  const rows = Array.isArray(safe.rows) ? safe.rows : [];
+  const totalCount = Number(safe.totalCount) || 0;
+  const totalPendingPkr = Number(safe.totalPendingPkr) || 0;
+  const selectedKey = quickCollectMohallaFilterKey(selected);
+  const options = [`<option value="">All mohallas (${quickCollectMohallaCountLabel(totalCount, totalPendingPkr)})</option>`];
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue;
+    const value = String(row.mohalla ?? '').trim();
+    if (!value) continue;
+    const isSelected = selectedKey !== '' && quickCollectMohallaFilterKey(value) === selectedKey;
+    options.push(`<option value="${escapeHtml(value)}"${isSelected ? ' selected' : ''}>${escapeHtml(value)} (${quickCollectMohallaCountLabel(Number(row.count) || 0, row.pendingPkr)})</option>`);
+  }
+  return options.join('');
 }
 
 /**

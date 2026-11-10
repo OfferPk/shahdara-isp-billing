@@ -44,7 +44,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { PROFILE_EMPTY_DASH, profileEmptyText, profileEmptyMoney, profileEmptyTax, profileProfitDisplay, formatReceiptMonth, profileServiceState, profileServiceStatusPillHtml, currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { PROFILE_EMPTY_DASH, profileEmptyText, profileEmptyMoney, profileEmptyTax, profileProfitDisplay, formatReceiptMonth, profileServiceState, profileServiceStatusPillHtml, profileIdentityLine, currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 // Polish #28 Phase D: the profile calculations — one shared module for
 // the view and the form profit preview, so the two can never disagree.
@@ -57,6 +57,7 @@ import { profileTabCounts } from './profile-tab-counts.js?v=1.11.0';
 import { purgeCustomerHistoryFromStorage, restoreCustomerHistoryToStorage } from './customer-history-purge.js';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
 import { countProfileCompletion, countProfileCompletionFromControls, PROFILE_COMPLETION_EXCLUDED_KEYS } from './profile-completion.js?v=1.11.0';
+import { QA_RECENT_STORE_KEY, QA_FAVORITE_STORE_KEY, QA_RECENT_ROW_MAX, normalizeQaToolIdList, recordQaRecentTool, toggleQaFavoriteTool, qaVisibleToolIds, qaRowTools } from './qa-tools-state.js?v=1.11.0';
 import { resolveProfileErrorTarget, profileErrorBannerClearsOnInput } from './profile-error-jump.js?v=1.11.0';
 import { PROFILE_SECTION_OPEN_KEY, loadProfileSectionOpen, saveProfileSectionOpen, profileSectionOpenFor, withProfileSectionOpen, profileDetailSectionHtml } from './profile-sections.js?v=1.11.0';
 import { speedBoostProfileSectionHtml } from './profile-ui.js?v=1.11.0';
@@ -7075,7 +7076,7 @@ function renderCustomerProfileView(customer) {
   // zero form fields (history is recorded by the app, never typed in), so
   // an Edit button would be a dead control with no group to scroll to.
   const profileSectionHistoryHtml = profileDetailSectionHtml({ key: 'history', heading: t('prof_sec_history'), summary: `${t('prof_tab_complaints')} ${customerComplaints.length} · ${t('fdisp_type_ticket')} ${customerTickets.length}`, body: profileSectionHistoryBody, open: profileSectionOpenFor(customer.id, profileSectionOpen, 'history') });
-  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="profileQrCardButton" class="secondary-button" type="button">${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button">${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileSectionConnectionHtml}${profileSectionNetworkHtml}${profileSectionHardwareHtml}${profileSectionHistoryHtml}`;
+  $('#customerProfileView').innerHTML = `<div class="profile-view-heading"><h3>${t('prof_view_heading')}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_view_help_aria')}" aria-controls="customerInfoGuidance">i</summary><span id="customerInfoGuidance" class="help-tip-content" role="tooltip">${t('prof_view_help')}</span></details><div class="profile-view-actions"><button id="profileQrCardButton" class="secondary-button" type="button"><span class="ds-action-icon" data-ds-icon="QrCode" aria-hidden="true"></span>${t('prof_view_qr')}</button><button id="profilePrintCardButton" class="secondary-button" type="button"><span class="ds-action-icon" data-ds-icon="Printer" aria-hidden="true"></span>${t('prof_view_print_card')}</button>${speakDueButtonMarkup(customer.customerNumber)}${welcomeSlipButtonMarkup()}</div>${headingBadgesHtml ? `<div class="profile-heading-badges">${headingBadgesHtml}</div>` : ''}</div>${profileQuickActionsRowMarkup}${profileHeaderStripSectionHtml}${profileSectionCustomerHtml}${profileSectionServiceHtml}${profileSectionFinancialHtml}${profileSectionConnectionHtml}${profileSectionNetworkHtml}${profileSectionHardwareHtml}${profileSectionHistoryHtml}`;
   // Plan 508 — the register complaints list renders on the Complaints tab,
   // after the manual service log that mountCustomerProfileContent moved
   // there at load. The panel is re-rendered per customer, so the previous
@@ -8610,6 +8611,11 @@ function renderCustomerProfileView(customer) {
       } catch (err) { toast(err?.message || 'Could not write off this bad debt.'); }
     });
   }
+  // Profile redesign — the utility-row icons (QR / Print / Speak /
+  // Welcome) are rendered by this function's innerHTML, after the
+  // boot-time wireDsIcons() call, so they need a re-wire here.
+  // Idempotent: hooks already filled are skipped.
+  wireDsIcons();
 }
 function renderCurrentBillSummary(customer) {
   const month = monthsForHistory(new Date())[0];
@@ -8625,8 +8631,11 @@ function renderCurrentBillSummary(customer) {
   // SISP-106: pending boost fees live on the customer record — same
   // treatment: their own stat, shown only while a fee pends.
   const boostChargesPending = addonChargesPending(customer);
+  // Profile redesign — the Net-due figure reads green when settled, red
+  // while anything is owed (DS §6.2); amounts keep the same size.
+  const netDueClass = summary.balanceDueCents === null ? '' : summary.balanceDueCents > 0 ? 'is-due' : 'is-settled';
   const currentStatusKey = { paid: 'prof_current_status_paid', pending: 'prof_current_status_pending', partial: 'prof_current_status_partial', 'not-set': 'prof_not_set' }[summary.status];
-  $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>${t('prof_current_heading', null, { month: displayMonthName(month) })}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_current_help_label')}" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">${t('prof_current_help')}</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat"><span>${t('prof_current_monthly_bill')}</span><strong>${summary.billAmount === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.billAmount))}</strong></article><article class="current-bill-stat"><span>${t('prof_current_received')}</span><strong>${summary.receiptCount?escapeHtml(formatAmount(summary.receivedAmount)):t('prof_current_no_receipts')}</strong></article><article class="current-bill-stat"><span>${t('prof_current_status')}</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(currentStatusKey ? t(currentStatusKey) : summary.statusLabel)}</strong></article><article class="current-bill-stat"><span>${t('prof_current_net_due')}</span><strong>${summary.balanceDueCents === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.balanceDueCents / 100))}</strong></article><article class="current-bill-stat"><span>${t('prof_current_unused_credit')}</span><strong>${unusedCreditCents?escapeHtml(formatAmount(unusedCreditCents/100)):t('prof_none_recorded')}</strong></article>${ticketChargesPending > 0 ? `<article class="current-bill-stat"><span>${t('prof_current_ticket_charges')}</span><strong>${escapeHtml(formatAmount(ticketChargesPending))}</strong></article>` : ''}${boostChargesPending > 0 ? `<article class="current-bill-stat"><span>${t('boost_current_charges')}</span><strong>${escapeHtml(formatAmount(boostChargesPending))}</strong></article>` : ''}</div>${summary.fifo && (summary.fifo.previousArrears > 0 || summary.fifo.kistTotal > 0) ? `<div class="current-bill-grid" aria-label="${t('prof_fifo_aria')}"><article class="current-bill-stat"><span>${t('prof_fifo_arrears')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingArrears))}</strong></article><article class="current-bill-stat"><span>${t('prof_fifo_package')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingPackage))}</strong></article><article class="current-bill-stat"><span>${t('prof_fifo_kist')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingKist))}</strong></article></div>` : ''}`;
+  $('#customerCurrentBillSummary').innerHTML = `<div class="current-bill-heading"><h3>${t('prof_current_heading', null, { month: displayMonthName(month) })}</h3><details class="help-tip"><summary class="help-icon" aria-label="${t('prof_current_help_label')}" aria-controls="currentBillGuidance">i</summary><span id="currentBillGuidance" class="help-tip-content" role="tooltip">${t('prof_current_help')}</span></details></div><div class="current-bill-grid" aria-live="polite"><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_monthly_bill')}</span><strong>${summary.billAmount === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.billAmount))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_received')}</span><strong>${summary.receiptCount?escapeHtml(formatAmount(summary.receivedAmount)):t('prof_current_no_receipts')}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_status')}</span><strong class="customer-billing-badge ${escapeHtml(summary.statusClassName)}">${escapeHtml(currentStatusKey ? t(currentStatusKey) : summary.statusLabel)}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_net_due')}</span><strong class="${netDueClass}">${summary.balanceDueCents === null ? t('prof_not_set') : escapeHtml(formatAmount(summary.balanceDueCents / 100))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_current_unused_credit')}</span><strong>${unusedCreditCents?escapeHtml(formatAmount(unusedCreditCents/100)):t('prof_none_recorded')}</strong></article>${ticketChargesPending > 0 ? `<article class="current-bill-stat ds-stat-box"><span>${t('prof_current_ticket_charges')}</span><strong>${escapeHtml(formatAmount(ticketChargesPending))}</strong></article>` : ''}${boostChargesPending > 0 ? `<article class="current-bill-stat ds-stat-box"><span>${t('boost_current_charges')}</span><strong>${escapeHtml(formatAmount(boostChargesPending))}</strong></article>` : ''}</div>${summary.fifo && (summary.fifo.previousArrears > 0 || summary.fifo.kistTotal > 0) ? `<div class="current-bill-grid" aria-label="${t('prof_fifo_aria')}"><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_arrears')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingArrears))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_package')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingPackage))}</strong></article><article class="current-bill-stat ds-stat-box"><span>${t('prof_fifo_kist')}</span><strong>${escapeHtml(formatAmount(summary.fifo.remainingKist))}</strong></article></div>` : ''}`;
 }
 // Owner feature (2026-10-29): Manual Baqaya profile flows. The
 // section lives in the Billing tab (mounted from #manualBaqayaSection);
@@ -8800,6 +8809,14 @@ function renderDetail() {
   }
   // Plan 494: no inline name editor to reset on re-render any more —
   // the header Edit name button opens the form instead.
+  // Profile redesign — the identity line under the name: "{mohalla} ·
+  // {phone}", omitting whichever half is missing; hidden when both are.
+  const detailIdentityLineEl = document.querySelector('.detail-identity-line');
+  if (detailIdentityLineEl) {
+    const identityLine = profileIdentityLine(customer);
+    detailIdentityLineEl.textContent = identityLine;
+    detailIdentityLineEl.hidden = !identityLine;
+  }
   renderCurrentBillSummary(customer);
   renderCustomerProfileView(customer);
   $('#customerProfileView').hidden = profileEditMode;
@@ -8809,12 +8826,17 @@ function renderDetail() {
   if ($('#preferredVisitWindowInput')) $('#preferredVisitWindowInput').value = customerVisitWindow(customer);
   // SISP-84: connection type select (legacy records read residential).
   if ($('#connectionTypeInput')) $('#connectionTypeInput').value = customer.connectionType === 'commercial_vip' ? 'commercial_vip' : 'residential';
-  const serviceStatus = ['active','offline'].includes(customer.serviceStatus) ? customer.serviceStatus : 'not-set';
-  const serviceStatusLabel = manualServiceStatusBareLabel(serviceStatus);
+  // Profile redesign — the header badge is the DERIVED service pill
+  // (Suspended > Expired > Vacation > Offline > Active > Not chosen),
+  // not the stored manual status; the Service-group row keeps the
+  // stored label. The open-suspension lookup mirrors the heading-badges
+  // pill: only an OPEN suspension counts as Suspended.
+  const derivedOpenSuspension = loadSuspensions().find((entry) => entry.customerId === customer.id && entry.status === 'open') ?? null;
+  const derivedServiceState = profileServiceState(customer, { today: localDate(), openSuspension: derivedOpenSuspension });
   const serviceStatusBadge = $('#profileServiceStatusBadge');
-  serviceStatusBadge.className = `profile-service-status profile-service-status-${serviceStatus}`;
-  serviceStatusBadge.textContent = t('prof_service_badge', null, { label: serviceStatusLabel });
-  serviceStatusBadge.setAttribute('aria-label', t('prof_service_badge_aria', null, { label: serviceStatusLabel }));
+  serviceStatusBadge.className = `profile-service-status profile-service-status-${derivedServiceState.modifier}`;
+  serviceStatusBadge.textContent = derivedServiceState.label;
+  serviceStatusBadge.setAttribute('aria-label', t('prof_service_badge_derived_aria', null, { label: derivedServiceState.label }));
   $('#archiveStateBadge').textContent = profileArchiveLabel(customer.archived, customer.archived ? (customer.archivedAt ? humanLocalDateTime(customer.archivedAt) : t('prof_archive_date_norec')) : '');
   $('#archiveCustomerButton').hidden = customer.archived;
   $('#unarchiveCustomerButton').hidden = !customer.archived;
@@ -12584,7 +12606,12 @@ function updateProfileCompletionCounter() {
   const form = $('#customerProfileForm');
   const el = $('#profileCompletionCounter');
   if (!form || !el) return;
-  el.textContent = countProfileCompletionFromControls([...form.querySelectorAll('input, select, textarea')]).text;
+  const completion = countProfileCompletionFromControls([...form.querySelectorAll('input, select, textarea')]);
+  el.textContent = completion.text;
+  // Profile redesign — the visual bar directly above the counter mirrors
+  // the same count (same filled/total, same callers).
+  const fill = document.querySelector('.profile-completion-fill');
+  if (fill) fill.style.width = `${completion.total > 0 ? (completion.filled / completion.total) * 100 : 0}%`;
 }
 const profileStickyObserved = new WeakSet();
 function observeStickyNode(node, options, callback) {
@@ -12928,7 +12955,6 @@ $('#editProfileButton').addEventListener('click', () => {
   $('#customerProfileForm').hidden = false;
   $('#mohallaInput').focus();
 });
-$('#profileNewCustomerButton').addEventListener('click', openAddCustomerDialog);
 
 // Plan 494: one name-edit path, not two. The header "Edit name" button
 // opens the full edit form at the name field — reusing the error-jump
@@ -42998,6 +43024,98 @@ export let customerFoscSealModalController;
 export let customerThermalCyclingModalController;
 export let billingCorrectnessModalController;
 export let dataIntegrityModalController;
+// Profile redesign — QA search / chips / favorites / recent (DS §7.2).
+// The 29 tool buttons keep their own open handlers; this wires only the
+// bar above them, plus a delegated grid listener that records each tool
+// open as a recent tool (D3: shahdara_qa_recent_tools_v1, cap 8) and
+// toggles favorites (D3: shahdara_qa_favorite_tools_v1). Runs once.
+function wireQaToolsBar() {
+  const bar = document.querySelector('.qa-tools-bar');
+  const grid = document.querySelector('.customer-technical-grid');
+  if (!bar || !grid) return;
+  const store = typeof localStorage !== 'undefined' ? localStorage : null;
+  const readIds = (key) => {
+    try { return normalizeQaToolIdList(JSON.parse(store?.getItem(key) ?? '[]')); }
+    catch (error) { return []; }
+  };
+  const writeIds = (key, ids) => {
+    try { store?.setItem(key, JSON.stringify(ids)); } catch (error) { /* storage full or blocked: rows stay in-memory only */ }
+  };
+  // The live tool list, read from the grid so search / rows can never
+  // drift from the buttons actually rendered (label in current language).
+  const tools = () => [...grid.querySelectorAll('button[data-qa-group]')].map((button) => ({
+    id: button.id,
+    label: button.querySelector('.qa-tool-label')?.textContent ?? '',
+    title: button.getAttribute('title') ?? '',
+    group: button.getAttribute('data-qa-group') ?? ''
+  }));
+  let activeGroup = 'all';
+  let query = '';
+  const applyFilter = () => {
+    const visible = qaVisibleToolIds(tools(), query, activeGroup);
+    let shown = 0;
+    for (const button of grid.querySelectorAll('button[data-qa-group]')) {
+      const cell = button.closest('.qa-tool-cell');
+      const isVisible = visible.includes(button.id);
+      if (cell) cell.hidden = !isVisible;
+      if (isVisible) shown += 1;
+    }
+    bar.querySelector('.qa-no-results').hidden = shown > 0;
+  };
+  const renderRow = (rowClass, ids, max) => {
+    const row = bar.querySelector(`.${rowClass}`);
+    if (!row) return;
+    const chips = row.querySelector('.qa-row-chips');
+    const rowTools = qaRowTools(ids, tools(), max);
+    row.hidden = rowTools.length === 0;
+    chips.innerHTML = rowTools.map((tool) => `<button class="ds-chip qa-row-chip" type="button" data-qa-row-tool="${tool.id}">${escapeHtml(tool.label)}</button>`).join('');
+  };
+  const renderRows = () => {
+    renderRow('qa-favorites-row', readIds(QA_FAVORITE_STORE_KEY));
+    renderRow('qa-recent-row', readIds(QA_RECENT_STORE_KEY), QA_RECENT_ROW_MAX);
+  };
+  bar.querySelector('.qa-search-input')?.addEventListener('input', (event) => { query = event.target.value ?? ''; applyFilter(); });
+  bar.querySelectorAll('.qa-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      activeGroup = chip.getAttribute('data-qa-chip') ?? 'all';
+      bar.querySelectorAll('.qa-chip').forEach((other) => other.setAttribute('aria-pressed', String(other === chip)));
+      applyFilter();
+    });
+  });
+  // A row chip opens its tool: the tool button's own handler runs, and
+  // the grid listener below records it as recent.
+  bar.addEventListener('click', (event) => {
+    const chip = event.target.closest('[data-qa-row-tool]');
+    if (!chip) return;
+    document.getElementById(chip.getAttribute('data-qa-row-tool'))?.click();
+  });
+  grid.addEventListener('click', (event) => {
+    const fav = event.target.closest('.qa-fav-toggle');
+    if (fav) {
+      const toolId = fav.getAttribute('data-qa-fav');
+      const updated = toggleQaFavoriteTool(readIds(QA_FAVORITE_STORE_KEY), toolId);
+      writeIds(QA_FAVORITE_STORE_KEY, updated);
+      const added = updated.includes(toolId);
+      fav.setAttribute('aria-pressed', String(added));
+      fav.textContent = added ? '★' : '☆';
+      renderRow('qa-favorites-row', updated);
+      return;
+    }
+    const toolBtn = event.target.closest('button[data-qa-group]');
+    if (!toolBtn) return;
+    const recent = recordQaRecentTool(readIds(QA_RECENT_STORE_KEY), toolBtn.id);
+    writeIds(QA_RECENT_STORE_KEY, recent);
+    renderRow('qa-recent-row', recent, QA_RECENT_ROW_MAX);
+  });
+  // Restore persisted favorites (stars) and rows on load.
+  for (const id of readIds(QA_FAVORITE_STORE_KEY)) {
+    const fav = grid.querySelector(`[data-qa-fav="${CSS.escape(id)}"]`);
+    if (fav) { fav.setAttribute('aria-pressed', 'true'); fav.textContent = '★'; }
+  }
+  renderRows();
+  applyFilter();
+}
+
 if (typeof document !== 'undefined') {
   collectionTargetController = setupCollectionTargetModal(state);
   duesAgingController = setupDuesAgingModal(state, {
@@ -44753,6 +44871,9 @@ if (typeof document !== 'undefined') {
       }
     });
   }
+
+  // Profile redesign — wire the QA search / chips / favorites / recent bar.
+  wireQaToolsBar();
 
   const billingCorrectnessModal = $('#billingCorrectnessModal');
 

@@ -454,7 +454,7 @@ test('Plan G offline banner: while offline it stays visible and is not auto-hidd
   }
 });
 
-test('Plan G offline banner: online with a queue shows syncing, not silence', () => {
+test('Plan G offline banner: online with a queue shows confirming, not silence', () => { // QC-9: confirming locally, never "syncing"
   const origDoc = globalThis.document;
   const origNavigator = globalThis.navigator;
   try {
@@ -472,7 +472,7 @@ test('Plan G offline banner: online with a queue shows syncing, not silence', ()
     addOfflineSyncItem({ action: 'record_payment', summary: 'Receipt for Ali' }, storage);
     setupOfflineSyncBanner({ storage });
     assert.equal(banner.hidden, false);
-    assert.match(textEl.textContent, /Syncing 1 local change/);
+    assert.match(textEl.textContent, /Confirming 1 queued action/); // QC-9: confirming locally, never "Syncing"
     assert.equal(retryBtn.hidden, false);
   } finally {
     globalThis.document = origDoc;
@@ -529,14 +529,15 @@ test('Plan G queue inspector: a retrying item shows its next retry time', () => 
   } finally { ctx.restore(); }
 });
 
-test('Plan G queue inspector: a dead-letter item says it is not synced and what to do', () => {
+test('Plan G queue inspector: a dead-letter item says it is not confirmed and what to do', () => {
   const ctx = setupQueueModalWith([
     { action: 'record_payment', summary: 'Receipt for Ali', status: 'dead_letter', retryCount: 5, lastError: 'Network error', timestamp: '2026-10-16T00:30:00Z' }
   ]);
   try {
     const text = ctx.listEl.children.map(collectText).join(' ');
     assert.match(text, /Dead Letter \(5 failed\)/);
-    assert.match(text, /Max retries reached — not synced yet/);
+    // QC-9: "not confirmed yet" — there is no sync to be pending.
+    assert.match(text, /Max retries reached — not confirmed yet/);
     assert.match(text, /discard only if this entry was recorded another way/);
   } finally { ctx.restore(); }
 });
@@ -553,17 +554,19 @@ test('Plan G queue inspector: a pending item shows Pending with no dead-letter g
   } finally { ctx.restore(); }
 });
 
-test('Plan G queue inspector: a synced item is labelled Synced', () => {
+test('Plan G queue inspector: a confirmed item is labelled Confirmed', () => {
   const ctx = setupQueueModalWith([
     { action: 'record_payment', summary: 'Receipt for Ali', status: 'synced', timestamp: '2026-10-16T00:30:00Z' }
   ]);
   try {
     const text = ctx.listEl.children.map(collectText).join(' ');
-    assert.match(text, /Synced/);
+    // QC-9: the stored status value stays 'synced'; only the label
+    // shown to the operator changed to Confirmed.
+    assert.match(text, /Confirmed/);
   } finally { ctx.restore(); }
 });
 
-test('Plan G queue inspector: a failed retry says the entry was not synced and what to do', async () => {
+test('Plan G queue inspector: a failed retry says the entry was not confirmed and what to do', async () => {
   const ctx = setupQueueModalWith([
     { action: 'record_payment', summary: 'Receipt for Ali', status: 'pending', timestamp: '2026-10-16T00:30:00Z' }
   ]);
@@ -583,7 +586,8 @@ test('Plan G queue inspector: a failed retry says the entry was not synced and w
     for (const fn of retryBtn.listeners.get('click') || []) await fn();
     await tick();
     assert.match(ctx.toasted || '', /Retry failed/);
-    assert.match(ctx.toasted || '', /Entry not synced yet/);
+    // QC-9: "not confirmed yet" — there is no sync to be pending.
+    assert.match(ctx.toasted || '', /Entry not confirmed yet/);
     assert.match(ctx.toasted || '', /discard if recorded another way/);
   } finally { ctx.restore(); }
 });

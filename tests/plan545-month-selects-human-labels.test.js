@@ -312,7 +312,10 @@ test('plan 545 wiring: both month selects render monthLabel, nothing else render
   assert.equal(labelled.length, 2, 'exactly two option builders use monthLabel — billing month and advance target');
   assert.ok(!wiringSrc.includes('>${m}</option>'), 'no month option still shows the raw YYYY-MM key as its label');
   assert.ok(!wiringSrc.includes('shows raw YYYY-MM'), 'the stale raw-label comment is gone');
-  assert.ok(wiringSrc.includes("import { monthLabel } from './monthly-complaint-report.js';"), 'monthLabel was already imported — no new import');
+  // Month-name fix: the import now carries monthName alongside
+  // monthLabel (same module, same line) — the pin's intent, "monthLabel
+  // was already imported", is unchanged.
+  assert.ok(wiringSrc.includes("import { monthLabel, monthName } from './monthly-complaint-report.js';"), 'monthLabel was already imported — no new import');
   // The value-driven readers are untouched: the submit, the
   // month-change handler and the package box all read .value.
   assert.ok(wiringSrc.includes('monthSelect?.value || activeDefaults?.targetMonth'), 'submit still reads the month value');

@@ -18,6 +18,7 @@ import { initReceiptFooterStudioModal, getReceiptFooter, saveReceiptFooter, buil
 import { setupHomeTodaySection } from './home-today.js?v=1.11.0';
 import { calculateDashboardTodayCard, renderDashboardTodayCard } from './dashboard-today-card.js?v=1.11.0';
 import { calculateFieldRecoveryToday, renderFieldRecoveryTodayCard } from './dashboard-field-recovery.js?v=1.11.0';
+import { calculateCollectionInsights, renderCollectionInsightsCard } from './dashboard-collection-insights.js?v=1.11.0';
 import { calculateUpcomingDues, renderUpcomingDues } from './dashboard-upcoming-dues.js?v=1.11.0';
 import { calculateOverdueList, renderOverdueList } from './dashboard-overdue-list.js?v=1.11.0';
 import { calculateMethodStrip, renderMethodStrip } from './dashboard-method-strip.js?v=1.11.0';
@@ -2791,6 +2792,10 @@ function renderDashboard() {
   // target with a progress bar, payments, customers visited,
   // remaining target and pending customers, in one glance.
   renderFieldRecoveryTodayCard(document, calculateFieldRecoveryToday(state, referenceDate, typeof localStorage !== 'undefined' ? localStorage : null));
+  // QC-6: the collection insights card — one named collection success
+  // rate (this month, collected ÷ billed), average collected per
+  // visit today, and day-over-day recovery, in one glance.
+  renderCollectionInsightsCard(document, calculateCollectionInsights(state, referenceDate));
   // Plan 472: the upcoming-dues view — bills falling due in the next
   // seven days, split per day, with the seven-day total in PKR.
   renderUpcomingDues(document, calculateUpcomingDues(state, referenceDate));

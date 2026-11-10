@@ -369,7 +369,14 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
       amount: moneyOf(payment.amount),
       transactionId: receipt.transactionId || '',
       date: receipt.paymentDate || payment.date || '',
-      voided: isVoidedPayment(payment)
+      voided: isVoidedPayment(payment),
+      // Plan 559: the sender proof and payer name the leg's own
+      // receipt already computes (SISP-63 senderLabel, Plan 378
+      // paidBy) — carried onto the leg so the combined surfaces can
+      // identify who paid each leg and whose account sent it. ''
+      // when absent, so legs without either render exactly as before.
+      senderLabel: receipt.senderLabel || '',
+      paidBy: receipt.paidBy || ''
     };
   });
   const liveLegs = legs.filter(leg => !leg.voided);
@@ -456,7 +463,14 @@ export function formatSplitTenderWhatsAppText(combined) {
   const legLines = combined.legs.map(leg => {
     const tid = leg.transactionId ? ` · TID ${leg.transactionId}` : '';
     const voided = leg.voided ? ` (${t('split_voided_leg')})` : '';
-    return `${t('split_leg_label', null, { leg: leg.leg })}: ${leg.method} — ${formatAmount(leg.amount)}${tid} · ${t('split_receipt_no')}: ${leg.receiptNumber}${voided}`;
+    // Plan 559: who paid this leg and whose account sent it — the
+    // leg's own sender proof (SISP-63) and payer name (Plan 378),
+    // only when present, so legs without either read exactly as
+    // before. Appended to the leg line (same ' · ' grammar) so each
+    // leg stays one identifiable block.
+    const sender = leg.senderLabel ? ` · Sender / بھیجنے والا: ${leg.senderLabel}` : '';
+    const paidBy = leg.paidBy ? ` · Paid by / ادا کنندہ: ${leg.paidBy}` : '';
+    return `${t('split_leg_label', null, { leg: leg.leg })}: ${leg.method} — ${formatAmount(leg.amount)}${tid} · ${t('split_receipt_no')}: ${leg.receiptNumber}${voided}${sender}${paidBy}`;
   });
   // Plan 557: the package the legs settled, then the bill tax — in
   // the same field order as the single receipt, so the two surfaces
@@ -464,6 +478,16 @@ export function formatSplitTenderWhatsAppText(combined) {
   // no tax line when the split is untaxed.
   const splitPackage = splitPackageDisplay(combined);
   const taxCents = splitSalesTaxCents(combined);
+  // Plan 559: the status line is bilingual for every status, the
+  // same pattern as the PAID line — the raw code ('PARTIAL', 'VOID')
+  // never reaches the customer. The Urdu words are the app's own
+  // dictionary values (status_partial 'جزوی ادا شدہ',
+  // split_voided_leg 'منسوخ'). An unknown status falls through to
+  // the raw value, exactly as before.
+  const splitStatusText = combined.status === 'PAID' ? 'Paid in Full / مکمل ادا شدہ'
+    : combined.status === 'PARTIAL' ? 'Partially Paid / جزوی ادا شدہ'
+    : combined.status === 'VOID' ? 'Void / منسوخ'
+    : combined.status;
   const lines = [
     '*SHAHDARA FIBER NETWORK & ISP BILLING*',
     '━━━━━━━━━━━━━━━━━━━━━━━━',
@@ -480,7 +504,7 @@ export function formatSplitTenderWhatsAppText(combined) {
     '',
     `💵 *${t('split_total_received')}:* ${formatAmount(combined.totalReceived)}`,
     `⚖️ *${t('split_balance_due')}:* ${formatAmount(combined.balanceDueCents / 100)}`,
-    `📌 *Status:* ${combined.status === 'PAID' ? 'Paid in Full / مکمل ادا شدہ' : combined.status}`,
+    `📌 *Status:* ${splitStatusText}`,
     '',
     'Shukriya! Thank you for your prompt payment.',
     '',
@@ -510,10 +534,18 @@ export function generateSplitTenderReceiptHtml(combined, {
   // row when the bill carries no package, no tax row when untaxed.
   const splitPackage = splitPackageDisplay(combined);
   const taxCents = splitSalesTaxCents(combined);
+  // Plan 559: each TID row carries its leg (same t('split_leg_label')
+  // pattern as the receipt-number row), and each leg shows its sender
+  // proof and payer name when present — the single receipt's labels
+  // ('Sender / بھیجنے والا', 'Paid by / ادا کنندہ', payer right after
+  // sender), only when present, so legs without either read exactly
+  // as before. Voided legs keep their rows (they stay listed).
   const legRows = combined.legs.map(leg => `
     <div class="receipt-field"><dt>${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))} — ${escapeHtml(leg.method)}:</dt><dd>${formatAmount(leg.amount)}${leg.voided ? ` (${escapeHtml(t('split_voided_leg'))})` : ''}</dd></div>
     <div class="receipt-field"><dt>${escapeHtml(t('split_receipt_no'))} (${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))}):</dt><dd>${escapeHtml(leg.receiptNumber)}</dd></div>
-    ${leg.transactionId ? `<div class="receipt-field"><dt>Transaction ID:</dt><dd>${escapeHtml(leg.transactionId)}</dd></div>` : ''}`).join('');
+    ${leg.transactionId ? `<div class="receipt-field"><dt>Transaction ID (${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))}):</dt><dd>${escapeHtml(leg.transactionId)}</dd></div>` : ''}
+    ${leg.senderLabel ? `<div class="receipt-field"><dt>Sender / بھیجنے والا:</dt><dd>${escapeHtml(leg.senderLabel)}</dd></div>` : ''}
+    ${leg.paidBy ? `<div class="receipt-field"><dt>Paid by / ادا کنندہ:</dt><dd>${escapeHtml(leg.paidBy)}</dd></div>` : ''}`).join('');
   return `<article class="receipt-sheet a4-receipt split-tender-receipt" data-receipt-format="a4">
   <header class="receipt-head">
     <div>

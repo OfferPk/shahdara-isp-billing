@@ -3681,6 +3681,71 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
   background: #253d35;
 }
 
+/* QC-8: stop-based progress line + multi-day visit history inside
+   the route sheet. The progress label shares the header's type;
+   the history is a closed-by-default details section listing the
+   append-only visit log for the picked day. Token vars only. */
+.route-progress-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink, #182e2a);
+}
+
+.route-visit-history {
+  margin-top: 14px;
+  background: var(--bg-soft, #f4f8f6);
+  border: 1px solid var(--line, #e2ece7);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.route-visit-history-summary {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink, #182e2a);
+  cursor: pointer;
+}
+
+.route-visit-history .route-filter-group {
+  margin-top: 10px;
+}
+
+.route-visit-history-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.route-visit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--ink, #182e2a);
+  border-top: 1px solid var(--line, #e2ece7);
+  padding-top: 6px;
+}
+
+.route-visit-time {
+  font-weight: 700;
+  color: var(--muted, #60756c);
+}
+
+.route-visit-name {
+  font-weight: 700;
+}
+
+.route-visit-outcome {
+  font-weight: 700;
+}
+
+.route-visit-note {
+  color: var(--muted, #60756c);
+  font-style: italic;
+}
+
 /* ==========================================================================
    Field Technician Work Order & Service Dispatch Sheet (agent2)
    ========================================================================== */

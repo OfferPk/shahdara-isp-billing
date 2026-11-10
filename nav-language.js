@@ -3939,6 +3939,16 @@ export const TRANSLATIONS = {
     qc12_status_unpaid: 'Unpaid',
     qc12_status_paid: 'Paid',
     qc12_status_all: 'All',
+    // QC-2: priority badge + oldest-first sort + high-balance tiers
+    // on the collection cards.
+    qc2_sort_label: 'Sort by',
+    qc2_sort_amount: 'Highest dues first',
+    qc2_sort_oldest: 'Oldest due first',
+    qc2_priority_high: 'High priority',
+    qc2_priority_medium: 'Medium priority',
+    qc2_priority_low: 'Low priority',
+    qc2_tier_multi_month: '2+ months arrears',
+    qc2_tier_long_overdue: '90+ days overdue',
     // QC-5: Today's Field Recovery card on the main dashboard.
     qc5_card_title: "Today's Field Recovery",
     qc5_target_label: 'Day target',
@@ -8395,6 +8405,16 @@ export const TRANSLATIONS = {
     qc12_status_unpaid: 'بقایا',
     qc12_status_paid: 'ادا شدہ',
     qc12_status_all: 'تمام',
+    // QC-2: priority badge + oldest-first sort + high-balance tiers
+    // on the collection cards (see the EN block above).
+    qc2_sort_label: 'ترتیب',
+    qc2_sort_amount: 'سب سے زیادہ بقایا پہلے',
+    qc2_sort_oldest: 'سب سے پرانا بقایا پہلے',
+    qc2_priority_high: 'زیادہ ترجیح',
+    qc2_priority_medium: 'درمیانی ترجیح',
+    qc2_priority_low: 'کم ترجیح',
+    qc2_tier_multi_month: 'دو ماہ یا زیادہ کا بقایا',
+    qc2_tier_long_overdue: 'نوے دن سے زیادہ تاخیر',
     // QC-5: Today's Field Recovery card on the main dashboard
     // (see the EN block above).
     qc5_card_title: 'آج کی فیلڈ وصولی',

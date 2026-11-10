@@ -163,6 +163,14 @@ import { canonicalLocation, canonicalMohalla } from './phase3.js';
 import { paymentDayHabit, habitCoversDay, filterLikelyToPayEntries } from './payment-day-advisor.js';
 import { buildSameNameIndex, sameNameBadgeHtml } from './name-disambiguator.js';
 import { transliterateRomanToUrdu } from './urdu-names.js';
+// QC-2: the existing dues-recovery score surfaced on the Field Mode
+// cards, via the shared priority helpers.
+import { buildSmartDuesRecovery } from './owner-insights.js';
+import {
+  QC2_HIGH_BALANCE_TIER_LABEL_KEYS,
+  qc2CardPriority,
+  qc2PriorityByCustomerId,
+} from './qc2-priority.js';
 import { buildNearbyUnpaidHints } from './nearby-unpaid-hint.js';
 import { fuzzyCustomerNameMatches, sanitizeSearchAliases } from './fuzzy-alias-search.js';
 import {
@@ -1141,7 +1149,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
     shiftFiltersEl.innerHTML = chips.join('');
   }
 
-  function renderList(visible, statusById) {
+  function renderList(visible, statusById, priorityById = null) {
     if (!listEl) return;
     if (!visible.length) {
       listEl.innerHTML = likelyOnly
@@ -1180,6 +1188,17 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const likelyChip = habitCoversDay(habit, todayDay)
         ? '<span class="ds-chip ds-chip--paid">🎯 Likely today</span>'
         : '';
+      // QC-2: the existing dues-recovery score for this card — tier
+      // badge + the scorer's own first reason, plus high-balance tier
+      // labels. Null when the scorer has no row for the customer, and
+      // then nothing renders: missing data is never shown as a value.
+      const cardPriority = qc2CardPriority(priorityById?.get(entry.id));
+      const priorityRow = cardPriority
+        ? `<span class="qc2-priority"><span class="${cardPriority.badgeClass}">${escapeHtml(t(cardPriority.labelKey))}</span>${cardPriority.reason ? `<span class="qc2-priority-reason">${escapeHtml(cardPriority.reason)}</span>` : ''}</span>`
+        : '';
+      const tierRow = cardPriority && cardPriority.tierKeys.length > 0
+        ? `<span class="qc2-priority">${cardPriority.tierKeys.map((key) => `<span class="qc2-tier-label">${escapeHtml(t(QC2_HIGH_BALANCE_TIER_LABEL_KEYS[key]))}</span>`).join('')}</span>`
+        : '';
       const zone = fieldModeZoneOf(liveCustomer(entry.id) ?? entry);
       // SISP-133: the customer's preferred visit window, shown only
       // when they recorded one (an 'anytime' customer needs no label).
@@ -1206,7 +1225,7 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       const distanceNote = Number.isFinite(entry.distanceMeters)
         ? ` · 📍 ${escapeHtml(t('gpspin_distance_away', null, { distance: formatGpsDistance(entry.distanceMeters) }))}`
         : '';
-      return `<button type="button" class="field-mode-customer-btn field-mode-status--${status.key}${selectedId === entry.id ? ' is-selected' : ''}" data-field-customer-id="${escapeHtml(entry.id)}" aria-pressed="${selectedId === entry.id}">
+      return `<button type="button" class="field-mode-customer-btn field-mode-status--${status.key}${selectedId === entry.id ? ' is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}" data-field-customer-id="${escapeHtml(entry.id)}" aria-pressed="${selectedId === entry.id}">
         <span class="field-mode-status-strip" aria-hidden="true"></span>
         <span class="field-mode-customer-main">
           <strong>${escapeHtml(entry.name)}</strong>
@@ -1216,6 +1235,8 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
           ${sameNameBadge}
           ${chip}
           ${likelyChip}
+          ${priorityRow}
+          ${tierRow}
         </span>
         <span class="field-mode-customer-due">${escapeHtml(figure)}</span>
       </button>`;
@@ -1529,9 +1550,12 @@ export function setupFieldMode({ getState, onSaveState, onToast, onPrint58mm, on
       entry.id,
       state ? fieldModeCustomerStatus(state, entry.id, allocations) : null
     ]));
+    // QC-2: one scorer pass shared by every card's priority badge —
+    // the same map the picker builds, so both surfaces agree.
+    const priorityById = qc2PriorityByCustomerId(state ? buildSmartDuesRecovery(state, new Date()) : null);
     renderZoneFilters(groups, base);
     renderNearbyHints();
-    renderList(visible, statusById);
+    renderList(visible, statusById, priorityById);
     renderPanel();
   }
 

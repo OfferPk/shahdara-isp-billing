@@ -7747,6 +7747,7 @@ html, body {
  * Token-only, no new hex. */
 .qc3-card-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 .qc3-action-btn {
@@ -7765,6 +7766,7 @@ html, body {
   font-weight: 600;
   text-decoration: none;
   text-align: center;
+  white-space: nowrap;
   cursor: pointer;
 }
 .qc3-action-btn:disabled {
@@ -7776,6 +7778,7 @@ html, body {
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
+  flex-shrink: 0;
 }
 .qc3-card-main {
   display: flex;

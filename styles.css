@@ -568,6 +568,7 @@ textarea { line-height: 1.5; }
 }
 @media (max-width: 360px) {
   .topbar { gap: 4px; padding-inline: 6px; height: 56px; max-height: 64px; }
+  .topbar-actions { gap: 2px; }
   .brand-mark { flex: 0 0 30px; width: 30px; height: 30px; font-size: 15px; }
   .brand-copy { min-width: 0; }
   .brand-copy h1 { font-size: 13px; letter-spacing: -.2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
@@ -1141,7 +1142,8 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 /* Profile redesign (DS 6.2): Net-due reads green at 0, red while owed. */
 .current-bill-stat>strong.is-due{color:var(--ds-danger)}
 .current-bill-stat>strong.is-settled{color:var(--ds-success)}
-.profile-tabs{display:flex;gap:4px;overflow-x:auto;margin:15px 0 12px;padding:4px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-tabs-bg);scrollbar-width:thin;position:sticky;top:78px;z-index:2;backdrop-filter:blur(12px)}
+.profile-tabs{display:flex;gap:4px;overflow-x:auto;margin:15px 0 12px;padding:4px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-tabs-bg);scrollbar-width:none;position:sticky;top:78px;z-index:2;backdrop-filter:blur(12px)}
+.profile-tabs::-webkit-scrollbar{display:none}
 .profile-tab-button{flex:1 0 auto;min-height:44px;border:1px solid transparent;border-radius:9px;background:transparent;color:#34584a;padding:7px 12px;font:700 12px/1.2 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;touch-action:manipulation}
 /* DS-0: equal-flex segmented control (the base rule above keeps its
    #34584a text colour — no exact token exists for it, so the base rule
@@ -1151,7 +1153,7 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
    translations never have to carry the number and the counts writer
    (updateProfileTabCounts) can rewrite the label span without wiping
    it. The number is deliberately smaller and muted. */
-.profile-tab-number{font-size:10px;font-weight:800;opacity:.75;margin-right:1px;flex:none}
+.profile-tab-number{font-size:10px;font-weight:800;opacity:.75;margin-right:4px;flex:none}
 .profile-tab-button[aria-selected=true]{border-color:var(--ds-brand);background:var(--ds-brand);color:var(--white);box-shadow:0 2px 7px rgba(15,83,56,0.14)}
 /* DS-0: tabular numerals on money figures, dates and counts. */
 .payment-amount,.statement-table .col-num,.statement-table .num-col,.current-bill-stat>strong,.customer-billing-badge,.profile-tab-button,.incident-card-state,.receipt-field dd.receipt-amount{font-variant-numeric:var(--numeric)}
@@ -3066,6 +3068,19 @@ html, body {
   background: var(--surface, #ffffff);
 }
 
+/* Live visual bugs (Nov 2026): at 360px the 2-column grid gave each tool
+   button a ~131px column, leaving the label only ~51px (30px icon tile +
+   8px gap + 30px right padding reserving the star). 'Reflectance' needs
+   64px and 'Dispersion' 58px at 11px, so no wrap mode could keep them
+   whole — they broke mid-word despite word-break:normal. One column at
+   <=480px (the same breakpoint the billing form uses) gives the label
+   ~192px, so every tool word renders whole. */
+@media (max-width: 480px) {
+  .customer-technical-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .customer-technical-grid .secondary-button {
   min-height: 52px;
   font-size: 11px;
@@ -3084,6 +3099,8 @@ html, body {
 .qa-tools-bar { display: grid; gap: 8px; padding: 12px 14px 0; }
 .qa-search-input { width: 100%; min-height: 44px; border: 1px solid var(--ds-line); border-radius: 9px; background: var(--surface); padding: 0 12px; font: 500 13px var(--font-sans); color: var(--ink); }
 .qa-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Live visual bugs (Nov 2026): chips showed the heavy UA default button border. */
+.qa-chip-row .qa-chip { border: 1px solid var(--ds-border, #cbd5e1); background: #ffffff; }
 .qa-row-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .qa-favorites-row, .qa-recent-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .qa-favorites-row[hidden], .qa-recent-row[hidden] { display: none; }
@@ -3092,10 +3109,15 @@ html, body {
 .qa-tool-cell { position: relative; min-width: 0; display: flex; }
 .qa-tool-cell[hidden] { display: none; }
 .qa-tool-cell > .secondary-button { flex: 1 1 auto; min-width: 0; }
-.qa-tool-icon { width: 32px; height: 32px; border-radius: 8px; }
-.qa-tool-icon svg { width: 18px; height: 18px; }
-.qa-tool-label { min-width: 0; overflow-wrap: anywhere; }
-.qa-fav-toggle { position: absolute; top: 2px; right: 2px; width: 28px; height: 28px; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; z-index: 1; }
+/* Live visual bugs (Nov 2026): .ds-icon-tile lives in components.css, which
+   loads AFTER styles.css, so the bare .qa-tool-icon rule lost the cascade at
+   equal specificity and the tile stayed 36px. The two-class selector wins
+   regardless of load order. Do not drop the .ds-icon-tile half. */
+.ds-icon-tile.qa-tool-icon { width: 30px; height: 30px; border-radius: 8px; font-size: 12.5px; }
+.ds-icon-tile.qa-tool-icon svg { width: 18px; height: 18px; }
+/* Live visual bugs (Nov 2026): overflow-wrap:anywhere broke QA labels mid-word. */
+.qa-tool-label { min-width: 0; word-break: normal; overflow-wrap: break-word; }
+.qa-fav-toggle { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 14px; line-height: 1; cursor: pointer; z-index: 1; }
 .qa-fav-toggle[aria-pressed="true"] { color: var(--ds-warning); }
 
 [data-theme="dark"] .customer-technical-tools {
@@ -14919,13 +14941,11 @@ dialog::backdrop {
   }
   .month-summary-wide, .month-summary > div { grid-column: 1 / -1; }
   .month-forms { gap: 12px; }
-  .month-forms .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .form-grid .form-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
   .form-grid .form-cell .field-label { margin: 0; }
   .profile-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .profile-summary-stat { padding: 11px; min-height: 88px; }
 }
-.month-forms .form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .form-grid .form-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .form-grid .form-cell .field-label { margin: 0; }
 [data-theme="dark"] .month-summary { color: var(--dk-muted); }
@@ -14949,19 +14969,28 @@ dialog::backdrop {
    backup pill (481-620px: ellipsis shrink) and, at <=480px, the brand title
    and the language/backup text labels compact — icons, emoji state and
    aria-labels remain. Sizes only; no colours, so dark mode is untouched.
+   Nov 2026 exception (live visual bugs): the bar STILL overflowed 43px
+   at 360px with every button present — the backup pill crushed to a
+   14px strip and "Mode: Owner" clipped to "M/O" — so at <=480px the
+   operator-mode toggle is hidden (its switch also lives in the
+   Operator Modes settings panel) and the backup pill is pinned to a
+   38px dot. That is the one deliberate hide; everything else stays.
    ========================================================================== */
 @media (max-width: 620px) {
   .topbar-actions { flex-shrink: 1; min-width: 0; gap: 4px; }
   .topbar .nav-drawer-toggle { margin-right: 0; }
   .topbar .backup-health-badge { min-width: 0; flex: 0 1 auto; }
   .topbar #backupHealthLabel { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .topbar .field-mode-toggle-btn { width: 38px; height: 38px; min-height: 38px; }
+  .topbar #fieldModeToggleBtn { width: 38px; height: 38px; min-height: 38px; display: inline-flex; align-items: center; justify-content: center; }
+  .topbar #operatorModeToggleBtn { min-width: 0; padding: 0 10px; white-space: nowrap; }
 }
 @media (max-width: 480px) {
   .topbar { padding: 0 6px; gap: 4px; }
   .brand-copy { display: none; }
   .topbar-actions { gap: 3px; }
-  .topbar #languageToggleBtn { min-width: 0; padding: 0 6px; gap: 0; }
+  .topbar #operatorModeToggleBtn { display: none; }
+  .topbar .backup-health-badge { flex: 0 0 auto; width: 38px; min-width: 38px; padding: 0; justify-content: center; }
+  .topbar #languageToggleBtn { min-width: 0; padding: 0 4px; gap: 0; }
   .topbar #languageToggleBtn .language-toggle-label { display: none; }
 }
 
@@ -15142,3 +15171,109 @@ summary text and the chevron; it must not stretch or shrink. */
 the same row; the dd becomes a flex row so the button never stretches. */
 .profile-readonly-field dd.profile-copy-dd{display:flex;align-items:center;gap:6px}
 .profile-copy-value{flex:none;min-height:0;padding:2px 7px;font-size:12px;line-height:1.3}
+
+/* ==========================================================================
+   Billing & Ledger redesign (2026-11-11) — billing-ledger-redesign.
+   §3.1: the two `.month-forms .form-grid` 2-column overrides above are
+   deleted, so the ≤700px one-column rule governs at phone widths.
+   No new hex: every colour reuses a --ds-* token.
+   ========================================================================== */
+
+/* §3.1 + §3.8: a hidden grid cell really hides (the author
+   `display: flex` on .form-cell defeats the UA `hidden` rule); an
+   Optional marker never wraps to a second line. */
+.form-grid [hidden] { display: none !important; }
+.optional-label { white-space: nowrap; }
+
+/* §3.2 + DS §9.2: payment-form and bill-form inputs — 46px tall,
+   DS borders, DS focus ring. */
+.payment-form input, .payment-form select, .bill-form input, .bill-form select { height: 46px; border: 1px solid var(--ds-input-border); border-radius: var(--radius-sm); }
+.payment-form input:focus, .payment-form select:focus, .bill-form input:focus, .bill-form select:focus { border: 1.5px solid var(--ds-brand); box-shadow: 0 0 0 3px var(--ds-focus-ring); outline: none; }
+
+/* §3.2 + DS §9.1: the collapsible "Optional & Third-Party Payer
+   Details" section — method visibility decides which fields exist;
+   this section decides how the optional ones are grouped. */
+.form-grid .pay-optional-details { grid-column: 1 / -1; border: 1px solid var(--ds-line); border-radius: var(--ds-radius); background: var(--ds-card); padding: 0 12px 12px; }
+.pay-optional-details summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; font-size: 12px; font-weight: 700; color: var(--ds-label); }
+.pay-optional-details summary::-webkit-details-marker { display: none; }
+.pay-optional-details summary::after { content: '⌄'; font-size: 18px; color: #85948e; margin-left: auto; transition: transform .15s; }
+.pay-optional-details[open ] summary::after { transform: rotate(180deg); }
+.pay-optional-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+@media (min-width: 701px) { .pay-optional-body { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* §1.1 + §1.3: the filter bar — Advanced Filters details + Reset
+   All Filters side by side; the type/date/connection hosts stay
+   visible above it. The filter controls ship with no CSS (browser
+   defaults); the bar gives them the same 44px/16px treatment as
+   the payment form. */
+.fhl-filter-bar { display: flex; gap: 8px; align-items: stretch; margin: 0 0 12px; }
+.fhl-advanced-filters { flex: 1; min-width: 0; border: 1px solid var(--ds-line); border-radius: var(--ds-radius); background: var(--ds-card); }
+.fhl-advanced-filters summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; font-size: 12px; font-weight: 700; color: var(--ds-label); }
+.fhl-advanced-filters summary::-webkit-details-marker { display: none; }
+.fhl-advanced-filters summary::after { content: '⌄'; font-size: 18px; color: #85948e; margin-left: auto; transition: transform .15s; }
+.fhl-advanced-filters[open ] summary::after { transform: rotate(180deg); }
+.fhl-advanced-filters > div { padding: 0 12px 12px; }
+#fhlClearAllFilters { flex: none; align-self: center; }
+#htfHistoryTypeFilterHost, #hdrHistoryDateRangeHost, #hcfHistoryConnectionFilterHost { margin-bottom: 10px; }
+#htfHistoryTypeFilterHost select, #hmfHistoryMethodFilterHost select, #hdfHistoryDisputedFlagHost select, #amtHistoryAmountSearchHost input, #hdrHistoryDateRangeHost input { min-height: 44px; font-size: 16px; border: 1px solid var(--ds-input-border); border-radius: var(--radius-sm); padding: 0 10px; background: #fff; color: var(--ink); max-width: 100%; }
+/* §1.2: the date range as one row — From, To, Clear dates share it. */
+#hdrHistoryDateRangeHost { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+#hdrHistoryDateRangeHost .field-label { margin: 0; }
+#hdrHistoryDateRangeHost input[type="date"] { flex: 1 1 0; min-width: 0; }
+.fhl-history-legend { font-size: 11px; color: var(--ds-label); margin: 0 0 10px; line-height: 1.5; }
+
+/* §2.1 + §2.2: type distinction on Full History rows only — a left
+   border and a coloured type word; the amount prints at 15px bold
+   with its label at 12px. Month-card and Transactions rows keep
+   their existing badges. */
+#fhlFullHistoryList .payment-row { border-left: 3px solid var(--ds-line); }
+#fhlFullHistoryList .payment-row.hist-type-charge { border-left-color: var(--ds-warning); }
+#fhlFullHistoryList .payment-row.hist-type-payment { border-left-color: var(--ds-success); }
+#fhlFullHistoryList .payment-row.hist-type-advance { border-left-color: var(--ds-success); }
+#fhlFullHistoryList .payment-row.hist-type-credit { border-left-color: var(--ds-label); }
+#fhlFullHistoryList .payment-row.hist-type-refund { border-left-color: var(--ds-danger); }
+#fhlFullHistoryList .payment-row.hist-type-adjustment { border-left-color: var(--ds-warning); }
+#fhlFullHistoryList .payment-row.hist-type-charge .hist-type-word { color: var(--ds-warning); }
+#fhlFullHistoryList .payment-row.hist-type-payment .hist-type-word { color: var(--ds-success); }
+#fhlFullHistoryList .payment-row.hist-type-advance .hist-type-word { color: var(--ds-success); }
+#fhlFullHistoryList .payment-row.hist-type-credit .hist-type-word { color: var(--ds-label); }
+#fhlFullHistoryList .payment-row.hist-type-refund .hist-type-word { color: var(--ds-danger); }
+#fhlFullHistoryList .payment-row.hist-type-adjustment .hist-type-word { color: var(--ds-warning); }
+#fhlFullHistoryList .payment-amount { font-size: 12px; }
+#fhlFullHistoryList .hist-amount { font-size: 15px; font-weight: 800; }
+#fhlFullHistoryList .hist-ref { color: var(--ds-label); font-weight: 500; }
+
+/* §5.1: receipt actions — Primary (proof + WhatsApp + Print) always
+   visible, the other eight behind a closed "More" disclosure. Closed
+   height target ≤ 100px at 360px (was 194px over 4 wrapped rows). */
+.payment-actions .receipt-primary, .transaction-actions .receipt-primary { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.payment-actions .receipt-more-actions, .transaction-actions .receipt-more-actions { flex-basis: 100%; }
+.receipt-more-actions summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-height: 44px; padding: 0; font-size: 12px; font-weight: 700; color: var(--ds-label); }
+.receipt-more-actions summary::-webkit-details-marker { display: none; }
+.receipt-more-actions summary::after { content: '⌄'; font-size: 16px; color: #85948e; transition: transform .15s; }
+.receipt-more-actions[open ] summary::after { transform: rotate(180deg); }
+.receipt-more-body { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+
+/* §6.5 + DS §10.2: history tables ride in a rounded card with an
+   inner horizontal-scroll wrap (a wide figure scrolls, never
+   clips); header rows get the nested background + uppercase 11px;
+   row dividers are the existing td borders (no zebra — it would
+   fight the red/green balance colours); the footer row highlights
+   settled green / owed red. */
+.fhl-table-card { border: 1px solid var(--ds-line); border-radius: var(--ds-radius); overflow: hidden; background: var(--ds-card); margin-bottom: 24px; }
+.fhl-table-card .statement-table-wrap { margin-bottom: 0; }
+.fhl-table-card .statement-table th { background: var(--ds-nested); text-transform: uppercase; font-size: 11px; }
+.fhl-table-card .statement-table tfoot tr.fhl-footer-settled { background: var(--ds-footer-good); }
+.fhl-table-card .statement-table tfoot tr.fhl-footer-due { background: var(--ds-footer-bad); }
+
+/* §7 + DS §10.1: the annotation form as a clean card — Entry
+   full-width row 1, Note full-width row 2, Written by + Date 50/50
+   row 3, full-width brand Add Note button; labels above inputs.
+   The form HTML comes from the fenced Plan 420 module; only its
+   styling changes here. */
+.hea-annotation-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 16px; background: var(--ds-card); border: 1px solid var(--ds-line); border-radius: var(--ds-radius); }
+.hea-annotation-form > p { grid-column: 1 / -1; margin: 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+.hea-annotation-form > label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ds-label); min-width: 0; }
+.hea-annotation-form > label:nth-of-type(1), .hea-annotation-form > label:nth-of-type(2) { grid-column: 1 / -1; }
+.hea-annotation-form input, .hea-annotation-form select { min-height: 44px; font-size: 16px; border: 1px solid var(--ds-input-border); border-radius: var(--radius-sm); padding: 0 11px; background: #fff; color: var(--ink); width: 100%; min-width: 0; }
+.hea-annotation-form > button { grid-column: 1 / -1; width: 100%; min-height: 44px; background: var(--ds-brand); border: 1px solid var(--ds-brand); color: #fff; border-radius: 9px; font-size: 12px; font-weight: 600; cursor: pointer; }

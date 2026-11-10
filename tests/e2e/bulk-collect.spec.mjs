@@ -51,7 +51,7 @@ test.describe('Quick Collect pending-only list', () => {
     await expect(page.locator('#quickCollectAmountInput')).toHaveValue('3000.00');
     await page.locator('#quickCollectConfirmBtn').click();
     await expect(page.locator('#quickCollectStepSuccess')).toBeVisible();
-    await page.locator('#quickCollectAnotherBtn').click();
+    await page.locator('[data-qc-next-customer]').click();
     await expect(cards).toHaveCount(3);
     await expect(modal.locator(`.qc-customer-card[data-customer-id="${id}"]`)).toHaveCount(0);
     await expect(page.locator('#quickCollectDuesCount')).toHaveText('3');
@@ -91,7 +91,7 @@ test.describe('Quick Collect pending-only list', () => {
     await cards.first().click();
     await expect(page.locator('#quickCollectAmountInput')).toHaveValue('1000.00');
     await page.locator('#quickCollectConfirmBtn').click();
-    await page.locator('#quickCollectAnotherBtn').click();
+    await page.locator('[data-qc-next-customer]').click();
     await expect(cards).toHaveCount(2);
     expect(errors).toEqual([]);
   });

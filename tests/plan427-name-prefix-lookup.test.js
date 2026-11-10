@@ -240,7 +240,10 @@ test('wiring: the pick step renders the lookup list on every list render', () =>
   assert.match(wiring, /renderNamePrefixList/);
   const start = wiring.indexOf('function renderList()');
   assert.notEqual(start, -1);
-  const block = wiring.slice(start, start + 800);
+  // QC-4 lengthened renderList with the mohalla-counts refresh, so
+  // the window is 1200 — the intent is unchanged: the lookup list
+  // still renders on every list render.
+  const block = wiring.slice(start, start + 1200);
   assert.match(block, /renderNamePrefixList\(\)/);
 });
 

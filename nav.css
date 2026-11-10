@@ -6922,10 +6922,15 @@ body[data-screen="home"] .mobile-breadcrumb-bar {
   text-align: start;
 }
 
-/* RTL Layout safety: prevent offscreen drawers from causing scrollWidth overflow */
+/* Profile redesign: the overflow-x:hidden on html/body made
+   position:sticky a no-op for the profile tabs and the topbar, so it is
+   removed. The RTL drawer case it guarded is already handled by the
+   display:none on closed drawers below (<=1023px); horizontal overflow
+   stays contained per-view (.table-scroll and friends), and the profile
+   harness verifies 360px stays overflow-free without it. */
 html,
 body {
-  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 @media (max-width: 1023px) {

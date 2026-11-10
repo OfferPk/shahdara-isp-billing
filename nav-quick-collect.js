@@ -4713,6 +4713,22 @@ export function setupQuickCollectModal({
       });
     }
     renderOneScreenQuickAmounts();
+    // QC-7: the one screen's on-screen numeric keypad — the same
+    // Plan 442 component as the form step, so the fastest flow no
+    // longer needs the phone's own keyboard for its amount. The host
+    // lives in the module HTML (qosOneScreenKeypad) and is populated
+    // here on every render, exactly like the form step's
+    // #kpdAmountKeypad; a tap enters its digit into the one-screen
+    // amount field, identical to typing it, and the normal save
+    // records it. The keypad posts nothing.
+    const oneScreenKeypadBox = stepOneScreen.querySelector('#qosOneScreenKeypad');
+    if (oneScreenKeypadBox) oneScreenKeypadBox.innerHTML = amountKeypadHtml();
+    oneScreenKeypadBox?.addEventListener('click', (event) => {
+      const key = event.target?.closest?.('[data-kpd-key]');
+      if (!key || !amountInputOne) return;
+      amountInputOne.value = amountKeypadApplyKey(amountInputOne.value, key.getAttribute('data-kpd-key'));
+      amountInputOne.focus();
+    });
     customerSelect?.addEventListener('change', () => {
       const customerId = customerSelect.value || '';
       if (!customerId) {

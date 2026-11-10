@@ -188,7 +188,11 @@ export function quickCollectOneScreenDraft({ customerId, amountText, method, met
 // The one-screen panel: customer, amount, method, save — every field
 // the quick payment needs, on one screen, with no navigation in
 // between. All user text is escaped; the dues line stays empty until
-// a customer is picked.
+// a customer is picked. (QC-7: the amount field carries the keypad
+// host — an empty div the caller populates with the Plan 442 keypad
+// component, so the one screen gets the same on-screen keys as the
+// form step. The module itself stays pure: it renders no keys and
+// wires no clicks.)
 export function quickCollectOneScreenHtml({ customers, methods, selectedCustomerId, amountText, method } = {}) {
   const customerOptions = quickCollectOneScreenCustomerOptions(customers);
   const methodOptions = quickCollectOneScreenMethodOptions(methods);
@@ -222,6 +226,7 @@ export function quickCollectOneScreenHtml({ customers, methods, selectedCustomer
     <div class="qc-field-group">
       <label for="qosOneScreenAmount" class="qc-label">Amount Collected (PKR) <span class="qc-required">*</span></label>
       <input id="qosOneScreenAmount" type="number" step="0.01" min="0.01" max="999999" required inputmode="decimal" placeholder="Enter amount" class="qc-input qc-amount-input" value="${escapeHtml(amount)}">
+      <div id="qosOneScreenKeypad" class="kpd-keypad" role="group" aria-label="Amount keypad"></div>
     </div>
     <div class="qc-field-group">
       <label for="qosOneScreenMethod" class="qc-label">Payment Method <span class="qc-required">*</span></label>

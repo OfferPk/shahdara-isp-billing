@@ -15987,6 +15987,8 @@
         <div class="route-progress-track">
           <div id="routeProgressBarFill" class="route-progress-fill" style="width: 0%;"></div>
         </div>
+        <!-- QC-8: stop-based progress — visited stops (collected + marked) beside the money-based completion above. -->
+        <div id="routeVisitText" class="route-progress-label">Visited 0 of 0 stops · 0 collected · 0 marked · 0 pending</div>
       </div>
 
       <!-- Plan S: day-flow strip — promised + handover expected + steps, rendered from the same route figures -->
@@ -16074,6 +16076,19 @@
           <p class="route-empty-sub">No pending collection stops found matching current filter.</p>
         </div>
       </div>
+
+      <!-- QC-8: multi-day visit history — the append-only visit log
+           (route-sheet outcomes + Field Mode marks, kept 90 days),
+           viewable by day. Closed by default; the day picker lists
+           only days that have visits. -->
+      <details class="route-visit-history" id="routeVisitHistory">
+        <summary class="route-visit-history-summary">Visit history</summary>
+        <div class="route-filter-group">
+          <label for="routeHistoryDateFilter">Day</label>
+          <select id="routeHistoryDateFilter" class="route-select"></select>
+        </div>
+        <div id="routeHistoryList" class="route-visit-history-list" role="list"></div>
+      </details>
 
       <!-- Action Footer -->
       <div class="modal-form-actions route-modal-actions">

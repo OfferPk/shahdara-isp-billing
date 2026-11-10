@@ -196,6 +196,17 @@ import {
   trapModalFocus
 } from './nav-accessibility.js';
 import { resolveShopCollector, shopCollectorMethods } from './shop-settlement.js';
+// QC-2: the existing dues-recovery score (owner-insights.js) surfaced
+// on the collection cards, plus the shared priority/sort helpers.
+import { buildSmartDuesRecovery } from './owner-insights.js';
+import {
+  QC2_HIGH_BALANCE_TIER_LABEL_KEYS,
+  QC2_SORT_AMOUNT,
+  qc2CardPriority,
+  qc2PriorityByCustomerId,
+  qc2SortCollectionEntries,
+  qc2SortOrderFromValue,
+} from './qc2-priority.js';
 
 export const QUICK_COLLECT_STORAGE_KEY = 'shahdara_quick_collect_last_used_v1';
 export const QUICK_COLLECT_AUDIT_KEY = 'shahdara_quick_collect_audits_v1';
@@ -440,7 +451,11 @@ export function getPendingCollectionCustomers(state, query = '', filterType = 'a
       currentMonthBalance: Math.max(0, currentMonthBalanceCents / 100),
       lastPaymentMethod: lastMethod,
       lastPaidBy,
-      billsCount: bills.length
+      billsCount: bills.length,
+      // QC-2: the oldest unpaid bill month, for the oldest-first sort
+      // toggle. Null when no bill has a balance (e.g. baqaya-only) —
+      // those entries sort last under the oldest-first order.
+      earliestUnpaidMonth
     });
   }
 
@@ -1677,8 +1692,19 @@ export function quickCollectSearchHintHtml(query) {
  *   customers, in name order, with dues shown.
  * @returns {{ html: string, customers: Array<Object>, allCollected: boolean, needsSetup: boolean, withoutFee: number }}
  */
-export function renderQuickCollectPickerHtml(state, query = '', filterType = 'all-dues', activeCustomerId = null, mohallaFilter = '') {
-  const customers = filterQuickCollectByMohalla(getPendingCollectionCustomers(state, query, filterType), mohallaFilter);
+export function renderQuickCollectPickerHtml(state, query = '', filterType = 'all-dues', activeCustomerId = null, mohallaFilter = '', options = {}) {
+  // QC-2: the sort order is a render-time option — the default
+  // (highest dues first) is the pool's own order, untouched unless
+  // the picker passes { sortOrder: 'oldest' }.
+  const sortOrder = qc2SortOrderFromValue(options?.sortOrder);
+  const customers = qc2SortCollectionEntries(
+    filterQuickCollectByMohalla(getPendingCollectionCustomers(state, query, filterType), mohallaFilter),
+    sortOrder,
+  );
+  // QC-2: the existing dues-recovery score, flattened by customer id
+  // so each card can surface its tier + reason. The caller owns the
+  // clock (today); a customer with no scorer row gets no badge.
+  const priorityById = qc2PriorityByCustomerId(state ? buildSmartDuesRecovery(state, new Date()) : null);
   const allCollected = customers.length === 0
     && (filterType === 'all-dues' || filterType === 'high-dues')
     && !String(query ?? '').trim()
@@ -1707,7 +1733,7 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
     withoutFee,
     html: needsSetup
       ? renderQuickCollectNeedsSetupHtml(withoutFee)
-      : allCollected ? renderQuickCollectAllCollectedHtml() : paidEmpty ? renderQuickCollectPaidEmptyHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter)
+      : allCollected ? renderQuickCollectAllCollectedHtml() : paidEmpty ? renderQuickCollectPaidEmptyHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter, priorityById)
   };
 }
 
@@ -1729,7 +1755,7 @@ export function renderQuickCollectPaidEmptyHtml() {
     `;
 }
 
-export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null, sameNameBadges = null, mohallaFilter = '') {
+export function renderQuickCollectCustomerListHtml(customers, activeCustomerId = null, sameNameBadges = null, mohallaFilter = '', priorityById = null) {
   if (!customers || customers.length === 0) {
     // Plan 542: when a mohalla filter is what emptied the list, name
     // the mohalla and offer a one-tap clear — the generic message
@@ -1766,13 +1792,24 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     const isSelected = c.id === activeCustomerId;
     const hasDues = c.totalDues > 0;
     const dueClass = hasDues ? 'qc-has-dues' : 'qc-settled';
+    // QC-2: the existing dues-recovery score for this card — tier
+    // badge + the scorer's own first reason, plus high-balance tier
+    // labels. Null when the scorer has no row for the customer, and
+    // then nothing renders: missing data is never shown as a value.
+    const cardPriority = qc2CardPriority(priorityById?.get(c.id));
+    const tierLabels = cardPriority
+      ? cardPriority.tierKeys.map((key) => `<span class="qc2-tier-label">${escapeHtml(t(QC2_HIGH_BALANCE_TIER_LABEL_KEYS[key]))}</span>`).join('')
+      : '';
+    const priorityRow = cardPriority
+      ? `<span class="qc2-priority"><span class="${cardPriority.badgeClass}">${escapeHtml(t(cardPriority.labelKey))}</span>${cardPriority.reason ? `<span class="qc2-priority-reason">${escapeHtml(cardPriority.reason)}</span>` : ''}</span>`
+      : '';
     const dueLabel = hasDues
       ? `<strong class="qc-due-val">PKR ${c.totalDues.toLocaleString('en-PK')}</strong><span class="qc-due-tag">DUE</span>`
       : `<strong class="qc-due-val qc-val-settled">PKR 0</strong><span class="qc-settled-tag">SETTLED</span>`;
 
     return `
       <button type="button"
-              class="qc-customer-card ${dueClass} ${isSelected ? 'is-selected' : ''}"
+              class="qc-customer-card ${dueClass} ${isSelected ? 'is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}"
               data-customer-id="${escapeHtml(c.id)}"
               aria-label="Pick ${escapeHtml(c.name)} with dues PKR ${c.totalDues}">
         <div class="qc-card-left">
@@ -1781,10 +1818,12 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
             <span class="qc-cust-name">${escapeHtml(c.name)}</span>
             ${sameNameBadges?.get(c.id) ?? ''}
             <span class="qc-cust-meta">${escapeHtml(c.area)}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</span>
+            ${priorityRow}
           </div>
         </div>
         <div class="qc-card-right">
           ${dueLabel}
+          ${tierLabels}
         </div>
       </button>
     `;
@@ -2055,6 +2094,11 @@ export function setupQuickCollectModal({
   // when the host page predates it) — Unpaid / Paid / All; it sets
   // the same pool the chips filter. Class-found, no new element id.
   const statusFilterSelect = modal.querySelector('[data-qc-status-filter]');
+  // QC-2: the sort-order dropdown above the picker search (null
+  // when the host page predates it) — Highest dues first / Oldest
+  // due first; it re-orders the same pool, never the pool itself.
+  // Class-found, no new element id.
+  const sortOrderSelect = modal.querySelector('[data-qc-sort-order]');
   // Plan 428: the recent-customers quick-pick row (null when the
   // host page predates it) — the last ten customers collected from,
   // latest first, with name, mohalla and dues.
@@ -2749,6 +2793,11 @@ export function setupQuickCollectModal({
   let uptimeConcessionFill = null;
 
   let activeFilter = 'all-dues';
+  // QC-2: the picker's sort order — 'amount' (highest dues first,
+  // the default) or 'oldest' (oldest unpaid bill month first). It
+  // lives through saves and round loops like the filter; only
+  // picking the other option changes it.
+  let activeSortOrder = QC2_SORT_AMOUNT;
   // Plan 446: the mohalla the picker list is narrowed to — blank
   // means every mohalla. It lives through saves and round loops,
   // because a round is worked in one mohalla; only picking "All
@@ -3314,7 +3363,7 @@ export function setupQuickCollectModal({
     const state = getState();
     if (!state || !customerListContainer) return;
     const query = searchInput?.value ?? '';
-    const picked = renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId, activeMohallaFilter);
+    const picked = renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId, activeMohallaFilter, { sortOrder: activeSortOrder });
     customerListContainer.innerHTML = picked.html;
     if (mohallaFilterSummary) {
       mohallaFilterSummary.textContent = activeMohallaFilter
@@ -5049,6 +5098,14 @@ export function setupQuickCollectModal({
   // paid-up pool, All is everyone. One pool, two controls.
   statusFilterSelect?.addEventListener('change', () => {
     setFilter(qcStatusFilterFromDropdown(statusFilterSelect.value));
+    renderList();
+  });
+
+  // QC-2: the sort-order dropdown above the search re-orders the
+  // same pool — oldest unpaid bill month first, or back to highest
+  // dues first. The pool itself is never rebuilt by the sort.
+  sortOrderSelect?.addEventListener('change', () => {
+    activeSortOrder = qc2SortOrderFromValue(sortOrderSelect.value);
     renderList();
   });
 

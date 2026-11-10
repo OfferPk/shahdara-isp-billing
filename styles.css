@@ -7625,6 +7625,9 @@ html, body {
   width: 100%;
   max-height: 92vh;
   overflow-y: auto;
+  /* QC receipt-modal overhaul (§4.1.5): belt-and-braces against the +558px
+     class of failure — the <pre> fix (§4.4) is the root-cause fix. */
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -8589,23 +8592,7 @@ html, body {
   padding-bottom: 8px;
 }
 
-.qc-receipt-badge.settled {
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: #dcfce7;
-  color: #166534;
-}
 
-.qc-receipt-badge.partial {
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 4px;
-  background: #fef3c7;
-  color: #92400e;
-}
 
 .qc-receipt-id {
   font-size: 0.75rem;
@@ -8788,40 +8775,58 @@ html, body {
 #quickCollectModal.qc-success-open .qc-success-check.qc-tick-play { animation: qc-check-pop .45s cubic-bezier(.2,1.4,.4,1) forwards; }
 #quickCollectModal.qc-success-open .qc-success-check.qc-tick-play .qc-check-draw { animation: qc-check-draw .6s ease-out .1s forwards; }
 
-/* B2: banner padding 16 → 10px vertical. */
-#quickCollectModal.qc-success-open .qc-success-banner { padding: 10px 8px; }
+/* B2 (QC receipt-modal overhaul, §4.2.1): the banner IS the box now —
+   one emerald banner holding the heading row and the two remaining pills.
+   background/border are DS-0 tokens, zero new hex. */
+#quickCollectModal.qc-success-open .qc-success-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--ds-brand-soft);
+  border: 1px solid var(--ds-success-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+}
 
 /* B3: heading explicit 18px, no margins (it inherits browser h3 sizing today). */
-#quickCollectSuccessHeading { font-size: 18px; margin: 0; }
+#quickCollectSuccessHeading { font-size: 16px; margin: 0; }
 
 /* M2: message <p> margins → 0 (the banner padding already gives the air). */
 #quickCollectSuccessMessage { margin: 0; }
 
-/* S1: still-owes + saved badge merged into one status row (two pills).
-   The row hides itself when both children are hidden. */
-.qc-success-status-row {
+/* S1 (QC receipt-modal overhaul, §4.2.2): the two remaining pills live in
+   the banner's second row — the still-owes pill and the saved badge. The
+   settle badge is gone (deduped); the Plan 565 chain still feeds the
+   still-owes pill, the card and the draft. The row hides itself when both
+   children are hidden, and carries a min-height so the banner does not
+   collapse when only the saved badge remains. */
+.qc-success-pills-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  justify-content: center;
+  min-height: 22px;
 }
 
-.qc-success-status-row:not(:has(> :not([hidden]))) { display: none; }
+#quickCollectModal.qc-success-open .qc-success-pills-row { gap: 6px; }
 
-#quickCollectModal.qc-success-open .qc-success-status-row .sow-still-owes {
+.qc-success-pills-row:not(:has(> :not([hidden]))) { display: none; }
+
+#quickCollectModal.qc-success-open .qc-success-pills-row .sow-still-owes {
   margin: 0;
   /* Polish 21 (Req 6 S2): compact badge sizing — 12px, 2px 8px — so the
-     three merged pills read as one equal "all settled" group. */
+     two merged pills read as one equal "all settled" group. */
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 9px;
 }
 
-.qc-success-status-row .sow-still-owes:has(.zero-balance) { background: #dcfce7; }
+.qc-success-pills-row .sow-still-owes:has(.zero-balance) { background: #dcfce7; }
 
-.qc-success-status-row .sow-still-owes:has(.has-balance) { background: #fef3c7; }
+.qc-success-pills-row .sow-still-owes:has(.has-balance) { background: #fef3c7; }
 
-#quickCollectModal.qc-success-open .qc-success-status-row .osb-saved-badge {
+#quickCollectModal.qc-success-open .qc-success-pills-row .osb-saved-badge {
   margin: 0;
   /* Polish 21 (Req 6 S2): compact badge sizing — 2px 8px — matching the
      still-owes pill and the card badges. */
@@ -8847,9 +8852,26 @@ html, body {
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount { font-size: 1.3rem; }
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-amount-row { padding: 2px 0; }
 
-/* C5: grid gap 8 → 6px; Area select explicit height 34px. */
+/* C5: grid gap 8 → 6px; Area select becomes a ~30px pill (spec §4.3.4).
+   The old 34px height was dead code — styles.css:802 floors every select
+   at 44px — so the pill sets min-height: 0 (scoped) and restyles the
+   <select> itself (appearance: none, pill border, chevron via the
+   wrapper). The delegated change handler still fires and still saves. */
 #quickCollectModal.qc-success-open .qc-receipt-card .qc-receipt-grid { gap: 6px; }
-#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-select { height: 34px; }
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-select {
+  min-height: 0;
+  height: 30px;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--ds-success-border);
+  border-radius: 999px;
+  background: var(--ds-brand-soft);
+  padding: 2px 26px 2px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ds-brand);
+  max-width: 100%;
+}
 
 /* T1: terms block 184 → 108px (scoped override + <p> margins → 0).
    The global .receipt-urdu-notice rule is untouched. */
@@ -8885,19 +8907,12 @@ html, body {
    (radius 12px, padding 4px 12px) — the "box" the user sees, wrapping
    heading + tick together. The border + padding cost +12px, booked in
    the fit test (693px total, inside the 700px gate). */
+/* QC receipt-modal overhaul (§4.2.1): the bordered heading-row box is gone
+   — the banner IS the box now — so the row is a plain flex row inside it. */
+#quickCollectModal.qc-success-open .qc-success-heading-row { border: none; padding: 0; }
 .qc-success-heading-row { display: flex; align-items: center; justify-content: center; gap: 8px; border: 2px solid var(--green, #0e5b4d); border-radius: 12px; padding: 4px 12px; }
 .qc-success-heading-row .qc-success-check { margin-bottom: 0; flex-shrink: 0; }
 [data-theme="dark"] .qc-success-heading-row { border-color: #2dd4bf; }
-
-/* Req 2 — Separation: 8px of air between the heading (and its focus
-   ring) and the Urdu message, so the message reads as its own block
-   instead of as part of the heading. The base M2 rule (margin: 0)
-   stays; this success-scoped rule adds only the top margin. */
-#quickCollectModal.qc-success-open #quickCollectSuccessMessage { margin-top: 8px; }
-
-/* Req 6 — Merged status section: one section, three pills. The gap
-   drops 8 → 6px so the two wrapped badge lines + gap come to 44px. */
-#quickCollectModal.qc-success-open .qc-success-status-row { gap: 6px; }
 
 /* Req 4 (amended) — Tappable contact icons beside the support number
    on the QC success screen: inline on the number's line, WhatsApp
@@ -8908,17 +8923,306 @@ html, body {
 .qc-receipt-card .receipt-support-action.receipt-support-call { color: inherit; }
 .qc-receipt-card .receipt-support-action svg { display: block; }
 
-/* Req 8 — "WhatsApp Pending" reads as a task still pending on the
-   success screen: red background, white text, clock icon kept (the
-   icon uses stroke="currentColor", so it turns white with the text).
-   Token stops only, zero new hex. The global .badge-receipt-unshared
-   rule is untouched (other surfaces keep the grey pending look); the
-   sent state (green shared badge) is unchanged. This ID-scoped rule
-   wins over the dark-theme global override by specificity, so the red
-   shows in both themes. */
-#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { background: var(--color-danger); color: var(--color-neutral-0); border-color: var(--color-danger-strong); }
+/* Req 8 (QC receipt-modal overhaul, §4.3.3) — "WhatsApp Pending" reads as a
+   task still pending on the success screen, now AMBER (DS-0 warning
+   tokens). This is a deliberate reversal of polish #21's user-requested
+   red (2026-11-09), scoped to the success state only. The global
+   .badge-receipt-unshared rule is untouched (other surfaces keep the grey
+   pending look); the sent state (green shared badge) is unchanged. This
+   ID-scoped rule wins over the dark-theme global override by specificity,
+   so the amber shows in both themes. */
+#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared { background: var(--ds-warning-bg); color: var(--ds-warning); border-color: var(--ds-warning-border); }
 
-/* End Polish 21 — Quick Collect success screen (tick inline + replay + status merge + red pending). */
+/* End Polish 21 — Quick Collect success screen (tick inline + replay + status merge + red pending; the red is now amber, see the QC receipt-modal overhaul below). */
+
+/* QC receipt-modal overhaul — the success screen, scoped to
+   #quickCollectModal.qc-success-open (or new .qc-* / .rsd-* classes).
+   No change to any other modal, no change to the pick/form steps, no
+   change to stored data. Tokens only, zero new hex (Appendix B). */
+
+/* §4.1 — compact sticky 52px header, single row. The modal-heading is
+   shared across steps; these rules are success-only, so the pick/form
+   steps keep their two-line header. The eyebrow stays hidden on success
+   (polish #21 H1). */
+#quickCollectModal.qc-success-open .modal-heading {
+  align-items: center !important;
+  top: 0 !important;
+}
+#quickCollectModal.qc-success-open .modal-heading > div {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+#quickCollectModal.qc-success-open #quickCollectTitle {
+  font-size: 16px !important;
+  font-weight: 700;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* §4.1.3 — (i) button 32x32 circle. The !important on min-height is
+   required: the global button rule floors every button at 44px
+   !important. The global rule is NOT changed. The Info icon comes from
+   ds-icons.js via the data-ds-icon hook (boot wireDsIcons). */
+#quickCollectModal .help-info-btn {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px !important;
+  margin-inline-start: 0;
+  flex-shrink: 0;
+}
+#quickCollectModal .help-info-btn [data-ds-icon] { display: inline-flex; }
+#quickCollectModal .help-info-btn [data-ds-icon] svg { display: block; }
+
+/* §4.1.4 — close button 32x32 neutral icon button. A deliberate
+   modal-local deviation from the universal 48px red close rule — the
+   universal rule is NOT changed. Recorded in the PR body. */
+#quickCollectModal #closeQuickCollectModalBtn {
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  border-radius: 50% !important;
+  background: var(--color-neutral-100, #f0f4f2) !important;
+  color: var(--ink) !important;
+  font-size: 16px !important;
+  flex-shrink: 0 !important;
+}
+
+/* §4.2.3 — Urdu package note as its own soft callout below the banner.
+   The animated gradient is dropped for the message (the terms box keeps
+   its gradient via the card builder's replace). Nastaliq + line-height
+   2.0 still come from the #quickCollectSuccessMessage.qc-urdu-nastaliq
+   rule, so the glyphs never clip; the callout's 1.7 is the English
+   fallback's line-height. */
+#quickCollectModal.qc-success-open .qc-success-callout {
+  background: var(--ds-nested);
+  border-right: 3px solid var(--ds-brand);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.7;
+  direction: rtl;
+}
+#quickCollectModal.qc-success-open .qc-success-callout #quickCollectSuccessMessage { margin: 0; }
+
+/* §4.3.4 — Area pill wrapper: the chevron sits over the select's right
+   edge (pointer-events: none, so the tap reaches the <select> and opens
+   the same mohalla list). */
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-pill .qc-area-chevron {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  pointer-events: none;
+  color: var(--ds-brand);
+}
+#quickCollectModal.qc-success-open .qc-receipt-card .qc-area-pill .qc-area-chevron svg { display: block; }
+
+/* §4.3.5 — support number + icons on their own bottom row inside the
+   terms box: the number span becomes a full-width flex row (number left,
+   the two icon links right via margin-inline-start: auto on the WhatsApp
+   link). The label text stays on the line above. The number keeps
+   white-space: nowrap (polish #21 Req 4). */
+#quickCollectModal.qc-success-open .qc-receipt-card .receipt-support-number {
+  display: flex;
+  align-items: center;
+}
+#quickCollectModal.qc-success-open .qc-receipt-card .receipt-support-whatsapp {
+  margin-inline-start: auto;
+}
+
+/* §4.5.1 — primary Send WhatsApp Receipt: solid brand green, 48px, the
+   WhatsApp glyph as a ::before (the i18n applier rewrites the button's
+   textContent, so no inner icon span can survive — the ::before is CSS,
+   not DOM). The glyph path is the receipt-terms.js:61 WhatsApp mark,
+   white-filled; Lucide has no WhatsApp brand glyph. */
+#quickCollectModal.qc-success-open .qc-wa-btn {
+  background: var(--ds-brand);
+  border-color: var(--ds-brand);
+  min-height: 48px !important;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+#quickCollectModal.qc-success-open .qc-wa-btn:hover { background: var(--ds-brand); }
+#quickCollectModal.qc-success-open .qc-wa-btn::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ffffff'%3E%3Cpath d='M19.05 4.91A9.82 9.82 0 0 0 12.04 2c-5.46 0-9.91 4.45-9.91 9.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21c5.46 0 9.91-4.45 9.91-9.91c0-2.65-1.03-5.14-2.9-7.01m-7.01 15.24c-1.48 0-2.93-.4-4.2-1.15l-.3-.18l-3.12.82l.83-3.04l-.2-.31a8.26 8.26 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24c2.2 0 4.27.86 5.82 2.42a8.18 8.18 0 0 1 2.41 5.83c.02 4.54-3.68 8.23-8.22 8.23m4.52-6.16c-.25-.12-1.47-.72-1.69-.81c-.23-.08-.39-.12-.56.12c-.17.25-.64.81-.78.97c-.14.17-.29.19-.54.06c-.25-.12-1.05-.39-1.99-1.23c-.74-.66-1.23-1.47-1.38-1.72c-.14-.25-.02-.38.11-.51c.11-.11.25-.29.37-.43s.17-.25.25-.41c.08-.17.04-.31-.02-.43s-.56-1.34-.76-1.84c-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31c-.22.25-.86.85-.86 2.07s.89 2.4 1.01 2.56c.12.17 1.75 2.67 4.23 3.74c.59.26 1.05.41 1.41.52c.59.19 1.13.16 1.56.1c.48-.07 1.47-.6 1.67-1.18c.21-.58.21-1.07.14-1.18s-.22-.16-.47-.28'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* §4.5.2 — 3-column output grid: icon above label, 52px each. When Web
+   Bluetooth is unavailable the BT button is [hidden] and the grid drops
+   to 2 columns (no orphan third column). */
+#quickCollectModal.qc-success-open .qc-output-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+#quickCollectModal.qc-success-open .qc-output-grid:has(#quickCollectBluetoothPrintBtn[hidden]) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+#quickCollectModal.qc-success-open .qc-output-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 52px;
+  padding: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+#quickCollectModal.qc-success-open .qc-output-btn [data-ds-icon] { display: inline-flex; }
+#quickCollectModal.qc-success-open .qc-output-btn [data-ds-icon] svg { display: block; }
+#quickCollectModal.qc-success-open .qc-output-btn .qc-action-label { overflow-wrap: anywhere; }
+
+/* §4.5.3 — 2-column next-action row, 44px. The labels are long for a
+   half-width cell, so the font stays 12px with tight side padding; if a
+   label wraps the row grows (the harness is the authority). */
+#quickCollectModal.qc-success-open .qc-next-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+#quickCollectModal.qc-success-open .qc-next-btn {
+  min-height: 44px;
+  padding: 8px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* §4.5.3 + decision (d) — the empty-amount path as a small text button
+   directly under the Same Customer button (~24px). The !important on
+   min-height beats the global 44px button floor. */
+#quickCollectModal.qc-success-open .qc-empty-amount-btn {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  min-height: 24px !important;
+  height: 24px;
+  font: 600 12px 'DM Sans', sans-serif;
+  color: var(--muted, #667a72);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* §4.5.4 — single full-width ghost/neutral Done, 44px. The
+   .secondary-button base already gives it the neutral look; this pins
+   the 44px height. */
+#quickCollectModal.qc-success-open .qc-done-btn { min-height: 44px; }
+
+/* §4.4 — WhatsApp draft accordion. The FIRST-EVER CSS rules for .rsd-*
+   (today there are zero) — scoped to #quickCollectModal. Collapsed by
+   default; the Copy Text button is visible without expanding; the
+   expanded preview wraps (white-space: pre-wrap) — the root-cause fix
+   for the +558px overflow. The expanded preview is user-invoked and is
+   NOT part of the scroll-height budget. */
+#quickCollectModal .rsd-share-draft {
+  border: 1px solid var(--line, #dce6e1);
+  border-radius: 10px;
+  padding: 4px 10px;
+}
+#quickCollectModal .rsd-share-draft-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#quickCollectModal .rsd-share-draft-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: 22px !important;
+  font: 700 13px 'DM Sans', sans-serif;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+#quickCollectModal .rsd-share-draft-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  transition: transform .15s ease;
+  font-size: 11px;
+  color: var(--muted, #667a72);
+}
+#quickCollectModal .rsd-share-draft.rsd-open .rsd-share-draft-chevron { transform: rotate(90deg); }
+#quickCollectModal .rsd-share-draft-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  min-height: 22px !important;
+  padding: 2px 6px;
+  border: 1px solid var(--line, #dce6e1);
+  border-radius: 8px;
+  background: var(--surface, #ffffff);
+  font: 600 12px 'DM Sans', sans-serif;
+  color: var(--ink);
+  cursor: pointer;
+}
+#quickCollectModal .rsd-share-draft-copy [data-ds-icon] { display: inline-flex; }
+#quickCollectModal .rsd-share-draft-copy [data-ds-icon] svg { display: block; width: 14px; height: 14px; }
+#quickCollectModal .rsd-share-draft-line {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted, #667a72);
+  overflow-wrap: anywhere;
+  /* The line is a one-line summary of the draft (the full text is one
+     tap away in the expanded preview) — a wrapping two-line summary
+     defeats the collapsed accordion, so it truncates with an ellipsis. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#quickCollectModal .rsd-share-draft-body { margin-top: 8px; }
+#quickCollectModal .rsd-share-draft-text {
+  background: var(--ds-footer-good);
+  border: 1px solid var(--ds-success-border);
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  margin: 0;
+}
+
+/* §4.1.5 — overflow containment: the dialog wraps anywhere, and the
+   long-string sites break instead of forcing a horizontal scroll. */
+#quickCollectModal { overflow-wrap: anywhere; }
+#quickCollectModal .qc-txnid-code { word-break: break-word; }
+#quickCollectModal .qc-receipt-item .qc-meta-val { word-break: break-word; }
+
+/* End QC receipt-modal overhaul. */
+
 
 /* Dark Mode Overrides for Quick Collect */
 [data-theme="dark"] #quickCollectModal,
@@ -13092,7 +13396,7 @@ dialog::backdrop {
      sticky modal header's margin-bottom 12 → 8px. D1: the dialog's
      padding-top 16 → 8px. Both need !important to beat the mobile
      dialog rules above (equal-or-better specificity + later order). */
-  #quickCollectModal.qc-success-open .modal-heading { margin-bottom: 8px !important; }
+  #quickCollectModal.qc-success-open .modal-heading { margin-bottom: 0 !important; }
   #quickCollectModal.qc-success-open { padding-top: 8px !important; }
 }
 

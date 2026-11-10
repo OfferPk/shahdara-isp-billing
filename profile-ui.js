@@ -557,7 +557,7 @@ export function pngReceiptButtonMarkup(customerId, month, paymentId, customerNum
 // (fieldModeCustomerStatus) — no second balance computation lives
 // here; this helper only owns the markup so the label/i18n stay put.
 export function speakDueButtonMarkup(customerNumber) {
-  return `<button class="secondary-button speak-due-button" type="button" data-speak-due aria-label="${t('speak_due_aria', null, { number: customerNumber })}">${t('speak_due_btn')}</button>`;
+  return `<button class="secondary-button speak-due-button" type="button" data-speak-due aria-label="${t('speak_due_aria', null, { number: customerNumber })}"><span class="ds-action-icon" data-ds-icon="Volume2" aria-hidden="true"></span>${t('speak_due_btn')}</button>`;
 }
 
 /** Bind each actual receipt only to its owning profile's saved number and identity. */
@@ -650,7 +650,8 @@ export function profileProfitDisplay(customer, profit) {
 // Suspended > Expired > Vacation > Offline > Active > Not chosen. The
 // pill is the derived indicator; the Service-group row keeps the
 // STORED status label exactly as today, and the detail-head
-// #profileServiceStatusBadge (stored status) is untouched. Pure: the
+// #profileServiceStatusBadge shows the same derived pill (profile
+// redesign, Step 2), so header and view agree. Pure: the
 // caller passes the open suspension record in — this module never
 // reads a store. `today` is the Asia/Karachi local date ('YYYY-MM-DD',
 // string compare) passed by the caller.
@@ -692,6 +693,17 @@ export function profileServiceState(customer, { today, openSuspension } = {}) {
 
 export function profileServiceStatusPillHtml(serviceState) {
   return `<span class="profile-service-status profile-service-status-${serviceState.modifier}">${escapeHtml(serviceState.label)}</span>`;
+}
+
+// Profile redesign (Step 2) — the header identity line: `{mohalla} ·
+// {phone}` under the name. A missing half is omitted, never dashed;
+// the whole line is omitted (empty string) when both are missing.
+// Pure: reads only the record.
+export function profileIdentityLine(customer) {
+  const mohalla = typeof customer?.mohalla === 'string' ? customer.mohalla.trim() : '';
+  const phone = typeof customer?.phone === 'string' ? customer.phone.trim() : '';
+  if (mohalla && phone) return `${mohalla} · ${phone}`;
+  return mohalla || phone;
 }
 
 // SISP-8: vacation-hold summary for the profile view (Service group row)
@@ -1373,7 +1385,7 @@ export function upsellProfileHintHtml(candidate, formatAmountFn = (n) => String(
 // host binds #profileWelcomeSlipButton clicks to the welcome-slip modal
 // (welcome-agreement-slip.js builders, wired in app.js).
 export function welcomeSlipButtonMarkup() {
-  return `<button id="profileWelcomeSlipButton" class="secondary-button" type="button">${t('welcome_btn')}</button>`;
+  return `<button id="profileWelcomeSlipButton" class="secondary-button" type="button"><span class="ds-action-icon" data-ds-icon="FileText" aria-hidden="true"></span>${t('welcome_btn')}</button>`;
 }
 
 /**

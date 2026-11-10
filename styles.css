@@ -20,7 +20,7 @@ body{font-family:var(--font-sans)}
 @media(max-width:800px){.global-search-region,.view-nav,.transactions-view,.billing-reports-view{padding-left:14px;padding-right:14px}.global-customer-results{left:14px;right:14px}.view-nav{gap:2px}.view-nav-button{padding:9px 11px}.transaction-filters{grid-template-columns:minmax(0,1fr) 180px;gap:9px}.transaction-filter-help{grid-column:1/-1}.transactions-view,.billing-reports-view{margin-top:12px}.transaction-card{padding:11px}.report-row{gap:9px}}
 @media(max-width:620px){.global-search-region{margin-top:8px;padding:0 12px}.global-search-main{padding:9px 10px}.global-search-control input{height:38px;font-size:12px}.global-search-help{font-size:9px}.global-customer-results{left:12px;right:12px;max-height:260px}.global-result-contact{display:none}.view-nav{padding:0 12px;margin-top:10px;gap:2px}.view-nav-button{flex:1;padding:9px 5px;font-size:10px}.transactions-view,.billing-reports-view{padding:0 12px;margin:10px auto 18px}.transactions-pane,.report-pane{padding:14px 11px;border-radius:12px}.transactions-heading,.report-heading{align-items:flex-start;flex-direction:column;gap:8px;margin-bottom:12px}.transactions-heading h2,.report-heading h2{font-size:19px}.report-month-label{width:100%}.transaction-filters{grid-template-columns:1fr;gap:8px;padding:9px}.transaction-filter-help{grid-column:auto}.transaction-card{grid-template-columns:1fr;gap:9px;padding:10px}.transaction-actions{justify-content:flex-end}.transaction-amount{font-size:15px}.report-filters{gap:5px}.report-filter-button{min-height:34px;padding:0 10px;font-size:10px}.report-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:10px}.report-customer{grid-column:1/-1}.report-cell:first-of-type{grid-column:auto}.report-status{font-size:8px}.payment-row{align-items:flex-start;flex-wrap:wrap}.payment-row .payment-main{flex-basis:calc(100% - 20px)}.payment-row .payment-actions{width:100%;justify-content:flex-end}}
 
-.global-result-no-match{padding:10px;color:var(--muted);font-size:11px}.global-result-option[aria-selected=true]{background:var(--mint)}.incident-section{margin-top:19px;padding:15px;background:#f8faf9;border:1px solid #e7efeb;border-radius:13px}.incident-section-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}.incident-section-heading h3{font:700 16px Manrope,sans-serif;letter-spacing:-.2px;margin:0;color:var(--ink)}.incident-manual-note{font-size:10px;line-height:1.45;color:var(--muted);margin:5px 0 0}.incident-count{display:flex;align-items:center;gap:7px;flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:#63766e;font-size:9px}.incident-count strong{font:700 18px Manrope,sans-serif;color:var(--green)}.incident-add-button{margin-top:11px}.incident-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:11px}.incident-form[hidden]{display:none}.incident-field{display:flex;flex-direction:column;gap:5px;min-width:0;color:#4b6259;font-size:10px;font-weight:700}.incident-field input,.incident-field textarea{display:block;width:100%;min-width:0;min-height:40px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:8px 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif}.incident-field textarea{min-height:70px;resize:vertical}.incident-field input:focus,.incident-field textarea:focus{outline:3px solid #cce9dd;border-color:#60a68d}.incident-note-field,.incident-form-error,.incident-form-actions{grid-column:1/-1}.incident-form-actions{display:flex;justify-content:flex-end;gap:7px}.incident-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}.incident-empty{margin:10px 0 0;padding:12px;border:1px dashed #d7e3dd;border-radius:9px;color:var(--muted);font-size:10px;line-height:1.4}.incident-empty[hidden]{display:none}.incident-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 12px}.incident-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.incident-card-state{border-radius:999px;padding:5px 9px;font-size:9px;font-weight:700}.incident-open{background:var(--amber-bg);color:var(--amber)}.incident-resolved{background:#e8f5ed;color:#19704e}.incident-reported{font-size:10px;color:#657970}.incident-times{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:10px 0 0}.incident-times div{min-width:0}.incident-times dt{font-size:9px;color:var(--muted)}.incident-times dd{font-size:10px;font-weight:600;color:#36574b;margin:3px 0 0;overflow-wrap:anywhere}.incident-note{font-size:10px;line-height:1.5;color:#526a61;margin:9px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}.incident-audit{margin-top:9px;border-top:1px solid #edf1ef;padding-top:8px}.incident-audit summary{font-size:10px;font-weight:700;color:#526a61;cursor:pointer}.incident-audit ol{margin:7px 0 0;padding-left:18px}.incident-audit li{font-size:9px;line-height:1.5;color:#5c6e66;margin:0 0 6px;overflow-wrap:anywhere}.incident-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:10px}.incident-actions .secondary-button,.incident-actions .delete-incident{min-height:34px;padding:0 10px}.incident-actions .delete-incident{border:1px solid #f0dbd8;background:#fff;color:#a3433a;border-radius:8px;font:600 10px 'DM Sans',sans-serif;cursor:pointer}.incident-actions .delete-incident:hover{background:#fff2f0}
+.global-result-no-match{padding:10px;color:var(--muted);font-size:11px}.global-result-option[aria-selected=true]{background:var(--mint)}.incident-section{margin-top:19px;padding:15px;background:#f8faf9;border:1px solid #e7efeb;border-radius:13px}.incident-section-heading{display:flex;align-items:center;justify-content:space-between;gap:14px}.incident-section-heading h3{font:700 16px Manrope,sans-serif;letter-spacing:-.2px;margin:0;color:var(--ink)}.incident-manual-note{font-size:10px;line-height:1.45;color:var(--muted);margin:5px 0 0}.incident-count{display:flex;align-items:center;gap:7px;flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:#63766e;font-size:9px}.incident-count strong{font:700 18px Manrope,sans-serif;color:var(--green)}.incident-add-button{margin-top:11px}.incident-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;padding:12px;background:#fff;border:1px solid var(--line);border-radius:11px}.incident-form[hidden]{display:none}.incident-field{display:flex;flex-direction:column;gap:5px;min-width:0;color:#4b6259;font-size:10px;font-weight:700}.incident-field input,.incident-field textarea{display:block;width:100%;min-width:0;min-height:40px;border:1px solid #dce6e1;border-radius:9px;background:#fff;padding:8px 10px;color:var(--ink);font:500 12px 'DM Sans',sans-serif}.incident-field textarea{min-height:70px;resize:vertical}.incident-field input:focus,.incident-field textarea:focus{outline:3px solid #cce9dd;border-color:#60a68d}.incident-note-field,.incident-form-error,.incident-form-actions{grid-column:1/-1}.incident-form-actions{display:flex;justify-content:flex-end;gap:7px}.incident-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}.incident-empty{margin:10px 0 0;padding:12px;border:1px dashed #d7e3dd;border-radius:9px;color:var(--muted);font-size:10px;line-height:1.4}.incident-empty[hidden]{display:none}.incident-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:11px 12px}.incident-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.incident-card-state{border-radius:999px;padding:5px 9px;font-size:9px;font-weight:700}.incident-open{background:var(--amber-bg);color:var(--amber)}.incident-card-state.incident-resolved{background:var(--ds-success-bg);color:var(--ds-success)}.incident-reported{font-size:10px;color:#657970}.incident-times{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:10px 0 0}.incident-times div{min-width:0}.incident-times dt{font-size:9px;color:var(--muted)}.incident-times dd{font-size:10px;font-weight:600;color:#36574b;margin:3px 0 0;overflow-wrap:anywhere}.incident-note{font-size:10px;line-height:1.5;color:#526a61;margin:9px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}.incident-audit{margin-top:9px;border-top:1px solid #edf1ef;padding-top:8px}.incident-audit summary{font-size:10px;font-weight:700;color:#526a61;cursor:pointer}.incident-audit ol{margin:7px 0 0;padding-left:18px}.incident-audit li{font-size:9px;line-height:1.5;color:#5c6e66;margin:0 0 6px;overflow-wrap:anywhere}.incident-actions{display:flex;justify-content:flex-end;gap:7px;margin-top:10px}.incident-actions .secondary-button,.incident-actions .delete-incident{min-height:34px;padding:0 10px}.incident-actions .delete-incident{border:1px solid #f0dbd8;background:#fff;color:#a3433a;border-radius:8px;font:600 10px 'DM Sans',sans-serif;cursor:pointer}.incident-actions .delete-incident:hover{background:#fff2f0}
 @media(max-width:620px){.incident-section{padding:12px 10px;margin-top:14px}.incident-section-heading{align-items:flex-start;flex-direction:column;gap:8px}.incident-count{align-self:flex-start}.incident-form{grid-template-columns:1fr;gap:9px;padding:10px}.incident-note-field,.incident-form-error,.incident-form-actions{grid-column:auto}.incident-form-actions{flex-wrap:wrap}.incident-form-actions button{flex:1}.incident-card{padding:10px}.incident-times{grid-template-columns:1fr;gap:6px}}
 
 .preview-notice{max-width:1272px;margin:10px auto 0;padding:10px 14px;display:flex;gap:8px;align-items:flex-start;border:1px solid #d5e7dc;border-radius:10px;background:#f3faf6;color:#365c4e;font-size:10px;line-height:1.45}.preview-notice strong{flex:0 0 auto;color:var(--green);font-size:10px}.preview-notice span{color:#63776e}.payment-allocation{display:block;margin-top:4px;padding:6px 8px;border-left:2px solid #80b79d;border-radius:0 6px 6px 0;background:#eef6f1;color:#406252;font-size:9px;line-height:1.45;overflow-wrap:anywhere}.carry-credit-source{display:block;flex-basis:100%;padding:5px 7px;border-radius:6px;background:#f3f8f5;color:#587268;font-size:9px;line-height:1.4;overflow-wrap:anywhere}.bill-snapshot-note{margin:-7px 0 12px;color:#5c6e66;font-size:9px;line-height:1.45}.bill-audit{margin:-6px 0 13px;color:#657970;font-size:9px}.bill-audit summary{cursor:pointer;font-weight:700}.bill-audit ol{padding-left:19px;line-height:1.5}.report-row{grid-template-columns:minmax(165px,1.4fr) repeat(5,minmax(90px,.8fr)) minmax(80px,.6fr)}.report-credit-value{font-size:9px;line-height:1.45;color:#426459;overflow-wrap:anywhere}.dashboard-method{max-width:1200px}.month-summary>span{max-width:100%;overflow-wrap:anywhere}
@@ -527,7 +527,8 @@ textarea { line-height: 1.5; }
 @media (max-width: 620px) {
   .app-shell { margin-top: 8px; }
   .customer-pane, .detail-pane { border-radius: 0; }
-  .detail-pane { padding: 18px 14px 28px; }
+  /* D-T6: bottom padding clears the fixed bottom nav + speed dial. */
+  .detail-pane { padding: 18px 14px max(96px, 126px); }
   .dashboard, .global-search-region, .view-nav,
   .transactions-view, .billing-reports-view, .phase3-view { padding-left: 12px; padding-right: 12px; }
   .summary-grid { gap: 8px; }
@@ -594,7 +595,12 @@ textarea { line-height: 1.5; }
 
 /* v1.2.5 visual polish: aligned PKR, consistent states, and narrow-screen wrapping. */
 body, body * { font-family: var(--font-sans) !important; }
-html, body { max-width: 100%; overflow-x: clip; }
+/* Profile redesign: no overflow-x clip on html/body - the clip made
+   position:sticky a no-op for the profile tabs (and the topbar), because
+   a clipped ancestor becomes the sticky constraint. Horizontal overflow
+   stays contained per-view (.table-scroll and friends); the profile
+   harness verifies 360px stays overflow-free without the clip. */
+html, body { max-width: 100%; }
 main, .app-shell, .customer-pane, .detail-pane, .customer-meta, .profile-grid,
 .profile-field, .report-row, .report-customer, .report-cell, .transactions-pane,
 .transaction-data, .phase3-pane, .phase3-chart-grid, .chart-card, .table-card,
@@ -1132,6 +1138,9 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 .current-bill-stat>span{color:#536b60;font-size:10px;font-weight:700}
 .current-bill-stat>strong{color:#183d30;font-size:14px;line-height:1.25;overflow-wrap:anywhere}
 .current-bill-stat>.customer-billing-badge{align-self:flex-start;margin:0}
+/* Profile redesign (DS 6.2): Net-due reads green at 0, red while owed. */
+.current-bill-stat>strong.is-due{color:var(--ds-danger)}
+.current-bill-stat>strong.is-settled{color:var(--ds-success)}
 .profile-tabs{display:flex;gap:6px;overflow-x:auto;margin:15px 0 12px;padding:4px;border:1px solid var(--ds-line);border-radius:12px;background:var(--ds-tabs-bg);scrollbar-width:thin;position:sticky;top:78px;z-index:2;backdrop-filter:blur(12px)}
 .profile-tab-button{flex:1 0 auto;min-height:44px;border:1px solid transparent;border-radius:9px;background:transparent;color:#34584a;padding:7px 12px;font:700 12px/1.2 'DM Sans',sans-serif;cursor:pointer;white-space:nowrap;touch-action:manipulation}
 /* DS-0: equal-flex segmented control (the base rule above keeps its
@@ -1149,7 +1158,8 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 /* Plan 510: the heading badges live on their own full-width row under the
    customer name, wrapping as pills — never beside the Edit/QR/Print row. */
 .profile-heading-badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-basis:100%}
-.profile-view-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.profile-view-actions{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;flex:1 1 100%}
+.profile-view-actions>button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:52px;padding:8px 4px;font-size:11px;line-height:1.2;text-align:center}
 .profile-readonly-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 10px;margin:0}
 .profile-readonly-field{min-width:0;padding:9px 10px;border:1px solid #e3ebe7;border-radius:9px;background:var(--surface)}
 .profile-readonly-field dt{margin:0 0 4px;color:#5b7067;font-size:10px;font-weight:700}
@@ -1178,6 +1188,7 @@ button, input:not([type="hidden"]), select, textarea { min-height: 44px; }
 @media(max-width:620px){
   .current-bill-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .current-bill-stat:last-child{grid-column:1/-1}
+  .current-bill-heading+.current-bill-grid .current-bill-stat:nth-child(n+5){grid-column:1/-1}
   .current-bill-stat{min-height:68px;padding:9px}
   .current-bill-stat>strong{font-size:13px}
   .profile-tabs{margin:12px 0 10px}
@@ -1301,7 +1312,7 @@ subtle muted dash, never as a loud missing-value warning. */
 .profile-tab-button{min-height:44px}
 .profile-tab-button:focus-visible,.profile-action-group button:focus-visible,.back-button:focus-visible{outline:3px solid #397b5c;outline-offset:2px}
 @media(max-width:800px){.profile-action-group{grid-template-columns:minmax(0,1fr) auto}.profile-action-group .current-payment-shortcut{grid-column:1/-1}.profile-action-group .text-button.danger{justify-self:stretch}}
-@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr);gap:13px}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:9px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:none;flex-flow:row wrap;align-items:flex-start;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{grid-column:1/-1;min-height:48px}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:7px}.current-bill-stat{min-height:66px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.profile-tab-button{min-height:44px;padding:7px 8px}}
+@media(max-width:620px){.detail-head{margin-bottom:0}.back-button{min-height:44px;align-items:center}.customer-profile-card{padding:17px 15px 15px;border-radius:18px}.detail-title-row{grid-template-columns:minmax(0,1fr);gap:13px}.profile-identity-block{gap:12px}.profile-avatar{flex-basis:54px;width:54px;height:54px;border-radius:16px;font-size:18px}.detail-number{font-size:9px}.detail-title-row h2{font-size:clamp(24px,7vw,30px)}.profile-status-stack{max-width:none;flex-flow:row wrap;align-items:flex-start;justify-content:flex-start}.profile-service-status,.archive-state-badge{min-height:30px}.profile-action-group{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:15px;padding-top:13px}.profile-action-group .current-payment-shortcut{grid-column:1/-1;min-height:48px}.profile-action-group .secondary-button,.profile-action-group .text-button.danger{min-width:0;min-height:44px;padding:7px 8px;font-size:11px}.customer-current-bill-summary{margin-top:14px;padding-top:13px}.current-bill-grid{gap:6px}.current-bill-stat{min-height:56px;padding:8px}.current-bill-stat>strong{font-size:12px}.profile-tabs{margin:14px 0 10px;padding:3px;top:58px}.profile-tab-button{min-height:44px;padding:7px 8px}}
 
 .receipt-whatsapp-action-wrap{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0}.receipt-network-note{max-width:180px;color:var(--muted);font-size:9px;line-height:1.3;white-space:normal}
 
@@ -2161,9 +2172,12 @@ subtle muted dash, never as a loud missing-value warning. */
   outline-offset: -2px;
 }
 
-/* Ensure no accidental horizontal scrollbar on mobile viewports */
+/* Profile redesign: the overflow-x:hidden here (like the clip at :597)
+   made position:sticky a no-op for the profile tabs and the topbar, so
+   it is removed. Horizontal overflow stays contained per-view
+   (.table-scroll and friends); the profile harness verifies 360px stays
+   overflow-free without it. */
 html, body {
-  overflow-x: hidden;
   max-width: 100vw;
 }
 
@@ -3040,7 +3054,7 @@ html, body {
 
 .customer-technical-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   padding: 12px 14px;
   border-top: 1px solid var(--line, #e2ece7);
@@ -3048,13 +3062,36 @@ html, body {
 }
 
 .customer-technical-grid .secondary-button {
-  min-height: 44px;
+  min-height: 52px;
   font-size: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  padding: 0 10px;
+  line-height: 1.25;
+  white-space: normal;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 30px 8px 10px;
 }
+
+/* Profile redesign (DS 7.2) — QA search / chips / favorites / recent bar
+   and the per-tool favorite star. The star sits top-right of its cell;
+   the button's right padding reserves its space. */
+.qa-tools-bar { display: grid; gap: 8px; padding: 12px 14px 0; }
+.qa-search-input { width: 100%; min-height: 44px; border: 1px solid var(--ds-line); border-radius: 9px; background: var(--surface); padding: 0 12px; font: 500 13px var(--font-sans); color: var(--ink); }
+.qa-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.qa-row-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.qa-favorites-row, .qa-recent-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.qa-favorites-row[hidden], .qa-recent-row[hidden] { display: none; }
+.qa-row-heading { font-size: 11px; font-weight: 700; color: var(--muted); }
+.qa-no-results { margin: 0; font-size: 12px; color: var(--muted); }
+.qa-tool-cell { position: relative; min-width: 0; display: flex; }
+.qa-tool-cell[hidden] { display: none; }
+.qa-tool-cell > .secondary-button { flex: 1 1 auto; min-width: 0; }
+.qa-tool-icon { width: 32px; height: 32px; border-radius: 8px; }
+.qa-tool-icon svg { width: 18px; height: 18px; }
+.qa-tool-label { min-width: 0; overflow-wrap: anywhere; }
+.qa-fav-toggle { position: absolute; top: 2px; right: 2px; width: 28px; height: 28px; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; z-index: 1; }
+.qa-fav-toggle[aria-pressed="true"] { color: var(--ds-warning); }
 
 [data-theme="dark"] .customer-technical-tools {
   background: #101c18;

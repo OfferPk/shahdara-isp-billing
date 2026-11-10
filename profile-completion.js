@@ -17,11 +17,11 @@
 // Plan 513 — the counted total excludes the pure opt-in flags:
 // `prefersSms` ("Prefers SMS") and `paused` ("Vacation hold — pause
 // billing") are legitimately false for most customers, so counting them
-// left a fully completed profile stuck at 67/69 forever — a counter
+// left a fully completed profile stuck at 68/68 forever — a counter
 // that can never reach full marks teaches the operator to ignore it.
 // The per-field-save map itself is unchanged (both flags still save
 // per-field); they are simply not part of what "complete" means, so
-// the total is 67 and a profile with every applicable field filled
+// the total is 68 and a profile with every applicable field filled
 // shows full marks. The missing-fields checklist is built from this
 // same counted list (see app.js), so the two can never disagree.
 import { PROFILE_FIELD_SAVE_MAP } from './profile-field-save.js';

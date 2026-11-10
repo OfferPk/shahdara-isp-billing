@@ -94,21 +94,33 @@ test('Plan 492: prof_more_actions exists in English and Urdu', () => {
   assert.match(lang, /prof_more_actions:\s*'[^']*[\u0600-\u06FF]/, 'Urdu label carries Urdu script');
 });
 
-test('Plan 492: disclosure grid keeps the #302 treatment (full-row payment/backdated, 44px targets, wrapping labels)', () => {
-  assert.ok(css.includes('.profile-more-actions-grid {'), 'inner grid rule exists');
-  assert.ok(
-    css.includes('.profile-more-actions-grid > .current-payment-shortcut,'),
-    'payment shortcut gets the full-row rule inside the grid',
+// Profile redesign: the #302 treatment moved INTO the category
+// grids. The outer grid is now a 1-column stack of categories; each
+// category holds a 2-column 52px action-card grid, Record + Advance
+// sit side-by-side first in Payments, and only the back-dated entry
+// spans the full category row (as a footer action, not a full-row
+// payment shortcut).
+test('Plan 492: disclosure grid keeps the #302 treatment inside the category grids (2-col 52px cards, backdated full-row)', () => {
+  assert.ok(css.includes('.profile-more-actions-grid {'), 'outer grid rule exists');
+  assert.match(
+    css,
+    /\.profile-more-actions-grid \{[^}]*grid-template-columns: minmax\(0, 1fr\)/,
+    'outer grid is a 1-column stack of categories',
   );
   assert.match(
     css,
-    /\.profile-more-actions-grid > \.current-payment-shortcut,[\s\S]*?grid-column: 1 \/ -1/,
-    'payment shortcut and back-dated link each span the full grid row',
+    /\.profile-more-actions-category-grid \{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/,
+    'each category grid is 2-column',
   );
   assert.match(
     css,
-    /\.profile-more-actions-grid > button:not\(\.current-payment-shortcut\):not\(\.backdated-payment-link\) \{[^}]*min-height: 44px/,
-    'the other action buttons keep 44px targets inside the disclosure',
+    /\.profile-more-actions-category-grid > button \{[^}]*min-height: 52px/,
+    'the action cards keep 52px targets inside the disclosure',
+  );
+  assert.match(
+    css,
+    /\.profile-more-actions-category-grid > \.backdated-payment-link \{[^}]*grid-column: 1 \/ -1/,
+    'the back-dated entry spans the full category row',
   );
   assert.ok(css.includes('border-top: 1px solid var(--line)'), 'grid divider uses the line token (hex-free)');
   assert.ok(!css.includes('.profile-action-group > .current-payment-shortcut'), 'no dead direct-child payment rule remains');

@@ -63,7 +63,9 @@ test('customer profiles open in read-only mode and existing fields are revealed 
   // Polish #24 — Edit moved out of the re-rendered view heading into the
   // static header action group, so it is keyed static markup in
   // index.html (data-i18n), not a t() render in app.js.
-  assert.match(index, /id="editProfileButton"[^>]*><span data-i18n="prof_view_edit">Edit<\/span><\/button>/);
+  // Profile redesign: the Edit button carries the Pencil icon hook
+  // ahead of the label span.
+  assert.match(index, /id=\"editProfileButton\"[^>]*>(?:<span class=\"ds-action-icon\"[^>]*><\/span>)?<span data-i18n=\"prof_view_edit\">Edit<\/span><\/button>/);
   assert.match(index, /id="cancelProfileEditButton"/);
   assert.match(app, /profileEditMode = true;[\s\S]*?customerProfileView'\)\.hidden = true[\s\S]*?customerProfileForm'\)\.hidden = false/);
   // Plan 499 — Cancel now confirms first when unsaved edits exist, but
@@ -369,11 +371,12 @@ test('customer profile uses an identity-first card with separate manual service 
   const cardEnd = index.indexOf('</section>', cardStart);
   assert.ok(cardStart >= 0 && cardEnd > cardStart, 'profile summary card wraps its identity and current bill');
   const card = index.slice(cardStart, cardEnd);
-  // Polish #24 — Edit, Delete and + New customer sit in the header
-  // action group inside the card now: Edit moved up from the view
-  // heading, Delete moved up from the (removed) danger zone, and + New
-  // customer is new. The card test pins all three here.
-  for (const id of ['profileAvatar','detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','editProfileButton','deleteCustomerButton','profileNewCustomerButton','archiveCustomerButton','unarchiveCustomerButton','customerCurrentBillSummary']) {
+  // Polish #24 — Edit and Delete sit in the header action group
+  // inside the card now: Edit moved up from the view heading, Delete
+  // moved up from the (removed) danger zone. Profile redesign D6
+  // REMOVES + New customer from the header (Row 1 = Edit / Archive /
+  // Delete only), so the card test pins the remaining two here.
+  for (const id of ['profileAvatar','detailCustomerNumber','detailName','profileServiceStatusBadge','archiveStateBadge','currentBillPaymentShortcut','editProfileButton','deleteCustomerButton','archiveCustomerButton','unarchiveCustomerButton','customerCurrentBillSummary']) {
     assert.ok(card.includes(`id="${id}"`), `${id} remains inside the profile card`);
   }
   assert.match(index, /class="customer-profile-card" aria-label="Customer profile card"/);
@@ -383,8 +386,8 @@ test('customer profile uses an identity-first card with separate manual service 
   assert.match(index, /id="profileServiceStatusBadge"[^>]*Manual service status: Not chosen; not monitored/);
   assert.ok(index.indexOf('id="customerCurrentBillSummary"') < index.indexOf('id="profileTabBilling"'), 'current-bill summary precedes the section tabs');
   assert.match(app, /profileAvatar'\)\.textContent = initials\(customer\.name\)/);
-  assert.match(app, /profileServiceStatusBadge'[\s\S]*?profile-service-status-\$\{serviceStatus\}/);
-  assert.match(app, /t\('prof_service_badge_aria'/); // phase 3: service badge aria renders via t()
+  assert.match(app, /profileServiceStatusBadge'[\s\S]*?profile-service-status-\$\{derivedServiceState\.modifier\}/); // profile redesign: the badge class follows the DERIVED state, not the stored status
+  assert.match(app, /t\('prof_service_badge_derived_aria'/); // profile redesign: service badge aria renders the derived-state key via t()
   assert.match(styles, /\.profile-action-group>button\{min-height:44px/);
   assert.match(styles, /\.profile-action-group \.current-payment-shortcut\{min-height:48px/);
   assert.match(styles, /@media\(max-width:800px\)\{\.profile-action-group\{/);

@@ -36,10 +36,15 @@ test('profile Edit button keeps its thumb-sized target and pencil icon', () => {
   assert.match(css, /\.profile-edit-button::before \{ content: '✎'/);
 });
 
+// Profile redesign (DS 8.1, user-locked): the utility row is an even
+// 4-column grid, not a wrapping flex row — the minmax(0,1fr) columns
+// shrink instead of wrapping, so flex-wrap no longer applies. The row
+// still cannot overflow, and labels still stay whole (nowrap below).
 test('profile header action row wraps and labels never break mid-label', () => {
   const css = read('styles.css');
   const actions = ruleBody(css, /\.profile-view-actions\{([^}]*)\}/);
-  assert.match(actions, /flex-wrap:wrap/);
+  assert.match(actions, /display:grid/);
+  assert.match(actions, /grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
   // The shared heading rule also contains `.profile-view-heading`, so
   // check every occurrence: the profile-only rule must carry the wrap.
   const headings = [...css.matchAll(/\.profile-view-heading\{([^}]*)\}/g)].map((m) => m[1]);

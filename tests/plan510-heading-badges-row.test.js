@@ -157,8 +157,13 @@ test('Plan 510: pause and shield header badges keep their shared wording', () =>
   assert.match(app, /shieldBadge\.textContent = headerShieldSummary\.label/, 'shield header badge still renders the shared shield label');
 });
 
-test('Plan 510: static header badge in index.html reads Service: Not chosen', () => {
-  assert.ok(index.includes('>Service: Not chosen<'), 'static service badge text must read Service: Not chosen');
+// Profile redesign: the badge renders the DERIVED service label as a
+// bare word (Active / Offline / Not chosen), so the static placeholder
+// matches that form — "Not chosen", no "Service:" prefix. The pin's
+// intent stands: the static text reads Not chosen, never Not set.
+test('Plan 510: static header badge in index.html reads Not chosen (bare derived label)', () => {
+  assert.ok(index.includes('>Not chosen<'), 'static service badge text must read Not chosen');
+  assert.ok(!index.includes('>Service: Not chosen<'), 'no "Service:" prefix — the rendered badge is a bare derived label');
   assert.ok(index.includes('aria-label="Manual service status: Not chosen; not monitored"'), 'static service badge aria must match');
   assert.ok(!index.includes('Service · Not set'), 'static service badge must not read Service · Not set');
 });

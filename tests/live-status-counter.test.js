@@ -267,9 +267,15 @@ test('wiring: both surfaces render through the one shared markup builder', () =>
 
   const cardAt = app.indexOf('function customerCardMarkup');
   const cardSlice = app.slice(cardAt, app.indexOf('\n}', cardAt));
-  const pillsAt = cardSlice.indexOf('service-choice-group');
-  const counterAt = cardSlice.indexOf('liveSessionMarkup(customer)');
-  assert.ok(pillsAt > -1 && counterAt > pillsAt, 'card counter sits under the status pills');
+  // Cards redesign (variant B, 2026-11-10): the service-status segmented
+  // control and the live-session line moved OFF the card — the control
+  // lives in the profile edit form (#serviceStatusInput) and the session
+  // line lives in the profile uptime panel only. The card now renders a
+  // read-only service badge (bare word) instead; the profile panel pin
+  // below is unchanged.
+  assert.ok(!cardSlice.includes('service-choice-group'), 'card no longer carries the segmented service control');
+  assert.ok(!cardSlice.includes('liveSessionMarkup(customer)'), 'card no longer renders the live-session line');
+  assert.ok(cardSlice.includes('customer-service-badge'), 'card renders the read-only service badge instead');
 
   const panelAt = app.indexOf('function renderUptimePanel');
   const panelSlice = app.slice(panelAt, app.indexOf('\n}', panelAt));

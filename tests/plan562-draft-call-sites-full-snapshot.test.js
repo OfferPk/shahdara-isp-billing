@@ -335,10 +335,16 @@ test('plan562: a package-follow payment drafts identically, with the follow line
   const { history, transactions, dashboard } = threeMessages(customer, bill, followed, receipt);
   assert.equal(transactions, history, 'Transactions matches profile history');
   assert.equal(dashboard, history, 'dashboard matches profile history');
-  assert.match(history, /📦 Package updated \/ پیکیج اپڈیٹ: PKR 1,600/);
+  // Plan 563: the profile draft's package line follows the receipt
+  // language — the default (English) layout now reads English-only,
+  // so the bilingual literal this test used to assert became the
+  // Quick Collect bilingual entry. The parity intent is unchanged:
+  // the follow line is present, identical on all three call sites,
+  // with the fee from the stamp.
+  assert.match(history, /📦 Package updated: PKR 1,600/);
   // The record-time share path carries the same line, with its label.
   const share = draft(shareDraftInput(customer, bill, followed, receipt, { fee: 1600, packageLabel: '5 Mbps' })).message;
-  assert.match(share, /📦 Package updated \/ پیکیج اپڈیٹ: 5 Mbps — PKR 1,600/);
+  assert.match(share, /📦 Package updated: 5 Mbps — PKR 1,600/);
 });
 
 test('plan562: a voided follow payment carries no package line on any call site', () => {

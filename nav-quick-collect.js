@@ -2031,6 +2031,12 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
   // are the draft's own fallbacks. No finite-number guard here: a
   // non-finite figure is Plan 566's guard, not this plan's.
   const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
+  // Hide-zero-remaining: the Remaining Balance row below renders
+  // only when something remains (remainingPayable > 0 — the same
+  // bare-> predicate as the settle badge and the draft). Zero,
+  // negative, missing (?? 0) and NaN all hide it, so a fully-paid
+  // card never prints "Remaining Balance: PKR 0"; the settled state
+  // is already stated by the settle badge and the still-owes pill.
   // BUT HOUSE fix: the card shows the customer's mobile number — the
   // live-state resolution (whatsappPhone first, else the primary
   // phone) passed in by the caller, falling back to the receipt's
@@ -2112,12 +2118,13 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
           <span class="qc-meta-label">Area / Location</span>
           ${quickCollectAreaSelectHtml(receipt.area)}
         </div>
+        ${remainingPayable > 0 ? `
         <div class="qc-receipt-item">
           <span class="qc-meta-label">Remaining Balance</span>
-          <strong class="qc-meta-val ${remainingPayable > 0 ? 'has-balance' : 'zero-balance'}">
+          <strong class="qc-meta-val has-balance">
             PKR ${formatReceiptMoneyFigure(remainingPayable)}
           </strong>
-        </div>
+        </div>` : ''}
         ${ticketChargeRows}
         ${formatRemainderWaadaLine(receipt) ? `
         <div class="qc-receipt-item full-width">

@@ -28,13 +28,19 @@
 //   - Next due date: the earliest due date among the customer's
 //     bills that still carry a balance, from the allocation
 //     engine's own figures — the same rule the balance reply
-//     uses. A bill with no usable due date contributes nothing,
-//     and when no open bill carries a due date the line says so
-//     plainly instead of guessing a date.
+//     uses. A bill with no usable due date contributes nothing.
+//     When no bill carries an open balance, the caller-supplied
+//     fallback applies instead: the next bill month's due date
+//     under the customer's own billing cycle (Polish #22) — the
+//     next bill genuinely falls due on that date, so it is a
+//     computed date, never an invented bill. When a bill carries
+//     a balance but no usable due date, there is no fallback:
+//     the line says so plainly instead of guessing a date.
 //   - Fully paid: still owed of zero or less reads "Fully paid".
 //     A fully paid customer has no open bill, so the next-due
-//     line reads "Next due date not recorded" — the next bill has
-//     not been issued yet, and this screen never invents one.
+//     line reads the fallback — the next bill month's due date
+//     under the customer's own cycle — because the next bill has
+//     not been issued yet and this screen never invents one.
 //   - Collect again: a plain action that reopens the payment form
 //     for the same customer. The button only asks for the form;
 //     the wiring opens it, and nothing is recorded by the tap.
@@ -110,9 +116,13 @@ function isStrictMonth(value) {
 // The next due date from the customer's own post-save record: the
 // earliest due date among bills that still carry a balance, from the
 // allocation engine's own figures. A bill with no usable month, no
-// balance, or no strict due date contributes nothing. Null when no
-// open bill carries a due date — never a guessed date.
-export function successNextStepsNextDueDate(customer, allocations) {
+// balance, or no strict due date contributes nothing. When no bill
+// carries an open balance, `fallbackDueDate` applies instead — the
+// caller's computed next-bill-month due date under the customer's
+// own billing cycle (Polish #22). When a bill carries a balance
+// but no usable due date, the fallback does NOT apply: null, never
+// a guessed date. An unusable fallback is ignored the same way.
+export function successNextStepsNextDueDate(customer, allocations, fallbackDueDate = null) {
   if (!customer || typeof customer !== 'object') return null;
   const customerId = text(customer.id);
   if (!customerId) return null;
@@ -122,6 +132,7 @@ export function successNextStepsNextDueDate(customer, allocations) {
   if (!forMonth) return null;
   const bills = Array.isArray(customer.bills) ? customer.bills : [];
   let nextDueDate = null;
+  let anyOpenBalance = false;
   for (const bill of bills) {
     if (!bill || typeof bill !== 'object' || !isStrictMonth(bill.month)) continue;
     let summary = null;
@@ -132,11 +143,14 @@ export function successNextStepsNextDueDate(customer, allocations) {
     }
     const balanceCents = summary?.balanceDueCents;
     if (typeof balanceCents !== 'number' || !Number.isFinite(balanceCents) || balanceCents <= 0) continue;
+    anyOpenBalance = true;
     const dueDate = successNextStepsIsStrictDate(bill.dueDate) ? String(bill.dueDate).slice(0, 10) : null;
     if (!dueDate) continue;
     if (!nextDueDate || dueDate < nextDueDate) nextDueDate = dueDate;
   }
-  return nextDueDate;
+  if (nextDueDate) return nextDueDate;
+  if (anyOpenBalance) return null;
+  return successNextStepsIsStrictDate(fallbackDueDate) ? String(fallbackDueDate).slice(0, 10) : null;
 }
 
 // Whether ticket or boost charges are still pending after this

@@ -2000,7 +2000,13 @@ export function setupQuickCollectModal({
   // the second-connection step renders — a customer with an active
   // link offers the other connection after the first payment. The
   // option is optional: without it the step simply never shows.
-  loadBillingLinks
+  loadBillingLinks,
+  // Polish #22: the host's next-due-date fallback loader — the
+  // next bill month's due date under the customer's own billing
+  // cycle, read fresh when the success screen renders. The
+  // option is optional: without it the success screen keeps its
+  // old "not recorded" line when nothing is owed.
+  nextDueDateFallback
 }) {
   const modal = document.getElementById('quickCollectModal');
   if (!modal) {
@@ -5494,9 +5500,13 @@ export function setupQuickCollectModal({
   // shows only: rendering posts nothing and changes no record. The
   // still-owed figure is the receipt's own payable remainder; the
   // next due date is the earliest due date among bills that still
-  // carry a balance, from the allocation engine's own figures. The
-  // collect-again tap reopens the payment form for the same
-  // customer; it records nothing by itself.
+  // carry a balance, from the allocation engine's own figures. When
+  // nothing is owed, the host-supplied fallback applies instead —
+  // the next bill month's due date under the customer's own cycle
+  // (Polish #22) — so a full payment shows Dec 5, never a
+  // hardcoded 5th and never an invented bill. The collect-again
+  // tap reopens the payment form for the same customer; it records
+  // nothing by itself.
   let nextStepsWired = false;
   function renderSuccessNextSteps() {
     if (!nextStepsBox) return;
@@ -5507,8 +5517,11 @@ export function setupQuickCollectModal({
     }
     const postSaveState = getState();
     const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeCustomerId) ?? null;
+    const fallbackDueDate = typeof nextDueDateFallback === 'function' && postSaveCustomer
+      ? nextDueDateFallback(postSaveCustomer.id)
+      : null;
     const nextDueDate = postSaveState
-      ? successNextStepsNextDueDate(postSaveCustomer, calculatePaymentAllocations(postSaveState))
+      ? successNextStepsNextDueDate(postSaveCustomer, calculatePaymentAllocations(postSaveState), fallbackDueDate)
       : null;
     const nextSteps = successNextStepsFromReceipt(activeReceipt, nextDueDate);
     const html = nextSteps ? successNextStepsHtml(nextSteps) : '';

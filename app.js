@@ -13826,6 +13826,12 @@ window.quickCollectModalController = setupQuickCollectModal({
   // billing link after a save, so the other connection can be
   // offered with its dues in the same pass.
   loadBillingLinks: () => loadBillingLinks(),
+  // Polish #22: the success screen reads the next bill month's
+  // due date under the customer's own billing cycle when nothing
+  // is owed, so a full payment shows Dec 5 instead of
+  // "not recorded". The loader is optional: without it the
+  // screen keeps its old behaviour.
+  nextDueDateFallback: (customerId) => fallbackNextDueDateForCustomer(customerId),
   // SISP-141: the floating 10s undo toast (presenter above) owns the
   // post-collection confirmation for this host. SISP-187: the same
   // actually-saved payment is also reported to the QR scanner, whose
@@ -19731,6 +19737,21 @@ function paymentSlipForCustomer(customer, variant, count) {
     variant,
   });
 }
+// Polish #22: the next due date when nothing is owed — the next
+// bill month's due date under the customer's own billing cycle
+// (dueDateForBillMonth, never a hardcoded 5th: a cycle-day-15
+// customer keeps Dec 15). Bills are generated only through the
+// current month, so no December bill exists in November; only
+// this computed date can ever show Dec 5. The info card already
+// computes the same date; this helper shares it with the balance
+// reply, the profile header strip, and the Quick Collect success
+// screen. It invents no bill and changes no record.
+function fallbackNextDueDateForCustomer(customerId) {
+  const today = localDate();
+  const [year, month] = today.slice(0, 7).split('-').map(Number);
+  const nextMonth = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, '0')}`;
+  return dueDateForBillMonth(findBillingCycleChoice(loadBillingCycleChoices(), customerId), nextMonth);
+}
 // Build one customer's balance reply from this profile's own
 // figures: total outstanding from the shared figures helper, the
 // earliest due date among bills that still carry a balance, the
@@ -19741,13 +19762,22 @@ function balanceReplyForCustomer(customer, variant) {
   const allocations = calculatePaymentAllocations(state);
   const outstanding = totalOutstandingFigures(customer, allocations).total;
   let nextDueDate = null;
+  let anyOpenBalance = false;
   for (const bill of customer.bills ?? []) {
     const summary = allocations.forMonth(customer.id, bill.month);
-    if (summary && summary.balanceDueCents > 0 && bill.dueDate) {
+    if (summary && summary.balanceDueCents > 0) {
+      anyOpenBalance = true;
+      if (!bill.dueDate) continue;
       const valid = validBalanceReplyDate(bill.dueDate);
       if (valid && (!nextDueDate || valid < nextDueDate)) nextDueDate = valid;
     }
   }
+  // Polish #22: when no bill carries an open balance, the next
+  // bill month's due date under the customer's own cycle — Dec 5
+  // shows only when nothing is owed, and an overdue Nov 5 stays
+  // while November is owed (anyOpenBalance above). A bill with a
+  // balance but no usable due date takes no fallback either.
+  if (!nextDueDate && !anyOpenBalance) nextDueDate = fallbackNextDueDateForCustomer(customer.id);
   let lastPayment = null;
   for (const bill of customer.bills ?? []) {
     for (const payment of bill.payments ?? []) {

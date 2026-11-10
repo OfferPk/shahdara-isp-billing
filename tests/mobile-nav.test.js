@@ -1168,14 +1168,16 @@ test('nav.js setupNetworkStatusIndicator supports updateSyncStatus and syncing s
     const net = setupNetworkStatusIndicator();
     assert.ok(typeof net.updateSyncStatus === 'function');
 
-    // Syncing state
+    // Saving state (QC-9: there is no server sync, so the pill says
+    // what actually happens — saving to this device — never "Syncing").
     net.updateSyncStatus({ isSyncing: true });
     assert.equal(dotEl.className, 'network-status-dot syncing');
-    assert.equal(textEl.textContent, 'Syncing...');
+    assert.equal(textEl.textContent, 'Saving to device...');
 
-    // Pending changes state
+    // Pending changes state (QC-9: queued on this device, not "pending"
+    // sync — nothing is ever uploaded).
     net.updateSyncStatus({ isSyncing: false, pendingChanges: 3 });
-    assert.equal(textEl.textContent, '3 pending');
+    assert.equal(textEl.textContent, '3 queued on this device');
 
     // Clear pending changes
     net.updateSyncStatus({ isSyncing: false, pendingChanges: 0 });
@@ -1442,7 +1444,7 @@ test('setupOfflineSyncBanner responds to online/offline state, retry, and dismis
     bannerCtrl.syncNow();
     assert.ok(syncedRes);
     assert.equal(syncedRes.processedCount, 1);
-    assert.ok(toastedMsg.includes('Sync complete'));
+    assert.ok(toastedMsg.includes('Queue confirmed')); // QC-9: the queue is confirmed locally, never "Sync complete"
 
     // Dismiss button hides banner
     assert.ok(listeners.has('dismiss:click'));
@@ -1667,7 +1669,7 @@ test('setupOfflineQueueModal renders pending items, clears queue, and handles sy
     listeners.get('sync:click')();
     assert.ok(syncedRes);
     assert.equal(syncedRes.processedCount, 2);
-    assert.ok(toastedMsg.includes('Synced 2 queued items'));
+    assert.ok(toastedMsg.includes('Confirmed 2 queued items')); // QC-9: confirmed locally, never "Synced"
     assert.ok(countBadge.textContent.includes('0 items pending'));
     assert.equal(emptyMsg.hidden, false);
   } finally {

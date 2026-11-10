@@ -560,7 +560,7 @@ export function generatePendingActionsDigest(summary, options = {}) {
   lines.push('');
 
   if (summary.counts.offlineQueue > 0) {
-    lines.push(`💾 *OFFLINE QUEUE:* ${summary.counts.offlineQueue} transaction(s) pending sync`);
+    lines.push(`💾 *OFFLINE QUEUE:* ${summary.counts.offlineQueue} transaction(s) queued on this device`);
     lines.push('');
   }
 

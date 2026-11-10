@@ -6,7 +6,9 @@ const read=name=>readFileSync(new URL(`../${name}`,import.meta.url),'utf8');
 const index=read('index.html'),app=read('app.js'),ui=read('owner-ui.js'),insights=read('owner-insights.js'),styles=read('styles.css'),worker=read('sw.js'),build=read('build.mjs');
 
 test('phone-first navigation and the Owner Center expose the requested local views',()=>{
-  for(const label of ['Home','Customers','Collection','Reports','More'])assert.match(index,new RegExp(`>${label}</button>`));
+  // DS-0: labels now sit in .bottom-nav-label spans (icon above the label), so the
+  // pin matches the label span instead of bare text directly before </button>.
+  for(const label of ['Home','Customers','Collection','Reports','More'])assert.match(index,new RegExp(`class="bottom-nav-label">${label}</span>`));
   for(const id of ['ownerCommandCenter','ownerCommandInput','ownerCommandAnswer','savedMonthlyClosings','compareMonthA','compareMonthB','monthComparisonMetrics','performanceExplainForm','customerRankingResults','smartAlertsPanel','smartAlertsSummary','smartAlertsList','duesRecoveryGroups'])assert.ok(index.includes(`id="${id}"`),`${id} is present`);
   assert.match(ui,/data-mobile-nav/);
   const navHandler=ui.slice(ui.indexOf("document.querySelectorAll('[data-mobile-nav]')"),ui.indexOf("document.querySelectorAll('[data-mobile-more]')"));

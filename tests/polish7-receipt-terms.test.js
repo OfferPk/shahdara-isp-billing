@@ -116,7 +116,13 @@ const QC_RECEIPT = {
   method: 'Easypaisa',
   month: '2026-11',
   area: 'Unassigned',
-  newTotalDues: 0,
+  // Hide-zero-remaining: the fixture is a PARTIAL receipt (PKR 1,000
+  // still owed) so the Remaining Balance row renders — a fully-paid
+  // card hides the row, and the ordering assertion below ("the terms
+  // sit at the foot of the card", after the row) would pass vacuously
+  // against a -1 index. The draft test below reads the same fixture
+  // and does not depend on the balance.
+  newTotalDues: 1000,
   paidBy: 'Self'
 };
 

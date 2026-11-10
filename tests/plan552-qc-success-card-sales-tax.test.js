@@ -100,10 +100,12 @@ test('Plan 552: an untaxed collection\'s card shows no tax row (never PKR 0)', (
     const html = renderQuickCollectReceiptCardHtml(taxedReceipt({ salesTaxCents }));
     assert.equal(taxRowOf(html), null, `salesTaxCents ${String(salesTaxCents)} must show no row`);
   }
-  // Note: the card legitimately reads "PKR 0" on the Remaining Balance
-  // row of a fully-paid receipt — the "never PKR 0" rule is about the
-  // tax row only, which the loop above pins.
-  assert.ok(renderQuickCollectReceiptCardHtml(taxedReceipt({ salesTaxCents: 0 })).includes('PKR 0'), 'Remaining Balance may still read PKR 0');
+  // Hide-zero-remaining: the card no longer reads "PKR 0" on the
+  // Remaining Balance row of a fully-paid receipt — the row is hidden
+  // when nothing remains. The "never PKR 0" rule below is about the
+  // tax row only, which the loop above pins; this pin now asserts
+  // the row itself is gone on a fully-paid card.
+  assert.ok(!renderQuickCollectReceiptCardHtml(taxedReceipt({ salesTaxCents: 0 })).includes('Remaining Balance'), 'a fully-paid card hides the Remaining Balance row');
 });
 
 test('Plan 552: the tax row sits inside the receipt grid with the other financial rows, before the terms block', () => {
@@ -192,14 +194,17 @@ test('Plan 552 fit budget: the tax row costs ~43px; a taxed receipt computes to 
   assert.ok(taxedTotalPx > 700, 'the taxed total is 24px OVER the 700px gate — recorded here, to be confirmed by the phone screenshot');
 });
 
-test('Plan 552: the Month row renders on the taxed card and costs 0px (it fills the lone-Remaining row)', () => {
+test('Plan 552: the Month row renders on the taxed card and now adds the third row (the Remaining row is hidden)', () => {
   // Month-name fix: the taxed fixture already carries month '2026-11',
   // so the card now renders a Month / November row between Date &
-  // Method and Area. The grid goes from 5 half-width items (3 rows)
-  // to 6 (still 3 rows — the tax row is full-width and unaffected),
-  // so the taxed computed total is unchanged at 724px in this test's
-  // arithmetic. The 681 baseline predates the phone row; the polish17
-  // fit test owns the live total (736px).
+  // Method and Area. Hide-zero-remaining changed what it costs: the
+  // taxed fixture is fully paid, so the Remaining Balance row is
+  // hidden — the grid goes from 4 half-width items (2 rows) without
+  // the Month row to 5 (3 rows) with it, so the Month row ADDS the
+  // third row (43px). The 681 baseline predates the phone row; the
+  // polish17 fit test owns the live total (736px), and re-baselining
+  // this test's 724px arithmetic is a separate small item, not folded
+  // in here.
   const html = renderQuickCollectReceiptCardHtml(taxedReceipt());
   const at = html.indexOf('>Month<');
   assert.ok(at >= 0, 'taxed card must carry the Month row');
@@ -219,7 +224,7 @@ test('Plan 552: the Month row renders on the taxed card and costs 0px (it fills 
   };
   const noMonth = taxedReceipt();
   delete noMonth.month;
-  assert.equal(halfWidth(html), 6, 'six half-width items with the Month row');
-  assert.equal(Math.ceil(halfWidth(html) / 2), 3, 'still 3 half-width rows with the Month row');
-  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 3, '3 half-width rows without the Month row too — cost 0px');
+  assert.equal(halfWidth(html), 5, 'five half-width items with the Month row (Remaining hidden on a fully-paid card)');
+  assert.equal(Math.ceil(halfWidth(html) / 2), 3, '3 half-width rows with the Month row');
+  assert.equal(Math.ceil(halfWidth(renderQuickCollectReceiptCardHtml(noMonth)) / 2), 2, '2 half-width rows without the Month row — the Month row adds the third row, cost 43px');
 });

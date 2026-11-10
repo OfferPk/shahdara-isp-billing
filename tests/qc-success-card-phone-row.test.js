@@ -147,7 +147,12 @@ test('the phone value is HTML-escaped — a hostile stored value cannot break th
 });
 
 test('the other card rows are unchanged and in order around the new row', () => {
-  const html = renderQuickCollectReceiptCardHtml(baseReceipt({ phone: FAKE_PHONE }));
+  // Hide-zero-remaining: the fixture is a PARTIAL receipt (PKR 1,000
+  // still owed) so the Remaining Balance row renders — a fully-paid
+  // card hides the row, and the order pin below would fail on its
+  // absence. The hiding itself is pinned in
+  // tests/qc-hide-zero-remaining-balance.test.js.
+  const html = renderQuickCollectReceiptCardHtml(baseReceipt({ phone: FAKE_PHONE, payableRemaining: 1000, newTotalDues: 1000 }));
   const order = ['>Customer<', 'Mobile Number', 'Date &amp; Method', 'Area / Location', 'Remaining Balance'];
   let last = -1;
   for (const marker of order) {
@@ -158,7 +163,7 @@ test('the other card rows are unchanged and in order around the new row', () => 
   assert.ok(html.includes('Test Customer (#37)'), 'Customer row keeps name + number');
   assert.ok(html.includes('08/11/2026 · Cash'), 'Date & Method row keeps date + method (date now prints DD/MM/YYYY)');
   assert.ok(html.includes('quickCollectAreaSelect'), 'Area select stays');
-  assert.ok(html.includes('PKR 0'), 'Remaining Balance row keeps its figure');
+  assert.ok(html.includes('PKR 1,000'), 'Remaining Balance row keeps its figure');
   assert.ok(html.includes('RCPT-12-202611-01'), 'receipt id stays in the header');
 });
 

@@ -156,7 +156,7 @@ test('the other card rows are unchanged and in order around the new row', () => 
     last = at;
   }
   assert.ok(html.includes('Test Customer (#37)'), 'Customer row keeps name + number');
-  assert.ok(html.includes('2026-11-08 · Cash'), 'Date & Method row keeps date + method');
+  assert.ok(html.includes('08/11/2026 · Cash'), 'Date & Method row keeps date + method (date now prints DD/MM/YYYY)');
   assert.ok(html.includes('quickCollectAreaSelect'), 'Area select stays');
   assert.ok(html.includes('PKR 0'), 'Remaining Balance row keeps its figure');
   assert.ok(html.includes('RCPT-12-202611-01'), 'receipt id stays in the header');

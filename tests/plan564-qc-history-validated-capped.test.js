@@ -22,7 +22,10 @@
  *    block when previousPayments is absent or empty; a valid-date
  *    zero-amount row still prints (the profile predicate passes it
  *    too — Number.isFinite(0) — so parity keeps it); a row with only
- *    date + amount prints those two parts.
+ *    date + amount prints those two parts. (Date-format fix: the
+ *    history dates now print DD/MM/YYYY — "18/09/2026" — while the
+ *    rows, order, heading and amounts are unchanged; the pins below
+ *    were updated to the new date shape with this note.)
  *  - SCOPE: nav-quick-collect.js history block only. No change to
  *    buildReceiptPaymentHistory (already validates + caps at 3) or to
  *    the profile draft.
@@ -129,9 +132,11 @@ test('plan564: a valid 3-row QC history prints unchanged', () => {
     row('2026-08-20', 2500, 'Cash', 'RCPT-003')
   ]);
   assert.ok(text.includes(HISTORY_HEADING), text);
-  assert.ok(text.includes('• 2026-09-18 · PKR 3,000 · Cash · RCPT-001'), text);
-  assert.ok(text.includes('• 2026-09-02 · PKR 3,000 · EasyPaisa · RCPT-002'), text);
-  assert.ok(text.includes('• 2026-08-20 · PKR 2,500 · Cash · RCPT-003'), text);
+  // Date-format fix: history dates print DD/MM/YYYY now — the rows,
+  // order, heading and amounts are unchanged.
+  assert.ok(text.includes('• 18/09/2026 · PKR 3,000 · Cash · RCPT-001'), text);
+  assert.ok(text.includes('• 02/09/2026 · PKR 3,000 · EasyPaisa · RCPT-002'), text);
+  assert.ok(text.includes('• 20/08/2026 · PKR 2,500 · Cash · RCPT-003'), text);
   assert.ok(
     text.indexOf('RCPT-001') < text.indexOf('RCPT-002')
     && text.indexOf('RCPT-002') < text.indexOf('RCPT-003'),
@@ -151,10 +156,12 @@ test('plan564: a valid-date zero-amount row still prints (profile parity)', () =
   // that is the shared predicate's behaviour on both drafts, not a
   // QC-only gap, so no test pins null either way.)
   const text = qcText([row('2026-09-18', 0, 'Cash', 'RCPT-ZERO')]);
-  assert.ok(text.includes('• 2026-09-18 · PKR 0 · Cash · RCPT-ZERO'), text);
+  // Date-format fix: the date prints DD/MM/YYYY now.
+  assert.ok(text.includes('• 18/09/2026 · PKR 0 · Cash · RCPT-ZERO'), text);
 });
 
 test('plan564: a row with only date and amount prints those two parts', () => {
   const text = qcText([{ date: '2026-09-18', amount: 1500 }]);
-  assert.ok(text.includes('• 2026-09-18 · PKR 1,500'), text);
+  // Date-format fix: the date prints DD/MM/YYYY now.
+  assert.ok(text.includes('• 18/09/2026 · PKR 1,500'), text);
 });

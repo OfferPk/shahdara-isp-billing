@@ -24,7 +24,13 @@ const REQUIRED_TOKENS = [
   '--color-brand-700', '--color-brand-600', '--color-brand-500', '--color-brand-dark', '--color-brand-soft',
   '--color-paid', '--color-paid-bg', '--color-pending', '--color-pending-bg', '--color-overdue', '--color-info', '--color-whatsapp',
   '--color-neutral-0', '--color-neutral-50', '--color-neutral-100', '--color-neutral-200', '--color-neutral-500', '--color-neutral-900',
-  '--green', '--green-dark', '--mint', '--ink', '--muted', '--line', '--surface', '--surface-soft', '--modal-surface', '--white', '--amber', '--amber-bg', '--shadow'
+  '--green', '--green-dark', '--mint', '--ink', '--muted', '--line', '--surface', '--surface-soft', '--modal-surface', '--white', '--amber', '--amber-bg', '--shadow',
+  // DS-0 design-system tokens (spec §1.3).
+  '--ds-brand', '--ds-brand-hover', '--ds-brand-soft', '--ds-success', '--ds-success-bg', '--ds-success-border',
+  '--ds-warning', '--ds-warning-bg', '--ds-warning-border', '--ds-danger', '--ds-danger-bg', '--ds-danger-border',
+  '--ds-danger-strong', '--ds-line', '--ds-canvas', '--ds-card', '--ds-nested', '--ds-tabs-bg', '--ds-input-border',
+  '--ds-label', '--ds-divider', '--ds-footer-good', '--ds-footer-bad', '--ds-radius', '--ds-focus-ring',
+  '--text-card-name', '--text-tab', '--text-table-head', '--bottom-nav-height'
 ];
 
 test('#230 tokens.css defines every required token', () => {
@@ -39,7 +45,13 @@ test('#230 tokens.css carries dark values (attribute + system preference)', () =
   assert.ok(css.includes('[data-theme="dark"]'), 'dark attribute block present');
   assert.ok(css.includes('@media (prefers-color-scheme: dark)'), 'system dark block present');
   const darkSection = css.slice(css.indexOf('[data-theme="dark"]'));
-  for (const token of ['--ink', '--muted', '--line', '--surface', '--dk-bg', '--dk-surface', '--dk-ink']) {
+  for (const token of ['--ink', '--muted', '--line', '--surface', '--dk-bg', '--dk-surface', '--dk-ink',
+    // DS-0: every --ds-* token carries a dark value too (derived from
+    // the existing dark scale — no new dark hex was invented).
+    '--ds-brand', '--ds-brand-hover', '--ds-brand-soft', '--ds-success', '--ds-success-bg', '--ds-success-border',
+    '--ds-warning', '--ds-warning-bg', '--ds-warning-border', '--ds-danger', '--ds-danger-bg', '--ds-danger-border',
+    '--ds-danger-strong', '--ds-line', '--ds-canvas', '--ds-card', '--ds-nested', '--ds-tabs-bg', '--ds-input-border',
+    '--ds-label', '--ds-divider', '--ds-footer-good', '--ds-footer-bad', '--ds-focus-ring']) {
     assert.ok(darkSection.includes(`${token}:`), `dark block defines ${token}`);
   }
 });
@@ -83,10 +95,13 @@ test('#230 legacy hex ratchet: counts may only shrink', () => {
     // Plan A lowered the touched files (bulk 49->37, import 42->29,
     // dashboard 102->87, inbox 40->25, payments-list 40->12); the
     // ratchet still only ever moves down.
+    // DS-0 lowered styles.css 619->616 (#164d3b, #274036 and #f6f9f7 now
+    // occur nowhere in the file) and nav.css 163->162 (#1a0505 now
+    // occurs nowhere in the file).
     'bulk-collect.css': 37, 'customer-import.css': 29, 'dark-contrast.css': 20,
-    'dashboard.css': 87, 'nav.css': 171, 'payments-inbox.css': 25,
+    'dashboard.css': 87, 'nav.css': 162, 'payments-inbox.css': 25,
     'payments-list.css': 12, 'profile-ui.css': 1, 'screen-router.css': 53,
-    'styles.css': 621, 'ui-feedback.css': 57, 'urdu-font.css': 1
+    'styles.css': 616, 'ui-feedback.css': 57, 'urdu-font.css': 1
   };
   for (const [file, max] of Object.entries(BASELINE)) {
     // Strip comments first: issue numbers like "#230" or "#381" in comments are not colours
@@ -97,7 +112,9 @@ test('#230 legacy hex ratchet: counts may only shrink', () => {
 
 test('#230 components.css provides the named component set, token-driven', () => {
   const css = read('components.css');
-  for (const cls of ['.ds-btn', '.ds-btn--primary', '.ds-chip', '.ds-chip--paid', '.ds-card', '.ds-kpi', '.ds-row', '.ds-sheet', '.ds-toast', '.ds-empty', '.ds-skeleton']) {
+  for (const cls of ['.ds-btn', '.ds-btn--primary', '.ds-chip', '.ds-chip--paid', '.ds-card', '.ds-kpi', '.ds-row', '.ds-sheet', '.ds-toast', '.ds-empty', '.ds-skeleton',
+    // DS-0 shared pieces (spec §1.5/§15).
+    '.ds-icon-tile', '.ds-segmented', '.ds-stat-box', '.ds-table-card']) {
     assert.ok(css.includes(cls), `components.css missing ${cls}`);
   }
   assert.ok(!/:\s*[^;]*\d+px\s*\/\s*\d/.test(css) || true);

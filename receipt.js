@@ -21,6 +21,7 @@ import { applyReceiptScript } from './receipt-script.js';
 import { transactionPayerNameOf, transactionPayerReceiptField, transactionPayerReceiptFieldHtml } from './transaction-payer-name.js';
 import { renderCustomWaTemplate } from './whatsapp-templates.js';
 import { receiptTermsNoteHtml } from './receipt-terms.js';
+import { formatReceiptMoney, formatReceiptMoneyFigure, netArrearsBalanceRupees } from './receipt-money.js';
 
 export const PACKAGE_TERMS_NOTE = '📌 پیکیج کی اہم شرط:\nPKR 3,000 سے کم قیمت والے تمام پیکیجز محدود (Limited) پیکیجز ہیں۔ ان میں ڈیٹا کی ایک مقررہ حد ہوتی ہے، مثلاً 5 Mbps / 300 GB۔ مقررہ ڈیٹا حد مکمل ہونے پر انٹرنیٹ سروس بند ہو جائے گی۔ ان پیکیجز میں مکمل یا مستقل رفتار کی ضمانت بھی نہیں ہے۔\nPKR 3,000 اور اس سے زیادہ قیمت والے پیکیجز Unlimited ہیں اور ان میں مقررہ ڈیٹا حد لاگو نہیں ہوتی۔';
 export const RECEIPT_URDU_NOTE = 'رسید برائے انٹرنیٹ بل ادائیگی - ادائیگی موصول ہوئی۔ شکریہ! بروقت سروس کے لیے ہر ماہ کی 5 تاریخ تک بل ادا فرمائیں۔';
@@ -513,7 +514,7 @@ const advanceCreditReceiptRows = (receipt, formatAmount) => {
 // set no remainder waada, so ordinary receipts render exactly as before.
 const remainderWaadaReceiptRows = (receipt, formatAmount) => {
   if (!receipt?.remainderWaada) return '';
-  return `<div class="receipt-field"><dt>Baqi / باقی رقم:</dt><dd>Rs. ${escapeHtml(Number(receipt.remainderWaada.promiseAmount).toLocaleString('en-PK'))} • Waada: ${escapeHtml(receipt.remainderWaada.promiseDate)}</dd></div>`;
+  return `<div class="receipt-field"><dt>Baqi / باقی رقم:</dt><dd>Rs. ${escapeHtml(formatReceiptMoneyFigure(receipt.remainderWaada.promiseAmount))} • Waada: ${escapeHtml(receipt.remainderWaada.promiseDate)}</dd></div>`;
 };
 
 // SISP-106: speed-boost add-on lines, beside the ticket-charge rows in
@@ -674,11 +675,11 @@ export function generatePaymentReceiptHtml(receipt, {
     ? `${receipt.customerNameUrdu} (${receipt.customerName})`
     : receipt.customerName;
 
-  const formatAmount = (val) => {
-    if (val === null || val === undefined || val === '') return 'PKR 0';
-    const num = Number(val);
-    return `PKR ${num.toLocaleString()}`;
-  };
+  // Plan 555: the ONE shared receipt money format (receipt-money.js,
+  // modelled on formatPKR in core.js) — en-PK min-0/max-2, so 292.5
+  // prints as PKR 292.50 everywhere, and a missing figure renders as
+  // "—", never an invented PKR 0.
+  const formatAmount = (val) => formatReceiptMoney(val);
 
   const status = receipt.status || 'RECEIVED';
   // SISP-83: the VER stamp. Receipts from buildPaymentReceipt carry the
@@ -691,7 +692,8 @@ export function generatePaymentReceiptHtml(receipt, {
   // never be mistaken for a live receipt. '' on every other receipt,
   // so non-void layouts stay byte-identical.
   const voidStampHtml = status === 'VOID' ? '<div class="receipt-void-stamp">VOID — This payment was voided and counts as no payment</div>' : '';
-  const balanceStr = receipt.balanceDueCents === null ? 'PKR 0' : formatAmount(receipt.balanceDueCents / 100);
+  // Plan 555: an unknown balance is a dash, never an invented PKR 0.
+  const balanceStr = receipt.balanceDueCents === null ? '—' : formatAmount(receipt.balanceDueCents / 100);
   const balanceLabel = receipt.balanceDueCents === 0 ? 'PKR 0 (مکمل ادا شدہ / Paid)' : `${balanceStr} (بقایا جات / Due)`;
 
   // Plan 553: the honest totals. totalBilled is the GROSS (nominal price
@@ -758,7 +760,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${addonChargeReceiptRows(receipt, formatAmount)}
     ${manualBaqayaReceiptRows(receipt, formatAmount)}
 
-    ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
+    ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist')}<div class="receipt-field"><dt>Sabiqa Baqaya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta:</dt><dd>${formatAmount(netArrearsBalanceRupees(receipt))}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
     ${advanceCreditReceiptRows(receipt, formatAmount)}
     ${contributorSplitReceiptRows(receipt, formatAmount)}
@@ -816,7 +818,7 @@ export function generatePaymentReceiptHtml(receipt, {
     ${hasReceiptTotalAdjustments ? `<div class="receipt-field"><dt>Total Gross Payable / کل واجب الادا (gross):</dt><dd>${formatAmount(grossBilled)}</dd></div>` : ''}
     ${receiptDeductions > 0 ? `<div class="receipt-field"><dt>Total Payable / کل واجب الادا:</dt><dd>${formatAmount(netPayable)}</dd></div>` : ''}
 
-    ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.balanceDue)}</dd></div>` : ''}
+    ${receipt.arrearsBreakdown ? `<div class="receipt-field"><dt>Mahana Package / ماہانہ پیکیج:</dt><dd>${formatAmount(receipt.arrearsBreakdown.packageAmount)}</dd></div>${kistBreakdownRows(receipt.arrearsBreakdown, formatAmount, 'Kist / قسط')}<div class="receipt-field"><dt>Sabiqa Baqaya / سابقہ بقایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.previousArrears)}</dd></div><div class="receipt-field"><dt>Kul Qabil-e-Ada / کل قابل ادا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.totalDue)}</dd></div><div class="receipt-field"><dt>Wusool Paya / وصول پایا:</dt><dd>${formatAmount(receipt.arrearsBreakdown.paidAmount)}</dd></div><div class="receipt-field"><dt>Baqi Rehta / باقی رہتا:</dt><dd>${formatAmount(netArrearsBalanceRupees(receipt))}</dd></div>` : ''}
     ${fifoReceiptRows(receipt, formatAmount)}
     ${advanceCreditReceiptRows(receipt, formatAmount)}
     ${contributorSplitReceiptRows(receipt, formatAmount)}
@@ -895,7 +897,7 @@ export function generatePaymentReceiptHtml(receipt, {
       ['Sabiqa Baqaya / سابقہ بقایا', formatAmount(receipt.arrearsBreakdown.previousArrears)],
       ['Kul Qabil-e-Ada / کل قابل ادا', formatAmount(receipt.arrearsBreakdown.totalDue)],
       ['Wusool Paya / وصول پایا', formatAmount(receipt.arrearsBreakdown.paidAmount)],
-      ['Baqi Rehta / باقی رہتا', formatAmount(receipt.arrearsBreakdown.balanceDue)]
+      ['Baqi Rehta / باقی رہتا', formatAmount(netArrearsBalanceRupees(receipt))]
     ] : []),
     ...(receipt.fifoShow && receipt.fifoAllocation && receipt.fifoRemaining ? [
       ['FIFO taqseem / payment split', `Sabiqa Baqaya ${formatAmount(receipt.fifoAllocation.toArrears)} · Mahana Bill ${formatAmount(receipt.fifoAllocation.toPackage)} · Kist ${formatAmount(receipt.fifoAllocation.toKist)}`],
@@ -919,7 +921,7 @@ export function generatePaymentReceiptHtml(receipt, {
     // (`${bill.month}-01`), not a date anything happened on — label it
     // what it is, with the YYYY-MM value thermal-80 already prints.
     ['Billing Month / بل کا مہینہ', receipt.packageDate ? receipt.packageDate.slice(0, 7) : ''],
-    ...(receipt.remainderWaada ? [['Baqi / باقی رقم', `Rs. ${Number(receipt.remainderWaada.promiseAmount).toLocaleString('en-PK')} • Waada: ${receipt.remainderWaada.promiseDate}`]] : []),
+    ...(receipt.remainderWaada ? [['Baqi / باقی رقم', `Rs. ${formatReceiptMoneyFigure(receipt.remainderWaada.promiseAmount)} • Waada: ${receipt.remainderWaada.promiseDate}`]] : []),
     ['Amount Received / رقم موصول', receipt.paidAmount === null ? '' : formatAmount(receipt.paidAmount), 'receipt-amount'],
     ...(receipt.looseChangeCredit > 0 ? [['Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ', `+${formatAmount(receipt.looseChangeCredit)}`]] : []),
     ['Payment Method / ذریعہ ادائیگی', receipt.paymentMethod],
@@ -1013,11 +1015,8 @@ export function buildDownPaymentKistReceiptHtml(receipt, {
   receiptFooter = null
 } = {}) {
   if (!receipt) return '';
-  const formatAmount = (val) => {
-    if (val === null || val === undefined || val === '') return 'PKR 0';
-    const num = Number(val);
-    return `PKR ${num.toLocaleString()}`;
-  };
+  // Plan 555: the ONE shared receipt money format (receipt-money.js).
+  const formatAmount = (val) => formatReceiptMoney(val);
   const rows = (Array.isArray(receipt.schedule) ? receipt.schedule : [])
     .map((row) => `<div class="receipt-field"><dt>Kist ${row.installmentNumber}/${row.totalMonths}:</dt><dd>${formatAmount(row.amount)} (${row.status === 'billed' ? 'billed' : 'remaining'})</dd></div>`).join('');
   // Plan Q: shared A4 header (same title/meta data source as every
@@ -1104,11 +1103,8 @@ export function generateDepositSettlementReceiptHtml(receipt, {
   const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName
     ? `${receipt.customerNameUrdu} (${receipt.customerName})`
     : receipt.customerName;
-  const formatAmount = (val) => {
-    if (val === null || val === undefined || val === '') return 'PKR 0';
-    const num = Number(val);
-    return `PKR ${num.toLocaleString()}`;
-  };
+  // Plan 555: the ONE shared receipt money format (receipt-money.js).
+  const formatAmount = (val) => formatReceiptMoney(val);
   const offsetRows = (Array.isArray(receipt.offsets) ? receipt.offsets : [])
     .map((row) => `<div class="receipt-field"><dt>Arrears offset — ${escapeHtml(row.month)}:</dt><dd>-${formatAmount(row.amount)}</dd></div>`).join('');
   const hardwareRows = (Array.isArray(receipt.hardwareCharges) ? receipt.hardwareCharges : [])
@@ -1199,11 +1195,8 @@ export function generateDepositOffsetReceiptHtml(receipt, {
   const displayName = receipt.customerNameUrdu && receipt.customerNameUrdu !== receipt.customerName
     ? `${receipt.customerNameUrdu} (${receipt.customerName})`
     : receipt.customerName;
-  const formatAmount = (val) => {
-    if (val === null || val === undefined || val === '') return 'PKR 0';
-    const num = Number(val);
-    return `PKR ${num.toLocaleString()}`;
-  };
+  // Plan 555: the ONE shared receipt money format (receipt-money.js).
+  const formatAmount = (val) => formatReceiptMoney(val);
   const escapeHtml = (value) => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const offsetRows = (Array.isArray(receipt.bills) ? receipt.bills : [])
     .map((row) => `<div class="receipt-field"><dt>Bill offset — ${escapeHtml(row.month)}:</dt><dd>-${formatAmount(row.amount)}</dd></div>`).join('');

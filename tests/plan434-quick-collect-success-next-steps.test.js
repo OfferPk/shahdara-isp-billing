@@ -270,50 +270,59 @@ test('styles: the panel reuses the receipt card classes, so no new hex can enter
 });
 
 test('wiring: the controller imports the success next steps module', () => {
+  // QC receipt-modal overhaul: the panel rendering is superseded by the
+  // merged Still-owed row — the controller imports only the computation
+  // functions and label constants now, never the panel builders.
   assert.match(wiringSrc, /success-next-steps\.js/);
-  assert.match(wiringSrc, /successNextStepsFromReceipt/);
-  assert.match(wiringSrc, /successNextStepsHtml/);
   assert.match(wiringSrc, /successNextStepsNextDueDate/);
+  assert.match(wiringSrc, /successNextStepsChargesPending/);
+  assert.match(wiringSrc, /SUCCESS_NEXT_STEPS_STILL_OWED_TEXT/);
+  assert.match(wiringSrc, /SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT/);
+  assert.match(wiringSrc, /SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT/);
+  assert.doesNotMatch(wiringSrc, /successNextStepsFromReceipt/);
+  // successNextStepsHtml survives only as a comment naming the label
+  // logic's lineage — never imported or called.
+  assert.doesNotMatch(wiringSrc, /successNextStepsHtml\(/);
+  assert.doesNotMatch(wiringSrc, /import \{[^}]*successNextStepsHtml/);
 });
 
-test('wiring: the success screen renders the panel beside the receipt card', () => {
-  assert.match(wiringSrc, /const nextStepsBox = /);
-  assert.match(wiringSrc, /document\.getElementById\('snsSuccessNextSteps'\)/);
-  assert.match(wiringSrc, /function renderSuccessNextSteps\(\)/);
-  const start = wiringSrc.indexOf('function renderSuccessNextSteps()');
-  const slice = wiringSrc.slice(start, start + 1600);
-  assert.match(slice, /successNextStepsFromReceipt\(activeReceipt/);
-  assert.match(slice, /successNextStepsNextDueDate\(/);
-  assert.match(slice, /successNextStepsHtml\(nextSteps\)/);
-  assert.match(slice, /nextStepsBox\.hidden = /);
+test('wiring: the success screen renders the merged row inside the receipt card', () => {
+  // QC receipt-modal overhaul: no second summary card — the Still-owed
+  // + Next-due row lives inside the card builder, fed by the same
+  // computation the panel used.
+  assert.match(wiringSrc, /const chargesPending = successNextStepsChargesPending\(receipt\);/);
+  assert.match(wiringSrc, /const mergedOwedLabel = remainingPayable > 0 && chargesPending/);
+  assert.match(wiringSrc, /SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT/);
+  assert.match(wiringSrc, /SUCCESS_NEXT_STEPS_STILL_OWED_TEXT/);
+  assert.doesNotMatch(wiringSrc, /function renderSuccessNextSteps\(\)/);
+  assert.doesNotMatch(wiringSrc, /document\.getElementById\('snsSuccessNextSteps'\)/);
 });
 
-test('wiring: the panel renders on both success paths, single and split', () => {
-  const occurrences = wiringSrc.match(/renderSuccessNextSteps\(\);/g) || [];
-  assert.ok(occurrences.length >= 2, `expected at least 2 render calls, found ${occurrences.length}`);
-  const packageAt = wiringSrc.indexOf('applyPackageSuccessMessage(totalCollected)');
-  assert.ok(packageAt > 0);
-  assert.ok(wiringSrc.indexOf('renderSuccessNextSteps();', packageAt) > packageAt, 'split path renders the panel after the package message');
-  const singleAt = wiringSrc.indexOf('applyPackageSuccessMessage(receipt.amount)');
-  assert.ok(singleAt > 0);
-  assert.ok(wiringSrc.indexOf('renderSuccessNextSteps();', singleAt) > singleAt, 'single path renders the panel after the package message');
+test('wiring: the merged row renders on both success paths, single and split', () => {
+  // QC receipt-modal overhaul: renderActiveReceiptCard computes the
+  // next-due text + charges flag once and passes them to both builders.
+  assert.match(wiringSrc, /const nextDueDateText = nextDueDate \? formatQcReceiptDate\(nextDueDate\) : null;/);
+  assert.match(wiringSrc, /const chargesPending = successNextStepsChargesPending\(activeReceipt\);/);
+  assert.match(wiringSrc, /renderSplitReceiptCardHtml\(activeReceipt\.splitTender, quickCollectAreaSelectHtml\(activeReceipt\.splitTender\.area\), \{ nextDueDateText, chargesPending \}\)/);
+  assert.match(wiringSrc, /renderQuickCollectReceiptCardHtml\(activeReceipt, \{ whatsappPhone: receiptWhatsappPhone, nextDueDateText \}\)/);
 });
 
 test('wiring: collect again reopens the form for the same customer and posts nothing', () => {
-  const start = wiringSrc.indexOf('data-sns-collect-again');
-  assert.ok(start > 0, 'wiring listens for the collect-again hook');
-  const slice = wiringSrc.slice(start, start + 600);
+  // QC receipt-modal overhaul: the collect-again action is the
+  // same-customer button in the next-action row (data hook, no new id).
+  const start = wiringSrc.indexOf('data-qc-same-customer');
+  assert.ok(start > 0, 'wiring listens for the same-customer hook');
+  const slice = wiringSrc.slice(start, start + 400);
   assert.match(slice, /openCustomerCollectionForm\(activeCustomerId\)/);
   assert.doesNotMatch(slice, /addPayment|executeQuickCollection/);
+  assert.doesNotMatch(slice, /emptyAmount/);
 });
 
-test('wiring: the panel host sits on the success step after the receipt card', () => {
-  assert.ok(pageSrc.includes('id="snsSuccessNextSteps"'));
+test('wiring: the panel host is gone; the merged row sits inside the receipt card', () => {
+  assert.ok(!pageSrc.includes('id="snsSuccessNextSteps"'), 'panel host must be gone');
   const cardAt = pageSrc.indexOf('id="quickCollectReceiptCard"');
-  const hostAt = pageSrc.indexOf('id="snsSuccessNextSteps"');
   const actionsAt = pageSrc.indexOf('qc-success-actions');
-  assert.ok(cardAt > 0 && hostAt > cardAt, 'panel host follows the receipt card');
-  assert.ok(actionsAt > hostAt, 'success actions follow the panel host');
+  assert.ok(cardAt > 0 && actionsAt > cardAt, 'success actions follow the receipt card');
   const successAt = pageSrc.indexOf('id="quickCollectStepSuccess"');
-  assert.ok(successAt > 0 && hostAt > successAt, 'panel host sits inside the success step');
+  assert.ok(successAt > 0 && cardAt > successAt, 'receipt card sits inside the success step');
 });

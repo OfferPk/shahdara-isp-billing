@@ -4,6 +4,14 @@
 // the customer leaves knowing exactly what remains, and the operator
 // is already ready for the next customer.
 //
+// QC receipt-modal overhaul (§4.3.1, §4.5.3): the panel itself is
+// superseded — the merged Still-owed + Next-due row in the receipt
+// card carries the figures, and the next-action row carries the
+// collect-again handler. This module is KEPT: successNextStepsNextDueDate
+// and successNextStepsChargesPending still compute the row's figures
+// (called from renderActiveReceiptCard), and successNextStepsHtml /
+// successNextStepsFromReceipt stay for their tests.
+//
 // This module shows ONLY. It records nothing new, changes no bill,
 // payment, or customer record, and holds no store of its own: every
 // figure comes from the receipt the save just issued and from the

@@ -72,7 +72,11 @@ test('tick in box: the tick sits AFTER the heading inside the heading row, 20px 
 });
 
 test('tick in box: the heading row carries a permanent green border in both themes', () => {
-  const row = ruleBlock(stylesSrc, '.qc-success-heading-row {');
+  // The base rule (anchored at column 0 — the success-scoped rule below
+  // shares the selector text, so a bare indexOf would land on it).
+  const baseAt = stylesSrc.indexOf('\n.qc-success-heading-row {');
+  assert.ok(baseAt >= 0, 'base heading-row rule missing');
+  const row = ruleBlock(stylesSrc.slice(baseAt), '.qc-success-heading-row {');
   assert.ok(row.includes('display: flex'), 'heading row must be flex');
   assert.ok(row.includes('align-items: center'), 'row must centre the tick against the heading');
   assert.ok(row.includes('justify-content: center'), 'row must be centred like the banner');
@@ -87,6 +91,11 @@ test('tick in box: the heading row carries a permanent green border in both them
   const tickInRow = ruleBlock(stylesSrc, '.qc-success-heading-row .qc-success-check {');
   assert.ok(tickInRow.includes('margin-bottom: 0'), 'the base 8px bottom margin must not apply inside the row');
   assert.ok(tickInRow.includes('flex-shrink: 0'), 'the tick must never squeeze');
+  // QC receipt-modal overhaul: on the success screen the border + padding
+  // are removed (the banner is the box now) — the +12px cost is gone.
+  const success = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-heading-row {');
+  assert.ok(success.includes('border: none'), 'success must drop the heading-row border');
+  assert.ok(success.includes('padding: 0'), 'success must drop the heading-row padding');
 });
 
 test('tick in box: no focus outline is drawn around the heading in either theme', () => {
@@ -121,8 +130,13 @@ test('tick in box: 32px circle on success', () => {
   assert.ok(!check.includes('animation:'), 'the pop must not live on the size rule any more (it is trigger-gated)');
 });
 
-test('tick in box: the +12px border/padding cost is booked in the fit budget', () => {
-  // Border 2×2 + padding 4×2 = +12px → 693px, 7px slack, inside the
-  // 700px gate. The fit test itself enforces the total ≤ 700.
-  assert.ok(fitSrc.includes("savings.push(['TICK-BOX row border + padding', -12])"), 'fit test must book the tick-in-box cost as a -12 saving row');
+test('tick in box: the +12px border/padding cost is gone on success (fit test records measured totals)', () => {
+  // QC receipt-modal overhaul: the success-scoped rule removes the
+  // heading-row border + padding, so the +12px cost no longer exists —
+  // the old static savings model (and its -12 row) is retired with the
+  // fit test rewrite, which records the harness-measured totals instead.
+  const success = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-heading-row {');
+  assert.ok(success.includes('border: none') && success.includes('padding: 0'), 'success must drop the border + padding');
+  assert.ok(!fitSrc.includes("savings.push(['TICK-BOX row border + padding', -12])"), 'fit test must not book a retired cost');
+  assert.ok(fitSrc.includes('MEASURED_360_PX'), 'fit test must record the measured totals');
 });

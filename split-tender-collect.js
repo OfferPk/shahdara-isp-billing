@@ -57,6 +57,12 @@ import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
 import { isVoidedPayment } from './payment-void-audit.js';
 import { normalizeTid } from './wallet-reconciliation.js';
 import { t } from './nav-language.js';
+import {
+  SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT,
+  SUCCESS_NEXT_STEPS_STILL_OWED_TEXT,
+  SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT,
+  SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT,
+} from './success-next-steps.js';
 import { formatReceiptMoney } from './receipt-money.js';
 import { SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
 import { brandHeaderContentHtml, documentFooterHtml } from './document-branding.js';
@@ -644,7 +650,7 @@ export function splitBadgeMarkup(payment) {
  * Area row shows that select instead of plain text; without it the
  * row stays plain text, exactly as before.
  */
-export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '') {
+export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { nextDueDateText, chargesPending } = {}) {
   if (!combined) return '';
   const remaining = combined.balanceDueCents / 100;
   const legRows = combined.legs.map(leg => `
@@ -656,12 +662,10 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '') {
     <div class="qc-receipt-card" role="region" aria-label="Split Payment Receipt Slip">
       <div class="qc-receipt-header">
         <!-- Polish 21 (Req 6): the settle/partial badge moved out of the
-             card header into the merged status section
-             (renderSettleStatusBadge) — the header keeps only the
-             receipt id, on one line. The settled state itself is still
-             shown by that badge alone when the remaining-balance row
-             is hidden (a fully-paid split hides the row — see the
-             hide-zero-remaining wrap below). -->
+             card header — and the QC receipt-modal overhaul removed it
+             entirely (the merged Still-owed row + the still-owes pill
+             state the settled/partial state now) — so the header keeps
+             only the receipt id, on one line. -->
         <span class="qc-receipt-id">${escapeHtml(t('split_receipt_title'))}</span>
       </div>
 
@@ -679,13 +683,14 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '') {
           <span class="qc-meta-label">Area / Location</span>
           ${areaSelectHtml ? areaSelectHtml : `<strong class="qc-meta-val">${escapeHtml(combined.area)}</strong>`}
         </div>
-        ${remaining > 0 ? `
         <div class="qc-receipt-item">
-          <span class="qc-meta-label">Remaining Balance</span>
-          <strong class="qc-meta-val has-balance">
-            PKR ${Number(remaining).toLocaleString('en-PK')}
-          </strong>
-        </div>` : ''}
+          <span class="qc-meta-label">${escapeHtml(remaining > 0 && chargesPending ? SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT : SUCCESS_NEXT_STEPS_STILL_OWED_TEXT)}</span>
+          <strong class="qc-meta-val ${remaining > 0 ? 'has-balance' : 'zero-balance'}">${remaining > 0 ? `PKR ${Number(remaining).toLocaleString('en-PK')}` : escapeHtml(SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT)}</strong>
+        </div>
+        <div class="qc-receipt-item">
+          <span class="qc-meta-label">Next due date</span>
+          <strong class="qc-meta-val">${escapeHtml(nextDueDateText || SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT)}</strong>
+        </div>
         ${legRows}
       </div>
       ${receiptTermsNoteHtml({ contactActions: true }).replace('class="receipt-urdu-notice"', 'class="receipt-urdu-notice qc-urdu-nastaliq qc-urdu-gradient"')}

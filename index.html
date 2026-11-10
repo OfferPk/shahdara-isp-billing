@@ -26940,7 +26940,7 @@
       <div class="modal-heading">
         <div>
           <p class="eyebrow">FIELD RECOVERY &amp; BILLING</p>
-          <h2 id="quickCollectTitle">Quick Collect (2-Tap Flow)</h2><button class="help-info-btn" type="button" data-help="collect_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
+          <h2 id="quickCollectTitle">Quick Collect (2-Tap Flow)</h2><button class="help-info-btn" type="button" data-help="collect_payment" aria-label="About this feature" data-i18n-aria-label="help_aria_label"><span data-ds-icon="Info"></span></button>
         </div>
         <button id="closeQuickCollectModalBtn" class="close-button" type="button" aria-label="Close quick collect modal">↩</button>
       </div>
@@ -27486,13 +27486,24 @@
       </div>
 
       <!-- Step 3: Success Screen with Receipt Slip -->
+      <!-- QC receipt-modal overhaul: one emerald banner (heading + the two
+           remaining pills), the Urdu package note as its own callout below
+           it, the receipt card (the second summary card's Still-owed and
+           Next-due rows merged into it), the collapsible WhatsApp draft
+           accordion, and the action hierarchy (primary, 3-col output grid,
+           2-col next-action row, empty-amount text button, Done). The
+           settle badge, the second summary card and the repeat panel are
+           gone (their fields/actions moved, spec 4.2-4.5); the 5s undo is
+           untouched and sits above the primary while it is live. -->
       <div id="quickCollectStepSuccess" class="qc-step" role="region" aria-label="Payment Confirmation and Receipt" hidden>
         <div class="qc-success-banner" role="status">
           <!-- Polish 21 (Req 1): the tick is inline in the heading row
-               (32px, after the heading) — the standalone hero tick row
+               (32px, after the heading) - the standalone hero tick row
                is gone, so the screen starts at the heading. Tick-in-box
                fix: the tick follows the heading so it sits INSIDE the
-               row's border box, on the right. -->
+               row's border box, on the right. QC modal overhaul: the
+               bordered heading-row box is gone - the banner IS the box
+               now, so the row is a plain flex row inside it. -->
           <div class="qc-success-heading-row">
             <h3 id="quickCollectSuccessHeading" tabindex="-1">Payment Recorded Successfully</h3>
             <span class="qc-success-check" aria-hidden="true">
@@ -27502,65 +27513,50 @@
               </svg>
             </span>
           </div>
+          <!-- The two remaining pills live in the banner's second row:
+               the still-owes pill ("Bill dues fully paid") and the saved
+               badge. The settle badge is gone (deduped, spec 4.2); the Plan
+               565 chain still feeds the still-owes pill, the card and the
+               draft, and the merged Still-owed row carries the Plan 526
+               pending-charges label when ticket/boost charges remain. -->
+          <div class="qc-success-pills-row">
+            <p id="sowStillOwesLine" class="sow-still-owes" aria-live="polite" hidden>
+              <!-- Populated dynamically: still owed after this payment, or fully paid -->
+            </p>
+            <div id="osbOfflineSavedBadge" hidden>
+              <!-- Populated dynamically: saved on this device, with the save time -->
+            </div>
+          </div>
+        </div>
+
+        <!-- The Urdu package note as its own soft callout below the banner
+             (Nastaliq, RTL). The animated gradient is dropped - the
+             callout's calm palette replaces it; the terms box keeps its
+             gradient via the card builder's replace. -->
+        <div class="qc-success-callout">
           <p id="quickCollectSuccessMessage">The transaction is saved locally and ledger balances are updated.</p>
         </div>
 
-        <!-- Plan 444: pending-clearance flag on the success screen —
-             shown again after the save while the saved payment's
-             method is a bank transfer or a cheque. It flags only
+        <!-- Plan 444: pending-clearance flag on the success screen -
+             shown again after the save while the saved payment's method is a bank transfer or a cheque. It flags only
              and clears nothing. -->
         <p id="pcfSuccessPendingClearanceFlag" class="upw-warning" aria-live="polite" hidden></p>
-
-        <!-- Polish 17 (Req 2 S1) as merged by Polish 21 (Req 6): the
-             still-owes line, the saved badge and the settle badge share
-             one status section (three pills, one section) instead of
-             two stacked blocks + a card-header badge. The section hides
-             itself when all three are empty. -->
-        <div class="qc-success-status-row">
-          <p id="sowStillOwesLine" class="sow-still-owes" aria-live="polite" hidden>
-            <!-- Populated dynamically: still owed after this payment, or fully paid -->
-          </p>
-
-          <div id="osbOfflineSavedBadge" hidden>
-            <!-- Populated dynamically: saved on this device, with the save time -->
-          </div>
-
-          <span id="qcSettleStatusBadge" class="qc-receipt-badge settled" hidden></span>
-        </div>
 
         <div id="quickCollectReceiptCard" class="qc-receipt-container">
           <!-- Populated dynamically -->
         </div>
 
-        <div id="snsSuccessNextSteps" class="qc-next-steps-container" hidden>
-          <!-- Populated dynamically: amount paid, still owed, next due date, collect again -->
-        </div>
-
-        <div id="rptRepeatPayment" hidden>
-          <!-- Populated dynamically: record another payment for the same customer, fresh form, empty amount -->
-        </div>
-
         <div id="rsdReceiptShareDraft" hidden>
-          <!-- Populated dynamically: receipt share draft, read first, Send or Dismiss -->
+          <!-- Populated dynamically: receipt share draft accordion - collapsed by default, Copy Text in the header -->
         </div>
 
         <div id="sccSecondConnectionStep" class="scc-second-connection" aria-live="polite" hidden>
-          <!-- Populated dynamically: second connection step — the customer's other connection with its dues, recordable in the same pass -->
+          <!-- Populated dynamically: second connection step - the customer's other connection with its dues, recordable in the same pass -->
         </div>
 
         <div class="qc-success-actions">
-          <button id="quickCollectWhatsAppBtn" class="primary-button qc-wa-btn" type="button">
-            💬 Share via WhatsApp
-          </button>
-          <button id="quickCollectShareImageBtn" class="secondary-button" type="button">
-            📷 Share as Image
-          </button>
-          <button id="quickCollectPrintReceiptBtn" class="secondary-button" type="button">
-            🖨️ Print Receipt Slip
-          </button>
-          <button id="quickCollectBluetoothPrintBtn" class="secondary-button" type="button" hidden>
-            🖨️ Print on Bluetooth Printer
-          </button>
+          <!-- 5s undo renders above the primary while it is live; it is
+               not part of the hierarchy or the budget. -->
           <button id="quickCollectUndoBtn" class="secondary-button qc-undo-btn" type="button">
             ↩ Undo — deletes this payment (5s)
           </button>
@@ -27568,10 +27564,32 @@
             ↩ Undo by reversal — original stays visible (60s)
           </button>
           <p class="field-help qc-undo-note" hidden>Only the 5-second undo is available — this payment settled charges, waived a late fee, or recorded a waada.</p>
-          <button id="quickCollectAnotherBtn" class="secondary-button" type="button">
-            ➕ Collect Another Customer
+          <button id="quickCollectWhatsAppBtn" class="primary-button qc-wa-btn" type="button">
+            Send WhatsApp Receipt
           </button>
-          <button id="quickCollectDoneCloseBtn" class="secondary-button" type="button">
+          <div class="qc-output-grid">
+            <button id="quickCollectShareImageBtn" class="secondary-button qc-output-btn" type="button">
+              <span data-ds-icon="Image"></span><span class="qc-action-label">Share Image</span>
+            </button>
+            <button id="quickCollectPrintReceiptBtn" class="secondary-button qc-output-btn" type="button">
+              <span data-ds-icon="Printer"></span><span class="qc-action-label">Print Slip</span>
+            </button>
+            <button id="quickCollectBluetoothPrintBtn" class="secondary-button qc-output-btn" type="button" hidden>
+              <span data-ds-icon="Bluetooth"></span><span class="qc-action-label">BT Thermal Print</span>
+            </button>
+          </div>
+          <div class="qc-next-row">
+            <button class="secondary-button qc-next-btn" type="button" data-qc-same-customer>
+              Same Customer (+ Payment)
+            </button>
+            <button class="secondary-button qc-next-btn" type="button" data-qc-next-customer>
+              Next Customer / Empty
+            </button>
+          </div>
+          <button class="qc-empty-amount-btn" type="button" data-qc-empty-amount>
+            Empty amount
+          </button>
+          <button id="quickCollectDoneCloseBtn" class="secondary-button qc-done-btn" type="button">
             Done
           </button>
         </div>

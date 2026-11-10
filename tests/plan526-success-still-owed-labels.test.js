@@ -230,34 +230,43 @@ test('acceptance: a fixture with no charges reads exactly as before', () => {
 // --- Wiring: the labels live in the two pure modules, the controller is untouched ---
 
 test('wiring: the controller still renders both lines from the same modules', () => {
+  // QC receipt-modal overhaul (§4.3.1): the Plan 434 panel is gone —
+  // the canonical chain now feeds the merged Still-owed + Next-due row
+  // in the receipt card, computed in renderActiveReceiptCard. The
+  // still-owes pill line still renders from its own module.
   assert.ok(wiringSrc.includes("from './quick-collect-still-owes.js'"), 'missing still-owes import');
   assert.ok(wiringSrc.includes("from './success-next-steps.js'"), 'missing next-steps import');
   assert.ok(wiringSrc.includes('function renderStillOwesLine()'), 'missing still-owes render');
-  assert.ok(wiringSrc.includes('function renderSuccessNextSteps()'), 'missing next-steps render');
-  assert.ok(wiringSrc.includes('successNextStepsFromReceipt(activeReceipt, nextDueDate)'), 'panel must read the issued receipt');
+  assert.ok(!wiringSrc.includes('function renderSuccessNextSteps()'), 'the panel render must be gone');
+  assert.ok(wiringSrc.includes('successNextStepsNextDueDate(postSaveCustomer, calculatePaymentAllocations(postSaveState), fallbackDueDate)'), 'card must compute the next due date from the post-save record');
+  assert.ok(wiringSrc.includes('successNextStepsChargesPending(receipt)'), 'card must read the pending-charges signal');
   assert.ok(wiringSrc.includes('stillOwesLine(postSaveCustomer, calculatePaymentAllocations(postSaveState), baqayaCents)'), 'line must read the post-save record');
 });
 
-test('wiring: the receipt card badge is untouched — it still reads the payable remainder', () => {
+test('wiring: the receipt card still reads the payable remainder — the merged row carries the settled state', () => {
   // BUT HOUSE fix: the renderer takes an optional second argument
   // carrying the live-state WhatsApp resolution (whatsappPhone first,
   // else the primary phone) — the signature changed, the card builder
   // and its canonical remaining figure did not.
-  assert.ok(wiringSrc.includes('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {})'), 'missing receipt card');
-  const start = wiringSrc.indexOf('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {})');
-  const slice = wiringSrc.slice(start, start + 2600);
+  // QC receipt-modal overhaul (§4.3.2, decision (j)): the builder takes
+  // a third option, nextDueDateText, for the merged Still-owed +
+  // Next-due row; the Polish 21 settle/partial badge is gone entirely
+  // (the merged row + the still-owes pill state the settled/partial
+  // state now), so no 'Settle in Full' / 'Partial Payment' text may
+  // remain anywhere in the controller.
+  assert.ok(wiringSrc.includes('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText } = {})'), 'missing receipt card');
+  const start = wiringSrc.indexOf('function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText } = {})');
+  // The builder is a top-level export function — slice to the next
+  // top-level function, not a fixed length (the merged row sits near
+  // the builder's end).
+  const nextFn = wiringSrc.slice(start + 10).search(/\n(?:export )?function /);
+  const slice = nextFn === -1 ? wiringSrc.slice(start, start + 12000) : wiringSrc.slice(start, start + 10 + nextFn);
   assert.match(slice, /receipt\.payableRemaining \?\? receipt\.newTotalDues/);
-  // Polish 21 (Req 6): the settle/partial badge moved out of the card
-  // header into the status section (renderSettleStatusBadge) — the card
-  // builder no longer carries the texts, the settle render does, reading
-  // the same payable remainder.
-  assert.ok(!slice.includes('Settle in Full'), 'card builder must not carry the settle badge any more');
-  const settleStart = wiringSrc.indexOf('function renderSettleStatusBadge()');
-  assert.ok(settleStart >= 0, 'missing settle render');
-  const settleSlice = wiringSrc.slice(settleStart, settleStart + 1500);
-  assert.match(settleSlice, /activeReceipt\.payableRemaining \?\? activeReceipt\.newTotalDues/);
-  assert.match(settleSlice, /✓ Settle in Full/);
-  assert.match(settleSlice, /⏳ Partial Payment/);
+  assert.ok(slice.includes('SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT'), 'merged row must read the fully-paid label from the module');
+  assert.ok(slice.includes('SUCCESS_NEXT_STEPS_STILL_OWED_TEXT'), 'merged row must read the still-owed label from the module');
+  assert.ok(!wiringSrc.includes('Settle in Full'), 'settle badge text must be gone');
+  assert.ok(!wiringSrc.includes('Partial Payment'), 'partial badge text must be gone');
+  assert.ok(!wiringSrc.includes('function renderSettleStatusBadge()'), 'settle render must be gone');
 });
 
 test('labels: the new wording lives in the modules, not in the controller', () => {

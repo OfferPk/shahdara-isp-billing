@@ -166,22 +166,25 @@ test('success scope: showStep toggles a qc-success-open class on the modal (the 
 
 // --- Nastaliq + gradient classes on the two Urdu elements. ---
 
-test('message: applyPackageSuccessMessage puts Nastaliq + gradient on the Urdu message only when the amount matches a package', () => {
+test('message: applyPackageSuccessMessage puts Nastaliq on the Urdu message only when the amount matches a package (no gradient)', () => {
   const start = quickCollectSrc.indexOf('function applyPackageSuccessMessage(');
   assert.ok(start >= 0, 'applyPackageSuccessMessage missing');
   const end = quickCollectSrc.indexOf('\n  function ', start + 1);
   const body = quickCollectSrc.slice(start, end === -1 ? undefined : end);
   assert.ok(body.includes("packageSuccessMessage(amount) !== null"), 'the class decision must use the package match (not the default line)');
   assert.ok(body.includes("classList.toggle('qc-urdu-nastaliq'"), 'message must get the Nastaliq class');
-  assert.ok(body.includes("classList.toggle('qc-urdu-gradient'"), 'message must get the gradient class');
+  // QC receipt-modal overhaul: the animated gradient is dropped for the
+  // message — the callout's calm palette replaces it. The terms box
+  // keeps its gradient via the card builder's replace.
+  assert.ok(!body.includes("classList.toggle('qc-urdu-gradient'"), 'message must NOT get the gradient class');
+  assert.ok(!body.includes('qc-urdu-gradient'), 'message function must not mention the gradient');
   assert.ok(body.includes("setAttribute('dir', 'rtl')"), 'Urdu message must be dir=rtl');
   assert.ok(body.includes("setAttribute('lang', 'ur')"), 'Urdu message must be lang=ur');
   assert.ok(body.includes("removeAttribute('dir')"), 'English default must drop dir');
   assert.ok(body.includes("removeAttribute('lang')"), 'English default must drop lang');
-  // The toggles take the package-match boolean, so the English default
-  // (no package match) never carries either class.
+  // The toggle takes the package-match boolean, so the English default
+  // (no package match) never carries the class.
   assert.match(body, /classList\.toggle\('qc-urdu-nastaliq', isUrdu\)/);
-  assert.match(body, /classList\.toggle\('qc-urdu-gradient', isUrdu\)/);
 });
 
 // Pattern-fake receipt for the card builders: Test Customer, pattern-fake
@@ -323,9 +326,11 @@ test('reduced motion: the gradient goes static (still multi-coloured)', () => {
 
 // --- Scope guard: the gradient never touches amounts, labels, print or PNG. ---
 
-test('scope: the gradient class appears only at the message toggle + the two card terms call sites', () => {
+test('scope: the gradient class appears only at the two card terms call sites (message toggle dropped)', () => {
+  // QC receipt-modal overhaul: the message toggle is gone — the gradient
+  // survives only at the ordinary-card terms call site in this file.
   const qcCount = (quickCollectSrc.match(/qc-urdu-gradient/g) || []).length;
-  assert.equal(qcCount, 2, `nav-quick-collect.js must mention qc-urdu-gradient exactly twice (message toggle + ordinary-card terms), found ${qcCount}`);
+  assert.equal(qcCount, 1, `nav-quick-collect.js must mention qc-urdu-gradient exactly once (ordinary-card terms), found ${qcCount}`);
   const splitCount = (splitSrc.match(/qc-urdu-gradient/g) || []).length;
   assert.equal(splitCount, 1, `split-tender-collect.js must mention qc-urdu-gradient exactly once (split-card terms), found ${splitCount}`);
   assert.equal((receiptSrc.match(/qc-urdu-gradient/g) || []).length, 0, 'receipt.js (thermal/A4/print) must never get the gradient');

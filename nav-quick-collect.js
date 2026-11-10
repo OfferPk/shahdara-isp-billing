@@ -61,7 +61,6 @@ import {
 } from './quick-collect-one-screen.js';
 import { oneScreenQuickAmountFigures, oneScreenQuickAmountButtonsHtml } from './one-screen-quick-amounts.js';
 import { addPaymentDuesFigures, addPaymentDuesButtonsHtml } from './add-payment-dues-buttons.js';
-import { repeatPaymentFormTarget, repeatPaymentHtml } from './repeat-payment.js';
 import {
   NAME_PREFIX_LOOKUP_MIN_LETTERS,
   namePrefixLookupHtml,
@@ -157,7 +156,15 @@ import { nextReceiptNumberFor, nextReceiptNumberLineText } from './next-receipt-
 import { normalizeCollectionPlace } from './collection-place-note.js';
 import { normalizeSaveConfirmationSummary, saveConfirmationSummaryHtml, saveConfirmationSummaryKey } from './save-confirmation-summary.js';
 import { receiptPreviewFor, receiptPreviewHtml } from './receipt-preview.js';
-import { successNextStepsFromReceipt, successNextStepsHtml, successNextStepsNextDueDate } from './success-next-steps.js';
+import { dsIcon } from './ds-icons.js';
+import {
+  successNextStepsNextDueDate,
+  successNextStepsChargesPending,
+  SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT,
+  SUCCESS_NEXT_STEPS_STILL_OWED_TEXT,
+  SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT,
+  SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT,
+} from './success-next-steps.js';
 import { receiptShareDraftFor, receiptShareDraftHtml } from './receipt-share-draft.js';
 import { stillOwesCents, stillOwesLine, stillOwesLineHtml } from './quick-collect-still-owes.js';
 import { bigNameConfirmLine, bigNameConfirmLineHtml } from './quick-collect-big-name-confirm.js';
@@ -2014,7 +2021,7 @@ export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MO
   }
   const selectedValue = currentCanon ? currentCanon.stored : '';
   const selectedKey = selectedValue.toLowerCase();
-  return `<select id="quickCollectAreaSelect" class="qc-input qc-area-select" data-qc-area-select aria-label="Area / Location">${options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value.toLowerCase() === selectedKey ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select>`;
+  return `<span class="qc-area-pill"><select id="quickCollectAreaSelect" class="qc-input qc-area-select" data-qc-area-select aria-label="Area / Location">${options.map((o) => `<option value="${escapeHtml(o.value)}"${o.value.toLowerCase() === selectedKey ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}</select><span class="qc-area-chevron" aria-hidden="true">${dsIcon('ChevronDown', 14)}</span></span>`;
 }
 
 /**
@@ -2023,7 +2030,7 @@ export function quickCollectAreaSelectHtml(currentArea, areaOptions = DEFAULT_MO
  * @param {Object} receipt
  * @returns {string}
  */
-export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {}) {
+export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone, nextDueDateText } = {}) {
   // Plan 565: the card reads the same canonical remaining figure as
   // the WhatsApp draft (payableRemaining ?? newTotalDues ??
   // newBalanceDue ?? 0) — payableRemaining is the most complete
@@ -2031,12 +2038,21 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
   // are the draft's own fallbacks. No finite-number guard here: a
   // non-finite figure is Plan 566's guard, not this plan's.
   const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;
-  // Hide-zero-remaining: the Remaining Balance row below renders
-  // only when something remains (remainingPayable > 0 — the same
-  // bare-> predicate as the settle badge and the draft). Zero,
-  // negative, missing (?? 0) and NaN all hide it, so a fully-paid
-  // card never prints "Remaining Balance: PKR 0"; the settled state
-  // is already stated by the settle badge and the still-owes pill.
+  // QC receipt-modal overhaul (§4.3.2, decision (j)): the merged
+  // Still-owed row below REPLACES the Remaining Balance row (PR #1332)
+  // and is ALWAYS shown — "Fully paid" (green, .zero-balance) when the
+  // Plan 565 figure is 0, "PKR X" (amber, .has-balance) when > 0 — so
+  // there is exactly one still-owed row on the card. This is a narrow,
+  // deliberate change to PR #1332's hide-zero rule for this row only:
+  // no "PKR 0" text ever appears; the settled state is also stated by
+  // the still-owes pill. When ticket/boost charges are pending, the
+  // label reads the Plan 526 charged label — the same label logic
+  // as successNextStepsHtml. (A non-finite figure is
+  // Plan 566's guard, not this item's: it reads "Fully paid" here.)
+  const chargesPending = successNextStepsChargesPending(receipt);
+  const mergedOwedLabel = remainingPayable > 0 && chargesPending
+    ? SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT
+    : SUCCESS_NEXT_STEPS_STILL_OWED_TEXT;
   // BUT HOUSE fix: the card shows the customer's mobile number — the
   // live-state resolution (whatsappPhone first, else the primary
   // phone) passed in by the caller, falling back to the receipt's
@@ -2082,9 +2098,10 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
     <div class="qc-receipt-card" role="region" aria-label="Payment Receipt Slip">
       <div class="qc-receipt-header">
         <!-- Polish 21 (Req 6): the settle/partial badge moved out of the
-             card header into the merged status section
-             (renderSettleStatusBadge) — the header keeps only the shared
-             badge + the receipt reference, on one line. The reference
+             card header — and the QC receipt-modal overhaul removed it
+             entirely (the merged Still-owed row + the still-owes pill
+             state the settled/partial state now) — so the header keeps
+             only the shared badge + the receipt reference, on one line. The reference
              is a labelled chip ("Receipt No." + the id in the
              Transaction ID row's .qc-txnid-code): the card was the only
              receipt surface showing the number with no label at all.
@@ -2123,13 +2140,6 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
           <span class="qc-meta-label">Area / Location</span>
           ${quickCollectAreaSelectHtml(receipt.area)}
         </div>
-        ${remainingPayable > 0 ? `
-        <div class="qc-receipt-item">
-          <span class="qc-meta-label">Remaining Balance</span>
-          <strong class="qc-meta-val has-balance">
-            PKR ${formatReceiptMoneyFigure(remainingPayable)}
-          </strong>
-        </div>` : ''}
         ${ticketChargeRows}
         ${formatRemainderWaadaLine(receipt) ? `
         <div class="qc-receipt-item full-width">
@@ -2160,7 +2170,7 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
           <strong class="qc-meta-val">📦 ${escapeHtml(t('pkg_auto_set_note', null, { amount: formatReceiptMoneyFigure(receipt.packageAutoSet.fee) }))}</strong>
         </div>` : ''}
         ${receipt.transactionId ? `
-        <div class="qc-receipt-item full-width" data-qc-receipt-txnid>
+        <div class="qc-receipt-item" data-qc-receipt-txnid>
           <span class="qc-meta-label">Transaction ID / Ref</span>
           <strong class="qc-meta-val"><code class="qc-txnid-code">${escapeHtml(receipt.transactionId)}</code></strong>
         </div>` : ''}
@@ -2169,6 +2179,14 @@ export function renderQuickCollectReceiptCardHtml(receipt, { whatsappPhone } = {
           <span class="qc-meta-label">${escapeHtml(t('spay_sender_name_label'))}</span>
           <strong class="qc-meta-val">${escapeHtml(receipt.senderLabel)}</strong>
         </div>` : ''}
+        <div class="qc-receipt-item">
+          <span class="qc-meta-label">${escapeHtml(mergedOwedLabel)}</span>
+          <strong class="qc-meta-val ${remainingPayable > 0 ? 'has-balance' : 'zero-balance'}">${remainingPayable > 0 ? `PKR ${formatReceiptMoneyFigure(remainingPayable)}` : escapeHtml(SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT)}</strong>
+        </div>
+        <div class="qc-receipt-item">
+          <span class="qc-meta-label">Next due date</span>
+          <strong class="qc-meta-val">${escapeHtml(nextDueDateText || SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT)}</strong>
+        </div>
         ${receipt.referenceOverrideReason ? `
         <div class="qc-receipt-item full-width">
           <span class="qc-meta-label">Ref Note / Override</span>
@@ -2445,16 +2463,10 @@ export function setupQuickCollectModal({
   // Plan 433: the receipt preview host on the confirm step (null when
   // the host page predates it) — the receipt exactly as it will print.
   const receiptPreviewBox = typeof document !== 'undefined' ? document.getElementById('rpvReceiptPreview') : null;
-  // Plan 434: the success next-steps host on the success step (null
-  // when the host page predates it) — amount paid, still owed after
-  // this payment, next due date, and a collect-again action, shown
-  // beside the package success message.
-  const nextStepsBox = typeof document !== 'undefined' ? document.getElementById('snsSuccessNextSteps') : null;
-  // Plan 490: the repeat-payment host on the success step (null when
-  // the host page predates it) — "Record another payment for the
-  // same customer", opening a fresh form with the same customer
-  // chosen and an empty amount, shown beside the next-steps panel.
-  const repeatPaymentBox = typeof document !== 'undefined' ? document.getElementById('rptRepeatPayment') : null;
+  // QC receipt-modal overhaul (§4.3.1, §4.5.3): the Plan 434
+  // next-steps panel and the Plan 490 repeat-payment host are gone —
+  // the merged Still-owed + Next-due row in the receipt card carries
+  // the figures, and the next-action row carries the three handlers.
   // Plan 436: the offline saved badge host on the success step (null when
   // the host page predates it) — "saved on this device" with the save time.
   const savedBadgeBox = typeof document !== 'undefined' ? document.getElementById('osbOfflineSavedBadge') : null;
@@ -2463,14 +2475,13 @@ export function setupQuickCollectModal({
   // payment, in plain words, or "Bill dues fully paid", shown
   // immediately at the top of the success screen.
   const stillOwesBox = typeof document !== 'undefined' ? document.getElementById('sowStillOwesLine') : null;
-  // Polish 21 (Req 6): the settle/partial badge host in the merged
-  // status section (null when the host page predates it) — the card
-  // header no longer carries it; the badge is written here from the
-  // same receipt data the card builder used.
-  const settleStatusBadgeBox = typeof document !== 'undefined' ? document.getElementById('qcSettleStatusBadge') : null;
+  // QC receipt-modal overhaul (§4.3.2): the Polish 21 settle/partial
+  // badge host is gone — the badge was a third still-owed signal and
+  // could disagree with the pill; the merged row + pill carry it now.
   // Plan 443: the receipt share draft host on the success step (null
-  // when the host page predates it) — the receipt's share text, read
-  // first, with Send and Dismiss, prepared right after a save.
+  // when the host page predates it) — the receipt's share text as a
+  // collapsible accordion (QC receipt-modal overhaul §4.4.2), prepared
+  // right after a save. Collapsed is the hidden state now, reversible.
   const shareDraftBox = typeof document !== 'undefined' ? document.getElementById('rsdReceiptShareDraft') : null;
   // Plan 444: the pending-clearance flag host on the success step
   // (null when the host page predates it) — shown again after the
@@ -2979,7 +2990,6 @@ export function setupQuickCollectModal({
     ? undoBtn.parentElement.querySelector('.qc-undo-note')
     : null;
   const printReceiptBtn = document.getElementById('quickCollectPrintReceiptBtn');
-  const anotherBtn = document.getElementById('quickCollectAnotherBtn');
   const doneCloseBtn = document.getElementById('quickCollectDoneCloseBtn');
   const goToTransactionsBtn = document.getElementById('quickCollectGoToTransactionsBtn');
 
@@ -5594,9 +5604,31 @@ export function setupQuickCollectModal({
     // number even when the receipt's stamped primary phone is empty.
     const receiptCustomer = getState()?.customers?.find(c => c.id === activeReceipt.customerId);
     const receiptWhatsappPhone = receiptCustomer ? whatsappPhoneFor(receiptCustomer) : '';
+    // QC receipt-modal overhaul (§4.3.1): the merged Still-owed /
+    // Next-due row needs the next due date — the earliest due date among
+    // bills that still carry a balance (Plan 434's computation), rendered
+    // with formatQcReceiptDate (DD/MM/YYYY, PR #1330) so it matches the
+    // card's Date & Method row. When nothing is owed, the host-supplied
+    // fallback applies (the next bill month's due date under the
+    // customer's own cycle, Polish #22) — so a full payment shows the
+    // next due date, never a hardcoded 5th and never an invented bill.
+    const postSaveState = getState();
+    const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeReceipt.customerId) ?? null;
+    const fallbackDueDate = typeof nextDueDateFallback === 'function' && postSaveCustomer
+      ? nextDueDateFallback(postSaveCustomer.id)
+      : null;
+    const nextDueDate = postSaveState
+      ? successNextStepsNextDueDate(postSaveCustomer, calculatePaymentAllocations(postSaveState), fallbackDueDate)
+      : null;
+    const nextDueDateText = nextDueDate ? formatQcReceiptDate(nextDueDate) : null;
+    // The split card's combined sub-object carries no pending-charges
+    // fields, so the Plan 526 charged label for its merged row
+    // is computed here from the full receipt and passed in; the
+    // single-tender builder computes the same flag from its receipt.
+    const chargesPending = successNextStepsChargesPending(activeReceipt);
     receiptCardContainer.innerHTML = activeReceipt.splitTender
-      ? renderSplitReceiptCardHtml(activeReceipt.splitTender, quickCollectAreaSelectHtml(activeReceipt.splitTender.area))
-      : renderQuickCollectReceiptCardHtml(activeReceipt, { whatsappPhone: receiptWhatsappPhone });
+      ? renderSplitReceiptCardHtml(activeReceipt.splitTender, quickCollectAreaSelectHtml(activeReceipt.splitTender.area), { nextDueDateText, chargesPending })
+      : renderQuickCollectReceiptCardHtml(activeReceipt, { whatsappPhone: receiptWhatsappPhone, nextDueDateText });
     // Plan 443: the card re-render refreshes the share draft too, so
     // an area change or a share never leaves a stale draft on screen.
     renderReceiptShareDraft();
@@ -5765,11 +5797,8 @@ export function setupQuickCollectModal({
       if (typeof onSaveState === 'function') onSaveState(nextState);
       renderActiveReceiptCard();
       applyPackageSuccessMessage(receipt.amount);
-      renderSuccessNextSteps();
-      renderRepeatPayment();
       renderStillOwesLine();
       renderOfflineSavedBadge();
-      renderSettleStatusBadge();
       renderReceiptShareDraft();
       renderSuccessPendingClearanceFlag();
       hideSecondConnectionStep();
@@ -5809,66 +5838,6 @@ export function setupQuickCollectModal({
   // tap reopens the payment form for the same customer; it records
   // nothing by itself.
   let nextStepsWired = false;
-  function renderSuccessNextSteps() {
-    if (!nextStepsBox) return;
-    if (!activeReceipt) {
-      nextStepsBox.innerHTML = '';
-      nextStepsBox.hidden = true;
-      return;
-    }
-    const postSaveState = getState();
-    const postSaveCustomer = postSaveState?.customers?.find((c) => c.id === activeCustomerId) ?? null;
-    const fallbackDueDate = typeof nextDueDateFallback === 'function' && postSaveCustomer
-      ? nextDueDateFallback(postSaveCustomer.id)
-      : null;
-    const nextDueDate = postSaveState
-      ? successNextStepsNextDueDate(postSaveCustomer, calculatePaymentAllocations(postSaveState), fallbackDueDate)
-      : null;
-    const nextSteps = successNextStepsFromReceipt(activeReceipt, nextDueDate);
-    const html = nextSteps ? successNextStepsHtml(nextSteps) : '';
-    nextStepsBox.innerHTML = html;
-    nextStepsBox.hidden = html === '';
-    if (!nextStepsWired && nextStepsBox) {
-      nextStepsWired = true;
-      nextStepsBox.addEventListener('click', (event) => {
-        if (!event.target?.closest?.('[data-sns-collect-again]')) return;
-        if (!activeCustomerId) return;
-        openCustomerCollectionForm(activeCustomerId);
-      });
-    }
-  }
-
-  // Plan 490: the repeat-payment action — "Record another payment
-  // for the same customer" — on the success screen, beside the
-  // next-steps panel. The tap opens a fresh form for the same
-  // customer with an empty amount and nothing else carried over; it
-  // records nothing by itself. The second payment is recorded only
-  // when the operator saves the fresh form, and leaving without
-  // saving records nothing.
-  let repeatPaymentWired = false;
-  function renderRepeatPayment() {
-    if (!repeatPaymentBox) return;
-    if (!activeReceipt) {
-      repeatPaymentBox.innerHTML = '';
-      repeatPaymentBox.hidden = true;
-      return;
-    }
-    const target = repeatPaymentFormTarget(activeCustomerId);
-    const html = target ? repeatPaymentHtml(target) : '';
-    repeatPaymentBox.innerHTML = html;
-    repeatPaymentBox.hidden = html === '';
-    if (!repeatPaymentWired && repeatPaymentBox) {
-      repeatPaymentWired = true;
-      repeatPaymentBox.addEventListener('click', (event) => {
-        const button = event.target?.closest?.('[data-rpt-repeat-payment]');
-        if (!button) return;
-        const customerId = button.getAttribute('data-rpt-customer-id') || activeCustomerId;
-        if (!customerId) return;
-        openCustomerCollectionForm(customerId, { emptyAmount: true });
-      });
-    }
-  }
-
   // Plan 440: the still-owes line — the customer's bill dues after this
   // payment, in plain words, or "Bill dues fully paid" — shown immediately at
   // the top of the success screen. It shows only: rendering posts
@@ -5932,41 +5901,17 @@ export function setupQuickCollectModal({
     savedBadgeBox.hidden = html === '';
   }
 
-  // Polish 21 (Req 6): the settle/partial badge in the merged status
-  // section — "✓ Settle in Full" when nothing is left to pay,
-  // "⏳ Partial Payment" otherwise — written from the same receipt data
-  // the card builder used (ordinary: the Plan 565 canonical remaining
-  // payableRemaining ?? newTotalDues ?? newBalanceDue ?? 0 <= 0;
-  // split: the combined receipt's PAID status). The badge is
-  // layout-only: rendering posts nothing and changes no record. No
-  // active receipt clears it and hides the host.
-  function renderSettleStatusBadge() {
-    if (!settleStatusBadgeBox) return;
-    if (!activeReceipt) {
-      settleStatusBadgeBox.textContent = '';
-      settleStatusBadgeBox.hidden = true;
-      return;
-    }
-    const settled = activeReceipt.splitTender
-      ? activeReceipt.splitTender.status === 'PAID'
-      : (activeReceipt.payableRemaining ?? activeReceipt.newTotalDues ?? activeReceipt.newBalanceDue ?? 0) <= 0;
-    settleStatusBadgeBox.className = `qc-receipt-badge ${settled ? 'settled' : 'partial'}`;
-    settleStatusBadgeBox.textContent = settled ? '✓ Settle in Full' : '⏳ Partial Payment';
-    settleStatusBadgeBox.hidden = false;
-  }
-
-  // Plan 443: the receipt share draft — the receipt's share text,
-  // prepared right after a save so the operator reads it first, then
-  // sends it or dismisses it. It drafts only: rendering posts nothing
-  // and changes no record. The text is the dispatch's own text for
-  // this receipt — the ordinary receipt text for a single payment,
-  // the combined-receipt text for a split — so the draft the operator
-  // reads is exactly what Send will send. Send routes through the
-  // success screen's existing messaging button; Dismiss hides the
-  // draft for this receipt. A receipt already shared, or dismissed,
-  // shows no draft again.
-  let shareDraftDismissedFor = null;
   let shareDraftWired = false;
+  // QC receipt-modal overhaul (§4.4.2): the share draft is a
+  // collapsible accordion, collapsed by default. The old Send button
+  // (which forwarded a click to the primary WhatsApp button) and the
+  // Dismiss button (which hid the draft until the next save) are gone:
+  // the primary Send WhatsApp Receipt button sits directly above the
+  // accordion, and the collapsed state IS the dismiss — reversible by
+  // tapping the header again. The Copy Text button copies the draft
+  // WITHOUT expanding it, reading the live text from the DOM so the
+  // copy can never go stale; the chevron + Copy icons are filled by
+  // dsIcon after render (receipt-share-draft.js stays import-free).
   function renderReceiptShareDraft() {
     if (!shareDraftBox) return;
     if (!activeReceipt) {
@@ -5974,7 +5919,7 @@ export function setupQuickCollectModal({
       shareDraftBox.hidden = true;
       return;
     }
-    if (shareDraftDismissedFor === activeReceipt.id || isReceiptShared(activeReceipt.id)) {
+    if (isReceiptShared(activeReceipt.id)) {
       shareDraftBox.innerHTML = '';
       shareDraftBox.hidden = true;
       return;
@@ -5987,17 +5932,48 @@ export function setupQuickCollectModal({
     const html = draft ? receiptShareDraftHtml(draft) : '';
     shareDraftBox.innerHTML = html;
     shareDraftBox.hidden = html === '';
+    const copyIcon = shareDraftBox.querySelector('[data-ds-icon="Copy"]');
+    if (copyIcon) copyIcon.innerHTML = dsIcon('Copy', 16);
     if (!shareDraftWired && shareDraftBox) {
       shareDraftWired = true;
-      shareDraftBox.addEventListener('click', (event) => {
+      shareDraftBox.addEventListener('click', async (event) => {
         if (!activeReceipt) return;
-        const sendBtn = event.target?.closest?.('[data-rsd-send]');
-        const dismissBtn = event.target?.closest?.('[data-rsd-dismiss]');
-        if (!sendBtn && !dismissBtn) return;
-        shareDraftDismissedFor = activeReceipt.id;
-        shareDraftBox.innerHTML = '';
-        shareDraftBox.hidden = true;
-        if (sendBtn) whatsAppBtn?.click();
+        const toggleBtn = event.target?.closest?.('[data-rsd-toggle]');
+        if (toggleBtn) {
+          const body = shareDraftBox.querySelector('[data-rsd-body]');
+          const chevron = toggleBtn.querySelector('[data-rsd-chevron]');
+          const expanded = body ? body.hidden : false;
+          if (body) body.hidden = !expanded;
+          toggleBtn.setAttribute('aria-expanded', String(expanded));
+          if (chevron) chevron.textContent = expanded ? '\u25bc' : '\u25b6';
+          return;
+        }
+        const copyBtn = event.target?.closest?.('[data-rsd-copy]');
+        if (!copyBtn) return;
+        const textEl = shareDraftBox.querySelector('.rsd-share-draft-text');
+        const textToCopy = textEl ? textEl.textContent : '';
+        if (!textToCopy) return;
+        let copied = false;
+        try {
+          if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+            await navigator.clipboard.writeText(textToCopy);
+            copied = true;
+          } else if (typeof document !== 'undefined') {
+            const ta = document.createElement('textarea');
+            ta.value = textToCopy;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            shareDraftBox.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            ta.remove();
+            copied = true;
+          }
+        } catch {
+          copied = false;
+        }
+        toast(t(copied ? 'qc_toast_draft_copied' : 'qc_toast_draft_copy_failed'));
       });
     }
   }
@@ -6005,16 +5981,19 @@ export function setupQuickCollectModal({
   // Polish 4: the success line under the heading names the package that
   // the amount just collected pays for, or keeps the existing English
   // line when the amount matches no package.
-  // Polish 17 (Req 1): the Urdu package message renders in Nastaliq
-  // with the animated mixed-colour gradient; the English default line
-  // (amount matches no package) keeps the system font — no gradient.
+  // Polish 17 (Req 1): the Urdu package message renders in Nastaliq;
+  // the English default line (amount matches no package) keeps the
+  // system font. QC receipt-modal overhaul (§4.3.5): the animated
+  // mixed-colour gradient on the message is dropped — the message now
+  // sits in its own callout below the banner; the terms box keeps its
+  // gradient (applied by the card builder's own replace).
   function applyPackageSuccessMessage(amount) {
     const messageEl = document.getElementById('quickCollectSuccessMessage');
     if (!messageEl) return;
     messageEl.textContent = packageSuccessMessageOrDefault(amount);
     const isUrdu = packageSuccessMessage(amount) !== null;
     messageEl.classList.toggle('qc-urdu-nastaliq', isUrdu);
-    messageEl.classList.toggle('qc-urdu-gradient', isUrdu);
+
     if (isUrdu) {
       messageEl.setAttribute('dir', 'rtl');
       messageEl.setAttribute('lang', 'ur');
@@ -6726,11 +6705,8 @@ export function setupQuickCollectModal({
           }
           renderActiveReceiptCard();
           applyPackageSuccessMessage(totalCollected);
-          renderSuccessNextSteps();
-          renderRepeatPayment();
           renderStillOwesLine();
           renderOfflineSavedBadge();
-          renderSettleStatusBadge();
           renderReceiptShareDraft();
           renderSuccessPendingClearanceFlag();
           // Plan 539: a saved payment drops the Back draft — a later
@@ -6926,11 +6902,8 @@ export function setupQuickCollectModal({
       // Render success screen
       renderActiveReceiptCard();
       applyPackageSuccessMessage(receipt.amount);
-      renderSuccessNextSteps();
-      renderRepeatPayment();
       renderStillOwesLine();
       renderOfflineSavedBadge();
-      renderSettleStatusBadge();
       renderReceiptShareDraft();
       renderSuccessPendingClearanceFlag();
       // Plan 449: a fresh pass offers the second connection again —
@@ -7176,8 +7149,11 @@ export function setupQuickCollectModal({
     });
   }
 
-  // Collect Another loop
-  anotherBtn?.addEventListener('click', () => {
+  // Collect Another loop — full reset to the picker (the next
+  // customer). Extracted so the QC receipt-modal overhaul's Next
+  // Customer button (§4.5.3) can call the same reset the old Collect
+  // Another button did.
+  function collectAnotherCustomer() {
     if (undoTimeoutId) {
       clearTimeout(undoTimeoutId);
       undoTimeoutId = null;
@@ -7199,6 +7175,23 @@ export function setupQuickCollectModal({
     hideSecondConnectionStep();
     renderList();
     searchInput?.focus();
+  }
+
+  // QC receipt-modal overhaul (§4.5.3): the next-action row — Same
+  // Customer (full-dues prefill, the old collect-again handler),
+  // Next Customer (the full reset above), and the small Empty amount
+  // text button (the old repeat-payment handler, empty amount). The
+  // three handlers genuinely differ; the data hooks carry no new
+  // element ids (fence §7.4). Null-guarded: the mock DOM returns null
+  // for non-class selectors, so a missing button skips its wiring.
+  modal.querySelector('[data-qc-same-customer]')?.addEventListener('click', () => {
+    if (!activeCustomerId) return;
+    openCustomerCollectionForm(activeCustomerId);
+  });
+  modal.querySelector('[data-qc-next-customer]')?.addEventListener('click', collectAnotherCustomer);
+  modal.querySelector('[data-qc-empty-amount]')?.addEventListener('click', () => {
+    if (!activeCustomerId) return;
+    openCustomerCollectionForm(activeCustomerId, { emptyAmount: true });
   });
 
   // Done button

@@ -62,6 +62,13 @@ const DS_ICON_PATHS = Object.freeze({
   Star: "<polygon points=\"12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2\" />",
   ChevronDown: "<path d=\"m6 9 6 6 6-6\" />",
   Plus: "<path d=\"M5 12h14\" /> <path d=\"M12 5v14\" />",
+  /* QC receipt-modal overhaul: the success screen's output-grid and
+   * accordion icons (Bluetooth slip, Image share, Copy draft) and the
+   * modal (i) button. Same Lucide 24x24 stroke set, same licence. */
+  Bluetooth: "<path d=\"m7 7 10 10-5 5V2l5 5L7 17\" />",
+  Image: "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" ry=\"2\" /> <circle cx=\"9\" cy=\"9\" r=\"2\" /> <path d=\"m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21\" />",
+  Copy: "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\" /> <path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\" />",
+  Info: "<circle cx=\"12\" cy=\"12\" r=\"10\" /> <path d=\"M12 16v-4\" /> <path d=\"M12 8h.01\" />",
 });
 
 export const DS_ICON_NAMES = Object.freeze(Object.keys(DS_ICON_PATHS));

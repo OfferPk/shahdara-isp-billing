@@ -90,44 +90,41 @@ test('styles: the button reuses the secondary-button look, so no new style enter
   assert.match(html, /class="secondary-button rpt-repeat-payment"/);
 });
 
-test('wiring: the controller imports the repeat-payment module', () => {
-  assert.match(wiringSrc, /repeat-payment\.js/);
-  assert.match(wiringSrc, /repeatPaymentFormTarget/);
-  assert.match(wiringSrc, /repeatPaymentHtml/);
+test('wiring: the controller no longer imports the repeat-payment module', () => {
+  // QC receipt-modal overhaul: the repeat host is gone — the empty-amount
+  // action is the small text button in the success step (data hook).
+  // The module is retained for its own tests; the controller does not
+  // import it.
+  assert.doesNotMatch(wiringSrc, /repeat-payment\.js/);
+  assert.doesNotMatch(wiringSrc, /repeatPaymentFormTarget/);
+  assert.doesNotMatch(wiringSrc, /repeatPaymentHtml/);
+  assert.match(wiringSrc, /data-qc-empty-amount/);
 });
 
-test('wiring: the success screen renders the repeat action beside the next-steps panel', () => {
-  assert.match(wiringSrc, /const repeatPaymentBox = /);
-  assert.match(wiringSrc, /document\.getElementById\('rptRepeatPayment'\)/);
-  assert.match(wiringSrc, /function renderRepeatPayment\(\)/);
-  const start = wiringSrc.indexOf('function renderRepeatPayment()');
-  const slice = wiringSrc.slice(start, start + 1200);
-  assert.match(slice, /repeatPaymentFormTarget\(activeCustomerId\)/);
-  assert.match(slice, /repeatPaymentHtml\(target\)/);
-  assert.match(slice, /repeatPaymentBox\.hidden = /);
-  assert.match(slice, /if \(!activeReceipt\)/);
+test('wiring: the success screen carries the empty-amount button in the actions', () => {
+  // QC receipt-modal overhaul: no repeat host — the empty-amount button
+  // is static HTML in the success step, wired by data hook.
+  assert.ok(pageSrc.includes('data-qc-empty-amount'), 'empty-amount button must exist in the success step');
+  assert.doesNotMatch(wiringSrc, /const repeatPaymentBox = /);
+  assert.doesNotMatch(wiringSrc, /document\.getElementById\('rptRepeatPayment'\)/);
+  assert.doesNotMatch(wiringSrc, /function renderRepeatPayment\(\)/);
 });
 
-test('wiring: the repeat action renders on every success path, single, split, and second connection', () => {
-  const occurrences = wiringSrc.match(/renderRepeatPayment\(\);/g) || [];
-  assert.ok(occurrences.length >= 3, `expected at least 3 render calls, found ${occurrences.length}`);
-  for (const marker of ['renderSuccessNextSteps();']) {
-    let at = -1;
-    let count = 0;
-    while ((at = wiringSrc.indexOf(marker, at + 1)) !== -1) {
-      count += 1;
-      assert.ok(wiringSrc.indexOf('renderRepeatPayment();', at) > at, 'repeat renders right after the next-steps panel');
-      assert.ok(wiringSrc.indexOf('renderRepeatPayment();', at) - at < 80, 'repeat renders immediately after the next-steps panel');
-    }
-    assert.ok(count >= 3, `expected at least 3 next-steps renders, found ${count}`);
-  }
+test('wiring: the empty-amount button is static HTML, present on every success path', () => {
+  // QC receipt-modal overhaul: the button is static markup in the
+  // success step, not rendered per path — it is present on the single,
+  // split and second-connection paths by construction.
+  const stepAt = pageSrc.indexOf('id="quickCollectStepSuccess"');
+  const hookAt = pageSrc.indexOf('data-qc-empty-amount');
+  assert.ok(stepAt > 0 && hookAt > stepAt, 'empty-amount button sits inside the success step');
+  assert.doesNotMatch(wiringSrc, /renderRepeatPayment\(\);/);
 });
 
 test('wiring: the repeat tap opens a fresh form for the same customer with an empty amount', () => {
-  const start = wiringSrc.indexOf('data-rpt-repeat-payment');
-  assert.ok(start > 0, 'wiring listens for the repeat hook');
-  const slice = wiringSrc.slice(start, start + 600);
-  assert.match(slice, /openCustomerCollectionForm\(customerId, \{ emptyAmount: true \}\)/);
+  const start = wiringSrc.indexOf('data-qc-empty-amount');
+  assert.ok(start > 0, 'wiring listens for the empty-amount hook');
+  const slice = wiringSrc.slice(start, start + 400);
+  assert.match(slice, /openCustomerCollectionForm\(activeCustomerId, \{ emptyAmount: true \}\)/);
   assert.doesNotMatch(slice, /addPayment|executeQuickCollection/);
 });
 
@@ -142,20 +139,17 @@ test('wiring: the form open honours the empty-amount repeat and hides the prefil
 });
 
 test('wiring: Plan 434 collect-again still reopens the form with its usual prefill', () => {
-  const start = wiringSrc.indexOf('data-sns-collect-again');
-  assert.ok(start > 0, 'wiring still listens for the collect-again hook');
+  const start = wiringSrc.indexOf('data-qc-same-customer');
+  assert.ok(start > 0, 'wiring still listens for the same-customer hook');
   const slice = wiringSrc.slice(start, start + 400);
   assert.match(slice, /openCustomerCollectionForm\(activeCustomerId\)/);
   assert.doesNotMatch(slice, /emptyAmount/);
 });
 
-test('wiring: the repeat host sits on the success step after the next-steps panel', () => {
-  assert.ok(pageSrc.includes('id="rptRepeatPayment"'));
-  const stepsAt = pageSrc.indexOf('id="snsSuccessNextSteps"');
-  const hostAt = pageSrc.indexOf('id="rptRepeatPayment"');
-  const actionsAt = pageSrc.indexOf('qc-success-actions');
-  assert.ok(stepsAt > 0 && hostAt > stepsAt, 'repeat host follows the next-steps panel');
-  assert.ok(actionsAt > hostAt, 'success actions follow the repeat host');
-  const successAt = pageSrc.indexOf('id="quickCollectStepSuccess"');
-  assert.ok(successAt > 0 && hostAt > successAt, 'repeat host sits inside the success step');
+test('wiring: the repeat host is gone; the empty-amount button sits in the success step', () => {
+  assert.ok(!pageSrc.includes('id="rptRepeatPayment"'), 'repeat host must be gone');
+  assert.ok(!pageSrc.includes('id="snsSuccessNextSteps"'), 'next-steps host must be gone');
+  const stepAt = pageSrc.indexOf('id="quickCollectStepSuccess"');
+  const hookAt = pageSrc.indexOf('data-qc-empty-amount');
+  assert.ok(stepAt > 0 && hookAt > stepAt, 'empty-amount button sits inside the success step');
 });

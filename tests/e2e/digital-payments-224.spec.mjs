@@ -99,8 +99,8 @@ test.describe('Digital Payments (Issue #224): JazzCash / Easypaisa / Raast / Ban
     await page.locator('#quickCollectConfirmBtn').click();
     await expect(page.locator('#quickCollectStepSuccess')).toBeVisible();
 
-    // 2. Click "Collect Another Customer"
-    await page.locator('#quickCollectAnotherBtn').click();
+    // 2. Click "Next Customer" (the old Collect Another button)
+    await page.locator('[data-qc-next-customer]').click();
     await expect(page.locator('#quickCollectStepPick')).toBeVisible();
 
     // 3. Pick second customer

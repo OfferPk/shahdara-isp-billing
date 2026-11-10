@@ -452,9 +452,13 @@ test('Req 3 share draft: the tax figure rides the draft and the match check — 
   assert.equal(untaxed.salesTaxCents, null);
   assert.equal(receiptShareDraftMatchesReceipt(untaxed, { ...draftInput, salesTaxCents: null }), true);
   const html = receiptShareDraftHtml(draft);
-  assert.ok(html.includes('data-rsd-send'), 'the draft offers Send');
-  assert.ok(html.includes('data-rsd-dismiss'), 'the draft offers Dismiss');
-  assert.ok(html.includes('Receipt share draft'));
+  // QC receipt-modal overhaul: the draft is a collapsible accordion now —
+  // Send/Dismiss are gone; the header offers Preview (toggle) + Copy Text.
+  assert.ok(html.includes('data-rsd-toggle'), 'the draft offers Preview');
+  assert.ok(html.includes('data-rsd-copy'), 'the draft offers Copy Text');
+  assert.ok(!html.includes('data-rsd-send'), 'the draft Send button must be gone');
+  assert.ok(!html.includes('data-rsd-dismiss'), 'the draft Dismiss button must be gone');
+  assert.ok(html.includes('Preview WhatsApp Message Text'));
 });
 
 test('Req 3 share draft: sending is logged via markReceiptShared, and the profile payment path arms the draft', () => {

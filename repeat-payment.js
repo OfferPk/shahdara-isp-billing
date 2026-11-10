@@ -6,6 +6,12 @@
 // months finishes both payments in one visit without the operator
 // searching twice, and each payment stays its own honest record.
 //
+// QC receipt-modal overhaul (§4.5.3): the panel itself is superseded
+// — the small "Empty amount" text button under the next-action row
+// carries the same handler (openCustomerCollectionForm with
+// { emptyAmount: true }). This module is KEPT: repeatPaymentFormTarget
+// / repeatPaymentHtml stay for their tests.
+//
 // Checked first, so this module is only the missing piece:
 //   - The success next-steps panel already offers a collect-again
 //     action, but it reopens the form with the suggested amount

@@ -1,11 +1,18 @@
 // Plan 531 — The three "again" actions say where they go: the success
-// screen offers three ways back that behave differently — next-steps
-// "Collect again" reopens the form with the full-dues prefill, the
-// repeat action reopens the same customer with an empty amount (Plan
-// 490), and "Collect Another Customer" goes back to the picker with
-// no customer. Wording only: the first two buttons now name what
+// screen offers three ways back that behave differently — "Same
+// Customer (+ Payment)" reopens the form with the full-dues prefill,
+// "Empty amount" reopens the same customer with an empty amount
+// (Plan 490), and "Next Customer / Empty" goes back to the picker
+// with no customer. Wording only: the first two buttons now name what
 // they open; the third stays exactly as is. No behaviour change to
 // any of the three.
+//
+// QC receipt-modal overhaul (§4.5.3): the three actions moved out of
+// the Plan 434 panel and the Plan 490 host into one next-action row
+// (two buttons) plus the small Empty-amount text button below it —
+// same three handlers, same wording, data hooks instead of element
+// ids (fence §7.4). The module-level label tests below still pin the
+// kept modules; the screen/behaviour tests pin the new row.
 // Pattern-fake data only: Customer One (#41).
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -64,34 +71,34 @@ test('labels: the repeat button names the empty amount', () => {
 });
 
 test('labels: the third action keeps its picker wording', () => {
-  assert.ok(pageSrc.includes('id="quickCollectAnotherBtn"'), 'picker action missing from the page');
-  assert.ok(pageSrc.includes('➕ Collect Another Customer'), 'picker action wording changed');
+  assert.ok(pageSrc.includes('data-qc-next-customer'), 'picker action missing from the page');
+  assert.ok(pageSrc.includes('Next Customer / Empty'), 'picker action wording changed');
 });
 
 test('screen: all three again actions sit on the success step', () => {
   const stepAt = pageSrc.indexOf('id="quickCollectStepSuccess"');
   assert.ok(stepAt > 0, 'success step missing');
-  const nextAt = pageSrc.indexOf('id="snsSuccessNextSteps"', stepAt);
-  const repeatAt = pageSrc.indexOf('id="rptRepeatPayment"', stepAt);
-  const anotherAt = pageSrc.indexOf('id="quickCollectAnotherBtn"', stepAt);
-  assert.ok(nextAt > stepAt, 'next-steps panel missing from the success step');
-  assert.ok(repeatAt > nextAt, 'repeat host must follow the next-steps panel');
-  assert.ok(anotherAt > repeatAt, 'picker action must follow the repeat host');
+  const sameAt = pageSrc.indexOf('data-qc-same-customer', stepAt);
+  const nextAt = pageSrc.indexOf('data-qc-next-customer', stepAt);
+  const emptyAt = pageSrc.indexOf('data-qc-empty-amount', stepAt);
+  assert.ok(sameAt > stepAt, 'same-customer action missing from the success step');
+  assert.ok(nextAt > sameAt, 'next-customer action must follow the same-customer action');
+  assert.ok(emptyAt > nextAt, 'empty-amount action must follow the next-customer action');
 });
 
 test('behaviour: collect-again still reopens the form with the full-dues prefill', () => {
-  const start = wiringSrc.indexOf('data-sns-collect-again');
-  assert.ok(start > 0, 'wiring still listens for the collect-again hook');
+  const start = wiringSrc.indexOf('data-qc-same-customer');
+  assert.ok(start > 0, 'wiring still listens for the same-customer hook');
   const slice = wiringSrc.slice(start, start + 400);
   assert.match(slice, /openCustomerCollectionForm\(activeCustomerId\)/);
   assert.doesNotMatch(slice, /emptyAmount/);
 });
 
 test('behaviour: repeat still opens a fresh form for the same customer with an empty amount', () => {
-  const start = wiringSrc.indexOf('data-rpt-repeat-payment');
-  assert.ok(start > 0, 'wiring still listens for the repeat hook');
+  const start = wiringSrc.indexOf('data-qc-empty-amount');
+  assert.ok(start > 0, 'wiring still listens for the empty-amount hook');
   const slice = wiringSrc.slice(start, start + 600);
-  assert.match(slice, /openCustomerCollectionForm\(customerId, \{ emptyAmount: true \}\)/);
+  assert.match(slice, /openCustomerCollectionForm\(activeCustomerId, \{ emptyAmount: true \}\)/);
   assert.doesNotMatch(slice, /addPayment|executeQuickCollection/);
 });
 

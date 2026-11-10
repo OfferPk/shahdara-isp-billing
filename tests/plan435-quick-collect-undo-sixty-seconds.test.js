@@ -412,9 +412,16 @@ test('wiring: closing and Collect Another both clear the reversal undo', () => {
   const closeAt = wiringSrc.indexOf('function handleDialogClosed()');
   assert.ok(closeAt > 0, 'close cleanup found');
   assert.match(wiringSrc.slice(closeAt, closeAt + 1200), /disarmReversalUndo\(\);/);
-  const anotherAt = wiringSrc.indexOf("anotherBtn?.addEventListener('click'");
-  assert.ok(anotherAt > 0, 'collect-another handler found');
-  assert.match(wiringSrc.slice(anotherAt, anotherAt + 900), /disarmReversalUndo\(\);/);
+  // QC receipt-modal overhaul: the Collect Another button is gone — the
+  // next-customer button (data-qc-next-customer) calls
+  // collectAnotherCustomer(), which drops the reversal undo with the
+  // rest of the save before returning to the picker.
+  const nextAt = wiringSrc.indexOf("modal.querySelector('[data-qc-next-customer]')");
+  assert.ok(nextAt > 0, 'next-customer handler found');
+  assert.match(wiringSrc.slice(nextAt, nextAt + 200), /collectAnotherCustomer/);
+  const fnAt = wiringSrc.indexOf('function collectAnotherCustomer()');
+  assert.ok(fnAt > 0, 'collectAnotherCustomer found');
+  assert.match(wiringSrc.slice(fnAt, fnAt + 900), /disarmReversalUndo\(\);/);
 });
 
 test('wiring: the countdown renders from the pure window check', () => {

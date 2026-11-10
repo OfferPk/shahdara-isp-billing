@@ -147,10 +147,14 @@ test('tick colours: zero new hex — only the existing circle colours', () => {
   assert.ok(stylesSrc.includes('background: #dcfce7'), 'circle background must stay the existing #dcfce7');
 });
 
-test('small ticks stay static text: the saved badge and the settled badge keep their ✓ text', () => {
+test('small ticks stay static text: the saved badge keeps its ✓ text; the settled state is static text, not a badge', () => {
   assert.ok(badgeSrc.includes('✓ Saved on this device'), 'saved badge must keep its static ✓ text');
   assert.ok(!badgeSrc.includes('<svg'), 'saved badge must not gain an SVG');
-  assert.ok(quickCollectSrc.includes("'✓ Settle in Full'"), 'settled badge must keep its static ✓ text');
+  // QC receipt-modal overhaul (§4.3.2): the settle badge is gone — the
+  // settled state is the merged Still-owed row's "Fully paid" text,
+  // static text like the pill, never an SVG tick.
+  assert.ok(!quickCollectSrc.includes("'✓ Settle in Full'"), 'settle badge text must be gone');
+  assert.ok(quickCollectSrc.includes('SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT'), 'merged row must read the fully-paid label from the module');
   assert.ok(!quickCollectSrc.includes('qc-check-draw'), 'nav-quick-collect.js must not draw the hero tick anywhere else');
 });
 

@@ -1,16 +1,25 @@
 // Plan 443 — Quick Collect receipt share draft right after payment:
 // one visible draft of the receipt's share text on the success
-// screen, read first, with Send and Dismiss. The draft's figures
-// must match the saved payment and its receipt on the same fixture;
-// preparing it changes no bill, payment, receipt, or customer
-// record, and it never touches the confirmation draft.
+// screen, read first. The draft's figures must match the saved
+// payment and its receipt on the same fixture; preparing it changes
+// no bill, payment, receipt, or customer record, and it never
+// touches the confirmation draft.
+//
+// QC receipt-modal overhaul (§4.4.2): the draft is a collapsible
+// accordion, collapsed by default — the old Send button (which
+// forwarded a click to the primary WhatsApp button) and the Dismiss
+// button (which hid the draft until the next save) are gone. The
+// primary Send WhatsApp Receipt button sits directly above the
+// accordion, and the collapsed state IS the dismiss — reversible by
+// tapping the header again. The Copy Text button copies the draft
+// WITHOUT expanding it, reading the live text from the DOM.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   RECEIPT_SHARE_DRAFT_HEADING_TEXT,
-  RECEIPT_SHARE_DRAFT_SEND_TEXT,
-  RECEIPT_SHARE_DRAFT_DISMISS_TEXT,
+  RECEIPT_SHARE_DRAFT_PREVIEW_TEXT,
+  RECEIPT_SHARE_DRAFT_COPY_TEXT,
   RECEIPT_SHARE_DRAFT_NO_RECEIPT_TEXT,
   receiptShareDraftFigureCents,
   receiptShareDraftIsStrictDate,
@@ -269,16 +278,23 @@ test('line: a split names both receipt numbers', () => {
   );
 });
 
-test('html: heading, line, text as shown, Send and Dismiss — buttons never submit', () => {
+test('html: accordion — heading, line, collapsed body, Preview + Copy — buttons never submit', () => {
   const draft = receiptShareDraftFor(receipt(), SHARE_TEXT);
   const html = receiptShareDraftHtml(draft);
   assert.ok(html.includes(RECEIPT_SHARE_DRAFT_HEADING_TEXT), 'missing heading');
   assert.ok(html.includes('Receipt RCPT-41-202611-01'), 'missing line');
   assert.ok(html.includes('Amount Received: PKR 3,000'), 'missing share text');
-  assert.ok(html.includes('data-rsd-send'), 'missing Send hook');
-  assert.ok(html.includes(RECEIPT_SHARE_DRAFT_SEND_TEXT), 'missing Send label');
-  assert.ok(html.includes('data-rsd-dismiss'), 'missing Dismiss hook');
-  assert.ok(html.includes(RECEIPT_SHARE_DRAFT_DISMISS_TEXT), 'missing Dismiss label');
+  // The accordion: a toggle header (collapsed by default) and a Copy
+  // Text button that works WITHOUT expanding — no Send, no Dismiss.
+  assert.ok(html.includes('data-rsd-toggle'), 'missing accordion toggle hook');
+  assert.ok(html.includes('aria-expanded="false"'), 'accordion must start collapsed');
+  assert.ok(html.includes(RECEIPT_SHARE_DRAFT_PREVIEW_TEXT), 'missing Preview label');
+  assert.ok(html.includes('data-rsd-copy'), 'missing Copy hook');
+  assert.ok(html.includes(RECEIPT_SHARE_DRAFT_COPY_TEXT), 'missing Copy label');
+  assert.ok(!html.includes('data-rsd-send'), 'Send is gone — the primary button sends');
+  assert.ok(!html.includes('data-rsd-dismiss'), 'Dismiss is gone — collapsed is the dismiss');
+  assert.ok(html.includes('data-rsd-body'), 'missing accordion body hook');
+  assert.ok(html.includes('hidden'), 'accordion body must start hidden');
   assert.ok(html.includes('type="button"'), 'buttons must be plain buttons');
   assert.ok(!html.includes('type="submit"'), 'no button may submit the form');
   assert.equal(receiptShareDraftHtml(null), '');
@@ -364,11 +380,16 @@ test('wiring: the render prepares the draft from the saved receipt and its dispa
   );
 });
 
-test('wiring: Send routes through the existing messaging dispatch, Dismiss hides the draft', () => {
-  assert.ok(wiringSrc.includes("data-rsd-send"), 'missing Send hook handling');
-  assert.ok(wiringSrc.includes('whatsAppBtn?.click()'), 'Send must reuse the existing dispatch button');
-  assert.ok(wiringSrc.includes("data-rsd-dismiss"), 'missing Dismiss hook handling');
-  assert.ok(wiringSrc.includes('shareDraftDismissedFor'), 'Dismiss must remember the dismissed receipt');
+test('wiring: toggle expands the preview, Copy copies the live text without expanding', () => {
+  assert.ok(wiringSrc.includes("data-rsd-toggle"), 'missing accordion toggle handling');
+  assert.ok(wiringSrc.includes("data-rsd-copy"), 'missing Copy hook handling');
+  assert.ok(wiringSrc.includes('navigator.clipboard.writeText'), 'Copy must use the clipboard');
+  assert.ok(wiringSrc.includes('qc_toast_draft_copied'), 'Copy must toast the copied state');
+  // The old Send/Dismiss wiring is gone: no forwarded WhatsApp click,
+  // no dismissed-receipt memory — the collapsed state IS the dismiss.
+  assert.ok(!wiringSrc.includes("data-rsd-send"), 'Send hook must be gone');
+  assert.ok(!wiringSrc.includes("data-rsd-dismiss"), 'Dismiss hook must be gone');
+  assert.ok(!wiringSrc.includes('shareDraftDismissedFor'), 'dismissed-receipt memory must be gone');
 });
 
 test('wiring: the draft renders on both success paths and refreshes with the receipt card', () => {
@@ -379,38 +400,47 @@ test('wiring: the draft renders on both success paths and refreshes with the rec
   assert.equal(calls.length, 4, `expected 4 render calls (split save, single save, card re-render, second-connection record), got ${calls.length}`);
   const cardFn = wiringSrc.slice(
     wiringSrc.indexOf('function renderActiveReceiptCard()'),
-    wiringSrc.indexOf('function renderSuccessNextSteps()'),
+    wiringSrc.indexOf('function renderStillOwesLine()'),
   );
   assert.ok(cardFn.includes('renderReceiptShareDraft();'), 'card re-render must refresh the draft');
 });
 
-test('wiring: the draft hides once the receipt is already shared or dismissed', () => {
+test('wiring: the draft hides once the receipt is already shared — no dismissed state', () => {
   const start = wiringSrc.indexOf('function renderReceiptShareDraft()');
   assert.ok(start !== -1, 'missing render function');
   const nextFn = wiringSrc.indexOf('\n  function ', start + 10);
   const fn = nextFn === -1 ? wiringSrc.slice(start) : wiringSrc.slice(start, nextFn);
   assert.ok(fn.includes('isReceiptShared(activeReceipt.id)'), 'shared receipts must hide the draft');
-  assert.ok(fn.includes('shareDraftDismissedFor === activeReceipt.id'), 'dismissed receipts must stay hidden');
+  // There is no dismissed state any more: the collapsed accordion IS
+  // the dismiss, reversible by tapping the header again.
+  assert.ok(!fn.includes('shareDraftDismissedFor'), 'no dismissed-receipt memory may remain');
 });
 
-test('page: the share-draft host sits on the success step, after the next-steps host', () => {
+test('page: the share-draft host sits on the success step, after the receipt card', () => {
   const stepAt = pageSrc.indexOf('id="quickCollectStepSuccess"');
   const hostAt = pageSrc.indexOf('id="rsdReceiptShareDraft"');
   const actionsAt = pageSrc.indexOf('qc-success-actions', stepAt);
-  const nextStepsAt = pageSrc.indexOf('id="snsSuccessNextSteps"');
+  const cardAt = pageSrc.indexOf('id="quickCollectReceiptCard"');
   assert.ok(stepAt !== -1 && hostAt > stepAt, 'host must be inside the success step');
-  assert.ok(hostAt > nextStepsAt, 'host must sit after the next-steps host');
+  assert.ok(hostAt > cardAt, 'host must sit after the receipt card');
   assert.ok(hostAt < actionsAt, 'host must sit before the success actions');
   assert.ok(pageSrc.includes('id="rsdReceiptShareDraft" hidden'), 'host starts hidden');
 });
 
-test('styles: the draft reuses existing button classes — no new rule, no new colour', () => {
-  assert.ok(!stylesSrc.includes('rsd-'), 'no share-draft rule belongs in styles.css');
+test('styles: the accordion has its own first-ever rules — the overflow fix, no new colour', () => {
+  // QC receipt-modal overhaul (§4.4.2): the draft <pre> was the ONE
+  // horizontal-overflow source (+558px). The accordion rules are the
+  // fix — pre-wrap + overflow-wrap: anywhere on the preview text.
+  assert.ok(stylesSrc.includes('.rsd-share-draft'), 'missing accordion rules');
+  assert.ok(stylesSrc.includes('.rsd-share-draft-text'), 'missing preview-text rules');
+  const textRule = stylesSrc.slice(stylesSrc.indexOf('.rsd-share-draft-text'));
+  assert.ok(textRule.includes('white-space: pre-wrap'), 'preview must wrap');
+  assert.ok(textRule.includes('overflow-wrap: anywhere'), 'preview must break anywhere');
 });
 
 test('constants: the draft texts are plain words', () => {
   assert.equal(RECEIPT_SHARE_DRAFT_HEADING_TEXT, 'Receipt share draft');
-  assert.equal(RECEIPT_SHARE_DRAFT_SEND_TEXT, 'Send on WhatsApp');
-  assert.equal(RECEIPT_SHARE_DRAFT_DISMISS_TEXT, 'Dismiss');
+  assert.equal(RECEIPT_SHARE_DRAFT_PREVIEW_TEXT, 'Preview WhatsApp Message Text');
+  assert.equal(RECEIPT_SHARE_DRAFT_COPY_TEXT, 'Copy Text');
   assert.equal(RECEIPT_SHARE_DRAFT_NO_RECEIPT_TEXT, 'No receipt to share.');
 });

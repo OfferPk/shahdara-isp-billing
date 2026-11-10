@@ -96,7 +96,9 @@ test('tick inline: the tick sits inside a heading row beside the heading, 18px S
 });
 
 test('tick inline: 32px circle on success, centred row, tick never shrinks', () => {
-  const row = ruleBlock(stylesSrc, '.qc-success-heading-row {');
+  // The success-scoped border-removal rule precedes the base rule in
+  // indexOf, so the base rule is anchored at column 0.
+  const row = ruleBlock(stylesSrc, '\n.qc-success-heading-row {');
   assert.ok(row.includes('display: flex'), 'heading row must be flex');
   assert.ok(row.includes('align-items: center'), 'row must centre the tick against the heading');
   assert.ok(row.includes('justify-content: center'), 'row must be centred like the banner');
@@ -151,10 +153,18 @@ test('tick re-trigger: showStep removes the trigger class, forces a reflow, re-a
 // --- Req 2: separation ---------------------------------------------------
 
 test('separation: the Urdu message gets 8px of air below the heading on success', () => {
-  const message = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open #quickCollectSuccessMessage {');
-  assert.ok(message.includes('margin-top: 8px'), 'message must sit 8px below the heading on success');
+  // QC receipt-modal overhaul (§4.3.5): the message moved out of the
+  // banner into its own callout box below it — the 8px of air is now
+  // structural (the success step gap), not a margin-top on the message.
+  // The message inside the callout keeps margin 0.
+  const callout = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-callout {');
+  assert.ok(callout.includes('padding: 10px 14px'), 'callout must carry its own padding');
+  const message = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-callout #quickCollectSuccessMessage {');
+  assert.ok(message.includes('margin: 0'), 'message margins stay 0 inside the callout');
+  const step = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open #quickCollectStepSuccess {');
+  assert.ok(step.includes('gap: 8px'), 'success step gap must be 8px — the callout sits 8px below the banner');
   const base = ruleBlock(stylesSrc, '#quickCollectSuccessMessage {');
-  assert.ok(base.includes('margin: 0'), 'base message margins stay 0 (the success rule adds only the top margin)');
+  assert.ok(base.includes('margin: 0'), 'base message margins stay 0');
 });
 
 // --- Req 4: support number — one line + contact actions (amended) -------
@@ -253,19 +263,21 @@ const SPLIT_COMBINED = {
 
 const SPLIT_PARTIAL = { ...SPLIT_COMBINED, balanceDueCents: 100000, status: 'PARTIAL' };
 
-test('status merge: one section holds all three green pills in order still-owes → saved → settle', () => {
-  const row = pageSrc.indexOf('class="qc-success-status-row"');
-  assert.ok(row >= 0, 'status row missing');
+test('status merge: one section holds exactly two pills in order still-owes → saved (settle badge removed)', () => {
+  // QC receipt-modal overhaul (§4.3.2): the settle badge was a third
+  // still-owed signal that could disagree with the pill — it is gone,
+  // and the merged Still-owed row in the card carries the settled/
+  // partial state. Exactly two pills remain.
+  const row = pageSrc.indexOf('class="qc-success-pills-row"');
+  assert.ok(row >= 0, 'pills row missing');
   const stillOwes = pageSrc.indexOf('id="sowStillOwesLine"', row);
   const saved = pageSrc.indexOf('id="osbOfflineSavedBadge"', row);
-  const settle = pageSrc.indexOf('id="qcSettleStatusBadge"', row);
-  assert.ok(stillOwes > row, 'still-owes line must sit inside the status row');
+  assert.ok(stillOwes > row, 'still-owes line must sit inside the pills row');
   assert.ok(saved > stillOwes, 'saved badge must follow the still-owes line');
-  assert.ok(settle > saved, 'settle host must follow the saved badge (third pill)');
-  assert.ok(pageSrc.includes('<span id="qcSettleStatusBadge" class="qc-receipt-badge settled" hidden></span>'), 'settle host must be the badge span, hidden until written');
-  const rowClose = pageSrc.indexOf('</div>', settle);
+  assert.ok(!pageSrc.includes('id="qcSettleStatusBadge"'), 'settle host must be gone');
+  const rowClose = pageSrc.indexOf('</div>', saved);
   const card = pageSrc.indexOf('id="quickCollectReceiptCard"');
-  assert.ok(rowClose >= 0 && rowClose < card, 'status row must close before the receipt card');
+  assert.ok(rowClose >= 0 && rowClose < card, 'pills row must close before the receipt card');
 });
 
 test('status merge: the card headers no longer carry the settle badge (ordinary + split)', () => {
@@ -284,49 +296,55 @@ test('status merge: the card headers no longer carry the settle badge (ordinary 
   assert.ok(splitPartial.includes('qc-receipt-id'), 'split card header must keep its id');
 });
 
-test('status merge: the settle badge is written from the same receipt figure (wiring)', () => {
-  assert.ok(quickCollectSrc.includes('function renderSettleStatusBadge()'), 'settle render function missing');
-  const start = quickCollectSrc.indexOf('function renderSettleStatusBadge()');
-  const end = quickCollectSrc.indexOf('\n  function ', start + 1);
-  const body = quickCollectSrc.slice(start, end === -1 ? undefined : end);
-  assert.ok(body.includes("activeReceipt.splitTender"), 'settle badge must read the split combined receipt when present');
-  assert.ok(body.includes("status === 'PAID'"), 'split settled state must be the combined PAID status');
-  assert.ok(body.includes('activeReceipt.payableRemaining ?? activeReceipt.newTotalDues'), 'ordinary settled state must read the same payable remainder the card builder used');
-  assert.ok(body.includes("'✓ Settle in Full'") && body.includes("'⏳ Partial Payment'"), 'both badge texts must live in the settle render');
-  // The host lookup lives beside the other status-section host lookups
-  // (the render function reads the closure const, not getElementById).
-  assert.ok(quickCollectSrc.includes("getElementById('qcSettleStatusBadge')"), 'settle render must write the status-section host');
-  const calls = (quickCollectSrc.match(/renderSettleStatusBadge\(\);/g) || []).length;
-  assert.ok(calls >= 3, `settle badge must be written at every success-show site (split, single, second connection), found ${calls}`);
+test('status merge: the merged Still-owed row is written from the same receipt figure (wiring)', () => {
+  // QC receipt-modal overhaul (§4.3.2): the settle badge is gone — the
+  // merged Still-owed row in the card builder is the surface that reads
+  // the canonical remaining figure, branching on remainingPayable > 0.
+  assert.ok(!quickCollectSrc.includes('function renderSettleStatusBadge()'), 'settle render must be gone');
+  assert.ok(
+    quickCollectSrc.includes('const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;'),
+    'card builder must compute the canonical remaining figure',
+  );
+  assert.ok(
+    quickCollectSrc.includes('remainingPayable > 0 ? `PKR ${formatReceiptMoneyFigure(remainingPayable)}` : escapeHtml(SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT)'),
+    'merged row must branch on remainingPayable > 0',
+  );
+  assert.ok(!quickCollectSrc.includes("'✓ Settle in Full'"), 'settle badge text must be gone');
+  assert.ok(!quickCollectSrc.includes("'⏳ Partial Payment'"), 'partial badge text must be gone');
 });
 
 test('status merge: compact badge sizing (12px, 2px 8px) + 6px section gap', () => {
-  const rowGap = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-status-row {');
+  const rowGap = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-pills-row {');
   assert.ok(rowGap.includes('gap: 6px'), 'merged section gap must be 6px');
-  const owes = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-status-row .sow-still-owes {');
+  const owes = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-pills-row .sow-still-owes {');
   assert.ok(owes.includes('font-size: 12px'), 'still-owes pill must demote to 12px (unified with the other pills)');
   assert.ok(owes.includes('padding: 2px 8px'), 'still-owes pill must take the card-badge padding');
   assert.ok(owes.includes('margin: 0'), 'still-owes margin must stay 0 inside the row');
-  const badge = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-status-row .osb-saved-badge {');
+  const badge = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-pills-row .osb-saved-badge {');
   assert.ok(badge.includes('padding: 2px 8px'), 'saved badge must take the card-badge padding');
   assert.ok(badge.includes('margin: 0'), 'saved badge margin must stay 0 inside the row');
-  assert.ok(stylesSrc.includes('.qc-receipt-badge.settled'), 'settle host reuses the card-badge sizing (12px, 2px 8px)');
+  // The settle host is gone (QC receipt-modal overhaul §4.3.2) — the
+  // merged Still-owed row in the card carries the settled state now.
+  assert.ok(!stylesSrc.includes('.qc-receipt-badge.settled'), 'no settle-badge sizing may remain');
 });
 
 // --- Req 8: red pending pill ----------------------------------------------
 
-test('red pending pill: success-scoped danger red + white text; global rule and sent state untouched', () => {
-  // The red rule lives in the Polish 21 block — look it up there, not
-  // in the whole sheet: the polish #17 C3 rule shares the same selector
+test('amber pending pill: success-scoped warning amber + dark text; global rule and sent state untouched', () => {
+  // QC receipt-modal overhaul (§4.3.4): the pending pill is AMBER now —
+  // a deliberate reversal of polish #21's user-requested red (the red
+  // read as an error on a success screen; amber reads as "waiting").
+  // The rule lives in the Polish 21 block — look it up there, not in
+  // the whole sheet: the polish #17 C3 rule shares the same selector
   // tail (white-space: nowrap) and would match first.
   const polish21Start = stylesSrc.indexOf('/* Polish 21 — Quick Collect');
   assert.ok(polish21Start >= 0, 'Polish 21 CSS block missing');
   const polish21Css = stylesSrc.slice(polish21Start, stylesSrc.indexOf('/* End Polish 21', polish21Start));
   const red = ruleBlock(polish21Css, '#quickCollectModal.qc-success-open .qc-receipt-card .badge-receipt-unshared {');
-  assert.ok(red.includes('background: var(--color-danger)'), 'pending pill background must be the danger token');
-  assert.ok(red.includes('color: var(--color-neutral-0)'), 'pending pill text must be white');
-  assert.ok(red.includes('border-color: var(--color-danger-strong)'), 'pending pill border must be the danger-strong token');
-  assert.ok(!red.includes('#'), 'red pill rule must add zero hex literals (tokens only)');
+  assert.ok(red.includes('background: var(--ds-warning-bg)'), 'pending pill background must be the warning token');
+  assert.ok(red.includes('color: var(--ds-warning)'), 'pending pill text must be the warning token');
+  assert.ok(red.includes('border-color: var(--ds-warning-border)'), 'pending pill border must be the warning-border token');
+  assert.ok(!red.includes('#'), 'amber pill rule must add zero hex literals (tokens only)');
   // The global rule starts at column 0 — the polish #17 C3 rule shares
   // the selector tail mid-line and would match first.
   const global = ruleBlock(stylesSrc, '\n.badge-receipt-unshared {');

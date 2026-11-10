@@ -136,7 +136,12 @@ function receiptNoPayableRemaining(overrides = {}) {
 
 // The "Remaining Balance" figure on the success card, or null.
 function cardRemainingOf(html) {
-  const m = html.match(/Remaining Balance<\/span>\s*<strong[^>]*>\s*(PKR [^<]+)/);
+  // QC receipt-modal overhaul (§4.3.2, decision (j)): the "Remaining
+  // Balance" row is gone — the merged Still-owed row carries the
+  // figure ("PKR X" when something remains, "Fully paid" at 0, never
+  // "PKR 0"), with the Plan 526 charged label while ticket/boost
+  // charges are pending.
+  const m = html.match(/Still owed(?: \(incl\. pending charges\))?<\/span>\s*<strong[^>]*>\s*([^<]+)/);
   return m ? m[1].trim() : null;
 }
 
@@ -222,11 +227,12 @@ test('plan565 PIN: Fixture B(b) — newTotalDues 0 wins over newBalanceDue 500 o
   assert.ok(draft.includes('⚖️ *Remaining Balance:* PKR 0'), draft);
   assert.ok(draft.includes('PAID IN FULL'), draft);
   const html = renderQuickCollectReceiptCardHtml(receipt);
-  // Hide-zero-remaining: the card no longer prints "Remaining
-  // Balance: PKR 0" for a fully-settled receipt — the row is hidden
-  // (the draft and the image receipt still show PKR 0; only the card
-  // hides it). cardRemainingOf returns null when the row is absent.
-  assert.equal(cardRemainingOf(html), null, html);
+  // QC receipt-modal overhaul (§4.3.2, decision (j)): the merged
+  // Still-owed row is ALWAYS shown — a fully-settled receipt reads
+  // "Fully paid" (green), never "PKR 0" and never a hidden row. This
+  // deliberately replaces PR #1332's hide-zero rule for this row; the
+  // draft and the image receipt still show PKR 0.
+  assert.equal(cardRemainingOf(html), 'Fully paid', html);
   const { fills } = await imageFills(receipt);
   assert.equal(imageBalanceOf(fills), 'PKR 0', JSON.stringify(fills));
   assert.match(imageStatusOf(fills), /Bill settled in full/, JSON.stringify(fills));
@@ -268,11 +274,20 @@ test('plan565 WIRING: Bluetooth slip balanceDue uses the canonical chain', () =>
   );
 });
 
-test('plan565 WIRING: settle badge settled check uses the canonical chain', () => {
+test('plan565 WIRING: merged Still-owed row uses the canonical chain', () => {
+  // QC receipt-modal overhaul (§4.3.2): the settle badge is gone — the
+  // merged Still-owed row is the one card surface that reads the
+  // canonical remaining figure, and it branches on remainingPayable > 0
+  // (PKR X when owed, "Fully paid" at 0).
   assert.ok(
-    quickCollectSrc.includes('(activeReceipt.payableRemaining ?? activeReceipt.newTotalDues ?? activeReceipt.newBalanceDue ?? 0) <= 0'),
-    'badge settled check is the canonical chain <= 0'
+    quickCollectSrc.includes('const remainingPayable = receipt.payableRemaining ?? receipt.newTotalDues ?? receipt.newBalanceDue ?? 0;'),
+    'card builder computes the canonical remaining figure'
   );
+  assert.ok(
+    quickCollectSrc.includes('remainingPayable > 0 ? `PKR ${formatReceiptMoneyFigure(remainingPayable)}` : escapeHtml(SUCCESS_NEXT_STEPS_FULLY_PAID_TEXT)'),
+    'merged row branches on remainingPayable > 0'
+  );
+  assert.ok(!quickCollectSrc.includes('function renderSettleStatusBadge()'), 'settle render must be gone');
 });
 
 /* ---------------- Modal drive: Bluetooth slip + badge on Fixture A ---------------- */
@@ -395,7 +410,7 @@ async function submitAndConfirm(getEl, getState) {
   await getEl('quickCollectPaymentForm').dispatch('submit');
 }
 
-test('plan565: Bluetooth slip + settle badge on Fixture A show PKR 300 and PARTIAL', async () => {
+test('plan565: Bluetooth slip + merged Still-owed row on Fixture A show PKR 300 and PARTIAL', async () => {
   await withController(plan565FixtureState(), pendingTicket300(), async ({ controller, getEl, toasts, getState, captured }) => {
     controller.open('seed-001');
     getEl('quickCollectAmountInput').value = '1000';
@@ -405,7 +420,13 @@ test('plan565: Bluetooth slip + settle badge on Fixture A show PKR 300 and PARTI
     assert.equal(paymentsOf(getState(), MONTH).length, 1, 'precondition: the PKR 1,000 payment is recorded');
     assert.equal(calculatePaymentAllocations(getState()).forMonth('seed-001', MONTH)?.balanceDueCents, 0, 'precondition: the bill is settled in full');
 
-    assert.equal(getEl('qcSettleStatusBadge').textContent, '⏳ Partial Payment', 'badge: Partial while the ticket is pending');
+    // QC receipt-modal overhaul (§4.3.2): the settle badge is gone —
+    // the merged Still-owed row in the receipt card carries the settled/
+    // partial state. Fixture A has a PKR 300 ticket pending, so the row
+    // reads the Plan 526 charged label with PKR 300.
+    const cardHtml = getEl('quickCollectReceiptCard').innerHTML;
+    assert.ok(cardHtml.includes('Still owed (incl. pending charges)'), `merged row carries the charged label:\n${cardHtml}`);
+    assert.ok(cardHtml.includes('PKR 300'), `merged row shows PKR 300:\n${cardHtml}`);
 
     await getEl('quickCollectBluetoothPrintBtn').click();
     const bytes = captured();

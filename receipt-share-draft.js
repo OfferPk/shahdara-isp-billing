@@ -1,11 +1,19 @@
 // Quick Collect receipt share draft (Plan 443): the receipt's share
 // text, prepared right after a Quick Collect save so the operator
-// reads it first, then sends it or dismisses it — never the other
-// way round. Today the success screen only offers a button that
-// opens the messaging app straight away with the full receipt text,
-// so the operator never sees what is about to go out. This plan adds
-// only the missing piece: one visible draft of that same text, with
-// Send and Dismiss, on the success screen.
+// reads it first, then sends it or copies it — never the other way
+// round. Today the success screen only offers a button that opens the
+// messaging app straight away with the full receipt text, so the
+// operator never sees what is about to go out. This plan adds only the
+// missing piece: one visible draft of that same text, on the success
+// screen.
+//
+// QC receipt-modal overhaul: the draft is a collapsible accordion,
+// collapsed by default, with a Copy Text button in the header that is
+// visible without expanding. The old Send / Dismiss mini-row is gone:
+// the main Send WhatsApp Receipt button sends, and the accordion being
+// collapsed IS the hidden state (reversible, unlike Dismiss, which hid
+// the draft for the receipt with no way back). The expanded preview and
+// the copied text are the same string — the dispatch's own text.
 //
 // Where the text comes from, so the draft can never drift from what
 // Send will send: the caller supplies the text the dispatch already
@@ -19,7 +27,9 @@
 // What this module NEVER does, stated plainly:
 //   - it never sends anything: Send is the operator's tap, and the
 //     wiring routes it through the success screen's existing
-//     messaging dispatch, exactly as the existing button does;
+//     messaging dispatch, exactly as the existing button does; Copy
+//     is the operator's tap too, and the wiring copies the same
+//     string through the clipboard path the no-phone fallback uses;
 //   - it never changes a bill, a payment, a receipt, or a customer
 //     record, and it never touches the confirmation draft, the
 //     monthly statement draft, or the whole-history share text —
@@ -36,8 +46,8 @@ const RECEIPT_SHARE_DRAFT_MONTH_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
 const RECEIPT_SHARE_DRAFT_DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 export const RECEIPT_SHARE_DRAFT_HEADING_TEXT = 'Receipt share draft';
-export const RECEIPT_SHARE_DRAFT_SEND_TEXT = 'Send on WhatsApp';
-export const RECEIPT_SHARE_DRAFT_DISMISS_TEXT = 'Dismiss';
+export const RECEIPT_SHARE_DRAFT_PREVIEW_TEXT = 'Preview WhatsApp Message Text';
+export const RECEIPT_SHARE_DRAFT_COPY_TEXT = 'Copy Text';
 export const RECEIPT_SHARE_DRAFT_NO_RECEIPT_TEXT = 'No receipt to share.';
 
 function text(value) {
@@ -240,19 +250,26 @@ export function receiptShareDraftLineText(draft) {
   return `${label} ${numbers} · ${who} · PKR ${formatReceiptShareDraftAmount(draft.amountCents)} · ${draft.method} · ${draft.date}`;
 }
 
-// The draft as shown: heading, one plain line, the share text exactly
-// as it will go out, and Send / Dismiss. The buttons only ask; the
-// wiring sends or dismisses, and nothing here posts anything.
+// The draft as shown: a collapsible accordion, collapsed by default.
+// The header carries the preview toggle ("Preview WhatsApp Message
+// Text") and a Copy Text button that is visible WITHOUT expanding; the
+// one-line summary sits under the header so the operator can see which
+// receipt the preview is for. The expanded preview is the share text
+// exactly as it will go out, wrapped (pre-wrap) — never clipped. The
+// Copy icon is a data-ds-icon hook: the caller fills it (this module
+// takes no other module). The buttons only ask; the wiring toggles or
+// copies, and nothing here posts anything.
 export function receiptShareDraftHtml(draft) {
   if (!draft || typeof draft !== 'object') return '';
   const line = receiptShareDraftLineText(draft);
   if (line === '' || text(draft.text) === '') return '';
   return `<div class="rsd-share-draft" role="region" aria-label="${escapeHtml(RECEIPT_SHARE_DRAFT_HEADING_TEXT)}">`
-    + `<p class="rsd-share-draft-heading">${escapeHtml(RECEIPT_SHARE_DRAFT_HEADING_TEXT)}</p>`
+    + '<div class="rsd-share-draft-header">'
+    + `<button type="button" class="rsd-share-draft-toggle" data-rsd-toggle aria-expanded="false"><span class="rsd-share-draft-chevron" aria-hidden="true">\u25b6</span><span class="rsd-share-draft-title">${escapeHtml(RECEIPT_SHARE_DRAFT_PREVIEW_TEXT)}</span></button>`
+    + `<button type="button" class="rsd-share-draft-copy" data-rsd-copy><span data-ds-icon="Copy"></span><span>${escapeHtml(RECEIPT_SHARE_DRAFT_COPY_TEXT)}</span></button>`
+    + '</div>'
     + `<p class="rsd-share-draft-line">${escapeHtml(line)}</p>`
+    + '<div class="rsd-share-draft-body" data-rsd-body hidden>'
     + `<pre class="rsd-share-draft-text">${escapeHtml(draft.text)}</pre>`
-    + '<div class="rsd-share-draft-actions">'
-    + `<button type="button" class="primary-button" data-rsd-send>${escapeHtml(RECEIPT_SHARE_DRAFT_SEND_TEXT)}</button>`
-    + `<button type="button" class="secondary-button" data-rsd-dismiss>${escapeHtml(RECEIPT_SHARE_DRAFT_DISMISS_TEXT)}</button>`
     + '</div></div>';
 }

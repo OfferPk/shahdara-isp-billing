@@ -7691,6 +7691,42 @@ html, body {
   color: #166534;
 }
 
+/* QC-2 — priority badge + one-line scorer reason on the collection
+ * cards (Quick Collect picker and Field Mode share these classes).
+ * The badge reuses the existing .ds-chip variants; the reason
+ * ellipsises like .qc-cust-meta so a long scorer sentence never
+ * widens the card. The high-balance card accent is an inset strip
+ * (no layout shift) in the danger token. Token-only, no new hex. */
+.qc2-priority {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 2px;
+}
+.qc2-priority .ds-chip {
+  flex: none;
+}
+.qc2-priority-reason {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qc2-tier-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-overdue);
+  white-space: nowrap;
+}
+.qc-customer-card.qc2-tier-high,
+.field-mode-customer-btn.qc2-tier-high {
+  box-shadow: inset 3px 0 0 var(--color-danger);
+}
+
 .qc-empty-state {
   text-align: center;
   padding: 30px 10px;

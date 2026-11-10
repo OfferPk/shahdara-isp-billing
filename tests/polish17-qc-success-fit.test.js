@@ -8,7 +8,9 @@
 // polish #17's static 677 px under-read the phone by ~70 px (terms +24,
 // header +9, message −28, residual uncertainty ~+62), so the true total
 // was ≈745 px. The savings below are the polish #21 deltas only
-// (T1-inline 42, SEP −8, NUM 24, S2 6 = 64), computed total 681 px.
+// (T1-inline 42, SEP −8, NUM 24, S2 6 = 64), computed total 681 px,
+// plus the tick-in-box fix's TICK-BOX −12 (row border + padding),
+// computed total 693 px.
 // The polish #17 stylesheet values stay as regression guards (they no
 // longer carry savings rows — the savings are the four deltas), except
 // the three this polish changes (B1 inline tick, S1 compact badges +
@@ -219,9 +221,11 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
 
   // --- Polish #21 deltas (design Req 3 table) ---
   // T1-inline — hero tick row gone (check 40px + 8px margin removed),
-  // heading row grows 22 → 28px (+6). Net 48 − 6 = 42.
+  // heading row grows 22 → 28px (+6). Net 48 − 6 = 42. The tick-in-box
+  // fix grows the tick 28 → 32px, but the row height is still driven by
+  // the ~54px two-line heading, so the +6 (and the 42) are unchanged.
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
-  assert.ok(check.includes('width: 28px') && check.includes('height: 28px'), 'T1-inline: inline tick must be 28px on success');
+  assert.ok(check.includes('width: 32px') && check.includes('height: 32px'), 'T1-inline: inline tick must be 32px on success');
   assert.ok(pageSrc.includes('<div class="qc-success-heading-row">'), 'T1-inline: tick must live in the heading row');
   assert.equal((pageSrc.match(/class="qc-success-check"/g) || []).length, 1, 'T1-inline: no hero tick row may remain');
   savings.push(['T1-inline tick inline (hero row gone)', 42]);
@@ -230,6 +234,15 @@ test('fit budget: dialog top → end of receipt card ≤ 700 CSS px at 360 px wi
   const successMessage = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open #quickCollectSuccessMessage {');
   assert.ok(successMessage.includes('margin-top: 8px'), 'SEP: message margin-top must be 8px on success');
   savings.push(['SEP separation margin-top 0→8', -8]);
+
+  // TICK-BOX — tick-in-box fix: the heading row gains a permanent 2px
+  // border + 4px padding (2×2 + 4×2 = +12px). A cost, booked negative.
+  // Total becomes 745 − (42 − 8 + 24 + 6 − 12) = 693px, inside the gate.
+  const headingRow = ruleBlock(stylesSrc, '.qc-success-heading-row {');
+  assert.ok(headingRow.includes('border: 2px solid var(--green, #0e5b4d)'), 'TICK-BOX: row must carry the 2px green border');
+  assert.ok(headingRow.includes('border-radius: 12px'), 'TICK-BOX: row border radius must be 12px');
+  assert.ok(headingRow.includes('padding: 4px 12px'), 'TICK-BOX: row padding must be 4px 12px');
+  savings.push(['TICK-BOX row border + padding', -12]);
 
   // NUM — support number nowrap: support line 2 → 1 line.
   assert.ok(stylesSrc.includes('.receipt-support-number { white-space: nowrap; }'), 'NUM: support number must be nowrap');

@@ -8659,9 +8659,11 @@ html, body {
 #quickCollectModal.qc-success-open .modal-heading .eyebrow { display: none; }
 
 /* B1 (polish 21): the hero check row is gone — the tick is inline in
-   the heading row at 28px (see the Polish 21 block). This rule is the
-   size only; the pop lives under the .qc-tick-play trigger class. */
-#quickCollectModal.qc-success-open .qc-success-check { width: 28px; height: 28px; }
+   the heading row at 32px (28px before the tick-in-box fix — the tick
+   looked lost beside the two-line 18px heading; 32px still fits inside
+   the ~54px row, so it costs 0px vertically). This rule is the size
+   only; the pop lives under the .qc-tick-play trigger class. */
+#quickCollectModal.qc-success-open .qc-success-check { width: 32px; height: 32px; }
 
 /* Req 7 (polish 21): the tick animations, gated behind the trigger
    class. showStep removes .qc-tick-play, forces a reflow, and re-adds
@@ -8759,9 +8761,14 @@ html, body {
 /* Req 1 — Heading row: the tick + heading share one centred flex row.
    The row's align-items centres the tick against the heading; the
    tick never squeezes (flex-shrink 0) and the base 8px bottom margin
-   does not apply inside the row. */
-.qc-success-heading-row { display: flex; align-items: center; justify-content: center; gap: 8px; }
+   does not apply inside the row.
+   Tick-in-box fix: the row carries the permanent 2px green border
+   (radius 12px, padding 4px 12px) — the "box" the user sees, wrapping
+   heading + tick together. The border + padding cost +12px, booked in
+   the fit test (693px total, inside the 700px gate). */
+.qc-success-heading-row { display: flex; align-items: center; justify-content: center; gap: 8px; border: 2px solid var(--green, #0e5b4d); border-radius: 12px; padding: 4px 12px; }
 .qc-success-heading-row .qc-success-check { margin-bottom: 0; flex-shrink: 0; }
+[data-theme="dark"] .qc-success-heading-row { border-color: #2dd4bf; }
 
 /* Req 2 — Separation: 8px of air between the heading (and its focus
    ring) and the Urdu message, so the message reads as its own block

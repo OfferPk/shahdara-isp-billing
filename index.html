@@ -27444,16 +27444,18 @@
       <div id="quickCollectStepSuccess" class="qc-step" role="region" aria-label="Payment Confirmation and Receipt" hidden>
         <div class="qc-success-banner" role="status">
           <!-- Polish 21 (Req 1): the tick is inline in the heading row
-               (28px, beside the heading) — the standalone hero tick row
-               is gone, so the screen starts at the heading. -->
+               (32px, after the heading) — the standalone hero tick row
+               is gone, so the screen starts at the heading. Tick-in-box
+               fix: the tick follows the heading so it sits INSIDE the
+               row's border box, on the right. -->
           <div class="qc-success-heading-row">
+            <h3 id="quickCollectSuccessHeading" tabindex="-1">Payment Recorded Successfully</h3>
             <span class="qc-success-check" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
                 <path class="qc-check-draw" d="M5 12.5l4.5 4.5L19 7.5"
                   stroke="#16a34a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </span>
-            <h3 id="quickCollectSuccessHeading" tabindex="-1">Payment Recorded Successfully</h3>
           </div>
           <p id="quickCollectSuccessMessage">The transaction is saved locally and ledger balances are updated.</p>
         </div>

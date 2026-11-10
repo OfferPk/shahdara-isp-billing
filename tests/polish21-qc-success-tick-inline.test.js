@@ -73,15 +73,18 @@ test('tick inline: the tick sits inside a heading row beside the heading, 18px S
   const tick = pageSrc.indexOf('<span class="qc-success-check"', row);
   const heading = pageSrc.indexOf('id="quickCollectSuccessHeading"', row);
   const message = pageSrc.indexOf('id="quickCollectSuccessMessage"', row);
-  assert.ok(tick > row && tick < heading, 'tick must sit inside the heading row, before the heading');
-  assert.ok(heading > tick, 'heading must follow the tick in the row');
+  // Tick-in-box fix: the tick follows the heading (was before it, so it
+  // sat outside the heading's focus outline on the left).
+  assert.ok(tick > row && tick > heading, 'tick must sit inside the heading row, after the heading');
+  assert.ok(heading < tick, 'heading must precede the tick in the row');
   assert.ok(message > heading, 'message must sit below the heading row');
   assert.equal((pageSrc.match(/class="qc-success-check"/g) || []).length, 1, 'exactly one tick on the screen — no hero row left');
   const spanEnd = pageSrc.indexOf('</span>', tick);
   const span = pageSrc.slice(tick, spanEnd);
   assert.ok(span.includes('aria-hidden="true"'), 'tick stays aria-hidden (the heading announces success)');
   assert.ok(!span.includes('✓'), 'tick must not be the text glyph');
-  assert.ok(span.includes('<svg viewBox="0 0 24 24" width="18" height="18" fill="none">'), 'tick must be the 18px SVG');
+  // Tick-in-box fix: SVG 18 → 20px (with the 28 → 32px circle).
+  assert.ok(span.includes('<svg viewBox="0 0 24 24" width="20" height="20" fill="none">'), 'tick must be the 20px SVG');
   assert.ok(span.includes('<path class="qc-check-draw" d="M5 12.5l4.5 4.5L19 7.5"'), 'tick path must be the design check');
   assert.ok(span.includes('stroke="#16a34a"'), 'tick stroke must reuse the existing check green');
   assert.ok(span.includes('stroke-width="3"'), 'tick stroke must be 3px');
@@ -92,7 +95,7 @@ test('tick inline: the tick sits inside a heading row beside the heading, 18px S
   assert.ok(headingHtml.includes('Payment Recorded Successfully'), 'heading wording unchanged');
 });
 
-test('tick inline: 28px circle on success, centred row, tick never shrinks', () => {
+test('tick inline: 32px circle on success, centred row, tick never shrinks', () => {
   const row = ruleBlock(stylesSrc, '.qc-success-heading-row {');
   assert.ok(row.includes('display: flex'), 'heading row must be flex');
   assert.ok(row.includes('align-items: center'), 'row must centre the tick against the heading');
@@ -102,7 +105,10 @@ test('tick inline: 28px circle on success, centred row, tick never shrinks', () 
   assert.ok(tickInRow.includes('margin-bottom: 0'), 'the base 8px bottom margin must not apply inside the row');
   assert.ok(tickInRow.includes('flex-shrink: 0'), 'the tick must never squeeze');
   const check = ruleBlock(stylesSrc, '#quickCollectModal.qc-success-open .qc-success-check {');
-  assert.ok(check.includes('width: 28px') && check.includes('height: 28px'), 'inline tick must be 28px on success');
+  // Tick-in-box fix: 28 → 32px — the tick looked lost beside the
+  // two-line 18px heading. It costs 0px vertically (row height is
+  // driven by the ~54px heading).
+  assert.ok(check.includes('width: 32px') && check.includes('height: 32px'), 'inline tick must be 32px on success');
   assert.ok(!check.includes('animation:'), 'the pop must not live on the size rule any more (it is trigger-gated)');
 });
 

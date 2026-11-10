@@ -91,11 +91,14 @@ test('hide-zero-remaining: a receipt with no remaining-balance fields hides the 
 
 test('hide-zero-remaining: a partial payment still shows the row with its figure', () => {
   const html = renderQuickCollectReceiptCardHtml(baseReceipt({ payableRemaining: 1000, newTotalDues: 1000 }));
-  assert.ok(html.includes('Remaining Balance'), 'partial must keep the row');
+  // QC receipt-modal overhaul (decision (j)): the Remaining Balance row
+  // is the merged Still-owed row now — same figure, always shown.
+  assert.ok(!html.includes('Remaining Balance'), 'no Remaining Balance row may remain');
+  assert.ok(html.includes('Still owed'), 'partial must keep the row as Still owed');
   assert.ok(html.includes('PKR 1,000'), 'partial must keep the figure');
   // The row keeps its place: after the Area row, before the terms.
-  assert.ok(html.indexOf('Area / Location') < html.indexOf('Remaining Balance'), 'row still sits after Area');
-  assert.ok(html.indexOf('Remaining Balance') < html.indexOf('receipt-urdu-notice'), 'row still sits before the terms');
+  assert.ok(html.indexOf('Area / Location') < html.indexOf('Still owed'), 'row still sits after Area');
+  assert.ok(html.indexOf('Still owed') < html.indexOf('receipt-urdu-notice'), 'row still sits before the terms');
 });
 
 test('hide-zero-remaining: a negative remainder (overpayment/credit) hides the row', () => {
@@ -110,12 +113,16 @@ test('hide-zero-remaining: a NaN remainder hides the row, never PKR NaN', () => 
   assert.ok(!html.includes('NaN'), 'no NaN text anywhere on the card');
 });
 
-test('hide-zero-remaining: string figures follow the badge/draft coercion — "1000" shows, "0" hides', () => {
+test('hide-zero-remaining: string figures follow the badge/draft coercion — "1000" shows a figure, "0" reads Fully paid', () => {
   const shown = renderQuickCollectReceiptCardHtml(baseReceipt({ payableRemaining: '1000' }));
-  assert.ok(shown.includes('Remaining Balance'), 'string "1000" is > 0, so the row shows');
+  assert.ok(shown.includes('Still owed'), 'string "1000" is > 0, so the row shows');
   assert.ok(shown.includes('PKR 1,000'), 'string "1000" prints its figure');
-  const hidden = renderQuickCollectReceiptCardHtml(baseReceipt({ payableRemaining: '0' }));
-  assert.ok(!hidden.includes('Remaining Balance'), 'string "0" is not > 0, so the row hides');
+  // QC receipt-modal overhaul (decision (j)): the merged row is ALWAYS
+  // shown — string "0" reads "Fully paid", never hides, never "PKR 0".
+  const settled = renderQuickCollectReceiptCardHtml(baseReceipt({ payableRemaining: '0' }));
+  assert.ok(settled.includes('Still owed'), 'string "0" still shows the merged row');
+  assert.ok(settled.includes('Fully paid'), 'string "0" reads Fully paid');
+  assert.ok(!settled.includes('PKR 0'), 'no PKR 0 text');
 });
 
 test('hide-zero-remaining: the WhatsApp draft still documents settlement with PKR 0', () => {
@@ -126,18 +133,16 @@ test('hide-zero-remaining: the WhatsApp draft still documents settlement with PK
   assert.ok(text.includes('PAID IN FULL'), text);
 });
 
-test('hide-zero-remaining: the settled state is still stated by the still-owes pill and the settle badge', () => {
+test('hide-zero-remaining: the settled state is still stated by the still-owes pill and the merged row', () => {
   // The pill: a fully-paid line still reads "✓ Bill dues fully paid".
   const pill = stillOwesLineHtml({ stillOwed: 0, fullyPaid: true });
   assert.ok(pill.includes('✓ Bill dues fully paid'), pill);
-  // The badge: renderSettleStatusBadge still derives "settled" from
-  // the same canonical chain as the card and still writes both texts.
-  assert.ok(quickCollectSrc.includes('function renderSettleStatusBadge()'), 'badge render must still exist');
-  assert.ok(
-    quickCollectSrc.includes("(activeReceipt.payableRemaining ?? activeReceipt.newTotalDues ?? activeReceipt.newBalanceDue ?? 0) <= 0"),
-    'badge must still derive settled from the canonical remaining chain',
-  );
-  assert.ok(quickCollectSrc.includes("settled ? '✓ Settle in Full' : '⏳ Partial Payment'"), 'badge must still write both texts');
+  // QC receipt-modal overhaul: the settle badge is gone (deduped) — the
+  // merged Still-owed row states the settled state instead ("Fully paid").
+  assert.ok(!quickCollectSrc.includes('function renderSettleStatusBadge()'), 'badge render must be gone');
+  assert.ok(!quickCollectSrc.includes("settled ? '✓ Settle in Full' : '⏳ Partial Payment'"), 'badge texts must be gone');
+  const html = renderQuickCollectReceiptCardHtml(baseReceipt());
+  assert.ok(html.includes('Still owed') && html.includes('Fully paid'), 'merged row must state the settled state');
 });
 
 /* ---------------- Split card ---------------- */
@@ -150,7 +155,9 @@ test('hide-zero-remaining: a fully-paid split card shows no Remaining Balance ro
 
 test('hide-zero-remaining: a partial split still shows the row with its figure', () => {
   const html = renderSplitReceiptCardHtml(splitCombined({ balanceDueCents: 100000, status: 'PARTIAL' }));
-  assert.ok(html.includes('Remaining Balance'), 'partial split must keep the row');
+  // QC receipt-modal overhaul (decision (j)): the merged Still-owed row.
+  assert.ok(!html.includes('Remaining Balance'), 'no Remaining Balance row may remain');
+  assert.ok(html.includes('Still owed'), 'partial split must keep the row as Still owed');
   assert.ok(html.includes('PKR 1,000'), 'partial split must keep the figure');
 });
 

@@ -3557,8 +3557,9 @@ button.field-dispatch-item { cursor: pointer; }
    collapsing to one column (styles.css ≤480px), Field Mode chips and
    action buttons at 44-48px, method chips at 44px, Customers list
    select at 48px and search/filter/service-choice at 44px (≤620px),
-   profile payment form-grid at one column with 44px/16px inputs
-   (≤700px). What this block fixes:
+   profile payment form-grid at one column (≤700px; the 44px/16px
+   input treatment is the billing & ledger redesign's styles.css
+   block, not this one — the old claim here was wrong). What this block fixes:
    1. Quick Collect chips that were ~26-36px tall (filter, amount,
       date, loose-change) and the search-clear button (~28px) now
       meet the 44px tap-target minimum.

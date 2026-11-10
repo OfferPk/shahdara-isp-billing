@@ -31,6 +31,7 @@ import { receiptLangPreference, sanitizeReceiptLang } from './receipt-preference
 // Plan 551: the sales-tax receipt label, shared with the HTML receipt
 // and both WhatsApp drafts (polish #11) — never re-typed here.
 import { SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
+import { formatReceiptMoney, netArrearsBalanceRupees } from './receipt-money.js';
 
 export const PNG_RECEIPT_WIDTH = 1600; // 800 CSS pt @ HiDPI 2x
 export const PNG_RECEIPT_HEIGHT = 2000; // 1000 CSS pt @ HiDPI 2x
@@ -51,10 +52,11 @@ const FONT_LATIN = 'system-ui, sans-serif';
 const FONT_URDU = `'Noto Nastaliq Urdu', 'Noto Naskh Arabic', system-ui, sans-serif`;
 
 const text = (value) => (typeof value === 'string' ? value.trim() : '');
-const money = (value) => {
-  const num = Number(value);
-  return `PKR ${Number.isFinite(num) ? num.toLocaleString() : 0}`;
-};
+// Plan 555: the ONE shared receipt money format (receipt-money.js,
+// modelled on formatPKR in core.js) — en-PK min-0/max-2, so 292.5
+// prints as PKR 292.50 everywhere, and a missing figure renders as
+// "—", never an invented PKR 0.
+const money = (value) => formatReceiptMoney(value);
 // Plan 551: split the sales tax back out of a tax-inclusive package
 // amount, in integer cents — a 1,195 figure with 19,500 tax cents
 // reads 1,000, the package price the customer recognises. The
@@ -217,11 +219,15 @@ export function buildPngReceiptModel(receipt, customer, options = {}) {
   if (receipt.looseChangeCredit > 0) financial.push({ label: 'Change Kept as Advance Credit / بقایا ایڈوانس کریڈٹ', value: `+${money(receipt.looseChangeCredit)}` });
   financial.push({ label: L('Payment Method / طریقہ'), value: method || '—' });
 
-  const grossRemaining = breakdown
-    ? breakdown.balanceDue
-    : (receipt.balanceDueCents === null || receipt.balanceDueCents === undefined
-      ? null : receipt.balanceDueCents / 100);
-  const remaining = grossRemaining === null ? null : Math.max(0, grossRemaining - (receipt.concessionAmount > 0 && breakdown ? receipt.concessionAmount : 0) - (receipt.referralCreditAmount > 0 && breakdown ? receipt.referralCreditAmount : 0) - (receipt.depositOffsetAmount > 0 && breakdown ? receipt.depositOffsetAmount : 0) - (receipt.creditTransferInAmount > 0 && breakdown ? receipt.creditTransferInAmount : 0) - (receipt.feederHostCreditAmount > 0 && breakdown ? receipt.feederHostCreditAmount : 0));
+  // Plan 555: the remaining balance IS the receipt's own net Balance
+  // Due — the same figure the HTML layouts print. The old computation
+  // re-derived it from the gross arrears balance and subtracted only
+  // five of the six bill-field waivers (the polish #23 first-month tag
+  // was missed, so a tagged bill read PKR 200 remaining against a
+  // PKR 0 balance); the shared helper nets all six, and prefers the
+  // receipt's balanceDueCents outright. No parallel computation, no
+  // new billing logic — this is the receipt's own figure.
+  const remaining = netArrearsBalanceRupees(receipt);
   financial.push({
     label: L('Remaining Balance / Baqi Rehta'),
     value: remaining === null ? '—' : money(remaining),

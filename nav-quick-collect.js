@@ -76,8 +76,9 @@ import {
 import {
   filterQuickCollectByMohalla,
   quickCollectMohallaFilterKey,
-  quickCollectMohallaFilterOptionsHtml,
+  quickCollectMohallaFilterCountOptionsHtml,
   quickCollectMohallaFilterSummaryText,
+  quickCollectMohallaPendingCounts,
   resolveQuickCollectMohallaFilter
 } from './quick-collect-mohalla-filter.js';
 import { amountKeypadApplyKey, amountKeypadHtml } from './quick-collect-amount-keypad.js';
@@ -1699,15 +1700,20 @@ export function quickCollectSearchHintHtml(query) {
  * @param {string} [mohallaFilter=''] - Plan 446: chosen mohalla;
  *   blank means the full list, a mohalla lists exactly its
  *   customers, in name order, with dues shown.
- * @returns {{ html: string, customers: Array<Object>, allCollected: boolean, needsSetup: boolean, withoutFee: number }}
+ * @returns {{ html: string, customers: Array<Object>, allCollected: boolean, needsSetup: boolean, withoutFee: number, mohallaCounts: { rows: Array<{mohalla: string, key: string, count: number, pendingPkr: number}>, totalCount: number, totalPendingPkr: number } }}
  */
 export function renderQuickCollectPickerHtml(state, query = '', filterType = 'all-dues', activeCustomerId = null, mohallaFilter = '', options = {}) {
   // QC-2: the sort order is a render-time option — the default
   // (highest dues first) is the pool's own order, untouched unless
   // the picker passes { sortOrder: 'oldest' }.
   const sortOrder = qc2SortOrderFromValue(options?.sortOrder);
+  // QC-4: the pool before the mohalla narrows it — the per-mohalla
+  // counts come from this same pool, so a count and the list it
+  // promises can never drift apart.
+  const pool = getPendingCollectionCustomers(state, query, filterType);
+  const mohallaCounts = quickCollectMohallaPendingCounts(pool, DEFAULT_MOHALLAS, mohallaFilter);
   const customers = qc2SortCollectionEntries(
-    filterQuickCollectByMohalla(getPendingCollectionCustomers(state, query, filterType), mohallaFilter),
+    filterQuickCollectByMohalla(pool, mohallaFilter),
     sortOrder,
   );
   // QC-2: the existing dues-recovery score, flattened by customer id
@@ -1740,6 +1746,7 @@ export function renderQuickCollectPickerHtml(state, query = '', filterType = 'al
     allCollected,
     needsSetup,
     withoutFee,
+    mohallaCounts,
     html: needsSetup
       ? renderQuickCollectNeedsSetupHtml(withoutFee)
       : allCollected ? renderQuickCollectAllCollectedHtml() : paidEmpty ? renderQuickCollectPaidEmptyHtml() : renderQuickCollectCustomerListHtml(customers, activeCustomerId, sameNameBadges, mohallaFilter, priorityById)
@@ -3415,6 +3422,13 @@ export function setupQuickCollectModal({
     const query = searchInput?.value ?? '';
     const picked = renderQuickCollectPickerHtml(state, query, activeFilter, activeCustomerId, activeMohallaFilter, { sortOrder: activeSortOrder });
     customerListContainer.innerHTML = picked.html;
+    // QC-4: the mohalla select carries the live per-mohalla counts
+    // from the same pool the list above was built from — a count
+    // and the list it promises always agree, through search, chips,
+    // bill-status and sort alike.
+    if (mohallaFilterSelect) {
+      mohallaFilterSelect.innerHTML = quickCollectMohallaFilterCountOptionsHtml(picked.mohallaCounts, activeMohallaFilter);
+    }
     if (mohallaFilterSummary) {
       mohallaFilterSummary.textContent = activeMohallaFilter
         ? quickCollectMohallaFilterSummaryText(picked.customers, activeMohallaFilter)
@@ -5112,13 +5126,20 @@ export function setupQuickCollectModal({
   // list — the list itself is never copied here — and re-render
   // the list whenever the operator picks a mohalla or clears it
   // back to all. The stored value is the list's own spelling, so
-  // the filter always matches on the standard form.
+  // the filter always matches on the standard form. QC-4: the
+  // options carry the live per-mohalla counts, seeded empty here
+  // and refreshed with the pool on every render.
   if (mohallaFilterSelect) {
-    mohallaFilterSelect.innerHTML = quickCollectMohallaFilterOptionsHtml(DEFAULT_MOHALLAS, '');
+    mohallaFilterSelect.innerHTML = quickCollectMohallaFilterCountOptionsHtml(quickCollectMohallaPendingCounts([], DEFAULT_MOHALLAS), '');
   }
 
   mohallaFilterSelect?.addEventListener('change', () => {
-    activeMohallaFilter = resolveQuickCollectMohallaFilter(mohallaFilterSelect.value, DEFAULT_MOHALLAS) ?? '';
+    // QC-4: the counted options also carry Unassigned and any
+    // non-canonical pool mohalla — neither resolves in the
+    // canonical list, so a non-blank value is taken as-is; the
+    // filter matches by key either way.
+    activeMohallaFilter = resolveQuickCollectMohallaFilter(mohallaFilterSelect.value, DEFAULT_MOHALLAS)
+      ?? (quickCollectMohallaFilterKey(mohallaFilterSelect.value) ? mohallaFilterSelect.value : '');
     renderList();
   });
 

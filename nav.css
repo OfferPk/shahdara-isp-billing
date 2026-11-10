@@ -7527,14 +7527,15 @@ body {
   outline-offset: 2px !important;
 }
 
-.qc-success-banner h3:focus {
-  outline: 2px solid var(--green, #0e5b4d);
-  outline-offset: 3px;
-  border-radius: 4px;
-}
-
-[data-theme="dark"] .qc-success-banner h3:focus {
-  outline: 2px solid #2dd4bf;
+/* Tick-in-box fix: the heading is programmatically focused for the
+   screen-reader announcement only (tabindex="-1", not interactive), so
+   it draws NO outline — the row's permanent border is the visual
+   indicator. The !important beats the Issue-229 :focus-visible baseline
+   (styles.css), which would otherwise draw a second blue box around the
+   heading. Do NOT relax this to :focus-visible alone. */
+.qc-success-banner h3:focus,
+.qc-success-banner h3:focus-visible {
+  outline: none !important;
 }
 
 /* 44px Minimum Touch Targets for Accessibility on Small Viewports */

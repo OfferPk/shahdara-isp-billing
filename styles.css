@@ -7565,6 +7565,16 @@ html, body {
   padding-bottom: 2px;
 }
 
+/* QC-7: at phone widths (<= 620px) the QC filter pills wrap like
+   polish #27's Customers-screen bar, so all three pills are visible
+   with no horizontal scroll; wide screens keep the scrolling row. */
+@media (max-width: 620px) {
+  .qc-filter-pills {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
 .quick-collect-filter-chip {
   min-height: 44px;
   display: inline-flex;
@@ -7814,6 +7824,23 @@ html, body {
 .qc3-collect {
   border-color: var(--green);
   color: var(--green);
+}
+
+/* QC-7: explicit 360px pass for the QC picker card row. The
+   two-figure row (Outstanding + Monthly) is two nowrap figures, so
+   with very large formatted amounts its min-content exceeds the 360px
+   card width and the single-line flex crushes the name to nothing;
+   the row now wraps, so the figures drop to their own right-aligned
+   line only when they do not fit. The full figures are never
+   truncated or compacted — wrap/space, never "80.5k" (polish #27's
+   full-figure rule). */
+@media (max-width: 360px) {
+  .qc3-card-main {
+    flex-wrap: wrap;
+  }
+  .qc3-figures {
+    margin-left: auto;
+  }
 }
 
 .qc-empty-state {

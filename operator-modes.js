@@ -66,6 +66,9 @@ export const OWNER_ONLY_ACTIONS = Object.freeze([
   { value: 'customer-archive', label: 'Archive customer' },
   { value: 'partner-settlement', label: 'Partner settlement' },
   { value: 'partner-shares', label: 'Partner shares' },
+  // Mohalla Seed: "Clear All Record" wipes every payment record —
+  // the most destructive single control in the app, owner-only.
+  { value: 'clear-payment-records', label: 'Clear all payment records' },
 ]);
 
 const OWNER_ONLY_VALUES = new Set(OWNER_ONLY_ACTIONS.map((a) => a.value));

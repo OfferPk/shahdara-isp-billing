@@ -84,6 +84,9 @@ const MOHALLA_ALIASES = {
   kishtii: 'KISHTII',
   chamyaa: 'CHAMYAAA',
   chamyaaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla.
+  jabbiyaaa: 'JABBIYAA',
 };
 
 function text(value) {

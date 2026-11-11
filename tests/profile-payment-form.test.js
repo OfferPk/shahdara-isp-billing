@@ -133,7 +133,11 @@ test('profile payment form: the submit still refuses an unapproved large cash pa
 
 test('profile payment form: the Plan 437 guard instance guards this form too', () => {
   assert.ok(app.includes('const profilePaymentSaveGuard = createDoubleTapSaveGuard();'), 'guard instance');
-  assert.ok(app.includes("import { createDoubleTapSaveGuard, doubleTapSaveGuardKey, doubleTapSaveGuardTryStart, doubleTapSaveGuardFinish } from './double-tap-save-guard.js';"), 'guard imported');
+  // Profile "Clear dues" (2026-11-11): the guard import gains
+  // doubleTapSaveGuardSetDisabled — Clear dues disables its button
+  // while the save is in flight, the same helper the guard module
+  // already exported. The profile form's own guard use is unchanged.
+  assert.ok(app.includes("import { createDoubleTapSaveGuard, doubleTapSaveGuardKey, doubleTapSaveGuardTryStart, doubleTapSaveGuardFinish, doubleTapSaveGuardSetDisabled } from './double-tap-save-guard.js';"), 'guard imported');
 });
 
 test('profile payment form: the guard starts before try and finishes in the finally', () => {

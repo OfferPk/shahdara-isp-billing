@@ -63,6 +63,15 @@ const MOHALLA_ALIASES = Object.freeze({
   bani: 'BANII',
   kishti: 'KISHTII',
   chamyaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA, and the two "Orient School" spellings are one place.
+  // Charyaa is NOT an alias — it is its own mohalla and never folds
+  // to CHAMYAAA. Distinct register entries (Barrian Owner, Dc House
+  // End Point, Khattak Swimming Pool, …) are not aliases and stay
+  // separate rows; only spelling variants of the same mohalla fold.
+  jabbiyaaa: 'JABBIYAA',
+  'orien school': 'Orient School',
+  'orient scholl': 'Orient School',
 });
 
 export const BOARD_STATUSES = Object.freeze(['normal', 'degraded', 'outage', 'maintenance']);
@@ -391,7 +400,9 @@ export function boardHtml(board) {
     const sources = row.sources.map((source) => `${source.kind === 'outage' ? 'Outage' : 'Maintenance'}: ${escapeHtml(source.label)} (${escapeHtml(source.detail)})`).join('<br>') || 'No linked record — normal.';
     return `<tr><td><strong>${escapeHtml(row.mohalla)}</strong></td><td>${escapeHtml(BOARD_STATUS_LABELS[row.status] ?? row.status)}</td><td>${escapeHtml(row.sourceLabel || '—')}</td><td><small>${sources}</small></td></tr>`;
   }).join('');
-  return `<table><thead><tr><th>Mohalla</th><th>Status</th><th>Linked record</th><th>All linked records</th></tr></thead><tbody>${body}</tbody></table>`;
+  // Owner 5-part fix: the board table scrolls inside its own card on
+  // a phone instead of clipping the linked-records column.
+  return `<div class="table-scroll"><table><thead><tr><th>Mohalla</th><th>Status</th><th>Linked record</th><th>All linked records</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function boardCsv(board) {

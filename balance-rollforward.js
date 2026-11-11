@@ -200,7 +200,10 @@ export function buildRollForwardTotals(rows) {
 /** Plain-words summary of one row or of the whole-business totals. */
 export function rollForwardSummaryText(view) {
   if (!view || typeof view !== 'object') return '';
-  const money = (cents) => (cents === null ? 'not recorded' : `Rs. ${(cents / 100).toFixed(2)}`);
+  // Owner 5-part fix: whole-rupee amounts print without decimals and
+  // with thousands grouping (Rs. 6,000, not Rs. 6000.00); a fractional
+  // amount keeps up to two decimals. Null stays "not recorded", never 0.
+  const money = (cents) => (cents === null ? 'not recorded' : `Rs. ${(cents / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`);
   const head = view.customerName
     ? `${view.customerName} — ${view.month}`
     : `All customers${view.month ? ` — ${view.month}` : ''} — ${view.customerCount} customer${view.customerCount === 1 ? '' : 's'}`;
@@ -217,7 +220,7 @@ const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-const moneyCell = (cents) => (cents === null ? 'Not recorded' : `Rs. ${(cents / 100).toFixed(2)}`);
+const moneyCell = (cents) => (cents === null ? 'Not recorded' : `Rs. ${(cents / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`);
 
 function rollLinesHtml(lines, title) {
   if (!lines.length) return '';
@@ -247,7 +250,9 @@ export function rollForwardTableHtml(rows) {
   const list = Array.isArray(rows) ? rows : [];
   if (!list.length) return '<p style="font-size: 12px;">No roll-forward rows for this month.</p>';
   const body = list.map((row) => `<tr><td>${escapeHtml(row.customerName)}</td><td>${escapeHtml(row.mohalla || 'Not recorded')}</td><td>${moneyCell(row.openingCents)}</td><td>${moneyCell(row.chargesCents)}</td><td>${moneyCell(row.paymentsCents)}</td><td>${moneyCell(row.concessionsCents)}</td><td>${moneyCell(row.computedCents)}</td><td>${moneyCell(row.reportedCents)}</td><td>${row.reconciles === true ? 'Matches' : row.reconciles === false ? `Differs ${moneyCell(row.differenceCents)}` : 'Uncheckable'}</td></tr>`).join('');
-  return `<table class="data-table"><thead><tr><th>Customer</th><th>Mohalla</th><th>Opening</th><th>Charges</th><th>Payments</th><th>Concessions</th><th>Computed closing</th><th>Reported closing</th><th>Check</th></tr></thead><tbody>${body}</tbody></table>`;
+  // Owner 5-part fix: the nine-column table scrolls inside its own
+  // card on a phone instead of clipping the columns after Charges.
+  return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Customer</th><th>Mohalla</th><th>Opening</th><th>Charges</th><th>Payments</th><th>Concessions</th><th>Computed closing</th><th>Reported closing</th><th>Check</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 const csvCell = (value) => {

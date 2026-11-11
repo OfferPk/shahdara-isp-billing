@@ -32,10 +32,16 @@
    hug its content, not stretch the full column width. */
 .tx-main > .advance-badge { justify-self: start; }
 .tx-sub { display: flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--color-muted-soft); min-width: 0; }
-.tx-date { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Transactions Screen Overhaul: the recorded time (or mohalla) never
+   clips — it keeps its width while the method chip shrinks. */
+.tx-when { flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tx-method-chip {
   display: inline-block; padding: 1px var(--space-2); border-radius: var(--radius-pill); font-size: 11px; font-weight: 700;
   background: var(--surface-soft); color: var(--color-ink-soft); white-space: nowrap;
+  /* Transactions Screen Overhaul: the chip shrinks with an ellipsis
+     instead of squeezing the time out of the row — the long "Cash at
+     Hassan Balla shop" badge used to clip the date to one letter. */
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
 }
 .tx-method-cash { background: var(--color-paid-bg); color: var(--color-paid); }
 .tx-method-jazzcash { background: var(--color-danger-bg); color: var(--color-danger); }

@@ -3121,6 +3121,46 @@ button.expense-roznamcha-badge {
   background: var(--color-danger);
   flex: 0 0 auto;
 }
+/* Customers Directory Polish: paid gets the same status-dot treatment
+ * in green (the old green-circle emoji is gone). Token-only. */
+.roster-pill-dot--paid {
+  background: var(--color-paid);
+}
+/* Customers Directory Polish: the bar splits into two groups — the
+ * four revenue pills as a tight 2×2 grid of two-line cards (8px 10px
+ * padding), the four count-only pills as a compact flex-wrap row of
+ * 32px pills. All eight fit in half the old vertical space. */
+.roster-pill-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.roster-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.roster-pill-grid .roster-pill {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  padding: 8px 10px;
+}
+.roster-pill-line1,
+.roster-pill-line2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+.roster-pill-row .roster-pill {
+  min-height: 32px;
+  padding: 4px 10px;
+}
 /* Polish #27: dark pressed text is dark ink, not white — white on dark
    --green fails AA, while dark ink on dark --green clears 4.5:1
    (measured 5.72:1). The total span needs the override too, or it stays
@@ -3137,6 +3177,12 @@ button.expense-roznamcha-badge {
   .roster-pill-bar {
     flex-wrap: wrap;
     overflow-x: visible;
+  }
+  /* Customers Directory Polish: each group takes the full bar width
+   * at phone widths, so the revenue grid stacks above the count row. */
+  .roster-pill-grid,
+  .roster-pill-row {
+    flex: 1 1 100%;
   }
 }
 /* SISP-134: Expense Budget Caps (token-only; bars render inside the

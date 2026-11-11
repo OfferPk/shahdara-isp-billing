@@ -147,6 +147,12 @@
         <button id="navDrawerPwaStatusBtn" class="nav-drawer-shortcuts-btn" type="button" title="PWA & Offline System Health" aria-label="PWA and Offline Health">📲</button>
         <button id="navDrawerCommandPaletteBtn" class="nav-drawer-shortcuts-btn" type="button" title="Command Palette (Ctrl+K)" aria-label="Command Palette">🔍</button>
         <button id="navDrawerShortcutsBtn" class="nav-drawer-shortcuts-btn" type="button" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">⌨️</button>
+        <!-- Home Dashboard overhaul: QR scan, handbook and operator
+             mode moved here from the slimmed topbar (ids preserved;
+             their listeners are by id, so they keep working). -->
+        <button id="qrScanTopbarBtn" class="qr-scan-topbar-btn nav-drawer-shortcuts-btn" type="button" aria-label="Scan QR Card" title="Scan QR Card" aria-haspopup="dialog"><span class="ds-action-icon" data-ds-icon="QrCode" aria-hidden="true"></span></button>
+        <button id="handbookButton" class="shortcuts-help-button nav-drawer-shortcuts-btn" type="button" aria-label="Operator handbook" title="Operator handbook" data-i18n-aria-label="help_handbook_btn" data-i18n-title="help_handbook_btn" aria-haspopup="dialog">📖</button>
+        <button id="operatorModeToggleBtn" class="field-mode-toggle-btn" type="button" aria-label="Operator mode — owner or collector" title="Operator mode">Mode: Owner</button>
         <button id="drawerInstallAppBtn" class="secondary-button" type="button" hidden style="min-height:36px;padding:0 10px;font-size:11px" data-i18n="pwa_install_btn">Install App</button>
         <button id="navDrawerBackupButton" class="secondary-button" type="button" style="min-height:36px;padding:0 10px;font-size:11px">Backup</button>
       </div>
@@ -165,38 +171,27 @@
       </button>
       <div class="privacy-pill"><span class="privacy-dot" aria-hidden="true"></span><span>Saved on this device</span></div>
       <button id="backupHealthBadge" class="backup-health-badge health-critical is-critical" type="button" title="No off-device backup recorded. Tap to download a JSON backup now." aria-label="Backup: Never. No off-device backup recorded. Tap to download a JSON backup."><span id="backupHealthEmoji" aria-hidden="true">🔴</span><span id="backupHealthLabel">Backup: Never</span></button>
-      <button id="commandPaletteTrigger" class="command-palette-trigger" type="button" aria-label="⌘K Command Palette (Ctrl+K)" title="Command Palette (Ctrl+K)" aria-haspopup="dialog">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
-        <span class="palette-kbd-badge" aria-hidden="true">⌘K</span>
-      </button>
+      <!-- Home Dashboard overhaul: the topbar keeps ONLY Menu, Brand,
+           Search, Notifications and Field Mode. The language globe
+           and theme toggle already live in the nav drawer header
+           (#drawerLanguageToggleBtn / #drawerThemeToggleBtn, same
+           wiring), and the command palette + shortcuts already live
+           in the drawer footer (#navDrawerCommandPaletteBtn /
+           #navDrawerShortcutsBtn, same wiring) — the topbar copies
+           were redundant, so they are gone, not moved. QR scan,
+           handbook and operator mode moved to the drawer footer
+           below (ids preserved, listeners are by id). -->
       <button id="mobileCustomerSearchTrigger" class="mobile-search-trigger" type="button" aria-label="Fast Customer Search (/)" title="Search customers (/)" aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
       </button>
-      <button id="qrScanTopbarBtn" class="qr-scan-topbar-btn" type="button" aria-label="Scan QR Card" title="Scan QR Card" aria-haspopup="dialog"><span class="ds-action-icon" data-ds-icon="QrCode" aria-hidden="true"></span></button>
       <button id="topbarPendingActionsBtn" class="topbar-pending-btn" type="button" aria-label="Pending Actions Center" title="Pending Actions Center" aria-haspopup="dialog">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
         <span id="topbarPendingBadge" class="topbar-pending-badge" data-nav-badge="pending-actions" hidden>0</span>
       </button>
-      <button id="shortcutsHelpButton" class="shortcuts-help-button" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)" aria-haspopup="dialog">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      </button>
-      <button id="handbookButton" class="shortcuts-help-button" type="button" aria-label="Operator handbook" title="Operator handbook" data-i18n-aria-label="help_handbook_btn" data-i18n-title="help_handbook_btn" aria-haspopup="dialog">📖</button>
-      <button id="languageToggleBtn" class="language-toggle-btn" type="button" aria-label="اردو — Switch Language (English / اردو)" title="Switch to Urdu (اردو)">
-        <span class="lang-icon" data-ds-icon="Globe" aria-hidden="true"></span>
-        <span id="languageToggleLabel" class="language-toggle-label">اردو</span>
-      </button>
-      <button id="themeToggle" class="theme-toggle" type="button" aria-label="Toggle dark/light theme" title="Toggle theme">
-        <svg class="theme-icon theme-icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="12" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        <svg class="theme-icon theme-icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-      </button>
       <button id="fieldModeToggleBtn" class="field-mode-toggle-btn" type="button" aria-label="Field Mode — 1-thumb collection" title="Field Mode" aria-pressed="false"><span class="ds-action-icon" data-ds-icon="Bike" aria-hidden="true"></span></button>
-      <button id="operatorModeToggleBtn" class="field-mode-toggle-btn" type="button" aria-label="Operator mode — owner or collector" title="Operator mode">Mode: Owner</button>
     </div>
   </header>
   <!-- SISP-5: 1-thumb field collection mode overlay (hidden until the header toggle opens it). -->
@@ -262,40 +257,13 @@
         <div><p class="eyebrow" data-i18n="dash_eyebrow_live">LIVE SUMMARY</p><h2 id="dashboardTitle" data-i18n="dash_title">Billing dashboard</h2></div>
         <div class="dashboard-actions"><p id="dashboardAmountUnits" class="dashboard-units" data-i18n="dash_units">All money shown in PKR · no conversion.</p><button id="quickAddPaymentButton" class="primary-button quick-payment-button" type="button" data-i18n="dash_add_payment">+ Add payment</button><button id="dplBackToTop" class="secondary-button" type="button" data-i18n="dash_place_top">Back to top</button><button id="dulLabelsToggle" class="secondary-button" type="button">اردو لیبل</button><details class="help-tip"><summary class="help-icon" aria-label="Billing dashboard guidance" aria-controls="dashboardGuidance" data-i18n-aria-label="dash_guidance_aria">i</summary><span id="dashboardGuidance" class="help-tip-content" role="tooltip" data-i18n="dash_guidance">Saved selling prices create month-specific bill snapshots beginning at their effective Pakistan local month. New monthly bills default to the 5th; saved custom due dates are preserved. Actual receipts apply to the selected month first; excess may be allocated as credit to later generated bills. Credit is not a second payment. Archived customers receive no new bills. Editing a price does not rewrite older snapshots, and no late penalty is invented. Expected package margin and provider cost are estimates, not collected cash.</span></details></div>
       </div>
-      <!-- QC-11: most-used shortcuts at the top of home, below the search.
-           Quick Collect / Bulk Collect / Record Payment reuse their existing
-           openers (see the QC-11 wiring block in app.js); nothing new is
-           built here. Class-found wiring via data-shortcut, no new id. -->
-      <div class="home-top-shortcuts" role="region" data-i18n-aria-label="qc11_top_label">
-        <p class="home-top-shortcuts-label eyebrow" data-i18n="qc11_top_label">Most used</p>
-        <button class="home-primary-btn quick-action-tile home-top-shortcut" type="button" data-shortcut="quick-collect">
-          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </span>
-          <span class="home-primary-text quick-action-text">
-            <span class="home-primary-title quick-action-label" data-i18n="qc11_quick_collect">Quick Collect</span>
-            <span class="home-primary-subtitle quick-action-sub" data-i18n="qc11_quick_collect_sub">2-tap cash collection</span>
-          </span>
-        </button>
-        <button class="home-primary-btn quick-action-tile home-top-shortcut" type="button" data-shortcut="bulk-collect">
-          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
-          </span>
-          <span class="home-primary-text quick-action-text">
-            <span class="home-primary-title quick-action-label" data-i18n="qc11_bulk_collect">Bulk Collect</span>
-            <span class="home-primary-subtitle quick-action-sub" data-i18n="qc11_bulk_collect_sub">Many payments, one batch</span>
-          </span>
-        </button>
-        <button class="home-primary-btn quick-action-tile home-top-shortcut" type="button" data-shortcut="record-payment">
-          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-          </span>
-          <span class="home-primary-text quick-action-text">
-            <span class="home-primary-title quick-action-label" data-i18n="qc11_record_payment">Record Payment</span>
-            <span class="home-primary-subtitle quick-action-sub" data-i18n="qc11_record_payment_sub">Record a customer payment</span>
-          </span>
-        </button>
-      </div>
+      <!-- Home Dashboard overhaul: the QC-11 "Most used" row is gone.
+           Its Quick Collect button now leads the 4-tile grid below
+           (same data-shortcut wiring); Record Payment was the same
+           flow as the old Receive Payment tile (openAddPayment routes
+           to the Quick Collect modal), and Bulk Collect stays
+           reachable from inside the Quick Collect sheet
+           (#/bulk-collect), so no flow is orphaned. -->
       <div id="overheadsDueBanner" class="overheads-due-banner" role="alert" hidden></div>
       <!-- Plan X: first-run banner host. Filled by app.js only for a fresh
            business (zero customers, WhatsApp identity and receipt branding
@@ -316,6 +284,12 @@
           <span class="home-kpi-label" data-i18n="dash_kpi_month">Month Collected / Billed</span>
           <strong id="kpiMonthCollectionBilled" class="home-kpi-val">PKR 0 / 0</strong>
           <span class="home-kpi-sub" id="kpiMonthRateSub">Current month</span>
+          <!-- Home Dashboard overhaul: the month KPI carries its own
+               progress bar now (the "PKR 119,700 / PKR 194,300" figure
+               is shown once, here, with the bar instead of repeating
+               the 62% in three places). The fill is found by class
+               inside this card, so no new element id is needed. -->
+          <span class="home-kpi-progress" aria-hidden="true"><span class="home-kpi-progress-fill"></span></span>
           </span>
         </div>
         <div class="home-kpi-card kpi-card-dues ds-stat ds-stat--overdue" id="kpiCardDues">
@@ -323,34 +297,80 @@
           <span class="ds-stat__body">
           <span class="home-kpi-label" data-i18n="dash_kpi_dues">Total Dues</span>
           <strong id="kpiTotalDue" class="home-kpi-val">PKR 0</strong>
-          <span class="home-kpi-sub" data-i18n="dash_kpi_dues_sub">Outstanding balance</span>
+          <!-- Home Dashboard overhaul: the sub-line is the
+               engine-based accounts-with-dues count (the figure the
+               old "Customers with Dues" card showed from a raw
+               due-minus-paid sum), written by renderDashboard via the
+               dash_kpi_dues_accounts key — no static i18n text here,
+               so a language switch never wipes the count. The id is
+               REUSED from the deleted card, not a new one. -->
+          <span class="home-kpi-sub" id="kpiCustomersWithDues">Outstanding balance</span>
           </span>
         </div>
-        <div class="home-kpi-card kpi-card-defaulters ds-stat ds-stat--pending" id="kpiCardDefaulters">
-          <span class="ds-stat__icon" aria-hidden="true">👥</span>
-          <span class="ds-stat__body">
-          <span class="home-kpi-label" data-i18n="dash_kpi_defaulters">Customers with Dues</span>
-          <strong id="kpiCustomersWithDues" class="home-kpi-val">0</strong>
-          <span class="home-kpi-sub" data-i18n="dash_kpi_defaulters_sub">Pending accounts</span>
-          </span>
-        </div>
-        <div class="home-kpi-card kpi-card-advance ds-stat ds-stat--paid" id="kpiCardAdvance" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="advanceHoldersModal">
+        <!-- Home Dashboard overhaul: the "Customers with Dues" card is
+             gone — its count lives on the Total Dues card above. This
+             slot is Cash in Hand (Plan 481 figure, ids moved here
+             from the deleted #cashInHandSection; renderDashboardCashInHand
+             writes them by id, guarded, so the move is safe). -->
+        <div class="home-kpi-card kpi-card-cashinhand ds-stat ds-stat--paid">
           <span class="ds-stat__icon" aria-hidden="true">🏦</span>
           <span class="ds-stat__body">
-          <span class="home-kpi-label" data-i18n="dash_adv_held_label">Advance Held</span>
-          <strong id="kpiAdvanceHeld" class="home-kpi-val">PKR 0</strong>
-          <span class="home-kpi-sub" id="kpiAdvanceMonthSub">Collected this month: PKR 0</span>
+          <span class="home-kpi-label" data-i18n="dash_cashinhand_title">Cash in hand now</span>
+          <strong id="cihCashTotal" class="home-kpi-val">PKR 0</strong>
+          <span class="home-kpi-sub" id="cihCashLine"></span>
+          </span>
+        </div>
+        <!-- Home Dashboard overhaul: the "Advance Held" card moved to
+             the Collect tab (its holders dialog still opens from
+             there). This slot is Active Subscribers — ids moved here
+             from the deleted summary-grid card; the guarded KPI writes
+             in renderDashboard land here now. -->
+        <div class="home-kpi-card kpi-card-active ds-stat ds-stat--whatsapp">
+          <span class="ds-stat__icon" aria-hidden="true">✅</span>
+          <span class="ds-stat__body">
+          <span class="home-kpi-label" data-i18n="dash_card_active">Active subscribers</span>
+          <strong id="dashboardActiveCustomers" class="home-kpi-val">0</strong>
+          <span class="home-kpi-sub" id="dashboardActiveCustomersPeriod">Manual active status · active subscriptions</span>
           </span>
         </div>
       </div>
+      <!-- Home Dashboard overhaul: ONE unified Share / Digest menu.
+           It replaces three standalone buttons: Copy Morning Briefing
+           (was in the briefing header), Send to my WhatsApp (was in
+           the Today card header) and Copy Daily Partner Digest (was
+           in the partner-digest section). The three buttons keep their
+           ids — their click wiring is by id (home-today.js, app.js),
+           so it follows them here. This menu SUPERSEDES the queued
+           standalone Morning Briefing buttons restyle (2-col tile
+           grid); that queue item can be closed. -->
+      <details class="home-share-menu" id="homeShareMenu">
+        <summary class="home-share-menu-summary"><span aria-hidden="true">📤</span><span data-i18n="dash_share_menu_title">Share / Digest</span></summary>
+        <div class="home-share-menu-items">
+          <button id="copyMorningBriefingBtn" class="morning-briefing-copy-btn home-share-menu-item" type="button" data-i18n="brief_copy_btn">📋 Copy Morning Briefing</button>
+          <button id="sendDailySummaryWhatsAppBtn" class="home-today-wa-btn home-share-menu-item" type="button" aria-label="Send to my WhatsApp (daily summary)" data-i18n-aria-label="dash_today_wa_aria">
+            <span class="wa-btn-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+            </span>
+            <span class="wa-btn-text" data-i18n="dash_today_wa_text">Send to my WhatsApp</span>
+          </button>
+          <button id="copyPartnerDigestBtn" class="partner-digest-copy home-share-menu-item" type="button" data-i18n="digest_copy">📲 Copy Daily Partner Digest</button>
+        </div>
+      </details>
+      <!-- Home Dashboard overhaul: exactly 4 quick-action tiles.
+           Quick Collect is the QC-11 button (same data-shortcut
+           wiring, now leading the grid). The old Receive Payment tile
+           was the same flow (openAddPayment routes to the Quick
+           Collect modal), and Daily Closing already lives in the More
+           menu (#mobileMoreDailyClosingBtn), so both tiles are gone,
+           not moved. -->
       <div class="home-primary-actions" id="homePrimaryActions" role="region" aria-label="Primary billing actions" data-i18n-aria-label="dash_actions_region_aria">
-        <button id="quickActionReceivePayment" class="home-primary-btn quick-action-tile primary-action-collect" type="button" aria-label="Payment lo — Receive customer payment (Record customer receipt)" data-i18n-aria-label="dash_tile_collect_aria">
+        <button class="home-primary-btn quick-action-tile home-top-shortcut" type="button" data-shortcut="quick-collect">
           <span class="home-primary-icon quick-action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           </span>
           <span class="home-primary-text quick-action-text">
-            <span class="home-primary-title quick-action-label" data-i18n="dash_tile_collect_title">Payment lo</span>
-            <span class="home-primary-subtitle quick-action-sub" data-i18n="dash_tile_collect_sub">Receive customer payment</span>
+            <span class="home-primary-title quick-action-label" data-i18n="qc11_quick_collect">Quick Collect</span>
+            <span class="home-primary-subtitle quick-action-sub" data-i18n="qc11_quick_collect_sub">2-tap cash collection</span>
           </span>
         </button>
         <button id="quickActionAddCustomer" class="home-primary-btn quick-action-tile primary-action-customer" type="button" aria-label="Customer add - New connection profile" data-i18n-aria-label="dash_tile_customer_aria">
@@ -371,15 +391,6 @@
             <span class="home-primary-subtitle quick-action-sub" data-i18n="dash_tile_dues_sub">Recovery &amp; defaulters</span>
           </span>
         </button>
-        <button id="quickActionDailyClosing" class="home-primary-btn quick-action-tile primary-action-closing" type="button" aria-label="Aaj ka hisaab — Cash till &amp; closing (Cash register &amp; daily closing)" data-i18n-aria-label="dash_tile_closing_aria">
-          <span class="home-primary-icon quick-action-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><path d="M7 15h2"/><path d="M15 15h2"/></svg>
-          </span>
-          <span class="home-primary-text quick-action-text">
-            <span class="home-primary-title quick-action-label" data-i18n="dash_tile_closing_title">Aaj ka hisaab</span>
-            <span class="home-primary-subtitle quick-action-sub" data-i18n="dash_tile_closing_sub">Cash till &amp; closing</span>
-          </span>
-        </button>
         <button id="quickActionInstallationDashboard" class="home-primary-btn quick-action-tile primary-action-installation" type="button" aria-label="Installation — Fees collected & pending (Open the installation dashboard)" data-i18n-aria-label="dash_tile_installation_aria">
           <span class="home-primary-icon quick-action-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
@@ -396,7 +407,6 @@
           <div class="morning-briefing-header">
             <h3 id="morningBriefingHeading" class="morning-briefing-title" data-i18n="brief_heading">🌅 Morning Briefing</h3>
             <div class="morning-briefing-actions">
-              <button id="copyMorningBriefingBtn" class="morning-briefing-copy-btn" type="button" data-i18n="brief_copy_btn">📋 Copy Morning Briefing</button>
               <button id="fieldDaySheetBtn" class="morning-briefing-copy-btn" type="button" data-i18n="fds_btn">🗓️ Print Field Day Sheet</button>
             </div>
           </div>
@@ -433,662 +443,64 @@
               <h3 id="homeTodayHeading" class="home-today-title" data-i18n="dash_today_heading">Today's Summary · آج کا خلاصہ</h3>
               <p class="home-today-subtitle" id="homeTodayDateText">Live closing register &amp; collection status</p>
             </div>
-            <button id="sendDailySummaryWhatsAppBtn" class="home-today-wa-btn" type="button" aria-label="Send to my WhatsApp (daily summary)" data-i18n-aria-label="dash_today_wa_aria">
-              <span class="wa-btn-icon" aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-              </span>
-              <span class="wa-btn-text" data-i18n="dash_today_wa_text">Send to my WhatsApp</span>
-            </button>
+            <!-- Home Dashboard overhaul: the standalone "Send to my
+                 WhatsApp" button is gone — that action lives in the
+                 unified Share / Digest menu at the top of Home now.
+                 The 4-cell metrics grid is gone too: today collected,
+                 month progress and total dues already sit in the KPI
+                 strip above, and new customers are covered by the
+                 Active Subscribers KPI. What stays: the date, the Top
+                 3 overdue preview, and the link into Collect. -->
           </div>
-          <!-- Metrics 4-grid -->
-          <div class="home-today-metrics-grid">
-            <div class="home-today-metric-cell">
-              <span class="today-cell-label" data-i18n="dash_today_label_collected">Collected Today (آج کی وصولی)</span>
-              <strong id="homeTodayCollected" class="today-cell-val">PKR 0</strong>
-              <span id="homeTodayCashVsDigital" class="today-cell-sub">Cash: PKR 0 · Digital: PKR 0</span>
-            </div>
-            <div class="home-today-metric-cell">
-              <span class="today-cell-label" data-i18n="dash_today_label_target">Month Target (ماہانہ وصولی)</span>
-              <strong id="homeTodayTargetPct" class="today-cell-val">0%</strong>
-              <span id="homeTodayCollectedVsBilled" class="today-cell-sub">PKR 0 / PKR 0 billed</span>
-            </div>
-            <div class="home-today-metric-cell">
-              <span class="today-cell-label" data-i18n="dash_today_label_dues">Total Dues (کل واجبات)</span>
-              <strong id="homeTodayTotalDues" class="today-cell-val">PKR 0</strong>
-              <span id="homeTodayDuesCount" class="today-cell-sub">0 accounts with dues</span>
-            </div>
-            <div class="home-today-metric-cell">
-              <span class="today-cell-label" data-i18n="dash_today_label_new">New Customers (نئے صارفین)</span>
-              <strong id="homeTodayNewCustomers" class="today-cell-val">0</strong>
-              <span class="today-cell-sub" data-i18n="dash_today_sub_connected">Connected this month</span>
-            </div>
-          </div>
-          <!-- Top 5 Defaulters / Overdue Accounts -->
+          <!-- Top 3 Overdue Accounts -->
           <div class="home-today-overdue-wrap" id="homeTodayOverdueWrap">
             <div class="home-today-overdue-header">
-              <span class="overdue-header-title" data-i18n="dash_today_overdue_title">Top 5 Overdue Accounts · بڑے بقایاجات</span>
-              <a href="#/recovery" class="overdue-view-all-link" data-i18n="dash_today_overdue_all">View all dues →</a>
+              <span class="overdue-header-title" data-i18n="dash_today_overdue_title">Top 3 Overdue Accounts · بڑے بقایاجات</span>
+              <a href="#/transactions" class="overdue-view-all-link" data-i18n="dash_today_overdue_all">View all in Collect →</a>
             </div>
-            <ul id="homeTopOverdueList" class="home-top-overdue-list" aria-label="Top 5 overdue customer accounts" data-i18n-aria-label="dash_today_overdue_aria">
+            <ul id="homeTopOverdueList" class="home-top-overdue-list" aria-label="Top 3 overdue customer accounts" data-i18n-aria-label="dash_today_overdue_aria">
               <!-- Populated dynamically via JS -->
             </ul>
           </div>
         </div>
       </section>
-      <div class="summary-grid" aria-live="polite" aria-label="Live billing totals" data-i18n-aria-label="dash_summary_grid_aria">
-        <article class="summary-card summary-current-due ds-stat ds-stat--pending"><span class="ds-stat__icon" aria-hidden="true">🧾</span><p class="summary-label" data-i18n="dash_card_month_due">This month’s due amount</p><strong id="dashboardCurrentMonthDue" class="summary-value">No bill entries</strong><p id="dashboardCurrentDuePeriod" class="summary-period">Current billing month only</p></article>
-        <article class="summary-card summary-total-due ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">📋</span><p class="summary-label" data-i18n="dash_card_total_due">Total due bill</p><strong id="dashboardTotalDue" class="summary-value">No bill entries</strong><p id="dashboardTotalDuePeriod" class="summary-period">Known outstanding bills · retained 24-month history</p></article>
-        <article class="summary-card summary-today-collection ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">💰</span><p class="summary-label" data-i18n="dash_card_today_coll">Today’s collection</p><strong id="dashboardTodayCollection" class="summary-value">No payment entries</strong><p id="dashboardTodayPeriod" class="summary-period">Payments dated today</p></article>
-        <article class="summary-card summary-today-card ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">📅</span><p class="summary-label" data-i18n="dash_todaycard_title">Today at a glance</p><strong id="dtcTodayCollected" class="summary-value">PKR 0</strong><p class="summary-period"><span data-i18n="dash_todaycard_payments_label">Payments today</span>: <strong id="dtcTodayCount">0</strong></p><p class="summary-period"><span data-i18n="dash_todaycard_due_label">Due today</span>: <strong id="dtcDuesDueToday">PKR 0</strong></p><p id="dtcTodayPeriod" class="summary-period">Payments dated today</p></article>
-        <article class="summary-card qc5-field-recovery-card ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">🎯</span><p class="summary-label" data-i18n="qc5_card_title">Today's Field Recovery</p><strong class="summary-value qc5-recovered">PKR 0</strong><p class="qc5-line"><span data-i18n="qc5_target_label">Day target</span>: <strong class="qc5-target">PKR 0</strong> <span class="qc5-target-source"></span></p><div class="route-progress-track qc5-progress-track" role="progressbar" aria-label="Field recovery progress" data-i18n-aria-label="qc5_progress_aria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="route-progress-fill qc5-progress-fill" style="width: 0%;"></div></div><p class="qc5-line qc5-progress-text"></p><div class="qc5-field-recovery-tiles"><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_payments_label">Payments</span><strong class="qc5-field-recovery-tile-value qc5-payments">0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_visited_label">Customers visited</span><strong class="qc5-field-recovery-tile-value qc5-visited">0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_remaining_label">Remaining target</span><strong class="qc5-field-recovery-tile-value qc5-remaining">PKR 0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_pending_label">Pending customers</span><strong class="qc5-field-recovery-tile-value qc5-pending">0</strong></div></div></article>
-        <article class="summary-card qc6-collection-insights-card ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">📈</span><p class="summary-label" data-i18n="qc6_card_title">Collection insights</p><strong class="summary-value qc6-rate">—</strong><p class="qc6-line"><span data-i18n="qc6_rate_period">This month · collected ÷ billed</span>: <span class="qc6-rate-detail"></span></p><div class="qc6-insights-tiles"><div class="qc6-insights-tile"><span class="qc6-insights-tile-label" data-i18n="qc6_avg_label">Average per visit</span><strong class="qc6-insights-tile-value qc6-avg">—</strong><span class="qc6-insights-tile-sub qc6-avg-sub"></span></div><div class="qc6-insights-tile"><span class="qc6-insights-tile-label" data-i18n="qc6_dod_label">Day over day</span><strong class="qc6-insights-tile-value qc6-dod">—</strong><span class="qc6-insights-tile-sub qc6-dod-sub"></span></div></div></article>
-        <article class="summary-card summary-daily-closing ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">🧮</span>
-          <div class="daily-closing-header">
-            <p class="summary-label" data-i18n="dash_card_closing">Daily Register &amp; Closing</p>
-            <span id="dashboardClosingStatusBadge" class="closing-badge badge-no-activity">No Activity</span>
-          </div>
-          <strong id="dashboardDailyClosingValue" class="summary-value">No payment entries</strong>
-          <p id="dashboardDailyClosingPeriod" class="summary-period">Benchmark target: calculating...</p>
-          <div class="daily-closing-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openDailyClosingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cash_suite">📊 Cash Closing Suite</button>
-            <button id="openDailyRegisterBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_daily_register">📖 Daily Register</button>
-            <button id="quickActionDailyClosingSlip" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_daily_slip">📋 Daily Slip</button>
-            <button id="openStaffPerfModalBtn" class="action-btn-sm daily-slip-btn" type="button" aria-haspopup="dialog" data-i18n="dash_btn_staff_perf">👥 Staff Performance</button>
-          </div>
-        </article>
-        <article class="summary-card summary-shop-settlement ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_shop">🏪 Shop Cash Collection &amp; Handover</p>
-          <strong id="dashboardShopSettlementValue" class="summary-value">No shop collections</strong>
-          <p id="dashboardShopSettlementPeriod" class="summary-period">Unsettled cash sitting at shops</p>
-          <div id="shopSettlementSummary" class="shop-settlement-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_shop_settlement">🏪 Shop Settlement</button>
-            <button id="openCommissionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="comm_btn_open">💰 Collector Commission</button>
-          </div>
-        </article>
-        <article class="summary-card summary-billing-cycle ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_cycle">📅 Monthly Billing Cycle</p>
-          <strong id="dashboardBillingCycleValue" class="summary-value">No cycle run yet</strong>
-          <p id="dashboardBillingCyclePeriod" class="summary-period">Run a monthly cycle with arrears &amp; advance</p>
-          <div id="billingCycleSummary" class="billing-cycle-summary"></div>
-          <div id="billingCycleForecast" class="billing-cycle-summary billing-cycle-forecast"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_billing_cycle">📅 Billing Cycle</button>
-            <button id="openMonthEndWizardBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_month_end">🧾 Month-End Check</button>
-          </div>
-        </article>
-        <article class="summary-card summary-complaint-register ds-stat ds-stat--overdue">
-          <p class="summary-label" data-i18n="dash_card_complaint">🛠️ Complaint Register</p>
-          <strong id="dashboardComplaintValue" class="summary-value">No complaints</strong>
-          <p id="dashboardComplaintPeriod" class="summary-period">Open faults and resolution downtime</p>
-          <div id="complaintRegisterSummary" class="complaint-register-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_complaint">🛠️ Complaint Register</button>
-            <button id="openPostRepairCheckinModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="prc_open_btn">🤝 Post-Repair Check-Ins</button>
-          </div>
-        </article>
-        <article class="summary-card summary-field-tickets ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_tickets">🔧 Field Tickets</p>
-          <strong id="dashboardFieldTicketsValue" class="summary-value">No field tickets</strong>
-          <p id="dashboardFieldTicketsPeriod" class="summary-period">Lineman worklist and material use</p>
-          <div id="fieldTicketsSummary" class="field-tickets-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_tickets">🔧 Field Tickets</button>
-          </div>
-        </article>
-        <article class="summary-card summary-downtime-analytics ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_downtime">📉 Downtime Analytics</p>
-          <strong id="dashboardDowntimeValue" class="summary-value">No downtime</strong>
-          <p id="dashboardDowntimePeriod" class="summary-period">Per-customer and network outage hours</p>
-          <div id="downtimeAnalyticsSummary" class="downtime-analytics-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_downtime">📉 Downtime Analytics</button>
-          </div>
-        </article>
-        <article class="summary-card summary-upstream-sla ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</p>
-          <strong id="dashboardUpslaValue" class="summary-value">No upstream outages</strong>
-          <p id="dashboardUpslaPeriod" class="summary-period">Uplink downtime, availability and rebate claim for this month</p>
-          <div id="upstreamSlaSummary" class="upstream-sla-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openUpstreamSlaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</button>
-          </div>
-        </article>
-
-        <article class="summary-card summary-fleet-uptime ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="upt_fleet_title">📶 Fleet Uptime</p>
-          <strong id="dashboardFleetUptimeValue" class="summary-value">—</strong>
-          <p id="dashboardFleetUptimePeriod" class="summary-period">Recorded uptime across subscribers this month</p>
-          <div id="fleetUptimeSummary" class="fleet-uptime-summary"></div>
-        </article>
-
-        <article class="summary-card summary-splitter-map ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_splitter">🔌 Splitter Port Map</p>
-          <strong id="dashboardSplitterValue" class="summary-value">No splitter boxes</strong>
-          <p id="dashboardSplitterPeriod" class="summary-period">Splitter box port map and RX signal health</p>
-          <div id="splitterMapSummary" class="splitter-map-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_splitter">🔌 Splitter Port Map</button>
-            <button id="openDarkFiberModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_dark_fiber">🧵 Dark Fiber Finder</button>
-            <button id="openSpliceClosureModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="jcmap_open_btn">🧵 JC Splice Map</button>
-            <button id="openOpticalBudgetCalcBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="obcalc_button">📐 Link Budget</button>
-          </div>
-        </article>
-
-        <article class="summary-card summary-pon-capacity ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_poncap">📡 PON Port Capacity</p>
-          <strong id="dashboardPonCapacityValue" class="summary-value">No PON ports recorded</strong>
-          <p id="dashboardPonCapacityPeriod" class="summary-period">OLT PON port load, sold Mbps and saturation alerts</p>
-          <div id="ponCapacitySummary" class="pon-capacity-summary"></div>
-        </article>
-
-        <article class="summary-card summary-monthly-complaint-report ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_monthly_report">📋 Monthly Complaint Report</p>
-          <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
-          <p id="dashboardMonthlyReportPeriod" class="summary-period">4-part monthly report: summary, customers, causes, full log</p>
-          <div id="monthlyComplaintReportSummary" class="monthly-complaint-report-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_monthly_report">📋 Monthly Report</button>
-          </div>
-        </article>
-
-        <article class="summary-card summary-roznamcha ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_roznamcha">📒 Daily Roznamcha</p>
-          <strong id="dashboardRoznamchaValue" class="summary-value">No drawer yet</strong>
-          <p id="dashboardRoznamchaPeriod" class="summary-period">Cash drawer, shop handovers and petty expenses</p>
-          <div id="roznamchaSummary" class="roznamcha-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openRoznamchaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_roznamcha">📒 Roznamcha</button>
-            <button id="dailyMethodMatrixOpenBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dmm_open_btn">📊 Method Matrix</button>
-          </div>
-        </article>
-        <article class="summary-card summary-inventory-book ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_stock">📦 Stock Book</p>
-          <strong id="dashboardInventoryValue" class="summary-value">No stock recorded</strong>
-          <p id="dashboardInventoryPeriod" class="summary-period">Fiber, routers, converters &amp; field stock</p>
-          <div id="inventoryBookSummary" class="inventory-book-summary"></div>
-          <div id="fieldBagSummary" class="inventory-book-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_stock">📦 Stock Book</button>
-            <button id="openFieldBagModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_field_bag">🎒 Field Bag</button>
-            <button id="openSupplierKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="supkhata_btn_open">🏭 Supplier Khata</button>
-          </div>
-        </article>
-        <article class="summary-card summary-fiber-drums ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_drum_card">🧵 Fiber Drums</p>
-          <strong id="dashboardFiberDrumValue" class="summary-value">No drums tracked</strong>
-          <p id="dashboardFiberDrumPeriod" class="summary-period">Fiber drums &amp; jacket-mark cuts</p>
-          <div id="fiberDrumSummary" class="fiber-drum-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openFiberDrumModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_drum_btn">🧵 Drum Tracker</button>
-          </div>
-        </article>
-        <article class="summary-card summary-outage-impact ds-stat ds-stat--overdue">
-          <p class="summary-label" data-i18n="dash_card_outage">⚡ Feeder Outage Impact</p>
-          <strong id="dashboardOutageValue" class="summary-value">No feeder links</strong>
-          <p id="dashboardOutagePeriod" class="summary-period">Link customers to feeders to trace outages</p>
-          <div id="outageImpactSummary" class="outage-impact-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_trace_outage">⚡ Trace Outage Impact</button>
-            <button id="openEmergencyRunbookBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="runbook_open_btn">🚨 Emergency Runbook</button>
-            <button id="openStormInspectionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="storm_btn_open">🌦️ Post-Storm Checklist</button>
-          </div>
-        </article>
-        <article class="summary-card summary-daisy-chain ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</p>
-          <strong id="dashboardDaisyChainValue" class="summary-value">No feeder chains</strong>
-          <p id="dashboardDaisyChainPeriod" class="summary-period">Chain depth per zone, Hop 3+ warnings</p>
-          <div id="daisyChainSummary" class="daisy-chain-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openDaisyChainTreeModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</button>
-          </div>
-        </article>
-        <article class="summary-card summary-saad-visits ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_saad">🔧 Saad Visit Log</p>
-          <strong id="dashboardSaadVisitsValue" class="summary-value">No visits yet</strong>
-          <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
-          <div id="saadVisitsSummary" class="saad-visits-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_saad_visits">🔧 Saad Visits</button>
-          </div>
-        </article>
-        <article class="summary-card summary-install-tracker ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_install">📡 Installation Tracker</p>
-          <strong id="dashboardInstallTrackerValue" class="summary-value">No requests yet</strong>
-          <p id="dashboardInstallTrackerPeriod" class="summary-period">New connection requests &amp; install delays</p>
-          <div id="installTrackerSummary" class="install-tracker-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openInstallTrackerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_install">📡 Installation Tracker</button>
-          </div>
-        </article>
-        <article class="summary-card summary-pending-works ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_pending">📌 Pending Works</p>
-          <strong id="dashboardPendingWorksValue" class="summary-value">Nothing pending</strong>
-          <p id="dashboardPendingWorksPeriod" class="summary-period">Owner notes &amp; reminders</p>
-          <div id="pendingWorksSummary" class="pending-works-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_pending">📌 Pending Works</button>
-          </div>
-        </article>
-        <article class="summary-card summary-pole-landmark ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_pole">📍 Pole &amp; Landmark Directory</p>
-          <strong id="dashboardPoleLandmarkValue" class="summary-value">No poles mapped</strong>
-          <p id="dashboardPoleLandmarkPeriod" class="summary-period">Street pole, landmark &amp; drop-wire directory</p>
-          <div id="poleLandmarkSummary" class="pole-landmark-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cheatsheet">📍 Zone Lineman Cheat-Sheet</button>
-          </div>
-        </article>
-        <article class="summary-card summary-pole-registry ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_polereg">🌲 Pole Registry</p>
-          <strong id="dashboardPoleRegistryValue" class="summary-value">No poles registered</strong>
-          <p id="dashboardPoleRegistryPeriod" class="summary-period">Street pole assets &amp; attached drops</p>
-          <div id="poleRegistrySummary" class="pole-registry-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPoleRegistryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_polereg">🌲 Pole Registry</button>
-          </div>
-        </article>
-        <article class="summary-card summary-group-billing ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</p>
-          <strong id="dashboardGroupBillingValue" class="summary-value">No groups yet</strong>
-          <p id="dashboardGroupBillingPeriod" class="summary-period">Family / landlord groups</p>
-          <div id="groupBillingSummary" class="group-billing-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</button>
-          </div>
-        </article>
-        <article class="summary-card summary-hardware-recovery ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</p>
-          <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
-          <p id="dashboardHardwareRecoveryPeriod" class="summary-period">ISP-owned hardware at disconnected houses</p>
-          <div id="hardwareRecoverySummary" class="hardware-recovery-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</button>
-          </div>
-        </article>
-        <article class="summary-card summary-owner-khata ds-stat ds-stat--brand">
-          <p class="summary-label" data-i18n="dash_card_khata">📕 Owner Khata Closing</p>
-          <strong id="dashboardOwnerKhataValue" class="summary-value">No activity</strong>
-          <p id="dashboardOwnerKhataPeriod" class="summary-period">Monthly income, expenses, shares &amp; outages</p>
-          <div id="ownerKhataSummary" class="owner-khata-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openOwnerKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_khata">📕 Owner Khata Closing</button>          </div>
-        </article>
-        <article class="summary-card summary-wallet-ledger ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_wallet">💳 Digital Wallet Ledger</p>
-          <strong id="dashboardWalletValue" class="summary-value">No digital payments</strong>
-          <p id="dashboardWalletPeriod" class="summary-period">EasyPaisa · JazzCash · NayaPay · Bank Transfer</p>
-          <div id="walletLedgerSummary" class="wallet-ledger-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openWalletLedgerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_wallet">💳 Wallet Ledger</button>
-          </div>
-        </article>
-        <article class="summary-card summary-suspense-payments ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="dash_card_suspense">🧾 Suspense Payments</p>
-          <strong id="dashboardSuspenseValue" class="summary-value">No suspense entries</strong>
-          <p id="dashboardSuspensePeriod" class="summary-period">Unidentified wallet transfers</p>
-          <div id="suspensePaymentsSummary" class="suspense-payments-summary"></div>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSuspensePaymentsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_suspense">🧾 Suspense Register</button>
-          </div>
-        </article>
-        <article class="summary-card summary-system-health ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_health">🩺 System Health</p>
-          <strong id="dashboardSystemHealthValue" class="summary-value">No records yet</strong>
-          <p id="dashboardSystemHealthPeriod" class="summary-period">All ledgers · counts · storage size</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openSystemHealthModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_health">🩺 Health Center</button>
-          </div>
-        </article>
-        <article class="summary-card summary-receipt-verify ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="rverify_card">🔎 Receipt Verification</p>
-          <strong class="summary-value" data-i18n="rverify_card_value">VER code check</strong>
-          <p class="summary-period" data-i18n="rverify_card_period">Confirm a printed receipt is genuine and not voided</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openReceiptVerifyModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="rverify_btn">🔎 Verify Receipt</button>
-          </div>
-        </article>
-        <article class="summary-card summary-field-tools ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_tools">🔧 Field Tools</p>
-          <strong id="dashboardToolsValue" class="summary-value">No tools registered</strong>
-          <p id="dashboardToolsPeriod" class="summary-period">Splicer · OTDR · cleaver custody</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openToolCustodyModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_tools">🔧 Tool Register</button>
-          </div>
-        </article>
-        <article class="summary-card summary-lineman-scorecard ds-stat ds-stat--info">
-          <p class="summary-label" data-i18n="dash_card_lineman">🧑‍🔧 Lineman Scorecard</p>
-          <strong id="dashboardLinemanScorecardValue" class="summary-value">No field activity</strong>
-          <p id="dashboardLinemanScorecardPeriod" class="summary-period">Resolved complaints · petty cash · collections this month</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openLinemanScorecardModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_lineman">🧑‍🔧 Scorecard</button>
-          </div>
-        </article>
-        <article class="summary-card summary-power-backup ds-stat ds-stat--pending">
-          <p class="summary-label" data-i18n="pwr_card_label">🔋 Power Backup</p>
-          <strong id="dashboardPowerValue" class="summary-value">No UPS nodes yet</strong>
-          <p id="dashboardPowerPeriod" class="summary-period">UPS runtime &amp; WAPDA outage timer</p>
-          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-            <button id="openPowerBackupModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="pwr_btn_open">🔋 Power Nodes</button>
-          </div>
-        </article>        <article class="summary-card summary-month-collection ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">💵</span><p class="summary-label" data-i18n="dash_card_month_coll">This month’s collection</p><strong id="dashboardCurrentMonthCollection" class="summary-value">No payment entries</strong><p id="dashboardCurrentMonthCollectionPeriod" class="summary-period">Receipts dated in current calendar month</p></article>
-        <article class="summary-card summary-month-revenue ds-stat ds-stat--info"><span class="ds-stat__icon" aria-hidden="true">📊</span><p class="summary-label" data-i18n="dash_card_month_billed">Monthly billed revenue</p><strong id="dashboardCurrentMonthBilled" class="summary-value">No bill entries</strong><p id="dashboardCurrentMonthBilledPeriod" class="summary-period">Current month bill snapshots</p></article>
-        <article class="summary-card summary-expenses ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">💸</span><p class="summary-label" data-i18n="dash_card_expenses">Recorded expenses · this month</p><strong id="dashboardCurrentExpenses" class="summary-value">No entries</strong><p id="dashboardCurrentExpensesPeriod" class="summary-period">Actual dated expenses only</p></article>
-        <article class="summary-card summary-cash-profit ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">📈</span><p class="summary-label" data-i18n="dash_card_profit">Net cash profit · this month</p><strong id="dashboardCashProfit" class="summary-value">No recorded activity</strong><p id="dashboardCashProfitPeriod" class="summary-period">Actual receipts − recorded expenses</p></article>
-        <article class="summary-card summary-customer-count ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">👥</span><p class="summary-label" data-i18n="dash_card_profiles">Customer profiles</p><strong id="dashboardCustomerCount" class="summary-value">74</strong><p id="dashboardCustomerPeriod" class="summary-period">Roster profiles; subscription state is listed separately</p></article>
-        <article class="summary-card summary-active-customers ds-stat ds-stat--whatsapp"><span class="ds-stat__icon" aria-hidden="true">✅</span><p class="summary-label" data-i18n="dash_card_active">Active subscribers</p><strong id="dashboardActiveCustomers" class="summary-value">0</strong><p id="dashboardActiveCustomersPeriod" class="summary-period">Manual active status · active subscriptions</p></article>
-        <article class="summary-card summary-bill-status ds-stat ds-stat--info"><span class="ds-stat__icon" aria-hidden="true">📑</span><p class="summary-label" data-i18n="dash_card_bill_status">Bill status · this month</p><strong id="dashboardMonthBillStatus" class="summary-value">No bill entries</strong><p id="dashboardMonthBillStatusPeriod" class="summary-period">Paid vs pending bills for current month</p></article>
-        <article class="summary-card summary-new-connections ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">🔌</span><p class="summary-label" data-i18n="dash_card_new_conn">New connections · this month</p><strong id="dashboardNewConnections" class="summary-value">0</strong><p id="dashboardNewConnectionsPeriod" class="summary-period">Connections recorded in current month</p></article>
-        <article class="summary-card summary-velocity ds-stat ds-stat--pending"><span class="ds-stat__icon" aria-hidden="true">⏱️</span>
-          <p class="summary-label" data-i18n="dash_card_velocity">Collection velocity &amp; projection</p>
-          <strong id="dashboardCollectionVelocity" class="summary-value">PKR 0 / day</strong>
-          <p id="dashboardCollectionVelocityPeriod" class="summary-period">Projected month-end closing</p>
-          <div class="velocity-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Collection rate of billed amount" data-i18n-aria-label="dash_velocity_aria">
-            <div id="dashboardVelocityFill" class="velocity-fill" style="width: 0%"></div>
-          </div>
-        </article>
-        <article class="summary-card summary-total-collection ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">🏦</span><p class="summary-label" data-i18n="dash_card_total_coll">Total collection</p><strong id="dashboardTotalCollection" class="summary-value">No payment entries</strong><p id="dashboardTotalCollectionPeriod" class="summary-period">Recorded payments · retained 24-month history</p></article>
-        <article class="summary-card summary-credit ds-stat ds-stat--pending"><span class="ds-stat__icon" aria-hidden="true">💳</span><p class="summary-label" data-i18n="dash_card_credit">Unused prepaid credit</p><strong id="dashboardPendingCredit" class="summary-value">No credit entries</strong><p class="summary-period">Unapplied receipt balance · valid indefinitely · not cash</p></article>
-        <article class="summary-card summary-previous-collection ds-stat ds-stat--info"><span class="ds-stat__icon" aria-hidden="true">🗓️</span><p class="summary-label" data-i18n="dash_card_prev_coll">Previous month’s collection</p><strong id="dashboardPreviousCollection" class="summary-value">No payment entries</strong><p id="dashboardPreviousPeriod" class="summary-period">Payments dated in the previous calendar month</p></article>
-        <article class="summary-card summary-profit ds-stat ds-stat--brand"><span class="ds-stat__icon" aria-hidden="true">💹</span><p class="summary-label" data-i18n="dash_card_exp_profit">Expected monthly package profit</p><strong id="dashboardExpectedProfit" class="summary-value">Not set</strong><p id="dashboardExpectedProfitPeriod" class="summary-period">Selling amount − provider cost · not collected cash profit</p></article>
-        <article class="summary-card summary-provider-cost ds-stat ds-stat--overdue"><span class="ds-stat__icon" aria-hidden="true">🛰️</span><p class="summary-label" data-i18n="dash_card_prov_cost">Expected monthly provider cost</p><strong id="dashboardProviderCost" class="summary-value">Not set</strong><p id="dashboardProviderCostPeriod" class="summary-period">Recurring estimate · not cash paid</p></article>
-      </div>
-      <section class="collection-forecast-section" id="upcomingDuesSection" aria-labelledby="upcomingDuesHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="upcomingDuesHeading" class="collection-forecast-title" data-i18n="dash_upcoming_title">Due in the next seven days</h3>
-              <p class="chart-caption" data-i18n="dash_upcoming_sub">Bills falling due this week, day by day</p>
-            </div>
-            <strong id="dudSevenDayTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="dudSevenDayLine" class="collection-forecast-collected"></p>
-          <div id="dudUpcomingDays" class="collection-forecast-areas"></div>
-          <p id="dudUpcomingEmpty" class="empty-state" hidden data-i18n="dash_upcoming_empty">No dues in the next seven days.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="overdueListSection" aria-labelledby="overdueListHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="overdueListHeading" class="collection-forecast-title" data-i18n="dash_overdue_title">Overdue, oldest first</h3>
-              <p class="chart-caption" data-i18n="dash_overdue_sub">Customers waiting longest, with days overdue and amount</p>
-            </div>
-            <strong id="dolOverdueTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="dolOverdueLine" class="collection-forecast-collected"></p>
-          <ul id="dolOverdueRows" class="provider-cost-list"></ul>
-          <p id="dolOverdueEmpty" class="empty-state" hidden data-i18n="dash_overdue_empty">No overdue dues.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="methodStripSection" aria-labelledby="methodStripHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="methodStripHeading" class="collection-forecast-title" data-i18n="dash_methodstrip_title">Today's collections by method</h3>
-              <p class="chart-caption" data-i18n="dash_methodstrip_sub">Cash in the drawer, money in each wallet</p>
-            </div>
-            <strong id="dmsMethodTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="dmsMethodLine" class="collection-forecast-collected"></p>
-          <ul id="dmsMethodRows" class="provider-cost-list"></ul>
-          <p id="dmsMethodEmpty" class="empty-state" hidden data-i18n="dash_methodstrip_empty">No collections today yet.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="mohallaBarsSection" aria-labelledby="mohallaBarsHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="mohallaBarsHeading" class="collection-forecast-title" data-i18n="dash_mohallabars_title">Dues by mohalla</h3>
-              <p class="chart-caption" data-i18n="dash_mohallabars_sub">Collected and still due, mohalla by mohalla</p>
-            </div>
-            <strong id="mdbMohallaTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="mdbMohallaLine" class="collection-forecast-collected"></p>
-          <div id="mdbMohallaRows" class="collection-forecast-areas"></div>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="collectorCardSection" aria-labelledby="collectorCardHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="collectorCardHeading" class="collection-forecast-title" data-i18n="dash_collectorcard_title">Collections by collector today</h3>
-              <p class="chart-caption" data-i18n="dash_collectorcard_sub">Who brought it in, and what is still open on their round</p>
-            </div>
-            <strong id="clcCollectorTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="clcCollectorLine" class="collection-forecast-collected"></p>
-          <ul id="clcCollectorRows" class="provider-cost-list"></ul>
-          <p id="clcCollectorEmpty" class="empty-state" hidden data-i18n="dash_collectorcard_empty">No collectors yet.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="newCustomersSection" aria-labelledby="newCustomersHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="newCustomersHeading" class="collection-forecast-title" data-i18n="dash_newcustomers_title">New customers this month</h3>
-              <p class="chart-caption" data-i18n="dash_newcustomers_sub">Joined this month, with their package and monthly dues</p>
-            </div>
-            <strong id="ncmNewTotal" class="collection-forecast-pct">0</strong>
-          </div>
-          <p id="ncmNewLine" class="collection-forecast-collected"></p>
-          <ul id="ncmNewRows" class="provider-cost-list"></ul>
-          <p id="ncmNewEmpty" class="empty-state" hidden data-i18n="dash_newcustomers_empty">No new customers this month.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="noPaymentSection" aria-labelledby="noPaymentHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="noPaymentHeading" class="collection-forecast-title" data-i18n="dash_nopayment_title">No payment this month yet</h3>
-              <p class="chart-caption" data-i18n="dash_nopayment_sub">Quiet customers, named before the month ends</p>
-            </div>
-            <strong id="nqpNoPaymentTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="nqpNoPaymentLine" class="collection-forecast-collected"></p>
-          <ul id="nqpNoPaymentRows" class="provider-cost-list"></ul>
-          <p id="nqpNoPaymentEmpty" class="empty-state" hidden data-i18n="dash_nopayment_empty">Everyone has paid this month.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="monthCompareSection" aria-labelledby="monthCompareHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="monthCompareHeading" class="collection-forecast-title" data-i18n="dash_monthcompare_title">This month vs last month</h3>
-              <p class="chart-caption" data-i18n="dash_monthcompare_sub">Collections beside last month, in rupees</p>
-            </div>
-            <strong id="mvcMonthTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="mvcMonthLine" class="collection-forecast-collected"></p>
-          <p id="mvcMonthDiff" class="collection-forecast-collected"></p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="monthTargetSection" aria-labelledby="monthTargetHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="monthTargetHeading" class="collection-forecast-title" data-i18n="dash_monthtarget_title">Month target progress</h3>
-              <p class="chart-caption" data-i18n="dash_monthtarget_sub">Target beside collected so far, in rupees</p>
-            </div>
-            <strong id="mtpTargetTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="mtpTargetLine" class="collection-forecast-collected"></p>
-          <p id="mtpTargetRemaining" class="collection-forecast-collected"></p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="cashInHandSection" aria-labelledby="cashInHandHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="cashInHandHeading" class="collection-forecast-title" data-i18n="dash_cashinhand_title">Cash in hand now</h3>
-              <p class="chart-caption" data-i18n="dash_cashinhand_sub">Cash collected, not yet handed over</p>
-            </div>
-            <strong id="cihCashTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="cihCashLine" class="collection-forecast-collected"></p>
-          <p id="cihCashEmpty" class="empty-state" hidden data-i18n="dash_cashinhand_empty">No cash in hand.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="pendingClearanceSection" aria-labelledby="pendingClearanceHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="pendingClearanceHeading" class="collection-forecast-title" data-i18n="dash_pendingclear_title">Pending clearance</h3>
-              <p class="chart-caption" data-i18n="dash_pendingclear_sub">Cheque and transfer payments not yet cleared</p>
-            </div>
-            <strong id="pclPendingTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="pclPendingLine" class="collection-forecast-collected"></p>
-          <p id="pclPendingEmpty" class="empty-state" hidden data-i18n="dash_pendingclear_empty">No payments waiting on clearance.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="creditBalancesSection" aria-labelledby="creditBalancesHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="creditBalancesHeading" class="collection-forecast-title" data-i18n="dash_creditbal_title">Credit balances</h3>
-              <p class="chart-caption" data-i18n="dash_creditbal_sub">Credit customers hold with the shop</p>
-            </div>
-            <strong id="crbCreditTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="crbCreditLine" class="collection-forecast-collected"></p>
-          <p id="crbCreditEmpty" class="empty-state" hidden data-i18n="dash_creditbal_empty">No credit outstanding.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="refundsSection" aria-labelledby="refundsHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="refundsHeading" class="collection-forecast-title" data-i18n="dash_refunds_title">Refunds this month</h3>
-              <p class="chart-caption" data-i18n="dash_refunds_sub">Refunds given this month</p>
-            </div>
-            <strong id="rfdRefundTotal" class="collection-forecast-pct">PKR 0</strong>
-          </div>
-          <p id="rfdRefundLine" class="collection-forecast-collected"></p>
-          <p id="rfdRefundEmpty" class="empty-state" hidden data-i18n="dash_refunds_empty">No refunds this month.</p>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="printSummarySection" aria-labelledby="printSummaryHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="printSummaryHeading" class="collection-forecast-title" data-i18n="dash_printsummary_title">One-page summary</h3>
-              <p class="chart-caption" data-i18n="dash_printsummary_sub">Today, this month, and what is still owed — in PKR</p>
-            </div>
-            <button id="ppsPrintBtn" class="secondary-button btn-sm" type="button" data-i18n="dash_printsummary_print">🖨️ Print summary</button>
-          </div>
-          <p id="ppsPrintDate" class="collection-forecast-collected"></p>
-          <ul class="provider-cost-list">
-            <li><span data-i18n="dash_printsummary_today">Today's collections</span> <strong id="ppsTodayCollected">PKR 0</strong></li>
-            <li><span data-i18n="dash_printsummary_month">This month's collections</span> <strong id="ppsMonthCollected">PKR 0</strong></li>
-            <li><span data-i18n="dash_printsummary_dues">Total dues</span> <strong id="ppsTotalDues">PKR 0</strong></li>
-            <li><span data-i18n="dash_printsummary_overdue">Overdue total</span> <strong id="ppsOverdueTotal">PKR 0</strong></li>
-            <li><span data-i18n="dash_printsummary_cash">Cash in hand</span> <strong id="ppsCashInHand">PKR 0</strong></li>
-          </ul>
-        </div>
-      </section>
-      <section class="collection-forecast-section" id="collectionForecastSection" aria-labelledby="collectionForecastHeading">
-        <div class="collection-forecast-card">
-          <div class="collection-forecast-header">
-            <div>
-              <h3 id="collectionForecastHeading" class="collection-forecast-title" data-i18n="fcst_title">Monthly Collection Thermometer</h3>
-              <p class="chart-caption" data-i18n="fcst_sub">Collected so far vs this month’s bills + arrears carried in</p>
-            </div>
-            <strong id="collectionForecastPct" class="collection-forecast-pct">0%</strong>
-          </div>
-          <div class="fcst-thermo" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Collection progress" data-i18n-aria-label="fcst_bar_aria">
-            <div id="collectionForecastFill" class="fcst-thermo-fill" style="width: 0%"></div>
-          </div>
-          <p id="collectionForecastCollected" class="collection-forecast-collected">PKR 0 of PKR 0 collected</p>
-          <p id="collectionForecastSplit" class="collection-forecast-line"></p>
-          <p id="collectionForecastRunRate" class="collection-forecast-line"></p>
-          <p id="collectionForecastPace" class="collection-forecast-line"></p>
-          <p id="collectionForecastEmpty" class="empty-state" hidden data-i18n="fcst_no_target">No bills for this month yet — the thermometer fills as bills are generated.</p>
-          <h4 class="collection-forecast-areas-title" data-i18n="fcst_areas_title">Area-wise progress</h4>
-          <div id="collectionForecastAreas" class="collection-forecast-areas"></div>
-        </div>
-      </section>
-      <section class="expansion-estimator-section" id="expansionEstimatorSection" aria-labelledby="expansionEstimatorHeading">
-        <div class="expansion-estimator-card">
-          <div class="expansion-estimator-head">
-            <div>
-              <h3 id="expansionEstimatorHeading" class="expansion-estimator-title" data-i18n="xest_title">New Street Expansion Calculator</h3>
-              <p class="chart-caption" data-i18n="xest_sub">Plan a new gali / mohalla: plant cost, connection-fee offset, break-even months and each partner’s capital share — figures only, nothing is saved to the ledger</p>
-            </div>
-            <button id="expansionEstimatorOpenBtn" class="primary-button" type="button" aria-haspopup="dialog" aria-controls="expansionEstimatorModal" data-i18n="xest_open_btn">🧮 Plan Expansion</button>
-          </div>
-        </div>
-      </section>
-      <section class="multi-month-matrix-section" id="multiMonthMatrixSection" aria-labelledby="multiMonthMatrixHeading">
-        <div class="mmx-card">
-          <div class="mmx-header">
-            <div>
-              <h3 id="multiMonthMatrixHeading" class="mmx-title" data-i18n="mmx_title">Growth &amp; Finance Matrix</h3>
-              <p class="chart-caption" data-i18n="mmx_sub">Subscribers, billing, collection, expenses, profit and downtime — month by month, from the same engines as their own screens</p>
-            </div>
-            <div class="mmx-controls">
-              <label class="mmx-control-label"><span data-i18n="mmx_range_label">Compare</span>
-                <select id="multiMonthRangeSelect" class="mmx-select">
-                  <option value="3" data-i18n="mmx_range_3">Last 3 months</option>
-                  <option value="6" data-i18n="mmx_range_6">Last 6 months</option>
-                  <option value="12" data-i18n="mmx_range_12">Last 12 months</option>
-                </select>
-              </label>
-              <label class="mmx-control-label"><span data-i18n="mmx_end_label">Ending month</span>
-                <select id="multiMonthEndSelect" class="mmx-select"></select>
-              </label>
-            </div>
-          </div>
-          <div class="mmx-table-wrap">
-            <table class="mmx-table" id="multiMonthMatrixTable"></table>
-          </div>
-          <div class="mmx-cards" id="multiMonthMatrixCards"></div>
-          <p id="multiMonthMatrixEmpty" class="empty-state" hidden data-i18n="mmx_empty">No billing, connections, expenses or downtime recorded in this range yet.</p>
-          <p class="mmx-note" data-i18n="mmx_note">Net Profit follows the P&amp;L screen (cash received in the month − expenses). Collected follows the billing engine (share of the month’s bills settled). Churned counts customers still archived whose archive date falls in that month.</p>
-        </div>
-      </section>
-      <section class="mohalla-dashboard-section" id="mohallaDashboardSection" aria-labelledby="mohallaDashboardHeading">
-        <div class="mohalla-dashboard-heading">
-          <p class="eyebrow" data-i18n="dash_mohalla_eyebrow">AREA / MOHALLA</p>
-          <h3 id="mohallaDashboardHeading" data-i18n="dash_mohalla_title">Mohalla Dashboard</h3>
-          <p class="chart-caption" data-i18n="dash_mohalla_sub">Live user count in every mohalla that has customers. Tap a card to open exactly those customers.</p>
-        </div>
-        <div id="mohallaDashboardCards" class="mohalla-cards-grid"></div>
-        <p id="mohallaDashboardEmpty" class="empty-state" hidden data-i18n="dash_mohalla_empty">No mohalla users yet — cards appear here as soon as a customer has a mohalla set.</p>
-      </section>
-      <div class="dashboard-target-section" id="dashboardTargetSection" style="margin: 14px 0;">
-        <article class="dashboard-chart-card chart-card-target">
-          <div class="chart-card-header chart-card-header-flex">
-            <div>
-              <h4 class="chart-title" data-i18n="dash_target_title">Monthly Collection vs Target</h4>
-              <p class="chart-subtitle" data-i18n="dash_target_sub">Target achievement, daily run-rate, and month-end projection</p>
-            </div>
-            <button id="openCollectionTargetBtn" class="chart-action-link" type="button" aria-haspopup="dialog" data-i18n="dash_btn_target">Set / Manage Target</button>
-          </div>
-          <div id="dashboardTargetChart" class="chart-svg-container" role="img" aria-label="Monthly collection vs target radial gauge" data-i18n-aria-label="dash_target_gauge_aria"></div>
-        </article>
-        <article class="dashboard-chart-card chart-card-worklists" id="worklistsSummaryCard" style="margin-top: 14px;">
-          <div class="worklists-card-header">
-            <div>
-              <h4 class="chart-title" data-i18n="dash_worklists_title">Disconnection &amp; Reconnection Worklists</h4>
-              <p class="chart-subtitle" data-i18n="dash_worklists_sub">Field service actions: overdue suspensions &amp; paid restorations</p>
-            </div>
-            <button id="openWorklistsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog" data-i18n="dash_btn_worklists">View Worklists / فہرست کھولیں</button>
-          </div>
-          <div class="worklists-card-kpis">
-            <div class="worklists-card-kpi">
-              <span class="worklists-card-kpi-label" data-i18n="dash_worklists_disc">To Disconnect</span>
-              <span id="worklistsSummaryDiscCount" class="worklists-card-kpi-value disc">0</span>
-              <span id="worklistsSummaryDiscAmount" class="worklists-card-kpi-sub">PKR 0 dues (&gt; 10d)</span>
-            </div>
-            <div class="worklists-card-kpi">
-              <span class="worklists-card-kpi-label" data-i18n="dash_worklists_rec">To Reconnect</span>
-              <span id="worklistsSummaryRecCount" class="worklists-card-kpi-value rec">0</span>
-              <span class="worklists-card-kpi-sub" data-i18n="dash_worklists_ready">Dues cleared &middot; ready</span>
-            </div>
-          </div>
-        </article>
-      </div>
+      <!-- Home Dashboard overhaul: the duplicate bottom KPI grid is
+           GONE. Its duplicate metric cards are deleted (each figure
+           lives once in the KPI strip above); its registry and
+           operations cards moved to the Collect, Reports and More
+           tabs; QC-5/QC-6 moved to Collect; Daily Roznamcha merged
+           with Daily Register & Closing into one card in Reports. -->
+      <!-- Home Dashboard overhaul: the collection sections that lived
+           here (Due in the next seven days, Overdue oldest first,
+           Today's collections by method, Dues by mohalla, Collections
+           by collector) moved to the Collect tab (transactionsView). -->
+      <!-- Home Dashboard overhaul: New customers this month moved to
+           Reports (billingReportsView). -->
+      <!-- Home Dashboard overhaul: No payment this month yet moved to
+           the Collect tab (transactionsView). -->
+      <!-- Home Dashboard overhaul: This month vs last month moved to
+           Reports (billingReportsView). -->
+      <!-- Home Dashboard overhaul: the "Monthly Collection vs Target"
+           gauge card is DELETED (resolved — the gauge showed "No
+           Collection Target Set" and its 62% was collection-vs-billed,
+           not a target; the month KPI strip above already carries the
+           honest collection-vs-billed figure with a progress bar).
+           The Cash in Hand section is DELETED too — its ids moved
+           into the KPI strip (Cash in Hand card), so the section
+           would have duplicated them. -->
+      <!-- Home Dashboard overhaul: Pending clearance, Credit balances
+           and Refunds moved to the Collect tab (transactionsView). -->
+      <!-- Home Dashboard overhaul: One-page summary, Monthly
+           Collection Thermometer, New Street Expansion Calculator and
+           Growth & Finance Matrix moved to Reports
+           (billingReportsView). -->
+      <!-- Home Dashboard overhaul: Mohalla Dashboard moved to the
+           Collect tab (transactionsView) — the single unified mohalla
+           view, grouped by the canonical mohalla map. -->
+      <!-- Home Dashboard overhaul: the Monthly Collection vs Target
+           radial chart moved to Reports (its Set / Manage Target
+           button still opens the target dialog from there); the
+           Disconnection & Reconnection Worklists moved to Collect. -->
       <section class="recent-payments-section" aria-labelledby="recentPaymentsHeading">
         <div class="recent-payments-card">
           <div class="recent-payments-header">
@@ -1110,99 +522,23 @@
           <button id="expiredHoldsResumeBtn" class="primary-button expired-holds-resume-btn" type="button" data-i18n="exphold_resume_btn">▶️ Resume Selected &amp; Copy MikroTik Enable Script</button>
         </div>
       </section>
-      <section class="collection-velocity-section" aria-labelledby="collectionVelocityHeading">
-        <div class="collection-velocity-card">
-          <div class="collection-velocity-header">
-            <h3 id="collectionVelocityHeading" class="collection-velocity-title" data-i18n="vel_title">📈 Collection Velocity</h3>
-            <span id="collectionVelocityTotal" class="collection-velocity-total"></span>
-          </div>
-          <p class="collection-velocity-sub" data-i18n="vel_sub">When this month’s cash arrived — every bucket compared with the same days last month.</p>
-          <div id="collectionVelocityBody"></div>
-        </div>
-      </section>
-      <section class="upsell-section" aria-labelledby="upsellHeading">
-        <div class="upsell-card">
-          <div class="upsell-header">
-            <h3 id="upsellHeading" class="upsell-title" data-i18n="upsell_title">🚀 Package Upgrade Suggestions</h3>
-            <span id="upsellTotalGain" class="upsell-total"></span>
-          </div>
-          <p class="upsell-sub" data-i18n="upsell_sub">Active customers on 5 Mbps or slower who reported slow speed or pay on time — one tap sends the upgrade offer on WhatsApp.</p>
-          <ul id="upsellList" class="upsell-list" aria-label="Package upgrade candidates"></ul>
-        </div>
-      </section>
-      <section class="fuel-efficiency-section" aria-labelledby="fuelEfficiencyHeading">
-        <div class="fuel-efficiency-card">
-          <div class="fuel-efficiency-header">
-            <h3 id="fuelEfficiencyHeading" class="fuel-efficiency-title" data-i18n="fuel_title">⛽ Fuel Cost per Field Job</h3>
-            <span id="fuelEfficiencyCost" class="fuel-efficiency-cost"></span>
-          </div>
-          <p class="fuel-efficiency-sub" data-i18n="fuel_sub">Monthly Roznamcha petrol divided by field jobs (collections + Saad visits + resolved tickets). Days with petrol but no recorded field activity are flagged.</p>
-          <label class="fuel-efficiency-month"><span data-i18n="fuel_month_label">Month</span><input id="fuelMonthInput" type="month"></label>
-          <div id="fuelEfficiencyBody"></div>
-        </div>
-      </section>
-      <section class="winback-section" aria-labelledby="winbackHeading">
-        <div class="winback-card">
-          <div class="winback-header">
-            <h3 id="winbackHeading" class="winback-title" data-i18n="winback_title">📥 Disconnect Reasons & Win-Back</h3>
-            <span id="winbackQueueCount" class="winback-total"></span>
-          </div>
-          <p class="winback-sub" data-i18n="winback_sub">Why customers left, and the ones you marked for a free-reconnection offer — one tap opens the WhatsApp draft, nothing sends itself.</p>
-          <div id="winbackAnalytics" class="winback-analytics"></div>
-          <ul id="winbackList" class="winback-list" aria-label="Win-back offer queue"></ul>
-        </div>
-      </section>
-      <section class="upsell-section loyalty-section" aria-labelledby="loyaltyHeading">
-        <div class="upsell-card">
-          <div class="upsell-header">
-            <h3 id="loyaltyHeading" class="upsell-title" data-i18n="loyalty_title">⚠️ At-Risk Loyal Customers</h3>
-            <button class="help-info-btn" type="button" data-help="loyalty" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
-            <span id="loyaltyAtRiskCount" class="upsell-total"></span>
-          </div>
-          <p class="upsell-sub" data-i18n="loyalty_sub">Customers with 1+ year of service who logged 2+ complaints this month or lost 12+ hours to downtime — a personal check-in can save them.</p>
-          <ul id="loyaltyAtRiskList" class="upsell-list" aria-label="Loyal customers at risk"></ul>
-        </div>
-      </section>
-      <section class="revleak-section" aria-labelledby="revenueLeakHeading">
-        <div class="revleak-card">
-          <div class="revleak-header">
-            <h3 id="revenueLeakHeading" class="revleak-title" data-i18n="revleak_title">🚨 Revenue Leak Audit</h3>
-            <button class="help-info-btn" type="button" data-help="revenue_leak" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
-            <span id="revenueLeakTotal" class="revleak-total"></span>
-          </div>
-          <p class="revleak-sub" data-i18n="revleak_sub">Active connections with a zero rate, expired vacation holds, or no bill in the current cycle — read-only audit, nothing is changed.</p>
-          <ul id="revenueLeakList" class="revleak-list" aria-label="Revenue leak audit"></ul>
-        </div>
-      </section>
+      <!-- Home Dashboard overhaul: Collection Velocity, Package
+           Upgrade Suggestions, Fuel Cost per Field Job, Disconnect
+           Reasons & Win-Back, At-Risk Loyal Customers and Revenue
+           Leak Audit moved to Reports (billingReportsView) — the five
+           zero-candidate audit cards live there, collapsing to one
+           "✅ All 5 Audits Clear" pill when every count is 0. -->
       <section class="partner-digest-section" aria-labelledby="partnerDigestHeading">
         <div class="partner-digest-card">
           <div class="partner-digest-header">
             <h3 id="partnerDigestHeading" class="partner-digest-title" data-i18n="digest_title">📲 Daily Partner Digest</h3>
-            <button id="copyPartnerDigestBtn" class="partner-digest-copy" type="button" data-i18n="digest_copy">📲 Copy Daily Partner Digest</button>
           </div>
           <p class="partner-digest-sub" data-i18n="digest_sub">One tap copies today’s summary for the partners — direct cash, shop unsettled cash, roznamcha drawer, remaining defaulters and today’s complaints.</p>
         </div>
       </section>
-      <section class="hwaudit-section" aria-labelledby="hwauditHeading">
-        <div class="hwaudit-card">
-          <div class="hwaudit-header">
-            <h3 id="hwauditHeading" class="hwaudit-title" data-i18n="hwaudit_title">🔦 Hardware / Optical Bottleneck Audit</h3>
-            <span id="hwauditCount" class="hwaudit-count"></span>
-          </div>
-          <p class="hwaudit-sub" data-i18n="hwaudit_sub">Active customers on 15 Mbps or faster whose last optical RX reading is below -26.0 dBm — the line likely cannot deliver the package speed. Slow-speed complaint counts are shown as supporting evidence.</p>
-          <ul id="hwauditList" class="hwaudit-list" aria-label="Hardware and optical bottleneck suspects"></ul>
-        </div>
-      </section>
-      <section class="field-dispatch-section" aria-labelledby="fieldDispatchHeading">
-        <div class="field-dispatch-card">
-          <div class="field-dispatch-header">
-            <h3 id="fieldDispatchHeading" class="field-dispatch-title" data-i18n="fdisp_title">🧰 Zone Field Dispatch Board</h3>
-            <span id="fieldDispatchTotal" class="field-dispatch-total"></span>
-          </div>
-          <p class="field-dispatch-sub" data-i18n="fdisp_sub">Open complaints, tickets, installations, pending works and hardware recovery — grouped by mohalla, ready to send to the field.</p>
-          <div id="fieldDispatchList" class="field-dispatch-list"></div>
-        </div>
-      </section>
+      <!-- Home Dashboard overhaul: Hardware / Optical Bottleneck
+           Audit moved to Reports; Zone Field Dispatch Board moved to
+           the Collect tab (transactionsView). -->
       <section id="powerOutageSection" class="power-outage-section" aria-labelledby="powerOutageHeading" hidden>
         <div class="power-outage-card">
           <div class="power-outage-header">
@@ -1945,9 +1281,8 @@
         </summary>
       <section class="provider-cost-breakdown" aria-labelledby="providerCostBreakdownHeading"><div><p class="eyebrow" data-i18n="dash_prov_eyebrow">RECURRING ESTIMATE</p><h3 id="providerCostBreakdownHeading" data-i18n="dash_prov_heading">Monthly provider cost by ISP (PKR)</h3><p class="provider-cost-explainer" data-i18n="dash_prov_explainer">Uses each active profile’s saved monthly purchase cost only. Missing costs are excluded; provider names are never guessed.</p></div><ul id="providerCostBreakdownList" class="provider-cost-list"></ul><p id="providerCostBreakdownEmpty" class="provider-cost-empty" hidden data-i18n="dash_prov_empty">No provider-cost entries have been configured.</p></section>
       </details>
-      <section id="ownerCommandCenter" class="owner-command-panel" aria-labelledby="ownerCommandHeading"><div class="owner-command-heading"><div><p class="eyebrow" data-i18n="dash_owner_eyebrow">LOCAL-ONLY · READ-ONLY ANSWERS</p><h3 id="ownerCommandHeading" data-i18n="dash_owner_heading">Owner Command Center</h3><p data-i18n="dash_owner_note">Ask about saved bills, receipts, customers and expenses. Nothing is edited by a question.</p></div><span class="local-only-badge" data-i18n="dash_owner_badge">Works offline</span></div><form id="ownerCommandForm" class="owner-command-form"><label class="sr-only" for="ownerCommandInput" data-i18n="dash_owner_input_label">Ask in English, Roman Urdu or Urdu</label><input id="ownerCommandInput" type="search" autocomplete="off" placeholder="October collection? · Ali ka balance? · آج کی collection؟" data-i18n-placeholder="dash_owner_placeholder"><button id="ownerVoiceButton" class="secondary-button" type="button" data-i18n="dash_owner_voice_btn">Voice · on-device only</button><button class="primary-button" type="submit" data-i18n="dash_owner_ask">Ask</button><label class="owner-voice-language" for="ownerVoiceLanguage">Voice language<select id="ownerVoiceLanguage"><option value="en-US">English</option><option value="ur-PK">Urdu</option></select></label></form><p id="ownerVoiceStatus" class="owner-command-note" role="status" aria-live="polite" data-i18n="dash_owner_voice_note">Voice starts only if this browser confirms an installed local speech model. Roman Urdu typed commands remain available.</p><div id="ownerCommandAnswer" class="owner-command-answer" role="status" aria-live="polite"></div></section>
-      <p id="dashboardExcludedAmounts" class="dashboard-exclusions" role="status">Unset selling amounts and incomplete package-profit profiles are excluded from their respective totals.</p>
-
+      <!-- Home Dashboard overhaul: Owner Command Center moved to the
+           More tab (mobileMoreMenu). -->
       <dialog id="dashboardAreaModal" class="dashboard-modal" aria-labelledby="dashboardAreaModalTitle">
         <div class="dashboard-modal-card">
           <div class="dashboard-modal-header">
@@ -7752,6 +7087,230 @@
             </div>
         </div>
       </section>
+      <!-- Home Dashboard overhaul: registry & operations cards moved
+           here from Home. They render from the same guarded dashboard
+           writers; only their parent changed. -->
+      <article class="summary-card summary-billing-cycle ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_cycle">📅 Monthly Billing Cycle</p>
+          <strong id="dashboardBillingCycleValue" class="summary-value">No cycle run yet</strong>
+          <p id="dashboardBillingCyclePeriod" class="summary-period">Run a monthly cycle with arrears &amp; advance</p>
+          <div id="billingCycleSummary" class="billing-cycle-summary"></div>
+          <div id="billingCycleForecast" class="billing-cycle-summary billing-cycle-forecast"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openBillingCycleModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_billing_cycle">📅 Billing Cycle</button>
+            <button id="openMonthEndWizardBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_month_end">🧾 Month-End Check</button>
+          </div>
+        </article>
+        <article class="summary-card summary-complaint-register ds-stat ds-stat--overdue">
+          <p class="summary-label" data-i18n="dash_card_complaint">🛠️ Complaint Register</p>
+          <strong id="dashboardComplaintValue" class="summary-value">No complaints</strong>
+          <p id="dashboardComplaintPeriod" class="summary-period">Open faults and resolution downtime</p>
+          <div id="complaintRegisterSummary" class="complaint-register-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openComplaintRegisterModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_complaint">🛠️ Complaint Register</button>
+            <button id="openPostRepairCheckinModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="prc_open_btn">🤝 Post-Repair Check-Ins</button>
+          </div>
+        </article>
+        <article class="summary-card summary-field-tickets ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_tickets">🔧 Field Tickets</p>
+          <strong id="dashboardFieldTicketsValue" class="summary-value">No field tickets</strong>
+          <p id="dashboardFieldTicketsPeriod" class="summary-period">Lineman worklist and material use</p>
+          <div id="fieldTicketsSummary" class="field-tickets-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openFieldTicketsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_tickets">🔧 Field Tickets</button>
+          </div>
+        </article>
+        <article class="summary-card summary-downtime-analytics ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_downtime">📉 Downtime Analytics</p>
+          <strong id="dashboardDowntimeValue" class="summary-value">No downtime</strong>
+          <p id="dashboardDowntimePeriod" class="summary-period">Per-customer and network outage hours</p>
+          <div id="downtimeAnalyticsSummary" class="downtime-analytics-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openDowntimeAnalyticsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_downtime">📉 Downtime Analytics</button>
+          </div>
+        </article>
+        <article class="summary-card summary-upstream-sla ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</p>
+          <strong id="dashboardUpslaValue" class="summary-value">No upstream outages</strong>
+          <p id="dashboardUpslaPeriod" class="summary-period">Uplink downtime, availability and rebate claim for this month</p>
+          <div id="upstreamSlaSummary" class="upstream-sla-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openUpstreamSlaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_upsla">📡 Upstream SLA & Rebate</button>
+          </div>
+        </article>
+
+        <article class="summary-card summary-fleet-uptime ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="upt_fleet_title">📶 Fleet Uptime</p>
+          <strong id="dashboardFleetUptimeValue" class="summary-value">—</strong>
+          <p id="dashboardFleetUptimePeriod" class="summary-period">Recorded uptime across subscribers this month</p>
+          <div id="fleetUptimeSummary" class="fleet-uptime-summary"></div>
+        </article>
+
+        <article class="summary-card summary-splitter-map ds-stat ds-stat--brand">
+          <p class="summary-label" data-i18n="dash_card_splitter">🔌 Splitter Port Map</p>
+          <strong id="dashboardSplitterValue" class="summary-value">No splitter boxes</strong>
+          <p id="dashboardSplitterPeriod" class="summary-period">Splitter box port map and RX signal health</p>
+          <div id="splitterMapSummary" class="splitter-map-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSplitterMapModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_splitter">🔌 Splitter Port Map</button>
+            <button id="openDarkFiberModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_dark_fiber">🧵 Dark Fiber Finder</button>
+            <button id="openSpliceClosureModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="jcmap_open_btn">🧵 JC Splice Map</button>
+            <button id="openOpticalBudgetCalcBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="obcalc_button">📐 Link Budget</button>
+          </div>
+        </article>
+
+        <article class="summary-card summary-pon-capacity ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_poncap">📡 PON Port Capacity</p>
+          <strong id="dashboardPonCapacityValue" class="summary-value">No PON ports recorded</strong>
+          <p id="dashboardPonCapacityPeriod" class="summary-period">OLT PON port load, sold Mbps and saturation alerts</p>
+          <div id="ponCapacitySummary" class="pon-capacity-summary"></div>
+        </article>
+
+        <article class="summary-card summary-monthly-complaint-report ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_monthly_report">📋 Monthly Complaint Report</p>
+          <strong id="dashboardMonthlyReportValue" class="summary-value">No complaints</strong>
+          <p id="dashboardMonthlyReportPeriod" class="summary-period">4-part monthly report: summary, customers, causes, full log</p>
+          <div id="monthlyComplaintReportSummary" class="monthly-complaint-report-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openMonthlyComplaintReportModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_monthly_report">📋 Monthly Report</button>
+          </div>
+        </article>
+        <article class="summary-card summary-inventory-book ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_stock">📦 Stock Book</p>
+          <strong id="dashboardInventoryValue" class="summary-value">No stock recorded</strong>
+          <p id="dashboardInventoryPeriod" class="summary-period">Fiber, routers, converters &amp; field stock</p>
+          <div id="inventoryBookSummary" class="inventory-book-summary"></div>
+          <div id="fieldBagSummary" class="inventory-book-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openInventoryBookModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_stock">📦 Stock Book</button>
+            <button id="openFieldBagModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_field_bag">🎒 Field Bag</button>
+            <button id="openSupplierKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="supkhata_btn_open">🏭 Supplier Khata</button>
+          </div>
+        </article>
+        <article class="summary-card summary-fiber-drums ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_drum_card">🧵 Fiber Drums</p>
+          <strong id="dashboardFiberDrumValue" class="summary-value">No drums tracked</strong>
+          <p id="dashboardFiberDrumPeriod" class="summary-period">Fiber drums &amp; jacket-mark cuts</p>
+          <div id="fiberDrumSummary" class="fiber-drum-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openFiberDrumModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_drum_btn">🧵 Drum Tracker</button>
+          </div>
+        </article>
+        <article class="summary-card summary-outage-impact ds-stat ds-stat--overdue">
+          <p class="summary-label" data-i18n="dash_card_outage">⚡ Feeder Outage Impact</p>
+          <strong id="dashboardOutageValue" class="summary-value">No feeder links</strong>
+          <p id="dashboardOutagePeriod" class="summary-period">Link customers to feeders to trace outages</p>
+          <div id="outageImpactSummary" class="outage-impact-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openOutageImpactModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_trace_outage">⚡ Trace Outage Impact</button>
+            <button id="openEmergencyRunbookBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="runbook_open_btn">🚨 Emergency Runbook</button>
+            <button id="openStormInspectionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="storm_btn_open">🌦️ Post-Storm Checklist</button>
+          </div>
+        </article>
+        <article class="summary-card summary-daisy-chain ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</p>
+          <strong id="dashboardDaisyChainValue" class="summary-value">No feeder chains</strong>
+          <p id="dashboardDaisyChainPeriod" class="summary-period">Chain depth per zone, Hop 3+ warnings</p>
+          <div id="daisyChainSummary" class="daisy-chain-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openDaisyChainTreeModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_daisychain">🌳 Daisy-Chain Tree</button>
+          </div>
+        </article>
+        <article class="summary-card summary-saad-visits ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_saad">🔧 Saad Visit Log</p>
+          <strong id="dashboardSaadVisitsValue" class="summary-value">No visits yet</strong>
+          <p id="dashboardSaadVisitsPeriod" class="summary-period">Saad field visits, hours &amp; payments</p>
+          <div id="saadVisitsSummary" class="saad-visits-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSaadVisitsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_saad_visits">🔧 Saad Visits</button>
+          </div>
+        </article>
+        <article class="summary-card summary-pending-works ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_pending">📌 Pending Works</p>
+          <strong id="dashboardPendingWorksValue" class="summary-value">Nothing pending</strong>
+          <p id="dashboardPendingWorksPeriod" class="summary-period">Owner notes &amp; reminders</p>
+          <div id="pendingWorksSummary" class="pending-works-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPendingWorksModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_pending">📌 Pending Works</button>
+          </div>
+        </article>
+        <article class="summary-card summary-pole-landmark ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_pole">📍 Pole &amp; Landmark Directory</p>
+          <strong id="dashboardPoleLandmarkValue" class="summary-value">No poles mapped</strong>
+          <p id="dashboardPoleLandmarkPeriod" class="summary-period">Street pole, landmark &amp; drop-wire directory</p>
+          <div id="poleLandmarkSummary" class="pole-landmark-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPoleLandmarkModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cheatsheet">📍 Zone Lineman Cheat-Sheet</button>
+          </div>
+        </article>
+        <article class="summary-card summary-pole-registry ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_polereg">🌲 Pole Registry</p>
+          <strong id="dashboardPoleRegistryValue" class="summary-value">No poles registered</strong>
+          <p id="dashboardPoleRegistryPeriod" class="summary-period">Street pole assets &amp; attached drops</p>
+          <div id="poleRegistrySummary" class="pole-registry-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPoleRegistryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_polereg">🌲 Pole Registry</button>
+          </div>
+        </article>
+        <article class="summary-card summary-group-billing ds-stat ds-stat--brand">
+          <p class="summary-label" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</p>
+          <strong id="dashboardGroupBillingValue" class="summary-value">No groups yet</strong>
+          <p id="dashboardGroupBillingPeriod" class="summary-period">Family / landlord groups</p>
+          <div id="groupBillingSummary" class="group-billing-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openGroupBillingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_group">👨‍👩‍👧 Group Billing</button>
+          </div>
+        </article>
+        <article class="summary-card summary-hardware-recovery ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</p>
+          <strong id="dashboardHardwareRecoveryValue" class="summary-value">Nothing pending</strong>
+          <p id="dashboardHardwareRecoveryPeriod" class="summary-period">ISP-owned hardware at disconnected houses</p>
+          <div id="hardwareRecoverySummary" class="hardware-recovery-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openHardwareRecoveryModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_recovery">📦 Pending Hardware Recovery</button>
+          </div>
+        </article>
+        <article class="summary-card summary-system-health ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_health">🩺 System Health</p>
+          <strong id="dashboardSystemHealthValue" class="summary-value">No records yet</strong>
+          <p id="dashboardSystemHealthPeriod" class="summary-period">All ledgers · counts · storage size</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSystemHealthModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_health">🩺 Health Center</button>
+          </div>
+        </article>
+        <article class="summary-card summary-receipt-verify ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="rverify_card">🔎 Receipt Verification</p>
+          <strong class="summary-value" data-i18n="rverify_card_value">VER code check</strong>
+          <p class="summary-period" data-i18n="rverify_card_period">Confirm a printed receipt is genuine and not voided</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openReceiptVerifyModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="rverify_btn">🔎 Verify Receipt</button>
+          </div>
+        </article>
+        <article class="summary-card summary-field-tools ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_tools">🔧 Field Tools</p>
+          <strong id="dashboardToolsValue" class="summary-value">No tools registered</strong>
+          <p id="dashboardToolsPeriod" class="summary-period">Splicer · OTDR · cleaver custody</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openToolCustodyModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_tools">🔧 Tool Register</button>
+          </div>
+        </article>
+        <article class="summary-card summary-lineman-scorecard ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_lineman">🧑‍🔧 Lineman Scorecard</p>
+          <strong id="dashboardLinemanScorecardValue" class="summary-value">No field activity</strong>
+          <p id="dashboardLinemanScorecardPeriod" class="summary-period">Resolved complaints · petty cash · collections this month</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openLinemanScorecardModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_lineman">🧑‍🔧 Scorecard</button>
+          </div>
+        </article>
+        <article class="summary-card summary-power-backup ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="pwr_card_label">🔋 Power Backup</p>
+          <strong id="dashboardPowerValue" class="summary-value">No UPS nodes yet</strong>
+          <p id="dashboardPowerPeriod" class="summary-period">UPS runtime &amp; WAPDA outage timer</p>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openPowerBackupModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="pwr_btn_open">🔋 Power Nodes</button>
+          </div>
+        </article>
+        <section id="ownerCommandCenter" class="owner-command-panel" aria-labelledby="ownerCommandHeading"><div class="owner-command-heading"><div><p class="eyebrow" data-i18n="dash_owner_eyebrow">LOCAL-ONLY · READ-ONLY ANSWERS</p><h3 id="ownerCommandHeading" data-i18n="dash_owner_heading">Owner Command Center</h3><p data-i18n="dash_owner_note">Ask about saved bills, receipts, customers and expenses. Nothing is edited by a question.</p></div><span class="local-only-badge" data-i18n="dash_owner_badge">Works offline</span></div><form id="ownerCommandForm" class="owner-command-form"><label class="sr-only" for="ownerCommandInput" data-i18n="dash_owner_input_label">Ask in English, Roman Urdu or Urdu</label><input id="ownerCommandInput" type="search" autocomplete="off" placeholder="October collection? · Ali ka balance? · آج کی collection؟" data-i18n-placeholder="dash_owner_placeholder"><button id="ownerVoiceButton" class="secondary-button" type="button" data-i18n="dash_owner_voice_btn">Voice · on-device only</button><button class="primary-button" type="submit" data-i18n="dash_owner_ask">Ask</button><label class="owner-voice-language" for="ownerVoiceLanguage">Voice language<select id="ownerVoiceLanguage"><option value="en-US">English</option><option value="ur-PK">Urdu</option></select></label></form><p id="ownerVoiceStatus" class="owner-command-note" role="status" aria-live="polite" data-i18n="dash_owner_voice_note">Voice starts only if this browser confirms an installed local speech model. Roman Urdu typed commands remain available.</p><div id="ownerCommandAnswer" class="owner-command-answer" role="status" aria-live="polite"></div></section>
     </div>
     </section>
     <section id="transactionsView" class="transactions-view" aria-labelledby="transactionsHeading" hidden>
@@ -7823,6 +7382,232 @@
           </label>
         </nav>
         <p id="transactionsEmpty" class="transactions-empty" hidden>No recorded payments match these filters.</p>
+        <!-- Home Dashboard overhaul: the field-recovery and collection
+             cards moved here from Home (QC-5 Today's Field Recovery,
+             QC-6 Collection Insights). They render from the same
+             guarded dashboard writers; only their parent changed. -->
+        <article class="summary-card qc5-field-recovery-card ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">🎯</span><p class="summary-label" data-i18n="qc5_card_title">Today's Field Recovery</p><strong class="summary-value qc5-recovered">PKR 0</strong><p class="qc5-line"><span data-i18n="qc5_target_label">Day target</span>: <strong class="qc5-target">PKR 0</strong> <span class="qc5-target-source"></span></p><div class="route-progress-track qc5-progress-track" role="progressbar" aria-label="Field recovery progress" data-i18n-aria-label="qc5_progress_aria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="route-progress-fill qc5-progress-fill" style="width: 0%;"></div></div><p class="qc5-line qc5-progress-text"></p><div class="qc5-field-recovery-tiles"><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_payments_label">Payments</span><strong class="qc5-field-recovery-tile-value qc5-payments">0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_visited_label">Customers visited</span><strong class="qc5-field-recovery-tile-value qc5-visited">0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_remaining_label">Remaining target</span><strong class="qc5-field-recovery-tile-value qc5-remaining">PKR 0</strong></div><div class="qc5-field-recovery-tile"><span class="qc5-field-recovery-tile-label" data-i18n="qc5_pending_label">Pending customers</span><strong class="qc5-field-recovery-tile-value qc5-pending">0</strong></div></div></article>
+        <article class="summary-card qc6-collection-insights-card ds-stat ds-stat--paid"><span class="ds-stat__icon" aria-hidden="true">📈</span><p class="summary-label" data-i18n="qc6_card_title">Collection insights</p><strong class="summary-value qc6-rate">—</strong><p class="qc6-line"><span data-i18n="qc6_rate_period">This month · collected ÷ billed</span>: <span class="qc6-rate-detail"></span></p><div class="qc6-insights-tiles"><div class="qc6-insights-tile"><span class="qc6-insights-tile-label" data-i18n="qc6_avg_label">Average per visit</span><strong class="qc6-insights-tile-value qc6-avg">—</strong><span class="qc6-insights-tile-sub qc6-avg-sub"></span></div><div class="qc6-insights-tile"><span class="qc6-insights-tile-label" data-i18n="qc6_dod_label">Day over day</span><strong class="qc6-insights-tile-value qc6-dod">—</strong><span class="qc6-insights-tile-sub qc6-dod-sub"></span></div></div></article>
+        <!-- Home Dashboard overhaul: Shop Cash Collection & Handover
+             moved here from Home. Full-width on mobile (see CSS). -->
+        <article class="summary-card summary-shop-settlement ds-stat ds-stat--brand">
+          <p class="summary-label" data-i18n="dash_card_shop">🏪 Shop Cash Collection &amp; Handover</p>
+          <strong id="dashboardShopSettlementValue" class="summary-value">No shop collections</strong>
+          <p id="dashboardShopSettlementPeriod" class="summary-period">Unsettled cash sitting at shops</p>
+          <div id="shopSettlementSummary" class="shop-settlement-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openShopSettlementModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_shop_settlement">🏪 Shop Settlement</button>
+            <button id="openCommissionModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="comm_btn_open">💰 Collector Commission</button>
+          </div>
+        </article>
+        <!-- Home Dashboard overhaul: Installation Tracker moved here
+             from Home — it now reads the same open installation queue
+             as the Zone Field Dispatch Board (openInstallRequests), so
+             the "2 pending" board and this card can never disagree. -->
+        <article class="summary-card summary-install-tracker ds-stat ds-stat--brand">
+          <p class="summary-label" data-i18n="dash_card_install">📡 Installation Tracker</p>
+          <strong id="dashboardInstallTrackerValue" class="summary-value">No requests yet</strong>
+          <p id="dashboardInstallTrackerPeriod" class="summary-period">New connection requests &amp; install delays</p>
+          <div id="installTrackerSummary" class="install-tracker-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openInstallTrackerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_install">📡 Installation Tracker</button>
+          </div>
+        </article>
+        <!-- Home Dashboard overhaul: Digital Wallet Ledger + Suspense
+             Payments moved here from Home (wallet verification links
+             to the Payments Inbox; the Inbox cleanup item wires that
+             link next). -->
+        <article class="summary-card summary-wallet-ledger ds-stat ds-stat--info">
+          <p class="summary-label" data-i18n="dash_card_wallet">💳 Digital Wallet Ledger</p>
+          <strong id="dashboardWalletValue" class="summary-value">No digital payments</strong>
+          <p id="dashboardWalletPeriod" class="summary-period">EasyPaisa · JazzCash · NayaPay · Bank Transfer</p>
+          <div id="walletLedgerSummary" class="wallet-ledger-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openWalletLedgerModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_wallet">💳 Wallet Ledger</button>
+          </div>
+        </article>
+        <article class="summary-card summary-suspense-payments ds-stat ds-stat--pending">
+          <p class="summary-label" data-i18n="dash_card_suspense">🧾 Suspense Payments</p>
+          <strong id="dashboardSuspenseValue" class="summary-value">No suspense entries</strong>
+          <p id="dashboardSuspensePeriod" class="summary-period">Unidentified wallet transfers</p>
+          <div id="suspensePaymentsSummary" class="suspense-payments-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openSuspensePaymentsModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_suspense">🧾 Suspense Register</button>
+          </div>
+        </article>
+        <!-- Home Dashboard overhaul: Advance Held moved here from the
+             Home KPI strip (its holders dialog still opens from this
+             card — the wiring is by id in renderDashboard). -->
+        <div class="home-kpi-card kpi-card-advance ds-stat ds-stat--paid" id="kpiCardAdvance" role="button" tabindex="0" aria-haspopup="dialog" aria-controls="advanceHoldersModal">
+          <span class="ds-stat__icon" aria-hidden="true">🏦</span>
+          <span class="ds-stat__body">
+          <span class="home-kpi-label" data-i18n="dash_adv_held_label">Advance Held</span>
+          <strong id="kpiAdvanceHeld" class="home-kpi-val">PKR 0</strong>
+          <span class="home-kpi-sub" id="kpiAdvanceMonthSub">Collected this month: PKR 0</span>
+          </span>
+        </div>
+        <section class="collection-forecast-section" id="upcomingDuesSection" aria-labelledby="upcomingDuesHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="upcomingDuesHeading" class="collection-forecast-title" data-i18n="dash_upcoming_title">Due in the next seven days</h3>
+                <p class="chart-caption" data-i18n="dash_upcoming_sub">Bills falling due this week, day by day</p>
+              </div>
+              <strong id="dudSevenDayTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="dudSevenDayLine" class="collection-forecast-collected"></p>
+            <div id="dudUpcomingDays" class="collection-forecast-areas"></div>
+            <p id="dudUpcomingEmpty" class="empty-state" hidden data-i18n="dash_upcoming_empty">No dues in the next seven days.</p>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="overdueListSection" aria-labelledby="overdueListHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="overdueListHeading" class="collection-forecast-title" data-i18n="dash_overdue_title">Overdue, oldest first</h3>
+                <p class="chart-caption" data-i18n="dash_overdue_sub">Customers waiting longest, with days overdue and amount</p>
+              </div>
+              <strong id="dolOverdueTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="dolOverdueLine" class="collection-forecast-collected"></p>
+            <ul id="dolOverdueRows" class="provider-cost-list"></ul>
+            <p id="dolOverdueEmpty" class="empty-state" hidden data-i18n="dash_overdue_empty">No overdue dues.</p>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="methodStripSection" aria-labelledby="methodStripHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="methodStripHeading" class="collection-forecast-title" data-i18n="dash_methodstrip_title">Today's collections by method</h3>
+                <p class="chart-caption" data-i18n="dash_methodstrip_sub">Cash in the drawer, money in each wallet</p>
+              </div>
+              <strong id="dmsMethodTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="dmsMethodLine" class="collection-forecast-collected"></p>
+            <ul id="dmsMethodRows" class="provider-cost-list"></ul>
+            <p id="dmsMethodEmpty" class="empty-state" hidden data-i18n="dash_methodstrip_empty">No collections today yet.</p>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="mohallaBarsSection" aria-labelledby="mohallaBarsHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="mohallaBarsHeading" class="collection-forecast-title" data-i18n="dash_mohallabars_title">Dues by mohalla</h3>
+                <p class="chart-caption" data-i18n="dash_mohallabars_sub">Collected and still due, mohalla by mohalla</p>
+              </div>
+              <strong id="mdbMohallaTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="mdbMohallaLine" class="collection-forecast-collected"></p>
+            <div id="mdbMohallaRows" class="collection-forecast-areas"></div>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="collectorCardSection" aria-labelledby="collectorCardHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="collectorCardHeading" class="collection-forecast-title" data-i18n="dash_collectorcard_title">Collections by collector today</h3>
+                <p class="chart-caption" data-i18n="dash_collectorcard_sub">Who brought it in, and what is still open on their round</p>
+              </div>
+              <strong id="clcCollectorTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="clcCollectorLine" class="collection-forecast-collected"></p>
+            <ul id="clcCollectorRows" class="provider-cost-list"></ul>
+            <p id="clcCollectorEmpty" class="empty-state" hidden data-i18n="dash_collectorcard_empty">No collectors yet.</p>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="noPaymentSection" aria-labelledby="noPaymentHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="noPaymentHeading" class="collection-forecast-title" data-i18n="dash_nopayment_title">No payment this month yet</h3>
+                <p class="chart-caption" data-i18n="dash_nopayment_sub">Quiet customers, named before the month ends</p>
+              </div>
+              <strong id="nqpNoPaymentTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="nqpNoPaymentLine" class="collection-forecast-collected"></p>
+            <ul id="nqpNoPaymentRows" class="provider-cost-list"></ul>
+            <p id="nqpNoPaymentEmpty" class="empty-state" hidden data-i18n="dash_nopayment_empty">Everyone has paid this month.</p>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="pendingClearanceSection" aria-labelledby="pendingClearanceHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="pendingClearanceHeading" class="collection-forecast-title" data-i18n="dash_pendingclear_title">Pending clearance</h3>
+                <p class="chart-caption" data-i18n="dash_pendingclear_sub">Cheque and transfer payments not yet cleared</p>
+              </div>
+              <strong id="pclPendingTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="pclPendingLine" class="collection-forecast-collected"></p>
+            <p id="pclPendingEmpty" class="empty-state" hidden data-i18n="dash_pendingclear_empty">No payments waiting on clearance.</p>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="creditBalancesSection" aria-labelledby="creditBalancesHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="creditBalancesHeading" class="collection-forecast-title" data-i18n="dash_creditbal_title">Credit balances</h3>
+                <p class="chart-caption" data-i18n="dash_creditbal_sub">Credit customers hold with the shop</p>
+              </div>
+              <strong id="crbCreditTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="crbCreditLine" class="collection-forecast-collected"></p>
+            <p id="crbCreditEmpty" class="empty-state" hidden data-i18n="dash_creditbal_empty">No credit outstanding.</p>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="refundsSection" aria-labelledby="refundsHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="refundsHeading" class="collection-forecast-title" data-i18n="dash_refunds_title">Refunds this month</h3>
+                <p class="chart-caption" data-i18n="dash_refunds_sub">Refunds given this month</p>
+              </div>
+              <strong id="rfdRefundTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="rfdRefundLine" class="collection-forecast-collected"></p>
+            <p id="rfdRefundEmpty" class="empty-state" hidden data-i18n="dash_refunds_empty">No refunds this month.</p>
+          </div>
+        </section>
+        <section class="mohalla-dashboard-section" id="mohallaDashboardSection" aria-labelledby="mohallaDashboardHeading">
+          <div class="mohalla-dashboard-heading">
+            <p class="eyebrow" data-i18n="dash_mohalla_eyebrow">AREA / MOHALLA</p>
+            <h3 id="mohallaDashboardHeading" data-i18n="dash_mohalla_title">Mohalla Dashboard</h3>
+            <p class="chart-caption" data-i18n="dash_mohalla_sub">Live user count in every mohalla that has customers. Tap a card to open exactly those customers.</p>
+          </div>
+          <div id="mohallaDashboardCards" class="mohalla-cards-grid"></div>
+          <p id="mohallaDashboardEmpty" class="empty-state" hidden data-i18n="dash_mohalla_empty">No mohalla users yet — cards appear here as soon as a customer has a mohalla set.</p>
+        </section>
+        <article class="dashboard-chart-card chart-card-worklists" id="worklistsSummaryCard" style="margin-top: 14px;">
+          <div class="worklists-card-header">
+            <div>
+              <h4 class="chart-title" data-i18n="dash_worklists_title">Disconnection &amp; Reconnection Worklists</h4>
+              <p class="chart-subtitle" data-i18n="dash_worklists_sub">Field service actions: overdue suspensions &amp; paid restorations</p>
+            </div>
+            <button id="openWorklistsModalBtn" class="chart-action-link" type="button" aria-haspopup="dialog" data-i18n="dash_btn_worklists">View Worklists / فہرست کھولیں</button>
+          </div>
+          <div class="worklists-card-kpis">
+            <div class="worklists-card-kpi">
+              <span class="worklists-card-kpi-label" data-i18n="dash_worklists_disc">To Disconnect</span>
+              <span id="worklistsSummaryDiscCount" class="worklists-card-kpi-value disc">0</span>
+              <span id="worklistsSummaryDiscAmount" class="worklists-card-kpi-sub">PKR 0 dues (&gt; 10d)</span>
+            </div>
+            <div class="worklists-card-kpi">
+              <span class="worklists-card-kpi-label" data-i18n="dash_worklists_rec">To Reconnect</span>
+              <span id="worklistsSummaryRecCount" class="worklists-card-kpi-value rec">0</span>
+              <span class="worklists-card-kpi-sub" data-i18n="dash_worklists_ready">Dues cleared &middot; ready</span>
+            </div>
+          </div>
+        </article>
+        <section class="field-dispatch-section" aria-labelledby="fieldDispatchHeading">
+          <div class="field-dispatch-card">
+            <div class="field-dispatch-header">
+              <h3 id="fieldDispatchHeading" class="field-dispatch-title" data-i18n="fdisp_title">🧰 Zone Field Dispatch Board</h3>
+              <span id="fieldDispatchTotal" class="field-dispatch-total"></span>
+            </div>
+            <p class="field-dispatch-sub" data-i18n="fdisp_sub">Open complaints, tickets, installations, pending works and hardware recovery — grouped by mohalla, ready to send to the field.</p>
+            <div id="fieldDispatchList" class="field-dispatch-list"></div>
+          </div>
+        </section>
       </div>
     </section>
     <section id="billingReportsView" class="billing-reports-view" aria-labelledby="billingReportsHeading" hidden>
@@ -7920,6 +7705,236 @@
         <section class="owner-report-panel" aria-labelledby="monthComparisonHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL BUSINESS COMPARISON</p><h3 id="monthComparisonHeading">Compare two months</h3></div></div><div class="owner-filter-grid"><label for="compareMonthA">Earlier / first month<select id="compareMonthA"></select></label><label for="compareMonthB">Later / second month<select id="compareMonthB"></select></label></div><p id="monthComparisonBasis" class="chart-caption" role="status" aria-live="polite"></p><div id="monthComparisonMetrics" class="comparison-metric-grid" aria-live="polite"></div><div id="monthComparisonChart" class="comparison-bars" aria-label="Mobile month comparison chart"></div><div class="comparison-package-wrap"><h4>Package distribution</h4><ul id="monthPackageComparison" class="comparison-package-list"></ul></div><form id="performanceExplainForm" class="performance-explain-form"><label for="performanceMetric">Explain change in<select id="performanceMetric"><option value="billedAmount">Billed revenue</option><option value="collection">Cash collection</option><option value="outstanding">Outstanding</option><option value="expenses">Expenses</option><option value="profit">Cash profit</option></select></label><button class="secondary-button" type="submit">Explain this change</button></form><div id="performanceExplanation" class="performance-explanation" role="status" aria-live="polite"></div></section>
         <section class="owner-report-panel" aria-labelledby="customerRankingHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL CUSTOMER RANKINGS</p><h3 id="customerRankingHeading">Customer rankings</h3></div></div><div class="owner-filter-grid"><label for="rankingType">Ranking<select id="rankingType"></select></label><label for="rankingMonth">Month<select id="rankingMonth"></select></label><label for="rankingArea">Area / mohalla<select id="rankingArea"><option value="all">All recorded areas</option></select></label><label for="rankingPackage">Package<select id="rankingPackage"><option value="all">All recorded packages</option></select></label><label for="rankingStatus">Manual status<select id="rankingStatus"><option value="all">All statuses</option><option value="active">Active</option><option value="offline">Offline</option><option value="not-set">Not set</option><option value="archived">Archived</option></select></label></div><div id="customerRankingResults" class="owner-result-list" aria-live="polite"></div></section>
         <section id="smartAlertsPanel" class="owner-report-panel" aria-labelledby="smartAlertsHeading"><div class="table-heading"><div><p class="eyebrow">LOCAL-ONLY · RULE-BASED</p><h3 id="smartAlertsHeading">Smart Alerts</h3></div><p class="chart-caption">Derived on this device from saved bills, receipts, expenses and dated package history. No background monitoring or contact.</p></div><p id="smartAlertsSummary" class="chart-caption" role="status" aria-live="polite"></p><div id="smartAlertsList" class="smart-alert-list" aria-live="polite"></div></section><section id="duesRecoveryPanel" class="owner-report-panel" aria-labelledby="duesRecoveryHeading"><div class="table-heading" style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;"><div><p class="eyebrow">NO AUTOMATIC CONTACT</p><h3 id="duesRecoveryHeading">Smart dues recovery &amp; WhatsApp drafts</h3><p class="chart-caption">Balances and priority use the local ledger. A link opens a draft only; review and send yourself.</p></div><button id="openWorklistsFromDuesBtn" class="secondary-button btn-sm" type="button" style="font-size: 11px; padding: 4px 10px; margin-top: 4px;" aria-haspopup="dialog">📋 Disconnect / Reconnect Worklists</button></div><p id="recoveryFormula" class="chart-caption"></p><div id="duesRecoveryGroups" class="recovery-groups" aria-live="polite"></div></section>
+        <!-- Home Dashboard overhaul: Daily Roznamcha + Daily Register
+             & Closing merged into ONE card here in Reports (the two
+             grid cards showed the same day from two angles). All ids
+             are preserved, so the guarded dashboard writers and the
+             modal openers follow. -->
+        <article class="summary-card summary-daily-closing ds-stat ds-stat--brand">
+          <span class="ds-stat__icon" aria-hidden="true">🧮</span>
+          <div class="daily-closing-header">
+            <p class="summary-label" data-i18n="dash_card_closing">Daily Roznamcha &amp; Closing</p>
+            <span id="dashboardClosingStatusBadge" class="closing-badge badge-no-activity">No Activity</span>
+          </div>
+          <strong id="dashboardRoznamchaValue" class="summary-value">No drawer yet</strong>
+          <p id="dashboardRoznamchaPeriod" class="summary-period">Cash drawer, shop handovers and petty expenses</p>
+          <div id="roznamchaSummary" class="roznamcha-summary"></div>
+          <strong id="dashboardDailyClosingValue" class="summary-value">No payment entries</strong>
+          <p id="dashboardDailyClosingPeriod" class="summary-period">Benchmark target: calculating...</p>
+          <div class="daily-closing-actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openDailyClosingModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_cash_suite">📊 Cash Closing Suite</button>
+            <button id="openDailyRegisterBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_daily_register">📖 Daily Register</button>
+            <button id="quickActionDailyClosingSlip" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_daily_slip">📋 Daily Slip</button>
+            <button id="openStaffPerfModalBtn" class="action-btn-sm daily-slip-btn" type="button" aria-haspopup="dialog" data-i18n="dash_btn_staff_perf">👥 Staff Performance</button>
+            <button id="openRoznamchaModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_btn_roznamcha">📒 Roznamcha</button>
+            <button id="dailyMethodMatrixOpenBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dmm_open_btn">📊 Method Matrix</button>
+          </div>
+        </article>
+        <!-- Home Dashboard overhaul: Owner Khata Closing moved here
+             from Home. -->
+        <article class="summary-card summary-owner-khata ds-stat ds-stat--brand">
+          <p class="summary-label" data-i18n="dash_card_khata">📕 Owner Khata Closing</p>
+          <strong id="dashboardOwnerKhataValue" class="summary-value">No activity</strong>
+          <p id="dashboardOwnerKhataPeriod" class="summary-period">Monthly income, expenses, shares &amp; outages</p>
+          <div id="ownerKhataSummary" class="owner-khata-summary"></div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button id="openOwnerKhataModalBtn" class="action-btn-sm daily-slip-btn" type="button" data-i18n="dash_card_khata">📕 Owner Khata Closing</button>          </div>
+        </article>
+        <section class="collection-forecast-section" id="newCustomersSection" aria-labelledby="newCustomersHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="newCustomersHeading" class="collection-forecast-title" data-i18n="dash_newcustomers_title">New customers this month</h3>
+                <p class="chart-caption" data-i18n="dash_newcustomers_sub">Joined this month, with their package and monthly dues</p>
+              </div>
+              <strong id="ncmNewTotal" class="collection-forecast-pct">0</strong>
+            </div>
+            <p id="ncmNewLine" class="collection-forecast-collected"></p>
+            <ul id="ncmNewRows" class="provider-cost-list"></ul>
+            <p id="ncmNewEmpty" class="empty-state" hidden data-i18n="dash_newcustomers_empty">No new customers this month.</p>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="monthCompareSection" aria-labelledby="monthCompareHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="monthCompareHeading" class="collection-forecast-title" data-i18n="dash_monthcompare_title">This month vs last month</h3>
+                <p class="chart-caption" data-i18n="dash_monthcompare_sub">Collections beside last month, in rupees</p>
+              </div>
+              <strong id="mvcMonthTotal" class="collection-forecast-pct">PKR 0</strong>
+            </div>
+            <p id="mvcMonthLine" class="collection-forecast-collected"></p>
+            <p id="mvcMonthDiff" class="collection-forecast-collected"></p>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="printSummarySection" aria-labelledby="printSummaryHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="printSummaryHeading" class="collection-forecast-title" data-i18n="dash_printsummary_title">One-page summary</h3>
+                <p class="chart-caption" data-i18n="dash_printsummary_sub">Today, this month, and what is still owed — in PKR</p>
+              </div>
+              <button id="ppsPrintBtn" class="secondary-button btn-sm" type="button" data-i18n="dash_printsummary_print">🖨️ Print summary</button>
+            </div>
+            <p id="ppsPrintDate" class="collection-forecast-collected"></p>
+            <ul class="provider-cost-list">
+              <li><span data-i18n="dash_printsummary_today">Today's collections</span> <strong id="ppsTodayCollected">PKR 0</strong></li>
+              <li><span data-i18n="dash_printsummary_month">This month's collections</span> <strong id="ppsMonthCollected">PKR 0</strong></li>
+              <li><span data-i18n="dash_printsummary_dues">Total dues</span> <strong id="ppsTotalDues">PKR 0</strong></li>
+              <li><span data-i18n="dash_printsummary_overdue">Overdue total</span> <strong id="ppsOverdueTotal">PKR 0</strong></li>
+              <li><span data-i18n="dash_printsummary_cash">Cash in hand</span> <strong id="ppsCashInHand">PKR 0</strong></li>
+            </ul>
+          </div>
+        </section>
+        <section class="collection-forecast-section" id="collectionForecastSection" aria-labelledby="collectionForecastHeading">
+          <div class="collection-forecast-card">
+            <div class="collection-forecast-header">
+              <div>
+                <h3 id="collectionForecastHeading" class="collection-forecast-title" data-i18n="fcst_title">Monthly Collection Thermometer</h3>
+                <p class="chart-caption" data-i18n="fcst_sub">Collected so far vs this month’s bills + arrears carried in</p>
+              </div>
+              <strong id="collectionForecastPct" class="collection-forecast-pct">0%</strong>
+            </div>
+            <div class="fcst-thermo" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Collection progress" data-i18n-aria-label="fcst_bar_aria">
+              <div id="collectionForecastFill" class="fcst-thermo-fill" style="width: 0%"></div>
+            </div>
+            <p id="collectionForecastCollected" class="collection-forecast-collected">PKR 0 of PKR 0 collected</p>
+            <p id="collectionForecastSplit" class="collection-forecast-line"></p>
+            <p id="collectionForecastRunRate" class="collection-forecast-line"></p>
+            <p id="collectionForecastPace" class="collection-forecast-line"></p>
+            <p id="collectionForecastEmpty" class="empty-state" hidden data-i18n="fcst_no_target">No bills for this month yet — the thermometer fills as bills are generated.</p>
+            <h4 class="collection-forecast-areas-title" data-i18n="fcst_areas_title">Area-wise progress</h4>
+            <div id="collectionForecastAreas" class="collection-forecast-areas"></div>
+          </div>
+        </section>
+        <section class="expansion-estimator-section" id="expansionEstimatorSection" aria-labelledby="expansionEstimatorHeading">
+          <div class="expansion-estimator-card">
+            <div class="expansion-estimator-head">
+              <div>
+                <h3 id="expansionEstimatorHeading" class="expansion-estimator-title" data-i18n="xest_title">New Street Expansion Calculator</h3>
+                <p class="chart-caption" data-i18n="xest_sub">Plan a new gali / mohalla: plant cost, connection-fee offset, break-even months and each partner’s capital share — figures only, nothing is saved to the ledger</p>
+              </div>
+              <button id="expansionEstimatorOpenBtn" class="primary-button" type="button" aria-haspopup="dialog" aria-controls="expansionEstimatorModal" data-i18n="xest_open_btn">🧮 Plan Expansion</button>
+            </div>
+          </div>
+        </section>
+        <section class="multi-month-matrix-section" id="multiMonthMatrixSection" aria-labelledby="multiMonthMatrixHeading">
+          <div class="mmx-card">
+            <div class="mmx-header">
+              <div>
+                <h3 id="multiMonthMatrixHeading" class="mmx-title" data-i18n="mmx_title">Growth &amp; Finance Matrix</h3>
+                <p class="chart-caption" data-i18n="mmx_sub">Subscribers, billing, collection, expenses, profit and downtime — month by month, from the same engines as their own screens</p>
+              </div>
+              <div class="mmx-controls">
+                <label class="mmx-control-label"><span data-i18n="mmx_range_label">Compare</span>
+                  <select id="multiMonthRangeSelect" class="mmx-select">
+                    <option value="3" data-i18n="mmx_range_3">Last 3 months</option>
+                    <option value="6" data-i18n="mmx_range_6">Last 6 months</option>
+                    <option value="12" data-i18n="mmx_range_12">Last 12 months</option>
+                  </select>
+                </label>
+                <label class="mmx-control-label"><span data-i18n="mmx_end_label">Ending month</span>
+                  <select id="multiMonthEndSelect" class="mmx-select"></select>
+                </label>
+              </div>
+            </div>
+            <div class="mmx-table-wrap">
+              <table class="mmx-table" id="multiMonthMatrixTable"></table>
+            </div>
+            <div class="mmx-cards" id="multiMonthMatrixCards"></div>
+            <p id="multiMonthMatrixEmpty" class="empty-state" hidden data-i18n="mmx_empty">No billing, connections, expenses or downtime recorded in this range yet.</p>
+            <p class="mmx-note" data-i18n="mmx_note">Net Profit follows the P&amp;L screen (cash received in the month − expenses). Collected follows the billing engine (share of the month’s bills settled). Churned counts customers still archived whose archive date falls in that month.</p>
+          </div>
+        </section>
+        <article class="dashboard-chart-card chart-card-target">
+          <div class="chart-card-header chart-card-header-flex">
+            <div>
+              <h4 class="chart-title" data-i18n="dash_target_title">Monthly Collection vs Target</h4>
+              <p class="chart-subtitle" data-i18n="dash_target_sub">Target achievement, daily run-rate, and month-end projection</p>
+            </div>
+            <button id="openCollectionTargetBtn" class="chart-action-link" type="button" aria-haspopup="dialog" data-i18n="dash_btn_target">Set / Manage Target</button>
+          </div>
+          <div id="dashboardTargetChart" class="chart-svg-container" role="img" aria-label="Monthly collection vs target radial gauge" data-i18n-aria-label="dash_target_gauge_aria"></div>
+        </article>
+        <section class="collection-velocity-section" aria-labelledby="collectionVelocityHeading" data-i18n-aria-label="dash_velocity_aria">
+          <div class="collection-velocity-card">
+            <div class="collection-velocity-header">
+              <h3 id="collectionVelocityHeading" class="collection-velocity-title" data-i18n="vel_title">📈 Collection Velocity</h3>
+              <span id="collectionVelocityTotal" class="collection-velocity-total"></span>
+            </div>
+            <p class="collection-velocity-sub" data-i18n="vel_sub">When this month’s cash arrived — every bucket compared with the same days last month.</p>
+            <div id="collectionVelocityBody"></div>
+          </div>
+        </section>
+        <!-- Home Dashboard overhaul: when all five audit cards
+             below have zero candidates, they hide and this one
+             compact pill shows instead (toggled by renderDashboard
+             from the five audit counts). -->
+        <p id="auditsClearPill" class="audits-clear-pill" data-i18n="audits_clear_pill" hidden>✅ All 5 Audits Clear</p>
+        <section class="upsell-section" aria-labelledby="upsellHeading">
+          <div class="upsell-card">
+            <div class="upsell-header">
+              <h3 id="upsellHeading" class="upsell-title" data-i18n="upsell_title">🚀 Package Upgrade Suggestions</h3>
+              <span id="upsellTotalGain" class="upsell-total"></span>
+            </div>
+            <p class="upsell-sub" data-i18n="upsell_sub">Active customers on 5 Mbps or slower who reported slow speed or pay on time — one tap sends the upgrade offer on WhatsApp.</p>
+            <ul id="upsellList" class="upsell-list" aria-label="Package upgrade candidates"></ul>
+          </div>
+        </section>
+        <section class="fuel-efficiency-section" aria-labelledby="fuelEfficiencyHeading">
+          <div class="fuel-efficiency-card">
+            <div class="fuel-efficiency-header">
+              <h3 id="fuelEfficiencyHeading" class="fuel-efficiency-title" data-i18n="fuel_title">⛽ Fuel Cost per Field Job</h3>
+              <span id="fuelEfficiencyCost" class="fuel-efficiency-cost"></span>
+            </div>
+            <p class="fuel-efficiency-sub" data-i18n="fuel_sub">Monthly Roznamcha petrol divided by field jobs (collections + Saad visits + resolved tickets). Days with petrol but no recorded field activity are flagged.</p>
+            <label class="fuel-efficiency-month"><span data-i18n="fuel_month_label">Month</span><input id="fuelMonthInput" type="month"></label>
+            <div id="fuelEfficiencyBody"></div>
+          </div>
+        </section>
+        <section class="winback-section" aria-labelledby="winbackHeading">
+          <div class="winback-card">
+            <div class="winback-header">
+              <h3 id="winbackHeading" class="winback-title" data-i18n="winback_title">📥 Disconnect Reasons & Win-Back</h3>
+              <span id="winbackQueueCount" class="winback-total"></span>
+            </div>
+            <p class="winback-sub" data-i18n="winback_sub">Why customers left, and the ones you marked for a free-reconnection offer — one tap opens the WhatsApp draft, nothing sends itself.</p>
+            <div id="winbackAnalytics" class="winback-analytics"></div>
+            <ul id="winbackList" class="winback-list" aria-label="Win-back offer queue"></ul>
+          </div>
+        </section>
+        <section class="upsell-section loyalty-section" aria-labelledby="loyaltyHeading">
+          <div class="upsell-card">
+            <div class="upsell-header">
+              <h3 id="loyaltyHeading" class="upsell-title" data-i18n="loyalty_title">⚠️ At-Risk Loyal Customers</h3>
+              <button class="help-info-btn" type="button" data-help="loyalty" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
+              <span id="loyaltyAtRiskCount" class="upsell-total"></span>
+            </div>
+            <p class="upsell-sub" data-i18n="loyalty_sub">Customers with 1+ year of service who logged 2+ complaints this month or lost 12+ hours to downtime — a personal check-in can save them.</p>
+            <ul id="loyaltyAtRiskList" class="upsell-list" aria-label="Loyal customers at risk"></ul>
+          </div>
+        </section>
+        <section class="revleak-section" aria-labelledby="revenueLeakHeading">
+          <div class="revleak-card">
+            <div class="revleak-header">
+              <h3 id="revenueLeakHeading" class="revleak-title" data-i18n="revleak_title">🚨 Revenue Leak Audit</h3>
+              <button class="help-info-btn" type="button" data-help="revenue_leak" aria-label="About this feature" data-i18n-aria-label="help_aria_label">ℹ️</button>
+              <span id="revenueLeakTotal" class="revleak-total"></span>
+            </div>
+            <p class="revleak-sub" data-i18n="revleak_sub">Active connections with a zero rate, expired vacation holds, or no bill in the current cycle — read-only audit, nothing is changed.</p>
+            <ul id="revenueLeakList" class="revleak-list" aria-label="Revenue leak audit"></ul>
+          </div>
+        </section>
+        <section class="hwaudit-section" aria-labelledby="hwauditHeading">
+          <div class="hwaudit-card">
+            <div class="hwaudit-header">
+              <h3 id="hwauditHeading" class="hwaudit-title" data-i18n="hwaudit_title">🔦 Hardware / Optical Bottleneck Audit</h3>
+              <span id="hwauditCount" class="hwaudit-count"></span>
+            </div>
+            <p class="hwaudit-sub" data-i18n="hwaudit_sub">Active customers on 15 Mbps or faster whose last optical RX reading is below -26.0 dBm — the line likely cannot deliver the package speed. Slow-speed complaint counts are shown as supporting evidence.</p>
+            <ul id="hwauditList" class="hwaudit-list" aria-label="Hardware and optical bottleneck suspects"></ul>
+          </div>
+        </section>
       </div>
     </section>
     <section id="analyticsView" class="phase3-view" aria-labelledby="analyticsHeading" hidden>

@@ -55,6 +55,9 @@ const MOHALLA_ALIASES = {
   kishtii: 'KISHTII',
   chamyaa: 'CHAMYAAA',
   chamyaaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla.
+  jabbiyaaa: 'JABBIYAA',
 };
 
 function text(value) {
@@ -104,6 +107,26 @@ export function canonicalRecoveryMohalla(value) {
   const alias = MOHALLA_ALIASES[lower];
   if (alias) return { key: alias, label: alias };
   return { key: lower, label: stripped };
+}
+
+// Owner 5-part fix: the mohalla cell reads in consistent Title Case,
+// so a stored 'CHARYAA' and a stored 'Charyaa' read the same; the
+// folded JABBIYAAA spelling reads as its canonical 'Jabbiyaa'.
+// (Stored values are untouched — only the display is normalised.)
+function displayMohalla(value) {
+  const raw = text(value);
+  if (!raw) return '';
+  if (canonicalRecoveryMohalla(value).key === 'JABBIYAA') return 'Jabbiyaa';
+  return raw.split(/\s+/).map((word) => {
+    const chars = Array.from(word);
+    if (!chars.length) return word;
+    // Same rule as phase3's readableLabel: a 2–3-letter all-caps
+    // word (an acronym or a short label such as 'X<Y') keeps its
+    // own casing instead of being forced to Title Case.
+    const letters = word.match(/\p{L}/gu) ?? [];
+    if (letters.length >= 2 && letters.length <= 3 && letters.every((letter) => letter === letter.toLocaleUpperCase('en-US'))) return word;
+    return chars[0].toLocaleUpperCase('en-US') + chars.slice(1).join('').toLocaleLowerCase('en-US');
+  }).join(' ');
 }
 
 // One recovery record, or null when half-formed. The id defaults
@@ -343,14 +366,16 @@ export function recoveryHtml(entries) {
         ? ` — collected by ${escapeHtml(entry.collector)}${entry.collectedDate ? ` on ${escapeHtml(entry.collectedDate)}` : ''}`
         : '';
     return `<tr><td>${escapeHtml(entry.customerName || entry.customerId)}</td>`
-      + `<td>${escapeHtml(entry.mohalla || 'Not recorded')}</td>`
+      + `<td>${escapeHtml(displayMohalla(entry.mohalla) || 'Not recorded')}</td>`
       + `<td>${escapeHtml(entry.serial)}</td>`
       + `<td>${escapeHtml(RECOVERY_DEVICE_TYPE_LABELS[entry.deviceType] ?? entry.deviceType)}</td>`
       + `<td>${escapeHtml(entry.dateEnded ?? 'Not recorded')}</td>`
       + `<td>${entry.daysSinceEnded === null || entry.daysSinceEnded === undefined ? 'Not recorded' : `${entry.daysSinceEnded} days`}</td>`
       + `<td>${escapeHtml(RECOVERY_STATUS_LABELS[entry.status] ?? entry.status)}${extra}</td></tr>`;
   }).join('');
-  return `<table><thead><tr><th>Customer</th><th>Mohalla</th><th>Serial</th><th>Device</th><th>Service ended</th><th>Days since ended</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>`;
+  // Owner 5-part fix: the seven-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side columns.
+  return `<div class="table-scroll"><table><thead><tr><th>Customer</th><th>Mohalla</th><th>Serial</th><th>Device</th><th>Service ended</th><th>Days since ended</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function recoveryCsv(entries) {

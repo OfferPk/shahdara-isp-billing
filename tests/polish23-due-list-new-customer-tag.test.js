@@ -490,7 +490,12 @@ test('wiring: app.js imports the tag sheet once (the app.js-only seam), and the 
   assert.equal(app.split("'./new-customer-tag-sheet.js'").length - 1, 1, 'app.js imports the sheet exactly once');
   const sheet = read('new-customer-tag-sheet.js');
   assert.ok(sheet.includes("btn.id = 'nctTagNewCustomersBtn'"), 'the button carries the nct id');
-  assert.ok(sheet.includes('pick.insertBefore(btn, pick.firstElementChild)'), 'the button goes first in the picker step');
+  // QC Cash Modal Overhaul: Bulk Collect + Tag share one 2-column
+  // compact card row (.qc-top-actions) at the top of the picker, so
+  // the row — not the button itself — goes first, and the button
+  // appends into it (Bulk prepends, so the order is Bulk then Tag).
+  assert.ok(sheet.includes("pick.insertBefore(row, pick.firstElementChild)"), 'the shared top-actions row goes first in the picker step');
+  assert.ok(sheet.includes('row.appendChild(btn)'), 'the button goes into the shared row');
   assert.ok(sheet.includes("!doc.getElementById('nctTagNewCustomersBtn')"), 'the button is inserted once');
   assert.ok(sheet.includes('applyTagBatch('), 'Apply stamps through the all-or-nothing batch');
   assert.ok(sheet.includes('untagTaggedMonth('), 'the Tagged view untags through the core remove');

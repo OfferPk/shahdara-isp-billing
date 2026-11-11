@@ -58,6 +58,55 @@ test('json parse: object wrapper forms (roster / customers / entries)', () => {
   }
 });
 
+// ---------- nameUrdu passthrough (Mohalla Seed) ----------
+
+test('nameUrdu: JSON nameUrdu / urduName keys land on the entry; missing lands as empty', () => {
+  const { entries, skipped, error } = parsePrivateRosterJson(JSON.stringify([
+    { name: 'Test Urdu Alpha', mohalla: 'BARRIAN', nameUrdu: 'ٹیسٹ اردو الفا' },
+    { name: 'Test Urdu Beta', mohalla: 'THALII', urduName: 'ٹیسٹ اردو بیٹا' },
+    { name: 'Test Urdu Gamma', mohalla: 'SODAA' }
+  ]));
+  assert.equal(error, null);
+  assert.deepEqual(skipped, []);
+  assert.equal(entries[0].nameUrdu, 'ٹیسٹ اردو الفا');
+  assert.equal(entries[1].nameUrdu, 'ٹیسٹ اردو بیٹا');
+  assert.equal(entries[2].nameUrdu, '');
+});
+
+test('nameUrdu: CSV urdu column lands on the entry; rows without it land as empty', () => {
+  const { entries, skipped, error } = parsePrivateRosterCsv(
+    'name,mohalla,urdu\nTest Csv Alpha,BARRIAN,ٹیسٹ سی ایس وی الفا\nTest Csv Beta,THALII,\n'
+  );
+  assert.equal(error, null);
+  assert.deepEqual(skipped, []);
+  assert.equal(entries[0].nameUrdu, 'ٹیسٹ سی ایس وی الفا');
+  assert.equal(entries[1].nameUrdu, '');
+});
+
+test('nameUrdu: the reviewed spelling lands on the created record; re-import adds 0', () => {
+  const { entries } = parsePrivateRosterJson(JSON.stringify([
+    { name: 'Test Seed Alpha', mohalla: 'BARRIAN', nameUrdu: 'ٹیسٹ سیڈ الفا' }
+  ]));
+  const res = importPrivateRoster(blankState(), entries, { referenceDate: REF_DATE });
+  assert.equal(res.added, 1);
+  assert.deepEqual(res.failed, []);
+  assert.equal(res.nextState.customers[0].nameUrdu, 'ٹیسٹ سیڈ الفا');
+  const second = importPrivateRoster(res.nextState, entries, { referenceDate: REF_DATE });
+  assert.equal(second.added, 0);
+  assert.equal(second.nextState.customers[0].nameUrdu, 'ٹیسٹ سیڈ الفا');
+});
+
+test('nameUrdu: over the 100-character cap the row fails, never crashes the import', () => {
+  const { entries } = parsePrivateRosterJson(JSON.stringify([
+    { name: 'Test Long Urdu', mohalla: 'BARRIAN', nameUrdu: 'ٹ'.repeat(101) }
+  ]));
+  assert.equal(entries.length, 1);
+  const res = importPrivateRoster(blankState(), entries, { referenceDate: REF_DATE });
+  assert.equal(res.added, 0);
+  assert.equal(res.failed.length, 1);
+  assert.match(res.failed[0].error, /Urdu name must be 100 characters or fewer/);
+});
+
 test('json parse: malformed rows are skipped with reasons, valid rows still parse', () => {
   const { entries, skipped, error } = parsePrivateRosterJson(JSON.stringify([
     { name: 'Test Good Row', mohalla: 'BARRIAN' },

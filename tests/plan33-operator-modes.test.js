@@ -34,10 +34,11 @@ test('plan33: normalize defaults everything unknown to owner', () => {
 
 test('plan33: owner-only catalogue names backup, restore, settings and destructive actions', () => {
   const values = OWNER_ONLY_ACTIONS.map((a) => a.value);
-  for (const expected of ['backup-download', 'backup-share', 'backup-restore', 'settings', 'payment-void', 'expense-delete', 'customer-delete', 'customer-archive', 'partner-settlement', 'partner-shares']) {
+  for (const expected of ['backup-download', 'backup-share', 'backup-restore', 'settings', 'payment-void', 'expense-delete', 'customer-delete', 'customer-archive', 'partner-settlement', 'partner-shares', 'clear-all-record']) {
     assert.ok(values.includes(expected), expected);
   }
   assert.equal(operatorActionLabel('payment-void'), 'Void payment');
+  assert.equal(operatorActionLabel('clear-all-record'), 'Clear all payment records');
   assert.equal(operatorActionLabel('collect-payment'), null);
 });
 

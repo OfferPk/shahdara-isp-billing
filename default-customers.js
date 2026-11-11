@@ -14,6 +14,14 @@
  * (core generateMonthlyBills and the SISP-2 billing cycle), and
  * defaulter/grace outputs exclude them.
  *
+ * Roster entries may also carry `nameUrdu` (the user-reviewed Urdu
+ * spelling from the Mohalla Seed draft, shipped as data — never
+ * transliterator output). `applyDefaultCustomerRoster` passes it
+ * through to core addCustomer, which stores it on the record as the
+ * saved Urdu-name override (urdu-names.js layer 1). The planner's
+ * output shape stays { name, mohalla, free }; the Urdu name is
+ * looked up per group at apply time, never planned.
+ *
  * Import behaviour (runs once on app load, see app.js):
  *  - A settings marker (`state.settings.defaultCustomersImport`) records
  *    { doneAt, rosterVersion } once the import has run for the current
@@ -40,8 +48,10 @@ import { canonicalMohalla } from './phase3.js';
  *  2026-10-29 privacy cleanup that emptied the shipped roster. */
 export const DEFAULT_ROSTER_VERSION = 2;
 
-const entry = (name, mohalla, free = false) =>
-  Object.freeze(free ? { name, mohalla, free: true } : { name, mohalla });
+const entry = (name, mohalla, free = false, nameUrdu = '') =>
+  Object.freeze(free
+    ? { name, mohalla, free: true, ...(nameUrdu ? { nameUrdu } : {}) }
+    : { name, mohalla, ...(nameUrdu ? { nameUrdu } : {}) });
 
 /** The shipped roster is intentionally EMPTY (privacy, see header):
  *  no customer names are bundled with this public app. `entry` above
@@ -111,10 +121,20 @@ export function applyDefaultCustomerRoster(state, referenceDate = new Date(), ro
   const marker = state.settings?.defaultCustomersImport;
   if (marker && Number(marker.rosterVersion) >= DEFAULT_ROSTER_VERSION) return state;
   const additions = planDefaultCustomerAdditions(state.customers, roster);
+  // Mohalla Seed: the planner's output shape stays { name, mohalla,
+  // free } (pinned by tests) — the reviewed Urdu name rides along by
+  // looking the roster entry back up per group, never by changing
+  // the planner. A roster entry without nameUrdu lands with ''.
+  const rosterUrdu = new Map();
+  for (const item of roster) {
+    const key = rosterGroupKey(item.name, item.mohalla);
+    if (!rosterUrdu.has(key)) rosterUrdu.set(key, typeof item.nameUrdu === 'string' ? item.nameUrdu : '');
+  }
   let next = state;
   for (const addition of additions) {
     next = addCustomer(next, addition.name, referenceDate, {
       mohalla: addition.mohalla,
+      nameUrdu: rosterUrdu.get(rosterGroupKey(addition.name, addition.mohalla)) ?? '',
       // Roster names legitimately repeat (same name, another mohalla —
       // and the planner has already removed every satisfied entry), so
       // the hand-entry duplicate guard must not refuse them.

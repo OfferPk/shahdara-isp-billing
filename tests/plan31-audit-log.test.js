@@ -37,8 +37,11 @@ test('Plan 31: audit catalogue covers exactly the seven plan actions, plus the P
   // acceptance requires every emergency-contact edit to be logged.
   // QC-8 intentionally extends it with one more, 'field_visit',
   // because QC-8 acceptance requires every field visit outcome to
-  // leave an audit trace. No other Plan 31 behaviour changes.
-  assert.equal(AUDIT_ACTIONS.length, 11);
+  // leave an audit trace. The Mohalla Seed intentionally extends
+  // it with one more, 'payment_records_cleared', because the Clear
+  // All Record wipe must leave an audit trace of itself. No other
+  // Plan 31 behaviour changes.
+  assert.equal(AUDIT_ACTIONS.length, 12);
   assert.deepEqual(AUDIT_ACTIONS.map((a) => a.value), [
     'payment_recorded',
     'payment_voided',
@@ -51,6 +54,7 @@ test('Plan 31: audit catalogue covers exactly the seven plan actions, plus the P
     'emergency_contact_edited',
     'month_close_reopened',
     'field_visit',
+    'payment_records_cleared',
   ]);
   assert.equal(auditActionLabel('payment_voided'), 'Payment voided');
   assert.equal(auditActionLabel('waada_set'), 'Waada set');

@@ -66,6 +66,11 @@ export const AUDIT_ACTIONS = Object.freeze([
   // included) leaves an audit trace, recorded by the route outcome
   // writer. A cleared mark writes nothing — a clear is not a visit.
   { value: 'field_visit', label: 'Field visit recorded' },
+  // Mohalla Seed adds the twelfth action: the Clear All Record wipe
+  // (payments + payment-derived only, Option A) writes one entry
+  // AFTER it runs, so the wipe itself stays traceable — the audit
+  // trail is the one record the wipe does not delete.
+  { value: 'payment_records_cleared', label: 'Payment records cleared' },
 ]);
 
 const ACTION_LABELS = new Map(AUDIT_ACTIONS.map((a) => [a.value, a.label]));

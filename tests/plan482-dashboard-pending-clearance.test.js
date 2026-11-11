@@ -240,11 +240,16 @@ test('pending clearance: calculating and rendering never mutate the state or the
   assert.equal(JSON.stringify(clearances), beforeClearances);
 });
 
-test('pending clearance wiring: the total sits on the billing dashboard after the cash-in-hand figure, and the dashboard renders it', () => {
+test('pending clearance wiring: the total sits in the Collect tab after the collector card, and the dashboard renders it', () => {
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="pendingClearanceSection"'), 'pending-clearance section exists');
-  assert.ok(page.indexOf('id="pendingClearanceSection"') > page.indexOf('id="cashInHandSection"'), 'total follows the cash-in-hand figure');
-  assert.ok(page.indexOf('id="pendingClearanceSection"') < page.indexOf('id="collectionForecastSection"'), 'total sits before the forecast section');
+  // Home Dashboard overhaul: the section moved from Home to the
+  // Collect tab — the old "follows the cash-in-hand figure" pin is
+  // gone with that section. It now sits inside transactionsView,
+  // after the collector card and before the credit balances.
+  assert.ok(page.indexOf('id="pendingClearanceSection"') > page.indexOf('id="transactionsView"'), 'total sits inside the Collect tab');
+  assert.ok(page.indexOf('id="pendingClearanceSection"') > page.indexOf('id="collectorCardSection"'), 'total follows the collector card');
+  assert.ok(page.indexOf('id="pendingClearanceSection"') < page.indexOf('id="creditBalancesSection"'), 'total sits before the credit balances');
   assert.ok(page.includes('id="pclPendingTotal"'), 'pending total element exists');
   assert.ok(page.includes('id="pclPendingLine"'), 'count line element exists');
   assert.ok(page.includes('id="pclPendingEmpty"'), 'empty state element exists');

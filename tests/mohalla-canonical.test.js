@@ -84,16 +84,23 @@ test('collections location resolves variants to the same area', () => {
   assert.equal(loc.area.label, 'Banii');
 });
 
-test('Home Dashboard aliases fold before the default list: Charyaa is Chamyaaa, Orien school / Orient scholl are Orient School', () => {
-  // CHARYAA is still one of the 15 default spellings, but the
-  // stored evidence says it is the same mohalla as CHAMYAAA —
-  // the alias must win over the default-list match, or the two
-  // spellings split every mohalla view again.
+test('Home Dashboard aliases fold before the default list: Charyaa is its own mohalla, JABBIYAAA folds to JABBIYAA, Orien school / Orient scholl are Orient School', () => {
+  // Owner 5-part fix (owner-confirmed 2026-11-11): Charyaa and
+  // Chamyaa are SEPARATE mohallas — the old alias fold that stored
+  // CHARYAA as CHAMYAAA was wrong and is removed, so Charyaa
+  // matches the default list directly. JABBIYAAA is the same
+  // mohalla as JABBIYAA and still folds.
   for (const variant of ['Charyaa', 'CHARYAA', 'charyaa', 'MOHALLA CHARYAA']) {
     const canon = canonicalMohalla(variant);
-    assert.equal(canon.key, 'chamyaaa', `${variant} keys as chamyaaa`);
-    assert.equal(canon.label, 'Chamyaaa', `${variant} labels as Chamyaaa`);
-    assert.equal(canon.stored, 'CHAMYAAA', `${variant} stores as CHAMYAAA`);
+    assert.equal(canon.key, 'charyaa', `${variant} keys as charyaa`);
+    assert.equal(canon.label, 'Charyaa', `${variant} labels as Charyaa`);
+    assert.equal(canon.stored, 'CHARYAA', `${variant} stores as CHARYAA`);
+  }
+  for (const variant of ['Jabbiyaaa', 'JABBIYAAA', 'jabbiyaaa']) {
+    const canon = canonicalMohalla(variant);
+    assert.equal(canon.key, 'jabbiyaa', `${variant} keys as jabbiyaa`);
+    assert.equal(canon.label, 'Jabbiyaa', `${variant} labels as Jabbiyaa`);
+    assert.equal(canon.stored, 'JABBIYAA', `${variant} stores as JABBIYAA`);
   }
   for (const variant of ['Orien school', 'ORIEN SCHOOL', 'Orient scholl', 'ORIENT SCHOLL']) {
     const canon = canonicalMohalla(variant);

@@ -50,7 +50,8 @@ import {
   PAYMENT_METHODS,
   isDigitalPaymentMethod,
   validatePayment,
-  calculatePaymentAllocations
+  calculatePaymentAllocations,
+  monthsForHistory
 } from './core.js';
 import { buildPaymentReceipt, RECEIPT_URDU_NOTE } from './receipt.js';
 import { receiptTermsNoteHtml, receiptTermsNoteText } from './receipt-terms.js';
@@ -63,8 +64,21 @@ import {
   SUCCESS_NEXT_STEPS_STILL_OWED_CHARGES_TEXT,
   SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT,
 } from './success-next-steps.js';
-import { formatReceiptMoney } from './receipt-money.js';
+import { formatReceiptMoney, formatReceiptMoneyFigure } from './receipt-money.js';
 import { SALES_TAX_RECEIPT_LABEL } from './package-sales-tax.js';
+// Sharafat 1: the form-level fields a split used to drop, read back
+// off the SAVED leg records for the combined receipt — every one of
+// these modules is import-free (no cycle risk), and every one is
+// already in the bundle through core.js / app.js, so the 25-file
+// perf budget is untouched.
+import { planLateFeeWaiver, lateFeeWaiverOf } from './late-fee-waiver.js';
+import { remainderWaadaOf } from './waada-queue.js';
+import { normalizeCollectionPlace, collectionNoteOf, collectionNoteLineText } from './collection-place-note.js';
+import { urduNoteLineText } from './urdu-note.js';
+import { normalizeTransactionCategoryTag, categoryTagLineText } from './transaction-category-tag.js';
+import { promisePaymentLinkOf, promisePaymentLinkLineText } from './promise-payment-link.js';
+import { overpaymentChoiceOf, overpaymentChoiceLineText } from './overpayment-choice.js';
+import { excessCashNoteOf, excessCashNoteLineText } from './excess-cash-note.js';
 import { brandHeaderContentHtml, documentFooterHtml } from './document-branding.js';
 import { receiptCodeForReceipt, verificationStampText } from './receipt-verifier.js';
 
@@ -132,6 +146,31 @@ function cleanLeg(rawLeg, index) {
 }
 
 /**
+ * Sharafat 1: which leg a ticked late-fee waiver rides — the leg that
+ * settles the target bill. Leg 1 when leg 1 alone already covers the
+ * full principal still owed on the target bill (the recorder's own
+ * full-principal gate, evaluated here on the same pre-split state),
+ * leg 2 otherwise — the recorder re-evaluates the gate on the
+ * post-leg-1 state there, so a waiver the combined payment cannot
+ * honour is refused by the recorder, never dropped. A missing bill
+ * or a bill with no fee decides leg 2 as well: the recorder throws
+ * the same refusal the single-payment path throws.
+ */
+function waiverLegFor(state, customerId, month, legs, referenceDate = new Date()) {
+  const effectiveMonth = month || monthsForHistory(referenceDate)[0];
+  const customer = (state && Array.isArray(state.customers) ? state.customers : []).find(c => c.id === customerId);
+  const bill = customer?.bills?.find(b => b.month === effectiveMonth) ?? null;
+  const summary = calculatePaymentAllocations(state).forMonth(customerId, effectiveMonth);
+  const plan = planLateFeeWaiver({
+    bill,
+    balanceDueCents: summary?.balanceDueCents,
+    lateFeeCents: summary?.lateFeeCents,
+    paymentAmountCents: Math.round(Number(legs[0]?.amount || 0) * 100)
+  });
+  return plan.eligible ? 1 : 2;
+}
+
+/**
  * Validates a split-tender spec COMPLETELY, before anything is
  * recorded. Returns the cleaned { customerId, month, date, paidBy,
  * legs } on success; throws with a precise message otherwise. The
@@ -179,6 +218,41 @@ export function validateSplitTender(state, spec, referenceDate = new Date()) {
       }
     }
   }
+  // Sharafat 1: the form-level fields a split used to drop — the
+  // collection note (who collected it, where, in which mohalla, and
+  // the Urdu-script note), the category tag, the promise link, the
+  // late-fee waiver, the overpayment choice, the excess-cash note and
+  // the remainder-waada date. They ride the spec exactly as the
+  // single-payment submit hands them to the recorder, so the
+  // recorder stays the single sanitization point for every one of
+  // them; this module only decides WHICH leg each field lands on.
+  // (The large-cash approval, cross-payment note, contributor pick
+  // and second-connection tag are NOT threaded here — the design
+  // names the fields above only; those stay single-path fields.)
+  const shared = {
+    collectedBy: String(spec?.collectedBy ?? '').trim(),
+    collectionPlace: String(spec?.collectionPlace ?? '').trim(),
+    collectionMohalla: String(spec?.collectionMohalla ?? '').trim(),
+    urduNote: String(spec?.urduNote ?? '').trim(),
+    categoryTag: String(spec?.categoryTag ?? '').trim(),
+    promiseLink: spec?.promiseLink,
+    waiveLateFee: spec?.waiveLateFee === true
+  };
+  // The waiver rides the leg that settles the target bill (see
+  // waiverLegFor above).
+  const waiverLeg = shared.waiveLateFee ? waiverLegFor(state, customerId, month, cleaned, referenceDate) : null;
+  // The overpayment choice and the excess-cash note describe the
+  // extra over the dues of the COMBINED tender, so they ride the
+  // last leg with the dues still outstanding after leg 1 — the
+  // recorder's own extra is then exactly the combined extra
+  // (last-leg amount minus remaining dues). The remaining dues can
+  // go negative when leg 1 alone already exceeds the dues; the
+  // validators only use the dues for that check and never store
+  // them, so the arithmetic stays exact.
+  const leg1Cents = Math.round(Number(cleaned[0].amount) * 100);
+  const remainingDuesCents = (dues) => (Number.isFinite(Number(dues)) ? Math.round(Number(dues)) - leg1Cents : undefined);
+  const leg2OverpaymentDuesCents = spec?.overpaymentChoice ? remainingDuesCents(spec?.overpaymentDuesCents) : undefined;
+  const leg2ExcessCashDuesCents = spec?.excessCashNote ? remainingDuesCents(spec?.excessCashDuesCents) : undefined;
   // Field-level pre-validation through the real payment sanitizer, with
   // the same field set executeQuickCollection hands to addPayment. The
   // fallback date mirrors the recorder's own default (Pakistan-local
@@ -192,17 +266,33 @@ export function validateSplitTender(state, spec, referenceDate = new Date()) {
     const p = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
     return `${p.year}-${p.month}-${p.day}`;
   })();
-  for (const leg of cleaned) {
+  for (const [index, leg] of cleaned.entries()) {
     validatePayment({
       date: pDate ?? fallbackDate,
       amount: leg.amount,
       method: leg.method,
       paidBy: paidBy ? String(paidBy).trim() : undefined,
+      // Sharafat 1: the shared collection fields ride every leg —
+      // the per-leg call mirrors exactly what the recorder will pass
+      // to addPayment for that leg (see legFields in
+      // executeSplitTenderCollection).
+      collectedBy: shared.collectedBy || undefined,
+      collectionPlace: shared.collectionPlace || undefined,
+      collectionMohalla: shared.collectionMohalla || undefined,
+      urduNote: shared.urduNote || undefined,
+      categoryTag: shared.categoryTag || undefined,
+      promiseLink: shared.promiseLink || undefined,
       transactionId: leg.transactionId || undefined,
       senderTitle: leg.senderTitle || undefined,
       senderDigits: leg.senderDigits || undefined,
       referenceOverrideReason: leg.referenceOverrideReason || undefined,
-      screenshot: leg.screenshot
+      screenshot: leg.screenshot,
+      // Sharafat 1: the choice / excess note ride the LAST leg only,
+      // with the dues still outstanding after leg 1 (see above) —
+      // the first leg's call carries neither, exactly as its
+      // recording will not.
+      ...(index === cleaned.length - 1 && spec?.overpaymentChoice ? { overpaymentChoice: spec.overpaymentChoice, overpaymentDuesCents: leg2OverpaymentDuesCents } : {}),
+      ...(index === cleaned.length - 1 && spec?.excessCashNote ? { excessCashNote: spec.excessCashNote, excessCashDuesCents: leg2ExcessCashDuesCents } : {})
     }, referenceDate, {
       strictDigitalReference: spec?.strictDigitalReference,
       enforceDigitalReference: spec?.enforceDigitalReference
@@ -214,6 +304,15 @@ export function validateSplitTender(state, spec, referenceDate = new Date()) {
     date: pDate,
     paidBy: paidBy ? String(paidBy).trim() : '',
     legs: cleaned,
+    // Sharafat 1: the threaded form-level fields, the leg the waiver
+    // rides, and the last leg's remaining dues (see above).
+    shared,
+    waiverLeg,
+    leg2OverpaymentDuesCents,
+    leg2ExcessCashDuesCents,
+    overpaymentChoice: spec?.overpaymentChoice,
+    excessCashNote: spec?.excessCashNote,
+    remainderWaadaDate: spec?.remainderWaadaDate,
     totalAmount: Math.round(cleaned.reduce((sum, leg) => sum + centsOf(leg.amount), 0)) / 100
   };
 }
@@ -248,7 +347,11 @@ function stampSplitLegs(state, customerId, month, groupId, paymentIds) {
  * as two sequential collections — FIFO allocation, waada clearing,
  * ticket-charge settlement (threaded: leg 2 receives leg 1's settled
  * ticket list), auto-package follow, all unchanged. Both legs share
- * the same date/month/paidBy; each keeps its own method + TID.
+ * the same date/month/paidBy and the same collection note, category
+ * tag and promise link (Sharafat 1); each keeps its own method + TID,
+ * and the last leg also carries the overpayment choice, the
+ * excess-cash note and the remainder-waada date, while the leg that
+ * settles the target bill carries a ticked late-fee waiver.
  *
  * All-or-nothing at the ledger level: the input state is never
  * mutated, and if leg 2 fails the leg-1 state is DISCARDED (the
@@ -267,30 +370,57 @@ export function executeSplitTenderCollection(state, spec, { execute, referenceDa
     date: clean.date,
     paidBy: clean.paidBy || undefined,
     strictDigitalReference: spec?.strictDigitalReference,
-    enforceDigitalReference: spec?.enforceDigitalReference
+    enforceDigitalReference: spec?.enforceDigitalReference,
+    // Sharafat 1: the collection note, the category tag and the
+    // promise link ride BOTH legs — they describe the collection,
+    // not one leg — so each leg's record is indistinguishable from
+    // a normal single payment carrying them, and the Transactions
+    // rows show them on either leg.
+    collectedBy: clean.shared.collectedBy || undefined,
+    collectionPlace: clean.shared.collectionPlace || undefined,
+    collectionMohalla: clean.shared.collectionMohalla || undefined,
+    urduNote: clean.shared.urduNote || undefined,
+    categoryTag: clean.shared.categoryTag || undefined,
+    promiseLink: clean.shared.promiseLink || undefined
   };
-  const legFields = (leg) => ({
-    ...shared,
-    amount: leg.amount,
-    method: leg.method,
-    transactionId: leg.transactionId || undefined,
-    // FU-SISP121-SENDER: the recorder (executeQuickCollection) already
-    // accepts senderTitle/senderDigits and stamps them via addPayment —
-    // the split spec now carries them per leg, so a digital leg's
-    // recorded payment is indistinguishable in shape from a normal
-    // digital payment and SISP-63 statement matching works on it
-    // unchanged (the matcher reads the record fields directly).
-    senderTitle: leg.senderTitle || undefined,
-    senderDigits: leg.senderDigits || undefined,
-    referenceOverrideReason: leg.referenceOverrideReason || undefined,
-    screenshot: leg.screenshot
-  });
+  const legFields = (leg, index) => {
+    const legNo = index + 1;
+    return {
+      ...shared,
+      amount: leg.amount,
+      method: leg.method,
+      transactionId: leg.transactionId || undefined,
+      // FU-SISP121-SENDER: the recorder (executeQuickCollection) already
+      // accepts senderTitle/senderDigits and stamps them via addPayment —
+      // the split spec now carries them per leg, so a digital leg's
+      // recorded payment is indistinguishable in shape from a normal
+      // digital payment and SISP-63 statement matching works on it
+      // unchanged (the matcher reads the record fields directly).
+      senderTitle: leg.senderTitle || undefined,
+      senderDigits: leg.senderDigits || undefined,
+      referenceOverrideReason: leg.referenceOverrideReason || undefined,
+      screenshot: leg.screenshot,
+      // Sharafat 1: the waiver rides the leg that settles the target
+      // bill (decided in validation); the recorder's own gate
+      // decides there whether it is honoured or the whole split is
+      // refused loudly — never dropped silently.
+      ...(clean.shared.waiveLateFee && clean.waiverLeg === legNo ? { waiveLateFee: true } : {}),
+      // Sharafat 1: the overpayment choice, the excess-cash note and
+      // the remainder-waada date ride the LAST leg only — the extra
+      // and the remainder exist only once the whole tender is in.
+      // The choice / note carry the dues still outstanding after
+      // leg 1, so the recorder's extra is exactly the combined extra.
+      ...(legNo === clean.legs.length && clean.overpaymentChoice ? { overpaymentChoice: clean.overpaymentChoice, overpaymentDuesCents: clean.leg2OverpaymentDuesCents } : {}),
+      ...(legNo === clean.legs.length && clean.excessCashNote ? { excessCashNote: clean.excessCashNote, excessCashDuesCents: clean.leg2ExcessCashDuesCents } : {}),
+      ...(legNo === clean.legs.length && clean.remainderWaadaDate ? { remainderWaadaDate: clean.remainderWaadaDate } : {})
+    };
+  };
 
-  const first = execute(state, { ...legFields(clean.legs[0]), tickets: spec?.tickets }, referenceDate);
+  const first = execute(state, { ...legFields(clean.legs[0], 0), tickets: spec?.tickets }, referenceDate);
   let second;
   try {
     second = execute(first.nextState, {
-      ...legFields(clean.legs[1]),
+      ...legFields(clean.legs[1], 1),
       tickets: first.nextTickets ?? spec?.tickets
     }, referenceDate);
   } catch (error) {
@@ -404,6 +534,22 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
   }
   const combinedSalesTaxCents = [...salesTaxByBill.values()].reduce((sum, cents) => sum + cents, 0);
 
+  // Sharafat 1: the form-level fields the legs carry, read off the
+  // SAVED records — the combined receipt shows what the ledger
+  // actually recorded, never the form's intent. The note, the tag
+  // and the promise are identical on both legs by construction, so
+  // they read off leg 1; the waiver, the overpayment choice, the
+  // excess note and the remainder waada live on exactly one leg, so
+  // they read off whichever leg carries each one. Every reader is
+  // the defensive one the Transactions rows already use, so a
+  // damaged record reads as no field, never as a wrong one.
+  const firstLegPayment = entries[0].payment;
+  const waiverEntry = entries.find(({ payment }) => lateFeeWaiverOf(payment) !== null);
+  const waiver = waiverEntry ? lateFeeWaiverOf(waiverEntry.payment) : null;
+  const choiceEntry = entries.find(({ payment }) => overpaymentChoiceOf(payment) !== null);
+  const excessEntry = entries.find(({ payment }) => excessCashNoteOf(payment) !== null);
+  const remainderWaadaEntry = entries.find(({ payment }) => remainderWaadaOf(payment) !== null);
+
   return {
     splitGroupId: groupId,
     customerId: String(customer.customerNumber ?? ''),
@@ -421,6 +567,23 @@ export function buildSplitTenderReceipt(state, customerId, groupId) {
     // the combined surfaces print no tax line then, never PKR 0).
     // Every combined surface reads it from here.
     salesTaxCents: combinedSalesTaxCents > 0 ? combinedSalesTaxCents : null,
+    // Sharafat 1: the collection note, the Urdu-script note, the
+    // category tag and the promise link — '' / null when the split
+    // carries none, so a split without them renders exactly as
+    // before. The waiver (bool + rupees), the overpayment choice,
+    // the excess note and the remainder waada read off the leg that
+    // carries each one.
+    collectedBy: String(firstLegPayment.collectedBy ?? '').trim(),
+    collectionPlace: normalizeCollectionPlace(firstLegPayment.collectionPlace),
+    collectionMohalla: String(firstLegPayment.collectionMohalla ?? '').trim(),
+    urduNote: String(firstLegPayment.urduNote ?? '').trim(),
+    categoryTag: normalizeTransactionCategoryTag(firstLegPayment.categoryTag) || '',
+    promiseLink: promisePaymentLinkOf(firstLegPayment),
+    lateFeeWaived: waiver !== null,
+    waivedAmount: waiver ? waiver.waivedAmount : 0,
+    overpaymentChoice: choiceEntry ? overpaymentChoiceOf(choiceEntry.payment) : null,
+    excessCashNote: excessEntry ? excessCashNoteOf(excessEntry.payment) : null,
+    remainderWaada: remainderWaadaEntry ? remainderWaadaOf(remainderWaadaEntry.payment) : null,
     legs,
     totalReceivedCents,
     totalReceived: totalReceivedCents / 100,
@@ -483,6 +646,41 @@ function splitSalesTaxCents(combined) {
   return Number.isFinite(cents) && cents > 0 ? Math.round(cents) : 0;
 }
 
+// Sharafat 1: the collection fields the split recorded, in plain
+// words — the same lines the Transactions rows already print for a
+// single payment, read through the same defensive readers, so a
+// combined object without a field yields '' for it and renders
+// exactly as before. The promise line names the COMBINED tender as
+// the fulfilling payment (its total, its date), because the promise
+// is fulfilled by the split as a whole, not by one leg alone. The
+// remainder-waada line is the single receipt's own wording
+// ("Baqi Rs. X • Waada: YYYY-MM-DD"). All values are unescaped —
+// callers that put them in HTML must escape them.
+function splitCollectionFields(combined) {
+  if (!combined || typeof combined !== 'object') {
+    return { collectionNote: '', urduNote: '', category: '', promise: '', choice: '', excess: '', waivedAmount: 0, remainderWaada: null };
+  }
+  const remainderWaada = remainderWaadaOf(combined);
+  return {
+    collectionNote: collectionNoteLineText(collectionNoteOf(combined)),
+    urduNote: urduNoteLineText(combined.urduNote || ''),
+    category: categoryTagLineText(combined),
+    promise: combined.promiseLink
+      ? promisePaymentLinkLineText(combined.promiseLink, { amount: combined.totalReceived, date: combined.date })
+      : '',
+    choice: overpaymentChoiceLineText(combined.overpaymentChoice),
+    excess: excessCashNoteLineText(combined.excessCashNote),
+    waivedAmount: Number(combined.waivedAmount) > 0 ? Number(combined.waivedAmount) : 0,
+    remainderWaada
+  };
+}
+
+function splitRemainderWaadaLine(combined) {
+  const stamp = splitCollectionFields(combined).remainderWaada;
+  if (!stamp) return '';
+  return `Baqi Rs. ${formatReceiptMoneyFigure(stamp.promiseAmount)} • Waada: ${stamp.promiseDate}`;
+}
+
 /** WhatsApp / plain-text combined receipt (house receipt text style). */
 export function formatSplitTenderWhatsAppText(combined) {
   const legLines = combined.legs.map(leg => {
@@ -503,6 +701,12 @@ export function formatSplitTenderWhatsAppText(combined) {
   // no tax line when the split is untaxed.
   const splitPackage = splitPackageDisplay(combined);
   const taxCents = splitSalesTaxCents(combined);
+  // Sharafat 1: the collection fields the split recorded, each only
+  // when the split carries it — a split without them reads exactly
+  // as before. The remainder waada reads beside the balance below,
+  // like the single receipt.
+  const fields = splitCollectionFields(combined);
+  const splitRemainderWaada = splitRemainderWaadaLine(combined);
   // Plan 559: the status line is bilingual for every status, the
   // same pattern as the PAID line — the raw code ('PARTIAL', 'VOID')
   // never reaches the customer. The Urdu words are the app's own
@@ -526,9 +730,21 @@ export function formatSplitTenderWhatsAppText(combined) {
     ...(taxCents > 0 ? [`🧾 *${SALES_TAX_RECEIPT_LABEL}:* ${formatAmount(taxCents / 100)}`] : []),
     '',
     ...legLines,
+    // Sharafat 1: the collection block — who collected it and where,
+    // the Urdu-script note, the category tag, the promise this split
+    // fulfils, the waived fee, and the extra's disposition — each
+    // only when the split carries it.
+    ...(fields.collectionNote ? [`🧾 *Collection / وصولی:* ${fields.collectionNote}`] : []),
+    ...(fields.urduNote ? [`📝 *Note / نوٹ:* ${fields.urduNote}`] : []),
+    ...(fields.category ? [`🏷️ *Category / زمرہ:* ${fields.category}`] : []),
+    ...(fields.promise ? [`🤝 *${fields.promise}*`] : []),
+    ...(fields.waivedAmount > 0 ? [`🎟️ *${t('lfw_whatsapp', null, { amount: formatAmount(fields.waivedAmount) })}*`] : []),
+    ...(fields.choice ? [`🪙 *${fields.choice}*`] : []),
+    ...(fields.excess ? [`🪙 *${fields.excess}*`] : []),
     '',
     `💵 *${t('split_total_received')}:* ${formatAmount(combined.totalReceived)}`,
     `⚖️ *${t('split_balance_due')}:* ${formatAmount(combined.balanceDueCents / 100)}`,
+    ...(splitRemainderWaada ? [`🤝 *${splitRemainderWaada}*`] : []),
     `📌 *Status:* ${splitStatusText}`,
     '',
     'Shukriya! Thank you for your prompt payment.',
@@ -589,6 +805,22 @@ export function generateSplitTenderReceiptHtml(combined, {
     ${leg.paidBy ? `<div class="receipt-field"><dt>Paid by / ادا کنندہ:</dt><dd>${escapeHtml(leg.paidBy)}</dd></div>` : ''}
     ${legVerStamp ? `<div class="receipt-field"><dt>Verify (${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))}) / تصدیق:</dt><dd><strong>${escapeHtml(legVerStamp)}</strong></dd></div>` : ''}`;
   }).join('');
+  // Sharafat 1: the collection rows — the same plain-words lines the
+  // WhatsApp text uses, escaped like every other row, each only
+  // when the split carries it, so a split without them renders
+  // exactly as before.
+  const fields = splitCollectionFields(combined);
+  const splitRemainderWaada = splitRemainderWaadaLine(combined);
+  const splitCollectionRows = [
+    ...(fields.collectionNote ? [`<div class="receipt-field"><dt>Collection / وصولی:</dt><dd>${escapeHtml(fields.collectionNote)}</dd></div>`] : []),
+    ...(fields.urduNote ? [`<div class="receipt-field"><dt>Note / نوٹ:</dt><dd dir="rtl" lang="ur">${escapeHtml(fields.urduNote)}</dd></div>`] : []),
+    ...(fields.category ? [`<div class="receipt-field"><dt>Category / زمرہ:</dt><dd>${escapeHtml(fields.category)}</dd></div>`] : []),
+    ...(fields.promise ? [`<div class="receipt-field"><dt>Promise / وعدہ:</dt><dd>${escapeHtml(fields.promise)}</dd></div>`] : []),
+    ...(fields.waivedAmount > 0 ? [`<div class="receipt-field"><dt>Late Fee Waived / لیٹ فیس معاف:</dt><dd>-${escapeHtml(formatAmount(fields.waivedAmount))}</dd></div>`] : []),
+    ...(fields.choice ? [`<div class="receipt-field"><dt>Extra / اضافی:</dt><dd>${escapeHtml(fields.choice)}</dd></div>`] : []),
+    ...(fields.excess ? [`<div class="receipt-field"><dt>Extra / اضافی:</dt><dd>${escapeHtml(fields.excess)}</dd></div>`] : []),
+    ...(splitRemainderWaada ? [`<div class="receipt-field"><dt>Waada / وعدہ:</dt><dd>${escapeHtml(splitRemainderWaada)}</dd></div>`] : [])
+  ].join('');
   return `<article class="receipt-sheet a4-receipt split-tender-receipt" data-receipt-format="a4">
   <header class="receipt-head">
     ${brandHeaderContentHtml({ businessName, businessPhone, areaName }, {
@@ -615,6 +847,7 @@ export function generateSplitTenderReceiptHtml(combined, {
     ${splitPackage ? `<div class="receipt-field"><dt>Package / پیکیج:</dt><dd>${escapeHtml(splitPackage)}</dd></div>` : ''}
     ${taxCents > 0 ? `<div class="receipt-field"><dt>${escapeHtml(SALES_TAX_RECEIPT_LABEL)}:</dt><dd>+${formatAmount(taxCents / 100)}</dd></div>` : ''}
     ${legRows}
+    ${splitCollectionRows}
     <div class="receipt-field receipt-paid-field"><dt><strong>${escapeHtml(t('split_total_received'))}:</strong></dt><dd><strong>${formatAmount(combined.totalReceived)}</strong></dd></div>
     <div class="receipt-field receipt-balance-field"><dt><strong>${escapeHtml(t('split_balance_due'))}:</strong></dt><dd class="${statusClass}"><strong>${formatAmount(combined.balanceDueCents / 100)}</strong></dd></div>
   </dl>
@@ -658,6 +891,23 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { next
           <span class="qc-meta-label">${escapeHtml(t('split_leg_label', null, { leg: leg.leg }))} · ${escapeHtml(leg.method)}${leg.voided ? ` (${escapeHtml(t('split_voided_leg'))})` : ''}</span>
           <strong class="qc-meta-val">PKR ${Number(leg.amount).toLocaleString('en-PK')} · ${escapeHtml(leg.receiptNumber)}${leg.transactionId ? ` · TID ${escapeHtml(leg.transactionId)}` : ''}</strong>
         </div>`).join('');
+  // Sharafat 1: the waived-fee and remainder-waada rows, in the single
+  // card's exact shape (same labels, same dictionary keys) — each
+  // only when the split carries it, so the ordinary card renders
+  // exactly as before.
+  const splitRemainderWaada = splitRemainderWaadaLine(combined);
+  const splitCardExtraRows = [
+    ...(splitRemainderWaada ? [`
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">${escapeHtml(t('remwaada_receipt_label'))}</span>
+          <strong class="qc-meta-val">🤝 ${escapeHtml(splitRemainderWaada)}</strong>
+        </div>`] : []),
+    ...(Number(combined.waivedAmount) > 0 ? [`
+        <div class="qc-receipt-item full-width">
+          <span class="qc-meta-label">Late Fee</span>
+          <strong class="qc-meta-val">🎟️ ${escapeHtml(t('lfw_card', null, { amount: `PKR ${formatReceiptMoneyFigure(combined.waivedAmount)}` }))}</strong>
+        </div>`] : [])
+  ].join('');
   return `
     <div class="qc-receipt-card" role="region" aria-label="Split Payment Receipt Slip">
       <div class="qc-receipt-header">
@@ -692,6 +942,7 @@ export function renderSplitReceiptCardHtml(combined, areaSelectHtml = '', { next
           <strong class="qc-meta-val">${escapeHtml(nextDueDateText || SUCCESS_NEXT_STEPS_NO_DUE_DATE_TEXT)}</strong>
         </div>
         ${legRows}
+        ${splitCardExtraRows}
       </div>
       ${receiptTermsNoteHtml({ contactActions: true }).replace('class="receipt-urdu-notice"', 'class="receipt-urdu-notice qc-urdu-nastaliq qc-urdu-gradient"')}
     </div>

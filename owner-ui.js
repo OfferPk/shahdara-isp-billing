@@ -2,7 +2,7 @@ import { calculatePaymentAllocations } from './core.js';
 import { canonicalMohalla } from './phase3.js';
 import {
   answerOwnerCommand, buildBusinessHealthScore, buildCustomerRankings, buildMonthToMonthComparison,
-  buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, CUSTOMER_RANKING_TYPES, TROUBLESOME_RULE
+  buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, describePercentChange, CUSTOMER_RANKING_TYPES, TROUBLESOME_RULE
 } from './owner-insights.js';
 import { createWhatsAppFollowupDraft } from './profile-ui.js';
 import { loadComplaints } from './complaint-register.js';
@@ -16,12 +16,19 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   let lastQuery = '';
   const months = () => monthsForHistory();
   const setText = (selector, value) => { const node=$(selector); if (node) node.textContent=String(value ?? ''); };
-  const ensureMonthOptions = (selector, preferred) => {
+  // Compact 'Oct 2026' labels for the narrow compare selects; the full
+  // month name ('October 2026') truncates to 'October 202' at 360px.
+  const shortMonthLabel = month => { const [year, num] = String(month ?? '').split('-'); const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']; return `${names[Number(num) - 1] ?? ''} ${year}`; };
+  const ensureMonthOptions = (selector, preferred, short = false) => {
     const node=$(selector); if (!node) return;
     const before=node.value;
-    node.innerHTML=months().map(month=>`<option value="${month}">${escapeHtml(monthName(month))}</option>`).join('');
+    node.innerHTML=months().map(month=>`<option value="${month}">${escapeHtml(short ? shortMonthLabel(month) : monthName(month))}</option>`).join('');
     node.value=months().includes(before)?before:(months().includes(preferred)?preferred:months()[0]);
   };
+  // Percent-change kind per compare metric key: money figures show PKR,
+  // the collection rate shows points, everything else shows counts.
+  const MONEY_COMPARE_KEYS = ['billedAmount', 'collection', 'outstanding', 'expenses', 'cashProfit'];
+  const compareKind = key => key === 'collectionRate' ? 'rate' : MONEY_COMPARE_KEYS.includes(key) ? 'money' : 'count';
   function renderCommand(query=lastQuery) {
     const output=$('#ownerCommandAnswer'); if(!output)return;
     output.replaceChildren();
@@ -45,7 +52,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
       case 'paid-list': summary.textContent=answer.count?`${answer.count} payment(s) received · ${periodLabel}; total ${formatAmount(answer.total)}.`:`No payments were recorded · ${periodLabel}.`; break;
       case 'method-collection': summary.textContent=answer.focusMethod?`${answer.focusMethod}: ${formatAmount(answer.focusAmount)} of ${formatAmount(answer.total)} collected · ${periodLabel}.`:`Collection by payment method · ${periodLabel}; total ${formatAmount(answer.total)}.`; break;
       case 'area-collection': summary.textContent=answer.areaFilter?`${answer.areaFilter} collection · ${periodLabel}: ${formatAmount(answer.total)}.`:`Collection by area · ${periodLabel}; total ${formatAmount(answer.total)}.`; break;
-      case 'month-comparison': { const focusRow=rows.find(row=>row.key===answer.focus); const focusLabel=focusRow?focusRow.label:'Collection'; summary.textContent=focusRow?`${focusLabel} · ${monthName(answer.monthA)} → ${monthName(answer.monthB)}: ${formatAmount(focusRow.from)} → ${formatAmount(focusRow.to)} (${focusRow.percentChange===null?'percentage unavailable':`${focusRow.percentChange>0?'+':''}${focusRow.percentChange}%`}) — ${answer.direction==='same'?'no change':answer.direction==='up'?'increased':'decreased'}.`:`No saved comparison is available for ${monthName(answer.monthA)} and ${monthName(answer.monthB)}.`; break; }
+      case 'month-comparison': { const focusRow=rows.find(row=>row.key===answer.focus); const focusLabel=focusRow?focusRow.label:'Collection'; summary.textContent=focusRow?`${focusLabel} · ${monthName(answer.monthA)} → ${monthName(answer.monthB)}: ${formatAmount(focusRow.from)} → ${formatAmount(focusRow.to)} (${describePercentChange({...focusRow, absoluteChange:focusRow.change}, compareKind(focusRow.key))}) — ${answer.direction==='same'?'no change':answer.direction==='up'?'increased':'decreased'}.`:`No saved comparison is available for ${monthName(answer.monthA)} and ${monthName(answer.monthB)}.`; break; }
       case 'expense-breakdown': summary.textContent=rows.length?`Recorded expenses by category · ${periodLabel}; total ${formatAmount(answer.total)}. Biggest: ${rows[0].category} · ${formatAmount(rows[0].amount)}.`:`No expense entries are recorded · ${periodLabel}.`; break;
       case 'top-defaulters': summary.textContent=rows.length?`Highest saved outstanding balances (top ${answer.limit}); largest is ${rows[0].name} · ${formatAmount(rows[0].outstanding)}.`:`No saved outstanding balances are recorded.`; break;
       case 'customer-candidates': summary.textContent=`More than one saved customer matches that name. Balance details for each · ${monthLabel}:`; break;
@@ -74,7 +81,7 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
         else if(answer.intent==='paid-list') item.textContent=`${row.name} — ${formatAmount(row.amount)} · ${row.method} · ${row.date}.`;
         else if(answer.intent==='method-collection') item.textContent=`${row.method} — ${formatAmount(row.amount)} · ${row.count} receipt(s).`;
         else if(answer.intent==='area-collection') item.textContent=`${row.area} — ${formatAmount(row.amount)} collected · ${row.customers} customer(s) · ${row.receipts} receipt(s).`;
-        else if(answer.intent==='month-comparison') item.textContent=`${row.label}: ${formatAmount(row.from)} → ${formatAmount(row.to)} (${row.percentChange===null?'percentage unavailable':`${row.percentChange>0?'+':''}${row.percentChange}%`}).`;
+        else if(answer.intent==='month-comparison') item.textContent=`${row.label}: ${formatAmount(row.from)} → ${formatAmount(row.to)} (${describePercentChange({...row, absoluteChange:row.change}, compareKind(row.key))}).`;
         else if(answer.intent==='expense-breakdown') item.textContent=`${row.category} — ${formatAmount(row.amount)} · ${row.count} entr${row.count===1?'y':'ies'}.`;
         else if(answer.intent==='top-defaulters'||answer.intent==='threshold-outstanding') item.textContent=`${row.name} — ${row.package}; outstanding ${formatAmount(row.outstanding)}${row.bills?` · ${row.bills} open bill(s)`:''}${row.oldestDueDate?` · oldest due ${row.oldestDueDate}`:''}.`;
         else if(answer.intent==='package-customers') item.textContent=answer.distribution?`${row.package} — ${row.customers} customer(s) · ${formatAmount(row.duesTotal)} outstanding.`:`${row.name} — ${formatAmount(row.outstanding)} outstanding.`;
@@ -118,22 +125,23 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   const compareLabels={billCount:'Total bills',pricedBillCount:'Priced bills',unpricedBillCount:'Unpriced bills',billedAmount:'Total billing',collection:'Collection',outstanding:'Pending / outstanding',expenses:'Expenses',cashProfit:'Cash profit',activeCustomers:'Active customers',newCustomers:'New customer profiles',newConnections:'New connections',archivedCustomers:'Archived customers',disconnectedCustomers:'Disconnected customers',collectionRate:'Collection rate'};
   function renderComparison() {
     const monthsList=months();
-    ensureMonthOptions('#compareMonthA',monthsList[1]??monthsList[0]); ensureMonthOptions('#compareMonthB',monthsList[0]);
+    ensureMonthOptions('#compareMonthA',monthsList[1]??monthsList[0],true); ensureMonthOptions('#compareMonthB',monthsList[0],true);
     const a=$('#compareMonthA')?.value,b=$('#compareMonthB')?.value,metrics=$('#monthComparisonMetrics'),chart=$('#monthComparisonChart'),packages=$('#monthPackageComparison');
     if(!a||!b||!metrics||!chart||!packages)return;
     try {
       const comparison=buildMonthToMonthComparison(getState(),a,b,new Date());
-      setText('#monthComparisonBasis',`${comparison.basis.collection} ${comparison.basis.billedAmount} ${comparison.monthA.outstandingSource} ${comparison.basis.profit} Manual service state: ${comparison.monthA.activeCustomerSource} / ${comparison.monthB.activeCustomerSource}`);
+      const monthBasis=facts=>facts.source==='saved-snapshot'?`${monthName(facts.month)} figures are the saved month-close (saved ${facts.snapshotSavedAt} PKT) — they match the Saved Closings card exactly.`:`${monthName(facts.month)} figures are from the live ledger (no saved close for that month; later edits can move them).`;
+      setText('#monthComparisonBasis',`${monthBasis(comparison.monthA)} ${monthBasis(comparison.monthB)} ${comparison.basis.collection} ${comparison.basis.billedAmount} ${comparison.basis.profit} Manual service state: ${comparison.monthA.activeCustomerSource} / ${comparison.monthB.activeCustomerSource}`);
       const keys=Object.keys(compareLabels);
       metrics.innerHTML=keys.map(key=>{
         const change=comparison.changes[key],renderValue=value=>value===null||value===undefined?'Not available':key==='collectionRate'?`${value}%`:['billCount','pricedBillCount','unpricedBillCount','activeCustomers','newCustomers','newConnections','archivedCustomers','disconnectedCustomers'].includes(key)?String(value):formatAmount(value);
-        const delta=change.percentChange===null?'% change unavailable':`${change.percentChange>0?'+':''}${change.percentChange}%`;
-        return `<article class="comparison-metric"><span>${compareLabels[key]}</span><strong>${escapeHtml(renderValue(change.from))} <small>→</small> ${escapeHtml(renderValue(change.to))}</strong><small>${change.absoluteChange===null?'Not saved for both months':`${delta} change`}</small></article>`;
+        const delta=describePercentChange(change,compareKind(key));
+        return `<article class="comparison-metric"><span>${compareLabels[key]}</span><strong>${escapeHtml(renderValue(change.from))} <small>→</small> ${escapeHtml(renderValue(change.to))}</strong><small>${change.absoluteChange===null?'Not saved for both months':escapeHtml(delta)}</small></article>`;
       }).join('');
       const chartKeys=['billedAmount','collection','outstanding','expenses','cashProfit'];
       const max=Math.max(1,...chartKeys.flatMap(key=>[comparison.monthA[key]??0,comparison.monthB[key]??0]));
       chart.innerHTML=chartKeys.map(key=>{const first=comparison.monthA[key]??0,second=comparison.monthB[key]??0;return `<div class="comparison-bar-row"><span>${compareLabels[key]}</span><div class="comparison-bar-pair"><div><small>${escapeHtml(monthName(a))}</small><span class="comparison-bar comparison-bar-a" style="width:${Math.max(0,Math.min(100,Math.abs(first)/max*100))}%"></span><strong>${escapeHtml(formatAmount(first))}</strong></div><div><small>${escapeHtml(monthName(b))}</small><span class="comparison-bar comparison-bar-b" style="width:${Math.max(0,Math.min(100,Math.abs(second)/max*100))}%"></span><strong>${escapeHtml(formatAmount(second))}</strong></div></div></div>`;}).join('');
-      packages.innerHTML=comparison.packageChanges.length?comparison.packageChanges.map(row=>`<li><span>${escapeHtml(row.name)}</span><strong>${row.from} → ${row.to}</strong><small>${row.change>0?'+':''}${row.change} customers${row.percentChange===null?' · percentage unavailable':` · ${row.percentChange>0?'+':''}${row.percentChange}%`}</small></li>`).join(''):'<li>No saved package distribution for these months.</li>';
+      packages.innerHTML=comparison.packageChanges.length?comparison.packageChanges.map(row=>`<li><span>${escapeHtml(row.name)}</span><strong>${row.from} → ${row.to}</strong><small>${row.change>0?'+':''}${row.change} customers · ${escapeHtml(describePercentChange({...row, absoluteChange:row.change},'count'))}</small></li>`).join(''):'<li>No saved package distribution for these months.</li>';
     } catch(error) { metrics.innerHTML=`<p class="empty-state">${escapeHtml(error.message)}</p>`;chart.replaceChildren();packages.replaceChildren(); }
     setText('#performanceExplanation','Select a measure and choose “Explain this change” to see its recorded contributors.');
   }

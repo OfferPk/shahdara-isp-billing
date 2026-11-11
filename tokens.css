@@ -150,6 +150,7 @@
   --ds-danger-border: #fca5a5;
   --ds-danger-strong: #dc2626;
   --ds-line: #e2e8f0;
+  --ds-border: #cbd5e1;
   --ds-canvas: #f4f7f5;
   --ds-card: #ffffff;
   --ds-nested: #f8fafc;
@@ -226,6 +227,7 @@
   --ds-danger-border: #2d4a40;
   --ds-danger-strong: #f87171;
   --ds-line: #253d35;
+  --ds-border: #2d4a40;
   --ds-canvas: #14241f;
   --ds-card: #182d27;
   --ds-nested: #1d352e;
@@ -296,6 +298,7 @@
     --ds-danger-border: #2d4a40;
     --ds-danger-strong: #f87171;
     --ds-line: #253d35;
+    --ds-border: #2d4a40;
     --ds-canvas: #14241f;
     --ds-card: #182d27;
     --ds-nested: #1d352e;

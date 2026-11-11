@@ -3845,7 +3845,7 @@ export function listTransactions(state, { customerQuery = '', date = '', recency
 export function buildMonthlyReport(state, { month = monthsForHistory()[0], statusFilter = 'all', customerQuery = '' } = {}, referenceDate = new Date()) {
   checkMonth(month, referenceDate);
   if (statusFilter === 'unpaid') statusFilter = 'pending';
-  if (!['all', 'paid', 'pending', 'partial', 'not-set'].includes(statusFilter)) throw new Error('Choose All, Paid, Pending, Partial, or Not set.');
+  if (!['all', 'paid', 'pending', 'partial', 'not-set', 'outstanding'].includes(statusFilter)) throw new Error('Choose All, Paid, Pending, Partial, Outstanding, or Not set.');
   const allocations = calculatePaymentAllocations(state);
   return state.customers.filter(customer => customerMatchesQuery(customer, customerQuery, allocations)).map(customer => {
     const bill = customer.bills.find(item => item.month === month);
@@ -3876,6 +3876,9 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
       serviceStatus:customer.serviceStatus ?? 'not-set',
       packageSpeed:customer.packageSpeed || '',
       ispProvider:customer.ispProvider || '',
+      // Raw saved area/mohalla for the Area Analytics drill-down (app.js
+      // filters by canonicalMohalla, so spelling variants stay together).
+      area:String(customer.area ?? customer.mohalla ?? '').trim(),
       monthlySellingAmount:customer.monthlySellingAmount,
       month,
       dueDate:bill?.dueDate ?? null,
@@ -3890,7 +3893,7 @@ export function buildMonthlyReport(state, { month = monthsForHistory()[0], statu
       pendingCreditSources,
       status
     };
-  }).filter(row => statusFilter === 'all' || row.status === statusFilter);
+  }).filter(row => statusFilter === 'all' || (statusFilter === 'outstanding' ? row.status === 'pending' || row.status === 'partial' : row.status === statusFilter));
 }
 
 function monthlyClosingMetrics(state, month, allocations = calculatePaymentAllocations(state)) {

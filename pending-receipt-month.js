@@ -72,9 +72,31 @@ export function formatReceiptMonthLong(month) {
   return `${MONTH_NAMES[monthIndex]} ${String(month).trim().slice(0, 4)}`;
 }
 
+const MONTH_NAMES_SHORT = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
+/** '2026-11' -> 'Nov 2026'; anything invalid -> ''. */
+export function formatReceiptMonthShort(month) {
+  if (!isValidReceiptMonth(month)) return '';
+  const monthIndex = Number(String(month).trim().slice(5, 7)) - 1;
+  return `${MONTH_NAMES_SHORT[monthIndex]} ${String(month).trim().slice(0, 4)}`;
+}
+
 /** Display label ('November 2026') for a receipt-like record, or ''. */
 export function pendingReceiptMonthLabel(input) {
   return formatReceiptMonthLong(deriveReceiptSendMonth(input));
+}
+
+/**
+ * Short display label ('Nov 2026') for a receipt-like record, or ''.
+ * Same bill-month-first derivation as pendingReceiptMonthLabel — the
+ * compact Pending Actions card meta line needs the short form so the
+ * whole 'amount • method • month • phone' line fits on one row.
+ */
+export function pendingReceiptShortMonthLabel(input) {
+  return formatReceiptMonthShort(deriveReceiptSendMonth(input));
 }
 
 /**

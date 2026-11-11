@@ -146,6 +146,10 @@ const BARE_GLYPH_ALLOWLIST = [
   // Plan 459: the × on a saved filter row removes only that filter —
   // an item-level micro-control, never a dialog close.
   { file: 'saved-search-filters.js', cls: 'fcs-clear-recent-btn', why: 'removes one saved filter row' },
+  // Reports Tab Part 4A: the × on the Mohalla Analytics area-filter
+  // chip clears only that filter (same family as the saved-filter
+  // row above) — never a dialog close.
+  { file: 'app.js', cls: 'report-area-chip-clear', why: 'clears the Mohalla Analytics area filter chip' },
 ];
 
 test('SISP-87 audit: bare ✕ / × buttons exist only as allowlisted micro-controls', () => {

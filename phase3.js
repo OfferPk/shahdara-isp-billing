@@ -210,7 +210,9 @@ export function canonicalMohalla(value) {
 }
 export function canonicalPackage(value) {
   const text=normalizedText(value); if(!text)return null;
-  const speed=text.match(/^(5|10|15|30)\s*mbps$/iu);
+  const bundle=text.match(/^(\d+)\s*mbps\s*\/\s*(\d+)\s*gb$/iu);
+  if(bundle)return{key:`${bundle[1]}mbps/${bundle[2]}gb`,label:`${bundle[1]} Mbps / ${bundle[2]}GB`};
+  const speed=text.match(/^(\d+)\s*mbps$/iu);
   return speed?{key:`${speed[1]}mbps`,label:`${speed[1]} Mbps`}:{key:comparisonKey(text),label:readableLabel(text)};
 }
 function subscriptionExclusionReason(customer,onDate) {

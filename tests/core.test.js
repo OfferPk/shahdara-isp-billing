@@ -653,7 +653,9 @@ test('monthly report classifies priced customers, shows unconfigured rows as Not
   assert.equal(partial.balanceDue, 60);
   assert.equal(buildMonthlyReport(state, { ...options, statusFilter:'pending' }, referenceDate)[0].customerId, 'seed-002');
   assert.equal(buildMonthlyReport(state, { ...options, statusFilter:'not-set' }, referenceDate).length, 70);
-  assert.throws(() => buildMonthlyReport(state, { ...options, statusFilter:'unknown' }, referenceDate), /Choose All, Paid, Pending, Partial, or Not set/);
+  // Reports Tab Part 4A adds the 'outstanding' status filter (Pending or
+  // Partial), so the invalid-filter error lists it alongside the rest.
+  assert.throws(() => buildMonthlyReport(state, { ...options, statusFilter:'unknown' }, referenceDate), /Choose All, Paid, Pending, Partial, Outstanding, or Not set/);
 });
 
 test('monthly report month selection uses explicit past bills only and shared search filters report rows', () => {

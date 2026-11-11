@@ -99,16 +99,19 @@ test('Plan R traceability: month facts are the comparison monthB, verbatim', () 
 test('Plan R month figures: billed, collection, rate, outstanding, expenses, profit', () => {
   const facts = build().monthFacts;
   assert.equal(facts.billedAmount, 11500);
-  // The source builder counts receipts by payment date, voided or not;
-  // the pack carries that figure unchanged, it does not re-filter it.
-  assert.equal(facts.collection, 10000);
-  assert.equal(facts.collectionRate, 87.0);
+  // Reports Tab: the source builder now excludes voided receipts from
+  // the live collection (same as the saved month close and the area
+  // breakdowns) — the fixture's PKR 5,000 duplicate-entry receipt is
+  // voided, so collection is 3,000 + 2,000 and the receipt count is 2.
+  // The pack carries that figure unchanged, it does not re-filter it.
+  assert.equal(facts.collection, 5000);
+  assert.equal(facts.collectionRate, 43.5);
   assert.equal(facts.outstanding, 6500);
   assert.equal(facts.expenses, 2500);
-  assert.equal(facts.cashProfit, 7500);
+  assert.equal(facts.cashProfit, 2500);
   assert.equal(facts.pricedBillCount, 4);
   assert.equal(facts.billCount, 4);
-  assert.equal(facts.collectionReceiptCount, 3);
+  assert.equal(facts.collectionReceiptCount, 2);
   assert.equal(facts.newCustomers, 1);
 });
 
@@ -183,7 +186,7 @@ test('Plan R insights: last month is the pack month, this month is next', () => 
   const insights = build().insights;
   assert.equal(insights.lastMonth, '2026-10');
   assert.equal(insights.currentMonth, '2026-11');
-  assert.equal(insights.collection.lastMonth.rate, 87.0);
+  assert.equal(insights.collection.lastMonth.rate, 43.5);
   assert.equal(insights.collection.lastMonth.billed, 11500);
   assert.equal(insights.collection.thisMonth.rate, null);
   assert.equal(insights.collection.deltaPoints, null);
@@ -275,7 +278,7 @@ test('Plan R print: brand header from the Plan Q branding system', () => {
 test('Plan R print: month figures and area table', () => {
   const html = buildOwnerReportPackPrintHtml(build());
   assert.ok(html.includes('PKR 11,500'));
-  assert.ok(html.includes('PKR 10,000'));
+  assert.ok(html.includes('PKR 5,000'));
   assert.ok(html.includes('PKR 6,500'));
   assert.ok(html.includes('Shahdara'));
   assert.ok(html.includes('PKR 16,000'));
@@ -318,13 +321,13 @@ test('Plan R CSV: header and month rows', () => {
   const lines = csv.split('\n');
   assert.equal(lines[0], 'section,metric,value,source');
   assert.ok(lines.includes('month,billed_amount,11500,buildMonthToMonthComparison'));
-  assert.ok(lines.includes('month,collection,10000,buildMonthToMonthComparison'));
-  assert.ok(lines.includes('month,collection_rate_pct,87,buildMonthToMonthComparison'));
+  assert.ok(lines.includes('month,collection,5000,buildMonthToMonthComparison'));
+  assert.ok(lines.includes('month,collection_rate_pct,43.5,buildMonthToMonthComparison'));
   assert.ok(lines.includes('month,outstanding,6500,buildMonthToMonthComparison'));
   assert.ok(lines.includes('month,expenses,2500,buildMonthToMonthComparison'));
-  assert.ok(lines.includes('month,cash_profit,7500,buildMonthToMonthComparison'));
+  assert.ok(lines.includes('month,cash_profit,2500,buildMonthToMonthComparison'));
   assert.ok(lines.includes('month,priced_bill_count,4,buildMonthToMonthComparison'));
-  assert.ok(lines.includes('month,collection_receipt_count,3,buildMonthToMonthComparison'));
+  assert.ok(lines.includes('month,collection_receipt_count,2,buildMonthToMonthComparison'));
   assert.ok(csv.endsWith('\n'));
 });
 
@@ -358,7 +361,7 @@ test('Plan R CSV: health rows carry score, category and factor values', () => {
 
 test('Plan R CSV: insights rows and overdue trend rows', () => {
   const csv = buildOwnerReportPackCsv(build());
-  assert.ok(csv.includes('insights,collection_last_month_rate_pct,87,buildIspInsights'));
+  assert.ok(csv.includes('insights,collection_last_month_rate_pct,43.5,buildIspInsights'));
   assert.ok(csv.includes('insights,collection_this_month_rate_pct,,buildIspInsights'));
   assert.ok(csv.includes('insights,collection_delta_points,,buildIspInsights'));
   assert.ok(csv.includes('overdue_trend:2026-09,outstanding,4500,buildIspInsights'));

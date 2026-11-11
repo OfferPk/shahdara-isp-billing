@@ -210,10 +210,15 @@ test('upcoming dues: the view never changes any bill, payment, or customer recor
   assert.equal(JSON.stringify(state), before);
 });
 
-test('upcoming dues wiring: the view sits on the billing dashboard after the summary grid, and the dashboard renders it', () => {
+test('upcoming dues wiring: the view sits in the Collect tab (transactionsView), and the dashboard renders it', () => {
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   assert.ok(page.includes('id="upcomingDuesSection"'), 'upcoming dues section exists');
-  assert.ok(page.indexOf('id="upcomingDuesSection"') > page.indexOf('class="summary-grid"'), 'view follows the summary grid');
+  // Home Dashboard overhaul: the section moved from Home to the
+  // Collect tab — the old "follows the summary grid" pin is gone
+  // with the deleted grid. It now sits inside transactionsView
+  // (before Reports) and still before the forecast section.
+  assert.ok(page.indexOf('id="upcomingDuesSection"') > page.indexOf('id="transactionsView"'), 'view sits inside the Collect tab');
+  assert.ok(page.indexOf('id="upcomingDuesSection"') < page.indexOf('id="billingReportsView"'), 'view sits before the Reports tab');
   assert.ok(page.indexOf('id="upcomingDuesSection"') < page.indexOf('id="collectionForecastSection"'), 'view sits before the forecast section');
   assert.ok(page.includes('id="dudSevenDayTotal"'), 'seven-day total element exists');
   assert.ok(page.includes('id="dudSevenDayLine"'), 'window line exists');

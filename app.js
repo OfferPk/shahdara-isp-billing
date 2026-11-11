@@ -100,6 +100,7 @@ import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaErro
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
 import { calculateDashboardKpis, calculateCollectionVelocity, setupDashboardQuickActions, renderDashboardCharts, setupDashboardBriefingButton, setupDashboardBriefingModal, setupAreaDrilldownModal, setupCustomerHealthActions, setupChurnRiskModal, setupAreaHeatmapEvents, setupDailyClosingCard, setupKhataDoctorCard, calculateNextMonthForecast, buildPonCapacityReport, renderPonCapacityRows } from './dashboard.js?v=1.11.0';
 import { setupNavigationDrawer, updateNavigationBadges, setupSidebarRailToggle, setupScrollToTop, wireDsIcons, setupNetworkStatusIndicator, setupKeyboardShortcuts, setupMobileActionSheet, triggerHaptic, setupPullToRefresh, setupCommandPalette, setupSwipeNavigation, setupOfflineSyncBanner, setupMobileSpeedDial, setupOfflineQueueModal, setupMobileBreadcrumbs, setupTabSliderIndicator, setupCustomerEnrollmentWizard, startOfflineQueueAutoRetryEngine, setupFieldDiagnosticsModal, setupFieldRouteSheet, setupFieldWorkOrderSheet, setupSyncConflictModal, setupOpticalSignalMapModal, setupVehicleTransferModal, setupAerialAlertsModal, setupMobileOtdrTraceModal, setupMobileGpsBreadcrumbsModal, setupMobileOpmTestingModal, setupMobileVflModal, setupMobileFusionSpliceModal, setupMobileWifiSurveyModal, setupMobileOpticalBudgetModal, setupMobileFdtAllocationModal, setupMobileOntDiagnosticsModal, setupMobileFiberProbeModal, setupMobileSplitterTreeModal, setupMobileMacroBendModal, setupMobileAttenuatorModal, setupMobileOrlModal, setupMobileCleaverModal, setupMobileOltsModal, setupMobileFiberIdentifierModal, setupMobileMpoModal, setupMobileFastConnectorModal, setupMobileOtdrLaunchModal, setupMobileBareFiberAdapterModal, setupMobileSlsToneModal, setupMobileFiberTalksetModal, setupMobileWdmSpectrumModal, setupMobileMidspanAccessModal, setupMobilePowerLoggerModal, setupMobileDropRetentionModal, setupMobileRefJumpersModal, setupMobileRibbonSeparatorModal, setupMobileMechanicalSpliceModal, setupMobileFiberMicroscopeModal, setupMobileConnectorCleaningModal, setupMobileOtdrDeadzoneModal, setupMobileTubeShavingModal, setupQuickCollectModal, setupFastCustomerSearchModal, setupMobileQuickProfileModal, setupLanguageToggle, setupPendingActionsModal, setupPwaInstallPrompt, setupPwaStatusModal, setupPwaShortcuts, setupSwUpdatePrompt, createLazyModalController, deferLowPriorityInit, t } from './nav.js?v=1.11.0';
+import { dsIcon } from './ds-icons.js';
 
 import {
   validatePakistanPhone,
@@ -3617,6 +3618,9 @@ function renderNewCustomersPanel() {
   const report = buildNewCustomerReport(state.customers, new Date());
   const ranges = newCustomerQuickRanges(new Date());
   const NEWCUST_RANGE_KEYS = { thisMonth: 'cust_newcust_this_month', lastMonth: 'cust_newcust_last_month', last3Months: 'cust_newcust_last_3_months', last6Months: 'cust_newcust_last_6_months' };
+  // Customers Directory Polish: short labels for the 1-row segmented
+  // bar — the full labels above stay for the panel heading.
+  const NEWCUST_RANGE_SHORT_KEYS = { thisMonth: 'cust_newcust_this_month_short', lastMonth: 'cust_newcust_last_month_short', last3Months: 'cust_newcust_last_3_months_short', last6Months: 'cust_newcust_last_6_months_short' };
   let shown = [];
   let heading = '';
   if (newCustomersView === 'month' && newCustomersMonth) {
@@ -3658,12 +3662,13 @@ function renderNewCustomersPanel() {
   const monthOptions = report.months.map(entry => `<option value="${escapeHtml(entry.month)}"${entry.month === newCustomersMonth ? ' selected' : ''}>${escapeHtml(displayMonthName(entry.month))} (${entry.totals.count})</option>`).join('');
   const panelIsUr = currentAppLanguage() === 'ur';
   mount.innerHTML = `<div class="new-customers-head"><div><p class="eyebrow">${t('cust_new_customers_eyebrow')}</p><h3>${t('cust_new_customers_by_month')}</h3></div><p class="new-customers-heading">${escapeHtml(heading)}</p></div>`
-    + `<div class="new-customers-controls" role="group" aria-label="${t('cust_newcust_quick_views_aria')}">`
-    + Object.entries(ranges).map(([key, range]) => `<button class="customer-filter-button" type="button" data-newcust-view="${key}" aria-pressed="${newCustomersView === key ? 'true' : 'false'}">${t(NEWCUST_RANGE_KEYS[key])}</button>`).join('')
-    + `<label class="new-customers-month" for="newCustomersMonthSelect">${t('cust_newcust_month_label')} <select id="newCustomersMonthSelect"><option value="">${t('cust_newcust_choose_month')}</option>${monthOptions}</select></label></div>`
-    + `<div class="new-customers-totals" role="status"><span>${t('cust_newcust_count', null, { count: `<strong>${totals.count}</strong>` })}</span><span>${t('cust_newcust_connection_fees')} <strong>${formatAmount(totals.connectionFees)}</strong></span><span><strong>${totals.routersIssued}</strong> ${t('cust_newcust_routers')} · <strong>${formatAmount(totals.routerTotal)}</strong></span><span>${t('cust_newcust_fiber')} <strong>${t('cust_newcust_fiber_meters', null, { meters: totals.fiberMeters })}</strong></span></div>`
+    + `<div class="new-customers-controls ds-segmented" role="group" aria-label="${t('cust_newcust_quick_views_aria')}">`
+    + Object.entries(ranges).map(([key, range]) => `<button class="customer-filter-button ds-segmented__button" type="button" data-newcust-view="${key}" aria-pressed="${newCustomersView === key ? 'true' : 'false'}" aria-selected="${newCustomersView === key ? 'true' : 'false'}">${t(NEWCUST_RANGE_SHORT_KEYS[key])}</button>`).join('')
+    + `</div>`
+    + `<label class="new-customers-month" for="newCustomersMonthSelect">${t('cust_newcust_month_label')} <select id="newCustomersMonthSelect"><option value="">${t('cust_newcust_choose_month')}</option>${monthOptions}</select></label>`
+    + `<div class="new-customers-totals" role="status"><div class="ds-stat-box"><span class="ds-stat-box__label">${escapeHtml(t('cust_newcust_count', null, { count: '' }).trim())}</span><span class="ds-stat-box__value">${totals.count}</span></div><div class="ds-stat-box"><span class="ds-stat-box__label">${escapeHtml(t('cust_newcust_connection_fees'))}</span><span class="ds-stat-box__value">${formatAmount(totals.connectionFees)}</span></div><div class="ds-stat-box"><span class="ds-stat-box__label">${escapeHtml(t('cust_newcust_routers'))} · ${escapeHtml(t('cust_newcust_fiber'))}</span><span class="ds-stat-box__value">${totals.routersIssued} ${escapeHtml(t('cust_newcust_routers'))} · ${formatAmount(totals.routerTotal)}</span><span class="new-customers-stat-sub">${escapeHtml(t('cust_newcust_fiber'))} ${t('cust_newcust_fiber_meters', null, { meters: totals.fiberMeters })}</span></div></div>`
     + (rows ? `<ul class="new-customers-list">${rows}</ul>` : `<p class="new-customers-empty">${t('cust_newcust_empty')}</p>`)
-    + `<p class="new-customers-note">${t('cust_newcust_note')}${report.undatedCount ? (panelIsUr ? ` ${t('cust_newcust_undated', null, { count: report.undatedCount })}` : ` ${report.undatedCount} customer${report.undatedCount === 1 ? '' : 's'} have no join date (added before dates were recorded) and are not counted in any month.`) : ''}</p>`;
+    + `<p class="new-customers-note">${t('cust_newcust_note')}${report.undatedCount ? ` ${t(report.undatedCount === 1 ? 'cust_newcust_undated_one' : 'cust_newcust_undated', null, { count: report.undatedCount })}` : ''}</p>`;
   mount.querySelectorAll('[data-newcust-view]').forEach(button => button.addEventListener('click', () => {
     newCustomersView = button.dataset.newcustView;
     newCustomersMonth = '';
@@ -3680,18 +3685,34 @@ function renderNewCustomersPanel() {
 }
 // SISP-136: the roster pill bar is re-rendered from the fresh pill
 // summary on every roster render, so counts/totals are always live.
+// Customers Directory Polish: the eight pills split into two groups —
+// the four revenue pills as a tight 2×2 grid of two-line cards, the
+// four count-only pills as a compact flex-wrap row. Group order follows
+// ROSTER_PILL_IDS; the revenue grid keeps the user's listed order
+// (unpaid, arrears, paid, credit).
+const ROSTER_REVENUE_PILL_IDS = ['unpaid', 'arrears', 'paid', 'credit'];
+const ROSTER_COUNT_PILL_IDS = ['all', 'waada', 'paused', 'kist'];
 function renderRosterPillBar(summary) {
   const bar = $('#rosterPillBar');
   if (!bar) return;
-  bar.innerHTML = ROSTER_PILL_DEFS.map((def) => {
+  const pillHtml = (def) => {
     const pill = summary?.pills?.[def.id] ?? { count: 0, totalCents: null };
-    const label = `${def.emoji ? `${def.emoji} ` : ''}${t(def.labelKey)}`;
+    const label = t(def.labelKey);
     const totalText = def.hasTotal && pill.totalCents > 0 ? formatAmount(pill.totalCents / 100) : '';
     // Polish #27: the unpaid signal is a designed CSS dot, not the
     // red-circle emoji — first child of the button, decorative only.
-    const dot = def.id === 'unpaid' ? '<span class="roster-pill-dot" aria-hidden="true"></span>' : '';
-    return `<button class="roster-pill" type="button" data-roster-pill="${def.id}" aria-pressed="${customerRosterPill === def.id ? 'true' : 'false'}" aria-label="${escapeHtml(`${label}: ${pill.count}${totalText ? ` · ${totalText}` : ''}`)}">${dot}<span class="roster-pill-label">${escapeHtml(label)}</span><span class="roster-pill-count">${pill.count}</span>${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</button>`;
-  }).join('');
+    // Customers Directory Polish: paid gets the same treatment in green.
+    const dot = def.id === 'unpaid' ? '<span class="roster-pill-dot" aria-hidden="true"></span>' : def.id === 'paid' ? '<span class="roster-pill-dot roster-pill-dot--paid" aria-hidden="true"></span>' : '';
+    const icon = def.dsIcon ? dsIcon(def.dsIcon, 16) : '';
+    const pressed = customerRosterPill === def.id ? 'true' : 'false';
+    const ariaLabel = `${label}: ${pill.count}${totalText ? ` · ${totalText}` : ''}`;
+    if (ROSTER_REVENUE_PILL_IDS.includes(def.id)) {
+      return `<button class="roster-pill" type="button" data-roster-pill="${def.id}" aria-pressed="${pressed}" aria-label="${escapeHtml(ariaLabel)}"><span class="roster-pill-line1">${dot}${icon}<span class="roster-pill-label">${escapeHtml(label)}</span></span><span class="roster-pill-line2"><span class="roster-pill-count">${pill.count}</span>${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</span></button>`;
+    }
+    return `<button class="roster-pill" type="button" data-roster-pill="${def.id}" aria-pressed="${pressed}" aria-label="${escapeHtml(ariaLabel)}">${dot}${icon}<span class="roster-pill-label">${escapeHtml(label)}</span><span class="roster-pill-count">${pill.count}</span>${totalText ? `<span class="roster-pill-total">${escapeHtml(totalText)}</span>` : ''}</button>`;
+  };
+  const byId = (id) => ROSTER_PILL_DEFS.find((def) => def.id === id);
+  bar.innerHTML = `<div class="roster-pill-grid">${ROSTER_REVENUE_PILL_IDS.map((id) => pillHtml(byId(id))).join('')}</div><div class="roster-pill-row">${ROSTER_COUNT_PILL_IDS.map((id) => pillHtml(byId(id))).join('')}</div>`;
   bar.querySelectorAll('[data-roster-pill]').forEach((button) => button.addEventListener('click', () => {
     customerRosterPill = normalizeRosterPill(button.dataset.rosterPill);
     customerCurrentPage = 1;
@@ -3825,8 +3846,8 @@ function renderCustomers() {
     if (customerList) customerList.hidden = true;
     if (tableWrap) tableWrap.hidden = false;
     if (expandBtn) expandBtn.hidden = false;
-    if (cardsBtn) { cardsBtn.classList.remove('is-active'); cardsBtn.setAttribute('aria-pressed', 'false'); }
-    if (tableBtn) { tableBtn.classList.add('is-active'); tableBtn.setAttribute('aria-pressed', 'true'); }
+    if (cardsBtn) { cardsBtn.classList.remove('is-active'); cardsBtn.setAttribute('aria-pressed', 'false'); cardsBtn.setAttribute('aria-selected', 'false'); }
+    if (tableBtn) { tableBtn.classList.add('is-active'); tableBtn.setAttribute('aria-pressed', 'true'); tableBtn.setAttribute('aria-selected', 'true'); }
     if (tableBody) {
       if (paged.items.length === 0) {
         // Plan 456: the unified box's plain empty text rides into
@@ -3872,8 +3893,8 @@ function renderCustomers() {
     if (tableWrap) tableWrap.hidden = true;
     if (expandBtn) expandBtn.hidden = true;
     appShell.classList.remove('roster-table-expanded');
-    if (cardsBtn) { cardsBtn.classList.add('is-active'); cardsBtn.setAttribute('aria-pressed', 'true'); }
-    if (tableBtn) { tableBtn.classList.remove('is-active'); tableBtn.setAttribute('aria-pressed', 'false'); }
+    if (cardsBtn) { cardsBtn.classList.add('is-active'); cardsBtn.setAttribute('aria-pressed', 'true'); cardsBtn.setAttribute('aria-selected', 'true'); }
+    if (tableBtn) { tableBtn.classList.remove('is-active'); tableBtn.setAttribute('aria-pressed', 'false'); tableBtn.setAttribute('aria-selected', 'false'); }
   }
 
   // Plan Y: the archived panel gets the same page size and prev/next
@@ -11866,7 +11887,12 @@ $('#customerTableExpandBtn')?.addEventListener('click', () => {
   const isExpanded = appShell.classList.toggle('roster-table-expanded');
   const btn = $('#customerTableExpandBtn');
   if (btn) {
-    btn.textContent = isExpanded ? '🗗 Restore' : '⛶ Expand';
+    // Customers Directory Polish: the label lives in its own span now
+    // (data-i18n would wipe a bare textContent write), so write there.
+    const label = btn.querySelector('[data-i18n="cust_expand"]');
+    const text = isExpanded ? '🗗 Restore' : '⛶ Expand';
+    if (label) label.textContent = text;
+    else btn.textContent = text;
     btn.setAttribute('aria-pressed', isExpanded ? 'true' : 'false');
     btn.title = isExpanded ? 'Restore 2-column sidebar view' : 'Maximize Table / Full Screen Width';
   }

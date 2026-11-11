@@ -268,6 +268,23 @@ test('Plan 392: the row markup shows nothing extra without a receipt number', ()
   assert.equal(receiptNumberSearchRowMarkup(null), '');
 });
 
+// Transactions Screen Overhaul: the row detail passes the app's
+// deterministic deriver, so a payment with no stored number still
+// shows its derived code (REC-…) — the code the removed 'Today on
+// this device' box used to show for today's payments. Stored
+// numbers still win, and a throwing deriver still shows nothing.
+test('Transactions overhaul: the row markup shows the derived code when no number is stored', () => {
+  assert.equal(
+    receiptNumberSearchRowMarkup(ROW_UNNUMBERED, () => 'REC-2611-0014-8FAA'),
+    ' · Receipt REC-2611-0014-8FAA',
+  );
+  assert.equal(
+    receiptNumberSearchRowMarkup(ROW_ONE, () => 'REC-2611-0014-8FAA'),
+    ' · Receipt RCPT-41-202611-01',
+  );
+  assert.equal(receiptNumberSearchRowMarkup(ROW_UNNUMBERED, () => { throw new Error('boom'); }), '');
+});
+
 test('Plan 392: listTransactions carries the receipt number on the row', () => {
   const payment = {
     id: 'P-1', date: '2026-11-05', amount: 3000, method: 'Cash',

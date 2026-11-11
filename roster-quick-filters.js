@@ -3,8 +3,11 @@
  * pills for the main customer roster.
  *
  * A horizontal pill bar above the roster (All Active, Unpaid This
- * Month with a designed red dot, ⚠️ 2+ Months Arrears, 🤝 Active Waada,
- * 🟢 Paid, 💎 Advance Credit, ⏸️ Paused, 📦 Active Kist). Every pill's membership, count and
+ * Month with a designed red dot, 2+ Months Arrears, Active Waada,
+ * Paid with a designed green dot, Advance Credit, Paused, Active
+ * Kist). Customers Directory Polish (Nov 2026): the 3D emoji are gone
+ * — every pill carries a 16px ds-icon (or a status dot for the two
+ * money-state pills) instead. Every pill's membership, count and
  * PKR total is derived in ONE pass from the app's real sources — never a
  * second balance computation:
  *
@@ -55,16 +58,19 @@ import { buildKistProgress } from './installment-plan.js';
 
 export const ROSTER_PILL_IDS = Object.freeze(['all', 'unpaid', 'arrears', 'waada', 'paid', 'credit', 'paused', 'kist']);
 
-/** Rendering metadata for the bar: label keys live in nav-language.js. */
+/** Rendering metadata for the bar: label keys live in nav-language.js.
+ * dsIcon names a ds-icons.js icon rendered at 16px by the caller ('' =
+ * no icon: the pill carries a status dot instead — red for unpaid,
+ * green for paid). No emoji anywhere in the bar. */
 export const ROSTER_PILL_DEFS = Object.freeze([
-  { id: 'all', emoji: '', labelKey: 'cust_pill_all', hasTotal: false },
-  { id: 'unpaid', emoji: '', labelKey: 'cust_pill_unpaid', hasTotal: true },
-  { id: 'arrears', emoji: '⚠️', labelKey: 'cust_pill_arrears', hasTotal: true },
-  { id: 'waada', emoji: '🤝', labelKey: 'cust_pill_waada', hasTotal: true },
-  { id: 'paid', emoji: '🟢', labelKey: 'cust_pill_paid', hasTotal: true },
-  { id: 'credit', emoji: '💎', labelKey: 'cust_pill_credit', hasTotal: true },
-  { id: 'paused', emoji: '⏸️', labelKey: 'cust_pill_paused', hasTotal: false },
-  { id: 'kist', emoji: '📦', labelKey: 'cust_pill_kist', hasTotal: true }
+  { id: 'all', dsIcon: 'Users', labelKey: 'cust_pill_all', hasTotal: false },
+  { id: 'unpaid', dsIcon: '', labelKey: 'cust_pill_unpaid', hasTotal: true },
+  { id: 'arrears', dsIcon: 'AlertTriangle', labelKey: 'cust_pill_arrears', hasTotal: true },
+  { id: 'waada', dsIcon: 'Handshake', labelKey: 'cust_pill_waada', hasTotal: true },
+  { id: 'paid', dsIcon: '', labelKey: 'cust_pill_paid', hasTotal: true },
+  { id: 'credit', dsIcon: 'Wallet', labelKey: 'cust_pill_credit', hasTotal: true },
+  { id: 'paused', dsIcon: 'Pause', labelKey: 'cust_pill_paused', hasTotal: false },
+  { id: 'kist', dsIcon: 'Package', labelKey: 'cust_pill_kist', hasTotal: true }
 ]);
 
 /** Unknown or blank pill ids fall back to the unfiltered roster: 'all'. */

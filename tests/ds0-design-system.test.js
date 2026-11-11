@@ -131,9 +131,13 @@ const EXPECTED_ICON_NAMES = [
   // Live visual bugs (Nov 2026) add 2: Globe (topbar language toggle)
   // and Bike (topbar field-mode toggle) replace the 3D emoji.
   'Globe', 'Bike',
+  // Customers Directory Polish (Nov 2026) adds 5: LayoutGrid / Table /
+  // Download (roster view toggle + CSV export), AlertTriangle (2+
+  // Months Arrears pill), Pause (Paused pill).
+  'LayoutGrid', 'Table', 'Download', 'AlertTriangle', 'Pause',
 ];
 
-test('DS-0 icons: the full §3.2 path set is exported (49 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs)', () => {
+test('DS-0 icons: the full §3.2 path set is exported (54 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish)', () => {
   assert.deepEqual([...DS_ICON_NAMES].sort(), [...EXPECTED_ICON_NAMES].sort(), 'ds-icons.js must export exactly the §3.2 icon set');
   for (const name of EXPECTED_ICON_NAMES) {
     assert.ok(isDsIconName(name), `${name} must be a known icon name`);

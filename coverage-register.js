@@ -50,6 +50,9 @@ const MOHALLA_ALIASES = Object.freeze({
   bani: 'BANII',
   kishti: 'KISHTII',
   chamyaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla.
+  jabbiyaaa: 'JABBIYAA',
 });
 
 export const COVERAGE_UNASSIGNED_KEY = '__unassigned__';
@@ -286,7 +289,9 @@ export function coverageRegisterHtml(register) {
       : '—';
     return `<tr><td>${escapeHtml(row.label)}</td><td>${row.activeCount}</td><td>${escapeHtml(premises)}</td><td>${escapeHtml(takeUp)}</td><td>${escapeHtml(remaining)}</td><td>${escapeHtml(date)}</td><td>${escapeHtml(basis)}</td><td>${escapeHtml(history)}</td></tr>`;
   }).join('');
-  return `<table class="data-table"><thead><tr><th>Mohalla</th><th>Active customers</th><th>Premises passed</th><th>Take-up</th><th>Remaining premises</th><th>Survey date</th><th>Basis</th><th>Previous estimates</th></tr></thead><tbody>${rows}</tbody></table>`;
+  // Owner 5-part fix: the eight-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side columns.
+  return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Mohalla</th><th>Active customers</th><th>Premises passed</th><th>Take-up</th><th>Remaining premises</th><th>Survey date</th><th>Basis</th><th>Previous estimates</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function coverageRegisterCsv(register) {

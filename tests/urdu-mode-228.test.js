@@ -23,7 +23,7 @@ test('#228 t() dictionary: every English key has an Urdu translation with Urdu s
 });
 
 test('#228 visible-text dictionary covers the main-screen buttons and every value is Urdu', () => {
-  for (const key of ['+ Add payment', 'Clear', 'Paid', 'Pending', 'Partial', 'Top Defaulters', 'Monthly Report', '📥 Export CSV', 'Download all payment details (.txt)']) {
+  for (const key of ['+ Add payment', 'Clear', 'Paid', 'Pending', 'Partial', 'Top Defaulters', 'Monthly Report', 'Export CSV', 'Download all payment details (.txt)']) {
     assert.ok(VISIBLE_TEXT_UR[key], `visible-text Urdu exists for ${JSON.stringify(key)}`);
   }
   for (const [en, ur] of Object.entries(VISIBLE_TEXT_UR)) {

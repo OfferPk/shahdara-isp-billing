@@ -42,7 +42,7 @@ import {
 import { LOAN_KEY, loadLoans, saveLoans, addLoanEntry, deleteLoanEntry, loanPersonSummaries, loanGrandTotals, filterLoanPersons } from './loan-ledger.js?v=1.11.0';
 import { OVERHEAD_KEY, loadOverheads, saveOverheads, resolveOverheadTemplates, updateOverheadDefault, postOverhead, overheadPostingFor, bandwidthDueStatus } from './fixed-overheads.js?v=1.11.0';
 import { manualServiceStatusBareLabel, manualServiceStatusLabel, profileArchiveLabel } from './profile-labels.js?v=1.11.0';
-import { PROFILE_EMPTY_DASH, profileEmptyText, profileEmptyMoney, profileEmptyTax, profileProfitDisplay, formatReceiptMonth, profileServiceState, profileServiceStatusPillHtml, profileIdentityLine, currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
+import { PROFILE_EMPTY_DASH, profileEmptyText, profileEmptyMoney, profileEmptyTax, profileProfitDisplay, formatReceiptMonth, profileServiceState, profileServiceStatusPillHtml, profileIdentityLine, currentBillPresentation, contactActionTargets, contactShortcutActions, buildGlobalLedgerSearch, resolveReceiptWhatsAppAction, createWhatsAppFollowupDraft, pauseBillingSummary, seasonalBillingSummary, suspensionShieldSummary, suspensionShieldBadgeHtml, vacationHoldRouterPresentation, kistSettlementPresentation, referralBillingSummary, depositSettlementPresentation, activeDepositOffsetPresentation, occupancyPresentation, creditTransferPresentation, feederHostCreditPresentation, badDebtPresentation, upsellProfileHintHtml, bottleneckProfileHintHtml, prepaidUntilBadgeHtml, starTimelyPayerBadgeHtml, macAddressDisplaySuffix, macOuiHintHtml, loyaltyBadgeHtml, commercialVipBadgeHtml, paymentHabitPresentation, speakDueButtonMarkup, gpsPinPresentation, waadaScoreBadgeHtml, disconnectProfileHtml, welcomeSlipButtonMarkup, contributorSplitSectionHtml, contributorEditorHtml, contributorEditorRowHtml, contributorSharesWarningText, pngReceiptButtonMarkup } from './profile-ui.js?v=1.11.0';
 import { nextBillProjectionSectionHtml } from './profile-ui.js?v=1.11.0';
 // Polish #28 Phase D: the profile calculations — one shared module for
 // the view and the form profit preview, so the two can never disagree.
@@ -81,7 +81,9 @@ import { receiptShareDraftFor, receiptShareDraftHtml } from './receipt-share-dra
 import { executeReceiptWhatsAppShare, markReceiptShared, isReceiptShared } from './nav-quick-profile.js?v=1.11.0';
 import { groupByDay, dayHeaderText, billMonthDiffers, methodSlug, pktDateKey, recordPaymentDeletion, markPaymentDeletionUndone, setupPaymentsList } from './payments-list.js?v=1.11.0';
 import { indexCustomers, resolveTransactionCustomer } from './list-rendering.js';
-import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue } from './owner-insights.js?v=1.11.0';
+import { buildCustomerHealthScore, buildCustomerPaymentBehavior, buildCustomerLifetimeValue, buildMohallaAnalytics } from './owner-insights.js?v=1.11.0';
+import { setupOpsAccordions } from './ops-accordions.js?v=1.11.0';
+import { customerNameOptions, collectorNameOptions, recordIdOptions, paymentIdOptions, billIdOptions, allPaymentsWithCustomer, fillSelectOptions } from './ops-id-selects.js?v=1.11.0';
 import { setupOwnerCenter } from './owner-ui.js?v=1.11.0';
 import {
   createLocalBackupStore, isAutomaticBackupDue, DEFAULT_BACKUP_FREQUENCY,
@@ -1232,6 +1234,7 @@ let selectedProfileTab = 'info';
 let routerCredRevealed = { wifi: false, admin: false };
 let routerCredRevealedFor = null;
 let selectedReportFilter = 'all';
+let reportAreaFilter = null;
 let recentPaymentsFilter = RECENT_PAYMENTS_ALL_FILTER;
 let selectedServiceFilter = 'all';
 let selectedBillingFilter = 'all';
@@ -6343,22 +6346,57 @@ function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', u
 // Urdu phase 4: Billing-screen status labels via t(). reportStatusLabel is
 // left untouched: it also feeds the Transactions screen (a later phase).
 function billStatusLabel(status) { return ({ paid: t('bill_status_paid'), pending: t('bill_status_pending'), unpaid: t('bill_status_pending'), partial: t('bill_status_partial'), 'not-set': t('bill_status_notset') })[status] ?? t('bill_status_notset'); }
+// Part 4A — Area / Mohalla Analytics cards for the Monthly Report.
+// Figures come from buildMohallaAnalytics (pure); tapping a card drills
+// the customer list below down to that area's Pending/Partial customers.
+function renderMohallaAnalytics(month) {
+  const host = $('#mohallaAnalyticsList');
+  if (!host) return;
+  const result = buildMohallaAnalytics(state, month);
+  if (!result.areas.length) { host.innerHTML = `<p class="transactions-empty">${escapeHtml(t('mohalla_analytics_empty'))}</p>`; return; }
+  host.innerHTML = result.areas.map(area => {
+    const rate = area.collectionRate ?? 0;
+    const popular = area.popularPackage ? t('mohalla_card_popular', null, { package: area.popularPackage }) : '';
+    return `<article class="mohalla-card"><button type="button" class="mohalla-card-btn" data-mohalla-drilldown="${escapeHtml(area.key)}" data-mohalla-label="${escapeHtml(area.label)}" aria-label="${escapeHtml(t('mohalla_card_aria', null, { area: area.label }))}"><span class="mohalla-card-head"><strong>${escapeHtml(area.label)}</strong><span>${escapeHtml(t('mohalla_card_count', null, { count: area.customers }))}</span></span><span class="mohalla-card-status">${escapeHtml(t('bill_service_active'))} ${area.activeCustomers} · ${escapeHtml(t('bill_service_offline'))} ${area.offlineCustomers}</span><span class="mohalla-card-metrics"><span><span class="mohalla-metric-label">${escapeHtml(t('mohalla_card_billed'))}</span><strong>${escapeHtml(formatAmount(area.billed))}</strong></span><span><span class="mohalla-metric-label">${escapeHtml(t('mohalla_card_collected'))}</span><strong>${escapeHtml(formatAmount(area.collected))}</strong></span><span><span class="mohalla-metric-label">${escapeHtml(t('mohalla_card_pending'))}</span><strong>${escapeHtml(formatAmount(area.outstanding))}</strong></span></span><span class="mohalla-card-rate"><span class="mohalla-rate-bar" role="img" aria-label="${escapeHtml(t('mohalla_card_rate', null, { rate }))}"><span style="width:${Math.max(0, Math.min(100, rate))}%"></span></span><span>${escapeHtml(t('mohalla_card_rate', null, { rate }))}</span></span>${popular ? `<span class="mohalla-card-package">${escapeHtml(popular)}</span>` : ''}</button></article>`;
+  }).join('');
+}
+
 function renderMonthlyReport() {
   const month = selectedBillingMonth;
   const query = reportSearchQuery.trim() || searchQuery();
-  const rows = buildMonthlyReport(state, { month, statusFilter:selectedReportFilter, customerQuery:query });
+  let rows = buildMonthlyReport(state, { month, statusFilter:selectedReportFilter, customerQuery:query });
+  // Part 4A drill-down: an Area card filters this list to that area's
+  // customers (status stays 'outstanding' from the card, or whatever
+  // pill the operator picks afterwards). Totals below follow the
+  // filtered rows, so they describe exactly the list on screen.
+  if (reportAreaFilter) rows = rows.filter(row => (canonicalMohalla(row.area)?.key ?? 'unassigned') === reportAreaFilter.key);
+  const chip = $('#reportAreaFilterChip');
+  if (chip) {
+    if (!reportAreaFilter) { chip.hidden = true; chip.innerHTML = ''; }
+    else {
+      const statusKey = { all: 'bill_filter_all', paid: 'bill_filter_paid', pending: 'bill_filter_pending', partial: 'bill_filter_partial', 'not-set': 'bill_filter_notset', outstanding: 'bill_filter_outstanding' }[selectedReportFilter] ?? 'bill_filter_all';
+      chip.hidden = false;
+      chip.innerHTML = `<span>${escapeHtml(t('mohalla_chip_area', null, { area: reportAreaFilter.label, status: t(statusKey) }))}</span><button type="button" class="secondary-button btn-sm report-area-chip-clear" data-clear-area-filter aria-label="${escapeHtml(t('mohalla_chip_clear'))}">✕</button>`;
+    }
+  }
+  renderMohallaAnalytics(month);
   $('#monthlyReportCount').textContent = t(rows.length === 1 ? 'bill_count_sing' : 'bill_count_plur', null, { count: rows.length, month: displayMonthName(month) });
   $('#monthlyReportEmpty').hidden = rows.length > 0;
 
   const totalBilled = rows.reduce((s, r) => s + (r.billAmount || 0), 0);
   const totalCollected = rows.reduce((s, r) => s + (r.amountReceived || 0), 0);
   const totalBalance = rows.reduce((s, r) => s + (r.balanceDue || 0), 0);
+  // Billed − Collected − Credit Adjusted = Balance, by construction:
+  // balanceDue already nets the applied auto-credit out of each bill.
+  const totalCredit = rows.reduce((s, r) => s + (r.creditApplied || 0), 0);
   const billedEl = $('#reportSummaryBilled');
   const collEl = $('#reportSummaryCollected');
   const balEl = $('#reportSummaryBalance');
+  const creditEl = $('#reportSummaryCredit');
   if (billedEl) billedEl.textContent = formatAmount(totalBilled);
   if (collEl) collEl.textContent = formatAmount(totalCollected);
   if (balEl) balEl.textContent = formatAmount(totalBalance);
+  if (creditEl) creditEl.textContent = formatAmount(totalCredit);
 
   const methodTotals = calculateMethodCollectionTotals(state, month);
   const methodBreakdownEl = $('#monthlyReportMethodBreakdown');
@@ -6394,7 +6432,6 @@ function renderMonthlyReport() {
   }
 
   reportList.innerHTML = paged.items.map(row => {
-    const monthlySale = row.monthlySellingAmount === null || row.monthlySellingAmount === undefined ? t('bill_not_set') : formatAmount(row.monthlySellingAmount);
     const billAmount = row.billAmount === null ? t('bill_not_set') : formatAmount(row.billAmount);
     const due = row.balanceDue === null ? t('bill_not_set') : formatAmount(row.balanceDue);
     const speed = row.packageSpeed || t('bill_not_set');
@@ -6404,7 +6441,17 @@ function renderMonthlyReport() {
     const pendingSources = row.pendingCreditSources.map(source => t('bill_credit_waiting', null, { month: displayMonthName(source.originMonth), date: humanDate(source.paymentDate), method: source.method, receipt: formatAmount(source.receiptAmount), amount: formatAmount(source.amountCents / 100) })).join('; ');
     const creditSummary = t('bill_credit_summary', null, { applied: formatAmount(row.creditApplied), forwarded: formatAmount(row.creditForwarded), pending: formatAmount(row.creditPending) }) + (creditSources ? ` · ${t('bill_credit_applied_label')} ${creditSources}` : '') + (pendingSources ? ` · ${t('bill_credit_waiting_label')} ${pendingSources}` : '');
     const serviceLabel = ({ active: t('bill_service_active'), offline: t('bill_service_offline'), 'not-set': t('bill_not_set') })[row.serviceStatus] ?? t('bill_not_set');
-    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ` · ${t('bill_row_archived')}` : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-cell-label">${t('bill_row_service')}: ${serviceLabel} · ${t('bill_row_package')}: ${escapeHtml(speed)} · ${t('bill_row_provider')}: ${escapeHtml(provider)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_monthly_sale')}</span><span class="report-cell-value">${escapeHtml(monthlySale)}</span></div><div class="report-cell"><span class="report-cell-label">${escapeHtml(t('bill_row_month_bill', null, { month: displayMonthName(row.month) }))}</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_due_date')}</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_received')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_balance')}</span><span class="report-cell-value">${escapeHtml(due)}</span></div><div class="report-cell report-credit-cell"><span class="report-cell-label">${t('bill_row_credit')}</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div><div class="report-cell report-status-cell"><span class="report-cell-label">${t('bill_row_status')}</span><span class="report-status report-status-${row.status}">${billStatusLabel(row.status)}</span></div></li>`;
+    // The monthly-sale figure duplicates the month bill whenever the two
+    // agree, so that cell is hidden then and kept only when they differ.
+    const monthlySaleEqualsBill = row.billAmount !== null && row.monthlySellingAmount !== null && row.monthlySellingAmount !== undefined && Number(row.monthlySellingAmount) === row.billAmount;
+    const monthlySaleCell = monthlySaleEqualsBill ? '' : `<div class="report-cell"><span class="report-cell-label">${t('bill_row_monthly_sale')}</span><span class="report-cell-value">${escapeHtml(row.monthlySellingAmount === null || row.monthlySellingAmount === undefined ? t('bill_not_set') : formatAmount(row.monthlySellingAmount))}</span></div>`;
+    // The grey auto-credit box is noise when every value is PKR 0; it
+    // renders only when non-zero credit is actually involved.
+    const hasCredit = row.creditApplied > 0 || row.creditForwarded > 0 || row.creditPending > 0 || creditSources !== '' || pendingSources !== '';
+    const creditCell = hasCredit ? `<div class="report-cell report-credit-cell"><span class="report-cell-label">${t('bill_row_credit')}</span><span class="report-credit-value">${escapeHtml(creditSummary)}</span></div>` : '';
+    const needsAction = row.status === 'pending' || row.status === 'partial';
+    const actionsCell = needsAction ? `<div class="report-row-actions"><button type="button" class="secondary-button btn-sm" data-report-collect="${escapeHtml(row.customerId)}">${escapeHtml(t('bill_row_collect'))}</button><button type="button" class="secondary-button btn-sm" data-report-remind="${escapeHtml(row.customerId)}" data-remind-balance="${row.balanceDue ?? 0}" data-remind-due="${escapeHtml(row.dueDate ?? '')}">${escapeHtml(t('bill_row_remind'))}</button></div>` : '';
+    return `<li class="report-row"><div class="report-customer"><span class="customer-number-line">#${row.customerNumber}${row.archived ? ` · ${t('bill_row_archived')}` : ''}</span><div class="report-customer-name">${escapeHtml(row.customerName)}</div><span class="report-tags"><span class="report-tag">${t('bill_row_service')}: ${serviceLabel}</span><span class="report-tag">${t('bill_row_package')}: ${escapeHtml(speed)}</span><span class="report-tag">${t('bill_row_provider')}: ${escapeHtml(provider)}</span></span></div>${monthlySaleCell}<div class="report-cell"><span class="report-cell-label">${escapeHtml(t('bill_row_month_bill', null, { month: displayMonthName(row.month) }))}</span><span class="report-cell-value">${escapeHtml(billAmount)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_due_date')}</span><span class="report-cell-value">${escapeHtml(dueDate)}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_received')}</span><span class="report-cell-value">${escapeHtml(formatAmount(row.amountReceived))}</span></div><div class="report-cell"><span class="report-cell-label">${t('bill_row_balance')}</span><span class="report-cell-value">${escapeHtml(due)}</span></div>${creditCell}<div class="report-cell report-status-cell"><span class="report-cell-label">${t('bill_row_status')}</span><span class="report-status report-status-${row.status}">${billStatusLabel(row.status)}</span></div>${actionsCell}</li>`;
   }).join('');
   document.querySelectorAll('[data-report-filter]').forEach(button => button.setAttribute('aria-pressed', button.dataset.reportFilter === selectedReportFilter ? 'true' : 'false'));
   renderBillingRegister();
@@ -6423,9 +6470,9 @@ function renderSalesTaxDashboard(state, month) {
   if (!host) return;
   const rows = salesTaxDashboardRows(state.customers, month);
   const totals = salesTaxDashboardTotals(rows);
-  const rowsMarkup = rows.map(row => `<li class="report-row"><div class="report-customer"><span class="report-customer-name">${escapeHtml(row.customerName)}</span></div><div class="report-cell"><span class="report-cell-label">Package</span><span class="report-cell-value">${escapeHtml(row.packageLabel !== '' ? row.packageLabel : t('bill_not_set'))}</span></div><div class="report-cell"><span class="report-cell-label">Sales tax (19.5%)</span><span class="report-cell-value">${escapeHtml(formatSalesTaxAmount(row.taxCents))}</span></div><div class="report-cell"><span class="report-cell-label">Tax charged on bill</span><span class="report-cell-value">${escapeHtml(formatSalesTaxAmount(row.billTaxCents))}</span></div></li>`).join('');
+  const rowsMarkup = rows.map(row => `<li class="report-row stx-row"><div class="report-customer"><span class="report-customer-name">${escapeHtml(row.customerName)}</span></div><div class="report-cell"><span class="report-cell-label">Package</span><span class="report-cell-value">${escapeHtml(row.packageLabel !== '' ? row.packageLabel : t('bill_not_set'))}</span></div><div class="report-cell stx-amount-cell"><span class="report-cell-label">Sales tax (19.5%)</span><span class="report-cell-value">${escapeHtml(formatSalesTaxAmount(row.taxCents))}</span></div><div class="report-cell stx-amount-cell"><span class="report-cell-label">Tax charged on bill</span><span class="report-cell-value">${escapeHtml(formatSalesTaxAmount(row.billTaxCents))}</span></div></li>`).join('');
   host.innerHTML = `<div class="table-heading"><div><p class="eyebrow">SALES TAX</p><h3 id="stxTaxHeading">Sales tax (19.5%) — ${escapeHtml(displayMonthName(month))}</h3></div><p class="chart-caption">Monthly sales tax per customer package. Billed tax is the tax recorded on this month's bills.</p></div>
-    <div class="monthly-report-summary-bar"><span class="report-summary-item"><span class="report-summary-label">Customers with a package:</span> <strong>${totals.taxedCustomerCount}</strong></span><span class="report-summary-item"><span class="report-summary-label">Total sales tax:</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.derivedTotalCents))}</strong></span><span class="report-summary-item"><span class="report-summary-label">Sales tax charged on bills:</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.chargedTotalCents))}</strong></span></div>
+    <div class="monthly-report-summary-bar"><span class="report-summary-item"><span class="report-summary-label">Total Taxable Customers:</span> <strong>${totals.taxedCustomerCount}</strong></span><span class="report-summary-item"><span class="report-summary-label">Total Sales Tax (19.5%):</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.derivedTotalCents))}</strong></span><span class="report-summary-item"><span class="report-summary-label">Sales tax charged on bills:</span> <strong>${escapeHtml(formatSalesTaxAmount(totals.chargedTotalCents))}</strong></span></div>
     ${rows.length ? `<ol class="monthly-report-list">${rowsMarkup}</ol>` : `<p class="transactions-empty">${escapeHtml(t('stx_empty'))}</p>`}`;
 }
 
@@ -12224,6 +12271,7 @@ document.querySelectorAll('[data-sort-cust]').forEach(th => {
 function setBillingMonth(month) {
   if (!monthsForHistory().includes(month)) return;
   selectedBillingMonth = month;
+  reportAreaFilter = null;
   $('#reportMonth').value = month;
   $('#customerFilterMonth').value = month;
   renderCustomers();
@@ -12234,6 +12282,43 @@ $('#customerFilterMonth').addEventListener('change', event => setBillingMonth(ev
 document.querySelectorAll('[data-customer-service-filter]').forEach(button => button.addEventListener('click', () => { selectedServiceFilter = button.dataset.customerServiceFilter; customerCurrentPage = 1; renderCustomers(); }));
 document.querySelectorAll('[data-customer-billing-filter]').forEach(button => button.addEventListener('click', () => { selectedBillingFilter = button.dataset.customerBillingFilter; customerCurrentPage = 1; renderCustomers(); }));
 document.querySelectorAll('[data-report-filter]').forEach(button => button.addEventListener('click', () => { selectedReportFilter = button.dataset.reportFilter; reportCurrentPage = 1; renderMonthlyReport(); }));
+// Part 4A drill-down: an Area card filters the report list to that
+// area's Pending/Partial customers; the chip clears the area only.
+$('#mohallaAnalyticsList')?.addEventListener('click', (event) => {
+  const card = event.target.closest('[data-mohalla-drilldown]');
+  if (!card) return;
+  reportAreaFilter = { key: card.dataset.mohallaDrilldown, label: card.dataset.mohallaLabel };
+  selectedReportFilter = 'outstanding';
+  reportCurrentPage = 1;
+  renderMonthlyReport();
+  $('#monthlyReportList')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+$('#reportAreaFilterChip')?.addEventListener('click', (event) => {
+  if (!event.target.closest('[data-clear-area-filter]')) return;
+  reportAreaFilter = null;
+  renderMonthlyReport();
+});
+// One delegated listener for the per-card quick actions (Collect /
+// WhatsApp Reminder) on Pending and Partial report rows.
+reportList?.addEventListener('click', (event) => {
+  const collectBtn = event.target.closest('[data-report-collect]');
+  if (collectBtn) {
+    const customerId = collectBtn.dataset.reportCollect;
+    if (window.quickCollectModalController?.selectAndOpen) window.quickCollectModalController.selectAndOpen(customerId);
+    else selectCustomer(customerId);
+    return;
+  }
+  const remindBtn = event.target.closest('[data-report-remind]');
+  if (remindBtn) {
+    const customerId = remindBtn.dataset.reportRemind;
+    const customer = state.customers.find((item) => String(item.id) === String(customerId));
+    const balance = Number(remindBtn.dataset.remindBalance ?? 0);
+    const dueDate = remindBtn.dataset.remindDue || `${selectedBillingMonth}-05`;
+    const draft = customer ? createWhatsAppFollowupDraft(customer.phone, customer, { outstanding: Number.isFinite(balance) ? balance : 0, previousBalance: 0, dueDate, packageName: customer.packageSpeed || '' }, 'friendly') : null;
+    if (draft?.url) window.open(draft.url, '_blank');
+    else toast(t('bill_remind_no_phone'));
+  }
+});
 function resetDuplicateReview() {
   $('#duplicateCustomerReview').hidden = true;
   $('#duplicateCustomerMatches').replaceChildren();
@@ -14523,8 +14608,15 @@ window.pendingActionsController = setupPendingActionsModal({
   onStateChange: () => {
     updateNavigationBadges(state);
   },
-  toast: (msg) => toast(msg)
+  toast: (msg) => toast(msg),
+  // Reports Tab: '+ Add Phone' on a no-phone receipt card opens that
+  // customer's profile so the operator can save the number.
+  onAddPhone: (customerId) => selectCustomer(customerId)
 });
+
+// Reports Tab Part 4B(2): the ten advanced Operations panels start as
+// collapsed cards whose heading + live summary stay visible.
+setupOpsAccordions();
 
 const topbarPendingBtn = $('#topbarPendingActionsBtn');
 if (topbarPendingBtn) {
@@ -14543,13 +14635,6 @@ if (navPendingBtn) {
       else drawer.classList.remove('is-open');
     }
     window.pendingActionsController?.open();
-  });
-}
-
-const closePendingSecondaryBtn = $('#closePendingActionsSecondaryBtn');
-if (closePendingSecondaryBtn) {
-  closePendingSecondaryBtn.addEventListener('click', () => {
-    window.pendingActionsController?.close();
   });
 }
 
@@ -25667,6 +25752,72 @@ function saveReceiptReissues(list) {
   try { localStorage.setItem(RECEIPT_SERIES_REISSUE_KEY, JSON.stringify(normalizeReissueList(list))); } catch { /* record only: a failed save leaves the previous reissues in place */ }
 }
 let receiptSeriesBound = false;
+// Reports Tab Part 4B(3): the ops forms' ID fields are dropdowns
+// populated from saved records (see ops-id-selects.js). One helper fills
+// them all — every ops render calls it, so the lists stay fresh after any
+// save. The operator's current pick survives a re-render when it is
+// still listed; the element being typed in is never clobbered. Fields
+// whose stored value is free text that may legitimately be new (collector
+// names, ticket ids) keep a text input with a <datalist> instead.
+function opsCollectorNames() {
+  const names = [];
+  for (const customer of state.customers ?? []) {
+    for (const bill of customer.bills ?? []) {
+      for (const payment of bill.payments ?? []) names.push(payment.collectedBy);
+    }
+  }
+  for (const settlement of loadCollectorSettlements()) names.push(settlement.collector);
+  for (const series of loadReceiptSeries()) names.push(series.collector);
+  return names;
+}
+function fillOpsIdSelects() {
+  const customers = state.customers ?? [];
+  const payments = allPaymentsWithCustomer(customers);
+  const bills = billIdOptions(customers);
+  const collectorOptions = collectorNameOptions(opsCollectorNames());
+  const visitOptions = (records) => recordIdOptions(records, (record) => `${record.id} — ${record.customer} · ${record.date} · ${record.dayPart}`);
+  fillSelectOptions($('#clearancePaymentId'), paymentIdOptions(payments), '— Choose payment —');
+  fillSelectOptions($('#clearanceCustomer'), customerNameOptions(customers), '— Choose customer —');
+  fillSelectOptions($('#clearanceBillId'), bills, '— Optional —');
+  fillSelectOptions($('#clearanceMarkPaymentId'), recordIdOptions(loadPaymentClearance().filter((item) => item.status === 'pending'), (item) => `${item.paymentId} — ${item.customer} · ${item.dateRecorded ?? ''}`, (item) => item.paymentId), '— Choose payment —');
+  fillSelectOptions($('#clearanceBillLookup'), bills, '— Choose bill —');
+  fillSelectOptions($('#bankCreditMatchId'), recordIdOptions(loadBankCredits(), (item) => `${item.id} — ${item.date} · ${item.reference ?? ''}`), '— Choose credit —');
+  fillSelectOptions($('#bankCreditMatchPayment'), paymentIdOptions(payments), '— Choose payment —');
+  fillSelectOptions($('#bankCreditMatchCustomer'), customerNameOptions(customers), '— Choose customer —');
+  fillSelectOptions($('#bankCreditExplainId'), recordIdOptions(loadBankCredits(), (item) => `${item.id} — ${item.date} · ${item.reference ?? ''}`), '— Choose credit —');
+  fillSelectOptions($('#balanceConfCustomer'), customerNameOptions(customers), '— Choose customer —');
+  fillSelectOptions($('#settleCollectorList'), collectorOptions, null);
+  fillSelectOptions($('#splitCustomer'), customerNameOptions(customers), '— Choose customer —');
+  fillSelectOptions($('#visitCustomer'), customerNameOptions(customers), '— Choose customer —');
+  fillSelectOptions($('#visitCollectorList'), collectorOptions, null);
+  fillSelectOptions($('#visitDoneId'), visitOptions(loadVisitSchedules().filter((item) => item.status === 'booked')), '— Choose visit —');
+  fillSelectOptions($('#visitMissedId'), visitOptions(loadVisitSchedules().filter((item) => item.status === 'booked')), '— Choose visit —');
+  fillSelectOptions($('#visitReschedId'), visitOptions(loadVisitSchedules().filter((item) => item.status === 'booked')), '— Choose visit —');
+  fillSelectOptions($('#visitRemoveId'), visitOptions(loadVisitSchedules()), '— Choose visit —');
+  fillSelectOptions($('#faultPartTicketList'), recordIdOptions(loadTickets(), (ticket) => `${ticket.id} — ${ticket.customerName ?? ticket.customerId ?? ''}`), null);
+  fillSelectOptions($('#faultPartRemoveId'), recordIdOptions(loadFaultParts(), (item) => `${item.id} — ${item.part} · ${item.ticketId} · ${item.date}`), '— Choose entry —');
+  fillSelectOptions($('#outageTypeRemoveId'), recordIdOptions(loadOutageTypes(), (item) => `${item.id} — ${item.type} · ${item.startDate} · ${(item.mohallas ?? []).join(', ')}`), '— Choose outage —');
+  fillSelectOptions($('#generatorFuelRemoveId'), recordIdOptions(loadGeneratorFuel(), (item) => `${item.id} — ${item.site} · ${item.date} · ${item.fuelAdded}L`), '— Choose entry —');
+  fillSelectOptions($('#guardEntryCustomer'), customerNameOptions(customers), '— Choose customer —');
+  fillSelectOptions($('#guardApproveId'), recordIdOptions(loadGuardHeldEntries().filter((item) => item.status === 'held'), (item) => `${item.id} — ${item.customer} · ${item.kind} · ${item.intendedDate}`), '— Choose entry —');
+  fillSelectOptions($('#receiptSeriesReturnId'), recordIdOptions(loadReceiptSeries().filter((item) => !item.dateReturned), (item) => `${item.id} — ${item.collector} · #${item.startNumber}–${item.endNumber} · ${item.dateIssued}`), '— Choose series —');
+  fillSelectOptions($('#receiptSeriesBreakdownSeries'), recordIdOptions(loadReceiptSeries().filter((item) => item.dateReturned), (item) => `${item.id} — ${item.collector} · #${item.startNumber}–${item.endNumber}`), '— Choose series —');
+  fillSelectOptions($('#receiptSeriesCollectorList'), collectorOptions, null);
+}
+// Reports Tab Part 4B(3): the shift-rule weekdays are tap-to-toggle
+// pills (Sun–Sat) that sync into the hidden #shiftRuleWeekdays value the
+// existing save handler already reads — the handler itself is untouched.
+function syncShiftWeekdayPills() {
+  const weekdaysEl = $('#shiftRuleWeekdays');
+  const pillsEl = $('#shiftWeekdayPills');
+  if (!weekdaysEl || !pillsEl) return;
+  const picked = new Set(weekdaysEl.value.split(',').map((s) => s.trim()).filter(Boolean));
+  for (const pill of pillsEl.querySelectorAll('.shift-weekday-pill')) {
+    const on = picked.has(pill.dataset.weekday);
+    pill.classList.toggle('is-on', on);
+    pill.setAttribute('aria-pressed', String(on));
+  }
+}
 function renderReceiptSeries() {
   const bodyEl = $('#receiptSeriesBody');
   if (!bodyEl) return;
@@ -25676,6 +25827,7 @@ function renderReceiptSeries() {
   bodyEl.innerHTML = shown.map((item) => receiptSeriesHtml(item)).join('') || '<p>No receipt series recorded yet.</p>';
   const summaryEl = $('#receiptSeriesSummary');
   if (summaryEl) summaryEl.textContent = receiptSeriesSummaryText(all);
+  fillOpsIdSelects();
   const reissueEl = $('#receiptSeriesReissueBody');
   if (reissueEl) {
     const reissues = loadReceiptReissues();
@@ -25768,6 +25920,7 @@ function renderPaymentClearance() {
     const cleared = clearedClearances(all);
     clearedEl.innerHTML = cleared.map((item) => clearanceHtml(item)).join('') || '<p>No cleared collections yet.</p>';
   }
+  fillOpsIdSelects();
   if (!paymentClearanceBound) {
     paymentClearanceBound = true;
     $('#clearanceSaveBtn')?.addEventListener('click', () => {
@@ -25851,6 +26004,7 @@ function renderBankCredits() {
     const queue = unmatchedBankCredits(all);
     queueEl.innerHTML = queue.map((item) => bankCreditHtml(item)).join('') || '<p>Nothing waiting. Every bank credit is matched or explained.</p>';
   }
+  fillOpsIdSelects();
   if (!bankCreditsBound) {
     bankCreditsBound = true;
     $('#bankCreditSaveBtn')?.addEventListener('click', () => {
@@ -25934,8 +26088,24 @@ function renderDueDateShift() {
   bodyEl.innerHTML = rules.map((rule) => shiftRuleHtml(rule)).join('') || '<p>No due-date shift rule recorded yet.</p>';
   const summaryEl = $('#shiftRuleSummary');
   if (summaryEl) summaryEl.textContent = shiftRuleSummaryText(rules);
+  syncShiftWeekdayPills();
   if (!dueDateShiftBound) {
     dueDateShiftBound = true;
+    // Reports Tab Part 4B(3): weekday pills toggle the hidden
+    // #shiftRuleWeekdays value the save handler already reads.
+    const pillsEl = $('#shiftWeekdayPills');
+    const weekdaysEl = $('#shiftRuleWeekdays');
+    if (pillsEl && weekdaysEl) {
+      pillsEl.addEventListener('click', (event) => {
+        const pill = event.target.closest('.shift-weekday-pill');
+        if (!pill) return;
+        const day = pill.dataset.weekday;
+        const picked = new Set(weekdaysEl.value.split(',').map((s) => s.trim()).filter(Boolean));
+        if (picked.has(day)) picked.delete(day); else picked.add(day);
+        weekdaysEl.value = [...picked].sort((a, b) => Number(a) - Number(b)).join(',');
+        syncShiftWeekdayPills();
+      });
+    }
     $('#shiftRuleSaveBtn')?.addEventListener('click', () => {
       const before = loadShiftRules();
       const weekdays = ($('#shiftRuleWeekdays')?.value ?? '').split(',').map((s) => s.trim()).filter((s) => s !== '').map(Number);
@@ -26042,6 +26212,7 @@ function renderBalanceConfirmations() {
   bodyEl.innerHTML = balanceConfirmationHtml(shown);
   const summaryEl = $('#balanceConfSummary');
   if (summaryEl) summaryEl.textContent = filter.trim() ? balanceConfirmationSummaryText(records, filter.trim()) : `${records.length} confirmation${records.length === 1 ? '' : 's'} recorded.`;
+  fillOpsIdSelects();
   if (!balanceConfBound) {
     balanceConfBound = true;
     $('#balanceConfSaveBtn')?.addEventListener('click', () => {
@@ -26098,6 +26269,7 @@ function renderCollectorSettlements() {
   bodyEl.innerHTML = settlementHtml(shown);
   const summaryEl = $('#settleSummary');
   if (summaryEl) summaryEl.textContent = filter.trim() ? settlementSummaryText(records, filter.trim()) : `${records.length} settlement statement${records.length === 1 ? '' : 's'} recorded.`;
+  fillOpsIdSelects();
   if (!collectorSettlementBound) {
     collectorSettlementBound = true;
     $('#settleSaveBtn')?.addEventListener('click', () => {
@@ -26167,6 +26339,7 @@ function renderSplitReceipts() {
   bodyEl.innerHTML = splitReceiptListHtml(records, filter.trim() ? filter.trim() : undefined);
   const summaryEl = $('#splitSummary');
   if (summaryEl) summaryEl.textContent = filter.trim() ? splitReceiptSummaryText(records, filter.trim()) : `${records.length} split receipt${records.length === 1 ? '' : 's'} recorded.`;
+  fillOpsIdSelects();
   if (!splitReceiptBound) {
     splitReceiptBound = true;
     $('#splitSaveBtn')?.addEventListener('click', () => {
@@ -26229,6 +26402,7 @@ function renderVisitDayPart() {
   }
   const summaryEl = $('#visitSummary');
   if (summaryEl) summaryEl.textContent = visitScheduleSummaryText(records) + (clashCount ? '' : ' No double-booked clash.');
+  fillOpsIdSelects();
   if (!visitDayPartBound) {
     visitDayPartBound = true;
     $('#visitSaveBtn')?.addEventListener('click', () => {
@@ -26320,6 +26494,7 @@ function renderFaultParts() {
   bodyEl.innerHTML = shown.length ? faultPartHtml(shown) : (filter ? '<p>No part recorded for that ticket.</p>' : '<p>No fault part recorded yet.</p>');
   const summaryEl = $('#faultPartSummary');
   if (summaryEl) summaryEl.textContent = faultPartSummaryText(records);
+  fillOpsIdSelects();
   if (!faultPartsBound) {
     faultPartsBound = true;
     $('#faultPartSaveBtn')?.addEventListener('click', () => {
@@ -26452,6 +26627,7 @@ function renderOutageTypes() {
       ? `<table><thead><tr><th>Id</th><th>Start</th><th>Mohallas</th></tr></thead><tbody>${flagged.map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.startDate)}</td><td>${escapeHtml(item.mohallas.join(', '))}</td></tr>`).join('')}</tbody></table>`
       : '<p>No planned outage is missing its notice note.</p>';
   }
+  fillOpsIdSelects();
   if (!outageTypesBound) {
     outageTypesBound = true;
     $('#outageTypeSaveBtn')?.addEventListener('click', () => {
@@ -26507,6 +26683,7 @@ function renderGeneratorFuel() {
   bodyEl.innerHTML = generatorFuelHtml(records, $('#generatorFuelFilter')?.value ?? '');
   const summaryEl = $('#generatorFuelSummary');
   if (summaryEl) summaryEl.textContent = generatorFuelSummaryText(records);
+  fillOpsIdSelects();
   if (!generatorFuelBound) {
     generatorFuelBound = true;
     $('#generatorFuelSaveBtn')?.addEventListener('click', () => {
@@ -39465,6 +39642,7 @@ function renderClosedPeriodPosting() {
   if (closedEl) closedEl.innerHTML = closed.map((period) => closedPeriodHtml(period)).join('') || '<p>No closed period recorded yet.</p>';
   const summaryEl = $('#guardSummary');
   if (summaryEl) summaryEl.textContent = heldEntrySummaryText(all);
+  fillOpsIdSelects();
   if (!closedPeriodPostingBound) {
     closedPeriodPostingBound = true;
     $('#guardClosedSaveBtn')?.addEventListener('click', () => {

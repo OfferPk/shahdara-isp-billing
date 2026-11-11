@@ -292,3 +292,36 @@ test('the new module names no fenced module file in its header and reads no stor
   // placeholders are not).
   assert.equal(/\$\d|€|£|USD|EUR|GBP/.test(module), false);
 });
+
+test('collector card: the unassigned remainder is an explicit row, and rows reconcile to the header total', () => {
+  // Home Dashboard overhaul, Part 1: the header said PKR 1,500
+  // (1 payment) while the only row read "Cash home: PKR 0" —
+  // payments with no collector counted in the total but under no
+  // row. The remainder is now an explicit "No collector recorded"
+  // row, so rows + remainder always equal the header.
+  const summary = calculateCollectorCard(buildFixture(), REF_DATE, ASSIGNMENTS);
+  assert.equal(summary.totalCents, 460000);
+  assert.equal(summary.totalCount, 5);
+  assert.equal(summary.unassignedCents, 50000, 'the 500 with no collector is the remainder');
+  assert.equal(summary.unassignedCount, 1);
+  assert.equal(
+    summary.collectors.reduce((sum, row) => sum + row.collectedCents, 0) + summary.unassignedCents,
+    summary.totalCents,
+    'rows plus remainder reconcile to the header total'
+  );
+  assert.equal(
+    summary.collectors.reduce((sum, row) => sum + row.paymentCount, 0) + summary.unassignedCount,
+    summary.totalCount,
+    'row counts plus remainder reconcile to the header count'
+  );
+  const els = {};
+  const doc = {
+    getElementById: (id) => (els[id] ??= { textContent: '', innerHTML: '', hidden: false })
+  };
+  renderCollectorCard(doc, summary);
+  const html = els.clcCollectorRows.innerHTML;
+  assert.ok(html.includes('No collector recorded'), 'unassigned row lands with its label');
+  assert.ok(html.includes('PKR 500'), 'unassigned row carries the remainder amount');
+  assert.ok(html.includes('1 payment'), 'unassigned row carries its count');
+  assert.ok(html.indexOf('Usman Ghani') < html.indexOf('No collector recorded'), 'unassigned row sits last, after the named collectors');
+});

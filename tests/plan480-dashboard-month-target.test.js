@@ -179,21 +179,29 @@ test('month target: the line never changes any bill, payment, or customer record
   assert.equal(JSON.stringify(state), before);
 });
 
-test('month target wiring: the line sits on the billing dashboard after the month-comparison line, and the dashboard renders it', () => {
+test('month target wiring: the gauge section is deleted and the target chart lives in Reports, and the module still renders into a mock doc', () => {
   const page = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
-  assert.ok(page.includes('id="monthTargetSection"'), 'target section exists');
-  assert.ok(page.indexOf('id="monthTargetSection"') > page.indexOf('id="monthCompareSection"'), 'line follows the month-comparison line');
-  assert.ok(page.indexOf('id="monthTargetSection"') < page.indexOf('id="collectionForecastSection"'), 'line sits before the forecast section');
-  assert.ok(page.includes('id="mtpTargetTotal"'), 'target total element exists');
-  assert.ok(page.includes('id="mtpTargetLine"'), 'figures line element exists');
-  assert.ok(page.includes('id="mtpTargetRemaining"'), 'remaining element exists');
-  assert.ok(page.includes('data-i18n="dash_monthtarget_title"'), 'line title is translated');
-  assert.ok(page.includes('data-i18n="dash_monthtarget_sub"'), 'line subtitle is translated');
-  assert.ok(page.includes('Month target progress'), 'line title reads Month target progress');
+  // Home Dashboard overhaul: the "Monthly Collection vs Target"
+  // gauge section is DELETED (resolved — the gauge showed "No
+  // Collection Target Set" and its 62% was collection-vs-billed,
+  // not a target; the month KPI strip carries the honest figure).
+  // The target chart with its Set / Manage Target button moved to
+  // Reports, after the Growth & Finance Matrix.
+  assert.ok(!page.includes('id="monthTargetSection"'), 'gauge section is gone');
+  assert.ok(!page.includes('id="mtpTargetTotal"'), 'gauge total element is gone');
+  assert.ok(!page.includes('id="mtpTargetLine"'), 'gauge line element is gone');
+  assert.ok(!page.includes('id="mtpTargetRemaining"'), 'gauge remaining element is gone');
+  assert.ok(page.includes('id="openCollectionTargetBtn"'), 'Set / Manage Target button exists');
+  assert.ok(page.includes('id="dashboardTargetChart"'), 'target chart element exists');
+  assert.ok(page.indexOf('id="dashboardTargetChart"') > page.indexOf('id="billingReportsView"'), 'target chart sits inside the Reports tab');
+  assert.ok(page.indexOf('id="dashboardTargetChart"') > page.indexOf('id="multiMonthMatrixSection"'), 'target chart follows the matrix');
 
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-  assert.ok(app.includes("from './dashboard-month-target.js?v=1.11.0'"), 'dashboard imports the month-target module at the pinned version');
-  assert.ok(app.includes('renderMonthTarget(document, calculateMonthTargetProgress(state, referenceDate, storageAvailable ? localStorage : null))'), 'renderDashboard fills the line from the state and the saved target record');
+  // Home Dashboard overhaul: renderDashboard no longer imports or
+  // calls the month-target module — the gauge section it fed is
+  // deleted. The module stays for its own unit tests.
+  assert.ok(!app.includes("from './dashboard-month-target.js?v=1.11.0'"), 'dashboard no longer imports the month-target module');
+  assert.ok(!app.includes('renderMonthTarget(document, calculateMonthTargetProgress(state, referenceDate, storageAvailable ? localStorage : null))'), 'renderDashboard no longer fills the deleted gauge');
 });
 
 test('i18n: every dash_monthtarget_ key used exists in English and Urdu, with Urdu script in the Urdu value', () => {
@@ -205,7 +213,10 @@ test('i18n: every dash_monthtarget_ key used exists in English and Urdu, with Ur
   // module, not directly after t(' — so the module scan takes
   // every quoted key.
   for (const match of module.matchAll(/'(dash_monthtarget_[a-z_]+)'/g)) used.add(match[1]);
-  assert.ok(used.size >= 7, `expected at least 7 month-target keys, found ${[...used].join(', ')}`);
+  // Home Dashboard overhaul: the gauge section is deleted, so its
+  // title/sub keys left the page — the module's own 5 keys are what
+  // remain to pin (they still need EN + UR with Urdu script).
+  assert.ok(used.size >= 5, `expected at least 5 month-target keys, found ${[...used].join(', ')}`);
   for (const key of used) {
     assert.ok(typeof TRANSLATIONS.en[key] === 'string' && TRANSLATIONS.en[key].length > 0, `missing English key ${key}`);
     assert.ok(typeof TRANSLATIONS.ur[key] === 'string' && TRANSLATIONS.ur[key].length > 0, `missing Urdu key ${key}`);

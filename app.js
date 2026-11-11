@@ -606,7 +606,7 @@ import { urduNoteMarkup } from './urdu-note.js';
 import { crossPaymentNoteMarkup, crossPaymentsMadeBy, crossPaymentsMadeSectionHtml } from './cross-payment-note.js';
 import { normalizeReceiptNumber, findTransactionByReceiptNumber, receiptNumberSearchLineText, receiptNumberSearchRowMarkup } from './receipt-number-search.js';
 import { billMonthChoiceOf, normalizeBillMonthChoice, billMonthSelectOptions, billMonthChoiceLineText } from './bill-month-selector.js?v=1.11.0';
-import { todayQueueEntries, offlineQueueSectionHtml } from './offline-queue-status.js';
+import { queueEntryTime } from './offline-queue-status.js';
 import { paymentMethodDetailMarkup, paymentMethodReferenceMarkup } from './payment-method-detail.js';
 import { latestMessageDateForCustomer, latestVisitDateForCustomer, lastInteractionFor, lastInteractionLineHtml } from './last-interaction-line.js';
 import { profileFreshnessStampHtml } from './profile-freshness-stamp.js';
@@ -624,8 +624,9 @@ import { normalizeHistoryMethodFilter, filterHistoryEntriesByMethod, historyMeth
 import { historyAmountSearchActive, normalizeHistoryAmountSearch, searchHistoryEntriesByAmount, historyAmountSearchMarkup, historyAmountSearchEmptyText, historyAmountSearchSummaryText } from './history-amount-search.js';
 import { normalizeLedgerAmountRange, searchLedgerByAmountRange, ledgerAmountRangeSummaryText, ledgerAmountRangeEmptyText } from './ledger-amount-range.js';
 import { normalizeLedgerDay, formatLedgerDay, searchLedgerByDay, ledgerDaySummaryText, ledgerDayEmptyText, ledgerDayRangeEmptyText } from './ledger-single-day.js';
-import { normalizeLedgerMethodFilter, searchLedgerByMethod, ledgerMethodSummaryText, ledgerMethodDayRangeEmptyText } from './ledger-payment-method.js';
-import { normalizeLiveLedgerSearch, searchLedgerLive, ledgerLiveSearchSummaryText, ledgerLiveSearchEmptyText } from './ledger-live-search.js';
+import { normalizeLedgerMethodFilter, searchLedgerByMethod, ledgerMethodSummaryText, ledgerMethodDayRangeEmptyText, isShopCashLedgerMethod } from './ledger-payment-method.js';
+import { normalizeLiveLedgerSearch, ledgerLiveSearchSummaryText, ledgerLiveSearchEmptyText } from './ledger-live-search.js';
+import { searchLedgerUnified } from './ledger-unified-search.js';
 import { normalizeLedgerBillMonth, searchLedgerByBillMonth, ledgerBillMonthSummaryText, ledgerBillMonthEmptyText, ledgerBillMonthRangeEmptyText } from './ledger-bill-month.js';
 import { normalizeLedgerCollectorFilter, searchLedgerByCollector, ledgerCollectors, ledgerCollectorSummaryText, ledgerCollectorEmptyText, ledgerCollectorRangeEmptyText } from './ledger-collector.js';
 import { normalizeLedgerRefine, searchLedgerByRefine, ledgerRefineSummaryText, ledgerRefineEmptyText } from './ledger-refine-search.js';
@@ -5715,12 +5716,177 @@ let transactionReceiptBookFilter = '';
 // The search only goes live at three or more characters (see
 // normalizeLedgerReferenceSearch).
 let transactionReferenceSearch = '';
+// Transactions Screen Overhaul: the quick-pill preset — 'all',
+// 'today', 'cash', 'easypaisa', 'shop' or 'partial'. '' means no
+// preset is in force (the operator changed a filter by hand, so no
+// pill claims to describe the list).
+let transactionQuickPill = 'all';
+// Transactions Screen Overhaul: the Shop Cash quick pill — only
+// "Cash at … shop" variants, not plain Cash.
+let transactionShopCashOnly = false;
+// Transactions Screen Overhaul: the Partial quick pill — only rows
+// whose billing status is Partial.
+let transactionStatusFilter = 'all';
 // Plan 392: the payment id a receipt-number search found, or null.
 // While set, the Transactions list shows only that transaction.
 let receiptSearchPaymentId = null;
 let transactionCurrentPage = 1;
 let transactionPageSize = 15;
 let transactionSortBy = 'date-desc';
+
+// Transactions Screen Overhaul: the method chip shows the short shop
+// name — "Hassan Balla Shop", not "Cash at Hassan Balla shop" — so
+// the long badge can no longer squeeze the time out of the row. Any
+// method that is not a shop variant reads back unchanged.
+function shortTransactionMethodLabel(method) {
+  return resolveShopCollector(method) ?? method;
+}
+
+// Transactions Screen Overhaul: how many advanced filters are in
+// force, for the "Filters & sort (N)" toggle label. The top search
+// bar is not an advanced filter, so a typed search never counts.
+function countActiveAdvancedFilters() {
+  let count = 0;
+  if (normalizeLedgerMethodFilter(transactionMethodFilter) !== 'all') count += 1;
+  if (transactionCategoryFilter !== 'all') count += 1;
+  if (transactionCollectorFilter) count += 1;
+  if (transactionReceiptBookFilter) count += 1;
+  if (document.getElementById('transactionDateFilter')?.value) count += 1;
+  if (document.getElementById('transactionBillMonth')?.value) count += 1;
+  if (transactionAmountMin !== '' || transactionAmountMax !== '') count += 1;
+  const recency = document.getElementById('transactionRecencyFilter')?.value;
+  if (recency && recency !== 'all') count += 1;
+  if (transactionSortBy !== 'date-desc') count += 1;
+  if (transactionRefine) count += 1;
+  if (transactionReferenceSearch) count += 1;
+  if (receiptSearchPaymentId) count += 1;
+  if (transactionShopCashOnly) count += 1;
+  if (transactionStatusFilter !== 'all') count += 1;
+  return count;
+}
+
+// Transactions Screen Overhaul: only the pressed state of the quick
+// pills — the counts do not change when a filter is typed by hand,
+// so the delegated clear below only needs this.
+function updateTransactionQuickPillPressed() {
+  document.querySelectorAll('[data-tx-pill]').forEach((pill) => {
+    pill.setAttribute('aria-pressed', String(pill.dataset.txPill === transactionQuickPill));
+  });
+}
+
+// Transactions Screen Overhaul: the quick pills' counts (over the
+// whole ledger, not the filtered list) and pressed state, plus the
+// advanced-filters count on the toggle. Called at the end of every
+// renderTransactions, so the pills always describe the ledger as
+// recorded.
+function syncTransactionQuickPills(allTransactions, todayKey) {
+  const list = Array.isArray(allTransactions) ? allTransactions : [];
+  const labels = { all: 'All', today: 'Today', cash: 'Cash', easypaisa: 'Easypaisa', shop: 'Shop Cash', partial: 'Partial' };
+  const counts = {
+    all: list.length,
+    today: list.filter((tx) => tx.date === todayKey).length,
+    cash: searchLedgerByMethod(list, 'Cash').length,
+    easypaisa: searchLedgerByMethod(list, 'EasyPaisa').length,
+    shop: list.filter((tx) => isShopCashLedgerMethod(tx.method)).length,
+    partial: list.filter((tx) => tx.status === 'partial').length,
+  };
+  document.querySelectorAll('[data-tx-pill]').forEach((pill) => {
+    const key = pill.dataset.txPill;
+    if (labels[key]) pill.textContent = `${labels[key]} (${counts[key] ?? 0})`;
+  });
+  updateTransactionQuickPillPressed();
+  const toggle = document.getElementById('txAdvancedFiltersToggle');
+  if (toggle) {
+    const active = countActiveAdvancedFilters();
+    toggle.textContent = active > 0 ? `Filters & sort (${active})` : 'Filters & sort';
+  }
+}
+
+// Transactions Screen Overhaul: reset every Transactions filter to
+// its default — the transaction half of the Clear filters button,
+// shared by the All quick pill so both reset exactly the same
+// state. The global and report searches are not Transactions
+// filters and stay with the Clear button.
+function resetTransactionFilterState() {
+  // Plan 392: clearing the filters also clears an active receipt-number search.
+  receiptSearchPaymentId = null;
+  const receiptInput = $('#rnsReceiptInput');
+  if (receiptInput) receiptInput.value = '';
+  const receiptResult = $('#rnsReceiptResult');
+  if (receiptResult) { receiptResult.hidden = true; receiptResult.textContent = ''; }
+  $('#transactionRecencyFilter').value = 'all';
+  $('#transactionDateFilter').value = '';
+  const methodSelect = $('#transactionMethodFilter');
+  if (methodSelect) methodSelect.value = 'all';
+  transactionMethodFilter = 'all';
+  // Plan 398: clearing the filters also clears the category filter.
+  const categoryFilterSelect = $('#transactionCategoryFilter');
+  if (categoryFilterSelect) categoryFilterSelect.value = 'all';
+  transactionCategoryFilter = 'all';
+  // Plan 453: clearing the filters also clears the amount range.
+  const amountMinInput = $('#transactionAmountMin');
+  if (amountMinInput) amountMinInput.value = '';
+  const amountMaxInput = $('#transactionAmountMax');
+  if (amountMaxInput) amountMaxInput.value = '';
+  transactionAmountMin = '';
+  transactionAmountMax = '';
+  // Plan 460: clearing the filters also clears the live search.
+  const liveSearchInput = $('#transactionLiveSearch');
+  if (liveSearchInput) liveSearchInput.value = '';
+  transactionLiveSearch = '';
+  // Plan 465: clearing the filters also clears the refine box.
+  const refineInput = $('#transactionRefineSearch');
+  if (refineInput) refineInput.value = '';
+  transactionRefine = '';
+  // Plan 461: clearing the filters also clears the bill month.
+  const billMonthInput = $('#transactionBillMonth');
+  if (billMonthInput) billMonthInput.value = '';
+  // Plan 462: clearing the filters also clears the collector filter.
+  const collectorFilterSelect = $('#transactionCollectorFilter');
+  if (collectorFilterSelect) collectorFilterSelect.value = '';
+  transactionCollectorFilter = '';
+  // Plan 466: clearing the filters also clears the receipt-book filter.
+  const receiptBookFilterSelect = $('#transactionReceiptBookFilter');
+  if (receiptBookFilterSelect) receiptBookFilterSelect.value = '';
+  transactionReceiptBookFilter = '';
+  // Plan 467: clearing the filters also clears the reference search.
+  const referenceSearchInput = $('#transactionReferenceSearch');
+  if (referenceSearchInput) referenceSearchInput.value = '';
+  transactionReferenceSearch = '';
+  // Transactions Screen Overhaul: clearing also clears the quick pills.
+  transactionQuickPill = '';
+  transactionShopCashOnly = false;
+  transactionStatusFilter = 'all';
+  transactionCurrentPage = 1;
+}
+
+// Transactions Screen Overhaul: one quick pill is one preset —
+// reset everything else first, then apply only that pill's filter,
+// so the pill always describes exactly the list it shows.
+function applyTransactionQuickPill(pill) {
+  resetTransactionFilterState();
+  transactionQuickPill = pill;
+  if (pill === 'today') {
+    const dateInput = $('#transactionDateFilter');
+    if (dateInput) dateInput.value = pktDateKey();
+    const recency = $('#transactionRecencyFilter');
+    if (recency) recency.value = 'all';
+  } else if (pill === 'cash') {
+    transactionMethodFilter = 'Cash';
+    const methodSelect = $('#transactionMethodFilter');
+    if (methodSelect) methodSelect.value = 'Cash';
+  } else if (pill === 'easypaisa') {
+    transactionMethodFilter = 'EasyPaisa';
+    const methodSelect = $('#transactionMethodFilter');
+    if (methodSelect) methodSelect.value = 'EasyPaisa';
+  } else if (pill === 'shop') {
+    transactionShopCashOnly = true;
+  } else if (pill === 'partial') {
+    transactionStatusFilter = 'partial';
+  }
+  transactionCurrentPage = 1;
+  renderTransactions();
+}
 
 let reportSearchQuery = '';
 let reportCurrentPage = 1;
@@ -5762,6 +5928,21 @@ function renderTransactions() {
   // filters say.
   if (transactionCategoryFilter !== 'all') {
     transactions = filterTransactionsByCategoryTag(transactions, transactionCategoryFilter);
+  }
+  // Transactions Screen Overhaul: the Shop Cash quick pill — only
+  // the "Cash at … shop" variants, not plain Cash (the Cash pill
+  // already folds those in). The receipt-number search below still
+  // narrows to exactly the found transaction, whatever the other
+  // filters say.
+  if (transactionShopCashOnly) {
+    transactions = transactions.filter((tx) => isShopCashLedgerMethod(tx.method));
+  }
+  // Transactions Screen Overhaul: the Partial quick pill — only
+  // rows whose billing status is Partial. The receipt-number search
+  // below still narrows to exactly the found transaction, whatever
+  // the other filters say.
+  if (transactionStatusFilter === 'partial') {
+    transactions = transactions.filter((tx) => tx.status === 'partial');
   }
   const categoryCounts = transactionCategoryTagCounts(listTransactions(state));
   const categorySelect = $('#transactionCategoryFilter');
@@ -5830,13 +6011,15 @@ function renderTransactions() {
     transactions = searchLedgerByDay(transactions, date);
   }
   // Plan 460: the live ledger search — the typed text narrows the
-  // ledger as the operator types (name, phone, or amount fragment,
-  // three or more characters); it filters the list the other filters
-  // already produced, like the method and category filters, and the
-  // receipt-number search below still wins when it is active.
+  // ledger as the operator types; it filters the list the other
+  // filters already produced, like the method and category filters,
+  // and the receipt-number search below still wins when it is active.
+  // Transactions Screen Overhaul: the top search bar is one smart
+  // search — the same typed text also matches a cheque or transfer
+  // reference and an exact receipt number (see ledger-unified-search).
   const liveSearch = normalizeLiveLedgerSearch(transactionLiveSearch);
   if (liveSearch.active) {
-    transactions = searchLedgerLive(transactions, liveSearch.query);
+    transactions = searchLedgerUnified(transactions, liveSearch.query, { deriveReceiptNumber: generateReceiptNumber });
   }
   // Plan 461: the bill-month search — the entries on one bill
   // month; it filters the list the other filters already produced,
@@ -6078,7 +6261,7 @@ function renderTransactions() {
   if (pagNav) {
     pagNav.hidden = transactions.length === 0;
     const pageInfo = $('#txPageInfo');
-    if (pageInfo) pageInfo.textContent = `Page ${paged.page} of ${paged.totalPages} (${transactions.length} total)`;
+    if (pageInfo) pageInfo.textContent = `Page ${paged.page} of ${paged.totalPages}`;
     const prevBtn = $('#txPrevPage');
     if (prevBtn) prevBtn.disabled = paged.page <= 1;
     const nextBtn = $('#txNextPage');
@@ -6089,14 +6272,10 @@ function renderTransactions() {
   const dateSorted = transactionSortBy === 'date-desc' || transactionSortBy === 'date-asc';
   const dayGroups = dateSorted ? groupByDay(transactions) : null;
   const todayKey = pktDateKey();
-  // Plan 396: today's recorded transactions on this device — the
-  // on-device queue view. Lists only; it syncs nothing and never
-  // changes any bill, payment, or customer record. It always shows
-  // today, whatever the list filters say.
-  const queueSection = $('#oqsQueueSection');
-  if (queueSection) {
-    queueSection.innerHTML = offlineQueueSectionHtml(todayQueueEntries(listTransactions(state), todayKey, { deriveReceiptNumber: generateReceiptNumber }));
-  }
+  // Transactions Screen Overhaul: the "Today on this device" box
+  // (Plan 396) is gone — it repeated the first day-group below, so
+  // the same payment appeared twice in a row. Today is still the
+  // first day-group, with the recorded time on each row.
   let lastDay = null;
   // Plan F: one customer index per render, not one roster scan per
   // visible row. Grouping/summary above still scans the filtered
@@ -6117,6 +6296,13 @@ function renderTransactions() {
     const receiptData = customer && savedBill && savedPayment ? buildPaymentReceipt(customer, savedBill, savedPayment) : null;
     const receiptBillStatus = receiptData?.status === 'PAID' ? 'paid' : receiptData?.status === 'PARTIAL' ? 'partial' : null;
     const pid = escapeHtml(transaction.paymentId);
+    // Transactions Screen Overhaul: the row no longer repeats the
+    // date — the day-group header above it already says the date.
+    // It shows the recorded time instead (or the collection mohalla
+    // when the payment carries no recorded-at stamp); a row with
+    // neither shows no second line at all. The full date stays in
+    // the row's accessible label and in the expanded detail.
+    const whenText = queueEntryTime(transaction.recordedAt) || transaction.collectionMohalla || '';
     const detailsId = `txd-${String(transaction.paymentId).replace(/[^A-Za-z0-9_-]/g, '')}`;
     let header = '';
     if (dayGroups && transaction.date !== lastDay) {
@@ -6134,7 +6320,7 @@ function renderTransactions() {
     // badge used to widen it and ellipsize the customer name ("#35 RA...").
     const advanceBadge = transaction.isAdvance ? `<span class="advance-badge">${transaction.targetMonth ? `${t('adv_badge')} · ${escapeHtml(t('adv_target_suffix', null, { month: displayMonthName(transaction.targetMonth) }))}` : t('adv_badge')}</span>` : '';
     const splitBadge = savedPayment ? splitBadgeMarkup(savedPayment) : '';
-    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(transaction.method)}</span><span class="tx-date">${escapeHtml(humanDate(transaction.date))}</span></span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${referenceSearch.active ? ledgerReferenceClearanceSuffix(referenceClearances, transaction.paymentId) : ''}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions"><span class="receipt-primary">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, status: receiptData?.status ?? null, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], salesTaxCents:receiptData?.salesTaxCents ?? null, area:receiptData?.area ?? null, advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)), ...autoPackageFieldForDraft(savedPayment) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button></span><details class="receipt-more-actions"><summary>${t('nav_more')}</summary><span class="receipt-more-body"><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</span></details></div></div></li>`;  }).join('');
+    return `${header}<li class="transaction-card tx-compact" data-payment-row="${pid}"><button class="tx-row" type="button" aria-expanded="false" aria-controls="${detailsId}" aria-label="#${transaction.customerNumber} ${escapeHtml(transaction.customerName)}, ${escapeHtml(formatAmount(transaction.amount))}, ${escapeHtml(transaction.method)}, ${escapeHtml(humanDate(transaction.date))}, ${statusText}. Show details and actions"><span class="tx-avatar" aria-hidden="true">${escapeHtml(initials(transaction.customerName))}</span><span class="tx-main"><span class="transaction-customer"><span class="transaction-customer-number">#${transaction.customerNumber}</span>${escapeHtml(transaction.customerName)}</span><span class="tx-sub"><span class="tx-method-chip tx-method-${methodSlug(transaction.method)}">${escapeHtml(shortTransactionMethodLabel(transaction.method))}</span>${whenText ? `<span class="tx-when">${escapeHtml(whenText)}</span>` : ''}</span>${advanceBadge}</span><span class="tx-side"><strong class="transaction-amount">${escapeHtml(formatAmount(transaction.amount))}</strong>${savedPayment?.voided === true ? '<span class="void-badge">VOID</span>' : ''}${splitBadge}<span class="report-status report-status-${transaction.status} tx-status-chip">${statusText}</span></span><span class="tx-chevron" aria-hidden="true">▾</span></button><div class="tx-details" id="${detailsId}" hidden><div class="transaction-data"><p class="transaction-meta">Actual payment date: ${escapeHtml(humanDate(transaction.date))} · Method: ${escapeHtml(transaction.method)}${paymentMethodDetailMarkup(transaction)}${referenceSearch.active ? ledgerReferenceClearanceSuffix(referenceClearances, transaction.paymentId) : ''}${paymentPayerMarkup(transaction)}${collectionNoteMarkup(transaction)}${sameDayCorrectionNoteMarkup(transaction)}${transactionReversalLinkMarkup(transaction, customer)}${transactionOverpaymentChoiceMarkup(transaction)}${transactionExcessCashNoteMarkup(transaction)}${transactionLargeCashApprovalMarkup(transaction)}${transactionCategoryTagMarkup(transaction)}${transactionPromisePaymentLinkMarkup(transaction)}${urduNoteMarkup(transaction)}${crossPaymentNoteMarkup(transaction)}${receiptNumberSearchRowMarkup(transaction, generateReceiptNumber)}</p>${savedPayment?.voided === true ? `<p class="transaction-meta">${voidBadgeMarkup(savedPayment)}</p>` : ''}<p class="transaction-context">${context}</p>${paymentAllocationMarkup(transaction.allocation)}</div><div class="transaction-actions"><span class="receipt-primary">${savedPayment?.screenshot ? paymentProofButtonMarkup(transaction.customerId, transaction.month, savedPayment) : ''}${receiptWhatsAppActionMarkup(customer, { ...transaction, billStatus:receiptBillStatus, status: receiptData?.status ?? null, billAmount:receiptData?.nominalPrice ?? null, balanceDueCents:receiptData?.balanceDueCents ?? null, ticketCharges:receiptData?.ticketCharges ?? [], salesTaxCents:receiptData?.salesTaxCents ?? null, area:receiptData?.area ?? null, advanceCredit:receiptData?.advanceCredit ?? null, waivedAmount:receiptData?.waivedAmount ?? 0, fifoAllocation: receiptData?.fifoAllocation ?? null, fifoRemaining: receiptData?.fifoRemaining ?? null, fifoShow: receiptData?.fifoShow ?? false, contributorSplit: receiptData?.contributorSplit ?? null, previousPayments: receiptData?.previousPayments ?? [], arrearsBreakdown:buildArrearsBreakdown(customer, (customer.bills ?? []).find((bill) => bill.month === transaction.month)), ...autoPackageFieldForDraft(savedPayment) }, { askLabel:'WhatsApp receipt' })}<button class="print-receipt-button" type="button" data-print-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print receipt for customer ${transaction.customerNumber}, payment dated ${escapeHtml(transaction.date)}">🖨 Print receipt</button></span><details class="receipt-more-actions"><summary>${t('nav_more')}</summary><span class="receipt-more-body"><button class="print-receipt-button thermal-receipt-button" type="button" data-print-thermal-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 80mm thermal slip for customer ${transaction.customerNumber}">80mm slip</button><button class="print-receipt-button thermal58-receipt-button" type="button" data-print-thermal58-receipt data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}" data-payment-id="${pid}" aria-label="Print 58mm thermal slip for customer ${transaction.customerNumber}">58mm slip</button>${pngReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${bluetoothReceiptButtonMarkup(transaction.customerId, transaction.month, pid, transaction.customerNumber)}${savedPayment?.voided === true ? '' : `<button class="edit-payment" type="button" data-transaction-edit="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">✎ Edit</button><button class="delete-payment" type="button" data-transaction-delete="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">🗑 Delete</button>${channelActionMarkup(savedPayment, { customerId: transaction.customerId, month: transaction.month })}<button class="void-payment" type="button" data-transaction-void="${pid}" data-customer-id="${escapeHtml(transaction.customerId)}" data-month="${escapeHtml(transaction.month)}">Void</button>`}</span></details></div></div></li>`;  }).join('');
   transactionList.querySelectorAll('[data-transaction-edit]').forEach(button => button.addEventListener('click', () => beginCorrection(button.dataset.customerId, button.dataset.month, button.dataset.transactionEdit, 'transactions')));
   transactionList.querySelectorAll('[data-transaction-delete]').forEach(button => button.addEventListener('click', () => requestDeletePayment(button.dataset.customerId, button.dataset.month, button.dataset.transactionDelete)));
   transactionList.querySelectorAll('[data-transaction-void]').forEach(button => button.addEventListener('click', () => openVoidPaymentDialog(button.dataset.customerId, button.dataset.month, button.dataset.transactionVoid)));
@@ -6149,6 +6335,9 @@ function renderTransactions() {
   transactionList.querySelectorAll('[data-png-receipt]').forEach(button => button.addEventListener('click', () => downloadPngReceipt(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   transactionList.querySelectorAll('[data-view-proof]').forEach(button => button.addEventListener('click', () => openPaymentProofDialog(button.dataset.customerId, button.dataset.month, button.dataset.paymentId)));
   bindReceiptPhoneActions(transactionList);
+  // Transactions Screen Overhaul: the quick pills' counts and
+  // pressed state always describe the ledger as recorded.
+  syncTransactionQuickPills(listTransactions(state), todayKey);
 }
 function reportStatusLabel(status) { return ({ paid:'Paid', pending:'Pending', unpaid:'Pending', partial:'Partial', 'not-set':'Not set' })[status] ?? 'Not set'; }
 // Urdu phase 4: Billing-screen status labels via t(). reportStatusLabel is
@@ -11773,6 +11962,9 @@ $('#transactionAmountMax').addEventListener('input', event => { transactionAmoun
 // Plan 460: the live ledger search — the list narrows on every
 // keystroke, no Search button to press; clearing the box (or
 // dropping below three characters) returns the full ledger.
+// Transactions Screen Overhaul: this input is the one smart search
+// bar at the top — the same keystrokes also match a reference and
+// an exact receipt number (see searchLedgerUnified).
 $('#transactionLiveSearch').addEventListener('input', event => { transactionLiveSearch = event.currentTarget.value; transactionCurrentPage = 1; renderTransactions(); });
 // Plan 465: the refine box — narrowing only the already-found list
 // on every keystroke; clearing the box (or dropping below three
@@ -11804,6 +11996,15 @@ const paymentsListController = setupPaymentsList(); // #298 tap-to-expand paymen
 // nothing and changes no bill, payment, or receipt record.
 $('#rnsReceiptSearchForm')?.addEventListener('submit', event => {
   event.preventDefault();
+  // Transactions Screen Overhaul: a receipt search supersedes any
+  // quick pill, and the advanced panel opens so its result line is
+  // visible — the form lives inside the collapsed panel.
+  transactionQuickPill = '';
+  const advancedPanel = $('#txAdvancedFilters');
+  if (advancedPanel) {
+    advancedPanel.hidden = false;
+    $('#txAdvancedFiltersToggle')?.setAttribute('aria-expanded', 'true');
+  }
   const input = $('#rnsReceiptInput');
   const result = $('#rnsReceiptResult');
   const query = normalizeReceiptNumber(input?.value ?? '');
@@ -11835,56 +12036,50 @@ $('#rnsReceiptClear')?.addEventListener('click', () => {
   transactionCurrentPage = 1;
   renderTransactions();
 });
+// Transactions Screen Overhaul: the quick pills — one tap applies
+// one preset (see applyTransactionQuickPill).
+document.querySelectorAll('[data-tx-pill]').forEach((pill) => {
+  pill.addEventListener('click', () => { applyTransactionQuickPill(pill.dataset.txPill); });
+});
+// Transactions Screen Overhaul: the advanced-filters disclosure —
+// the panel opens at the top, in place; nothing scrolls anywhere.
+$('#txAdvancedFiltersToggle')?.addEventListener('click', () => {
+  const panel = $('#txAdvancedFilters');
+  if (!panel) return;
+  const willOpen = panel.hidden;
+  panel.hidden = !willOpen;
+  $('#txAdvancedFiltersToggle')?.setAttribute('aria-expanded', String(willOpen));
+});
+// Transactions Screen Overhaul: the Export menu's text download
+// reuses the footer's own download (one implementation, two
+// triggers) and closes the menu; the footer button itself is
+// hidden on this view so the download appears exactly once.
+$('#txExportAllTxtBtn')?.addEventListener('click', () => {
+  document.getElementById('txExportMenu')?.removeAttribute('open');
+  $('#exportAllButton')?.click();
+});
+// Transactions Screen Overhaul: any filter typed or picked by hand
+// clears the quick-pill preset — a pill only ever describes a
+// list its own preset produced. Programmatic sets (a pill click)
+// fire no input/change event, so a pill never clears itself.
+for (const type of ['input', 'change']) {
+  document.getElementById('transactionsView')?.addEventListener(type, (event) => {
+    if (event.target?.closest?.('[data-tx-pill]')) return;
+    if (transactionQuickPill) {
+      transactionQuickPill = '';
+      updateTransactionQuickPillPressed();
+    }
+  });
+}
 $('#txPrevPage').addEventListener('click', () => { if (transactionCurrentPage > 1) { transactionCurrentPage--; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); } });
 $('#txNextPage').addEventListener('click', () => { transactionCurrentPage++; renderTransactions(); $('#transactionsList').scrollIntoView({ behavior:'smooth', block:'start' }); });
 $('#txPageSize').addEventListener('change', event => { transactionPageSize = event.currentTarget.value === 'all' ? 'all' : Number(event.currentTarget.value); transactionCurrentPage = 1; renderTransactions(); });
 $('#clearTransactionFilters').addEventListener('click', () => {
-  // Plan 392: clearing the filters also clears an active receipt-number search.
-  receiptSearchPaymentId = null;
-  const receiptInput = $('#rnsReceiptInput');
-  if (receiptInput) receiptInput.value = '';
-  const receiptResult = $('#rnsReceiptResult');
-  if (receiptResult) { receiptResult.hidden = true; receiptResult.textContent = ''; }
-  $('#transactionRecencyFilter').value = 'all';
-  $('#transactionDateFilter').value = '';
-  const methodSelect = $('#transactionMethodFilter');
-  if (methodSelect) methodSelect.value = 'all';
-  transactionMethodFilter = 'all';
-  // Plan 398: clearing the filters also clears the category filter.
-  const categoryFilterSelect = $('#transactionCategoryFilter');
-  if (categoryFilterSelect) categoryFilterSelect.value = 'all';
-  transactionCategoryFilter = 'all';
-  // Plan 453: clearing the filters also clears the amount range.
-  const amountMinInput = $('#transactionAmountMin');
-  if (amountMinInput) amountMinInput.value = '';
-  const amountMaxInput = $('#transactionAmountMax');
-  if (amountMaxInput) amountMaxInput.value = '';
-  transactionAmountMin = '';
-  transactionAmountMax = '';
-  // Plan 460: clearing the filters also clears the live search.
-  const liveSearchInput = $('#transactionLiveSearch');
-  if (liveSearchInput) liveSearchInput.value = '';
-  transactionLiveSearch = '';
-  // Plan 465: clearing the filters also clears the refine box.
-  const refineInput = $('#transactionRefineSearch');
-  if (refineInput) refineInput.value = '';
-  transactionRefine = '';
-  // Plan 461: clearing the filters also clears the bill month.
-  const billMonthInput = $('#transactionBillMonth');
-  if (billMonthInput) billMonthInput.value = '';
-  // Plan 462: clearing the filters also clears the collector filter.
-  const collectorFilterSelect = $('#transactionCollectorFilter');
-  if (collectorFilterSelect) collectorFilterSelect.value = '';
-  transactionCollectorFilter = '';
-  // Plan 466: clearing the filters also clears the receipt-book filter.
-  const receiptBookFilterSelect = $('#transactionReceiptBookFilter');
-  if (receiptBookFilterSelect) receiptBookFilterSelect.value = '';
-  transactionReceiptBookFilter = '';
-  // Plan 467: clearing the filters also clears the reference search.
-  const referenceSearchInput = $('#transactionReferenceSearch');
-  if (referenceSearchInput) referenceSearchInput.value = '';
-  transactionReferenceSearch = '';
-  transactionCurrentPage = 1;
+  // Transactions Screen Overhaul: the transaction half of the reset
+  // lives in resetTransactionFilterState (shared with the All pill);
+  // clearing restores the All pill as the preset in force.
+  resetTransactionFilterState();
+  transactionQuickPill = 'all';
   $('#globalCustomerSearch').value = '';
   const reportSearch = $('#reportCustomerSearch');
   if (reportSearch) reportSearch.value = '';
@@ -41098,6 +41293,7 @@ if (expenseDraftController?.getDraft()) {
 
 // Phase 12 · CSV exports
 $('#exportTransactionsCsvBtn')?.addEventListener('click', () => {
+  document.getElementById('txExportMenu')?.removeAttribute('open');
   const date = $('#transactionDateFilter')?.value;
   const recencyValue = $('#transactionRecencyFilter')?.value;
   const recencyDays = recencyValue === 'all' ? null : Number(recencyValue);
@@ -41111,6 +41307,14 @@ $('#exportTransactionsCsvBtn')?.addEventListener('click', () => {
   // list, so what is exported is what is shown.
   if (transactionCategoryFilter !== 'all') {
     txs = filterTransactionsByCategoryTag(txs, transactionCategoryFilter);
+  }
+  // Transactions Screen Overhaul: the export follows the quick
+  // pills too, so what is exported is what is shown.
+  if (transactionShopCashOnly) {
+    txs = txs.filter((tx) => isShopCashLedgerMethod(tx.method));
+  }
+  if (transactionStatusFilter === 'partial') {
+    txs = txs.filter((tx) => tx.status === 'partial');
   }
   const headers = [
     { key: 'customerNumber', label: 'Customer #' },

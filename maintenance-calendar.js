@@ -57,6 +57,9 @@ const MOHALLA_ALIASES = Object.freeze({
   bani: 'BANII',
   kishti: 'KISHTII',
   chamyaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla.
+  jabbiyaaa: 'JABBIYAA',
 });
 
 export const MAINTENANCE_STATUSES = Object.freeze({

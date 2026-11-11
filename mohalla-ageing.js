@@ -82,19 +82,36 @@ function formatAmount(value) {
  * Mohalla grouping key, identical to Plan 7's ageingMohallaKey:
  * trimmed, upper-cased, leading "MOHALLA " stripped, internal
  * whitespace collapsed. Blank input maps to "UNASSIGNED" so
- * unassigned dues are grouped, never dropped.
+ * unassigned dues are grouped, never dropped. Owner-confirmed
+ * 2026-11-11: JABBIYAAA is the same mohalla as JABBIYAA, so it
+ * folds to the same key. Charyaa is its own mohalla and never
+ * folds to Chamyaa.
  */
 export function mohallaAgeingKey(raw) {
   const text = str(raw).trim().replace(/\s+/g, ' ');
   if (!text) return 'UNASSIGNED';
   const upper = text.toUpperCase();
-  return upper.startsWith('MOHALLA ') ? upper.slice('MOHALLA '.length) : upper;
+  const stripped = upper.startsWith('MOHALLA ') ? upper.slice('MOHALLA '.length) : upper;
+  return stripped === 'JABBIYAAA' ? 'JABBIYAA' : stripped;
 }
 
 export function mohallaAgeingLabel(raw) {
   const text = str(raw).trim().replace(/\s+/g, ' ');
   if (!text) return 'Unassigned';
-  return text;
+  // Owner 5-part fix: display label in consistent Title Case, so a
+  // stored 'CHARYAA' and a stored 'Charyaa' read the same; the folded
+  // JABBIYAAA spelling reads as its canonical 'Jabbiyaa'.
+  if (mohallaAgeingKey(raw) === 'JABBIYAA') return 'Jabbiyaa';
+  return text.split(' ').map((word) => {
+    const chars = Array.from(word);
+    if (!chars.length) return word;
+    // Same rule as phase3's readableLabel: a 2–3-letter all-caps
+    // word (an acronym or a short label such as 'X<Y') keeps its
+    // own casing instead of being forced to Title Case.
+    const letters = word.match(/\p{L}/gu) ?? [];
+    if (letters.length >= 2 && letters.length <= 3 && letters.every((letter) => letter === letter.toLocaleUpperCase('en-US'))) return word;
+    return chars[0].toLocaleUpperCase('en-US') + chars.slice(1).join('').toLocaleLowerCase('en-US');
+  }).join(' ');
 }
 
 function emptySummary(valid, asOfMonth) {
@@ -232,8 +249,10 @@ export function mohallaAgeingHtml(summary) {
   const rows = summary.rows.map((row) => `<tr><td>${escapeHtml(row.label)}</td><td>${formatAmount(row.byBucket.current)}</td><td>${formatAmount(row.byBucket.one)}</td><td>${formatAmount(row.byBucket.two)}</td><td>${formatAmount(row.byBucket.threePlus)}</td><td>${formatAmount(row.unaged)}</td><td>${formatAmount(row.total)}</td><td>${row.billCount}</td><td>${escapeHtml(row.note)}</td></tr>`).join('')
     || '<tr><td colspan="9">No mohallas recorded.</td></tr>';
   return `<p>Dues ageing note per mohalla, as of ${escapeHtml(summary.asOfMonth)}. Bill age only — the same Plan 7 ageing, grouped so each mohalla stands on its own. Read-only: it changes no bill, payment, or customer record. ${escapeHtml(mohallaAgeingSummaryText(summary))}</p>`
-    + `<table><thead><tr><th>Mohalla</th><th>Current</th><th>1 month</th><th>2 months</th><th>3+ months</th><th>Bill month unreadable</th><th>Total</th><th>Bills</th><th>Note</th></tr></thead><tbody>${rows}</tbody>`
-    + `<tfoot><tr><td>Business total</td><td colspan="5"></td><td>${formatAmount(summary.businessTotal)}</td><td></td><td>${summary.sumsMatch ? '' : 'Totals do not match the business total.'}</td></tr></tfoot></table>`;
+    // Owner 5-part fix: the nine-column table scrolls inside its own
+    // card on a phone instead of clipping the right-side columns.
+    + `<div class="table-scroll"><table><thead><tr><th>Mohalla</th><th>Current</th><th>1 month</th><th>2 months</th><th>3+ months</th><th>Bill month unreadable</th><th>Total</th><th>Bills</th><th>Note</th></tr></thead><tbody>${rows}</tbody>`
+    + `<tfoot><tr><td>Business total</td><td colspan="5"></td><td>${formatAmount(summary.businessTotal)}</td><td></td><td>${summary.sumsMatch ? '' : 'Totals do not match the business total.'}</td></tr></tfoot></table></div>`;
 }
 
 /** CSV export: one row per mohalla, then the business total. */

@@ -64,7 +64,9 @@ test('new customers strip: lists exactly the customers who joined this month, wi
   assert.equal(summary.customerCount, 6);
   assert.deepEqual(summary.customers, [
     { name: 'New Backdated E', mohalla: 'Kishtii', package: '3Mbps / 300GB', duesCents: 160000, joinedDate: '2026-11-01' },
-    { name: 'New Conn A', mohalla: 'Charyaa', package: '15Mbps Unlimited', duesCents: 300000, joinedDate: '2026-11-02' },
+    // Home Dashboard Part 4: stored 'CHARYAA' folds to the
+    // canonical 'Chamyaaa' label (alias map, phase3.js).
+    { name: 'New Conn A', mohalla: 'Chamyaaa', package: '15Mbps Unlimited', duesCents: 300000, joinedDate: '2026-11-02' },
     { name: 'New Free G', mohalla: 'Gangall', package: '', duesCents: 0, joinedDate: '2026-11-04' },
     { name: 'New Added B & Sons', mohalla: 'Gangall', package: '5Mbps / 200GB', duesCents: 200000, joinedDate: '2026-11-05' },
     { name: 'New No Fee H', mohalla: 'Unassigned', package: '3Mbps / 100GB', duesCents: null, joinedDate: '2026-11-06' },
@@ -115,7 +117,9 @@ test('new customers strip render: PKR figures, line, and rows land in the view',
   const html = els.ncmNewRows.innerHTML;
   assert.ok(html.includes('New Conn A'), 'A row lands');
   assert.ok(html.includes('PKR 3,000'), 'A dues figure lands');
-  assert.ok(html.includes('Charyaa · 15Mbps Unlimited'), 'A mohalla and package land');
+  // Stored 'CHARYAA' renders under the canonical 'Chamyaaa'
+  // label (Part 4 alias fold).
+  assert.ok(html.includes('Chamyaaa · 15Mbps Unlimited'), 'A mohalla and package land');
   assert.ok(html.includes('New Added B &amp; Sons'), 'names are escaped');
   assert.ok(html.includes('PKR 2,000'), 'B dues figure lands');
   assert.ok(html.includes('New Free G'), 'free connection row lands');

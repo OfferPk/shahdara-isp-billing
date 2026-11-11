@@ -5,9 +5,9 @@
  * Implements:
  * - calculateHomeTodaySummary: computes collected today (cash vs digital),
  *   month progress (% collected vs billed), total dues, customers with dues,
- *   new customers connected this month, and top 5 overdue accounts.
+ *   new customers connected this month, and top 3 overdue accounts.
  * - generateOwnerDailySummaryWhatsAppText: formatted executive bilingual summary text.
- * - renderHomeTodaySummary: updates the DOM card elements and renders top 5 overdue accounts.
+ * - renderHomeTodaySummary: updates the DOM card elements and renders top 3 overdue accounts.
  * - setupHomeTodaySection: binds WhatsApp dispatch button and live event listeners.
  */
 
@@ -61,19 +61,26 @@ export function calculateHomeTodaySummary(state = {}, referenceDate = new Date()
   for (const c of (state.customers ?? [])) {
     if (c.archived) continue;
 
-    // Check new connection in this month (addedOn, connectionDate, or createdAt)
-    const connDate = c.addedOn || c.connectionDate || c.createdAt;
+    // Check new connection in this month: the dashboard's own
+    // new-connections rule, verbatim — an explicit connection date
+    // first, then the added date when no connection date is set
+    // (Plan 477). The old addedOn-first order counted a customer
+    // in the month their profile was typed, not the month they
+    // were connected, and disagreed with the KPI strip by one.
+    const connDate = c.connectionDate || c.addedOn || c.createdAt;
     if (connDate && String(connDate).slice(0, 7) === currentMonth) {
       newConnectionsThisMonth++;
     }
 
-    // Check customer's total outstanding balance
+    // Check customer's total outstanding balance. A voided receipt
+    // is history, never a payment: it counts toward neither the
+    // paid total nor the month's collections.
     let custTotalDueCents = 0;
     const bills = Array.isArray(c.bills) ? c.bills : [];
     for (const b of bills) {
       const due = Number(b.dueAmount) || 0;
       const payments = Array.isArray(b.payments) ? b.payments : [];
-      const paid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      const paid = payments.reduce((sum, p) => sum + (p?.voided === true ? 0 : (Number(p.amount) || 0)), 0);
       const balance = Math.max(0, due - paid);
       custTotalDueCents += Math.round(balance * 100);
 
@@ -84,6 +91,7 @@ export function calculateHomeTodaySummary(state = {}, referenceDate = new Date()
 
       // Current month collected (payments dated in current month)
       for (const p of payments) {
+        if (p?.voided === true) continue;
         if (typeof p.date === 'string' && p.date.slice(0, 7) === currentMonth) {
           monthCollectedCents += Math.round((Number(p.amount) || 0) * 100);
         }
@@ -105,7 +113,10 @@ export function calculateHomeTodaySummary(state = {}, referenceDate = new Date()
 
   // Sort descending by balanceDue
   overdueCustomers.sort((a, b) => b.balanceDue - a.balanceDue);
-  const top5Overdue = overdueCustomers.slice(0, 5);
+  // Home shows the top 3 overdue accounts only; the full list lives
+  // on the Collect tab. (The field used to be named top5Overdue and
+  // sliced five; the Home Dashboard overhaul cut the preview to 3.)
+  const topOverdue = overdueCustomers.slice(0, 3);
 
   const monthBilled = Math.round(monthBilledCents / 100);
   const monthCollected = Math.round(monthCollectedCents / 100);
@@ -124,7 +135,7 @@ export function calculateHomeTodaySummary(state = {}, referenceDate = new Date()
     totalDue: dashboard.totalDue,
     customersWithDuesCount: overdueCustomers.length,
     newCustomersThisMonth: newConnectionsThisMonth,
-    top5Overdue
+    topOverdue
   };
 }
 
@@ -150,9 +161,9 @@ export function generateOwnerDailySummaryWhatsAppText(summary, ispName = 'Shahda
     `• نئے کنکشنز / New Connections: *${summary.newCustomersThisMonth}*`
   ];
 
-  if (summary.top5Overdue && summary.top5Overdue.length > 0) {
-    lines.push(``, `*🚨 ٹاپ 5 بڑے نادہندگان / Top 5 Overdue:*`);
-    summary.top5Overdue.forEach((c, idx) => {
+  if (summary.topOverdue && summary.topOverdue.length > 0) {
+    lines.push(``, `*🚨 ٹاپ 3 بڑے نادہندگان / Top 3 Overdue:*`);
+    summary.topOverdue.forEach((c, idx) => {
       lines.push(`${idx + 1}. #${c.customerNumber} ${c.name} (${c.mohalla}): *${formatPKR(c.balanceDue)}*`);
     });
   }
@@ -210,14 +221,14 @@ export function renderHomeTodaySummary(doc = document, summary) {
     newCustEl.textContent = String(summary.newCustomersThisMonth);
   }
 
-  // Render Top 5 Overdue List
+  // Render Top 3 Overdue List
   const overdueListEl = doc.getElementById('homeTopOverdueList');
   if (overdueListEl) {
-    if (!summary.top5Overdue || summary.top5Overdue.length === 0) {
+    if (!summary.topOverdue || summary.topOverdue.length === 0) {
       overdueListEl.innerHTML = `<li class="overdue-empty-item">${t('dash_today_no_overdue')}</li>`;
     } else {
       const overdueLang = currentAppLanguage();
-      overdueListEl.innerHTML = summary.top5Overdue.map(c => {
+      overdueListEl.innerHTML = summary.topOverdue.map(c => {
         const rawPhone = c.phone || '';
         const waPhone = normalizeWhatsAppNumber(rawPhone);
         const waLink = waPhone

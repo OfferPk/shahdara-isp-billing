@@ -194,7 +194,11 @@ test('wiring: the sheet composes the payments section under the customers', () =
   // The payments region sits after the customer results region.
   assert.ok(html.indexOf('id="fastCustomerSearchPayments"') > html.indexOf('id="fastCustomerSearchResults"'));
 
-  // The wiring lives in the sheet, not in app.js.
+  // The wiring lives in the sheet, not in app.js. The check is the
+  // exact import specifier: app.js does import the ledger's own
+  // './ledger-unified-search.js' (Transactions Screen Overhaul),
+  // whose name contains 'unified-search.js' as a substring, so a
+  // bare substring check would false-positive on it.
   const app = readFileSync(new URL('../app.js', import.meta.url), 'utf8');
-  assert.equal(app.includes('unified-search.js'), false);
+  assert.equal(app.includes("from './unified-search.js'"), false);
 });

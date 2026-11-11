@@ -114,6 +114,17 @@ export function ledgerMethodGroup(method) {
   return 'other';
 }
 
+/**
+ * Transactions Screen Overhaul — True when the recorded method is a
+ * "Cash at … shop" variant: the Shop Cash quick pill's set, narrower
+ * than the Cash group (plain Cash is not shop cash). The label is
+ * folded the same way ledgerMethodGroup folds it, so "CASH AT
+ * HASSAN BALLA SHOP" reads the same as "Cash at Hassan Balla shop".
+ */
+export function isShopCashLedgerMethod(method) {
+  return foldLedgerMethodLabel(method).startsWith('cash at ');
+}
+
 /** True for 'all' or one of the six method groups. */
 export function isLedgerMethodFilter(value) {
   const folded = foldLedgerMethodLabel(value);

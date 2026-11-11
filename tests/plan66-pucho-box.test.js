@@ -322,7 +322,12 @@ test('HTML escapes names and catalogue renders all 12 titles', () => {
   assert.ok(!html.includes('<script>alert(1)</script>'));
   assert.ok(html.includes('&lt;script&gt;'));
   const catalogue = puchoCatalogueHtml();
-  for (const q of PUCHO_QUESTIONS) assert.ok(catalogue.includes(q.title.replaceAll("'", '&#39;')));
+  // Owner 5-part fix: the catalogue is twelve clickable chips, not
+  // a static bullet list — each chip carries the question's full
+  // title in data-pucho-question and shows the short label.
+  assert.ok(!catalogue.includes('<ul>'), 'catalogue is chips, not a bullet list');
+  assert.equal((catalogue.match(/data-pucho-question="/g) || []).length, 12);
+  for (const q of PUCHO_QUESTIONS) assert.ok(catalogue.includes(`data-pucho-question="${q.title.replaceAll("'", '&#39;')}"`));
 });
 
 test('morning queue CSV quotes fields and filename is fixed', () => {

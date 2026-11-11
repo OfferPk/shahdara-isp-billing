@@ -39,7 +39,12 @@ export const SCREENS = {
   homeBudget: { view: 'homeBudgetView', tab: 'showHomeBudgetButton', title: 'Home Budget', subtitle: 'Personal household expenses, kept apart from business money', action: { label: '+ Add Home Expense', focus: '#homeBudgetDate' } },
   loans: { view: 'loanView', tab: 'showLoansButton', title: 'Loan Ledger', subtitle: 'Personal loans: dena hai and lena hai, kept apart from business money', action: { label: '+ Add Loan', focus: '#loanForm' } },
   waTemplates: { view: 'waTemplatesView', tab: 'showWaTemplatesButton', title: 'WhatsApp Templates', subtitle: 'Editable Urdu and Roman Urdu messages plus a 1-tap campaign queue', action: { label: 'Start Campaign', focus: '#waCampaignStart' } },
-  easypaisa: { view: 'easypaisaView', title: 'Payments Inbox', subtitle: 'Easypaisa transaction emails & statements', action: { label: 'Sync Sheet', click: '#easypaisaSyncBtn' } }
+  // Payments Inbox cleanup: no header action — the toolbar inside the
+  // view already carries the one Sync Sheet button, and a header action
+  // would be the third copy of it. The shorter subtitle fits the phone
+  // header without clipping ('Easypaisa transaction emails &
+  // statements' ellipsised to '...stat...').
+  easypaisa: { view: 'easypaisaView', title: 'Payments Inbox', subtitle: 'Easypaisa emails & statements' }
 };
 
 export const HOME = 'home';

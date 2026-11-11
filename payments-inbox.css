@@ -11,8 +11,20 @@ body.sr-screen-mode[data-screen="easypaisa"] #expensesView {
   display: none !important;
 }
 
-body.sr-screen-mode[data-screen="easypaisa"] #easypaisaView {
-  display: block !important;
+/* Payments Inbox cleanup: the global app footer (Offline-ready text,
+   .txt download, backup eye toggle) is redundant on this view — the
+   toolbar already carries Sync / Paste / Settings. Backup controls
+   stay reachable from every other screen; this rule only hides the
+   footer while the Inbox screen is open. */
+body.sr-screen-mode[data-screen="easypaisa"] .app-footer { display: none; }
+
+/* Payments Inbox cleanup: the router header has no action button on
+   this screen (its Sync Sheet lives in the toolbar), so the mobile
+   header drops the empty action row instead of leaving a stray gap. */
+@media (max-width: 620px) {
+  body.sr-screen-mode[data-screen="easypaisa"] .sr-screen-header {
+    grid-template-areas: "back title";
+  }
 }
 
 #easypaisaView[hidden] {
@@ -515,6 +527,129 @@ body.sr-screen-mode[data-screen="easypaisa"] #easypaisaView {
   color: var(--color-slate-50);
 }
 
+/* Wallet review (Payments Inbox cleanup): the ledger's unverified
+   digital payments, duplicate TIDs and unclaimed suspense, listed
+   for review inside the Inbox. Token-only styles, no new hex. */
+.easypaisa-wallet-review {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--line, #dfe8e3);
+  border-left: 5px solid var(--color-info-strong);
+  border-radius: 16px;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wallet-review-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wallet-review-heading h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink, #16342b);
+}
+
+.wallet-review-heading p {
+  margin: 2px 0 0;
+  font-size: var(--text-xs);
+  color: #71887e;
+}
+
+.wallet-review-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wallet-review-group h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #5d7269;
+}
+
+.wallet-review-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #edf2ef);
+  border-radius: 12px;
+  background: var(--surface-soft, #f8faf9);
+}
+
+.wallet-review-main {
+  flex: 1 1 180px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wallet-review-main strong {
+  font-size: var(--text-sm);
+  color: var(--ink, #16342b);
+}
+
+.wallet-review-main span {
+  font-size: var(--text-xs);
+  color: #71887e;
+  overflow-wrap: anywhere;
+}
+
+.wallet-review-amount {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ink, #16342b);
+  white-space: nowrap;
+}
+
+.wallet-review-dup {
+  padding: 10px 12px;
+  border: 1px solid var(--line, #edf2ef);
+  border-radius: 12px;
+  background: var(--color-warning-bg);
+}
+
+.wallet-review-dup p {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--ink, #16342b);
+}
+
+.wallet-review-dup ul {
+  margin: 0 0 6px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--ink, #16342b);
+}
+
+.wallet-review-note {
+  font-size: var(--text-xs);
+  color: #5d7269;
+}
+
+[data-theme="dark"] .easypaisa-wallet-review {
+  background: var(--surface, #1e293b);
+  border-color: var(--line, #334155);
+}
+
+[data-theme="dark"] .wallet-review-row,
+[data-theme="dark"] .wallet-review-dup {
+  background: var(--surface-soft, #0f172a);
+  border-color: var(--line, #334155);
+}
+
 /* Mobile Responsive */
 @media (max-width: 640px) {
   .easypaisa-view {
@@ -547,16 +682,19 @@ body.sr-screen-mode[data-screen="easypaisa"] #easypaisaView {
   .filter-selects-group {
     width: 100%;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
 
   .filter-selects-group select {
     width: 100%;
+    min-width: 0;
+    padding: 0 6px;
+    font-size: var(--text-xs);
   }
 
   .table-filter-clear {
-    grid-column: span 2;
+    grid-column: span 3;
   }
 
   .row-status-mobile {

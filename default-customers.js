@@ -28,7 +28,10 @@
  *    never modified, renamed or deleted by this import.
  *  - New records are created through the app's real creation path
  *    (core addCustomer), so customerNumber assignment and record shape
- *    match a hand-added customer exactly.
+ *    match a hand-added customer exactly. A roster entry may carry a
+ *    reviewed `nameUrdu` (the owner's seed draft spelling, never
+ *    transliterator output); the planner carries it through and
+ *    addCustomer stores it on the record via its own 100-char rule.
  */
 
 import { addCustomer } from './core.js';
@@ -40,8 +43,10 @@ import { canonicalMohalla } from './phase3.js';
  *  2026-10-29 privacy cleanup that emptied the shipped roster. */
 export const DEFAULT_ROSTER_VERSION = 2;
 
-const entry = (name, mohalla, free = false) =>
-  Object.freeze(free ? { name, mohalla, free: true } : { name, mohalla });
+const entry = (name, mohalla, free = false, nameUrdu = '') =>
+  Object.freeze(free
+    ? { name, mohalla, free: true, ...(nameUrdu ? { nameUrdu } : {}) }
+    : { name, mohalla, ...(nameUrdu ? { nameUrdu } : {}) });
 
 /** The shipped roster is intentionally EMPTY (privacy, see header):
  *  no customer names are bundled with this public app. `entry` above
@@ -92,7 +97,7 @@ export function planDefaultCustomerAdditions(customers, roster = DEFAULT_CUSTOME
     const alreadyPlanned = planned.get(key) ?? 0;
     if (alreadyPlanned < shortfall) {
       planned.set(key, alreadyPlanned + 1);
-      additions.push({ name: item.name, mohalla: item.mohalla, free: item.free === true });
+      additions.push({ name: item.name, mohalla: item.mohalla, free: item.free === true, nameUrdu: item.nameUrdu || '' });
     }
   }
   return additions;
@@ -115,6 +120,7 @@ export function applyDefaultCustomerRoster(state, referenceDate = new Date(), ro
   for (const addition of additions) {
     next = addCustomer(next, addition.name, referenceDate, {
       mohalla: addition.mohalla,
+      nameUrdu: addition.nameUrdu || '',
       // Roster names legitimately repeat (same name, another mohalla —
       // and the planner has already removed every satisfied entry), so
       // the hand-entry duplicate guard must not refuse them.

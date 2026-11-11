@@ -4019,7 +4019,7 @@ export const TRANSLATIONS = {
     qc5_progress_aria: 'Field recovery progress',
     qc_subtitle: 'Fast 2-tap field collection and receipt generation',
     qc_pick_customer: 'Select Subscriber with Outstanding Dues',
-    qc_search_placeholder: 'Search by name, #ID, phone, or area...',
+    qc_search_placeholder: 'Search name, #ID, phone, or area...',
     qc_collected_amount: 'Collected Amount (PKR)',
     qc_payment_method: 'Payment Method',
     qc_collection_date: 'Collection Date (PKT)',
@@ -9302,12 +9302,12 @@ export const VISIBLE_TEXT_UR = {
   '⚙ Filters & sort ↓': '⚙ منتخب و ترتیب ↓',
   'Bulk Collect Cash': 'یکمشت نقد وصولی',
   'many payments in one batch': 'کئی ادائیگیاں ایک بیچ میں',
-  '💵 Bulk Collect Cash many payments in one batch': '💵 یکمشت نقد وصولی — کئی ادائیگیاں ایک بیچ میں',
-  'High Dues ≥ 2k': 'زیادہ واجبات ≥ 2k',
+  'Bulk Collect Cash many payments in one batch': 'یکمشت نقد وصولی — کئی ادائیگیاں ایک بیچ میں',
+  'High ≥ 2k': 'زیادہ ≥ 2k',
   'Set packages & monthly fee': 'پیکیج اور ماہانہ فیس مقرر کریں',
   "Generate this month's bills": 'اس مہینے کے بل بنائیں',
   'Sab customers dikhayein · Show all': 'تمام گاہک دکھائیں',
-  '📋 Switch to Full Ledger & Transactions Table': '📋 مکمل لیجر و لین دین جدول پر جائیں',
+  'Switch to Full Ledger & Transactions Table': 'مکمل لیجر و لین دین جدول پر جائیں',
   'Send to my WhatsApp': 'میرے WhatsApp پر بھیجیں'
 };
 

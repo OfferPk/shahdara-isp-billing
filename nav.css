@@ -1984,7 +1984,10 @@ kbd {
 
 .mobile-speed-dial {
   position: fixed;
-  bottom: calc(var(--bottom-nav-height, 60px) + 16px);
+  /* Home Dashboard overhaul: the FAB sits above the bottom nav plus
+     the device safe-area inset, so it never overlaps content or the
+     home indicator on notched phones. */
+  bottom: calc(var(--bottom-nav-height, 60px) + 16px + env(safe-area-inset-bottom, 0px));
   right: 16px;
   z-index: 1040;
   pointer-events: none;

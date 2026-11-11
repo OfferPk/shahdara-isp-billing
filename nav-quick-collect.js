@@ -1918,8 +1918,17 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     const tierLabels = cardPriority
       ? cardPriority.tierKeys.map((key) => `<span class="qc2-tier-label">${escapeHtml(t(QC2_HIGH_BALANCE_TIER_LABEL_KEYS[key]))}</span>`).join('')
       : '';
-    const priorityRow = cardPriority
-      ? `<span class="qc2-priority"><span class="${cardPriority.badgeClass}">${escapeHtml(t(cardPriority.labelKey))}</span>${cardPriority.reason ? `<span class="qc2-priority-reason">${escapeHtml(cardPriority.reason)}</span>` : ''}</span>`
+    // QC Cash Modal Overhaul: the priority badge moves to the top
+    // right of Row 1 (the .qc-card-right column) and the scorer
+    // reason stays under the name — badge + reason no longer share
+    // one row, so a long reason cannot squeeze the name. The badge
+    // keeps its .ds-chip variant; the reason keeps its .qc2-priority
+    // wrapper (without the badge) so the ellipsis rule still applies.
+    const priorityBadge = cardPriority
+      ? `<span class="${cardPriority.badgeClass}">${escapeHtml(t(cardPriority.labelKey))}</span>`
+      : '';
+    const priorityReason = cardPriority?.reason
+      ? `<span class="qc2-priority"><span class="qc2-priority-reason">${escapeHtml(cardPriority.reason)}</span></span>`
       : '';
     const dueLabel = hasDues
       ? `<strong class="qc-due-val">PKR ${c.totalDues.toLocaleString('en-PK')}</strong><span class="qc-due-tag">DUE</span>`
@@ -1939,20 +1948,26 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
     const actionsRow = `
       <div class="qc3-card-actions" role="group" aria-label="${escapeHtml(t('qc3_card_actions'))}">
         ${callHref
-          ? `<a class="qc3-action-btn" href="${escapeHtml(callHref)}" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}">📞 ${escapeHtml(t('qc3_call'))}</a>`
-          : `<button type="button" class="qc3-action-btn" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_phone'))}">📞 ${escapeHtml(t('qc3_call'))}</button>`}
+          ? `<a class="qc3-action-btn" href="${escapeHtml(callHref)}" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}">${dsIcon('Phone', 18)} ${escapeHtml(t('qc3_call'))}</a>`
+          : `<button type="button" class="qc3-action-btn" data-qc3-action="call" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_phone'))}">${dsIcon('Phone', 18)} ${escapeHtml(t('qc3_call'))}</button>`}
         ${mapsUrl
-          ? `<a class="qc3-action-btn" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}">📍 ${escapeHtml(t('qc3_location'))}</a>`
-          : `<button type="button" class="qc3-action-btn" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_location'))}">📍 ${escapeHtml(t('qc3_location'))}</button>`}
-        <button type="button" class="qc3-action-btn qc3-collect" data-qc3-action="collect" data-customer-id="${escapeHtml(c.id)}">💳 ${escapeHtml(t('qc3_collect'))}</button>
+          ? `<a class="qc3-action-btn" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location'))}</a>`
+          : `<button type="button" class="qc3-action-btn" data-qc3-action="location" data-customer-id="${escapeHtml(c.id)}" disabled aria-disabled="true" title="${escapeHtml(t('qc3_no_location'))}">${dsIcon('MapPin', 18)} ${escapeHtml(t('qc3_location'))}</button>`}
+        <button type="button" class="qc3-action-btn qc3-collect" data-qc3-action="collect" data-customer-id="${escapeHtml(c.id)}">${dsIcon('CreditCard', 18)} ${escapeHtml(t('qc3_collect'))}</button>
       </div>`;
 
-    // QC-3: the card is now a wrapper div so the Call / Location /
+    // QC Cash Modal Overhaul: the card is now a wrapper div so the Call / Location /
     // Collect row can sit beside the tap target — a button cannot
     // contain links or buttons. The wrapper keeps the .qc-customer-card
     // class, the data-customer-id and the selected / tier classes, so
     // the existing selectors, dark-theme rules and QC-2 accent still
     // apply; the inner main button is the tap-to-collect target.
+    // Row 1 is the identity row: [#N] badge inline left of the name,
+    // the priority badge top-right. The figures are their own KPI row
+    // below it (never squeezed onto Row 1 — that squeeze clipped
+    // "Outstanding P..." above 360px and in RTL), so the dues figure
+    // appears exactly once, fully labelled. The .qc-card-right column
+    // renders only when a priority badge exists.
     return `
       <div class="qc-customer-card qc3-card ${dueClass} ${isSelected ? 'is-selected' : ''}${cardPriority && cardPriority.tierKeys.length > 0 ? ' qc2-tier-high' : ''}"
            data-customer-id="${escapeHtml(c.id)}">
@@ -1966,22 +1981,21 @@ export function renderQuickCollectCustomerListHtml(customers, activeCustomerId =
               <span class="qc-cust-name">${escapeHtml(c.name)}</span>
               ${sameNameBadges?.get(c.id) ?? ''}
               <span class="qc-cust-meta">${escapeHtml(qcCardAreaDisplay(c.area))}${c.phone ? ' · ' + escapeHtml(c.phone) : ''}</span>
-              ${priorityRow}
+              ${priorityReason}
             </div>
           </div>
-          <div class="qc-card-right">
-            <div class="qc3-figures">
-              <span class="qc3-figure">
-                <span class="qc3-figure-label">${escapeHtml(t('qc3_outstanding'))}</span>
-                <span class="qc3-figure-value">${dueLabel}</span>
-              </span>
-              <span class="qc3-figure">
-                <span class="qc3-figure-label">${escapeHtml(t('qc3_monthly_package'))}</span>
-                <strong class="qc3-package-val">${monthlyPackageText}</strong>
-              </span>
-            </div>
-            ${tierLabels}
+          ${priorityBadge ? `<div class="qc-card-right">${priorityBadge}</div>` : ''}
+          <div class="qc3-figures">
+            <span class="qc3-figure">
+              <span class="qc3-figure-label">${escapeHtml(t('qc3_outstanding'))}</span>
+              <span class="qc3-figure-value">${dueLabel}</span>
+            </span>
+            <span class="qc3-figure">
+              <span class="qc3-figure-label">${escapeHtml(t('qc3_monthly_package'))}</span>
+              <strong class="qc3-package-val">${monthlyPackageText}</strong>
+            </span>
           </div>
+          ${tierLabels}
         </button>
         ${actionsRow}
       </div>
@@ -5420,7 +5434,19 @@ export function setupQuickCollectModal({
 
   // Plan 428: tapping a quick-pick row picks that customer exactly
   // the way tapping a picker card does.
+  // QC Cash Modal Overhaul: the Recent accordion toggle lives on the
+  // same list — it flips aria-expanded and the rows' hidden flag and
+  // never picks a customer (it carries no .rqp-row, so the row branch
+  // below cannot mistake it for a pick).
   recentQuickPickList?.addEventListener('click', (e) => {
+    const toggle = e.target.closest('.rqp-toggle');
+    if (toggle) {
+      const rows = recentQuickPickList.querySelector('.rqp-rows');
+      const expanded = toggle.getAttribute('aria-expanded') === 'true';
+      if (rows) rows.hidden = expanded;
+      toggle.setAttribute('aria-expanded', String(!expanded));
+      return;
+    }
     const row = e.target.closest('.rqp-row');
     if (!row) return;
     const cid = row.getAttribute('data-customer-id');

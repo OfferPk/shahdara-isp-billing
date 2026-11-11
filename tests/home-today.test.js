@@ -92,17 +92,18 @@ test('calculateHomeTodaySummary computes today collections, month targets and to
   // New customers created in 2026-10: cust1, cust2 -> 2
   assert.equal(summary.newCustomersThisMonth, 2);
 
-  // Top overdue list should be ordered:
+  // Top overdue list should be ordered (Home Dashboard overhaul:
+  // the preview is the top 3 now, so the field is topOverdue):
   // 1. Bilal Ahmed: 2000
   // 2. Chaudhry Tariq: 1500
   // 3. Asim Khan: 1000
-  assert.equal(summary.top5Overdue.length, 3);
-  assert.equal(summary.top5Overdue[0].name, 'Bilal Ahmed');
-  assert.equal(summary.top5Overdue[0].balanceDue, 2000);
-  assert.equal(summary.top5Overdue[1].name, 'Chaudhry Tariq');
-  assert.equal(summary.top5Overdue[1].balanceDue, 1500);
-  assert.equal(summary.top5Overdue[2].name, 'Asim Khan');
-  assert.equal(summary.top5Overdue[2].balanceDue, 1000);
+  assert.equal(summary.topOverdue.length, 3);
+  assert.equal(summary.topOverdue[0].name, 'Bilal Ahmed');
+  assert.equal(summary.topOverdue[0].balanceDue, 2000);
+  assert.equal(summary.topOverdue[1].name, 'Chaudhry Tariq');
+  assert.equal(summary.topOverdue[1].balanceDue, 1500);
+  assert.equal(summary.topOverdue[2].name, 'Asim Khan');
+  assert.equal(summary.topOverdue[2].balanceDue, 1000);
 });
 
 test('generateOwnerDailySummaryWhatsAppText generates complete bilingual WhatsApp message', () => {
@@ -118,7 +119,7 @@ test('generateOwnerDailySummaryWhatsAppText generates complete bilingual WhatsAp
     totalDue: 4500,
     customersWithDuesCount: 3,
     newCustomersThisMonth: 2,
-    top5Overdue: [
+    topOverdue: [
       { customerNumber: 102, name: 'Bilal Ahmed', mohalla: 'Kot Mohibbu', balanceDue: 2000 },
       { customerNumber: 103, name: 'Chaudhry Tariq', mohalla: 'Saeed Park', balanceDue: 1500 }
     ]
@@ -136,7 +137,7 @@ test('generateOwnerDailySummaryWhatsAppText generates complete bilingual WhatsAp
   assert.ok(text.includes('#103 Chaudhry Tariq (Saeed Park): *PKR 1,500*'));
 });
 
-test('renderHomeTodaySummary populates DOM elements and top 5 overdue cards', () => {
+test('renderHomeTodaySummary populates DOM elements and top 3 overdue cards', () => {
   const elements = {};
   const mockDoc = {
     getElementById(id) {
@@ -159,7 +160,7 @@ test('renderHomeTodaySummary populates DOM elements and top 5 overdue cards', ()
     totalDue: 4500,
     customersWithDuesCount: 3,
     newCustomersThisMonth: 2,
-    top5Overdue: [
+    topOverdue: [
       { id: 'c1', customerNumber: 102, name: 'Bilal Ahmed', phone: '03219998877', mohalla: 'Kot Mohibbu', balanceDue: 2000 },
       { id: 'c2', customerNumber: 103, name: 'Chaudhry Tariq', phone: '', mohalla: 'Saeed Park', balanceDue: 1500 }
     ]
@@ -185,4 +186,37 @@ test('renderHomeTodaySummary populates DOM elements and top 5 overdue cards', ()
   assert.ok(listHtml.includes('#103'));
   assert.ok(listHtml.includes('Chaudhry Tariq'));
   assert.ok(listHtml.includes('PKR 1,500'));
+});
+
+test('calculateHomeTodaySummary: connectionDate decides the new-connection month, and a voided payment counts nowhere', () => {
+  // Home Dashboard overhaul, Part 1: the old addedOn-first order
+  // counted a customer in the month their profile was typed, not
+  // the month they were connected, and disagreed with the KPI
+  // strip (Plan 477 rule) by one. A voided receipt is history,
+  // never a payment — it must not inflate today or month totals.
+  const refDate = new Date('2026-10-15T12:00:00Z');
+  let state = createInitialState([]);
+
+  // D: profile typed in October, connected in September — NOT new.
+  state = addCustomer(state, 'Typed Oct', refDate, { monthlySellingAmount: 2000, createdAt: '2026-10-03' });
+  state.customers[state.customers.length - 1].addedOn = '2026-10-03';
+  state.customers[state.customers.length - 1].connectionDate = '2026-09-20';
+  // E: profile typed in September, connected in October — IS new.
+  state = addCustomer(state, 'Connected Oct', refDate, { monthlySellingAmount: 2000, createdAt: '2026-09-10' });
+  state.customers[state.customers.length - 1].addedOn = '2026-09-10';
+  state.customers[state.customers.length - 1].connectionDate = '2026-10-05';
+  // F: 1000 paid today, then voided — collects nothing, still owes.
+  state = addCustomer(state, 'Voided Pay', refDate, { monthlySellingAmount: 1000, createdAt: '2026-10-01' });
+  const custF = state.customers[state.customers.length - 1].id;
+  state.customers[state.customers.length - 1].connectionDate = '2026-10-01';
+  state = saveBillMonth(state, custF, { month: '2026-10', dueAmount: 1000, status: 'pending' }, refDate);
+  state = addPayment(state, custF, '2026-10', { amount: 1000, method: 'Cash', date: '2026-10-15' }, refDate);
+  state.customers[state.customers.length - 1].bills.find((b) => b.month === '2026-10').payments[0].voided = true;
+
+  const summary = calculateHomeTodaySummary(state, refDate);
+  assert.equal(summary.newCustomersThisMonth, 2, 'E (connected Oct) and F (connected Oct) count; D (connected Sep) does not');
+  assert.equal(summary.todayCollected, 0, 'voided payment is not today collection');
+  assert.equal(summary.todayCount, 0, 'voided payment is not a today payment');
+  assert.equal(summary.monthCollected, 0, 'voided payment is not month collection');
+  assert.equal(summary.totalDue, 1000, 'voided payment leaves the full bill due');
 });

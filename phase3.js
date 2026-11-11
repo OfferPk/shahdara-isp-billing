@@ -183,8 +183,14 @@ export const DEFAULT_MOHALLAS = Object.freeze(['CHARYAA','GANGALL','KISHTII','BA
 /** Known spelling variants (stripped, lowercased) that fold into a default
  *  mohalla. Only evidenced variants live here: the old suggestion list wrote
  *  single-i KISHTI/CHAMYAA and "MOHALAA BANI", while the owner's list uses
- *  double-i KISHTII/CHAMYAAA and BANII. Anything else keeps its own key. */
-const MOHALLA_ALIASES = Object.freeze({ bani:'BANII', kishti:'KISHTII', chamyaa:'CHAMYAAA' });
+ *  double-i KISHTII/CHAMYAAA and BANII. Charyaa is the same mohalla as
+ *  Chamyaa in the owner's lists, so it folds to CHAMYAAA too; the two
+ *  "Orient School" spellings found in stored customer areas fold to one
+ *  "Orient School". Anything else keeps its own key. */
+const MOHALLA_ALIASES = Object.freeze({ bani:'BANII', kishti:'KISHTII', chamyaa:'CHAMYAAA', charyaa:'CHAMYAAA', 'orien school':'Orient School', 'orient scholl':'Orient School' });
+/** The spelling-variant map, exported for the mohalla seed item and any
+ *  other grouping that must fold stored variants to one canonical name. */
+export { MOHALLA_ALIASES };
 function stripMohallaPrefix(text) { const stripped=normalizedText(text).replace(/^(?:mohalla|mohalaa)\s+/iu,''); return stripped||normalizedText(text); }
 /** Canonical mohalla for grouping, filtering and saving: the leading generic
  *  "Mohalla" word is not part of a mohalla's identity, so "MOHALLA BANI",
@@ -195,7 +201,10 @@ function stripMohallaPrefix(text) { const stripped=normalizedText(text).replace(
 export function canonicalMohalla(value) {
   const text=normalizedText(value); if(!text)return null;
   const stripped=stripMohallaPrefix(text),key=comparisonKey(stripped);
-  const canonical=DEFAULT_MOHALLAS.find(name=>comparisonKey(stripMohallaPrefix(name))===key)??MOHALLA_ALIASES[key];
+  // Aliases win over the default list: CHARYAA is still a stored
+  // spelling, but it is the same mohalla as CHAMYAAA, so the alias
+  // fold must run before the default-list match finds CHARYAA.
+  const canonical=MOHALLA_ALIASES[key]??DEFAULT_MOHALLAS.find(name=>comparisonKey(stripMohallaPrefix(name))===key);
   if(canonical)return {key:comparisonKey(stripMohallaPrefix(canonical)),label:readableLabel(canonical),stored:canonical};
   return {key,label:readableLabel(stripped),stored:text};
 }

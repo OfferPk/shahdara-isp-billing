@@ -283,7 +283,9 @@ export function rmaHtml(entries) {
       + `<td>${escapeHtml(RMA_STATUS_LABELS[entry.status])}${extra}</td>`
       + `<td>${escapeHtml(entry.faultNote || '')}</td></tr>`;
   }).join('');
-  return `<table><thead><tr><th>Return</th><th>Serial</th><th>Device</th><th>Supplier</th><th>Reference</th><th>Date sent</th><th>Status</th><th>Fault note</th></tr></thead><tbody>${body}</tbody></table>`;
+  // Owner 5-part fix: the eight-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side columns.
+  return `<div class="table-scroll"><table><thead><tr><th>Return</th><th>Serial</th><th>Device</th><th>Supplier</th><th>Reference</th><th>Date sent</th><th>Status</th><th>Fault note</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function rmaCsv(entries) {

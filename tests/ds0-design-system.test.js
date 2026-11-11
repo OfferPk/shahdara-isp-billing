@@ -135,9 +135,14 @@ const EXPECTED_ICON_NAMES = [
   // Download (roster view toggle + CSV export), AlertTriangle (2+
   // Months Arrears pill), Pause (Paused pill).
   'LayoutGrid', 'Table', 'Download', 'AlertTriangle', 'Pause',
+  // QC Cash Modal Overhaul (Nov 2026) adds 6: Tag (Tag new customers),
+  // Moon (end-of-day summary), Phone / MapPin / CreditCard (card Call /
+  // Location / Collect) and ClipboardList (Switch to Full Ledger) —
+  // the picker's last 3D emoji become DS-0 SVGs.
+  'Tag', 'Moon', 'Phone', 'MapPin', 'ClipboardList', 'CreditCard',
 ];
 
-test('DS-0 icons: the full §3.2 path set is exported (54 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish)', () => {
+test('DS-0 icons: the full §3.2 path set is exported (60 names: 37 DS-0 + 6 profile redesign + 4 QC receipt-modal overhaul + 2 live visual bugs + 5 customers directory polish + 6 QC cash modal overhaul)', () => {
   assert.deepEqual([...DS_ICON_NAMES].sort(), [...EXPECTED_ICON_NAMES].sort(), 'ds-icons.js must export exactly the §3.2 icon set');
   for (const name of EXPECTED_ICON_NAMES) {
     assert.ok(isDsIconName(name), `${name} must be a known icon name`);

@@ -235,7 +235,10 @@ export function changeRequestMohallaOf(request, customers = []) {
 
 function mohallaKey(label) {
   const raw = text(label).toLowerCase();
-  return raw.startsWith('mohalla ') ? raw.slice('mohalla '.length).trim() : raw;
+  const stripped = raw.startsWith('mohalla ') ? raw.slice('mohalla '.length).trim() : raw;
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA, so it folds to the same key. Charyaa is its own mohalla.
+  return stripped === 'jabbiyaaa' ? 'jabbiyaa' : stripped;
 }
 
 // Filter a list by type, status, and mohalla. A blank filter means

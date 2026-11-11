@@ -8,7 +8,15 @@ import {
   packageSuccessMessageOrDefault
 } from '../package-success-message.js';
 import { BILL_PACKAGES } from '../package-catalog.js';
-import { DEFAULT_MOHALLAS } from '../phase3.js';
+import { DEFAULT_MOHALLAS, canonicalMohalla } from '../phase3.js';
+
+// Home Dashboard Part 4: the 15 default spellings fold to 14
+// distinct canonical mohallas (CHARYAA is CHAMYAAA), and the Area
+// select dedupes by canonical stored value — so the option count
+// is 1 (Unassigned) + 14, not 1 + 15.
+const DISTINCT_CANONICAL_MOHALLAS = new Set(
+  DEFAULT_MOHALLAS.map((name) => canonicalMohalla(name)?.stored ?? name)
+).size;
 
 const read = (name) => readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
 
@@ -93,12 +101,13 @@ test('success screen receipt card renders the Area select', async () => {
   assert.ok(unassigned.includes('data-qc-area-select'));
   assert.ok(unassigned.includes('<option value="" selected>Unassigned</option>'));
   assert.ok(unassigned.includes('<option value="BANII">Banii</option>'));
-  assert.ok(unassigned.includes('<option value="CHARYAA">Charyaa</option>'));
-  assert.equal((unassigned.match(/<option/g) || []).length, 1 + DEFAULT_MOHALLAS.length);
+  assert.ok(unassigned.includes('<option value="CHAMYAAA">Chamyaaa</option>'), 'stored CHARYAA folds to the canonical CHAMYAAA option');
+  assert.ok(!unassigned.includes('<option value="CHARYAA">'), 'no separate CHARYAA option survives the fold');
+  assert.equal((unassigned.match(/<option/g) || []).length, 1 + DISTINCT_CANONICAL_MOHALLAS);
 
   const custom = renderQuickCollectReceiptCardHtml({ ...base, area: 'Begum Kot' });
   assert.ok(custom.includes('<option value="Begum Kot" selected>Begum Kot</option>'));
-  assert.equal((custom.match(/<option/g) || []).length, 1 + 1 + DEFAULT_MOHALLAS.length);
+  assert.equal((custom.match(/<option/g) || []).length, 1 + 1 + DISTINCT_CANONICAL_MOHALLAS);
 
   const variant = renderQuickCollectReceiptCardHtml({ ...base, area: 'bani' });
   assert.ok(variant.includes('<option value="BANII" selected>Banii</option>'));

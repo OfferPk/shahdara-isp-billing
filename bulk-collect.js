@@ -20,6 +20,7 @@
  * #/bulk-collect hash, and never replaces existing handlers.
  */
 import { PAYMENT_METHODS } from './core.js';
+import { dsIcon } from './ds-icons.js';
 import {
   getPendingCollectionCustomers,
   getCustomerPaymentDefaults,
@@ -661,16 +662,29 @@ export function setupBulkCollect({ win = window, doc = document, getController =
   });
   $('closeBulkCollectBtn').addEventListener('click', close);
 
-  // Entry point inside Quick Collect's picker step.
+  // Entry point inside Quick Collect's picker step. QC Cash Modal
+  // Overhaul: Bulk Collect + Tag New Customers share one 2-column
+  // compact card row (.qc-top-actions) at the top of the picker, so
+  // the queue starts without scrolling past two stacked full-width
+  // buttons. The row is found or created by class (no new element
+  // id); Bulk prepends, Tag appends, so the order is Bulk then Tag
+  // whichever module initialises first. The money emoji becomes the
+  // HandCoins ds-icon; the label and small print are unchanged.
   const pick = doc.getElementById('quickCollectStepPick');
   if (pick && !doc.getElementById('openBulkCollectBtn')) {
     const btn = doc.createElement('button');
     btn.type = 'button';
     btn.id = 'openBulkCollectBtn';
     btn.className = 'bc-open-btn';
-    btn.innerHTML = '<span aria-hidden="true">💵</span> Bulk Collect Cash <small>many payments in one batch</small>';
+    btn.innerHTML = `<span aria-hidden="true">${dsIcon('HandCoins', 18)}</span> Bulk Collect Cash <small>many payments in one batch</small>`;
     btn.addEventListener('click', open);
-    pick.insertBefore(btn, pick.firstElementChild);
+    let row = pick.querySelector('.qc-top-actions');
+    if (!row) {
+      row = doc.createElement('div');
+      row.className = 'qc-top-actions';
+      pick.insertBefore(row, pick.firstElementChild);
+    }
+    row.insertBefore(btn, row.firstElementChild);
   }
 
   const onHash = () => { if (isBulkCollectHash(win.location.hash) && !modal.open) open(); };

@@ -341,3 +341,48 @@ test('i18n: every bog_ key used by the module and the index.html markup exists i
   const urKeys = Object.keys(TRANSLATIONS.ur).filter(k => k.startsWith('bog_')).sort();
   assert.deepEqual(urKeys, enKeys, 'bog_ key sets identical in en and ur');
 });
+
+// ---------- nameUrdu passthrough (Mohalla Seed) ----------
+
+test('urdu: JSON nameUrdu / urduName keys ride through, missing key lands as empty', () => {
+  const { entries, error } = parsePrivateRosterJson(JSON.stringify([
+    { name: 'Test Urdu One', mohalla: 'CHARYAA', nameUrdu: 'ٹیسٹ اردو ایک' },
+    { name: 'Test Urdu Two', mohalla: 'BARRIAN', urduName: 'ٹیسٹ اردو دو' },
+    { name: 'Test Urdu None', mohalla: 'SODAA' }
+  ]));
+  assert.equal(error, null);
+  assert.equal(entries.length, 3);
+  assert.equal(entries[0].nameUrdu, 'ٹیسٹ اردو ایک');
+  assert.equal(entries[1].nameUrdu, 'ٹیسٹ اردو دو');
+  assert.equal(entries[2].nameUrdu, '');
+});
+
+test('urdu: CSV urdu / nameurdu header column rides through, positional rows stay empty', () => {
+  const { entries } = parsePrivateRosterCsv('Name,Mohalla,Urdu\nTest Csv Urdu,CHARYAA,ٹیسٹ اردو\nTest Csv Plain,BARRIAN,\n');
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].nameUrdu, 'ٹیسٹ اردو');
+  assert.equal(entries[1].nameUrdu, '');
+  const positional = parsePrivateRosterCsv('Test Positional,03001112233,, ,SODAA\n');
+  assert.equal(positional.entries.length, 1);
+  assert.equal(positional.entries[0].nameUrdu, '');
+});
+
+test('urdu: import lands the reviewed spelling verbatim on the record — never transliterator output', () => {
+  // The reviewed draft spelling is shipped as data; the runtime
+  // transliterator is display-only and must never substitute its own
+  // rendering for the reviewed value. A row with no Urdu name lands
+  // with an empty nameUrdu, not a transliterated guess.
+  const { entries } = parsePrivateRosterJson(JSON.stringify([
+    { name: 'Test Urdu Import', mohalla: 'CHARYAA', nameUrdu: 'ٹیسٹ اردو درآمد' },
+    { name: 'Test Urdu Blank', mohalla: 'BARRIAN' }
+  ]));
+  const res = importPrivateRoster(blankState(), entries, { referenceDate: REF_DATE });
+  assert.equal(res.added, 2);
+  const [withUrdu, blank] = res.nextState.customers;
+  assert.equal(withUrdu.nameUrdu, 'ٹیسٹ اردو درآمد');
+  assert.equal(blank.nameUrdu, '');
+  // Re-import is still idempotent: the same file adds 0 the second time.
+  const again = importPrivateRoster(res.nextState, entries, { referenceDate: REF_DATE });
+  assert.equal(again.added, 0);
+  assert.equal(again.alreadyPresent, 2);
+});

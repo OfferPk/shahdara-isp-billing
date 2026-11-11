@@ -3767,6 +3767,14 @@ button:not([hidden]).help-info-btn {
   .analytics-panel > div[style*="display: flex"] label input,
   .analytics-panel > div[style*="display: flex"] label select,
   .analytics-panel > div[style*="display: flex"] label textarea { width: 100% !important; }
+  /* Owner 5-part fix: the width rule above stretched the Loan
+     Tracker "Overdue loans only" checkbox to the full panel width
+     (340px at 360px, a giant empty box with its label text below
+     it), and its margins pushed the panel 7px past the viewport.
+     Checkboxes and radios keep their natural size; only text-like
+     controls go full width. */
+  .analytics-panel > div[style*="display: flex"] label input[type="checkbox"],
+  .analytics-panel > div[style*="display: flex"] label input[type="radio"] { width: auto !important; }
   .analytics-panel .shift-weekday-field { width: 100%; }
 }
 

@@ -53,6 +53,7 @@ import { PROFILE_FIELD_SAVE_MAP, profileFieldSaveEntry, hasUnsavedProfileEdits, 
 import { zonesUnderArea } from './zone-suggestions.js?v=1.11.0';
 import { profileTabCounts } from './profile-tab-counts.js?v=1.11.0';
 import { purgeCustomerHistoryFromStorage, restoreCustomerHistoryToStorage } from './customer-history-purge.js';
+import { countPaymentRecords, clearPaymentRecords, readPaymentRecordStores, writePaymentRecordStores } from './clear-payment-records.js';
 import { stillOwesCents } from './quick-collect-still-owes.js?v=1.11.0';
 import { countProfileCompletion, countProfileCompletionFromControls, PROFILE_COMPLETION_EXCLUDED_KEYS } from './profile-completion.js?v=1.11.0';
 import { QA_RECENT_STORE_KEY, QA_FAVORITE_STORE_KEY, QA_RECENT_ROW_MAX, normalizeQaToolIdList, recordQaRecentTool, toggleQaFavoriteTool, qaVisibleToolIds, qaRowTools } from './qa-tools-state.js?v=1.11.0';
@@ -10167,6 +10168,136 @@ $('#downloadJsonBackupButton').addEventListener('click', () => {
   updateDataSafetyUi();
   toast('JSON backup downloaded to this device. Store it somewhere safe.');
 });
+
+// Mohalla Seed — Clear All Record (Option A: payments + payment-derived
+// only). The dialog lives in the footer Backup panel because the JSON
+// backup is the undo. Flow: live preview counts → backup gate (a fresh
+// JSON backup downloaded in this session, or a real off-device export
+// record with zero payments recorded since it — the legacy timestamp
+// fallback never counts, because local snapshots stamp it too) →
+// typed CLEAR → safety snapshot → execute → result + post-wipe audit
+// entry. The
+// wipe itself is the pure clearPaymentRecords() transform; this glue
+// only reads/writes the satellite stores and persists the state
+// through the normal save() path. Never localStorage.clear().
+function clearAllBackupIsFresh() {
+  try {
+    // The gate needs PROOF of an off-device export: the SISP-10
+    // health record (BACKUP_HEALTH_KEY) that recordOffDeviceBackupExport
+    // writes on every JSON download / share, with an exact
+    // paymentCountAtExport. The legacy LAST_BACKUP_TIME_KEY fallback
+    // must NOT satisfy the gate — local automatic snapshots stamp
+    // that key too (saveLocalSnapshot), so a boot-time snapshot
+    // would otherwise pass the gate without any backup ever leaving
+    // the device. The real record carries a numeric
+    // paymentCountAtExport; the legacy fallback carries null.
+    // And the export must cover every payment the wipe would
+    // remove: zero payments recorded since it (the badge stays
+    // Safe with up to 9 payments since the export, but a wipe's
+    // undo must contain EVERY payment it removes). A backup
+    // downloaded in this dialog stamps the record synchronously
+    // (downloadJsonBackupButton handler), so no separate session
+    // flag is needed — the record is the single proof, and a
+    // payment recorded after the download re-blocks the gate until
+    // a fresh download.
+    const { record, paymentsSinceExport } = deriveBackupHealth();
+    if (!record?.lastExportAt) return false;
+    if (!Number.isSafeInteger(record.paymentCountAtExport)) return false;
+    return paymentsSinceExport === 0;
+  } catch { return false; }
+}
+function clearAllRefreshGate() {
+  const noteEl = $('#clearAllRecordBackupNote');
+  const executeBtn = $('#clearAllRecordExecuteBtn');
+  const confirmEl = $('#clearAllRecordConfirm');
+  if (!noteEl || !executeBtn || !confirmEl) return;
+  const fresh = clearAllBackupIsFresh();
+  noteEl.textContent = t(fresh ? 'clr_backup_ready' : 'clr_backup_needed');
+  executeBtn.disabled = !fresh || confirmEl.value.trim() !== 'CLEAR';
+}
+function clearAllOpenDialog() {
+  const dialog = $('#clearAllRecordDialog');
+  if (!dialog) return;
+  const previewEl = $('#clearAllRecordPreview');
+  const resultEl = $('#clearAllRecordResult');
+  const confirmEl = $('#clearAllRecordConfirm');
+  const executeBtn = $('#clearAllRecordExecuteBtn');
+  if (previewEl) {
+    const counts = countPaymentRecords(state, readPaymentRecordStores(localStorage));
+    previewEl.textContent = counts.payments === 0
+      ? t('clr_preview_none')
+      : t('clr_preview', null, {
+        payments: counts.payments.toLocaleString('en-PK'),
+        customers: counts.customers.toLocaleString('en-PK'),
+        total: Math.round(counts.totalCents / 100).toLocaleString('en-PK'),
+        bills: counts.billsBecomingUnpaid.toLocaleString('en-PK')
+      });
+  }
+  if (resultEl) { resultEl.textContent = ''; resultEl.hidden = true; }
+  if (confirmEl) confirmEl.value = '';
+  if (executeBtn) executeBtn.disabled = true;
+  clearAllRefreshGate();
+  dialog.showModal?.();
+}
+async function clearAllExecuteWipe() {
+  const confirmEl = $('#clearAllRecordConfirm');
+  const resultEl = $('#clearAllRecordResult');
+  const executeBtn = $('#clearAllRecordExecuteBtn');
+  if (!confirmEl || confirmEl.value.trim() !== 'CLEAR' || !clearAllBackupIsFresh()) return;
+  if (executeBtn) executeBtn.disabled = true;
+  const beforeStores = readPaymentRecordStores(localStorage);
+  const { nextState, nextStores, result } = clearPaymentRecords(state, beforeStores);
+  // Safety snapshot FIRST (existing helper, best-effort): a failed
+  // snapshot warns but does not block — the JSON backup gate above
+  // already guarantees an off-device copy, which is the undo.
+  let snapshotSaved = false;
+  try {
+    const snapshot = await createSafetySnapshot();
+    snapshotSaved = Boolean(snapshot);
+  } catch { snapshotSaved = false; }
+  state = nextState;
+  save();
+  if (!storageAvailable) {
+    // The ledger did not persist: leave every satellite store exactly
+    // as it was, so the wipe cannot half-land. No audit entry — the
+    // wipe did not happen.
+    if (resultEl) {
+      resultEl.textContent = t('clr_save_failed');
+      resultEl.hidden = false;
+    }
+    if (executeBtn) executeBtn.disabled = false;
+    return;
+  }
+  writePaymentRecordStores(localStorage, beforeStores, nextStores);
+  recordAudit('payment_records_cleared', {
+    recordRef: 'clear-all-record',
+    detail: `${result.payments} payments · PKR ${Math.round(result.totalCents / 100).toLocaleString('en-PK')} · ${result.billsBecomingUnpaid} bills now unpaid`
+  });
+  if (resultEl) {
+    resultEl.textContent = t('clr_result', null, {
+      payments: result.payments.toLocaleString('en-PK'),
+      total: Math.round(result.totalCents / 100).toLocaleString('en-PK'),
+      bills: result.billsBecomingUnpaid.toLocaleString('en-PK')
+    }) + ' ' + t(snapshotSaved ? 'clr_result_snapshot' : 'clr_result_snapshot_failed');
+    resultEl.hidden = false;
+  }
+  if (confirmEl) confirmEl.value = '';
+  await refreshBackupManager();
+}
+$('#clearAllRecordButton')?.addEventListener('click', () => {
+  if (collectorBlocked('clear-all-record')) return;
+  clearAllOpenDialog();
+});
+$('#clearAllRecordCloseBtn')?.addEventListener('click', () => $('#clearAllRecordDialog')?.close?.());
+$('#clearAllRecordDoneBtn')?.addEventListener('click', () => $('#clearAllRecordDialog')?.close?.());
+$('#clearAllRecordBackupBtn')?.addEventListener('click', () => {
+  // Reuse the existing download flow (it stamps the off-device
+  // export record), then re-check the gate.
+  $('#downloadJsonBackupButton')?.click();
+  clearAllRefreshGate();
+});
+$('#clearAllRecordConfirm')?.addEventListener('input', clearAllRefreshGate);
+$('#clearAllRecordExecuteBtn')?.addEventListener('click', () => { void clearAllExecuteWipe(); });
 
 async function handleShareBackupAction() {
   // Plan 33: sharing a backup is owner-only.

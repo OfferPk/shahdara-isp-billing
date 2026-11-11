@@ -255,6 +255,13 @@ export function buildCoverageRegister({ customers, estimates } = {}) {
   });
   const surveyedRows = rows.filter((row) => row.surveyed);
   const totalPremises = surveyedRows.reduce((sum, row) => sum + row.premises, 0);
+  // Mohalla coverage dashboard (additive, no existing field changes):
+  // surveyedActiveCount is the grabbed figure for the village summary —
+  // active customers in surveyed mohallas only. totalActive must NOT be
+  // used for it: it also counts customers in unsurveyed mohallas and in
+  // the Unassigned row. totalRemainingPremises is the surveyed-only
+  // houses-left figure (the sum of per-row remainingPremises).
+  const surveyedActiveCount = surveyedRows.reduce((sum, row) => sum + row.activeCount, 0);
   return {
     rows,
     totalActive,
@@ -262,8 +269,10 @@ export function buildCoverageRegister({ customers, estimates } = {}) {
     surveyedCount: surveyedRows.length,
     notSurveyedCount: rows.length - surveyedRows.length,
     overallTakeUpPercent: totalPremises > 0
-      ? Math.round((surveyedRows.reduce((sum, row) => sum + row.activeCount, 0) / totalPremises) * 1000) / 10
+      ? Math.round((surveyedActiveCount / totalPremises) * 1000) / 10
       : null,
+    surveyedActiveCount,
+    totalRemainingPremises: totalPremises - surveyedActiveCount,
   };
 }
 
@@ -292,6 +301,91 @@ export function coverageRegisterHtml(register) {
   // Owner 5-part fix: the eight-column table scrolls inside its own
   // card on a phone instead of clipping the right-side columns.
   return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Mohalla</th><th>Active customers</th><th>Premises passed</th><th>Take-up</th><th>Remaining premises</th><th>Survey date</th><th>Basis</th><th>Previous estimates</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+// Mohalla coverage dashboard — the visual read-out on top of the
+// register (Plan 27's data, reused untouched). A village summary block
+// first (surveyed mohallas only — an unsurveyed mohalla contributes
+// nothing, never an invented zero), then one row per register row in
+// register order (label A–Z, Unassigned last). Each surveyed row shows
+// the green covered-% bar and a red remaining line; an unsurveyed row
+// shows no bar and no %, only "Not surveyed". The remaining % is
+// derived from the ROUNDED covered % so the two displayed figures
+// always sum to exactly 100.0. Labels come from the caller (app.js
+// resolves them via t()); the EN defaults below let unit tests call
+// the builder without the app. No store, no input, no write path.
+const MOH_COV_DEFAULT_LABELS = Object.freeze({
+  village: 'Whole village',
+  totalHouses: 'Total houses',
+  grabbed: 'Grabbed houses',
+  remaining: '{pct}% remaining · {count} houses left',
+  notSurveyed: 'Not surveyed',
+  notSurveyedNote: 'Not surveyed — enter the total in the register above.',
+  unassignedNote: 'No mohalla recorded',
+  surveyedCount: '{surveyed} of {total} mohallas surveyed — totals cover surveyed mohallas only.',
+  noSurvey: 'No mohalla surveyed yet — add a premises estimate in the register above.',
+  exceeded: 'Estimate exceeded by {count} — re-survey the total',
+});
+
+function mohCovFillLabels(template, values) {
+  let out = String(template ?? '');
+  for (const [key, value] of Object.entries(values ?? {})) {
+    out = out.replaceAll(`{${key}}`, String(value ?? ''));
+  }
+  return out;
+}
+
+// Remaining % from the ROUNDED covered % (never from the raw
+// fraction): 1/3 covered is 33.3% and remaining is 66.7%, summing to
+// exactly 100.0.
+function mohCovRemainingPercent(coveredPercent) {
+  return Math.round((100 - coveredPercent) * 10) / 10;
+}
+
+function mohCovBarLineHtml(coveredPercent) {
+  const barWidth = Math.min(100, Math.max(0, coveredPercent));
+  return `<div class="moh-cov-bar-line"><span class="moh-cov-bar" aria-hidden="true"><span class="moh-cov-bar-fill" style="width:${barWidth.toFixed(1)}%"></span></span><strong class="moh-cov-pct">${escapeHtml(`${coveredPercent}%`)}</strong></div>`;
+}
+
+function mohCovRemainingLineHtml(coveredPercent, remainingPremises, labels) {
+  if (remainingPremises < 0) {
+    return escapeHtml(mohCovFillLabels(labels.exceeded, { count: -remainingPremises }));
+  }
+  return escapeHtml(mohCovFillLabels(labels.remaining, { pct: mohCovRemainingPercent(coveredPercent), count: remainingPremises }));
+}
+
+function mohCovSurveyedRowHtml(row, labels) {
+  return `<div class="moh-cov-row"><strong class="moh-cov-name">${escapeHtml(row.label)}</strong><span class="moh-cov-counts">${escapeHtml(labels.totalHouses)}: ${row.premises} · ${escapeHtml(labels.grabbed)}: ${row.activeCount}</span>${mohCovBarLineHtml(row.takeUpPercent)}<span class="moh-cov-remaining">${mohCovRemainingLineHtml(row.takeUpPercent, row.remainingPremises, labels)}</span></div>`;
+}
+
+function mohCovUnsurveyedRowHtml(row, labels) {
+  const note = row.key === COVERAGE_UNASSIGNED_KEY ? labels.unassignedNote : labels.notSurveyedNote;
+  return `<div class="moh-cov-row"><strong class="moh-cov-name">${escapeHtml(row.label)}</strong><span class="moh-cov-counts">${escapeHtml(labels.totalHouses)}: ${escapeHtml(labels.notSurveyed)} · ${escapeHtml(labels.grabbed)}: ${row.activeCount}</span><span class="moh-cov-note">${escapeHtml(note)}</span></div>`;
+}
+
+function mohCovVillageHtml(register, labels) {
+  if (register.surveyedCount === 0 || register.overallTakeUpPercent === null) {
+    return `<div class="moh-cov-village"><span class="moh-cov-note">${escapeHtml(labels.noSurvey)}</span></div>`;
+  }
+  const surveyedRows = register.rows.filter((row) => row.surveyed);
+  const surveyedActiveCount = Number.isFinite(register.surveyedActiveCount)
+    ? register.surveyedActiveCount
+    : surveyedRows.reduce((sum, row) => sum + row.activeCount, 0);
+  const totalRemainingPremises = Number.isFinite(register.totalRemainingPremises)
+    ? register.totalRemainingPremises
+    : register.totalPremises - surveyedActiveCount;
+  const mohallaCount = register.rows.filter((row) => row.key !== COVERAGE_UNASSIGNED_KEY).length;
+  const surveyedLine = mohCovFillLabels(labels.surveyedCount, { surveyed: register.surveyedCount, total: mohallaCount });
+  return `<div class="moh-cov-village"><strong class="moh-cov-name">${escapeHtml(labels.village)}</strong><span class="moh-cov-counts">${escapeHtml(labels.totalHouses)}: ${register.totalPremises} · ${escapeHtml(labels.grabbed)}: ${surveyedActiveCount}</span>${mohCovBarLineHtml(register.overallTakeUpPercent)}<span class="moh-cov-remaining">${mohCovRemainingLineHtml(register.overallTakeUpPercent, totalRemainingPremises, labels)}</span><span class="moh-cov-surveyed">${escapeHtml(surveyedLine)}</span></div>`;
+}
+
+export function coverageDashboardHtml(register, labels = {}) {
+  const merged = { ...MOH_COV_DEFAULT_LABELS, ...(labels ?? {}) };
+  if (!register || !Array.isArray(register.rows) || !register.rows.length) {
+    return `<div class="moh-cov-village"><span class="moh-cov-note">${escapeHtml(merged.noSurvey)}</span></div>`;
+  }
+  const rows = register.rows.map((row) => (row.surveyed ? mohCovSurveyedRowHtml(row, merged) : mohCovUnsurveyedRowHtml(row, merged))).join('');
+  return `${mohCovVillageHtml(register, merged)}<div class="moh-cov-rows">${rows}</div>`;
 }
 
 export function coverageRegisterCsv(register) {

@@ -295,7 +295,7 @@ import { buildDispatchQueue, reorderDispatchQueue, dispatchQueueSummary, dispatc
 import { normalizeRepeatFaultSettings, buildRepeatFaultFlags, repeatFaultSummary, repeatFaultSummaryText, repeatFaultHtml, repeatFaultCsv, repeatFaultFilename } from './repeat-fault-flag.js';
 import { RESOLUTION_CONFIRMATION_VARIANTS, RESOLUTION_DEFAULT_WINDOW_DAYS, normalizeReopenWindowDays, normalizeResolutionList, recordResolution, normalizeFollowUpLinkList, recordFollowUpLink, reopenResolvedTicket, createFollowUpTicketInput, buildConfirmationRows, buildConfirmationDraft, confirmationSummary, confirmationSummaryText, confirmationHtml, confirmationCsv, confirmationFilename } from './resolution-confirmation.js';
 import { CAPACITY_FORECAST_DEFAULT_THRESHOLD, normalizeCapacityThreshold, buildCapacityForecast, capacityForecastSummaryText, capacityForecastHtml, capacityForecastCsv, capacityForecastFilename } from './capacity-forecast.js';
-import { canonicalCoverageMohalla, normalizeCoverageEstimate, upsertCoverageEstimate, buildCoverageRegister, coverageRegisterSummaryText, coverageRegisterHtml, coverageRegisterCsv, coverageRegisterFilename } from './coverage-register.js';
+import { canonicalCoverageMohalla, normalizeCoverageEstimate, upsertCoverageEstimate, buildCoverageRegister, coverageRegisterSummaryText, coverageRegisterHtml, coverageRegisterCsv, coverageRegisterFilename, coverageDashboardHtml } from './coverage-register.js';
 import { normalizeReferral, upsertReferral, deriveReferralStatuses, buildReferralReport, referralSummaryText, referralReportHtml, referralReportCsv, referralReportFilename } from './referral-tracking.js';
 import { EXPANSION_STEP_IDS, buildExpansionChecklist, findExpansionChecklist, tickExpansionStep, untickExpansionStep, upsertExpansionChecklist, expansionSummaryText, expansionChecklistHtml, expansionChecklistCsv, expansionChecklistFilename } from './expansion-checklist.js';
 import { buildCampaign, findCampaign, upsertCampaign, removeCampaign, buildCampaignSummary, campaignSummaryText, campaignHtml, campaignCsv, campaignFilename } from './campaign-planner.js';
@@ -17675,6 +17675,35 @@ function renderCoverageRegister() {
     });
   }
 }
+// Mohalla coverage dashboard — the visual read-out of the register
+// above (same register, same inputs, no write path of its own). The
+// register's edit form is the only way a total changes; this render
+// only redraws the bars.
+function renderMohallaCoverageDashboard() {
+  const bodyEl = $('#mohallaCoverageDashboardBody');
+  if (!bodyEl) return;
+  const register = buildCoverageRegister({ customers: (state.customers ?? []).filter((c) => !c.archived), estimates: loadCoverageEstimates() });
+  const headingEl = $('#mohallaCoverageDashboardHeading');
+  if (headingEl) headingEl.textContent = t('moh_cov_heading');
+  bodyEl.innerHTML = coverageDashboardHtml(register, {
+    village: t('moh_cov_village'),
+    totalHouses: t('moh_cov_total_houses'),
+    grabbed: t('moh_cov_grabbed'),
+    remaining: t('moh_cov_remaining'),
+    notSurveyed: t('moh_cov_not_surveyed'),
+    notSurveyedNote: t('moh_cov_not_surveyed_note'),
+    unassignedNote: t('moh_cov_unassigned_note'),
+    surveyedCount: t('moh_cov_surveyed_count'),
+    noSurvey: t('moh_cov_no_survey'),
+    exceeded: t('moh_cov_exceeded'),
+  });
+  const summaryEl = $('#mohallaCoverageDashboardSummary');
+  if (summaryEl) {
+    summaryEl.textContent = register.surveyedCount > 0
+      ? `${t('moh_cov_total_houses')}: ${register.totalPremises} · ${t('moh_cov_grabbed')}: ${register.surveyedActiveCount}`
+      : '';
+  }
+}
 // Plan 34: package price revision history (effective-dated prices).
 // Revisions live in their own localStorage store, apart from every
 // bill, payment, and customer record. Recording a revision never
@@ -18291,6 +18320,7 @@ function renderAnalytics() {
   renderResolutionConfirmation();
   renderCapacityForecast();
   renderCoverageRegister();
+  renderMohallaCoverageDashboard();
   renderReferralTracking();
   renderExpansionChecklist();
   renderCampaignPlanner();

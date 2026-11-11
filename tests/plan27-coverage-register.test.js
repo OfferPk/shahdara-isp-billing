@@ -157,6 +157,32 @@ test('register: active count above the estimate gives a negative remaining figur
   assert.equal(reg.rows[0].takeUpPercent, 150);
 });
 
+test('register: dashboard aggregates count surveyed mohallas only (totalActive trap)', () => {
+  const reg = buildCoverageRegister({
+    customers: [
+      customer('c1', 'Bani'), customer('c2', 'Bani'),
+      customer('c3', 'Kishtii'), // unsurveyed mohalla — contributes nothing to the village figures
+      customer('c4', ''), // Unassigned — contributes nothing to the village figures
+    ],
+    estimates: [estimate('Bani', 100), estimate('Malla', 50)],
+  });
+  assert.equal(reg.totalActive, 4);
+  assert.equal(reg.surveyedActiveCount, 2);
+  assert.equal(reg.totalPremises, 150);
+  assert.equal(reg.totalRemainingPremises, 148);
+  assert.equal(reg.overallTakeUpPercent, 1.3);
+});
+
+test('register: dashboard aggregates stay honest when grabbed exceeds the estimate', () => {
+  const reg = buildCoverageRegister({
+    customers: [customer('c1', 'Bani'), customer('c2', 'Bani'), customer('c3', 'Bani')],
+    estimates: [estimate('Bani', 2)],
+  });
+  assert.equal(reg.surveyedActiveCount, 3);
+  assert.equal(reg.totalRemainingPremises, -1);
+  assert.equal(reg.overallTakeUpPercent, 150);
+});
+
 test('summary text: surveyed/not-surveyed counts and overall take-up', () => {
   const reg = buildCoverageRegister({
     customers: [customer('c1', 'Bani'), customer('c2', 'Malla')],

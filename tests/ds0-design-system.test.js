@@ -246,7 +246,10 @@ test('DS-0 nav: --bottom-nav-height followers use the 64px value', () => {
   // The fallbacks stay at 60px by design (pinned by the sticky-save
   // tests); the var itself is 64px, so every consumer follows it.
   assert.ok(tokensSrc.includes('--bottom-nav-height: 64px'), 'the var must be 64px');
-  assert.ok(navSrc.includes('bottom: calc(var(--bottom-nav-height, 60px) + 16px)'), 'the speed dial must sit on the nav var');
+  // Home Dashboard overhaul: the speed dial still sits on the nav
+  // var (64px, 60px fallback) — plus the device safe-area inset,
+  // so it never overlaps content or the nav on notched phones.
+  assert.ok(navSrc.includes('bottom: calc(var(--bottom-nav-height, 60px) + 16px + env(safe-area-inset-bottom, 0px))'), 'the speed dial must sit on the nav var');
   assert.ok(stylesSrc.includes('bottom:calc(var(--bottom-nav-height, 64px) + 11px'), 'the More menu must sit on the nav var');
 });
 

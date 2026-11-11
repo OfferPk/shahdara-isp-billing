@@ -73,7 +73,8 @@ import { generateReceiptPNG, shareOrDownloadPng } from './png-receipt.js?v=1.11.
 import { buildKhataCardModel, buildKhataCardPrintHtml, drawQrToCanvas, encodeQrMatrix, parseCustomerDeepLink, resolveDeepLinkCustomer, resolveQrBaseUrl } from './qr-card.js';
 import { buildWelcomeSlipModel, buildWelcomeSlipPreviewHtml, buildWelcomeSlipPrintHtml, buildWelcomeSlipWhatsAppText } from './welcome-agreement-slip.js';
 import { thermalPrinter, buildEscPosReceipt, escPosFieldsFromPaymentReceipt, isWebBluetoothAvailable } from './thermal-printer.js?v=1.11.0';
-import { customerHasMonthlyFee, executeQuickCollection, compressPaymentProofImage, getPakistanLocalDate } from './nav-quick-collect.js';
+import { customerHasMonthlyFee, executeQuickCollection, getCustomerPaymentDefaults, compressPaymentProofImage, getPakistanLocalDate } from './nav-quick-collect.js';
+import { buildClearDuesConfirm, clearDuesRemainderLine } from './profile-clear-dues.js';
 import { setupFieldMode, speakCustomerDue } from './field-mode.js?v=1.11.0';
 import { QUICK_UNDO_WINDOW_MS, createQuickUndoController, findCollectedPayment, quickUndoReceiptRef, reverseCollectedPayment } from './quick-undo-toast.js';
 import { BILL_PACKAGES, billPackageById, validateBillPackageSnapshot } from './package-catalog.js?v=1.11.0';
@@ -638,7 +639,7 @@ import { normalizeLedgerReferenceSearch, searchLedgerByReference, ledgerReferenc
 import { historyRunningBalanceColumnHtml } from './history-running-balance.js';
 import { historyMonthlyGroupingHtml } from './history-monthly-grouping.js';
 import { paymentMethodGroup, filterPaymentFormFieldsForMethod, filteredHistorySummaryText, historyTypeLegendText, historyEntryShortRef, historyEntryRunningNoteText, historyEntryTypeClass } from './billing-ledger-presentation.js';
-import { createDoubleTapSaveGuard, doubleTapSaveGuardKey, doubleTapSaveGuardTryStart, doubleTapSaveGuardFinish } from './double-tap-save-guard.js';
+import { createDoubleTapSaveGuard, doubleTapSaveGuardKey, doubleTapSaveGuardTryStart, doubleTapSaveGuardFinish, doubleTapSaveGuardSetDisabled } from './double-tap-save-guard.js';
 import { historyYearlySummaryHtml } from './history-yearly-summary.js';
 import { historyCsvExportButtonMarkup, historyCsvExportFilename, historyCsvExportText } from './history-csv-export.js';
 import { historyPrintedStatementButtonMarkup, buildHistoryPrintedStatementHtml } from './history-printed-statement.js';
@@ -6864,7 +6865,7 @@ function renderCustomerProfileView(customer) {
   const customerTickets = ticketsForCustomer(loadTickets(), customer.id);
   const ticketPending = billedTicketChargesPending(loadTickets(), customer.id);
   const recurringWarning = hasRecurringFaultWarning(loadTickets(), customer.id);
-  const ticketsSectionHtml = `<section class="profile-tickets-section" aria-label="${t('prof_ticket_aria')}"><h4>${t('prof_ticket_heading')}</h4>${recurringWarning ? `<p class="profile-tickets-warning">${t('prof_ticket_recurring')}</p>` : ''}<p class="profile-tickets-charges">${escapeHtml(t('prof_ticket_pending', null, { amount: formatAmount(ticketPending) }))}${ticketPending > 0 ? escapeHtml(t('prof_ticket_pending_note')) : ''}</p>${customerTickets.length === 0 ? `<p class="profile-tickets-empty">${t('prof_ticket_empty')}</p>` : `<ul class="profile-tickets-list">${customerTickets.map((t) => `<li><span><strong>${escapeHtml(t.id)}</strong> · ${escapeHtml(ticketFaultLabel(t))} · ${escapeHtml(t.status)}</span><span>${escapeHtml(t('prof_ticket_lineman', null, { name: t.technician || t('prof_ticket_not_set') }))} · ${escapeHtml(t.priority)}${t.billingType === 'billed' ? `${escapeHtml(t('prof_ticket_billed', null, { amount: formatAmount(t.billedAmount) }))}${t.chargePaid ? t('prof_ticket_paid') : t('prof_ticket_unpaid')}` : t('prof_ticket_free')}</span></li>`).join('')}</ul>`}<button type="button" class="secondary-button" id="profileOpenFieldTicketsBtn">${t('prof_ticket_open')}</button></section>`;
+  const ticketsSectionHtml = `<section class="profile-tickets-section" aria-label="${t('prof_ticket_aria')}"><h4>${t('prof_ticket_heading')}</h4>${recurringWarning ? `<p class="profile-tickets-warning">${t('prof_ticket_recurring')}</p>` : ''}<p class="profile-tickets-charges">${escapeHtml(t('prof_ticket_pending', null, { amount: formatAmount(ticketPending) }))}${ticketPending > 0 ? escapeHtml(t('prof_ticket_pending_note')) : ''}</p>${customerTickets.length === 0 ? `<p class="profile-tickets-empty">${t('prof_ticket_empty')}</p>` : `<ul class="profile-tickets-list">${customerTickets.map((ticket) => `<li><span><strong>${escapeHtml(ticket.id)}</strong> · ${escapeHtml(ticketFaultLabel(ticket))} · ${escapeHtml(ticket.status)}</span><span>${escapeHtml(t('prof_ticket_lineman', null, { name: ticket.technician || t('prof_ticket_not_set') }))} · ${escapeHtml(ticket.priority)}${ticket.billingType === 'billed' ? `${escapeHtml(t('prof_ticket_billed', null, { amount: formatAmount(ticket.billedAmount) }))}${ticket.chargePaid ? t('prof_ticket_paid') : t('prof_ticket_unpaid')}` : t('prof_ticket_free')}</span></li>`).join('')}</ul>`}<button type="button" class="secondary-button" id="profileOpenFieldTicketsBtn">${t('prof_ticket_open')}</button></section>`;
   // SISP-16: profile downtime summary — this month + all time for this customer.
   const downtimeMonth = buildCustomerDowntimeSummary(loadComplaints(), customer.id, pakistanMonthNow());
   const downtimeAll = buildCustomerDowntimeSummary(loadComplaints(), customer.id, '');
@@ -9315,6 +9316,10 @@ function renderDetail() {
   $('#archiveStateBadge').textContent = profileArchiveLabel(customer.archived, customer.archived ? (customer.archivedAt ? humanLocalDateTime(customer.archivedAt) : t('prof_archive_date_norec')) : '');
   $('#archiveCustomerButton').hidden = customer.archived;
   $('#unarchiveCustomerButton').hidden = !customer.archived;
+  // Profile "Clear dues" (2026-11-10): archived customers cannot
+  // receive payments (getCustomerPaymentDefaults throws), so the
+  // button hides with the Archive button instead of failing on tap.
+  $('#clearDuesButton').hidden = customer.archived;
   // SISP-8: vacation hold — edit fields + header badge (shown only while
   // a hold is active; skipped months stay visible in the profile view).
   const pauseSummary = pauseBillingSummary(customer);
@@ -11270,6 +11275,11 @@ function onBillSubmit(event) {
 // payment while the first save is still running is ignored, while a
 // later, different payment still saves.
 const profilePaymentSaveGuard = createDoubleTapSaveGuard();
+// Profile "Clear dues" (2026-11-10): the same double-tap guard as the
+// profile payment form — a second tap for the same full-due payment
+// while the first save is still running is ignored, while a later,
+// different payment still saves.
+const clearDuesSaveGuard = createDoubleTapSaveGuard();
 async function onPaymentSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget; const data = new FormData(form);
@@ -11458,6 +11468,104 @@ async function onPaymentSubmit(event) {
   }
   catch (error) { toast(paymentSaveErrorMessage(error), { type:'error', title:'Payment not saved' }); }
   finally { doubleTapSaveGuardFinish(profilePaymentSaveGuard); if (submitBtn && submitBtn.isConnected) { submitBtn.disabled = false; submitBtn.removeAttribute('aria-busy'); } }
+}
+// Profile "Clear dues" (2026-11-10): one green button pays the
+// customer's FULL due in one Cash payment — the payableTotal from
+// getCustomerPaymentDefaults (open bills + ticket charges + add-on
+// charges + unpaid manual baqaya), never just the profile's displayed
+// outstanding. The confirm dialog shows the total with its breakdown;
+// the record reuses executeQuickCollection (oldest-first FIFO, Waada
+// auto-clears on full settlement) with the Plan 437 double-submit
+// guard and the 5-minute duplicate detector. A bill priced between
+// the check and the record can leave a small remainder — the receipt's
+// own payableRemaining is shown honestly in the result toast. The
+// ticket list is loaded once and shared by the check and the record,
+// so the dialog's breakdown and the settlement can never disagree.
+async function clearDues() {
+  const customer = selectedCustomer();
+  if (!customer) return;
+  const button = $('#clearDuesButton');
+  const tickets = loadTickets();
+  let defaults;
+  try {
+    defaults = getCustomerPaymentDefaults(state, customer.id, new Date(), tickets);
+  } catch (err) {
+    toast(err.message || 'Could not work out this customer\'s dues.', { type: 'error', title: 'Clear dues' });
+    return;
+  }
+  const payableTotal = Number(defaults.payableTotal) || 0;
+  if (!(payableTotal > 0)) {
+    toast('No dues to clear — this customer owes nothing.', { type: 'info', title: 'Clear dues' });
+    return;
+  }
+  const targetMonth = defaults.targetMonth;
+  const today = getPakistanLocalDate();
+  const guardKey = doubleTapSaveGuardKey({ customerId: customer.id, amount: payableTotal, method: 'Cash', month: targetMonth, date: today });
+  if (!doubleTapSaveGuardTryStart(clearDuesSaveGuard, guardKey)) return;
+  try {
+    doubleTapSaveGuardSetDisabled(button, true);
+    if (button) button.setAttribute('aria-busy', 'true');
+    const needsApproval = requiresLargeCashApproval(true, Math.round(payableTotal * 100), LARGE_CASH_DEFAULT_THRESHOLD_CENTS);
+    const confirmOptions = buildClearDuesConfirm(defaults, { formatAmount, title: t('prof_action_clear_dues') });
+    if (needsApproval) {
+      confirmOptions.input = { label: 'Approved by (owner)', placeholder: 'e.g. owner initials', maxLength: 100 };
+    }
+    const choice = await appConfirm({ tone: 'warning', ...confirmOptions });
+    if (!choice) return;
+    let largeCashApproval = '';
+    if (needsApproval) {
+      largeCashApproval = (document.getElementById('appConfirmInput')?.value || '').trim();
+      if (!largeCashApproval) {
+        toast('Large cash payments need the owner\'s approval recorded — enter the approver\'s name.', { type: 'error', title: 'Payment not saved' });
+        return;
+      }
+    }
+    // SISP-146: 5-minute double-tap guard — same customer, amount and
+    // method already logged moments ago. Ask first (the shared themed
+    // confirm, Cancel by default); declining records nothing.
+    const recentDuplicate = findRecentDuplicate(state, { customerId: customer.id, amount: payableTotal, method: 'Cash' });
+    if (recentDuplicate && !(await askDuplicatePayment(recentDuplicate, formatPKR))) return;
+    const result = executeQuickCollection(state, {
+      customerId: customer.id,
+      month: targetMonth,
+      amount: payableTotal,
+      date: today,
+      method: 'Cash',
+      tickets,
+      largeCashApproval: largeCashApproval || undefined,
+      largeCashThresholdCents: LARGE_CASH_DEFAULT_THRESHOLD_CENTS
+    });
+    state = result.nextState;
+    // SISP-43: the settled tickets are marked paid against this
+    // payment — the caller persists them, or they stay pending.
+    if (result.nextTickets) saveTickets(result.nextTickets);
+    save();
+    renderDetail();
+    const receipt = result.receipt;
+    // Plan 31: the profile payment just recorded goes into the audit log.
+    if (receipt?.paymentId) recordAudit('payment_recorded', { recordRef: `${customer.id}/${receipt.month}/${receipt.paymentId}`, customerId: customer.id, customerName: customer.name || '', detail: `${formatAmount(receipt.amount)} · Cash` });
+    const actions = receipt?.paymentId ? [
+      { label: 'Undo', onAction: () => { try { state = deletePayment(state, customer.id, receipt.month, receipt.paymentId); save(); if (selectedCustomerId === customer.id) renderDetail(); toast('Payment undone. Ledger restored.', { type: 'info', title: 'Undone' }); } catch (err) { toast(err.message); } } },
+      { label: 'Receipt', onAction: () => printPaymentReceipt(customer.id, receipt.month, receipt.paymentId) }
+    ] : [];
+    toast(`${formatAmount(receipt.amount)} received from #${customer.customerNumber} ${customer.name} for ${monthName(receipt.month)} — dues cleared in full. ${clearDuesRemainderLine(receipt, formatAmount)}`, { type: 'success', title: 'Dues cleared', actions });
+    // Polish #11 (Req 3): the just-recorded payment gets the share
+    // draft on the profile's success view — same draft as Quick
+    // Collect, with the tax line and the updated package (when the
+    // follow fired). It shows until the operator sends or dismisses
+    // it, or it was already shared.
+    if (receipt?.paymentId) {
+      profileShareDraftTarget = { customerId: customer.id, month: receipt.month, paymentId: receipt.paymentId, autoPackage: receipt.packageAutoSet ?? null };
+      profileShareDraftDismissedFor = null;
+      renderProfileShareDraft();
+    }
+  } catch (err) {
+    toast(paymentSaveErrorMessage(err), { type: 'error', title: 'Payment not saved' });
+  } finally {
+    doubleTapSaveGuardFinish(clearDuesSaveGuard);
+    doubleTapSaveGuardSetDisabled(button, false);
+    if (button && button.isConnected) button.removeAttribute('aria-busy');
+  }
 }
 function correctionForm(payment, customerId, month, origin) {
   const options = PAYMENT_METHODS.map(method => `<option value="${method}" ${method === payment.method ? 'selected' : ''}>${method}</option>`).join('');
@@ -13644,6 +13752,10 @@ $('#editProfileButton').addEventListener('click', () => {
   $('#customerProfileForm').hidden = false;
   $('#mohallaInput').focus();
 });
+
+// Profile "Clear dues" (2026-11-10): the green button in the header
+// action group pays the customer's full due in one Cash payment.
+$('#clearDuesButton').addEventListener('click', () => { void clearDues(); });
 
 // Plan 494: one name-edit path, not two. The header "Edit name" button
 // opens the full edit form at the name field — reusing the error-jump

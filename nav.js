@@ -3219,8 +3219,12 @@ export function syncMobileBottomNav(screen, hash) {
     // Transactions view — the full-width "+ Add Payment" CTA is
     // already at the top, and the floating button covers amounts
     // on the rows below it.
+    // Payments Inbox cleanup: same treatment on the Inbox — the
+    // toolbar already carries Sync / Paste / Settings, and the
+    // floating button covers the KPI cards and table rows.
     const isTransactionsScreen = String(screen || '').toLowerCase() === 'transactions';
-    speedDial.classList.toggle('is-suppressed', isMoreOpen || hasOpenDialog || isTransactionsScreen);
+    const isPaymentsInboxScreen = String(screen || '').toLowerCase() === 'easypaisa';
+    speedDial.classList.toggle('is-suppressed', isMoreOpen || hasOpenDialog || isTransactionsScreen || isPaymentsInboxScreen);
   }
 
   return targetTab;

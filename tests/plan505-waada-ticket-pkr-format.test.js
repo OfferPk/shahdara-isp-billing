@@ -29,12 +29,16 @@ test('Plan 505 (as folded by Plan 507): the Waada line is gone, not reverted to 
 });
 
 test('Plan 505: the ticket billed row renders through the shared PKR formatter', () => {
+  // Profile "Clear dues" (2026-11-11): the tickets map callback param
+  // was renamed t -> ticket — the old (t) shadowed the imported i18n
+  // t, so opening a profile WITH field tickets threw "t is not a
+  // function". The formatter call is unchanged, only the variable name.
   assert.ok(
-    appSrc.includes("{ amount: formatAmount(t.billedAmount) }"),
-    'the billed ticket row must pass formatAmount(t.billedAmount) to prof_ticket_billed'
+    appSrc.includes("{ amount: formatAmount(ticket.billedAmount) }"),
+    'the billed ticket row must pass formatAmount(ticket.billedAmount) to prof_ticket_billed'
   );
   assert.ok(
-    !appSrc.includes("{ amount: t.billedAmount }"),
+    !appSrc.includes("{ amount: ticket.billedAmount }"),
     'the billed ticket row must no longer interpolate the raw billedAmount'
   );
 });

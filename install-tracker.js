@@ -745,6 +745,29 @@ export function filterInstallRequests(requests, { month = '' } = {}) {
 }
 
 /**
+ * The open installation queue, all months: every request with no
+ * valid install date, oldest first, each with its days-so-far.
+ * The Zone Field Dispatch Board and the Installation Tracker card
+ * both read this one queue, so the board's "2 pending" and the
+ * card's headline can never disagree (the card used to count only
+ * this month's requests, so October requests read "No requests
+ * yet" in November while the board showed them pending).
+ */
+export function openInstallRequests(requests, today) {
+  const day = today || installTrackerToday();
+  const open = [];
+  // The shared log sorts newest first; the open queue reads oldest
+  // first — the longest-waiting request is the most urgent, and the
+  // Installation Tracker headline and the Zone Field Dispatch Board
+  // must agree on one queue.
+  for (const r of [...sortedRequestLog(requests)].reverse()) {
+    if (DATE_RE.test(String(r?.installDate || ''))) continue;
+    open.push({ id: r.id, name: requestNameLabel(r), requestDate: r.requestDate, daysSoFar: daysSoFar(r, day) || 0 });
+  }
+  return open;
+}
+
+/**
  * Month-end summary, fully COMPUTED from stored requests (grouped by
  * REQUEST month):
  * - installed: [{ name, requestDate, installDate, days, reason, delayed }]

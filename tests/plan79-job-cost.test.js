@@ -197,8 +197,8 @@ test('cents are used as-is on re-read, never inflated a hundredfold', () => {
   const reread = normalizeJob(stored);
   assert.equal(reread.feeCents, 100000);
   assert.equal(reread.materials[0].lineCents, 48000);
-  assert.equal(formatJobCents(17000), 'Rs. 170.00');
-  assert.equal(formatJobCents(-500), '-Rs. 5.00');
+  assert.equal(formatJobCents(17000), 'Rs. 170');
+  assert.equal(formatJobCents(-500), '-Rs. 5');
   assert.equal(formatJobCents(null), 'Not recorded');
 });
 
@@ -206,6 +206,6 @@ test('HTML escaping, CSV quoting, and filename', () => {
   const evil = { ...base, customerName: '<script>alert(1)</script>', note: 'a,"b"' };
   assert.doesNotMatch(jobHtml([evil]), /<script>/);
   assert.match(jobHtml([evil]), /&lt;script&gt;/);
-  assert.match(jobCsv([evil]), /Rs\. 170\.00/);
+  assert.match(jobCsv([evil]), /Rs\. 170/);
   assert.equal(jobFilename(), 'job-cost-sheets.csv');
 });

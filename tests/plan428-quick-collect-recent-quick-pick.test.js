@@ -307,13 +307,22 @@ test('a row carries the customer id, name, mohalla, and dues', () => {
     duesCentsById([['CUST-2', 300000]]),
   );
   const html = recentQuickPickHtml(entries);
-  assert.match(html, /Recent — collected from/);
+  // QC Cash Modal Overhaul: Recent is an accordion now — the header
+  // line is a one-line summary toggle ("Recent: N collected (latest:
+  // #N Name) ▾") with the rows hidden until tapped, so the nine
+  // expanded cards no longer sit above the unpaid queue.
+  assert.match(html, /rqp-toggle/);
+  assert.match(html, /Recent: 1 collected \(latest: #2 Customer 2\)/);
+  assert.match(html, /rqp-rows" hidden/);
   assert.match(html, /rqp-row/);
   assert.match(html, /data-customer-id="CUST-2"/);
   assert.match(html, /Customer 2/);
   assert.match(html, /Mohalla Bani/);
   assert.match(html, /PKR 3,000 · Due/);
-  assert.match(html, /Collected 2026-11-03/);
+  // QC Cash Modal Overhaul: the right-side timestamp is a compact
+  // "3 Nov" badge now, not the full "Collected 2026-11-03" line.
+  assert.match(html, /rqp-date-badge">3 Nov</);
+  assert.doesNotMatch(html, /Collected 2026-11-03/);
   assert.match(html, /qc-customer-card/);
 });
 

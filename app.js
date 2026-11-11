@@ -95,6 +95,7 @@ import {
 import { saveBranchGuard, ensureBranchGuard, createBranchGuardStamp, recordBranchGuardExport, recordBranchGuardApply } from './branch-guard.js?v=1.11.0';
 import { parseCustomerCsvImport, applyCustomerCsvImport, generateSampleCustomerCsv, verifyAllStorageKeysRoundTrip, inspectBackupFileHeader } from './qa-backup-csv-import.js?v=1.11.0';
 import { BACKUP_HEALTH_KEY, assessBackupHealth, backupPreActionPrompt, countAllPayments, countPaymentsAfterDate, recordBackupHealthExport, shareBackupOffDevice } from './backup-health.js?v=1.11.0';
+import { countPaymentRecords, clearPaymentRecords, PAYMENT_RECORD_WIPE_KEYS } from './clear-payment-records.js?v=1.11.0'; // Mohalla Seed: "Clear All Record" (Option A — payments + payment-derived only).
 import { verifyBackup, describeRestoreChanges } from './backup-verification.js?v=1.11.0';
 import { SAFETY_SNAPSHOT_KIND, MAX_SAFETY_SNAPSHOTS, assessSaveSize, isQuotaError, selectSafetySnapshotsToRotate, countLedgerRecords, verifyLiveLedger, rankRecoveryCandidates, createSaveFallbackStore } from './storage-safety.js?v=1.11.0';
 import { findPossibleDuplicateCustomers } from './duplicate-detection.js?v=1.11.0';
@@ -10242,6 +10243,126 @@ $('#requestStoragePersistenceBtn')?.addEventListener('click', handleProtectStora
 $('#dataSafetyProtectStorageBtn')?.addEventListener('click', handleProtectStorageAction);
 
 $('#restoreJsonBackupButton').addEventListener('click', () => { $('#jsonBackupFileInput').value=''; $('#jsonBackupFileInput').click(); });
+
+// Mohalla Seed — "Clear All Record" (Option A: payments + payment-derived
+// records only; customers, bills, waada, settings and audit trails stay).
+// The dialog lives in the footer Backup panel, next to the backup that is
+// its only undo. The wipe cannot run without a fresh JSON backup
+// (backupPreActionPrompt === null, i.e. Backup Health Safe) and the
+// operator must type CLEAR. A safety snapshot is saved first (best-
+// effort, same wrapper as the other destructive hooks); a wipe audit
+// entry is written AFTER the wipe into the existing audit log.
+function readClearPaymentSatellites() {
+  const satellites = {};
+  for (const key of PAYMENT_RECORD_WIPE_KEYS) {
+    try {
+      const raw = localStorage.getItem(key);
+      satellites[key] = raw === null ? undefined : JSON.parse(raw);
+    } catch { satellites[key] = undefined; }
+  }
+  return satellites;
+}
+function clearPaymentRecordsBackupReady() {
+  try {
+    const record = JSON.parse(localStorage.getItem(BACKUP_HEALTH_KEY) ?? 'null');
+    const paymentsSinceExport = record?.lastExportAt
+      ? countPaymentsAfterDate(state, String(record.lastExportAt).slice(0, 10))
+      : 0;
+    return backupPreActionPrompt({ lastExportAt: record?.lastExportAt ?? null, paymentsSinceExport, now: new Date() }) === null;
+  } catch { return false; }
+}
+function renderClearPaymentRecordsDialog() {
+  const counts = countPaymentRecords(state, readClearPaymentSatellites());
+  const previewEl = $('#clearPaymentRecordsPreview');
+  if (previewEl) {
+    previewEl.textContent = counts.payments === 0
+      ? t('clr_preview_empty')
+      : t('clr_preview', null, {
+        payments: counts.payments.toLocaleString('en-PK'),
+        customers: counts.customers.toLocaleString('en-PK'),
+        total: formatPKR(counts.totalCents / 100),
+        bills: counts.billsBecomingUnpaid.toLocaleString('en-PK'),
+        satellites: counts.satelliteTotal.toLocaleString('en-PK')
+      });
+  }
+  const ready = clearPaymentRecordsBackupReady();
+  const noteEl = $('#clearPaymentRecordsBackupNote');
+  if (noteEl) noteEl.textContent = ready ? t('clr_backup_ready') : t('clr_backup_needed');
+  const wipeBtn = $('#clearPaymentRecordsWipeButton');
+  if (wipeBtn) {
+    const typed = $('#clearPaymentRecordsTypeInput')?.value ?? '';
+    wipeBtn.disabled = !(ready && typed === 'CLEAR' && counts.payments > 0);
+  }
+  return counts;
+}
+function openClearPaymentRecordsDialog() {
+  if (collectorBlocked('clear-payment-records')) return;
+  if (persistenceBlocked) { toast('Saved data could not be read; a backup of the blank recovery screen would be unsafe.'); return; }
+  const typeInput = $('#clearPaymentRecordsTypeInput');
+  if (typeInput) typeInput.value = '';
+  const resultEl = $('#clearPaymentRecordsResult');
+  if (resultEl) resultEl.hidden = true;
+  const confirmWrap = $('#clearPaymentRecordsConfirmWrap');
+  if (confirmWrap) confirmWrap.hidden = false;
+  const cancelLabel = $('#cancelClearPaymentRecordsButton span');
+  if (cancelLabel) cancelLabel.textContent = t('clr_cancel');
+  renderClearPaymentRecordsDialog();
+  const dialog = $('#clearPaymentRecordsDialog');
+  if (dialog?.showModal) dialog.showModal();
+}
+async function executeClearPaymentRecords() {
+  if (collectorBlocked('clear-payment-records')) return;
+  const counts = countPaymentRecords(state, readClearPaymentSatellites());
+  if (counts.payments === 0) return;
+  if (!clearPaymentRecordsBackupReady()) { renderClearPaymentRecordsDialog(); return; }
+  const snapshot = await snapshotBeforeDestructiveAction();
+  const next = clearPaymentRecords(state);
+  for (const key of PAYMENT_RECORD_WIPE_KEYS) {
+    try { localStorage.removeItem(key); } catch { /* A satellite key that cannot be removed stays behind; the ledger wipe itself already ran and the dialog reports the ledger counts. */ }
+  }
+  state = next;
+  save();
+  renderDetail();
+  renderTransactions();
+  renderMonthlyReport();
+  updateNavigationBadges(state);
+  updateDataSafetyUi();
+  recordAudit('payment_records_cleared', {
+    recordRef: 'all-customers',
+    detail: `Cleared ${counts.payments} payment records · PKR ${(counts.totalCents / 100).toLocaleString('en-PK')} · ${counts.billsBecomingUnpaid} bills now unpaid`
+  });
+  const resultEl = $('#clearPaymentRecordsResult');
+  if (resultEl) {
+    resultEl.hidden = false;
+    resultEl.textContent = t('clr_done', null, {
+      payments: counts.payments.toLocaleString('en-PK'),
+      total: formatPKR(counts.totalCents / 100),
+      bills: counts.billsBecomingUnpaid.toLocaleString('en-PK')
+    });
+  }
+  const confirmWrap = $('#clearPaymentRecordsConfirmWrap');
+  if (confirmWrap) confirmWrap.hidden = true;
+  const wipeBtn = $('#clearPaymentRecordsWipeButton');
+  if (wipeBtn) wipeBtn.disabled = true;
+  const cancelLabel = $('#cancelClearPaymentRecordsButton span');
+  if (cancelLabel) cancelLabel.textContent = t('clr_close');
+  if (!snapshot) toast(t('clr_snapshot_failed'), { type: 'warning' });
+  toast(t('clr_done', null, {
+    payments: counts.payments.toLocaleString('en-PK'),
+    total: formatPKR(counts.totalCents / 100),
+    bills: counts.billsBecomingUnpaid.toLocaleString('en-PK')
+  }));
+}
+
+$('#clearPaymentRecordsButton')?.addEventListener('click', openClearPaymentRecordsDialog);
+$('#clearPaymentRecordsCloseButton')?.addEventListener('click', () => $('#clearPaymentRecordsDialog')?.close());
+$('#cancelClearPaymentRecordsButton')?.addEventListener('click', () => $('#clearPaymentRecordsDialog')?.close());
+$('#clearPaymentRecordsTypeInput')?.addEventListener('input', () => renderClearPaymentRecordsDialog());
+$('#clearPaymentRecordsDownloadButton')?.addEventListener('click', () => {
+  $('#downloadJsonBackupButton')?.click();
+  renderClearPaymentRecordsDialog();
+});
+$('#clearPaymentRecordsWipeButton')?.addEventListener('click', () => { executeClearPaymentRecords(); });
 
 // SISP-10: 1-click clipboard sync code — copy the checksum-stamped backup
 // text to move the ledger to another device (desktop ↔ phone) in seconds,

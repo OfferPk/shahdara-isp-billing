@@ -118,10 +118,9 @@ test('mohalla: over 100 characters is refused', () => {
 });
 
 test('mohalla: a known mohalla is stored canonical, an unknown one as typed', () => {
-  // Home Dashboard Part 4: 'charyaa' is a stored variant of the
-  // same mohalla as CHAMYAAA, so the canonical stored spelling is
-  // CHAMYAAA now — the alias fold, not the raw default-list match.
-  assert.equal(validateQuickAddCustomer(input({ mohalla: 'charyaa' })).values.mohalla, 'CHAMYAAA');
+  // Owner 5-part fix: 'charyaa' is its own mohalla — it stores as
+  // CHARYAA, never folded into CHAMYAAA.
+  assert.equal(validateQuickAddCustomer(input({ mohalla: 'charyaa' })).values.mohalla, 'CHARYAA');
   assert.equal(validateQuickAddCustomer(input({ mohalla: 'New Area' })).values.mohalla, 'New Area');
 });
 
@@ -151,7 +150,7 @@ test('create: all four fields make the customer with exactly those details and t
   const customer = result.customer;
   assert.equal(customer.name, 'New Counter Customer');
   assert.equal(customer.phone, FAKE_PHONE);
-  assert.equal(customer.mohalla, 'CHAMYAAA', 'input CHARYAA stores canonical');
+  assert.equal(customer.mohalla, 'CHARYAA', 'input CHARYAA stores canonical');
   assert.equal(customer.customerNumber, 1);
   assert.equal(customer.packageSpeed, '5Mbps / 150GB');
   assert.equal(customer.monthlySellingAmount, 1500);
@@ -170,7 +169,7 @@ test('create: the new customer appears in the picker with their dues', () => {
   const listed = getPendingCollectionCustomers(result.nextState, '', 'all-dues');
   assert.equal(listed.length, 1);
   assert.equal(listed[0].name, 'New Counter Customer');
-  assert.equal(listed[0].area, 'CHAMYAAA', 'picker shows the canonical mohalla');
+  assert.equal(listed[0].area, 'CHARYAA', 'picker shows the canonical mohalla');
   assert.equal(listed[0].phone, FAKE_PHONE);
   assert.equal(listed[0].totalDues, 1500);
   const byName = getPendingCollectionCustomers(result.nextState, 'New Counter', 'all');
@@ -247,7 +246,7 @@ test('create: a shared family phone is not blocked', () => {
 test('summary: with package and bill it names the customer, package, fee, and bill', () => {
   const result = quickAddCustomer(emptyState(), input(), NOV_7);
   const text = quickAddCustomerSummaryText(result);
-  assert.match(text, /New customer #1 New Counter Customer \(CHAMYAAA\) added/);
+  assert.match(text, /New customer #1 New Counter Customer \(CHARYAA\) added/);
   assert.match(text, /5Mbps \/ 150GB — PKR 1,500\/month/);
   assert.match(text, /This month's bill PKR 1,500/);
 });

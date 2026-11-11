@@ -115,8 +115,9 @@ const rowByLabel = (summary, label) => summary.rows.find((row) => row.label === 
 test('mohalla bars: each mohalla\'s two figures match that mohalla\'s own records', () => {
   const summary = calculateMohallaBars(buildFixture(), REF_DATE);
   assert.equal(summary.month, MONTH);
-  // CHARYAA folds to CHAMYAAA under the canonical map, so A and B
-  // land on the CHAMYAAA row — there is no separate CHARYAA row.
+  // Owner 5-part fix: CHARYAA and CHAMYAAA are separate mohallas,
+  // so A and B land on the CHARYAA row only — there is a separate
+  // CHAMYAAA row carrying the free connection (zero figures).
   assert.deepEqual(rowByLabel(summary, mohallaLabel('CHARYAA')), {
     key: canonicalMohalla('CHARYAA').key,
     label: mohallaLabel('CHARYAA'),
@@ -124,10 +125,10 @@ test('mohalla bars: each mohalla\'s two figures match that mohalla\'s own record
     dueCents: 350000,
     collectedPercent: 22
   });
-  assert.equal(
+  assert.notEqual(
     rowByLabel(summary, mohallaLabel('CHARYAA')),
     rowByLabel(summary, mohallaLabel('CHAMYAAA')),
-    'CHARYAA and CHAMYAAA are one row after the fold'
+    'CHARYAA and CHAMYAAA are separate rows, never folded'
   );
   assert.deepEqual(rowByLabel(summary, mohallaLabel('GANGALL')), {
     key: canonicalMohalla('GANGALL').key,
@@ -159,20 +160,24 @@ test('mohalla bars: each mohalla\'s two figures match that mohalla\'s own record
     collectedPercent: 29
   });
   // The archived customer and the free connection count nowhere —
-  // the free connection (J) shares the CHAMYAAA row but adds
-  // nothing to it, so the row still reads A and B's figures only.
+  // the free connection (J) sits on the CHAMYAAA row but adds
+  // nothing to it, so the CHARYAA row still reads A and B's figures
+  // only and the CHAMYAAA row reads zero.
   assert.equal(rowByLabel(summary, mohallaLabel('THALII')).collectedCents, 0);
   assert.equal(rowByLabel(summary, mohallaLabel('THALII')).dueCents, 0);
-  assert.equal(rowByLabel(summary, mohallaLabel('CHAMYAAA')).collectedCents, 100000, 'CHAMYAAA carries the folded CHARYAA figures');
-  assert.equal(rowByLabel(summary, mohallaLabel('CHAMYAAA')).dueCents, 350000);
+  assert.equal(rowByLabel(summary, mohallaLabel('CHARYAA')).collectedCents, 100000, 'CHARYAA carries A and B\'s figures');
+  assert.equal(rowByLabel(summary, mohallaLabel('CHARYAA')).dueCents, 350000);
+  assert.equal(rowByLabel(summary, mohallaLabel('CHAMYAAA')).collectedCents, 0, 'CHAMYAAA is its own row, never folded');
+  assert.equal(rowByLabel(summary, mohallaLabel('CHAMYAAA')).dueCents, 0);
 });
 
 test('mohalla bars: rows follow the canonical list in order with unassigned last, and the totals equal the sums', () => {
   const summary = calculateMohallaBars(buildFixture(), REF_DATE);
-  // CHARYAA folds to CHAMYAAA, so the 15 defaults collapse to 14
-  // distinct canonical rows, plus the unassigned row last.
+  // Owner 5-part fix: CHARYAA and CHAMYAAA are separate, so the 15
+  // defaults stay 15 distinct canonical rows, plus the unassigned
+  // row last.
   const canonicalLabels = [...new Set(DEFAULT_MOHALLAS.map((name) => mohallaLabel(name)))];
-  assert.equal(canonicalLabels.length, 14, 'one fold: CHARYAA into CHAMYAAA');
+  assert.equal(canonicalLabels.length, 15, 'no fold: CHARYAA and CHAMYAAA are separate');
   assert.deepEqual(
     summary.rows.map((row) => row.label),
     [...canonicalLabels, 'Unassigned']
@@ -193,7 +198,7 @@ test('mohalla bars: rows follow the canonical list in order with unassigned last
 test('mohalla bars: a business with no customers still shows every mohalla at zero, never a blank', () => {
   const summary = calculateMohallaBars({ customers: [] }, REF_DATE);
   const canonicalCount = new Set(DEFAULT_MOHALLAS.map((name) => canonicalMohalla(name).key)).size;
-  assert.equal(canonicalCount, 14, 'one fold: CHARYAA into CHAMYAAA');
+  assert.equal(canonicalCount, 15, 'no fold: CHARYAA and CHAMYAAA are separate');
   assert.equal(summary.month, MONTH);
   assert.equal(summary.rows.length, canonicalCount);
   assert.equal(summary.mohallaCount, canonicalCount);
@@ -224,9 +229,9 @@ test('mohalla bars render: PKR figures, line, and bar widths land in the view', 
   };
   renderMohallaBars(doc, summary);
   assert.equal(els.mdbMohallaTotal.textContent, 'PKR 5,400');
-  assert.equal(els.mdbMohallaLine.textContent, 'PKR 3,800 collected this month · 15 mohallas');
+  assert.equal(els.mdbMohallaLine.textContent, 'PKR 3,800 collected this month · 16 mohallas');
   const html = els.mdbMohallaRows.innerHTML;
-  assert.ok(html.includes(mohallaLabel('CHARYAA')), 'Charyaa row lands (folded onto CHAMYAAA)');
+  assert.ok(html.includes(mohallaLabel('CHARYAA')), 'Charyaa row lands (its own row)');
   assert.ok(html.includes('Collected PKR 1,000 · Still due PKR 3,500'), 'Charyaa figures land');
   assert.ok(html.includes('aria-valuenow="22"'), 'Charyaa bar is 22%');
   assert.ok(html.includes('Collected PKR 2,600 · Still due PKR 0'), 'Gangall figures land');

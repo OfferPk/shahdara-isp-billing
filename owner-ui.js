@@ -4,6 +4,10 @@ import {
   answerOwnerCommand, buildBusinessHealthScore, buildCustomerRankings, buildMonthToMonthComparison,
   buildIspInsights, buildAreaBreakdowns, buildSmartDuesRecovery, buildSmartAlerts, explainBusinessPerformance, describePercentChange, CUSTOMER_RANKING_TYPES, TROUBLESOME_RULE
 } from './owner-insights.js';
+// Owner 5-part fix: the unified card answers the twelve fixed Pucho
+// catalogue questions through the same input, so the Pucho engine is
+// imported here too — one input, one answer area, two existing engines.
+import { PUCHO_QUESTIONS, matchPuchoQuestions, answerPucho, puchoHtml, puchoCatalogueHtml } from './pucho-box.js';
 import { createWhatsAppFollowupDraft } from './profile-ui.js';
 import { loadComplaints } from './complaint-register.js';
 import { groupAreasWithCounts } from './form-validation.js';
@@ -12,7 +16,7 @@ const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':
 const $ = (selector, root=document) => root.querySelector(selector);
 const nameInitials = name => String(name ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join('').toUpperCase() || '?';
 
-export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses, renderLoans}) {
+export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHistory, openCustomer, switchView, renderMonthlyReport, renderAnalytics, renderInventory, renderExpenses, renderLoans, puchoData}) {
   let lastQuery = '';
   const months = () => monthsForHistory();
   const setText = (selector, value) => { const node=$(selector); if (node) node.textContent=String(value ?? ''); };
@@ -33,9 +37,29 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
     const output=$('#ownerCommandAnswer'); if(!output)return;
     output.replaceChildren();
     if(!String(query??'').trim()) return;
+    // Owner 5-part fix: the unified card answers the twelve fixed
+    // Pucho catalogue questions through the same input. A question
+    // that is one of the catalogue titles, word for word (the chips
+    // fill the input with exactly that title), goes straight to the
+    // Pucho engine; any other question is tried on the owner-command
+    // engine first, and only when that engine cannot match it
+    // (intent 'help') does the Pucho engine get a turn — so a
+    // month-specific question such as 'October collection?' keeps
+    // the owner engine's answer instead of the Pucho 'this month'
+    // answer. Neither engine is a second implementation: both are
+    // the existing ask/answer engines, one input, one answer area.
+    const trimmed=String(query).trim();
+    if(typeof puchoData==='function'&&PUCHO_QUESTIONS.some(entry=>entry.title===trimmed)) {
+      try { output.innerHTML=puchoHtml(answerPucho(query,puchoData())); return; }
+      catch(error) { output.textContent=error.message; return; }
+    }
     let answer;
     try { answer=answerOwnerCommand(getState(),query,new Date()); }
     catch(error) { output.textContent=error.message; return; }
+    if(answer?.intent==='help'&&typeof puchoData==='function'&&matchPuchoQuestions(query).length) {
+      try { output.innerHTML=puchoHtml(answerPucho(query,puchoData())); return; }
+      catch(error) { output.textContent=error.message; return; }
+    }
     const summary=document.createElement('p');
     const rows=Array.isArray(answer.rows)?answer.rows:[];
     const monthLabel=answer.month?monthName(answer.month):'';
@@ -264,6 +288,20 @@ export function setupOwnerCenter({getState, formatAmount, monthName, monthsForHi
   }
 
   $('#ownerCommandForm')?.addEventListener('submit',event=>{event.preventDefault();lastQuery=$('#ownerCommandInput').value;renderCommand(lastQuery);});
+  // Owner 5-part fix: the twelve Pucho catalogue questions are
+  // rendered as clickable chips inside the unified card (the catalogue
+  // used to be a static bullet list in the analytics Pucho section).
+  // A chip fills the one input with the question's full title and
+  // runs it — the exact-title rule in renderCommand routes it to the
+  // Pucho engine, so tapping never needs typing.
+  const catalogueEl=$('#puchoCatalogue');
+  if(catalogueEl) catalogueEl.innerHTML=puchoCatalogueHtml();
+  catalogueEl?.addEventListener('click',event=>{
+    const chip=event.target.closest('[data-pucho-question]'); if(!chip)return;
+    const question=chip.getAttribute('data-pucho-question');
+    const input=$('#ownerCommandInput'); if(input) input.value=question;
+    lastQuery=question; renderCommand(question);
+  });
   $('#performanceExplainForm')?.addEventListener('submit',event=>{
     event.preventDefault();const host=$('#performanceExplanation');
     try{const a=$('#compareMonthA').value,b=$('#compareMonthB').value,result=explainBusinessPerformance(getState(),$('#performanceMetric').value,a,b,new Date());const drivers=result.drivers.map(row=>`<li>${escapeHtml(row.name)}: ${row.change>0?'+':''}${escapeHtml(formatAmount(row.change))}${row.percentImpact===null?'':` · ${row.percentImpact>0?'+':''}${row.percentImpact}% of net change`}</li>`).join('');host.innerHTML=`<p>${escapeHtml(result.explanation)}</p><p class="chart-caption">${escapeHtml(result.basis??'Only available saved figures are compared; no outside causes are inferred.')}</p>${drivers?`<ul>${drivers}</ul>`:'<p>No measurable contributing rows are available for these months.</p>'}`;}catch(error){host.textContent=error.message;}

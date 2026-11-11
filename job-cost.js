@@ -69,6 +69,9 @@ const MOHALLA_ALIASES = {
   bani: 'BANII',
   kishti: 'KISHTII',
   chamyaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla.
+  jabbiyaaa: 'JABBIYAA',
 };
 
 function text(value) {
@@ -369,7 +372,9 @@ export function formatJobCents(cents) {
   if (cents === null || cents === undefined) return 'Not recorded';
   const sign = cents < 0 ? '-' : '';
   const abs = Math.abs(cents);
-  return `${sign}Rs. ${(abs / 100).toFixed(2)}`;
+  // Owner 5-part fix: whole rupees without decimals, with thousands
+  // grouping (Rs. 6,000, not Rs. 6000.00).
+  return `${sign}Rs. ${(abs / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 export function jobSummaryText(summary) {
@@ -398,7 +403,9 @@ export function jobHtml(rows) {
       return `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(entry.customerName || entry.customerId)}</td><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(materials)}</td><td>${escapeHtml(labour)}${entry.labourCostCents !== null ? ` · ${formatJobCents(entry.labourCostCents)}` : ''}</td><td>${entry.transportCostCents !== null ? formatJobCents(entry.transportCostCents) : 'Not recorded'}</td><td>${entry.feeCents !== null ? formatJobCents(entry.feeCents) : 'Not recorded'}</td><td>${margin}</td><td>${escapeHtml(JOB_STATUS_LABELS[entry.status])}</td></tr>`;
     })
     .join('');
-  return `<table><thead><tr><th>Job</th><th>Customer</th><th>Date</th><th>Materials</th><th>Labour</th><th>Transport</th><th>Fee</th><th>Margin</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>`;
+  // Owner 5-part fix: the nine-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side columns.
+  return `<div class="table-scroll"><table><thead><tr><th>Job</th><th>Customer</th><th>Date</th><th>Materials</th><th>Labour</th><th>Transport</th><th>Fee</th><th>Margin</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function jobCsv(rows) {

@@ -236,7 +236,7 @@ test('summary totals are exact, in integer cents', () => {
   assert.equal(summary.byTreatment.retention, 1);
   assert.equal(summary.retentionTotalCents, 50000);
   assert.match(holdSummaryText(summary), /2 holds recorded — 2 active, 0 ended/);
-  assert.match(holdSummaryText(summary), /Rs\. 500\.00/);
+  assert.match(holdSummaryText(summary), /Rs\. 500/);
 });
 
 test('no bill, payment, or package field is held, and SISP-8 fields are untouched', () => {

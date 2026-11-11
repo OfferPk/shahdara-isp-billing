@@ -117,9 +117,9 @@ function createSampleState() {
 
 test('resolveCustomerLocation and getAreaDescriptors - correctly normalize hierarchy', () => {
   const loc1 = resolveCustomerLocation({ area: 'Mohalla Charyaa', mohalla: 'Mohalla Charyaa', zone: 'Zone A' });
-  // Home Dashboard Part 4: stored 'Charyaa' folds to the canonical
-  // 'Chamyaaa' label — the fixture keeps the stored variant.
-  assert.equal(loc1.area.label, 'Chamyaaa');
+  // Owner 5-part fix: Charyaa is its own mohalla — a stored
+  // 'Charyaa' keeps the 'Charyaa' label, never folded into Chamyaaa.
+  assert.equal(loc1.area.label, 'Charyaa');
   assert.equal(loc1.separateMohalla, null);
   assert.equal(loc1.zone.label, 'Zone A');
 
@@ -162,7 +162,7 @@ test('calculateAreaWiseCollections - computes accurate billed, collected, and re
   assert.equal(result.summary.topPerformingRate, 100);
 
   // Check specific area rows
-  const charyaaRow = result.rows.find(r => r.areaName === 'Chamyaaa' && r.level === 'area');
+  const charyaaRow = result.rows.find(r => r.areaName === 'Charyaa' && r.level === 'area');
   assert.ok(charyaaRow);
   assert.equal(charyaaRow.billedAmount, 2000);
   assert.equal(charyaaRow.collectedAmount, 1800);
@@ -225,7 +225,7 @@ test('renderAreaCollectionsSvg - generates pure vector SVG with grouped bars and
   assert.ok(svg.includes('linearGradient id="areaBilledGrad"'));
   assert.ok(svg.includes('linearGradient id="areaCollectedGrad"'));
   assert.ok(svg.includes('linearGradient id="areaOutstandingGrad"'));
-  assert.ok(svg.includes('Chamyaaa'), 'stored Charyaa renders under the canonical label');
+  assert.ok(svg.includes('Charyaa'), 'stored Charyaa renders under its own label');
   assert.ok(svg.includes('Baradari Road'));
   assert.ok(svg.includes('Billed'));
   assert.ok(svg.includes('Collected'));
@@ -239,7 +239,7 @@ test('generateAreaCollectionsCsv - creates RFC-4180 CSV with UTF-8 BOM', () => {
 
   assert.ok(csv.startsWith('\uFEFF'));
   assert.ok(csv.includes('Month,Area Name,Level,Parent Area,Total Subscribers'));
-  assert.ok(csv.includes('Chamyaaa'), 'stored Charyaa renders under the canonical label');
+  assert.ok(csv.includes('Charyaa'), 'stored Charyaa renders under its own label');
   assert.ok(csv.includes('Baradari Road'));
   assert.ok(csv.includes('2000'));
 });
@@ -251,7 +251,7 @@ test('generateAreaCollectionsPrintHtml - supports A4 and thermal formats', () =>
   const a4Html = generateAreaCollectionsPrintHtml({ data, format: 'a4' });
   assert.ok(a4Html.includes('<!DOCTYPE html>'));
   assert.ok(a4Html.includes('Area-Wise Collections & Recovery Performance Manifest'));
-  assert.ok(a4Html.includes('Chamyaaa'), 'stored Charyaa renders under the canonical label');
+  assert.ok(a4Html.includes('Charyaa'), 'stored Charyaa renders under its own label');
   assert.ok(a4Html.includes('Billing Desk'));
 
   const thermalHtml = generateAreaCollectionsPrintHtml({ data, format: 'thermal' });

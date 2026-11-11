@@ -168,7 +168,7 @@ test('summary: total held sums exactly in integer cents', () => {
   assert.equal(summary.totalRefundedCents, 100000);
   assert.equal(summary.totalAppliedCents, 50000);
   assert.equal(summary.byDeviceType.onu, 4);
-  assert.match(depositSummaryText(summary), /2 held \(Rs\. 500\.00\)/);
+  assert.match(depositSummaryText(summary), /2 held \(Rs\. 500\)/);
 });
 
 test('non-mutation and no-ledger-field fence', () => {

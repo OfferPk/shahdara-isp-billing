@@ -183,11 +183,13 @@ export const DEFAULT_MOHALLAS = Object.freeze(['CHARYAA','GANGALL','KISHTII','BA
 /** Known spelling variants (stripped, lowercased) that fold into a default
  *  mohalla. Only evidenced variants live here: the old suggestion list wrote
  *  single-i KISHTI/CHAMYAA and "MOHALAA BANI", while the owner's list uses
- *  double-i KISHTII/CHAMYAAA and BANII. Charyaa is the same mohalla as
- *  Chamyaa in the owner's lists, so it folds to CHAMYAAA too; the two
- *  "Orient School" spellings found in stored customer areas fold to one
- *  "Orient School". Anything else keeps its own key. */
-const MOHALLA_ALIASES = Object.freeze({ bani:'BANII', kishti:'KISHTII', chamyaa:'CHAMYAAA', charyaa:'CHAMYAAA', 'orien school':'Orient School', 'orient scholl':'Orient School' });
+ *  double-i KISHTII/CHAMYAAA and BANII. Charyaa and Chamyaa are SEPARATE
+ *  mohallas (owner-confirmed 2026-11-11) — charyaa never folds to CHAMYAAA.
+ *  JABBIYAAA is the same mohalla as JABBIYAA (owner-confirmed 2026-11-11),
+ *  so it folds to JABBIYAA. The two "Orient School" spellings found in
+ *  stored customer areas fold to one "Orient School". Anything else keeps
+ *  its own key. */
+const MOHALLA_ALIASES = Object.freeze({ bani:'BANII', kishti:'KISHTII', chamyaa:'CHAMYAAA', jabbiyaaa:'JABBIYAA', 'orien school':'Orient School', 'orient scholl':'Orient School' });
 /** The spelling-variant map, exported for the mohalla seed item and any
  *  other grouping that must fold stored variants to one canonical name. */
 export { MOHALLA_ALIASES };
@@ -201,9 +203,10 @@ function stripMohallaPrefix(text) { const stripped=normalizedText(text).replace(
 export function canonicalMohalla(value) {
   const text=normalizedText(value); if(!text)return null;
   const stripped=stripMohallaPrefix(text),key=comparisonKey(stripped);
-  // Aliases win over the default list: CHARYAA is still a stored
-  // spelling, but it is the same mohalla as CHAMYAAA, so the alias
-  // fold must run before the default-list match finds CHARYAA.
+  // Aliases win over the default list: a stored spelling variant folds
+  // to its canonical mohalla before the default-list match runs.
+  // (Charyaa is NOT an alias: it is its own mohalla and matches the
+  // default list's CHARYAA entry directly, never CHAMYAAA.)
   const canonical=MOHALLA_ALIASES[key]??DEFAULT_MOHALLAS.find(name=>comparisonKey(stripMohallaPrefix(name))===key);
   if(canonical)return {key:comparisonKey(stripMohallaPrefix(canonical)),label:readableLabel(canonical),stored:canonical};
   return {key,label:readableLabel(stripped),stored:text};

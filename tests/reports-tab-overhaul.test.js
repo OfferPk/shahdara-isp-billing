@@ -286,7 +286,9 @@ test('buildMohallaAnalytics groups spelling variants and reports money per area'
     expenses: [],
   };
   const result = buildMohallaAnalytics(state, '2026-11', REF);
-  assert.deepEqual(result.areas.map((row) => row.key), ['unassigned', 'kishtii', 'chamyaaa']);
+  // Owner 5-part fix: Charyaa and Chamyaa are separate areas now,
+  // so 'Charyaa' and 'Chamyaa' land on their own rows.
+  assert.deepEqual(result.areas.map((row) => row.key), ['unassigned', 'kishtii', 'charyaa', 'chamyaaa']);
   const kishtii = result.areas.find((row) => row.key === 'kishtii');
   assert.equal(kishtii.label, 'Kishtii');
   assert.equal(kishtii.customers, 2);
@@ -298,8 +300,15 @@ test('buildMohallaAnalytics groups spelling variants and reports money per area'
   assert.equal(kishtii.collectionRate, 50);
   assert.equal(kishtii.popularPackage, '10 Mbps');
   assert.equal(kishtii.popularPackageCustomers, 2);
+  const charyaa = result.areas.find((row) => row.key === 'charyaa');
+  assert.equal(charyaa.label, 'Charyaa');
+  assert.equal(charyaa.customers, 1);
+  assert.equal(charyaa.billed, 1000);
+  assert.equal(charyaa.collected, 0);
   const chamyaaa = result.areas.find((row) => row.key === 'chamyaaa');
-  assert.equal(chamyaaa.customers, 2);
+  assert.equal(chamyaaa.customers, 1);
+  assert.equal(chamyaaa.billed, 1000);
+  assert.equal(chamyaaa.collected, 1000);
   assert.equal(chamyaaa.popularPackage, '5 Mbps');
   const unassigned = result.areas.find((row) => row.key === 'unassigned');
   assert.equal(unassigned.label, 'Unassigned / Not set');

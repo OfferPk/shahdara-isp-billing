@@ -308,7 +308,9 @@ export function collectorPerformanceHtml(view) {
     const label = isTotal ? 'Total' : row.collector;
     return `<tr${isTotal ? ' style="font-weight: bold;"' : ''}><td>${escapeHtml(label)}</td><td>${row.visitsPlanned}</td><td>${row.visitsDone}</td><td>${rateCell(row.visitCoverageRate)}</td><td>${row.firstAttemptCollections}</td><td>${rateCell(row.firstAttemptRate)}</td><td>${row.promisesMade}</td><td>${row.promisesKept}</td><td>${row.promisesBroken}</td><td>${row.promisesOpen}</td><td>Rs. ${row.cashCollected}</td><td>${row.paymentCount}</td></tr>`;
   }).join('');
-  return `<p>${escapeHtml(collectorPerformanceSummaryText(view))}</p><table class="data-table"><thead><tr><th>Collector</th><th>Planned</th><th>Done</th><th>Coverage</th><th>First-attempt collections</th><th>First-attempt rate</th><th>Promises made</th><th>Kept</th><th>Broken</th><th>Open</th><th>Cash collected</th><th>Payments</th></tr></thead><tbody>${rows}</tbody></table><p style="font-size: 12px;">Sources: route plan + visit outcomes for visits, promise register for promises, payment ledger for cash (voided payments skipped). No commission figure is shown here — commission rules are untouched.</p>`;
+  // Owner 5-part fix: the twelve-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side columns.
+  return `<p>${escapeHtml(collectorPerformanceSummaryText(view))}</p><div class="table-scroll"><table class="data-table"><thead><tr><th>Collector</th><th>Planned</th><th>Done</th><th>Coverage</th><th>First-attempt collections</th><th>First-attempt rate</th><th>Promises made</th><th>Kept</th><th>Broken</th><th>Open</th><th>Cash collected</th><th>Payments</th></tr></thead><tbody>${rows}</tbody></table></div><p style="font-size: 12px;">Sources: route plan + visit outcomes for visits, promise register for promises, payment ledger for cash (voided payments skipped). No commission figure is shown here — commission rules are untouched.</p>`;
 }
 
 export function collectorPerformanceCsv(view) {

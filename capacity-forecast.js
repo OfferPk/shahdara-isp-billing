@@ -197,7 +197,10 @@ export function capacityForecastHtml(forecast) {
     : '<p>No unit has reached the readiness threshold yet.</p>';
   const unitRows = units.map((u) => `<tr><td>${escapeHtml(u.label)}</td><td>${u.usedCount}</td><td>${u.freeCount === null ? 'Unknown (set total ports)' : u.freeCount}</td><td>${u.totalPorts === null ? '—' : u.totalPorts}</td><td>${u.usedPercent === null ? '—' : `${u.usedPercent}%`}</td><td>${u.customerCount}</td><td>${u.signal ? '⚠️ At threshold' : '—'}</td></tr>`).join('');
   const splitterRows = units.flatMap((u) => u.splitters.map((s) => `<tr><td>${escapeHtml(u.label)}</td><td>${escapeHtml(s.label)}</td><td>${s.customerCount}</td></tr>`)).join('');
-  return `<div class="capacity-forecast">${banner}<h4>Ports per unit — used versus free</h4><table><thead><tr><th>Unit</th><th>Used ports</th><th>Free ports</th><th>Total ports</th><th>Used</th><th>Customers</th><th>Signal</th></tr></thead><tbody>${unitRows || '<tr><td colspan="7">No connection records yet</td></tr>'}</tbody></table><h4>Customers per splitter segment</h4><table><thead><tr><th>Unit</th><th>Splitter</th><th>Customers</th></tr></thead><tbody>${splitterRows || '<tr><td colspan="3">No connection records yet</td></tr>'}</tbody></table></div>`;
+  // Owner 5-part fix: the seven-column ports table scrolls inside its
+  // own card on a phone instead of clipping the right-side columns.
+  // (The narrow three-column splitter table fits and keeps no wrapper.)
+  return `<div class="capacity-forecast">${banner}<h4>Ports per unit — used versus free</h4><div class="table-scroll"><table><thead><tr><th>Unit</th><th>Used ports</th><th>Free ports</th><th>Total ports</th><th>Used</th><th>Customers</th><th>Signal</th></tr></thead><tbody>${unitRows || '<tr><td colspan="7">No connection records yet</td></tr>'}</tbody></table></div><h4>Customers per splitter segment</h4><table><thead><tr><th>Unit</th><th>Splitter</th><th>Customers</th></tr></thead><tbody>${splitterRows || '<tr><td colspan="3">No connection records yet</td></tr>'}</tbody></table></div>`;
 }
 
 export function capacityForecastCsv(forecast) {

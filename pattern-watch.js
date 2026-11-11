@@ -72,9 +72,13 @@ export function validPatternDate(value) {
 // Plan T canonical mohalla key: lowercased, leading "Mohalla "/"Area "
 // prefix stripped, so "Mohalla Bani" and "bani" group together. The
 // blank key is the unassigned group and is never dropped.
+// Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+// JABBIYAA, so it folds to the same key. Charyaa is its own mohalla
+// and never folds to Chamyaa.
 export function patternMohallaKey(value) {
   const text = cleanText(value).replace(/^(?:mohalla|area)\s+/i, '').trim().toLowerCase();
-  return text === '' ? '__unassigned__' : text;
+  if (text === '') return '__unassigned__';
+  return text === 'jabbiyaaa' ? 'jabbiyaa' : text;
 }
 
 export function normalizePatternEvent(raw) {

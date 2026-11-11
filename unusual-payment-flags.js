@@ -76,7 +76,10 @@ export function formatCents(cents) {
   if (!Number.isFinite(cents)) return '—';
   const sign = cents < 0 ? '-' : '';
   const abs = Math.abs(Math.round(cents));
-  return `${sign}Rs. ${(abs / 100).toFixed(2)}`;
+  // Owner 5-part fix: whole rupees print without decimals and with
+  // thousands grouping (Rs. 6,000, not Rs. 6000.00); a fractional
+  // amount keeps up to two decimals.
+  return `${sign}Rs. ${(abs / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 function isValidDate(value) {
@@ -92,9 +95,32 @@ function isValidDate(value) {
 
 // Mohalla key in the Plan T spirit: "Mohalla Bani", "bani" and
 // "  BANI " are the same mohalla; a blank mohalla is unassigned.
+// Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+// JABBIYAA, so it folds to the same key. Charyaa is its own mohalla
+// and never folds to Chamyaa.
 export function mohallaKey(value) {
   const raw = text(value).replace(/^mohalla\s+/i, '').replace(/\s+/g, ' ').toLowerCase();
-  return raw === '' ? '__unassigned__' : raw;
+  if (raw === '') return '__unassigned__';
+  return raw === 'jabbiyaaa' ? 'jabbiyaa' : raw;
+}
+
+// Display label in consistent Title Case, so a stored 'CHARYAA'
+// and a stored 'Charyaa' read the same; the folded JABBIYAAA
+// spelling reads as its canonical 'Jabbiyaa'.
+export function mohallaLabel(value) {
+  const raw = text(value).replace(/^mohalla\s+/i, '').trim();
+  if (!raw) return '';
+  if (mohallaKey(value) === 'jabbiyaa') return 'Jabbiyaa';
+  return raw.split(/\s+/).map((word) => {
+    const chars = Array.from(word);
+    if (!chars.length) return word;
+    // Same rule as phase3's readableLabel: a 2–3-letter all-caps
+    // word (an acronym or a short label such as 'X<Y') keeps its
+    // own casing instead of being forced to Title Case.
+    const letters = word.match(/\p{L}/gu) ?? [];
+    if (letters.length >= 2 && letters.length <= 3 && letters.every((letter) => letter === letter.toLocaleUpperCase('en-US'))) return word;
+    return chars[0].toLocaleUpperCase('en-US') + chars.slice(1).join('').toLocaleLowerCase('en-US');
+  }).join(' ');
 }
 
 function centsOf(row, centsField, rupeeField) {
@@ -300,8 +326,11 @@ export function removeCleared(list, paymentId) {
 export function flagsHtml(flags) {
   const list = Array.isArray(flags) ? flags : [];
   if (list.length === 0) return '<p style="font-size: 12px;">No unusual payments for review.</p>';
-  const rows = list.map((f) => `<tr><td>${escapeHtml(f.date)}</td><td>${escapeHtml(f.customerName || f.customerId)}</td><td>${escapeHtml(f.mohalla || '—')}</td><td>${formatCents(f.amountCents)}</td><td>${f.billId ? `${escapeHtml(f.billId)} (${formatCents(f.billAmountCents)})` : 'No bill linked'}</td><td>${f.reasons.map((r) => escapeHtml(UNUSUAL_FLAG_REASON_LABELS[r] || r)).join(', ')}</td><td>${escapeHtml(f.reasonText)}</td><td><button class="secondary-button btn-sm unusual-flag-clear-btn" type="button" data-payment-id="${escapeHtml(f.paymentId)}">Mark reviewed</button></td></tr>`).join('');
-  return `<table class="data-table"><thead><tr><th>Date</th><th>Customer</th><th>Mohalla</th><th>Payment</th><th>Bill</th><th>Rule</th><th>Why flagged</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+  const rows = list.map((f) => `<tr><td>${escapeHtml(f.date)}</td><td>${escapeHtml(f.customerName || f.customerId)}</td><td>${escapeHtml(mohallaLabel(f.mohalla) || '—')}</td><td>${formatCents(f.amountCents)}</td><td>${f.billId ? `${escapeHtml(f.billId)} (${formatCents(f.billAmountCents)})` : 'No bill linked'}</td><td>${f.reasons.map((r) => escapeHtml(UNUSUAL_FLAG_REASON_LABELS[r] || r)).join(', ')}</td><td>${escapeHtml(f.reasonText)}</td><td><button class="secondary-button btn-sm unusual-flag-clear-btn" type="button" data-payment-id="${escapeHtml(f.paymentId)}">Mark reviewed</button></td></tr>`).join('');
+  // Owner 5-part fix: the eight-column table scrolls inside its own
+  // card on a phone instead of crushing the rightmost column to a
+  // one-character strip (2026-10-19 payment list).
+  return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Customer</th><th>Mohalla</th><th>Payment</th><th>Bill</th><th>Rule</th><th>Why flagged</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 export function clearedHtml(list) {

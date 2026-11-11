@@ -110,13 +110,12 @@ test('no payment this month: lists exactly the customers with no payment recorde
   assert.equal(summary.month, MONTH);
   assert.equal(summary.customerCount, 9);
   assert.deepEqual(summary.customers, [
-    // Home Dashboard Part 4: stored 'CHARYAA' folds to the
-    // canonical 'Chamyaaa' label (alias map, phase3.js) — the
-    // fixture keeps the stored variant, the label is canonical.
-    { name: 'Quiet Cust A', mohalla: 'Chamyaaa', duesCents: 300000 },
+    // Owner 5-part fix: stored 'CHARYAA' is its own mohalla —
+    // the fixture keeps the stored variant, the label is 'Charyaa'.
+    { name: 'Quiet Cust A', mohalla: 'Charyaa', duesCents: 300000 },
     { name: 'Paisa Cust K', mohalla: 'Kishtii', duesCents: 150050 },
     { name: 'Quiet Cust B', mohalla: 'Gangall', duesCents: 150000 },
-    { name: 'Zero Pay Cust J', mohalla: 'Chamyaaa', duesCents: 120000 },
+    { name: 'Zero Pay Cust J', mohalla: 'Charyaa', duesCents: 120000 },
     { name: 'Voided Cust F', mohalla: 'Barrian', duesCents: 80000 },
     { name: 'Quiet Cust L & Sons', mohalla: 'Gangall', duesCents: 70000 },
     { name: 'Last Month Cust E', mohalla: 'Kishtii', duesCents: 60000 },
@@ -172,9 +171,9 @@ test('no payment this month render: PKR figures, line, and rows land in the view
   const html = els.nqpNoPaymentRows.innerHTML;
   assert.ok(html.includes('Quiet Cust A'), 'A row lands');
   assert.ok(html.includes('PKR 3,000'), 'A dues figure lands');
-  // Stored 'CHARYAA' renders under the canonical 'Chamyaaa'
-  // label (Part 4 alias fold).
-  assert.ok(html.includes('Chamyaaa'), 'A mohalla lands under the canonical label');
+  // Stored 'CHARYAA' renders under its own 'Charyaa' label
+  // (Owner 5-part fix — no fold into Chamyaaa).
+  assert.ok(html.includes('Charyaa'), 'A mohalla lands under its own label');
   assert.ok(html.includes('Paisa Cust K'), 'paisa row lands');
   assert.ok(html.includes('PKR 1,500.50'), 'paisa-exact dues keep their paisa');
   assert.ok(html.includes('Quiet Cust L &amp; Sons'), 'names are escaped');

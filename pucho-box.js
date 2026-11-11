@@ -74,6 +74,10 @@ const MOHALLA_ALIASES = {
   bani: 'BANII',
   kishti: 'KISHTII',
   chamyaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla and
+  // never folds to CHAMYAAA.
+  jabbiyaaa: 'JABBIYAA',
 };
 
 const TICKET_OPEN_STATUSES = ['open', 'assigned', 'in_progress'];
@@ -166,10 +170,25 @@ export function puchoMohallaKey(value) {
   return stripped.toUpperCase();
 }
 
-function puchoMohallaLabel(value) {
+export function puchoMohallaLabel(value) {
   const raw = text(value);
   if (!raw) return '';
-  return raw.replace(/^mohalla\s+/i, '').trim();
+  const stripped = raw.replace(/^mohalla\s+/i, '').trim();
+  if (!stripped) return '';
+  // Display label in consistent Title Case, so a stored 'CHARYAA'
+  // and a stored 'Charyaa' read the same. The folded JABBIYAAA
+  // spelling reads as its canonical 'Jabbiyaa'.
+  if (puchoMohallaKey(value) === 'JABBIYAA') return 'Jabbiyaa';
+  return stripped.split(/\s+/).map((word) => {
+    const chars = Array.from(word);
+    if (!chars.length) return word;
+    // Same rule as phase3's readableLabel: a 2–3-letter all-caps
+    // word (an acronym or a short label such as 'X<Y') keeps its
+    // own casing instead of being forced to Title Case.
+    const letters = word.match(/\p{L}/gu) ?? [];
+    if (letters.length >= 2 && letters.length <= 3 && letters.every((letter) => letter === letter.toLocaleUpperCase('en-US'))) return word;
+    return chars[0].toLocaleUpperCase('en-US') + chars.slice(1).join('').toLocaleLowerCase('en-US');
+  }).join(' ');
 }
 
 function waadaBand(overdueDays) {
@@ -754,9 +773,12 @@ export function puchoAnswerHtml(answer) {
     html += `<p>Key insights</p><ul>${answer.insights.map((line) => `<li>${escapeHtml(line)}</li>`).join('')}</ul>`;
   }
   if (!answer.empty && answer.rows.length) {
-    html += `<table class="pucho-answer-table"><thead><tr>${answer.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>`;
+    // Owner 5-part fix: the answer table scrolls inside its own card
+    // on a phone — the unified card's answer host is not a scrolling
+    // Body div, so a wide answer table would clip instead of scroll.
+    html += `<div class="table-scroll"><table class="pucho-answer-table"><thead><tr>${answer.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join('')}</tr></thead><tbody>`;
     html += answer.rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join('')}</tr>`).join('');
-    html += '</tbody></table>';
+    html += '</tbody></table></div>';
   }
   html += `<p><small>Source: ${escapeHtml(answer.sourceScreen)}</small></p>`;
   if (answer.actions.length) {
@@ -776,7 +798,16 @@ export function puchoHtml(result) {
 }
 
 export function puchoCatalogueHtml() {
-  return `<p>Supported questions — in mein se aik poochein (Roman Urdu ya simple English):</p><ul>${PUCHO_QUESTIONS.map((q) => `<li>${escapeHtml(q.title)}</li>`).join('')}</ul>`;
+  // Owner 5-part fix: the twelve supported questions are quick-action
+  // chips, not static bullets — tapping one runs it through the
+  // unified Owner Command & Pucho Center form, no typing needed.
+  // The chip shows the short English label; the full question title
+  // rides in data-pucho-question and is what the form asks.
+  const chips = PUCHO_QUESTIONS.map((q) => {
+    const short = q.title.split(' — ')[0];
+    return `<button class="secondary-button owner-suggestion-chip pucho-chip" type="button" data-pucho-question="${escapeHtml(q.title)}">${escapeHtml(short)}</button>`;
+  }).join('');
+  return `<p>Supported questions — in mein se aik poochein (Roman Urdu ya simple English):</p><div class="owner-suggestion-chips">${chips}</div>`;
 }
 
 export function morningQueueCsv(queue) {

@@ -68,7 +68,9 @@ test('payment inside tolerance never appears; just over tolerance is flagged wit
   assert.equal(flags[0].billId, 'B-1');
   assert.equal(flags[0].billAmountCents, 150000);
   assert.equal(flags[0].amountCents, 165001);
-  assert.match(flags[0].reasonText, /Rs\. 1650\.01 vs bill Rs\. 1500\.00/);
+  // Owner 5-part fix: whole rupees print without decimals, with
+  // thousands grouping (Rs. 1500.00 -> Rs. 1,500).
+  assert.match(flags[0].reasonText, /Rs\. 1,650\.01 vs bill Rs\. 1,500/);
 });
 
 test('payment far below the bill is flagged too', () => {
@@ -199,7 +201,9 @@ test('HTML escapes, CSV quotes, filename is stable', () => {
   assert.equal(flagsFilename(), 'unusual-payment-flags.csv');
   assert.ok(flagsHtml([]).includes('No unusual payments'));
   assert.equal(formatCents(null), '—');
-  assert.equal(formatCents(150000), 'Rs. 1500.00');
+  // Owner 5-part fix: whole rupees print without decimals, with
+  // thousands grouping (Rs. 3000.00 -> Rs. 3,000).
+  assert.equal(formatCents(150000), 'Rs. 1,500');
 });
 
 test('fence: the module creates nothing and writes no bill, payment, or balance field', () => {

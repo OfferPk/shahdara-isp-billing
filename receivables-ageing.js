@@ -147,13 +147,30 @@ export function ageingMohallaKey(raw) {
   const text = str(raw).trim().replace(/\s+/g, ' ');
   if (!text) return 'UNASSIGNED';
   const upper = text.toUpperCase();
-  return upper.startsWith('MOHALLA ') ? upper.slice('MOHALLA '.length) : upper;
+  const stripped = upper.startsWith('MOHALLA ') ? upper.slice('MOHALLA '.length) : upper;
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA, so it folds to the same key. Charyaa is its own
+  // mohalla and never folds to Chamyaa.
+  return stripped === 'JABBIYAAA' ? 'JABBIYAA' : stripped;
 }
 
 export function ageingMohallaLabel(raw) {
   const text = str(raw).trim().replace(/\s+/g, ' ');
   if (!text) return 'Unassigned';
-  return text;
+  // Owner 5-part fix: display label in consistent Title Case, so a
+  // stored 'CHARYAA' and a stored 'Charyaa' read the same; the folded
+  // JABBIYAAA spelling reads as its canonical 'Jabbiyaa'.
+  if (ageingMohallaKey(raw) === 'JABBIYAA') return 'Jabbiyaa';
+  return text.split(' ').map((word) => {
+    const chars = Array.from(word);
+    if (!chars.length) return word;
+    // Same rule as phase3's readableLabel: a 2–3-letter all-caps
+    // word (an acronym or a short label such as 'X<Y') keeps its
+    // own casing instead of being forced to Title Case.
+    const letters = word.match(/\p{L}/gu) ?? [];
+    if (letters.length >= 2 && letters.length <= 3 && letters.every((letter) => letter === letter.toLocaleUpperCase('en-US'))) return word;
+    return chars[0].toLocaleUpperCase('en-US') + chars.slice(1).join('').toLocaleLowerCase('en-US');
+  }).join(' ');
 }
 
 function compareEntries(a, b) {
@@ -362,7 +379,11 @@ export function ageingHtml(view) {
   return `<p>Receivables ageing by bill month, as of ${escapeHtml(view.asOfMonth)}. Bill age only — not promise age (Waada) and not days past the due date. Read-only: it changes no bill, total, or Waada record. Bill outstanding only; manual baqaya is not a bill and is not included here.</p>`
     + `<table><thead><tr><th>Age bucket</th><th>Meaning</th><th>Amount</th><th>Bills</th><th>Customers</th></tr></thead><tbody>${bucketRows}</tbody>`
     + `<tfoot><tr><td colspan="2">Total outstanding (bills)</td><td>${formatAmount(view.totalOutstanding)}</td><td>${view.billCount}</td><td>${view.customerCount}</td></tr></tfoot></table>`
-    + `<h4>Mohalla totals</h4><table><thead><tr><th>Mohalla</th><th>Total</th><th>Bills</th><th>Current</th><th>1 month</th><th>2 months</th><th>3+ months</th></tr></thead><tbody>${mohallaRows}</tbody></table>`
+    // Owner 5-part fix: the seven-column mohalla totals table scrolls
+    // inside its own card on a phone instead of clipping the
+    // right-side columns. (The narrow bucket and per-customer tables
+    // fit and keep no wrapper.)
+    + `<h4>Mohalla totals</h4><div class="table-scroll"><table><thead><tr><th>Mohalla</th><th>Total</th><th>Bills</th><th>Current</th><th>1 month</th><th>2 months</th><th>3+ months</th></tr></thead><tbody>${mohallaRows}</tbody></table></div>`
     + customerSections + unagedSection;
 }
 

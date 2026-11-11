@@ -19,6 +19,12 @@
 //     filled with a guessed figure. Totals then cover only the months
 //     that supplied a usable figure, and the summary text says so in
 //     plain words ("partial: covers N of 12 months").
+//   - A caller may instead supply live figures for an unfrozen month
+//     (Owner 5-part fix): the row carries live: true, the month is
+//     listed in liveMonths, and the summary text and table say so
+//     plainly ("Includes live/unfrozen months"). A live figure never
+//     rewrites a frozen month — a frozen snapshot always wins where
+//     one exists, and the live row is only the caller's fallback.
 //   - An unusable figure (blank, boolean, negative, non-finite, or a
 //     fractional customer count) contributes nothing to its total and
 //     is named in `unusable`, never silently zero-filled.
@@ -118,6 +124,9 @@ function normalizeMonthRow(raw, year) {
     churnRate: toRate(raw.churnRate),
     snapshotClosed: raw.snapshotClosed === true,
     snapshotCloseDate: text(raw.snapshotCloseDate) || null,
+    // Owner 5-part fix: live is a caller-supplied flag — the month's
+    // figures come from the live ledger, not a frozen snapshot.
+    live: raw.live === true,
     raw,
   };
 }
@@ -146,7 +155,7 @@ export function buildAnnualSummary({ year, months = [] } = {}) {
     const row = byMonth.get(month);
     if (!row) {
       return {
-        month, present: false, snapshotClosed: false,
+        month, present: false, snapshotClosed: false, live: false,
         collections: null, expenses: null, net: null,
         newCustomers: null, departed: null,
         customersStart: null, customersEnd: null,
@@ -166,6 +175,7 @@ export function buildAnnualSummary({ year, months = [] } = {}) {
       ? (row.customersStart + row.newCustomers - row.departed) - row.customersEnd : null;
     return {
       month, present: true, snapshotClosed: row.snapshotClosed,
+      live: row.live === true,
       collections: fromCents(row.collectionsCents),
       expenses: fromCents(row.expensesCents),
       net: fromCents(netCents),
@@ -205,6 +215,11 @@ export function buildAnnualSummary({ year, months = [] } = {}) {
 
   const missingMonths = rows.filter((row) => !row.present).map((row) => row.month);
   const snapshotMissingMonths = rows.filter((row) => !row.snapshotClosed).map((row) => row.month);
+  // Owner 5-part fix: months whose figures come from the live ledger
+  // (no frozen snapshot) are listed, so the text, table, and CSV can
+  // all say plainly which months are live. A frozen month never
+  // counts as live, even if a caller also sets the live flag.
+  const liveMonths = rows.filter((row) => row.present && row.live && !row.snapshotClosed).map((row) => row.month);
   const complete = missingMonths.length === 0 && snapshotMissingMonths.length === 0
     && unusable.length === 0;
   const monthsCovered = rows.filter((row) => row.present).length;
@@ -230,6 +245,7 @@ export function buildAnnualSummary({ year, months = [] } = {}) {
     monthsCovered,
     missingMonths,
     snapshotMissingMonths,
+    liveMonths,
     unusable,
     ignored,
     basis: 'Annual figures are the sum of the twelve monthly figures supplied by the caller ' +
@@ -264,6 +280,11 @@ export function annualSummaryText(view) {
   } else {
     lines.push('Complete: all twelve months supplied with frozen snapshots.');
   }
+  // Owner 5-part fix: say plainly which months are live, so a year
+  // total built from live figures is never mistaken for frozen ones.
+  if (view.liveMonths && view.liveMonths.length) {
+    lines.push(`Includes live/unfrozen months: ${view.liveMonths.join(', ')} — figures for those months come from the live ledger, not a frozen snapshot.`);
+  }
   return lines.join(' ');
 }
 
@@ -278,10 +299,15 @@ export function annualSummaryHtml(view) {
     `<td>${num(row.newCustomers)}</td><td>${num(row.departed)}</td>` +
     `<td>${num(row.customersStart)} → ${num(row.customersEnd)}</td>` +
     `<td>${pct(row.churnRatePercent)}</td>` +
-    `<td>${row.snapshotClosed ? 'Frozen' : 'No snapshot'}</td>` +
+    `<td>${row.snapshotClosed ? 'Frozen' : row.live ? 'Live' : 'No snapshot'}</td>` +
     `<td>${row.reconciles === null ? '—' : row.reconciles ? 'Yes' : `No (${row.difference})`}</td></tr>`).join('');
-  return `<p style="font-size: 12px;">${escapeHtml(annualSummaryText(view))}</p>` +
-    '<table style="font-size: 12px; border-collapse: collapse;"><thead><tr>' +
+  // Owner 5-part fix: a live badge names the fallback where the owner
+  // reads it, and the ten-column table scrolls inside its own card
+  // on a phone instead of clipping the right-side columns.
+  const liveBadge = view.liveMonths && view.liveMonths.length
+    ? `<p style="font-size: 12px;"><span class="local-only-badge">Includes live/unfrozen months</span></p>` : '';
+  return `<p style="font-size: 12px;">${escapeHtml(annualSummaryText(view))}</p>` + liveBadge +
+    '<div class="table-scroll"><table style="font-size: 12px; border-collapse: collapse;"><thead><tr>' +
     '<th>Month</th><th>Collections</th><th>Expenses</th><th>Net</th><th>New</th><th>Departed</th>' +
     '<th>Customers start → end</th><th>Churn</th><th>Snapshot</th><th>Reconciles</th></tr></thead>' +
     `<tbody>${body}</tbody><tfoot><tr><td><strong>Year ${escapeHtml(view.year)}</strong></td>` +
@@ -292,27 +318,27 @@ export function annualSummaryHtml(view) {
     `<td><strong>${num(view.yearStart)} → ${num(view.yearEnd)}</strong></td>` +
     `<td><strong>${pct(view.annualChurnRatePercent)}</strong></td><td></td>` +
     `<td><strong>${view.reconciles === null ? '—' : view.reconciles ? 'Yes' : `No (${view.difference})`}</strong></td>` +
-    '</tr></tfoot></table>';
+    '</tr></tfoot></table></div>';
 }
 
 /** CSV export for one annual view: one row per month plus a year total row. */
 export function annualSummaryCsv(view) {
   if (!view) return '';
   const lines = [
-    ['Month', 'Collections', 'Expenses', 'Net', 'New', 'Departed', 'Customers start', 'Customers end', 'Churn %', 'Snapshot frozen', 'Reconciles'].map(csvCell).join(','),
+    ['Month', 'Collections', 'Expenses', 'Net', 'New', 'Departed', 'Customers start', 'Customers end', 'Churn %', 'Snapshot frozen', 'Live', 'Reconciles'].map(csvCell).join(','),
   ];
   for (const row of view.months) {
     lines.push([
       row.month, row.collections ?? '', row.expenses ?? '', row.net ?? '',
       row.newCustomers ?? '', row.departed ?? '', row.customersStart ?? '', row.customersEnd ?? '',
-      row.churnRatePercent ?? '', row.snapshotClosed ? 'yes' : 'no',
+      row.churnRatePercent ?? '', row.snapshotClosed ? 'yes' : 'no', row.live ? 'yes' : 'no',
       row.reconciles === null ? '' : row.reconciles ? 'yes' : 'no',
     ].map(csvCell).join(','));
   }
   lines.push([
     `Year ${view.year}`, view.collectionsTotal ?? '', view.expensesTotal ?? '', view.netTotal ?? '',
     view.newTotal, view.departedTotal, view.yearStart ?? '', view.yearEnd ?? '',
-    view.annualChurnRatePercent ?? '', '', view.reconciles === null ? '' : view.reconciles ? 'yes' : 'no',
+    view.annualChurnRatePercent ?? '', '', (view.liveMonths && view.liveMonths.length) ? 'yes' : 'no', view.reconciles === null ? '' : view.reconciles ? 'yes' : 'no',
   ].map(csvCell).join(','));
   return `${lines.join('\n')}\n`;
 }

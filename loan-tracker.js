@@ -48,6 +48,9 @@ const MOHALLA_ALIASES = {
   bani: 'BANII',
   kishti: 'KISHTII',
   chamyaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla.
+  jabbiyaaa: 'JABBIYAA',
 };
 
 function text(value) {
@@ -300,7 +303,9 @@ export function loanHtml(rows) {
       return `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(entry.customerName || entry.customerId)}</td><td>${escapeHtml(LOAN_DEVICE_TYPE_LABELS[entry.deviceType])}</td><td>${escapeHtml(entry.loanSerial)}</td><td>${escapeHtml(entry.dateIssued)}</td><td>${escapeHtml(entry.expectedReturnDate)}</td><td>${escapeHtml(LOAN_STATUS_LABELS[entry.status])}${extra}${original}</td></tr>`;
     })
     .join('');
-  return `<table><thead><tr><th>Loan</th><th>Customer</th><th>Device</th><th>Loan serial</th><th>Date issued</th><th>Return due</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>`;
+  // Owner 5-part fix: the seven-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side columns.
+  return `<div class="table-scroll"><table><thead><tr><th>Loan</th><th>Customer</th><th>Device</th><th>Loan serial</th><th>Date issued</th><th>Return due</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function loanCsv(rows) {

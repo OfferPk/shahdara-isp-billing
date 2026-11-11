@@ -109,7 +109,8 @@ test('a differing roll-forward shows the difference plainly', () => {
   assert.equal(row.reconciles, false);
   assert.equal(row.difference, 100);
   assert.equal(row.status, 'difference');
-  assert.match(rollForwardSummaryText(row), /differs by Rs\. 100\.00/);
+  // Owner 5-part fix: whole rupees print without decimals.
+  assert.match(rollForwardSummaryText(row), /differs by Rs\. 100/);
 });
 
 test('no reported closing means uncheckable, never forced', () => {
@@ -236,4 +237,37 @@ test('HTML escaping, CSV quoting, and filename', () => {
   const table = rollForwardTableHtml([row]);
   assert.ok(table.includes('Ahmed'));
   assert.equal(rollForwardTableHtml([]), '<p style="font-size: 12px;">No roll-forward rows for this month.</p>');
+});
+
+test('Owner 5-part fix: whole rupees print without decimals, with thousands grouping', () => {
+  const row = buildCustomerRollForward({
+    customerId: 'c1', customerName: 'Test Alpha', month: '2026-11', opening: 0,
+    charges: [{ sourceId: 'bill-2026-11', label: 'Bill Nov', amount: 3000 }],
+    payments: [{ sourceId: 'receipt-1', label: 'Cash receipt', amount: 1500 }],
+    concessions: [], reportedClosing: 1500,
+  });
+  const text = rollForwardSummaryText(row);
+  assert.ok(!text.includes('.00'), 'no .00 decimals on whole rupees');
+  assert.match(text, /opening Rs\. 0 \+ charges Rs\. 3,000 - payments Rs\. 1,500/);
+  const table = rollForwardTableHtml([row]);
+  assert.ok(table.includes('Rs. 3,000'), 'table cells group thousands');
+  assert.ok(!table.includes('.00'), 'table cells carry no .00 decimals');
+  // A fractional amount still keeps up to two decimals.
+  const frac = buildCustomerRollForward({
+    customerId: 'c2', customerName: 'Test Beta', month: '2026-11', opening: 0,
+    charges: [{ sourceId: 'bill-2026-11', label: 'Bill Nov', amount: 1500.5 }],
+    payments: [], concessions: [], reportedClosing: 1500.5,
+  });
+  assert.match(rollForwardSummaryText(frac), /Rs\. 1,500\.5/);
+});
+
+test('Owner 5-part fix: the roll-forward table wraps in a horizontal scroll container', () => {
+  const row = buildCustomerRollForward({
+    customerId: 'c1', customerName: 'Test Alpha', month: '2026-11', opening: 0,
+    charges: [{ sourceId: 'bill-2026-11', label: 'Bill Nov', amount: 3000 }],
+    payments: [], concessions: [], reportedClosing: 3000,
+  });
+  const table = rollForwardTableHtml([row]);
+  assert.ok(table.startsWith('<div class="table-scroll">'), 'table-scroll wrapper first');
+  assert.ok(table.includes('</table></div>'), 'table closes inside the wrapper');
 });

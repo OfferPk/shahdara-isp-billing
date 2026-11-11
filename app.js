@@ -336,7 +336,7 @@ import { BALANCE_REPLY_VARIANTS, normalizeBalanceReplyVariant, validBalanceReply
 import { PAYMENT_SLIP_VARIANTS, PAYMENT_SLIP_DEFAULT_COUNT, normalizePaymentSlipVariant, normalizePaymentSlipCount, validPaymentSlipDate, buildPaymentSlip, paymentSlipSentText, logPaymentSlipSent, findPaymentSlipSends, paymentSlipHtml } from './payment-slip.js';
 import { INFO_CARD_VARIANTS, normalizeInfoCardVariant, buildInfoCard, infoCardSentText, logInfoCardSent, findInfoCardSends, infoCardHtml } from './info-card.js';
 import { STATUS_REPLY_VARIANTS, normalizeStatusReplyVariant, buildStatusReply, statusReplySentText, logStatusReplySent, findStatusReplySends, statusReplyHtml } from './status-reply.js';
-import { answerPucho, buildMorningQueue, puchoHtml, puchoCatalogueHtml, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
+import { buildMorningQueue, morningQueueCsv, morningQueueFilename } from './pucho-box.js';
 import { CLOSE_STEPS, validCloseMonth, normalizeMonthCloseList, findMonthClose, blankMonthClose, tickCloseStep, waiveCloseStep, untickCloseStep, closeReadiness, closeMonth, reopenMonth, removeMonthClose, monthCloseSummaryText, monthCloseHtml, monthCloseCsv, monthCloseFilename } from './month-close.js';
 import { buildCustomerRollForward, buildRollForwardTotals, rollForwardSummaryText, rollForwardHtml, rollForwardTableHtml, rollForwardCsv, rollForwardFilename, validRollMonth } from './balance-rollforward.js';
 import { buildPrecloseSweep, precloseSweepSummaryText, precloseSweepHtml, precloseSweepCsv, precloseSweepFilename, validSweepMonth } from './preclose-sweep.js';
@@ -18078,7 +18078,6 @@ function renderAnalytics() {
   renderPaymentClaims();
   renderDisputeResolutions();
   renderDisputeLetters();
-  renderPuchoBox();
   renderMonthClose();
   renderRollForward();
   renderPrecloseSweep();
@@ -18713,11 +18712,22 @@ function renderChangeRequests() {
   }
   const mohallaEl = $('#changeRequestMohallaFilter');
   if (mohallaEl && document.activeElement !== mohallaEl) {
-    const areas = [...new Set(active.map((c) => (c.mohalla || c.area || '').trim()).filter(Boolean))].sort();
-    const current = mohallaEl.value;
-    mohallaEl.innerHTML = '<option value="">All mohallas</option><option value="__unassigned__">Unassigned</option>'
-      + areas.map((a) => `<option value="${escapeHtml(a)}">${escapeHtml(a)}</option>`).join('');
-    if (current) mohallaEl.value = current;
+    // Owner 5-part fix: the Filter mohalla dropdown lists each
+    // mohalla once, by its canonical label — a stored 'CHARYAA' and
+    // a stored 'Charyaa' share one 'Charyaa' option, and JABBIYAAA
+    // shares the 'Jabbiyaa' option. The option value is the canonical
+    // key, which the change-request filter already matches by key.
+    const seen = new Set();
+    const options = ['<option value="">All mohallas</option><option value="__unassigned__">Unassigned</option>'];
+    for (const c of active) {
+      const canon = canonicalMohalla(c.mohalla || c.area || '');
+      if (!canon || seen.has(canon.key)) continue;
+      seen.add(canon.key);
+      options.push(`<option value="${escapeHtml(canon.key)}">${escapeHtml(canon.label)}</option>`);
+    }
+    const keep = canonicalMohalla(mohallaEl.value ?? '')?.key ?? '';
+    mohallaEl.innerHTML = options.join('');
+    mohallaEl.value = keep;
   }
   const selectEl = $('#changeRequestSelect');
   if (selectEl && document.activeElement !== selectEl) {
@@ -20568,8 +20578,35 @@ function renderDisputeLetters() {
 // payment, Waada, ticket, or customer record is written here, and
 // every action button only reminds the operator to confirm the
 // action on its existing source screen.
+// Owner 5-part fix: the Pucho box no longer has its own section in
+// Analytics — its form merged into the unified "Owner Command &
+// Pucho Center" card in the Customers view. There is one input
+// (#ownerCommandInput) and one answer area (#ownerCommandAnswer),
+// both owned by the owner-center module (owner-ui.js), which renders
+// the catalogue chips and routes questions to the Pucho engine.
+// This function only binds the two controls that stay Pucho-owned:
+// the morning-queue button (fills the unified input with the
+// 'morning queue' question and runs it through the unified form)
+// and the morning-queue CSV export, plus the action-button reminder
+// on Pucho answers rendered into the unified answer area.
 let puchoBound = false;
-let puchoLastQuestion = '';
+function bindUnifiedCenterPucho() {
+  if (puchoBound) return;
+  puchoBound = true;
+  $('#puchoQueueBtn')?.addEventListener('click', () => {
+    const input = $('#ownerCommandInput');
+    if (input) input.value = 'morning queue';
+    $('#ownerCommandForm')?.requestSubmit();
+  });
+  $('#puchoQueueExportBtn')?.addEventListener('click', () => {
+    downloadCsvFile(morningQueueFilename(), morningQueueCsv(buildMorningQueue(puchoData())));
+  });
+  $('#ownerCommandAnswer')?.addEventListener('click', (event) => {
+    const button = event.target.closest?.('.pucho-action-btn');
+    if (!button) return;
+    toast(`"${button.dataset.puchoAction}" — asking changes nothing. Confirm this action on the ${button.dataset.puchoSource} screen first.`);
+  });
+}
 function puchoData() {
   const today = localDate();
   const allocations = calculatePaymentAllocations(state);
@@ -20605,47 +20642,14 @@ function puchoData() {
       disputeBills.push({ customerId: customer.id, customerName: nameOf(customer), mohalla: mohallaOf(customer), billId: bill.id, billMonth: bill.month, total: Math.round(balanceDue) });
     }
   }
-  const disputes = splitBillList(disputeBills, openDisputeCases(loadDisputeCases())).map((row) => ({ caseId: (row.caseIds ?? [])[0] ?? '', customerId: row.customerId, customerName: row.customerName, mohalla: row.mohalla, billId: row.billId, billMonth: row.billMonth, totalCents: row.totalCents, disputedCents: row.disputedCents, status: 'open' }));
+  // Owner 5-part fix: splitBillList returns { rows, summary }, not
+  // an array — the old `.map` on its result threw on EVERY Pucho
+  // question ("splitBillList(...).map is not a function"), so the
+  // Pucho box never answered at all; the chips exposed it because
+  // they run the engine on tap. The rows already carry caseIds,
+  // totalCents and disputedCents, which is what the mapping needs.
+  const disputes = splitBillList(disputeBills, openDisputeCases(loadDisputeCases())).rows.map((row) => ({ caseId: (row.caseIds ?? [])[0] ?? '', customerId: row.customerId, customerName: row.customerName, mohalla: row.mohalla, billId: row.billId, billMonth: row.billMonth, totalCents: row.totalCents, disputedCents: row.disputedCents, status: 'open' }));
   return { today, dues, expiries, waada, suspense, tickets, repeatFlags, atRisk, disputes, payments };
-}
-function renderPuchoBox() {
-  const bodyEl = $('#puchoAnswerBody');
-  if (!bodyEl) return;
-  const catalogueEl = $('#puchoCatalogue');
-  if (catalogueEl) catalogueEl.innerHTML = puchoCatalogueHtml();
-  if (puchoLastQuestion) {
-    bodyEl.innerHTML = puchoHtml(answerPucho(puchoLastQuestion, puchoData()));
-  } else {
-    bodyEl.innerHTML = '<p style="font-size: 12px;">Ask a question above, or open the morning queue.</p>';
-  }
-  if (!puchoBound) {
-    puchoBound = true;
-    $('#puchoAskBtn')?.addEventListener('click', () => {
-      puchoLastQuestion = $('#puchoQuestion')?.value ?? '';
-      renderPuchoBox();
-    });
-    $('#puchoQuestion')?.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        puchoLastQuestion = event.currentTarget.value;
-        renderPuchoBox();
-      }
-    });
-    $('#puchoQueueBtn')?.addEventListener('click', () => {
-      puchoLastQuestion = 'morning queue';
-      const input = $('#puchoQuestion');
-      if (input) input.value = 'morning queue';
-      renderPuchoBox();
-    });
-    $('#puchoQueueExportBtn')?.addEventListener('click', () => {
-      downloadCsvFile(morningQueueFilename(), morningQueueCsv(buildMorningQueue(puchoData())));
-    });
-    bodyEl.addEventListener('click', (event) => {
-      const button = event.target.closest?.('.pucho-action-btn');
-      if (!button) return;
-      toast(`"${button.dataset.puchoAction}" — asking changes nothing. Confirm this action on the ${button.dataset.puchoSource} screen first.`);
-    });
-  }
 }
 // Plan 67 (Plan 1-100) — Month-end close checklist. One ticked
 // record per month with the same six ordered steps; ticking,
@@ -20837,7 +20841,12 @@ function renderRollForward() {
       bodyEl.innerHTML = row ? rollForwardHtml(row) : '<p style="font-size: 12px;">No roll-forward row for this customer.</p>';
       if (summaryEl) summaryEl.textContent = row ? rollForwardSummaryText(row) : '';
     } else {
-      bodyEl.innerHTML = rollForwardTableHtml(rows);
+      // Owner 5-part fix: the table shows the canonical mohalla label,
+      // so a stored 'CHARYAA' and a stored 'Charyaa' read as one
+      // 'Charyaa' row (and JABBIYAAA reads as 'Jabbiyaa'). Stored rows
+      // are untouched — only the display is normalised.
+      const displayRows = rows.map((row) => ({ ...row, mohalla: canonicalMohalla(row.mohalla)?.label ?? row.mohalla }));
+      bodyEl.innerHTML = rollForwardTableHtml(displayRows);
       if (summaryEl) summaryEl.textContent = rollForwardSummaryText({ ...totals, month });
     }
   }
@@ -21122,6 +21131,51 @@ function renderMonthSnapshots() {
 // flagged incomplete, never estimated, and its money figures stay
 // unrecorded for that month; composing never changes any monthly pack
 // or live record.
+// Owner 5-part fix: a month with no frozen snapshot falls back to the
+// live ledger (flagged live: true) so the year never reads Rs. 0 while
+// real collections exist — frozen snapshots still win where they exist,
+// and a live month never rewrites a frozen month.
+function annualSummaryRowsForYear(year) {
+  const snapshots = loadMonthSnapshots();
+  const customers = churnSummaryCustomers();
+  const currentMonth = localDate().slice(0, 7);
+  return monthsOfYear(year).map((month) => {
+    const snap = findSnapshot(snapshots, month);
+    const churn = buildMonthlyChurnSummary({ month, customers, atRisk: [] });
+    const base = {
+      month,
+      newCustomers: churn ? churn.newCustomers : null,
+      departed: churn ? churn.departed : null,
+      customersStart: churn ? churn.start : null,
+      customersEnd: churn ? churn.end : null,
+      churnRate: churn ? churn.churnRate : null,
+    };
+    if (snap) {
+      return { ...base, collections: snap.collectionsCents / 100, expenses: snap.expensesCents / 100, snapshotClosed: true };
+    }
+    if (month <= currentMonth) {
+      // Live fallback, using the same figures (and the same usability
+      // gates) the snapshot-take code freezes: roll-forward payments
+      // for the month, plus that month's recorded expenses. A month
+      // whose payments or expenses are not all usable stays
+      // unrecorded rather than silently understated.
+      const rows = rollForwardRowsForMonth(month);
+      const paymentsUsable = rows.every((row) => typeof row.paymentsCents === 'number');
+      const monthExpenses = (state.expenses ?? []).filter((row) => typeof row.date === 'string' && row.date.slice(0, 7) === month);
+      const expensesUsable = monthExpenses.every((row) => typeof row.amount === 'number' && Number.isFinite(row.amount) && row.amount >= 0);
+      if (paymentsUsable && expensesUsable) {
+        return {
+          ...base,
+          collections: rows.reduce((total, row) => total + (row.paymentsCents ?? 0), 0) / 100,
+          expenses: monthExpenses.reduce((total, row) => total + row.amount, 0),
+          snapshotClosed: false,
+          live: true,
+        };
+      }
+    }
+    return { ...base, collections: null, expenses: null, snapshotClosed: false };
+  });
+}
 let annualSummaryBound = false;
 function renderAnnualSummary() {
   const bodyEl = $('#annualSummaryBody');
@@ -21129,24 +21183,7 @@ function renderAnnualSummary() {
   const yearEl = $('#annualSummaryYear');
   if (yearEl && !yearEl.value) yearEl.value = localDate().slice(0, 4);
   const year = yearEl?.value ?? localDate().slice(0, 4);
-  const snapshots = loadMonthSnapshots();
-  const customers = churnSummaryCustomers();
-  const rows = monthsOfYear(year).map((month) => {
-    const snap = findSnapshot(snapshots, month);
-    const churn = buildMonthlyChurnSummary({ month, customers, atRisk: [] });
-    return {
-      month,
-      collections: snap ? snap.collectionsCents / 100 : null,
-      expenses: snap ? snap.expensesCents / 100 : null,
-      newCustomers: churn ? churn.newCustomers : null,
-      departed: churn ? churn.departed : null,
-      customersStart: churn ? churn.start : null,
-      customersEnd: churn ? churn.end : null,
-      churnRate: churn ? churn.churnRate : null,
-      snapshotClosed: !!snap,
-    };
-  });
-  const view = buildAnnualSummary({ year, months: rows });
+  const view = buildAnnualSummary({ year, months: annualSummaryRowsForYear(year) });
   bodyEl.innerHTML = view ? annualSummaryHtml(view) : '<p style="font-size: 12px;">Pick a valid year to see the annual summary.</p>';
   const summaryEl = $('#annualSummarySummary');
   if (summaryEl) summaryEl.textContent = view ? annualSummaryText(view) : '';
@@ -21156,24 +21193,7 @@ function renderAnnualSummary() {
     $('#annualSummaryExportBtn')?.addEventListener('click', () => {
       const currentYear = $('#annualSummaryYear')?.value ?? localDate().slice(0, 4);
       if (!validAnnualYear(currentYear)) { toast('Pick a valid year first.'); return; }
-      const currentSnapshots = loadMonthSnapshots();
-      const currentCustomers = churnSummaryCustomers();
-      const currentRows = monthsOfYear(currentYear).map((month) => {
-        const snap = findSnapshot(currentSnapshots, month);
-        const churn = buildMonthlyChurnSummary({ month, customers: currentCustomers, atRisk: [] });
-        return {
-          month,
-          collections: snap ? snap.collectionsCents / 100 : null,
-          expenses: snap ? snap.expensesCents / 100 : null,
-          newCustomers: churn ? churn.newCustomers : null,
-          departed: churn ? churn.departed : null,
-          customersStart: churn ? churn.start : null,
-          customersEnd: churn ? churn.end : null,
-          churnRate: churn ? churn.churnRate : null,
-          snapshotClosed: !!snap,
-        };
-      });
-      const current = buildAnnualSummary({ year: currentYear, months: currentRows });
+      const current = buildAnnualSummary({ year: currentYear, months: annualSummaryRowsForYear(currentYear) });
       if (current) downloadCsvFile(annualSummaryFilename(current.year), annualSummaryCsv(current));
     });
   }
@@ -21481,7 +21501,7 @@ function renderLoanTracker() {
   if (overdueEl) {
     overdueEl.innerHTML = overdue.length === 0
       ? '<p class="empty-state">No overdue loans.</p>'
-      : `<table><thead><tr><th>Loan</th><th>Customer</th><th>Return due</th><th>Days overdue</th></tr></thead><tbody>${overdue.map((entry) => `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(names[entry.customerId] || entry.customerId)}</td><td>${escapeHtml(entry.expectedReturnDate)}</td><td>${escapeHtml(entry.daysOverdue)}</td></tr>`).join('')}</tbody></table>`;
+      : `<div class="table-scroll"><table><thead><tr><th>Loan</th><th>Customer</th><th>Return due</th><th>Days overdue</th></tr></thead><tbody>${overdue.map((entry) => `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(names[entry.customerId] || entry.customerId)}</td><td>${escapeHtml(entry.expectedReturnDate)}</td><td>${escapeHtml(entry.daysOverdue)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   const customerEl = $('#loanCustomer');
   if (customerEl && document.activeElement !== customerEl) {
@@ -21786,7 +21806,7 @@ function renderRmaLog() {
     const awaiting = awaitingRmas(entries, today);
     awaitingEl.innerHTML = awaiting.length === 0
       ? '<p class="empty-state">No units with the supplier.</p>'
-      : `<table><thead><tr><th>Return</th><th>Serial</th><th>Supplier</th><th>Date sent</th><th>Days away</th></tr></thead><tbody>${awaiting.map((entry) => `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(entry.serial)}</td><td>${escapeHtml(entry.supplier)}</td><td>${escapeHtml(entry.dateSent ?? 'Not recorded')}</td><td>${entry.daysAway === null ? 'Not recorded' : escapeHtml(entry.daysAway)}</td></tr>`).join('')}</tbody></table>`;
+      : `<div class="table-scroll"><table><thead><tr><th>Return</th><th>Serial</th><th>Supplier</th><th>Date sent</th><th>Days away</th></tr></thead><tbody>${awaiting.map((entry) => `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(entry.serial)}</td><td>${escapeHtml(entry.supplier)}</td><td>${escapeHtml(entry.dateSent ?? 'Not recorded')}</td><td>${entry.daysAway === null ? 'Not recorded' : escapeHtml(entry.daysAway)}</td></tr>`).join('')}</tbody></table></div>`;
   }
   const selectEl = $('#rmaSelect');
   if (selectEl && document.activeElement !== selectEl) {
@@ -22729,15 +22749,22 @@ function renderUnusualPaymentFlags() {
     return { ...entry, customerName: entry.customerName || c?.name || c?.customerName || '' };
   }));
   if (mohallaEl && document.activeElement !== mohallaEl) {
+    // Owner 5-part fix: the Filter mohalla dropdown lists each
+    // mohalla once, by its canonical label — a stored 'CHARYAA' and
+    // a stored 'Charyaa' share one 'Charyaa' option, and JABBIYAAA
+    // shares the 'Jabbiyaa' option. The option value is the canonical
+    // key, which the flags filter already matches by key.
     const seen = new Set();
     const options = ['<option value="">All mohallas</option><option value="__unassigned__">Unassigned</option>'];
     for (const c of customers) {
-      const m = (c.mohalla || c.area || '').trim();
-      if (m && !seen.has(m)) { seen.add(m); options.push(`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`); }
+      const canon = canonicalMohalla(c.mohalla || c.area || '');
+      if (!canon || seen.has(canon.key)) continue;
+      seen.add(canon.key);
+      options.push(`<option value="${escapeHtml(canon.key)}">${escapeHtml(canon.label)}</option>`);
     }
-    const current = mohallaEl.value;
+    const keep = canonicalMohalla(mohallaEl.value ?? '')?.key ?? '';
     mohallaEl.innerHTML = options.join('');
-    mohallaEl.value = current;
+    mohallaEl.value = keep;
   }
   const settings = loadUnusualFlagSettings();
   for (const [elId, value] of [['unusualFlagTolerance', settings.tolerancePercent], ['unusualFlagNoBillThreshold', settings.noBillThresholdCents / 100], ['unusualFlagSameDay', settings.sameDayThreshold]]) {
@@ -22873,15 +22900,20 @@ function renderPatternWatch() {
   if (reviewedEl) reviewedEl.innerHTML = reviewedHtml(reviewed);
   const mohallaEl = $('#patternWatchMohalla');
   if (mohallaEl && document.activeElement !== mohallaEl) {
+    // Owner 5-part fix: the Filter mohalla dropdown lists each
+    // mohalla once, by its canonical label — same rule as the
+    // unusual-payments filter above.
     const seen = new Set();
     const options = ['<option value="">All mohallas</option><option value="__unassigned__">Unassigned</option>'];
     for (const c of customers) {
-      const m = (c.mohalla || c.area || '').trim();
-      if (m && !seen.has(m)) { seen.add(m); options.push(`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`); }
+      const canon = canonicalMohalla(c.mohalla || c.area || '');
+      if (!canon || seen.has(canon.key)) continue;
+      seen.add(canon.key);
+      options.push(`<option value="${escapeHtml(canon.key)}">${escapeHtml(canon.label)}</option>`);
     }
-    const current = mohallaEl.value;
+    const keep = canonicalMohalla(mohallaEl.value ?? '')?.key ?? '';
     mohallaEl.innerHTML = options.join('');
-    mohallaEl.value = current;
+    mohallaEl.value = keep;
   }
   for (const [elId, value] of [['patternWatchDayThreshold', settings.dayThreshold], ['patternWatchOperatorThreshold', settings.operatorThreshold], ['patternWatchCustomerThreshold', settings.customerThreshold]]) {
     const el = $(`#${elId}`);
@@ -23058,11 +23090,19 @@ function renderReceiptGapAudit() {
 // sets no status by itself and changes no ticket, billing, or
 // customer record; clearing a source record clears its board entry.
 function statusBoardSource() {
+  // Owner 5-part fix: the board's mohalla list is deduped by the
+  // canonical key, not the raw stored spelling — a stored 'CHARYAA'
+  // and a stored 'Charyaa' are one board row ('Charyaa'), and
+  // JABBIYAAA shares the 'Jabbiyaa' row. Distinct register entries
+  // (e.g. 'Barrian Owner', 'Dc House End Point') keep their own
+  // keys and stay separate rows; only spelling variants fold.
   const mohallas = [];
   const seen = new Set();
   for (const c of (state.customers ?? [])) {
-    const m = (c.mohalla || c.area || '').trim();
-    if (m && !seen.has(m)) { seen.add(m); mohallas.push(m); }
+    const canon = canonicalMohalla(c.mohalla || c.area || '');
+    if (!canon || seen.has(canon.key)) continue;
+    seen.add(canon.key);
+    mohallas.push(canon.stored);
   }
   return { mohallas, outages: loadOutageGrouping(), windows: loadMaintenanceWindows(), today: localDate() };
 }
@@ -23438,11 +23478,20 @@ function renderSuggestions() {
   if (dateInput && !dateInput.value) dateInput.value = localDate();
   const mohallaEl = $('#suggestionFilterMohalla');
   if (mohallaEl && document.activeElement !== mohallaEl) {
-    const picked = mohallaEl.value ?? '';
-    const mohallas = [...new Set(records.map((r) => r.mohalla).filter(Boolean))];
-    mohallaEl.innerHTML = '<option value="">All mohallas</option><option value="__unassigned__">No mohalla set</option>'
-      + mohallas.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
-    if (picked === '__unassigned__' || mohallas.includes(picked)) mohallaEl.value = picked;
+    // Owner 5-part fix: the Filter mohalla dropdown lists each
+    // mohalla once, by its canonical label (same rule as the other
+    // Filter mohalla dropdowns; the suggestion filter matches by key).
+    const seen = new Set();
+    const options = ['<option value="">All mohallas</option><option value="__unassigned__">No mohalla set</option>'];
+    for (const r of records) {
+      const canon = canonicalMohalla(r.mohalla || '');
+      if (!canon || seen.has(canon.key)) continue;
+      seen.add(canon.key);
+      options.push(`<option value="${escapeHtml(canon.key)}">${escapeHtml(canon.label)}</option>`);
+    }
+    const keep = canonicalMohalla(mohallaEl.value ?? '')?.key ?? '';
+    mohallaEl.innerHTML = options.join('');
+    mohallaEl.value = keep;
   }
   const pickEl = $('#suggestionPick');
   if (pickEl && document.activeElement !== pickEl) {
@@ -23564,11 +23613,20 @@ function renderPromoOffers() {
   }
   const mohallaEl = $('#promoFilterMohalla');
   if (mohallaEl && document.activeElement !== mohallaEl) {
-    const picked = mohallaEl.value ?? '';
-    const mohallas = [...new Set(records.flatMap((r) => r.mohallas))];
-    mohallaEl.innerHTML = '<option value="">All mohallas</option>'
-      + mohallas.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
-    if (mohallas.includes(picked)) mohallaEl.value = picked;
+    // Owner 5-part fix: the Filter mohalla dropdown lists each
+    // mohalla once, by its canonical label (same rule as the other
+    // Filter mohalla dropdowns; the promo filter matches by key).
+    const seen = new Set();
+    const options = ['<option value="">All mohallas</option>'];
+    for (const m of records.flatMap((r) => r.mohallas)) {
+      const canon = canonicalMohalla(m || '');
+      if (!canon || seen.has(canon.key)) continue;
+      seen.add(canon.key);
+      options.push(`<option value="${escapeHtml(canon.key)}">${escapeHtml(canon.label)}</option>`);
+    }
+    const keep = canonicalMohalla(mohallaEl.value ?? '')?.key ?? '';
+    mohallaEl.innerHTML = options.join('');
+    mohallaEl.value = keep;
   }
   const pickEl = $('#promoPick');
   if (pickEl && document.activeElement !== pickEl) {
@@ -23811,10 +23869,20 @@ function renderLoyaltyRecognition() {
   if (milestoneEl && document.activeElement !== milestoneEl) milestoneEl.value = String(milestone);
   const mohallaEl = $('#loyaltyRecognitionMohalla');
   if (mohallaEl && document.activeElement !== mohallaEl) {
-    const names = [...new Set(customers.map((c) => (c.mohalla || c.area || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const current = mohallaEl.value;
-    mohallaEl.innerHTML = '<option value="">All mohallas</option>' + names.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join('');
-    if (names.includes(current) || current === '') mohallaEl.value = current;
+    // Owner 5-part fix: the Filter mohalla dropdown lists each
+    // mohalla once, by its canonical label (same rule as the other
+    // Filter mohalla dropdowns; the recognition filter matches by key).
+    const seen = new Set();
+    const options = ['<option value="">All mohallas</option>'];
+    for (const c of customers) {
+      const canon = canonicalMohalla(c.mohalla || c.area || '');
+      if (!canon || seen.has(canon.key)) continue;
+      seen.add(canon.key);
+      options.push(`<option value="${escapeHtml(canon.key)}">${escapeHtml(canon.label)}</option>`);
+    }
+    const keep = canonicalMohalla(mohallaEl.value ?? '')?.key ?? '';
+    mohallaEl.innerHTML = options.join('');
+    mohallaEl.value = keep;
   }
   const customerOptions = customers.map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.customerName || c.id)}</option>`).join('')
     || '<option value="">No customers yet</option>';
@@ -41426,7 +41494,11 @@ $('#showHomeBudgetButton').addEventListener('click',()=>{switchView('homeBudget'
 $('#showLoansButton').addEventListener('click',()=>{switchView('loans');renderLoans();});
 $('#showWaTemplatesButton').addEventListener('click',()=>{switchView('waTemplates');renderWaTemplates();});
 renderPhase3();
-refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses,renderLoans}).refresh;
+refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses,renderLoans,puchoData}).refresh;
+// Owner 5-part fix: bind the unified card's Pucho-owned controls
+// (morning queue + its CSV export, and the action-button reminder
+// on Pucho answers) once at boot.
+bindUnifiedCenterPucho();
 
 // Phase 12 · Form draft auto-save and restoration
 customerDraftController = wireFormDraftAutosave($('#addCustomerForm'), 'addCustomerForm', {

@@ -192,3 +192,54 @@ test('HTML escapes a hostile month label', () => {
   const hostile = { ...view, months: view.months.map((row) => ({ ...row, month: '<script>' })) };
   assert.doesNotMatch(annualSummaryHtml(hostile), /<script>/);
 });
+
+test('Owner 5-part fix: live (unfrozen) months contribute real figures and are badged', () => {
+  // October has a frozen snapshot; November has none, so its figures
+  // come from the live ledger. The year is still incomplete — a live
+  // month is never silently treated as frozen.
+  const rows = [
+    { month: '2026-10', collections: 10000, expenses: 4000, newCustomers: 2, departed: 1, customersStart: 100, customersEnd: 101, churnRate: 0.01, snapshotClosed: true },
+    { month: '2026-11', collections: 5000, expenses: 2000, newCustomers: 1, departed: 0, customersStart: 101, customersEnd: 102, churnRate: 0, snapshotClosed: false, live: true },
+  ];
+  const view = buildAnnualSummary({ year: '2026', months: rows });
+  assert.equal(view.collectionsTotal, 15000);
+  assert.equal(view.expensesTotal, 6000);
+  assert.equal(view.netTotal, 9000);
+  assert.deepEqual(view.liveMonths, ['2026-11']);
+  assert.equal(view.complete, false);
+  assert.ok(view.snapshotMissingMonths.includes('2026-11'));
+  const text = annualSummaryText(view);
+  assert.match(text, /Includes live\/unfrozen months: 2026-11/);
+  assert.match(text, /live ledger, not a frozen snapshot/);
+  const html = annualSummaryHtml(view);
+  assert.ok(html.includes('Includes live/unfrozen months'), 'badge in the table');
+  assert.ok(html.includes('>Live<'), 'November shows Live in the Snapshot column');
+  assert.ok(html.includes('>Frozen<'), 'October still shows Frozen');
+  const csv = annualSummaryCsv(view);
+  assert.ok(csv.split('\n')[0].includes('Live'), 'CSV gains a Live column');
+  assert.ok(csv.includes('2026-11,5000,2000,3000,1,0,101,102,0,no,yes,yes'), 'November row is live, not frozen');
+});
+
+test('Owner 5-part fix: a frozen snapshot wins over a live flag in the Snapshot column', () => {
+  // The caller never sends both, but the module must not show a
+  // frozen month as Live anywhere — not in the column, not in the
+  // live-months list, badge, or text.
+  const rows = [
+    { month: '2026-10', collections: 10000, expenses: 4000, newCustomers: 2, departed: 1, customersStart: 100, customersEnd: 101, churnRate: 0.01, snapshotClosed: true, live: true },
+  ];
+  const view = buildAnnualSummary({ year: '2026', months: rows });
+  assert.deepEqual(view.liveMonths, []);
+  assert.ok(annualSummaryHtml(view).includes('>Frozen<'));
+  assert.ok(!annualSummaryHtml(view).includes('>Live<'));
+  assert.ok(!annualSummaryHtml(view).includes('Includes live/unfrozen months'));
+  assert.ok(!annualSummaryText(view).includes('Includes live/unfrozen months'));
+});
+
+test('Owner 5-part fix: a year with no snapshots and no live months still totals zero honestly', () => {
+  const view = buildAnnualSummary({ year: '2026', months: [] });
+  assert.equal(view.collectionsTotal, 0);
+  assert.equal(view.expensesTotal, 0);
+  assert.deepEqual(view.liveMonths, []);
+  assert.ok(!annualSummaryText(view).includes('Includes live/unfrozen months'));
+  assert.ok(!annualSummaryHtml(view).includes('Includes live/unfrozen months'));
+});

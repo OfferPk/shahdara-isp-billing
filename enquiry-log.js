@@ -97,6 +97,9 @@ const MOHALLA_ALIASES = {
   bani: 'BANII',
   kishti: 'KISHTII',
   chamyaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla.
+  jabbiyaaa: 'JABBIYAA',
 };
 
 function text(value) {
@@ -149,6 +152,26 @@ function enquiryMohallaLabel(value) {
   if (!raw) return '';
   const stripped = raw.replace(/^mohalla\s+/i, '').trim();
   return stripped;
+}
+
+// Owner 5-part fix: the mohalla cell reads in consistent Title Case,
+// so a stored 'CHARYAA' and a stored 'Charyaa' read the same; the
+// folded JABBIYAAA spelling reads as its canonical 'Jabbiyaa'.
+// (Stored values are untouched — only the display is normalised.)
+function displayMohalla(value) {
+  const raw = text(value);
+  if (!raw) return '';
+  if (enquiryMohallaKey(value) === 'JABBIYAA') return 'Jabbiyaa';
+  return raw.split(/\s+/).map((word) => {
+    const chars = Array.from(word);
+    if (!chars.length) return word;
+    // Same rule as phase3's readableLabel: a 2–3-letter all-caps
+    // word (an acronym or a short label such as 'X<Y') keeps its
+    // own casing instead of being forced to Title Case.
+    const letters = word.match(/\p{L}/gu) ?? [];
+    if (letters.length >= 2 && letters.length <= 3 && letters.every((letter) => letter === letter.toLocaleUpperCase('en-US'))) return word;
+    return chars[0].toLocaleUpperCase('en-US') + chars.slice(1).join('').toLocaleLowerCase('en-US');
+  }).join(' ');
 }
 
 function normalizeKey(value) {
@@ -326,9 +349,11 @@ export function enquiryHtml(list) {
   if (rows.length === 0) return '<p class="empty-state">No enquiries recorded yet.</p>';
   const body = rows.map((row) => {
     const link = enquiryLinkText(row);
-    return `<tr><td>${escapeHtml(row.id)}</td><td>${escapeHtml(row.customerName || row.customerId)}</td><td>${escapeHtml(row.date || 'No date')}</td><td>${escapeHtml(ENQUIRY_TYPE_LABELS[row.type])}</td><td>${escapeHtml(ENQUIRY_STATUS_LABELS[row.status])}</td><td>${escapeHtml(row.channel || 'Not recorded')}</td><td>${escapeHtml(row.question || '')}</td><td>${escapeHtml(row.replyDraft === 'none' ? 'No draft used' : ENQUIRY_REPLY_DRAFT_LABELS[row.replyDraft])}</td><td>${escapeHtml(link)}</td><td>${escapeHtml(row.mohalla || '')}</td></tr>`;
+    return `<tr><td>${escapeHtml(row.id)}</td><td>${escapeHtml(row.customerName || row.customerId)}</td><td>${escapeHtml(row.date || 'No date')}</td><td>${escapeHtml(ENQUIRY_TYPE_LABELS[row.type])}</td><td>${escapeHtml(ENQUIRY_STATUS_LABELS[row.status])}</td><td>${escapeHtml(row.channel || 'Not recorded')}</td><td>${escapeHtml(row.question || '')}</td><td>${escapeHtml(row.replyDraft === 'none' ? 'No draft used' : ENQUIRY_REPLY_DRAFT_LABELS[row.replyDraft])}</td><td>${escapeHtml(link)}</td><td>${escapeHtml(displayMohalla(row.mohalla))}</td></tr>`;
   }).join('');
-  return `<table class="data-table"><thead><tr><th>Id</th><th>Customer</th><th>Date</th><th>Type</th><th>Reply status</th><th>Channel</th><th>Question</th><th>Reply draft used</th><th>Linked record</th><th>Mohalla</th></tr></thead><tbody>${body}</tbody></table>`;
+  // Owner 5-part fix: the ten-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side controls.
+  return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Id</th><th>Customer</th><th>Date</th><th>Type</th><th>Reply status</th><th>Channel</th><th>Question</th><th>Reply draft used</th><th>Linked record</th><th>Mohalla</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function enquiryCsv(list) {

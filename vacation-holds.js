@@ -84,6 +84,9 @@ const MOHALLA_ALIASES = {
   kishtii: 'KISHTII',
   chamyaa: 'CHAMYAAA',
   chamyaaa: 'CHAMYAAA',
+  // Owner-confirmed 2026-11-11: JABBIYAAA is the same mohalla as
+  // JABBIYAA. Charyaa is NOT an alias — it is its own mohalla.
+  jabbiyaaa: 'JABBIYAA',
 };
 
 function text(value) {
@@ -367,7 +370,9 @@ export function buildHoldSummary(list) {
 
 function formatHoldAmount(cents) {
   if (cents === null || cents === undefined) return '—';
-  return `Rs. ${(cents / 100).toFixed(2)}`;
+  // Owner 5-part fix: whole rupees without decimals, with thousands
+  // grouping (Rs. 6,000, not Rs. 6000.00).
+  return `Rs. ${(cents / 100).toLocaleString('en-PK', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 export function holdSummaryText(summary) {
@@ -387,7 +392,9 @@ export function holdHtml(rows) {
       return `<tr><td>${escapeHtml(entry.id)}</td><td>${escapeHtml(entry.customerName || entry.customerId)}</td><td>${escapeHtml(entry.startDate)}</td><td>${escapeHtml(entry.expectedReturnDate)}</td><td>${escapeHtml(HOLD_REASON_LABELS[entry.reason])}</td><td>${escapeHtml(HOLD_TREATMENT_LABELS[entry.treatment])} (${escapeHtml(charge)})</td><td>${escapeHtml(HOLD_STATUS_LABELS[entry.status])}${returned}${request}</td></tr>`;
     })
     .join('');
-  return `<table><thead><tr><th>Hold</th><th>Customer</th><th>Start</th><th>Expected return</th><th>Reason</th><th>Billing treatment</th><th>Status</th></tr></thead><tbody>${body}</tbody></table>`;
+  // Owner 5-part fix: the seven-column table scrolls inside its own
+  // card on a phone instead of clipping the right-side columns.
+  return `<div class="table-scroll"><table><thead><tr><th>Hold</th><th>Customer</th><th>Start</th><th>Expected return</th><th>Reason</th><th>Billing treatment</th><th>Status</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function holdCsv(rows) {

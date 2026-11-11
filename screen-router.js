@@ -364,6 +364,12 @@ export function setupScreenRouter({ doc = document, win = window } = {}) {
     bills: 'billingReportsView',
     recovery: 'billingReportsView',
     alerts: 'billingReportsView',
+    // Owner 5-part fix: the unified "Owner Command & Pucho Center"
+    // card lives in the Customers view, so the Owner Assistant route
+    // shows that view — without this entry the route hid every view
+    // (including the card's own) and the card was unreachable from
+    // the More menu or #/assistant.
+    assistant: 'customersView',
     analytics: 'analyticsView',
     inventory: 'inventoryView',
     expenses: 'expensesView',

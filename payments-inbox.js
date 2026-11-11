@@ -27,8 +27,13 @@ import {
   deletePayment,
   findDuplicatePaymentReference,
   formatPKR,
-  calculatePaymentAllocations
+  calculatePaymentAllocations,
+  setPaymentWalletVerified
 } from './core.js';
+
+import { buildWalletReconciliation } from './wallet-reconciliation.js';
+
+import { loadSuspensePayments, unclaimedSuspense } from './suspense-payments.js';
 
 export const PAKISTAN_TIME_ZONE = 'Asia/Karachi';
 
@@ -430,6 +435,44 @@ export function recordInboxPayment({ state, txn, customerId, month, referenceDat
 }
 
 /**
+ * Builds the Inbox's wallet-review list: the same unverified digital
+ * payments the Digital Wallet Ledger shows for `month`, plus duplicate
+ * TIDs and unclaimed suspense entries — so they can be reviewed and
+ * verified here instead of only in the ledger modal.
+ *
+ * Pure function (no DOM, no storage reads except through its arguments).
+ *
+ * @param {Object} params
+ * @param {Array} params.customers state.customers (plain objects)
+ * @param {string} params.month 'YYYY-MM' (same basis as the dashboard
+ *   wallet card: payments matched by payment DATE)
+ * @param {Array} [params.settlements] SISP-1 shop settlement records
+ * @param {Array} [params.suspenseEntries] raw suspense register entries
+ * @returns {{ month: string, pending: Object[], duplicateGroups: Object[], unclaimed: Object[] }}
+ */
+export function buildInboxWalletReview({ customers = [], month, settlements = [], suspenseEntries = [] } = {}) {
+  const report = buildWalletReconciliation(customers, month, settlements);
+  // The reconciliation report does not carry the voided flag on its
+  // entries, and a voided payment must never be offered for
+  // verification — collect voided payment ids from the raw ledger and
+  // drop them from both the pending list and the duplicate groups.
+  const voidedIds = new Set();
+  for (const customer of (Array.isArray(customers) ? customers : [])) {
+    for (const bill of (Array.isArray(customer?.bills) ? customer.bills : [])) {
+      for (const payment of (Array.isArray(bill?.payments) ? bill.payments : [])) {
+        if (payment?.voided === true && payment.id) voidedIds.add(payment.id);
+      }
+    }
+  }
+  const pending = report.pendingVerification.filter((p) => !voidedIds.has(p.paymentId));
+  const duplicateGroups = report.duplicateGroups
+    .map((group) => ({ ...group, payments: group.payments.filter((p) => !voidedIds.has(p.paymentId)) }))
+    .filter((group) => group.payments.length >= 2);
+  const unclaimed = unclaimedSuspense(suspenseEntries);
+  return { month, pending, duplicateGroups, unclaimed };
+}
+
+/**
  * Controller class that manages the DOM lifecycle for #easypaisaView.
  */
 export class PaymentsInboxController {
@@ -567,7 +610,7 @@ export class PaymentsInboxController {
               <span aria-hidden="true">↻</span> Sync Sheet
             </button>
             <button type="button" id="easypaisaImportManualBtn" class="secondary-button">
-              <span aria-hidden="true">📋</span> Paste / CSV
+              <span aria-hidden="true">📋</span> Paste SMS / CSV
             </button>
             <button type="button" id="easypaisaSettingsBtn" class="secondary-button" title="Configure Sheet URL & Owner Number">
               <span aria-hidden="true">⚙</span> Settings
@@ -587,22 +630,29 @@ export class PaymentsInboxController {
             <div class="kpi-value">${formatPKR(totals.today.sent)}</div>
             <div class="kpi-sub">${totals.today.sentCount} outgoing transfer(s)</div>
           </div>
-          <div class="easypaisa-kpi-card">
+          <div class="easypaisa-kpi-card highlight-green">
             <div class="kpi-label">This Month Received</div>
             <div class="kpi-value">${formatPKR(totals.month.received)}</div>
             <div class="kpi-sub">${totals.month.receivedCount} incoming transfer(s)</div>
           </div>
-          <div class="easypaisa-kpi-card">
+          <div class="easypaisa-kpi-card highlight-blue">
             <div class="kpi-label">Inbox Status</div>
             <div class="kpi-value">${totals.total.unrecordedCount} Pending</div>
             <div class="kpi-sub">${totals.total.totalCount} total (${totals.total.needsReviewCount} review)</div>
           </div>
         </div>
 
-        <!-- Filter & Search Toolbar -->
+        <!-- Wallet review: the ledger's unverified digital payments,
+             duplicate TIDs and unclaimed suspense, reviewable here.
+             Rendered only when there is something to review. -->
+        ${this.renderWalletReview(state)}
+
+        <!-- Filter & Search Toolbar: hidden while the inbox itself is
+             empty — there is nothing to search or filter yet. -->
+        ${this.items.length === 0 ? '' : `
         <div class="easypaisa-filter-toolbar">
           <div class="filter-search-group">
-            <input type="search" id="easypaisaSearchInput" class="easypaisa-search-input" placeholder="Search Txn ID, customer, phone, or amount..." value="${escapeHtml(this.filters.query)}">
+            <input type="search" id="easypaisaSearchInput" class="easypaisa-search-input" placeholder="Search by TID, name, phone, or amount" value="${escapeHtml(this.filters.query)}">
           </div>
           <div class="filter-selects-group">
             <select id="easypaisaFilterDirection" class="table-filter-select">
@@ -625,7 +675,7 @@ export class PaymentsInboxController {
               ? '<button type="button" id="easypaisaClearFiltersBtn" class="secondary-button table-filter-clear">Clear</button>'
               : ''}
           </div>
-        </div>
+        </div>`}
 
         <!-- Transactions Container -->
         <div class="easypaisa-list-container">
@@ -690,6 +740,83 @@ export class PaymentsInboxController {
     `;
   }
 
+  /**
+   * Renders the wallet-review card: this month's unverified digital
+   * payments (from the live ledger, same basis as the Digital Wallet
+   * Ledger card), duplicate TIDs, and unclaimed suspense entries.
+   * Returns '' when there is nothing to review or no live state — the
+   * KPI cards already show the zero state, so an empty card would be
+   * noise. Verification reuses the ledger's own toggle
+   * (setPaymentWalletVerified) through the controller's commitState,
+   * exactly like the wallet ledger modal does.
+   *
+   * @param {Object|null} state Live CRM state, or null when unavailable.
+   * @returns {string} HTML for the wallet-review card, or ''.
+   */
+  renderWalletReview(state) {
+    if (!state || !Array.isArray(state.customers)) return '';
+    const month = dateKey(new Date()).slice(0, 7);
+    const review = buildInboxWalletReview({
+      customers: state.customers,
+      month,
+      suspenseEntries: loadSuspensePayments()
+    });
+    const { pending, duplicateGroups, unclaimed } = review;
+    if (pending.length === 0 && duplicateGroups.length === 0 && unclaimed.length === 0) return '';
+
+    const summaryBits = [];
+    if (pending.length > 0) summaryBits.push(`${pending.length} pending verification`);
+    if (duplicateGroups.length > 0) summaryBits.push(`${duplicateGroups.length} duplicate TID${duplicateGroups.length === 1 ? '' : 's'}`);
+    if (unclaimed.length > 0) summaryBits.push(`${unclaimed.length} unclaimed suspense`);
+    return `
+      <section class="easypaisa-wallet-review" aria-label="Wallet review">
+        <div class="wallet-review-heading">
+          <div>
+            <h3>Wallet review — ${escapeHtml(month)}</h3>
+            <p>${escapeHtml(summaryBits.join(' · '))} · from the ledger, not the inbox sync</p>
+          </div>
+          <button type="button" class="secondary-button wallet-review-open-ledger" data-open-wallet-ledger>Open ledger</button>
+        </div>
+        ${pending.length > 0 ? `
+        <div class="wallet-review-group">
+          <h4>Unverified digital payments</h4>
+          ${pending.map((p) => `
+          <article class="wallet-review-row">
+            <div class="wallet-review-main">
+              <strong>#${escapeHtml(String(p.customerNumber))} ${escapeHtml(p.customerName)}</strong>
+              <span>${escapeHtml(p.date)} · ${escapeHtml(p.method)}${p.transactionId ? ` · TID ${escapeHtml(p.transactionId)}` : ''}${p.senderLabel ? ` · ${escapeHtml(p.senderLabel)}` : ''}</span>
+            </div>
+            <strong class="wallet-review-amount">${escapeHtml(formatPKR(p.amount))}</strong>
+            <button type="button" class="secondary-button wallet-review-verify" data-wallet-toggle="${escapeHtml(p.customerId)}|${escapeHtml(p.billMonth)}|${escapeHtml(p.paymentId)}|verified">Mark verified ✓</button>
+          </article>`).join('')}
+        </div>` : ''}
+        ${duplicateGroups.length > 0 ? `
+        <div class="wallet-review-group">
+          <h4>Duplicate TIDs — check before re-logging</h4>
+          ${duplicateGroups.map((group) => `
+          <article class="wallet-review-dup">
+            <p><strong>⚠️ Duplicate TID ${escapeHtml(group.displayTid)}</strong></p>
+            <ul>${group.payments.map((p) => `<li>#${escapeHtml(String(p.customerNumber))} ${escapeHtml(p.customerName)} · ${escapeHtml(p.date)} · ${escapeHtml(formatPKR(p.amount))} · ${escapeHtml(p.method)}</li>`).join('')}</ul>
+            <p class="wallet-review-note">The same TID is logged more than once. Correct or delete the extra payment from the customer profile — do not log it again.</p>
+          </article>`).join('')}
+        </div>` : ''}
+        ${unclaimed.length > 0 ? `
+        <div class="wallet-review-group">
+          <h4>Unclaimed suspense transfers</h4>
+          ${unclaimed.map((entry) => `
+          <article class="wallet-review-row">
+            <div class="wallet-review-main">
+              <strong>${escapeHtml(entry.wallet || 'Wallet')} · ${escapeHtml(entry.suspenseId || '')}</strong>
+              <span>${escapeHtml(entry.date || '')}${entry.tid ? ` · TID ${escapeHtml(entry.tid)}` : ''}${entry.senderName ? ` · ${escapeHtml(entry.senderName)}` : ''}</span>
+            </div>
+            <strong class="wallet-review-amount">${escapeHtml(formatPKR(entry.amount))}</strong>
+            <button type="button" class="secondary-button" data-suspense-review>Review &amp; claim</button>
+          </article>`).join('')}
+        </div>` : ''}
+      </section>
+    `;
+  }
+
   renderEmptyState() {
     return `
       <div class="easypaisa-empty-state">
@@ -697,8 +824,7 @@ export class PaymentsInboxController {
         <h3>No Easypaisa transactions found</h3>
         <p>Sync your Google Sheet or paste an Easypaisa email to populate the inbox.</p>
         <div class="empty-actions">
-          <button type="button" class="primary-button" id="emptySyncBtn">Sync Sheet</button>
-          <button type="button" class="secondary-button" id="emptyPasteBtn">Paste Email / SMS</button>
+          <button type="button" class="secondary-button" id="emptyPasteBtn">Paste SMS / CSV</button>
         </div>
       </div>
     `;
@@ -816,8 +942,9 @@ export class PaymentsInboxController {
 
     // Delegated click handler
     this.container.addEventListener('click', async (e) => {
-      // Sync button
-      if (e.target.closest('#easypaisaSyncBtn, #emptySyncBtn')) {
+      // Sync button (the one toolbar copy — the header and empty-state
+      // copies were removed as duplicates).
+      if (e.target.closest('#easypaisaSyncBtn')) {
         this.syncSheet();
         return;
       }
@@ -845,6 +972,45 @@ export class PaymentsInboxController {
       // Manual Import Modal close
       if (e.target.closest('[data-close-import]')) {
         this.container.querySelector('#easypaisaImportModal')?.close();
+        return;
+      }
+
+      // Wallet review: verify one ledger payment (the ledger modal's
+      // own toggle, reused here through the controller's commitState).
+      const walletToggleBtn = e.target.closest('[data-wallet-toggle]');
+      if (walletToggleBtn) {
+        const [customerId, billMonth, paymentId, target] = walletToggleBtn.dataset.walletToggle.split('|');
+        const liveState = this.getState();
+        if (!liveState) {
+          this.notify('Unable to access live CRM state.', { type: 'error' });
+          return;
+        }
+        try {
+          const nextState = setPaymentWalletVerified(liveState, customerId, billMonth, paymentId, target === 'verified');
+          this.commitState(nextState);
+          this.render();
+          this.notify(target === 'verified' ? 'Marked verified in statement.' : 'Marked pending verification.');
+        } catch (err) {
+          this.notify(err.message, { type: 'error' });
+        }
+        return;
+      }
+
+      // Wallet review: open the Digital Wallet Ledger modal for the
+      // full breakdown (same entry point as the dashboard card).
+      if (e.target.closest('[data-open-wallet-ledger]')) {
+        const openBtn = document.getElementById('openWalletLedgerModalBtn');
+        if (openBtn) openBtn.click();
+        else this.notify('Wallet ledger is not available on this screen.', { type: 'info' });
+        return;
+      }
+
+      // Wallet review: open the Suspense Register to claim an
+      // unidentified transfer (the claim flow itself lives there).
+      if (e.target.closest('[data-suspense-review]')) {
+        const suspense = typeof window !== 'undefined' ? window.suspensePaymentsModalController : null;
+        if (suspense?.open) suspense.open();
+        else this.notify('Suspense register is not available on this screen.', { type: 'info' });
         return;
       }
 

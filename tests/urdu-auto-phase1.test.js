@@ -102,8 +102,11 @@ test('phase 1 dictionary: English pins are byte-identical to the pre-change stri
 test('phase 1 dictionary: interpolated keys keep their params in both languages', () => {
   assert.equal(t('cust_newcust_count', 'en', { count: 9 }), '9 new customers');
   assert.equal(t('cust_newcust_count', 'ur', { count: 9 }), '9 نئے گاہک');
-  assert.equal(t('cust_page_info', 'en', { page: 2, totalPages: 5, total: 98 }), 'Page 2 of 5 (98 total)');
-  assert.equal(t('cust_page_info', 'ur', { page: 2, totalPages: 5, total: 98 }), 'صفحہ 2 از 5 (98 کل)');
+  // Customers Directory Polish: the page info is the compact
+  // "1 / 7 (95)" form now (the verbose "Page 1 of 7 (95 total)" made
+  // the 48px single-row pagination impossible at 360px).
+  assert.equal(t('cust_page_info', 'en', { page: 2, totalPages: 5, total: 98 }), '2 / 5 (98)');
+  assert.equal(t('cust_page_info', 'ur', { page: 2, totalPages: 5, total: 98 }), 'صفحہ 2 / 5 (98 کل)');
   assert.equal(t('cust_newcust_joined', 'en', { month: '2026-10' }), 'joined 2026-10');
   assert.equal(t('cust_newcust_joined', 'ur', { month: '2026-10' }), '2026-10 کو شامل ہوئے');
   assert.equal(t('cust_table_empty_query_area', 'en', { query: 'Ali', area: 'Barrian' }), 'No customers matching "Ali" in Barrian.');

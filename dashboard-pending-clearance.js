@@ -120,4 +120,10 @@ export function renderDashboardPendingClearance(doc, summary) {
   if (lineEl) lineEl.textContent = pendingClearanceCountText(summary);
   const emptyEl = doc.getElementById('pclPendingEmpty');
   if (emptyEl) emptyEl.hidden = (summary.count ?? 0) > 0;
+  // Home Dashboard overhaul: a zero card hides itself — with
+  // nothing pending there is no clearance figure to show, so the
+  // whole section stays out of the Collect tab until a payment is
+  // actually waiting on clearance.
+  const sectionEl = doc.getElementById('pendingClearanceSection');
+  if (sectionEl) sectionEl.hidden = (summary.count ?? 0) === 0;
 }

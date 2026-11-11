@@ -289,7 +289,11 @@ export function vendorContractsHtml(contracts, renewalList) {
       + `<td>${row.noticeDueDate ? escapeHtml(row.noticeDueDate) : 'Not recorded'}</td>`
       + `<td>${row.noticeDue ? 'Notice due — act now' : 'Notice not yet due'}</td></tr>`).join('');
   return `<h4>Upcoming renewals</h4><table><thead><tr><th>Vendor</th><th>Service</th><th>Ends</th><th>Time left</th><th>Notice due by</th><th>Notice status</th></tr></thead><tbody>${renewalRows}</tbody></table>`
-    + `<h4>All contracts</h4><table><thead><tr><th>Vendor</th><th>Service</th><th>Contract dates</th><th>Agreed rate</th><th>Notice period</th><th>Renewal note</th><th>Earlier rates</th></tr></thead><tbody>${allRows}</tbody></table>`;
+    // Owner 5-part fix: the seven-column contracts table scrolls
+    // inside its own card on a phone instead of clipping the
+    // right-side columns. (The narrow renewals table fits and keeps
+    // no wrapper.)
+    + `<h4>All contracts</h4><div class="table-scroll"><table><thead><tr><th>Vendor</th><th>Service</th><th>Contract dates</th><th>Agreed rate</th><th>Notice period</th><th>Renewal note</th><th>Earlier rates</th></tr></thead><tbody>${allRows}</tbody></table></div>`;
 }
 
 export function vendorContractsCsv(contracts) {

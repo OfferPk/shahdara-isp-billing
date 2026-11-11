@@ -12701,6 +12701,11 @@ $('#additionalPendingForm').addEventListener('submit', event => {
     toast(t('addpend_saved'));
     renderDetail();
     renderCustomers();
+    // Dues Add-amount: the recovery list shows the baqaya-inclusive
+    // outstanding, so re-render the owner view too — otherwise a card
+    // edited from the recovery list would keep its old figure until
+    // the next view render.
+    refreshOwnerCenter();
   } catch (error) {
     toast(error.message, { type: 'error' });
   }
@@ -41625,7 +41630,7 @@ $('#showHomeBudgetButton').addEventListener('click',()=>{switchView('homeBudget'
 $('#showLoansButton').addEventListener('click',()=>{switchView('loans');renderLoans();});
 $('#showWaTemplatesButton').addEventListener('click',()=>{switchView('waTemplates');renderWaTemplates();});
 renderPhase3();
-refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses,renderLoans,puchoData}).refresh;
+refreshOwnerCenter = setupOwnerCenter({getState:()=>state,formatAmount,monthName,monthsForHistory,openCustomer:selectCustomer,openAdditionalPendingDialog,switchView,renderMonthlyReport,renderAnalytics,renderInventory,renderExpenses,renderLoans,puchoData}).refresh;
 // Owner 5-part fix: bind the unified card's Pucho-owned controls
 // (morning queue + its CSV export, and the action-button reminder
 // on Pucho answers) once at boot.

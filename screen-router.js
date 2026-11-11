@@ -26,7 +26,7 @@ import { t } from './nav.js?v=1.11.0';
 
 export const SCREENS = {
   customers: { view: 'customersView', tab: 'showCustomersButton', title: 'Customers', subtitle: 'Search, add and open customer ledgers', action: { label: '+ Add Customer', click: '#addCustomerButton' }, filters: { selector: '.customer-filter-panel', mobileOnly: false } },
-  transactions: { view: 'transactionsView', tab: 'showTransactionsButton', title: 'Transactions', subtitle: 'Every saved payment, newest first', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' }, filters: { selector: '.transaction-filters', mobileOnly: true } },
+  transactions: { view: 'transactionsView', tab: 'showTransactionsButton', title: 'Transactions', subtitle: 'Every saved payment, newest first', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
   reports: { view: 'billingReportsView', tab: 'showReportsButton', title: 'Monthly Report', subtitle: 'Bills, collections and dues for the month', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
   bills: { view: 'billingReportsView', title: 'Monthly Bills', subtitle: 'Generated bills, due dates and customer billing status', action: { label: '+ Add Payment', click: '#quickAddPaymentButton' } },
   recovery: { view: 'billingReportsView', title: 'Dues Recovery', subtitle: 'Smart recovery triage and WhatsApp reminders', anchor: '#duesRecoveryPanel', action: { label: 'Remind Pending', click: '#bulkReminderDispatchBtn' } },

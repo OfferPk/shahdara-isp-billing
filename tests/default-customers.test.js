@@ -178,7 +178,10 @@ test('import: marker and free flags survive a persist/readState round-trip', () 
   const loaded = readState(storage);
   assert.equal(loaded.customers.length, 6);
   assert.equal(loaded.customers.find((customer) => customer.name === 'Test Free Line').isFreeConnection, true);
-  assert.equal(loaded.customers.find((customer) => customer.name === 'Test Alpha' && customer.mohalla === 'CHARYAA').isFreeConnection, false);
+  // Home Dashboard Part 4: the roster's CHARYAA stores canonical
+  // as CHAMYAAA (alias fold on save), so the lookup uses the
+  // canonical spelling.
+  assert.equal(loaded.customers.find((customer) => customer.name === 'Test Alpha' && customer.mohalla === 'CHAMYAAA').isFreeConnection, false);
   assert.equal(loaded.settings.defaultCustomersImport.rosterVersion, DEFAULT_ROSTER_VERSION);
   assert.equal(applyDefaultCustomerRoster(loaded, REF_DATE, TEST_ROSTER), loaded);
 });

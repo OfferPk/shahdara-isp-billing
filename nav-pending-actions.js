@@ -37,7 +37,7 @@ import {
   formatPakistaniPhone,
   escapeHtml
 } from './nav-quick-profile.js';
-import { pendingReceiptForShare, pendingReceiptMonthLabel } from './pending-receipt-month.js';
+import { pendingReceiptForShare, pendingReceiptShortMonthLabel } from './pending-receipt-month.js';
 import { getOfflineSyncQueue } from './nav.js';
 
 export const COLLECTION_PROMISES_STORAGE_KEY = 'shahdara_collection_promises_v1';
@@ -602,6 +602,9 @@ export function updatePendingActionsBadges(summary) {
  * @param {Storage|object} [options.storage]
  * @param {Function} [options.onStateChange] - Called when state or storage updates
  * @param {Function} [options.toast] - Toast notification callback
+ * @param {Function} [options.onAddPhone] - Called with a customer id when
+ *   the operator taps '+ Add Phone' on a no-phone receipt card; the
+ *   modal is already closed by then and the host opens the profile.
  * @returns {Object} Controller instance
  */
 export function setupPendingActionsModal(options = {}) {
@@ -612,6 +615,7 @@ export function setupPendingActionsModal(options = {}) {
   const closeBtn = typeof document !== 'undefined' ? document.getElementById('closePendingActionsModalBtn') : null;
   const copyDigestBtn = typeof document !== 'undefined' ? document.getElementById('pendingActionsCopyDigestBtn') : null;
   const markAllSharedBtn = typeof document !== 'undefined' ? document.getElementById('pendingActionsMarkAllSharedBtn') : null;
+  const clearNoPhoneBtn = typeof document !== 'undefined' ? document.getElementById('pendingActionsClearNoPhoneBtn') : null;
   const schedulePromiseToggleBtn = typeof document !== 'undefined' ? document.getElementById('toggleSchedulePromiseFormBtn') : null;
   const promiseFormContainer = typeof document !== 'undefined' ? document.getElementById('pendingPromiseFormContainer') : null;
   const promiseForm = typeof document !== 'undefined' ? document.getElementById('pendingPromiseForm') : null;
@@ -681,20 +685,27 @@ export function setupPendingActionsModal(options = {}) {
       markAllSharedBtn.hidden = summary.counts.unsharedReceipts === 0;
     }
 
+    if (clearNoPhoneBtn) {
+      const noPhoneCount = summary.unsharedReceipts.filter(r => !String(r.customerPhone || '').trim()).length;
+      clearNoPhoneBtn.hidden = noPhoneCount === 0;
+    }
+
     if (!listContainer) return;
     listContainer.innerHTML = '';
 
     let itemsToRender = [];
 
-    if (activeTab === 'all' || activeTab === 'receipts') {
-      summary.unsharedReceipts.forEach(r => {
-        itemsToRender.push({ type: 'receipt', data: r });
-      });
-    }
-
+    // In 'All Pending' the time-sensitive promises pin to the very top,
+    // before the (much longer) unshared-receipts queue.
     if (activeTab === 'all' || activeTab === 'promises') {
       summary.promisesDue.forEach(p => {
         itemsToRender.push({ type: 'promise', data: p });
+      });
+    }
+
+    if (activeTab === 'all' || activeTab === 'receipts') {
+      summary.unsharedReceipts.forEach(r => {
+        itemsToRender.push({ type: 'receipt', data: r });
       });
     }
 
@@ -718,11 +729,15 @@ export function setupPendingActionsModal(options = {}) {
 
       if (item.type === 'receipt') {
         const r = item.data;
-        const phoneFormatted = r.customerPhone ? formatPakistaniPhone(r.customerPhone) : 'No phone saved';
-        // Polish 6 (A): the month the receipt is for, derived automatically
-        // (bill month first, payment date second) so the operator sees
-        // before sending exactly what the customer will receive.
-        const monthLabel = pendingReceiptMonthLabel(r);
+        const hasPhone = !!String(r.customerPhone || '').trim();
+        const phoneFormatted = hasPhone ? formatPakistaniPhone(r.customerPhone) : 'No phone saved';
+        // One combined metadata line (amount · method · short month ·
+        // phone) so the card stays short enough for 3–4 to show at once.
+        // The short month comes from the shared receipt-month derivation
+        // (bill month first, payment date second) — same source as the
+        // WhatsApp draft, so the card and the share never disagree.
+        const monthShort = pendingReceiptShortMonthLabel(r);
+        const metaLine = `Rs. ${Number(r.amount).toLocaleString()} • ${escapeHtml(r.method)}${monthShort ? ` • ${escapeHtml(monthShort)}` : ''} • 📞 ${escapeHtml(phoneFormatted)}`;
         card.innerHTML = `
           <div class="pending-card-header">
             <span class="pending-card-badge badge-receipt">📱 Unshared Receipt</span>
@@ -733,12 +748,7 @@ export function setupPendingActionsModal(options = {}) {
               <strong>${escapeHtml(r.customerName)}</strong>
               ${r.customerNumber ? `<span class="pending-cust-num">#${escapeHtml(r.customerNumber)}</span>` : ''}
             </div>
-            <div class="pending-card-meta">
-              <span>Amount: <strong>Rs. ${Number(r.amount).toLocaleString()}</strong></span>
-              <span>Method: <span class="method-tag">${escapeHtml(r.method)}</span></span>
-              <span>Phone: ${escapeHtml(phoneFormatted)}</span>
-              ${monthLabel ? `<span>Month: <strong>${escapeHtml(monthLabel)}</strong></span>` : ''}
-            </div>
+            <div class="pending-card-meta-line">${metaLine}${hasPhone ? '' : ` <button type="button" class="btn-secondary pending-add-phone-btn" data-customer-id="${escapeHtml(r.customerId)}">+ Add Phone</button>`}</div>
           </div>
           <div class="pending-card-actions">
             <button type="button" class="btn-primary pending-wa-btn" data-receipt-id="${escapeHtml(r.paymentId)}">
@@ -784,16 +794,26 @@ export function setupPendingActionsModal(options = {}) {
           });
         }
 
+        // Wire Add Phone button (no-phone receipts): close this modal and
+        // hand the customer to the host, which opens their profile.
+        const addPhoneBtn = card.querySelector('.pending-add-phone-btn');
+        if (addPhoneBtn) {
+          addPhoneBtn.addEventListener('click', () => {
+            closeModal();
+            if (typeof options.onAddPhone === 'function') options.onAddPhone(r.customerId);
+          });
+        }
+
       } else if (item.type === 'promise') {
         const p = item.data;
         const phoneFormatted = p.phone ? formatPakistaniPhone(p.phone) : 'No phone';
         const statusBadgeClass = p.isOverdue ? 'badge-alert' : 'badge-warning';
-        const statusBadgeText = p.isOverdue ? `⚠️ Overdue ${p.daysOverdue}d` : '📅 Due Today';
+        const dueText = p.isOverdue ? `Overdue ${p.daysOverdue}d` : 'Due today';
 
         card.innerHTML = `
           <div class="pending-card-header">
-            <span class="pending-card-badge ${statusBadgeClass}">${statusBadgeText}</span>
-            <span class="pending-card-date">Promised: ${escapeHtml(formatDisplayDate(p.promisedDate))}</span>
+            <span class="pending-card-badge ${statusBadgeClass}">🤝 Promise Due</span>
+            <span class="pending-card-date">Promised: ${escapeHtml(formatDisplayDate(p.promisedDate))} · ${escapeHtml(dueText)}</span>
           </div>
           <div class="pending-card-body">
             <div class="pending-card-title">
@@ -801,11 +821,8 @@ export function setupPendingActionsModal(options = {}) {
               ${p.customerNumber ? `<span class="pending-cust-num">#${escapeHtml(p.customerNumber)}</span>` : ''}
               ${p.area ? `<span class="pending-area-tag">${escapeHtml(p.area)}</span>` : ''}
             </div>
-            <div class="pending-card-meta">
-              <span>Promised: <strong>Rs. ${Number(p.promisedAmount).toLocaleString()}</strong></span>
-              <span>Balance: Rs. ${Number(p.currentBalance || 0).toLocaleString()}</span>
-              ${p.note ? `<div class="pending-promise-note">📝 "${escapeHtml(p.note)}"</div>` : ''}
-            </div>
+            <div class="pending-card-meta-line">Promised: <strong>Rs. ${Number(p.promisedAmount).toLocaleString()}</strong> • Balance: Rs. ${Number(p.currentBalance || 0).toLocaleString()}</div>
+            ${p.note ? `<div class="pending-promise-note">📝 "${escapeHtml(p.note)}"</div>` : ''}
           </div>
           <div class="pending-card-actions">
             <button type="button" class="btn-primary pending-collect-btn" data-customer-id="${escapeHtml(p.customerId)}">
@@ -963,6 +980,21 @@ export function setupPendingActionsModal(options = {}) {
       const summary = getPendingActionsSummary(state, { storage });
       const count = markAllReceiptsSharedInQueue(summary.unsharedReceipts, storage);
       toast(`Marked ${count} payment receipt(s) as shared`);
+      render();
+      if (typeof options.onStateChange === 'function') options.onStateChange();
+    });
+  }
+
+  // Clear No-Phone Receipts: unsendable receipts (no phone saved) clog
+  // the queue, so the operator can mark just that subset shared in one
+  // tap instead of opening each card.
+  if (clearNoPhoneBtn) {
+    clearNoPhoneBtn.addEventListener('click', () => {
+      const state = getState();
+      const summary = getPendingActionsSummary(state, { storage });
+      const noPhone = summary.unsharedReceipts.filter(r => !String(r.customerPhone || '').trim());
+      const count = markAllReceiptsSharedInQueue(noPhone, storage);
+      toast(`Marked ${count} no-phone receipt(s) as shared`);
       render();
       if (typeof options.onStateChange === 'function') options.onStateChange();
     });

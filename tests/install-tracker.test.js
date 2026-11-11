@@ -18,6 +18,7 @@ import {
   loadInstallRequests,
   markInstallRequestInstalled,
   monthOf,
+  openInstallRequests,
   requestsForMonth,
   resolveDelayReason,
   sanitizeInstallRequests,
@@ -284,4 +285,25 @@ test('backup: edited requests travel, deleted requests stay deleted after restor
   assert.equal(preview.canApply, true);
   assert.deepEqual(preview.installRequests.map((r) => r.id), ['IR-1']);
   assert.equal(preview.counts.installRequestsRestored, 1);
+});
+
+test('openInstallRequests: every request with no install date, oldest first across months, with days-so-far', () => {
+  // Home Dashboard overhaul: the Installation Tracker headline
+  // and the Zone Field Dispatch Board must read the SAME queue —
+  // the old month-only summary showed "No requests yet" while the
+  // board showed 2 pending. The open queue spans all months.
+  let requests = [];
+  requests = addInstallRequest(requests, request({ requesterName: 'Oldest', requestDate: '2026-09-15' }), { customers: CUSTOMERS });
+  requests = addInstallRequest(requests, request({ requesterName: 'Newer', requestDate: '2026-10-10' }), { customers: CUSTOMERS });
+  requests = addInstallRequest(requests, request({ requesterName: 'Done', requestDate: '2026-10-01' }), { customers: CUSTOMERS });
+  requests = markInstallRequestInstalled(requests, requests[2].id, { installDate: '2026-10-05' });
+  const open = openInstallRequests(requests, '2026-10-20');
+  assert.equal(open.length, 2, 'installed request is not open');
+  assert.equal(open[0].name, 'Oldest', 'oldest request first, across months');
+  assert.equal(open[0].requestDate, '2026-09-15');
+  assert.equal(open[0].daysSoFar, 35, 'Sept 15 to Oct 20 is 35 days');
+  assert.equal(open[1].name, 'Newer');
+  assert.equal(open[1].daysSoFar, 10);
+  assert.ok(!open.some((r) => r.name === 'Done'), 'installed request never appears');
+  assert.deepEqual(openInstallRequests([], '2026-10-20'), [], 'no requests, no open queue');
 });

@@ -60,6 +60,11 @@ const ACTION_LABELS = {
   // entry, so the monthly summary must label it too — otherwise
   // the summary would show the raw action value.
   field_visit: 'Field visit recorded',
+  // Mohalla Seed: the Clear All payment-records wipe leaves a
+  // payment_records_cleared audit entry, so the monthly summary
+  // must label it too — otherwise the summary would show the raw
+  // action value.
+  payment_records_cleared: 'Payment records cleared',
 };
 
 const KNOWN_ACTION_ORDER = [
@@ -76,6 +81,9 @@ const KNOWN_ACTION_ORDER = [
   // QC-8: the field_visit action sorts last, after the older
   // actions, in the monthly summary's known-action order.
   'field_visit',
+  // Mohalla Seed: the payment_records_cleared action sorts last,
+  // after field_visit, in the monthly summary's known-action order.
+  'payment_records_cleared',
 ];
 
 const NOT_RECORDED = 'Not recorded';

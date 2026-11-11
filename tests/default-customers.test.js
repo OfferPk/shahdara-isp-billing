@@ -238,3 +238,26 @@ test('free: a free customer never appears in top-defaulters or escalation output
   const normalStage = getEscalationStage(normalFixture, 3000, '2026-10-20');
   assert.equal(normalStage.stage, 'lock-due');
 });
+
+// ---------- nameUrdu passthrough (Mohalla Seed) ----------
+
+test('import: roster nameUrdu lands on the record verbatim; missing nameUrdu lands as empty', () => {
+  const roster = Object.freeze([
+    { name: 'Test Urdu Seed', mohalla: 'CHARYAA', nameUrdu: 'ٹیسٹ اردو' },
+    { name: 'Test No Urdu', mohalla: 'BARRIAN' }
+  ]);
+  const applied = applyDefaultCustomerRoster(blankState(), REF_DATE, roster);
+  assert.equal(applied.customers.length, 2);
+  const [withUrdu, blank] = applied.customers;
+  assert.equal(withUrdu.nameUrdu, 'ٹیسٹ اردو');
+  assert.equal(blank.nameUrdu, '');
+  // The planner's output shape is unchanged by the passthrough —
+  // the Urdu name is looked up per group at apply time, never planned.
+  assert.deepEqual(planDefaultCustomerAdditions([], roster), [
+    { name: 'Test Urdu Seed', mohalla: 'CHARYAA', free: false },
+    { name: 'Test No Urdu', mohalla: 'BARRIAN', free: false }
+  ]);
+  // And a second run still adds 0: the Urdu-carrying entries satisfy
+  // their groups exactly like blank ones.
+  assert.deepEqual(planDefaultCustomerAdditions(applied.customers, roster), []);
+});

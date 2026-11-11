@@ -126,14 +126,18 @@ test('monthly: money is PKR only, never another currency', () => {
   assert.ok(!html.includes('EUR'), 'no EUR code');
 });
 
-test('tile: the 5th tile lives inside #homePrimaryActions with the other four', () => {
+test('tile: the Installation tile lives inside #homePrimaryActions as the 4th of exactly 4 actions', () => {
   const region = indexHtml.slice(
     indexHtml.indexOf('id="homePrimaryActions"'),
     indexHtml.indexOf('id="homePrimaryActions"') + 6000,
   );
-  for (const id of ['quickActionReceivePayment', 'quickActionAddCustomer', 'homeActionDuesList', 'quickActionDailyClosing', 'quickActionInstallationDashboard']) {
-    assert.ok(region.includes(`id="${id}"`), `${id} must sit in the home primary actions region`);
+  // Home Dashboard overhaul: exactly 4 actions now — Receive
+  // Payment and Daily Closing are deleted (see qc11 pin).
+  for (const marker of ['data-shortcut="quick-collect"', 'id="quickActionAddCustomer"', 'id="homeActionDuesList"', 'id="quickActionInstallationDashboard"']) {
+    assert.ok(region.includes(marker), `${marker} must sit in the home primary actions region`);
   }
+  assert.ok(!region.includes('id="quickActionReceivePayment"'), 'Receive Payment tile is gone from the region');
+  assert.ok(!region.includes('id="quickActionDailyClosing"'), 'Daily Closing tile is gone from the region');
   const tile = region.slice(region.indexOf('id="quickActionInstallationDashboard"'), region.indexOf('id="quickActionInstallationDashboard"') + 1200);
   assert.ok(tile.includes('home-primary-btn quick-action-tile'), 'tile uses the shared tile classes');
   assert.ok(tile.includes('data-i18n="dash_tile_installation_title"'), 'tile title is i18n');

@@ -95,10 +95,15 @@ function resolveEntryPackage({ packageIdRaw = '', packageText = '', feeRaw = '' 
 
 /**
  * Normalize one raw roster row (from JSON or CSV) into an import entry
- * { name, mohalla, free, phone, package } — or a skip with the reason.
+ * { name, mohalla, free, phone, package, nameUrdu } — or a skip with the reason.
  * Phone, when present, must be a real Pakistani mobile (the SISP-53
  * wizard treats a bad phone as a never-import row too); it is stored in
  * the canonical +92 form that wizard established.
+ * nameUrdu is the owner's REVIEWED Urdu spelling from his seed draft —
+ * never transliterator output. It is trimmed here; core addCustomer
+ * enforces the same 100-character cap (cleanText, 'Urdu name') and a
+ * row over the cap lands in `failed` via importPrivateRoster, never
+ * silently truncated and never crashing the import.
  */
 function normalizeRosterRow(raw, ref) {
   const nameCheck = validateCustomerName(typeof raw?.name === 'string' ? raw.name : (raw?.name ?? ''));
@@ -119,7 +124,8 @@ function normalizeRosterRow(raw, ref) {
       mohalla: tidy(raw.mohalla),
       free: truthyFree(raw.free),
       phone,
-      package: pkg.entry
+      package: pkg.entry,
+      nameUrdu: tidy(raw.nameUrdu)
     }
   };
 }
@@ -136,7 +142,7 @@ const pickField = (obj, keys) => {
  * or an object carrying the list under `roster` / `customers` /
  * `entries`. Entry keys are forgiving (name/customerName/naam,
  * mohalla/area, phone/mobile, package/packageId, fee/amount,
- * free/isFreeConnection). Never throws: an unreadable document returns
+ * free/isFreeConnection, nameUrdu/urduName). Never throws: an unreadable document returns
  * an `error` code and zero entries, so the caller imports nothing.
  * @returns {{ entries: Array, skipped: Array<{ref, reason}>, error: string|null }}
  */
@@ -168,6 +174,7 @@ export function parsePrivateRosterJson(text) {
       packageText: pickField(item, ['package', 'pkg', 'plan', 'speed']),
       packageIdRaw: pickField(item, ['packageId', 'package_id']),
       feeRaw: pickField(item, ['fee', 'amount', 'price', 'monthlyFee']),
+      nameUrdu: pickField(item, ['nameUrdu', 'urduName']),
       free: pickField(item, ['free', 'isFreeConnection', 'freeConnection'])
     }, ref);
     if (result.skip) skipped.push(result.skip);
@@ -182,6 +189,7 @@ const CSV_HEADER_KEYS = {
   phone: new Set(['phone', 'mobile', 'cell', 'contact', 'number', 'whatsapp', 'phoneno', 'mobileno', 'phonenumber', 'mobilenumber']),
   package: new Set(['package', 'pkg', 'speed', 'plan', 'mbps', 'packagespeed', 'internet', 'connection']),
   fee: new Set(['fee', 'monthlyfee', 'amount', 'price', 'rs', 'pkr', 'bill', 'rate', 'monthly', 'charges']),
+  urdu: new Set(['urdu', 'nameurdu', 'urduname']),
   free: new Set(['free', 'isfreeconnection', 'freeconnection', 'isfree'])
 };
 const csvHeaderKeyOf = cell => {
@@ -226,7 +234,7 @@ export function parsePrivateRosterCsv(text) {
       const get = field => (mapping[field] === undefined ? '' : cells[mapping[field]] ?? '');
       raw = {
         name: get('name'), mohalla: get('mohalla'), phone: get('phone'),
-        packageText: get('package'), feeRaw: get('fee'), free: get('free')
+        packageText: get('package'), feeRaw: get('fee'), nameUrdu: get('urdu'), free: get('free')
       };
     } else {
       const [name = '', phone = '', packageText = '', feeRaw = '', mohalla = ''] = cells;
@@ -291,6 +299,7 @@ export function importPrivateRoster(state, entries, { referenceDate = new Date()
       next = addCustomer(next, entry.name, referenceDate, {
         phone: entry.phone || '',
         mohalla: entry.mohalla || '',
+        nameUrdu: entry.nameUrdu || '',
         allowDuplicateName: true,
         isFreeConnection: entry.free === true
       });

@@ -1,5 +1,6 @@
 import { calculatePaymentAllocations, monthsForHistory, summarizeCustomerReceipts, summarizeCustomerTenure } from './core.js';
-import { canonicalMohalla } from './phase3.js';
+import { canonicalMohalla, canonicalPackage } from './phase3.js';
+import { isVoidedPayment } from './payment-void-audit.js';
 
 const cents = value => Math.round(Number(value || 0) * 100);
 const amount = value => Number((value / 100).toFixed(2));
@@ -152,7 +153,7 @@ export function buildCustomerRankings(state,{type='highest-paying',month=monthFo
   for(const complaint of Array.isArray(complaints)?complaints:[]){const id=String(complaint?.customerId??'');if(id)complaintCounts.set(id,(complaintCounts.get(id)??0)+1);}
   for(const customer of state.customers){
     const areaValue=customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded',packageValue=customer.packageSpeed?.trim()||'Package not set';
-    if(area!=='all'){const targetKey=canonicalMohalla(area)?.key??area.trim().toLowerCase();const valueKey=canonicalMohalla(customer.mohalla?.trim()||'')?.key??(customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded').toLowerCase();if(valueKey!==targetKey)continue;}if(packageName!=='all'&&packageValue!==packageName)continue;
+    if(area!=='all'){const targetKey=canonicalMohalla(area)?.key??area.trim().toLowerCase();const valueKey=canonicalMohalla(customer.mohalla?.trim()||'')?.key??(customer.mohalla?.trim()||customer.zone?.trim()||'Area not recorded').toLowerCase();if(valueKey!==targetKey)continue;}if(packageName!=='all'&&canonicalPackageLabel(packageValue)!==canonicalPackageLabel(packageName))continue;
     if(status==='archived'?!customer.archived:status!=='all'&&(customer.archived||(customer.serviceStatus??'not-set')!==status))continue;
     const behavior=buildCustomerPaymentBehavior(state,customer,referenceDate,allocations),bill=(customer.bills??[]).find(row=>row.month===selected);
     const lifetime=type==='lifetime-value'?buildCustomerLifetimeValue(state,customer,referenceDate):null;
@@ -665,12 +666,41 @@ function percentChange(from,to) {
   if(from===0)return to===0?0:null;
   return Number(((to-from)/Math.abs(from)*100).toFixed(1));
 }
+// One plain-language rendering for every percent-change display (compare
+// metrics, package rows, owner command): a zero base with a positive
+// current value is "New (+n)", and an extreme spike (|change| > 1000%,
+// which happens when the base is tiny) shows the absolute difference
+// instead of a meaningless percent. kind is 'count', 'money' or 'rate'.
+export function describePercentChange(change,kind='count') {
+  const from=change?.from,to=change?.to,percent=change?.percentChange;
+  const formatCount=value=>new Intl.NumberFormat('en-PK').format(value);
+  if(percent===null||percent===undefined){
+    if(from===0&&Number.isFinite(to)&&to>0){
+      const shown=kind==='money'?`PKR ${formatCount(to)}`:kind==='rate'?`${to}%`:formatCount(to);
+      return `New (+${shown})`;
+    }
+    return 'Not available';
+  }
+  if(Math.abs(percent)>1000){
+    const diff=Number.isFinite(change?.absoluteChange)?change.absoluteChange:(Number.isFinite(to)&&Number.isFinite(from)?to-from:null);
+    if(diff===null)return 'Not available';
+    const sign=diff>0?'+':diff<0?'-':'';
+    if(kind==='money')return `${sign}PKR ${formatCount(Math.abs(diff))}`;
+    if(kind==='rate')return `${sign}${Math.abs(diff)} pts`;
+    return `${sign}${formatCount(Math.abs(diff))}`;
+  }
+  return `${percent>0?'+':''}${percent}%`;
+}
+// Package labels arrive with inconsistent case/spacing ('10 mbps' vs
+// '10 Mbps', '5Mbps / 150GB' vs '5 Mbps / 150GB'); aggregations group by
+// the canonical label so one package is never split into several rows.
+const canonicalPackageLabel=name=>{const canon=name?canonicalPackage(name):null;return canon?canon.label:name;};
 function monthComparisonFacts(state,month,referenceDate,allocations) {
   const currentMonth=monthFor(referenceDate),snapshot=(state.monthlyClosings??[]).find(row=>row.month===month)??null;
   const billRows=state.customers.flatMap(customer=>(customer.bills??[]).filter(bill=>bill.month===month).map(bill=>({customer,bill})));
   const priced=billRows.filter(({bill})=>validPrice(bill.dueAmount));
   const billedCents=priced.reduce((sum,row)=>sum+cents(row.bill.dueAmount),0);
-  const collectionCents=state.customers.flatMap(customer=>(customer.bills??[]).flatMap(bill=>(bill.payments??[]).filter(payment=>payment.date?.slice(0,7)===month))).reduce((sum,payment)=>sum+cents(payment.amount),0);
+  const collectionCents=state.customers.flatMap(customer=>(customer.bills??[]).flatMap(bill=>(bill.payments??[]).filter(payment=>!isVoidedPayment(payment)&&payment.date?.slice(0,7)===month))).reduce((sum,payment)=>sum+cents(payment.amount),0);
   const expenseRows=(state.expenses??[]).filter(row=>row.date?.slice(0,7)===month);
   const expenseCents=expenseRows.reduce((sum,row)=>sum+cents(row.amount),0);
   const ledgerOutstanding=priced.reduce((sum,{customer,bill})=>sum+Math.max(0,allocations.forMonth(customer.id,month)?.balanceDueCents??cents(bill.dueAmount)),0);
@@ -681,21 +711,34 @@ function monthComparisonFacts(state,month,referenceDate,allocations) {
   const activeCustomers=snapshot?snapshot.activeCustomerCount:month===currentMonth?state.customers.filter(customer=>!customer.archived&&customer.serviceStatus==='active').length:null;
   const statusSource=snapshot?`saved close · captured ${snapshot.savedAt}`:month===currentMonth?`current manual status · as of ${dateFor(referenceDate)}`:'not captured historically';
   const packageDistribution={};
-  for(const {customer,bill} of billRows){const name=historicalPackageName(customer,bill,month,currentMonth);if(name)packageDistribution[name]=(packageDistribution[name]??0)+1;}
+  for(const {customer,bill} of billRows){const name=canonicalPackageLabel(historicalPackageName(customer,bill,month,currentMonth));if(name)packageDistribution[name]=(packageDistribution[name]??0)+1;}
   const unrecordedPackages=billRows.length-Object.values(packageDistribution).reduce((sum,value)=>sum+value,0);
+  // A saved month-close is frozen: its billed/collection/pending figures
+  // are already rupees and must be used as-is for that month, so Compare
+  // agrees with the Saved Closings card. The old code recomputed billed
+  // and collection live (so later edits/voids drifted the figures) and —
+  // the October bug — divided the snapshot's rupee pending by 100, showing
+  // PKR 10 for a PKR 1,000 close. Live figures are used only when no close
+  // exists, and the live collection now excludes voided payments, matching
+  // the close definition.
+  const billedAmount=snapshot?.billedAmount??amount(billedCents);
+  const collection=snapshot?.collection??amount(collectionCents);
+  const outstanding=snapshot?.pending??amount(ledgerOutstanding);
+  const expenses=snapshot?.expenses??amount(expenseCents);
+  const cashProfit=snapshot?.profit??amount(collectionCents-expenseCents);
   return{
     month,
-    billCount:billRows.length,
-    pricedBillCount:priced.length,
-    unpricedBillCount:billRows.length-priced.length,
-    billedAmount:amount(billedCents),
-    collection:amount(collectionCents),
-    collectionReceiptCount:state.customers.reduce((sum,customer)=>sum+(customer.bills??[]).reduce((n,bill)=>n+(bill.payments??[]).filter(payment=>payment.date?.slice(0,7)===month).length,0),0),
-    outstanding:amount(snapshot?snapshot.pending:ledgerOutstanding),
+    billCount:snapshot?.billCount??billRows.length,
+    pricedBillCount:snapshot?.pricedBillCount??priced.length,
+    unpricedBillCount:snapshot?.unpricedBillCount??billRows.length-priced.length,
+    billedAmount,
+    collection,
+    collectionReceiptCount:snapshot?.paymentCount??state.customers.reduce((sum,customer)=>sum+(customer.bills??[]).reduce((n,bill)=>n+(bill.payments??[]).filter(payment=>!isVoidedPayment(payment)&&payment.date?.slice(0,7)===month).length,0),0),
+    outstanding,
     outstandingSource:snapshot?`saved month-close snapshot captured ${snapshot.savedAt}`:`current ledger balance as of ${dateFor(referenceDate)}; later receipts may have changed this past month`,
-    expenses:amount(expenseCents),
+    expenses,
     expenseCount:expenseRows.length,
-    cashProfit:amount(collectionCents-expenseCents),
+    cashProfit,
     activeCustomers,
     activeCustomerSource:statusSource,
     offlineCustomers:snapshot?snapshot.offlineCustomerCount:month===currentMonth?state.customers.filter(customer=>!customer.archived&&customer.serviceStatus==='offline').length:null,
@@ -882,7 +925,7 @@ export function buildAreaBreakdowns(state, referenceDate = new Date(), allocatio
       const dueCents = cents(bill.dueAmount);
       const balanceCents = Math.max(0, allocations.forMonth(customer.id, bill.month)?.balanceDueCents ?? dueCents);
       const collectedCents = (bill.payments ?? []).filter((payment) => payment?.voided !== true).filter(payment => Number.isFinite(Number(payment.amount)) && Number(payment.amount) > 0).reduce((sum, payment) => sum + cents(payment.amount), 0);
-      const pkg = recordedPackageForMonth(customer, bill, bill.month) ?? 'Package not recorded';
+      const pkg = canonicalPackageLabel(recordedPackageForMonth(customer, bill, bill.month)) ?? 'Package not recorded';
       const overdue = /^\d{4}-\d{2}-\d{2}$/.test(bill.dueDate ?? '') && bill.dueDate < asOf && balanceCents > 0;
       for (const [map, key] of [[groups.area, area], [groups.zone, zone], [groups.package, pkg]]) {
         const group = ensure(map, key);
@@ -904,6 +947,55 @@ export function buildAreaBreakdowns(state, referenceDate = new Date(), allocatio
     asOf, currentMonth, pricedBillCount, unpricedBillCount, areas, zones, packages,
     totals: { billed: sum(areas, 'billed'), collected: sum(areas, 'collected'), outstanding: sum(areas, 'outstanding'), overdueBills: sum(areas, 'overdueBills') },
   };
+}
+
+// Part 4A — Area / Mohalla Analytics for the Monthly Report: money and
+// collection per NORMALIZED area for one bill month, using the same
+// canonicalMohalla map as the Areas breakdowns (Charyaa/Chamyaa fold
+// into Chamyaaa, Kishti into Kishtii). This is money/collection per
+// area — distinct from the coverage dashboard, which counts houses.
+// Only priced bills for the month count; a customer with no priced bill
+// that month adds nothing here. Collected and outstanding follow the
+// monthly report row exactly (payments on the bill; allocation balance
+// floored at zero), so the area figures sum to the report totals.
+export function buildMohallaAnalytics(state, month, referenceDate = new Date(), allocations = calculatePaymentAllocations(state)) {
+  const currentMonth = monthFor(referenceDate);
+  const groups = new Map();
+  const ensure = (key, label) => {
+    let group = groups.get(key);
+    if (!group) { group = { key, label, customers: new Set(), active: 0, offline: 0, billedCents: 0, collectedCents: 0, outstandingCents: 0, packageCounts: new Map() }; groups.set(key, group); }
+    return group;
+  };
+  for (const customer of state.customers ?? []) {
+    const bill = (customer.bills ?? []).find(row => row.month === month);
+    if (!bill || !validPrice(bill.dueAmount)) continue;
+    const raw = String(customer.area ?? customer.mohalla ?? '').trim();
+    const canon = raw ? canonicalMohalla(raw) : null;
+    const group = ensure(canon ? canon.key : 'unassigned', canon ? canon.label : 'Unassigned / Not set');
+    group.customers.add(customer.id);
+    const status = customer.archived ? 'archived' : (customer.serviceStatus ?? 'not-set');
+    if (status === 'active') group.active++;
+    else if (status === 'offline') group.offline++;
+    const dueCents = cents(bill.dueAmount);
+    const balanceCents = Math.max(0, allocations.forMonth(customer.id, month)?.balanceDueCents ?? dueCents);
+    const collectedCents = (bill.payments ?? []).filter(payment => payment?.voided !== true && Number.isFinite(Number(payment.amount)) && Number(payment.amount) > 0).reduce((sum, payment) => sum + cents(payment.amount), 0);
+    group.billedCents += dueCents;
+    group.collectedCents += collectedCents;
+    group.outstandingCents += balanceCents;
+    const pkg = canonicalPackageLabel(historicalPackageName(customer, bill, month, currentMonth)) ?? 'Package not recorded';
+    group.packageCounts.set(pkg, (group.packageCounts.get(pkg) ?? 0) + 1);
+  }
+  const areas = [...groups.values()].map(group => {
+    const popular = [...group.packageCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+    return {
+      key: group.key, label: group.label,
+      customers: group.customers.size, activeCustomers: group.active, offlineCustomers: group.offline,
+      billed: amount(group.billedCents), collected: amount(group.collectedCents), outstanding: amount(group.outstandingCents),
+      collectionRate: group.billedCents ? Number((group.collectedCents / group.billedCents * 100).toFixed(1)) : null,
+      popularPackage: popular ? popular[0] : null, popularPackageCustomers: popular ? popular[1] : 0,
+    };
+  }).sort((a, b) => b.outstanding - a.outstanding || b.billed - a.billed || a.label.localeCompare(b.label));
+  return { month, areas };
 }
 
 function aggregateMonthCustomers(state,month,key,allocations) {
@@ -945,7 +1037,7 @@ export function explainBusinessPerformance(state,metric,monthA,monthB,referenceD
     const allocations=calculatePaymentAllocations(state);drivers=contributionRows(aggregateMonthCustomers(state,monthA,'outstanding',allocations),aggregateMonthCustomers(state,monthB,'outstanding',allocations),change.absoluteChange);
     basis='Current recorded bill balances by service month as of today; later payments can change older-month outstanding, so this is not a historical month-end cause analysis.';
   }
-  return{metric:selected,monthA,monthB,change:change.absoluteChange,percentChange:change.percentChange,drivers,basis,explanation:`Recorded ${selected} ${change.absoluteChange>0?'increased':'decreased'} by ${pkr(Math.abs(cents(change.absoluteChange)))} (${change.percentChange===null?'percentage change unavailable because the earlier total was zero':`${Math.abs(change.percentChange)}%`}). Main measured contributors are listed below. These figures describe ledger movements, not proven outside causes.`};
+  return{metric:selected,monthA,monthB,change:change.absoluteChange,percentChange:change.percentChange,drivers,basis,explanation:`Recorded ${selected} ${change.absoluteChange>0?'increased':'decreased'} by ${pkr(Math.abs(cents(change.absoluteChange)))} (${change.percentChange===null?'new this month':`${Math.abs(change.percentChange)}%`}). Main measured contributors are listed below. These figures describe ledger movements, not proven outside causes.`};
 }
 
 
@@ -1007,7 +1099,7 @@ export function buildSmartAlerts(state,referenceDate=new Date(),allocations=calc
 
   const previousCompletedMonth=monthOffset(currentMonth,-1),earlierCompletedMonth=monthOffset(currentMonth,-2),packageMonthRows=[];
   for(const month of [earlierCompletedMonth,previousCompletedMonth]){
-    const rows=(state.customers??[]).flatMap(customer=>(customer.bills??[]).filter(bill=>bill.month===month).map(bill=>({customer,bill,name:recordedPackageForMonth(customer,bill,month)})));
+    const rows=(state.customers??[]).flatMap(customer=>(customer.bills??[]).filter(bill=>bill.month===month).map(bill=>({customer,bill,name:canonicalPackageLabel(recordedPackageForMonth(customer,bill,month))})));
     packageMonthRows.push({month,rows});
   }
   const packageDataComplete=packageMonthRows.every(period=>period.rows.length>0&&period.rows.every(row=>row.name));

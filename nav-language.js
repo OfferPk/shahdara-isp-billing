@@ -4619,6 +4619,17 @@ export const TRANSLATIONS = {
     obcalc_no_recorded_rx: 'This customer has no recorded RX reading yet.',
     obcalc_no_ports: 'No recorded splitter ports yet',
     obcalc_constants_note: 'Loss figures are standard reference values (splitter table, fiber 0.35 dB/km, splice 0.1 dB, connector 0.5 dB) — a planning check, not a measurement.',
+    moh_cov_heading: 'Mohalla coverage dashboard',
+    moh_cov_village: 'Whole village',
+    moh_cov_total_houses: 'Total houses',
+    moh_cov_grabbed: 'Grabbed houses',
+    moh_cov_remaining: '{pct}% remaining · {count} houses left',
+    moh_cov_not_surveyed: 'Not surveyed',
+    moh_cov_not_surveyed_note: 'Not surveyed — enter the total in the register above.',
+    moh_cov_unassigned_note: 'No mohalla recorded',
+    moh_cov_surveyed_count: '{surveyed} of {total} mohallas surveyed — totals cover surveyed mohallas only.',
+    moh_cov_no_survey: 'No mohalla surveyed yet — add a premises estimate in the register above.',
+    moh_cov_exceeded: 'Estimate exceeded by {count} — re-survey the total',
   },
 
   ur: {
@@ -9201,6 +9212,17 @@ export const TRANSLATIONS = {
     obcalc_no_recorded_rx: 'اس کسٹمر کا کوئی RX ریکارڈ موجود نہیں ہے۔',
     obcalc_no_ports: 'ابھی کوئی ریکارڈ شدہ اسپلٹر پورٹ نہیں',
     obcalc_constants_note: 'نقصان کے اعداد معیاری حوالہ قدریں ہیں (اسپلٹر جدول، فائبر 0.35 dB/km، اسپلائس 0.1 dB، کنیکٹر 0.5 dB) — یہ منصوبہ بندی کی جانچ ہے، پیمائش نہیں۔',
+    moh_cov_heading: 'محلہ کوریج ڈیش بورڈ',
+    moh_cov_village: 'پورا گاؤں',
+    moh_cov_total_houses: 'کل گھر',
+    moh_cov_grabbed: 'نیٹ لگے گھر',
+    moh_cov_remaining: '{pct}٪ باقی · {count} گھر باقی',
+    moh_cov_not_surveyed: 'سروے نہیں ہوا',
+    moh_cov_not_surveyed_note: 'سروے نہیں ہوا — اوپر رجسٹر میں کل درج کریں۔',
+    moh_cov_unassigned_note: 'محلہ درج نہیں',
+    moh_cov_surveyed_count: '{total} محلوں میں سے {surveyed} کا سروے ہوا — کل صرف سروے شدہ محلوں کا ہے۔',
+    moh_cov_no_survey: 'ابھی کسی محلے کا سروے نہیں ہوا — اوپر رجسٹر میں تخمینہ شامل کریں۔',
+    moh_cov_exceeded: 'تخمینہ {count} سے بڑھ گیا — کل دوبارہ گنیں',
   }
 };
 

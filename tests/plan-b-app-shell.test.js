@@ -78,6 +78,19 @@ test('every router screen has one header spec: back, title, subtitle, action', (
     assert.equal(header.hasBack, true, `${name} has a Home back control`);
     assert.ok(header.title && header.title.length > 0, `${name} title`);
     assert.ok(header.subtitle && header.subtitle.length > 0, `${name} subtitle`);
+    // Payments Inbox cleanup: the Inbox has NO header action by design —
+    // its one Sync Sheet button lives in the view's own toolbar, and a
+    // header copy would be the third Sync Sheet on the screen. The
+    // intent of this pin (every screen has a reachable primary action)
+    // is preserved by asserting the toolbar button exists instead.
+    if (name === 'easypaisa') {
+      assert.equal(header.actionLabel, null, 'easypaisa has no header action');
+      assert.equal(header.actionKind, null);
+      assert.equal(header.actionTarget, null);
+      const inboxSrc = readFileSync(new URL('../payments-inbox.js', import.meta.url), 'utf8');
+      assert.ok(inboxSrc.includes('id="easypaisaSyncBtn"'), 'easypaisa primary action lives in its toolbar');
+      continue;
+    }
     assert.ok(header.actionLabel, `${name} has a context action`);
     assert.ok(header.actionKind === 'click' || header.actionKind === 'focus', `${name} action kind`);
     assert.ok(header.actionTarget, `${name} action target`);
@@ -89,9 +102,12 @@ test('every header action target already exists where its screen is rendered', (
   // Most targets are static in index.html; the Easypaisa sync button is
   // rendered into its empty view by payments-inbox.js, so that module is
   // the existence proof for that one target.
+  // Payments Inbox cleanup: the Inbox has no header action (see the
+  // pin above), so screens without an action target are skipped here.
   const inboxSrc = readFileSync(new URL('../payments-inbox.js', import.meta.url), 'utf8');
   for (const name of Object.keys(SCREENS)) {
     const target = headerSpecForScreen(name).actionTarget;
+    if (!target) continue;
     const found = indexHtml.includes(`id="${target.slice(1)}"`) || inboxSrc.includes(`id="${target.slice(1)}"`);
     assert.ok(found, `${name} action target ${target} exists`);
   }
@@ -298,7 +314,14 @@ test('the two previously action-less screens now have context actions', () => {
 
 test('every header action target is a selector, never a bare id', () => {
   for (const name of Object.keys(SCREENS)) {
-    assert.ok(headerSpecForScreen(name).actionTarget.startsWith('#'), name);
+    // Payments Inbox cleanup: the Inbox has no header action (its one
+    // Sync Sheet lives in the view's toolbar), so its target is null.
+    const target = headerSpecForScreen(name).actionTarget;
+    if (target === null) {
+      assert.equal(name, 'easypaisa');
+      continue;
+    }
+    assert.ok(target.startsWith('#'), name);
   }
   assert.equal(Object.keys(SCREENS).length, 15);
 });

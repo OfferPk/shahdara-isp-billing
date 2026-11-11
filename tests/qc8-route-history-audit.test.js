@@ -243,9 +243,10 @@ test('QC-8: every route outcome has a display label', () => {
 
 // ---- audit action ----
 
-test('QC-8: audit catalogue gains field_visit as the 11th action', () => {
-  assert.equal(AUDIT_ACTIONS.length, 11);
-  assert.equal(AUDIT_ACTIONS[AUDIT_ACTIONS.length - 1].value, 'field_visit');
+test('QC-8: audit catalogue gains field_visit as the 11th action (12th is the Mohalla Seed wipe action)', () => {
+  assert.equal(AUDIT_ACTIONS.length, 12);
+  assert.equal(AUDIT_ACTIONS[AUDIT_ACTIONS.length - 2].value, 'field_visit');
+  assert.equal(AUDIT_ACTIONS[AUDIT_ACTIONS.length - 1].value, 'payment_records_cleared');
   assert.equal(auditActionLabel('field_visit'), 'Field visit recorded');
   assert.equal(AUDIT_LOG_STORAGE_KEY, 'shahdara_operator_audit_log_v1');
   const ok = normalizeAuditEntry({
